@@ -705,6 +705,22 @@ public sealed partial class CodeGenerator
                     sb.AppendLine($"{indent}cufet_chase_append({chaseTarget}, {chaseVal});");
                     break;
                 }
+                // ★ A SET takes the same verb and stores the value as its own key. `_put` is
+                // idempotent, which is exactly what a set means — inserting what is already there
+                // changes nothing rather than adding a second copy. Before SeriesStructOf, which
+                // would refuse a target that is not a series.
+                if (TypeOf(sa.Series) is SetType setTargetType)
+                {
+                    var setAsMap    = SetStorage(setTargetType);
+                    string setName  = RegisterMapStruct(setAsMap);
+                    string setValue = EmitAsType(sa.Value, setAsMap.ValueType);
+                    FlushPreEmits(sb, indent);
+                    string setExpr = EmitExpr(sa.Series);
+                    FlushPreEmits(sb, indent);
+                    sb.AppendLine($"{indent}{setName}_put({setExpr}, {setValue}, {setValue});");
+                    break;
+                }
+
                 string ser = SeriesStructOf(sa.Series);
                 // Coerce into the series' ELEMENT type so adding to a catalogue widens into the union.
                 var saElem = (TypeOf(sa.Series) as SeriesType)?.ElementType;
@@ -937,6 +953,12 @@ public sealed partial class CodeGenerator
 
             case ForEachStatement fe when fe.Series is RangeExpression range:
                 EmitForEachRange(sb, fe, range, indent);
+                break;
+
+            // ⚠ BEFORE the map arm, which it would otherwise match: TypeOf normalises a set to a
+            // MapType, so only the RAW type still says which of the two was written.
+            case ForEachStatement fe when TypeOf(fe.Series) is SetType:
+                EmitForEachSet(sb, fe, indent);
                 break;
 
             case ForEachStatement fe when TypeOf(fe.Series) is MapType:
@@ -1464,6 +1486,41 @@ public sealed partial class CodeGenerator
 
     // For each pair in a map — iterates the association list in insertion order, binding the
     // pair's key/value to cv_<pair>_key / cv_<pair>_value (see EmitMemberAccess for MappingType).
+    // A set yields its ELEMENTS. Same walk as a map — the stored arrays, so insertion order — but
+    // one name bound instead of a key/value pair, because a set has no values to pair them with.
+    private void EmitForEachSet(StringBuilder sb, ForEachStatement fe, string indent)
+    {
+        var inner      = indent + "    ";
+        var loopIndent = inner  + "    ";
+        var st = (SetType)TypeOf(fe.Series);
+        var mt = SetStorage(st);
+        var elementType = st.ElementType;
+        string name = RegisterMapStruct(mt);
+        int id = _forCounter++;
+        string m = $"cf_m{id}", idx = $"cf_i{id}";
+        string iterName = fe.IteratorName ?? "it";
+        string member = MangleName(iterName);
+
+        string setExpr = EmitExpr(fe.Series);
+        FlushPreEmits(sb, indent);
+
+        var savedType = _varTypes.TryGetValue(iterName, out var prev) ? prev : null;
+        _varTypes[iterName] = elementType;
+        _varRabbitDepth[iterName] = _rabbitDepth;   // ESC.4
+
+        sb.AppendLine($"{indent}{{");
+        sb.AppendLine($"{inner}{name}* {m} = {setExpr};");
+        sb.AppendLine($"{inner}int {m}_n = {m}->len;");
+        sb.AppendLine($"{inner}for (int {idx} = 0; {idx} < {m}_n; {idx}++) {{");
+        sb.AppendLine($"{loopIndent}{EmitCType(mt.ValueType)} {member} = {m}->vals[{idx}];");
+        EmitLoopBody(sb, fe.Body, loopIndent);
+        sb.AppendLine($"{inner}}}");
+        sb.AppendLine($"{indent}}}");
+
+        if (savedType != null) _varTypes[iterName] = savedType;
+        else _varTypes.Remove(iterName);
+    }
+
     private void EmitForEachMap(StringBuilder sb, ForEachStatement fe, string indent)
     {
         var inner      = indent + "    ";
@@ -2000,6 +2057,8 @@ public sealed partial class CodeGenerator
         VoidLiteral           => TVoid,
         ButVoidDefault bvd    => TypeOf(bvd.Voidable) is VoidableType vt ? vt.Inner : TypeOf(bvd.Default),
         ConditionalExpression ce => ConditionalType(ce),
+        SetLiteral sl4        => new SetType(sl4.ElementType!),
+        SetHasMember          => TFact,
         MapLiteral ml         => MapLiteralType(ml),
         // Lookup flatten: on a voidable-valued map the entry IS already voidable — never nest.
         MapLookup mlk         => MapValueType(mlk.Map) is VoidableType vvt ? vvt : new VoidableType(MapValueType(mlk.Map)),
@@ -2701,6 +2760,9 @@ public sealed partial class CodeGenerator
         PossessiveAccess pa   => EmitMemberAccess(pa.Target, pa.Member),
         ButVoidDefault bvd    => EmitButVoidDefault(bvd),
         ConditionalExpression ce => EmitConditional(ce),
+        SetLiteral sl3        => EmitSetLiteral(sl3),
+        // A set is a map of element→element, so membership is the map's own `_has`.
+        SetHasMember shm      => $"{SetName(shm.Set)}_has({EmitExpr(shm.Set)}, {EmitExpr(shm.Value)})",
         MapLiteral ml         => EmitMapLiteral(ml),
         MapLookup mlk         => $"{MapName(mlk.Map)}_get({EmitExpr(mlk.Map)}, {EmitExpr(mlk.Key)})",
         MapHasKey mhk         => $"{MapName(mhk.Map)}_has({EmitExpr(mhk.Map)}, {EmitExpr(mhk.Key)})",

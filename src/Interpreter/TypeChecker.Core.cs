@@ -375,6 +375,24 @@ public sealed class MapType : CufetType
     public override int GetHashCode() => HashCode.Combine(typeof(MapType), KeyType, ValueType);
 }
 
+// set of T — membership without a value.
+//
+// ★★ A SET IS A MAP WITH THE VALUE REMOVED, and that is how it is stored: everything about keys —
+// which types may be one, how they hash, that iteration is in INSERTION order and both backends
+// agree on it — is the map's answer, already settled and already tested. What a set adds is a TYPE,
+// so a program says what it means and error messages say it back.
+//
+// ⚠ Distinct from MapType on purpose rather than sugar over it. There is no unit type to put in the
+// value slot, so sugar would have to store a placeholder number — which is exactly the workaround
+// `dijkstra.cufe` hand-rolled — and every message would name a value nobody wrote.
+public sealed class SetType : CufetType
+{
+    public CufetType ElementType { get; }
+    public SetType(CufetType elementType) => ElementType = elementType;
+    public override bool Equals(object? obj) => obj is SetType s && ElementType == s.ElementType;
+    public override int GetHashCode() => HashCode.Combine(typeof(SetType), ElementType);
+}
+
 // readable stream of T — stateful, reference-typed I/O channel for incremental reading.
 // Currently only readable stream of text is supported (stdin, file-for-reading).
 public sealed class ReadableStreamType : CufetType
@@ -3100,6 +3118,8 @@ public sealed partial class TypeChecker
         VariableReference vr                                                                              => NoteUnresolvedName(vr),
         SeriesLiteral lit                                                                                => InferSeriesLiteral(lit),
         SeriesAccess acc                                                                                 => InferSeriesAccess(acc),
+        SetLiteral setLit                                                                                => InferSetLiteral(setLit),
+        SetHasMember setHas                                                                              => InferSetHasMember(setHas),
         SeriesLength sl                                                                                  => InferSeriesLength(sl),
         CastExpression cast                                                                              => InferCastExpr(cast),
         RecordLiteral lit                                                                                => InferRecordLiteral(lit),

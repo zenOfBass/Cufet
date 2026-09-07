@@ -156,6 +156,67 @@ public sealed partial class TypeChecker
         mapSet.KeyEscapeToDepth = EscapeDepthFor(mapSet.Key, keyType, ContainerDepthOf(mapSet.Map));
     }
 
+    // a set of T [with (…)] — the element type is declared, never inferred.
+    //
+    // ★ Declared even when elements are given, unlike a series. A set is nearly always written
+    // empty and filled later, so the annotation is the common case rather than the fallback — and
+    // requiring it means one rule instead of two.
+    // <set> has <value> — membership, and the one question a set exists to answer.
+    private CufetType? InferSetHasMember(SetHasMember has)
+    {
+        var target = InferType(has.Set);
+        if (target == null) return CufetType.Fact;
+
+        // ⚠ A MAP reaching here wrote the set spelling. Say which one it wants rather than
+        // reporting that a map is not a set — the writer knows what they are holding, and what
+        // they need is the other three words.
+        if (target is MapType)
+            throw TypeError(
+                $"{FormatExpr(has.Set)} is a map, so ask it about a key",
+                "`has` on its own asks a SET whether it holds something; a map is asked whether it"
+              + " has a key",
+                has.Line, has.Column,
+                $"ask a map what it has",
+                $"Write '{FormatExpr(has.Set)} has a key for <key>' instead.");
+
+        if (target is not SetType setType)
+            throw TypeError(
+                $"{FormatExpr(has.Set)} is {FormatType(target)}, and only a set is asked what it has",
+                null, has.Line, has.Column,
+                $"ask a {FormatType(target)} whether it holds something",
+                "Use a set, or `has a key for` on a map.");
+
+        var asked = InferType(has.Value);
+        if (asked != null && !IsAssignable(setType.ElementType, asked))
+            throw TypeError(
+                $"{FormatExpr(has.Set)} holds {FormatTypePlural(setType.ElementType)}",
+                $"Asking whether it holds a {FormatType(asked)} could only ever answer no",
+                has.Line, has.Column,
+                $"ask whether it holds a {FormatType(asked)}",
+                $"Ask about {FormatTypePlural(setType.ElementType)}.");
+
+        return CufetType.Fact;
+    }
+
+    private CufetType? InferSetLiteral(SetLiteral lit)
+    {
+        // ⚠ THE MAP'S KEY RULE, asked of the element. A set IS its keys, so what may be one is the
+        // question already answered for maps — and answering it twice is how the two drift apart.
+        RequireValidMapKeyType(lit.ElementType!, lit.Line, lit.Column);
+
+        foreach (var element in lit.Elements)
+        {
+            var actual = InferType(element);
+            if (actual != null && !IsAssignable(lit.ElementType!, actual))
+                throw TypeError(
+                    $"this set holds {FormatTypePlural(lit.ElementType!)}",
+                    null, lit.Line, lit.Column,
+                    $"put a {FormatType(actual)} in it",
+                    $"Everything in this set must be {FormatTypePlural(lit.ElementType!)}.");
+        }
+        return new SetType(lit.ElementType!);
+    }
+
     private CufetType? InferMapLiteral(MapLiteral lit)
     {
         // Empty map — type annotation required; provided by parser
@@ -295,6 +356,17 @@ public sealed partial class TypeChecker
     private CufetType InferMapSize(MapSize size)
     {
         var mapType = InferType(size.Map);
+
+        // ⚠ A SET is told what to write instead, by name. It is stored as a map and reads like a
+        // collection, so `the size of` is exactly the wrong guess someone will make — and a
+        // message about maps would send them looking at the wrong thing entirely.
+        if (mapType is SetType)
+            throw TypeError(
+                "'the size of' works on maps, and this is a set",
+                null, size.Line, size.Column,
+                $"get the size of {FormatExpr(size.Map)}",
+                $"Write 'the number of {FormatExpr(size.Map)}' instead.");
+
         if (mapType != null && mapType is not MapType)
             throw TypeError(
                 "'the size of' works on maps",

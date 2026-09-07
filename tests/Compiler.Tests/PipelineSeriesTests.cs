@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -439,6 +439,98 @@ public class PipelineSeriesTests : PipelineTestBase
                 Done.
                 State seen.
                 State the number of out.
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    // ── Sets ──────────────────────────────────────────────────────────────
+    //
+    // ★★ A set is stored as a MAP of its element to itself, on both backends — so what these pin is
+    // that the two arrived at the same place by different routes: the interpreter with a Dictionary
+    // under the `ValuesEqual` comparer, the compiler with a struct whose lookup is a linear scan.
+    // Nothing here re-proves hashing; that is the map's answer already.
+
+    [Fact]
+    public void Set_HoldsEachThingOnce_MatchesInterpreter()
+    {
+        const string src = """
+            Pull a book on collections.
+                Define seen as a set of text.
+                Insert "adam" into seen.
+                Insert "zoe" into seen.
+                Insert "adam" into seen.
+                State the number of seen.
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void Set_Membership_MatchesInterpreter()
+    {
+        const string src = """
+            Pull a book on collections.
+                Define seen as a set of text with ("zoe", "adam").
+                If seen has "zoe", state "has zoe".
+                If not (seen has "mira"), state "no mira".
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void Set_IteratesInInsertionOrder_MatchesInterpreter()
+    {
+        // ⚠⚠ THE ONE THAT COULD HAVE DIVERGED SILENTLY. The two backends store a set by different
+        // means, so iteration order is exactly the kind of thing that agrees on the machine you
+        // wrote it on and not on the one that runs it. Deliberately non-alphabetical, so insertion
+        // order is distinguishable from a sorted or hashed one.
+        const string src = """
+            Pull a book on collections.
+                Define seen as a set of text.
+                Insert "zoe" into seen.
+                Insert "adam" into seen.
+                Insert "mira" into seen.
+                Insert "bo" into seen.
+                Insert "adam" into seen.
+                For each name in seen, repeat:
+                    State name.
+                Done.
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void Set_OfNumbers_MatchesInterpreter()
+    {
+        const string src = """
+            Pull a book on collections.
+                Define seen as a set of number with (3, 1, 4, 1, 5, 9, 2, 6, 5).
+                State the number of seen.
+                For each value in seen, repeat:
+                    State value.
+                Done.
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void Set_UsedAsAVisitedMarker_MatchesInterpreter()
+    {
+        // The shape `dijkstra.cufe` wanted: mark, then skip what is already marked.
+        const string src = """
+            Pull a book on collections.
+                Define seen as a set of text.
+                Define order as a series of text with ("a", "b", "a", "c", "b").
+                For each name in order, repeat:
+                    If seen has name, Skip.
+                    Insert name into seen.
+                    State name.
+                Done.
+                State the number of seen.
             Done.
             """;
         Assert.Equal(InterpretRaw(src), CompileRaw(src));

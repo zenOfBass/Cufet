@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using Cufet.Interpreter;
 using Cufet.Lexer;
 
@@ -1134,6 +1134,9 @@ static const char* cufet_str_lower(const char* s) {
         ObjectType o => "O:" + o.Name,   // nominal — identity is the name
         VoidableType v => "V(" + TypeSig(v.Inner) + ")",
         MapType m => "M(" + TypeSig(m.KeyType) + "," + TypeSig(m.ValueType) + ")",
+        // ⚠ Its OWN signature. A set and a map of the same element type share a C struct but are
+        // different Cufet types, and one signature for both would make them the same type.
+        SetType st2 => "S(" + TypeSig(st2.ElementType) + ")",
         FailureType f => "F(" + TypeSig(f.Inner) + ")",
         MatrixType => "MX",   // one fixed runtime struct (CufetMatrix*) — identity is the type itself
         ChaseType  => "CH",   // likewise: one struct, and the type is its own identity
@@ -1318,7 +1321,7 @@ static const char* cufet_str_lower(const char* s) {
         // No by-value struct to order against. Each of these is a decision, which is the point of
         // listing them rather than letting a fallback answer for them.
         NumberType or BitsType or TextType or FactType or AddressType   // scalars
-          or SeriesType or MapType or MatrixType or ChaseType            // arena pointers
+          or SeriesType or MapType or SetType or MatrixType or ChaseType // arena pointers
           or ChannelType or TaskHandleType                              // shared runtime pointers
           or ReadableStreamType or WritableStreamType or RabbitType     // FILE*, and a region name
           or UnionType                                                  // the ONE open union struct
@@ -1357,6 +1360,7 @@ static const char* cufet_str_lower(const char* s) {
             case SeriesType st:   RegisterSeriesStruct(st); break;
             case VoidableType vt: RegisterVoidableStruct(vt); break;
             case MapType mt:      RegisterMapStruct(mt); break;
+            case SetType st3:     RegisterSetStruct(st3); break;
             case FailureType ft:  RegisterFailableStruct(ft); break;
             // A union nested in a record/object field (CAT.3). Open unions need no registration —
             // the ONE `cun_open` is emitted from the ProgramUsesOpenUnion gate, not per-site.
@@ -1461,6 +1465,18 @@ static const char* cufet_str_lower(const char* s) {
 
     // Ensures a map container struct exists for `map from K to V` (and the K/V nested structs,
     // plus the voidable-V struct that lookups return). Returns the C struct name.
+    /// <summary>The map a set is stored as: its element, keyed to itself.</summary>
+    /// <remarks>
+    /// ★★ A set is NOT normalised into a map by TypeOf, and that is deliberate. Doing so made a
+    /// set indistinguishable from a map everywhere — including in the two places that must tell
+    /// them apart — because a variable's recorded type is whatever TypeOf said. Keeping SetType
+    /// intact and converting HERE, at each point a C struct is actually needed, means the
+    /// distinction survives as far as it is wanted and no further.
+    /// </remarks>
+    private static MapType SetStorage(SetType st) => new(st.ElementType, st.ElementType);
+
+    private string RegisterSetStruct(SetType st) => RegisterMapStruct(SetStorage(st));
+
     private string RegisterMapStruct(MapType mt)
     {
         string sig = TypeSig(mt);

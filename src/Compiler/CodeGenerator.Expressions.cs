@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using Cufet.Interpreter;
 using Cufet.Lexer;
 
@@ -627,9 +627,27 @@ public sealed partial class CodeGenerator
 
 
     private string MapName(IExpression mapExpr) => RegisterMapStruct((MapType)TypeOf(mapExpr));
+    private string SetName(IExpression setExpr) => RegisterSetStruct((SetType)TypeOf(setExpr));
 
     // A map literal builds an arena map into a temp and populates it (like a series literal);
     // the enclosing statement flushes the pre-emits before using the temp.
+    // A set literal builds the map it is stored as: each element becomes its own key AND its own
+    // value, so membership asks the key and iteration hands back the value.
+    private string EmitSetLiteral(SetLiteral sl)
+    {
+        var st = (SetType)TypeOf(sl);
+        var mt = SetStorage(st);
+        string name = RegisterMapStruct(mt);
+        string tmp  = $"cs_{_freshId++}";
+        _preEmits.Add($"{name}* {tmp} = {name}_new();");
+        foreach (var element in sl.Elements)
+        {
+            string value = EmitAsType(element, mt.ValueType);
+            _preEmits.Add($"{name}_put({tmp}, {value}, {value});");
+        }
+        return tmp;
+    }
+
     private string EmitMapLiteral(MapLiteral ml)
     {
         var mt = (MapType)MapLiteralType(ml);
@@ -1375,6 +1393,7 @@ public sealed partial class CodeGenerator
         ObjectType ot => ObjStructName(ot.Name),
         VoidableType vt => RegisterVoidableStruct(vt),
         MapType mt => RegisterMapStruct(mt) + "*",   // maps are arena pointers (reference type)
+        SetType st => RegisterSetStruct(st) + "*",   // a set is the map it is stored as
         FailureType ft => RegisterFailableStruct(ft),
         FailureMarkerType => "CufetFailure",         // a caught / bare failure (message + category)
         ReadableStreamType or WritableStreamType => "FILE*",   // a stream is an open FILE* (or stdin)

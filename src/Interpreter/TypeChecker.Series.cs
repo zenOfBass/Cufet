@@ -22,6 +22,19 @@ public sealed partial class TypeChecker
             return;
         }
 
+        // ★ A set iterates over its ELEMENTS, not pairs — a set has no values to pair them with.
+        // Insertion order, the same as a map's, and identical on both backends.
+        if (inferred is SetType setType)
+        {
+            var setIter = forEach.IteratorName ?? "it";
+            EnterScope();
+            Scope[setIter] = new TypeInfo(
+                ResolveParamType(setType.ElementType), forEach.Series, forEach.Line);
+            try { CheckBlock(forEach.Body); }
+            finally { ExitScope(); }
+            return;
+        }
+
         // Map iteration: bind iterator to MappingType pseudo-record (key/value fields).
         if (inferred is MapType mapType)
         {
@@ -132,6 +145,33 @@ public sealed partial class TypeChecker
         if (add.AfterIndex != null) CheckIndex(add.AfterIndex, add.Line, add.Column);
         var containerType = InferType(add.Series);
         if (containerType == null) return;
+
+        // ★ A SET takes the same verb, and it means what it says: after this, the value is in
+        // there. Inserting one that is already present is not an error and not a second copy — a
+        // set holds each thing once, which is what makes it a set rather than a series.
+        //
+        // ⚠ No `after` position. A set has no order to insert AFTER; asking for one is a
+        // misunderstanding worth naming rather than ignoring.
+        if (containerType is SetType setType)
+        {
+            if (add.AfterIndex != null)
+                throw TypeError(
+                    $"{FormatExpr(add.Series)} is a set, and a set has no positions",
+                    "Nothing is inserted `after` anything in a set — it either holds a value or it"
+                  + " does not",
+                    add.Line, add.Column,
+                    "insert at a position in a set",
+                    $"Write 'Insert <value> into {FormatExpr(add.Series)}.' with no position.");
+
+            var inserted = InferType(add.Value);
+            if (inserted != null && !IsAssignable(setType.ElementType, inserted))
+                throw TypeError(
+                    $"{FormatExpr(add.Series)} holds {FormatTypePlural(setType.ElementType)}",
+                    null, add.Line, add.Column,
+                    $"insert a {FormatType(inserted)} into it",
+                    $"Everything in this set must be {FormatTypePlural(setType.ElementType)}.");
+            return;
+        }
 
         // ★★ A chase takes a TEXT and appends its characters. Not parity with `text` — this is the
         // collection's own Insert, and a character is spelled as a one-character text because the
@@ -514,6 +554,11 @@ public sealed partial class TypeChecker
         // evaluator with no line of the writer's program in it. The reverse direction has said the
         // helpful thing all along: `the size of <series>` is a check-time error that names
         // `the number of`. This is that sentence, pointed back the other way.
+        // ★ A SET COUNTS with `the number of`, the series spelling rather than the map's `the size
+        // of`. A set reads as a collection of things, which is what `the number of` is for — the
+        // map underneath it is storage, not what the writer is talking about.
+        if (containerType is SetType) return new NumberType();
+
         if (containerType is MapType)
             throw TypeError(
                 "'the number of' works on series, not maps",

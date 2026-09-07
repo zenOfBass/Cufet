@@ -1,4 +1,4 @@
-namespace Cufet.Interpreter;
+﻿namespace Cufet.Interpreter;
 
 public sealed partial class Interpreter
 {
@@ -7,6 +7,27 @@ public sealed partial class Interpreter
         public object Key   { get; }
         public object Value { get; }
         public MappingValue(object key, object value) { Key = key; Value = value; }
+    }
+
+    private object EvaluateSetLiteral(SetLiteral lit)
+    {
+        var set = new CufetSet { DeclaredElement = lit.ElementType };
+        // The element is stored as BOTH key and value: the key is what membership asks about, and
+        // the value is what iteration hands back.
+        foreach (var element in lit.Elements)
+        {
+            var value = BindCopy(Evaluate(element));
+            set[value] = value;
+        }
+        return set;
+    }
+
+    private object EvaluateSetHasMember(SetHasMember has)
+    {
+        var target = Evaluate(has.Set);
+        if (target is not CufetSet set)
+            throw new RuntimeException($"Expected a set for 'has' on line {has.Line}.");
+        return (object)set.ContainsKey(Evaluate(has.Value));
     }
 
     private object EvaluateMapLiteral(MapLiteral lit)

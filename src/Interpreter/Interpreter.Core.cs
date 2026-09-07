@@ -271,6 +271,19 @@ public sealed partial class Interpreter
     /// <summary>A new, empty map — the ONE place a map is created, so every one compares alike.</summary>
     internal static Dictionary<object, object> NewMap() => new(CufetKeyComparer.Instance);
 
+    // ★ A SET IS STORED AS A MAP, keyed by its elements. Same comparer, so membership answers what
+    // `is` answers; same Dictionary, so iteration follows insertion order exactly as a map's does,
+    // which is what both backends were measured to agree on.
+    //
+    // ⚠ Its own TYPE, not a bare dictionary, because the interpreter has to tell a set from a map
+    // at runtime: `the number of` counts one and refuses the other, and `has` asks them different
+    // questions.
+    internal sealed class CufetSet : Dictionary<object, object>
+    {
+        public CufetSet() : base(CufetKeyComparer.Instance) { }
+        public CufetType? DeclaredElement { get; init; }
+    }
+
     // Builds a series carrying `elem`. Used at every site that creates one.
     private static List<object> Series(IEnumerable<object> items, CufetType? elem) =>
         new CufetSeries(items) { DeclaredElement = elem };
@@ -969,6 +982,15 @@ public sealed partial class Interpreter
                     chaseTarget.Append((string)Evaluate(sa.Value));
                     break;
                 }
+                // ★ A set holds each thing ONCE, so inserting what is already there changes
+                // nothing and is not an error — that is what makes it a set. Before the general
+                // List arm, because CufetSet is a Dictionary and would not match it anyway.
+                if (saTarget is CufetSet setTarget)
+                {
+                    var member = BindCopy(Evaluate(sa.Value));
+                    setTarget[member] = member;
+                    break;
+                }
                 if (saTarget is not List<object> list)
                     throw new RuntimeException($"Expected a series for 'Add' on line {sa.Line}.");
                 var value = BindCopy(Evaluate(sa.Value));   // value types copy on insert (binding is binding)
@@ -1231,6 +1253,29 @@ public sealed partial class Interpreter
                 string iterKey = fe.IteratorName ?? "it";
                 string? collectionDisplay = fe.Series is VariableReference dvr ? $"'{dvr.Name}'" : null;
 
+                // ★ A SET yields its ELEMENTS, not pairs — before the Dictionary arm, which it
+                // would otherwise match and hand back mappings nobody asked for. Insertion order,
+                // the same as a map's, and the same on both backends.
+                if (seriesVal is CufetSet feSet)
+                {
+                    var members = feSet.Values.ToList();
+                    foreach (var member in members)
+                    {
+                        if (feSet.Count != members.Count)
+                            throw new RuntimeException(
+                                $"{collectionDisplay ?? "The set"} was modified during a for-each loop on line {fe.Line} — collect into a separate series, or use a While loop if you need to change it while looping.");
+                        EnterScope();
+                        Scope[iterKey] = member;
+                        bool setStopped = false;
+                        try { foreach (var st in fe.Body) Execute(st); }
+                        catch (StopException) { setStopped = true; }
+                        catch (SkipException) { /* next iteration */ }
+                        finally { ExitScope(); }
+                        if (setStopped) break;
+                    }
+                    break;
+                }
+
                 if (seriesVal is Dictionary<object, object> dict)
                 {
                     // Snapshot keys so mutation during iteration gives a clear error.
@@ -1401,6 +1446,9 @@ public sealed partial class Interpreter
                                      // List<int> of code points, and the general arm would count
                                      // the same thing but only by accident of the base class.
                                      CufetChase chase => (decimal)chase.Count,
+                                     // Before Dictionary, and before List: a set counts its
+                                     // elements, and `the number of` is the spelling it takes.
+                                     CufetSet set => (decimal)set.Count,
                                      List<object> slList => (decimal)slList.Count,
                                      _ => throw new RuntimeException($"Expected a series for 'the number of' on line {sl.Line}."),
                                  },
@@ -1444,6 +1492,8 @@ public sealed partial class Interpreter
         FailurePropagate fp   => EvaluateFailurePropagate(fp),
         ButVoidDefault bvd    => EvaluateButVoidDefault(bvd),
         ConditionalExpression ce => EvaluateConditional(ce),
+        SetLiteral     stl    => EvaluateSetLiteral(stl),
+        SetHasMember   shm    => EvaluateSetHasMember(shm),
         MapLiteral     ml     => EvaluateMapLiteral(ml),
         MapLookup      mlu    => EvaluateMapLookup(mlu),
         MapHasKey      mhk    => EvaluateMapHasKey(mhk),

@@ -811,6 +811,18 @@ public sealed record SuppressStatement(int Line, int Column) : IStatement;
 // a map [from K to V] with ("k":v, ...)
 //   — KeyType/ValueType explicit when 'from K to V' is given; null means infer from pairs
 //   — Pairs empty = empty map; Pairs non-empty = populated map
+// a set of T [with (a, b, c)] — membership without a value.
+//
+// ★ Elements rather than pairs, and that is the whole difference from a MapLiteral. What it lowers
+// to is a map keyed by those elements: everything about which types may be a key, how they hash,
+// and that iteration follows INSERTION order on both backends is the map's answer already.
+public sealed record SetLiteral(
+    CufetType? ElementType,
+    IReadOnlyList<IExpression> Elements,
+    int Line,
+    int Column
+) : IExpression;
+
 public sealed record MapLiteral(
     CufetType? KeyType,
     CufetType? ValueType,
@@ -824,6 +836,14 @@ public sealed record MapLookup(IExpression Map, IExpression Key, int Line, int C
 
 // map has a key for <key>   →  fact (true when the key is present)
 public sealed record MapHasKey(IExpression Map, IExpression Key, int Line, int Column) : IExpression;
+
+// <set> has <value>  →  fact
+//
+// ★ Its own node rather than a MapHasKey, even though a set is a map underneath. The two spellings
+// differ — `has a key for` names a key, `has` names a thing — and the parser cannot know which it
+// is looking at, because it does not know types. Keeping them apart is what lets the checker say
+// "write `has a key for`" to someone holding a map, instead of a message about sets.
+public sealed record SetHasMember(IExpression Set, IExpression Value, int Line, int Column) : IExpression;
 
 // map has an entry for <key>  →  fact (alias for HasKey this slice)
 public sealed record MapHasEntry(IExpression Map, IExpression Key, int Line, int Column) : IExpression;

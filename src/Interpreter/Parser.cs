@@ -688,6 +688,19 @@ public sealed class Parser
             return new VoidableType(ParseTypeAnnotation());
         }
 
+        // set of T — membership without a value.
+        //
+        // ⚠ `set` is SetKw, the word that opens a setter declaration. There is no ambiguity: a
+        // setter is a STATEMENT and this is a TYPE position, so the two never compete for the same
+        // token. `number` already does the same double duty — the type name, and the `number` of
+        // `the number of s`.
+        if (tok.Type == TokenType.SetKw)
+        {
+            Advance(); SkipNoise();
+            Consume(TokenType.Of); SkipNoise();
+            return new SetType(ParseTypeAnnotation());
+        }
+
         // map from K to V — homogeneous map type
         if (tok.Type == TokenType.Map)
         {
@@ -2792,8 +2805,12 @@ public sealed class Parser
         SkipNoise(); // eats 'a' or 'an' article
         bool isEntry = Peek().Type == TokenType.Entry;
         bool isKey   = Peek().Type == TokenType.Key;
+
+        // ★ `<set> has <value>` — neither `key` nor `entry` follows, because a set holds things
+        // rather than keys. Whether the target really is a set is the checker's question; here it
+        // is only which SHAPE was written.
         if (!isEntry && !isKey)
-            throw new ParseException(Peek(), "'key' or 'entry' after 'has'");
+            return new SetHasMember(left, ParseAddition(), line, col);
         Advance(); // consume Key or Entry
         SkipNoise();
         Consume(TokenType.For);
@@ -3684,6 +3701,32 @@ public sealed class Parser
                     Consume(TokenType.RParen);
                 }
                 baseExpr = new MapLiteral(atlasKeyType, atlasValType, atlasPairs, atlasLine, atlasCol);
+                break;
+            }
+            case TokenType.SetKw:
+            {
+                // "a set of T [with (a, b, c)]" — set literal. The element type is required,
+                // because an empty set has nothing to infer one from and a set is nearly always
+                // written empty and then filled.
+                var setTok = Advance();
+                SkipNoise();
+                Consume(TokenType.Of);
+                SkipNoise();
+                var setElem = ParseTypeAnnotation();
+                SkipNoise();
+                var setItems = new List<IExpression>();
+                if (Peek().Type == TokenType.With)
+                {
+                    Advance(); SkipNoise();
+                    Consume(TokenType.LParen); SkipNoise();
+                    while (Peek().Type != TokenType.RParen)
+                    {
+                        setItems.Add(ParseExpression()); SkipNoise();
+                        if (Peek().Type == TokenType.Comma) { Advance(); SkipNoise(); }
+                    }
+                    Consume(TokenType.RParen);
+                }
+                baseExpr = new SetLiteral(setElem, setItems, setTok.Line, setTok.Column);
                 break;
             }
             case TokenType.Map:
