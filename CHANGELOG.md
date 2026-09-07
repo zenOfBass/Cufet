@@ -405,6 +405,13 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   a per-book rename possible at all — and it means an error inside a bundled book reports a line in
   the file that wrote it.
 
+  ⚠⚠ **A book checked ON ITS OWN imports its whole top level**, because there is no host to hide
+  from — `cufet check src/Interpreter/Prelude/math.cufe` checks the book AS the program, and
+  nothing privatises it there. Asking for the renamed name on that path reported `'log-ten' isn't
+  defined` on the very file that defines it, four lines up. **Nothing in the suite checked a
+  bundled book the way the editor does**, so the whole suite stayed green while the extension put
+  a squiggle on `math.cufe`; there is now a test that checks each one on its own.
+
 ### Fixed
 - **A module's refusal leaked the loader's lifted name.** The first version of the message above
   said *"'terminal' declares 'prompter in terminal'"* — a synthesized name nobody wrote, produced by
