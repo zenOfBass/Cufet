@@ -570,22 +570,7 @@ public sealed class Parser
                 Consume(TokenType.Like); SkipNoise();
                 annotation = ParseRecordShapeBody();
             }
-            else if (Peek().Type == TokenType.Void)
-            {
-                Advance(); SkipNoise(); // consume 'void'
-                Consume(TokenType.FunctionKw); SkipNoise();
-                annotation = new FunctionType(ParseFunctionParamTypeList(), null);
-            }
-            else
-            {
-                annotation = ParseTypeAnnotation();
-                SkipNoise();
-                if (Peek().Type == TokenType.FunctionKw)
-                {
-                    Advance(); SkipNoise(); // consume 'function'
-                    annotation = new FunctionType(ParseFunctionParamTypeList(), annotation);
-                }
-            }
+            else annotation = ParseElementType(nameFollows: false);
             SkipNoise();
         }
 
@@ -630,6 +615,41 @@ public sealed class Parser
         _pos = save;
         return (CufetType?)null;
     });
+
+    // The element type after `of` — `series of number`, `series of void function given (the text)`.
+    //
+    // ★★ Two implementations of this used to exist: the series LITERAL knew about function element
+    // types and the series ANNOTATION did not, so `a series of number function given (the number)`
+    // could be DEFINED and iterated but could not be written as a parameter, a field or a return
+    // type. A series of functions is exactly what an Observer is, which is how it went unnoticed:
+    // the corpus had no program that passed one anywhere.
+    //
+    // ⚠ A name follows the type everywhere except a literal, and that is what makes a rule
+    // necessary rather than optional — `function` can belong to the ELEMENT or to the declaration
+    // around it. The `given` clause already tells them apart, so no new spelling is needed:
+    //
+    //     the series of number function steps given (the number)   a function RETURNING a series
+    //     the series of number function given (the number) steps   a SERIES of functions
+    //
+    // The name sits immediately after `function` in the first and after the whole type in the
+    // second, so one token of lookahead separates them. A function element type must therefore
+    // state its `given` clause wherever a name follows. In a literal nothing follows the type, so
+    // there is nothing to tell it from and the clause stays optional.
+    private CufetType ParseElementType(bool nameFollows)
+    {
+        if (Peek().Type == TokenType.Void)
+        {
+            Advance(); SkipNoise();          // consume 'void'
+            Consume(TokenType.FunctionKw); SkipNoise();
+            return new FunctionType(ParseFunctionParamTypeList(), null);
+        }
+        var inner = ParseTypeAnnotation();
+        SkipNoise();
+        if (Peek().Type != TokenType.FunctionKw) return inner;
+        if (nameFollows && PeekAfterCurrent() != TokenType.Given) return inner;
+        Advance(); SkipNoise();              // consume 'function'
+        return new FunctionType(ParseFunctionParamTypeList(), inner);
+    }
 
     // ★ The single funnel every one of this file's 37 type reads goes through, which is what makes
     // the position markable in one place instead of at each of them. Nested reads (`a series of
@@ -758,7 +778,7 @@ public sealed class Parser
             SkipNoise();
             Consume(TokenType.Of);
             SkipNoise();
-            return new SeriesType(ParseTypeAnnotation());
+            return new SeriesType(ParseElementType(nameFollows: true));
         }
         // a stash of T — reads exactly like `a series of T`, which is the point: the shape is
         // familiar even though a stash produces its elements rather than holding them.
@@ -820,7 +840,7 @@ public sealed class Parser
             if (Peek().Type == TokenType.Of)
             {
                 Advance(); SkipNoise();
-                return new SeriesType(ParseTypeAnnotation());
+                return new SeriesType(ParseElementType(nameFollows: true));
             }
             return new SeriesType(UnionType.Open);
         }

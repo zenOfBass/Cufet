@@ -2529,6 +2529,90 @@ public class InterpreterTests
             "State Cast the first of ops on (5)."));
     }
 
+    // ── A series of functions crossing a declaration boundary ────────────────
+    //
+    // ★★ The type PARSED only in a `Define` and a `For each` until 0.20.0: the series literal knew
+    // about function element types and the series annotation did not, so a series of functions
+    // could be built and walked but not passed, stored in a field, or returned. Nothing caught it
+    // because no program in the corpus passed one anywhere — `examples/language/patterns.cufe`,
+    // written to exercise function values, is what found it.
+
+    [Fact]
+    public void ASeriesOfFunctions_CanBeAParameter()
+    {
+        Assert.Equal("30", Run("""
+            Bind number to twice, given (the number n): Return n * 2. Done.
+            Bind number to thrice, given (the number n): Return n * 3. Done.
+            Bind number to apply-all, given (the series of number function given (the number) ops, the number seed):
+                Define acc as seed.
+                For each op in ops, repeat: The acc becomes cast op on (acc). Done.
+                Return acc.
+            Done.
+            State cast apply-all on (a series of number function given (the number) with (twice, thrice), 5).
+            """));
+    }
+
+    // ⚠ The void case failed EARLIER and differently — a parse error naming the token ("expected
+    // type name ..., got Void") rather than a type mismatch — so it needs its own test. An Observer
+    // is a series of void functions, which is why this is the shape that matters most.
+    [Fact]
+    public void ASeriesOfVoidFunctions_CanBeAParameter()
+    {
+        Assert.Equal("! hi\n(hi)", Run("""
+            Bind void to shout, given (the text note): State "! {note}". Done.
+            Bind void to whisper, given (the text note): State "({note})". Done.
+            Bind void to tell-all, given (the series of void function given (the text) ws, the text note):
+                For each w in ws, repeat: Cast w on (note). Done.
+            Done.
+            Cast tell-all on (a series of void function given (the text) with (shout, whisper), "hi").
+            """));
+    }
+
+    [Fact]
+    public void ASeriesOfFunctions_CanBeAnObjectField()
+    {
+        Assert.Equal("! ring", Run("""
+            Bind void to shout, given (the text note): State "! {note}". Done.
+            Define object bell with (the series of void function given (the text) ringers).
+            Define b as a new bell { the ringers a series of void function given (the text) with (shout) }.
+            For each r in the ringers of b, repeat: Cast r on ("ring"). Done.
+            """));
+    }
+
+    [Fact]
+    public void ASeriesOfFunctions_CanBeAReturnType()
+    {
+        Assert.Equal("2", Run("""
+            Bind number to twice, given (the number n): Return n * 2. Done.
+            Bind number to thrice, given (the number n): Return n * 3. Done.
+            Bind series of number function given (the number) to the-ops:
+                Return a series of number function given (the number) with (twice, thrice).
+            Done.
+            State the number of (cast the-ops).
+            """));
+    }
+
+    // ★★ THE GUARD ON THE FIX. Both readings of `series of T function` are real, and where the NAME
+    // sits is the only thing separating them:
+    //
+    //     the series of number function make given (the number)   a function RETURNING a series
+    //     the series of number function given (the number) ops    a SERIES of functions
+    //
+    // Widening the second must not quietly swallow the first. Without this, a parser change that
+    // consumed `function` greedily in an element position would reinterpret every existing
+    // declaration of a series-returning function and no other test would notice.
+    [Fact]
+    public void AFunctionReturningASeries_StillMeansThat()
+    {
+        Assert.Equal("7", Run("""
+            Bind series of number to pair, given (the number n): Return a series of number with (n, n). Done.
+            Bind number to first-of, given (the series of number function make given (the number), the number n):
+                Return the first of (cast make on (n)).
+            Done.
+            State cast first-of on (pair, 7).
+            """));
+    }
+
     [Fact]
     public void FunctionSeries_Empty()
     {

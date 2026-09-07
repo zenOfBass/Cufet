@@ -196,6 +196,54 @@ public class PipelineClosureTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
+    // ★ A series of functions crossing a declaration boundary — a parameter, an object field and a
+    // return type in one program. The type could only be DEFINED and walked until 0.20.0, so the
+    // codegen for a function-valued series had never been asked to cross one of these; the front
+    // end was the whole fix, and this is what says so on the backend side too.
+    [Fact]
+    public void Closure_SeriesOfFunctions_CrossesDeclarationBoundaries()
+    {
+        const string src = """
+            Bind number to inc, given (the number n): Return n + 1. Done.
+            Bind number to dbl, given (the number n): Return n * 2. Done.
+            Bind void to shout, given (the text note): State "! {note}". Done.
+
+            Bind number to apply-all, given (the series of number function given (the number) ops, the number seed):
+                Define acc as seed.
+                For each op in ops, repeat: The acc becomes cast op on (acc). Done.
+                Return acc.
+            Done.
+
+            Bind series of number function given (the number) to the-ops:
+                Return a series of number function given (the number) with (inc, dbl).
+            Done.
+
+            Define object bell with (the series of void function given (the text) ringers).
+
+            State cast apply-all on (cast the-ops, 10).
+            Define b as a new bell { the ringers a series of void function given (the text) with (shout) }.
+            For each r in the ringers of b, repeat: Cast r on ("rung"). Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    // ★★ The other reading, which the fix had to leave alone: with the name straight after
+    // `function`, `series of number function make given (the number)` is a parameter that takes a
+    // function RETURNING a series. The `given` clause is what divides the two, and both backends
+    // have to divide them the same way.
+    [Fact]
+    public void Closure_AFunctionReturningASeries_IsStillThatOnBothBackends()
+    {
+        const string src = """
+            Bind series of number to pair, given (the number n): Return a series of number with (n, n). Done.
+            Bind number to first-of, given (the series of number function make given (the number), the number n):
+                Return the first of (cast make on (n)).
+            Done.
+            State cast first-of on (pair, 7).
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
     [Fact]
     public void Closure_SeriesOfFunctions_Compared()
     {
