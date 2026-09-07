@@ -714,4 +714,79 @@ public class SemanticTokenTests
         Assert.Contains(namespaces, t => t.Doc == "Adds up money, exactly.");
         Assert.Equal(2, namespaces.Count(t => t.Doc is null));
     }
+
+    // ── Documentation on a BUNDLED book ──────────────────────────────────
+    //
+    // ⚠⚠ The bundled books are parsed SEPARATELY by the checker and their statements carry the
+    // prelude's own line numbers. Reading a doc position out of the program's token list therefore
+    // finds another file's word, or nothing — which is exactly what a documented bundled book used
+    // to answer. These read the prelude against its own tokens.
+
+    [Fact]
+    public void ABundledBook_AnswersWhereItIsPulled()
+    {
+        var book = Classify("""
+            Pull a book on chance.
+                State a random number from 1 to 6.
+            Done.
+            """).Single(t => t.Kind == SemanticTokenKind.Namespace);
+
+        // ⚠ Asserts THAT it answers, not WHAT it says. Pinning the prelude's prose here would make
+        // every reword of a bundled book's documentation a test failure, which is the opposite of
+        // what documentation should cost to improve.
+        Assert.NotNull(book.Doc);
+    }
+
+    [Fact]
+    public void ABundledBooksMember_AnswersThroughItsOwner()
+    {
+        var call = Classify("""
+            Pull a book on math.
+                State cast math's round on (1.6).
+            Done.
+            """).Single(t => t.Kind == SemanticTokenKind.Function && t.Doc is not null);
+
+        Assert.NotNull(call.Doc);
+    }
+
+    [Fact]
+    public void AProgramsOwnNameBeatsABooksAtTheBareSpelling()
+    {
+        // ★★ THE CASE OWNER-QUALIFIED KEYS EXIST FOR, and it is a WRONG answer rather than a missing
+        // one when they are absent. `math` has a member called `round`; so does this program. With a
+        // name-keyed table, `math's round` hands back the program's documentation — measured, by
+        // removing the owner lookup and watching line 3 below claim to be the local one.
+        var docs = Classify("""
+            /// MY round, which does nothing at all.
+            Bind number to round, given (the number value):
+                Return value.
+            Done.
+            Pull a book on math.
+                State cast round on (1).
+                State cast math's round on (1.6).
+            Done.
+            """).Where(t => t.Doc is not null).ToList();
+
+        // The two bare uses are the program's own; the possessive one is the book's. Stated as a
+        // DIFFERENCE rather than as the book's text, so rewording `math` cannot break this.
+        Assert.Equal(2, docs.Count(d => d.Doc == "MY round, which does nothing at all."));
+        Assert.Single(docs.Where(d => d.Doc != "MY round, which does nothing at all."));
+    }
+
+    [Fact]
+    public void AProgramsOwnDocumentationWinsTheBareName()
+    {
+        // The prelude is merged AFTER the program and never overwrites it: the file you can edit is
+        // the one whose documentation you should see for a name you wrote.
+        var mine = Classify("""
+            /// MY round, which does nothing at all.
+            Bind number to round, given (the number value):
+                Return value.
+            Done.
+            State cast round on (1).
+            """).Where(t => t.Doc is not null).ToList();
+
+        Assert.NotEmpty(mine);
+        Assert.All(mine, d => Assert.Equal("MY round, which does nothing at all.", d.Doc));
+    }
 }

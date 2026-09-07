@@ -1202,6 +1202,15 @@ public sealed partial class TypeChecker
     /// </remarks>
     private static readonly string Prelude = LoadPrelude();
 
+    /// <summary>The bundled books' own source, for a pass that needs to read what they say.</summary>
+    /// <remarks>
+    /// ⚠ The prelude is parsed SEPARATELY and its statements carry ITS line numbers, not the
+    /// program's — so a reader has to lex this text itself rather than look positions up in the
+    /// program's token list. That is exactly what made a documented bundled book answer nothing:
+    /// the doc was there and the position pointed into another file.
+    /// </remarks>
+    internal static string PreludeSource => Prelude;
+
     /// <summary>Reads the bundled `Prelude/*.cufe` files embedded in this assembly, in name order.</summary>
     private static string LoadPrelude()
     {

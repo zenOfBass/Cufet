@@ -115,6 +115,10 @@ public sealed class SemanticTokenizer
     // rebuild this.
     private readonly Dictionary<string, string> _docs = new(StringComparer.Ordinal);
 
+    // The object whose methods are being walked, so a member written bare inside its own module
+    // still finds its owner-qualified documentation. Null at the top level.
+    private string? _currentOwner;
+
     private SemanticTokenizer(IReadOnlyList<Token> tokens, TypeChecker checker)
     {
         _tokens  = tokens;
@@ -173,58 +177,151 @@ public sealed class SemanticTokenizer
         if (kind is not (SemanticTokenKind.Function or SemanticTokenKind.Type
                          or SemanticTokenKind.Namespace)) return null;
         if (_docs.Count == 0) return null;
-        var token = TokenAt(line, column);
-        return token is not null && _docs.TryGetValue(token.Lexeme, out var doc) ? doc : null;
+
+        var token = TokenIn(_tokens, line, column);
+        if (token is null) return null;
+
+        // ★ THE OWNER IS ASKED FIRST, from two places and in this order. `math's round` says its
+        // owner outright, and that reading has to win — otherwise a program with its own `round`
+        // would answer for the book's. Inside a module's own body a method is written bare, so the
+        // object being walked stands in as the owner there.
+        foreach (var owner in new[] { OwnerBefore(line, column), _currentOwner })
+            if (owner is not null && _docs.TryGetValue(owner + "." + token.Lexeme, out var owned))
+                return owned;
+
+        return _docs.TryGetValue(token.Lexeme, out var doc) ? doc : null;
+    }
+
+    // The name that owns this one through a possessive — the `math` of `math's round`.
+    //
+    // ⚠ Read from the TOKENS rather than threaded through the walk, because the walk reaches a
+    // member name by several routes and every one of them would have to remember to carry it. The
+    // two tokens before a possessive access are always the owner and the marker.
+    private string? OwnerBefore(int line, int column)
+    {
+        int index = IndexIn(_tokens, line, column);
+        if (index < 2) return null;
+        if (_tokens[index - 1].Type != TokenType.Possessive) return null;
+        var owner = _tokens[index - 2];
+        return owner.Type == TokenType.Identifier ? owner.Lexeme : null;
     }
 
     // The token that starts exactly here. A name occurrence always does — the producer places every
     // span from the token list in the first place — so an exact match is the right test, and a
     // near-miss should stay unanswered rather than pick up a neighbour's documentation.
-    private Token? TokenAt(int line, int column)
+    private static Token? TokenIn(IReadOnlyList<Token> tokens, int line, int column)
     {
-        int lo = 0, hi = _tokens.Count - 1;
+        int at = IndexIn(tokens, line, column);
+        return at < 0 ? null : tokens[at];
+    }
+
+    private static int IndexIn(IReadOnlyList<Token> tokens, int line, int column)
+    {
+        int lo = 0, hi = tokens.Count - 1;
         while (lo <= hi)
         {
             int mid = (lo + hi) / 2;
-            var t = _tokens[mid];
+            var t = tokens[mid];
             int order = t.Line != line ? t.Line.CompareTo(line) : t.Column.CompareTo(column);
-            if (order == 0) return t;
+            if (order == 0) return mid;
             if (order < 0) lo = mid + 1; else hi = mid - 1;
         }
-        return null;
+        return -1;
     }
-
     // ── Documentation comments ────────────────────────────────────────────
     //
     // A declaration's doc comment is the LEADING TRIVIA of the keyword that opens it, and both
     // `Bind` and `Define` position their AST node on exactly that keyword — so the node's own
     // position is the lookup, with no re-lexing and no searching.
+    //
+    // ★★ KEYS ARE OWNER-QUALIFIED FOR MEMBERS: a method of `math` is stored as `math.round`, not
+    // `round`. That is not tidiness. The bundled books have members called `round`, `minimum` and
+    // `maximum`, and the moment a program declares its own `round` a name-keyed table hands one of
+    // them the other's documentation. A hover card with the WRONG documentation is worse than none,
+    // and qualifying makes the collision impossible rather than unlikely.
     private void CollectDocs(Program program)
     {
-        foreach (var statement in AstSearch.EveryStatement(program.Statements))
-        {
-            var (name, line, column) = statement switch
-            {
-                BindStatement b   => (b.Name, b.Line, b.Column),
-                ObjectDefinition o => (o.Name, o.Line, o.Column),
-                _                 => (null, 0, 0),
-            };
-            if (name is null) continue;
+        CollectDocsFrom(program.Statements, _tokens);
 
-            string? doc = DocTextAt(line, column);
+        // ⚠ The bundled books are read from THEIR OWN SOURCE against THEIR OWN TOKENS. They are
+        // parsed separately by the checker and their statements carry the prelude's line numbers,
+        // so looking a position up in the program's token list finds another file's word or
+        // nothing at all — which is why a documented bundled book used to answer silence.
+        //
+        // ★ AFTER the program, and TryAdd keeps the first: a name the writer declared themselves
+        // beats a book's. Their own file is the one they can edit.
+        foreach (var (key, doc) in PreludeDocs.Value)
+            _docs.TryAdd(key, doc);
+    }
+
+    // Parsed once for the life of the process. The prelude never changes at runtime, and every
+    // `tokens --json` call would otherwise re-lex three hundred lines to learn the same thing.
+    private static readonly Lazy<IReadOnlyList<(string Key, string Doc)>> PreludeDocs =
+        new(() =>
+        {
+            var found = new List<(string, string)>();
+            try
+            {
+                var tokens  = new Lexer.Lexer(TypeChecker.PreludeSource).Tokenize();
+                var program = new Parser(tokens).Parse();
+                var into    = new Dictionary<string, string>(StringComparer.Ordinal);
+                CollectInto(into, program.Statements, tokens);
+                foreach (var pair in into) found.Add((pair.Key, pair.Value));
+            }
+            catch
+            {
+                // ⚠ SILENT, and deliberately. This is a colouring pass: a prelude that will not
+                // parse is a real fault, but it is one `check` reports on every program — failing
+                // here would take the editor's syntax highlighting down with it and explain nothing.
+            }
+            return found;
+        });
+
+    private void CollectDocsFrom(IReadOnlyList<IStatement> statements, IReadOnlyList<Token> tokens) =>
+        CollectInto(_docs, statements, tokens);
+
+    // ★ Ownership is taken from the OBJECT DEFINITIONS rather than from where a Bind happens to sit
+    // in the tree, and matched by reference. A nested type's declaration can be hoisted out of the
+    // body it was written in, so "which statement encloses this one" is not a question the tree
+    // answers reliably — but `od.Methods` holds the very node, whatever moved.
+    private static void CollectInto(
+        Dictionary<string, string> into, IReadOnlyList<IStatement> statements, IReadOnlyList<Token> tokens)
+    {
+        var every = AstSearch.EveryStatement(statements).ToList();
+
+        var ownerOf = new Dictionary<BindStatement, string>(ReferenceEqualityComparer.Instance);
+        foreach (var statement in every)
+            if (statement is ObjectDefinition od)
+                foreach (var method in od.Methods)
+                    ownerOf[method] = od.Name;
+
+        foreach (var statement in every)
+        {
+            var (key, line, column) = statement switch
+            {
+                BindStatement b => (ownerOf.TryGetValue(b, out var owner) ? owner + "." + b.Name : b.Name,
+                                    b.Line, b.Column),
+                // ★ A TYPE keeps its bare name even when it is declared inside a module, because
+                // that is how it is written in use: `a new charge { … }`, never `takings's charge`.
+                ObjectDefinition o => (o.Name, o.Line, o.Column),
+                _ => (null, 0, 0),
+            };
+            if (key is null) continue;
+
+            string? doc = DocTextIn(tokens, line, column);
             // ⚠ FIRST WINS, matching the shadowing rule everywhere else here — and the linter
             // already reports a definition a later one replaces, so a name with two docs is a
             // program that has been told about it.
-            if (doc is not null) _docs.TryAdd(name, doc);
+            if (doc is not null) into.TryAdd(key, doc);
         }
     }
 
     // Every doc comment leading the token at this position, joined. Consecutive `///` lines are
     // separate comments and read as one block; an ordinary comment among them is skipped rather
     // than ending the run, so a note to yourself between two documented lines costs nothing.
-    private string? DocTextAt(int line, int column)
+    private static string? DocTextIn(IReadOnlyList<Token> tokens, int line, int column)
     {
-        var token = TokenAt(line, column);
+        var token = TokenIn(tokens, line, column);
         if (token is null) return null;
 
         var parts = token.Leading
@@ -687,9 +784,15 @@ public sealed class SemanticTokenizer
         foreach (var conformed in od.ConformedInterfaces)
             EmitFound(cursor, conformed, SemanticTokenKind.Type);
 
-        foreach (var m in od.Methods) WalkBind(m);
-        foreach (var g in od.Getters) Walk(g);
-        foreach (var s in od.Setters) Walk(s);
+        var savedOwner = _currentOwner;
+        _currentOwner = od.Name;
+        try
+        {
+            foreach (var m in od.Methods) WalkBind(m);
+            foreach (var g in od.Getters) Walk(g);
+            foreach (var s in od.Setters) Walk(s);
+        }
+        finally { _currentOwner = savedOwner; }
     }
 
     private void WalkBind(BindStatement bind)
