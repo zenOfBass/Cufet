@@ -46,9 +46,13 @@
     Up and Down walk back through what you have typed, when there is a terminal to read keys from
     one at a time. Without one there is no editor and no history — a pipe has nothing to recall.
 
-    `Leave.` on a line by itself exits; so does end of input. It is the REPL's own word rather than
-    Cufet, so it is only heard when nothing is half typed — inside a construct it is just a line
-    somebody wrote.
+    `Exit.` on a line by itself exits; so does end of input. It is a real Cufet statement rather
+    than a word of the REPL's own — the same one a script ends itself with — and that is the point:
+    the session IS the program here, so ending it is what the line already meant.
+
+    ⚠ It is only heard when nothing is half typed. Inside a construct it is an ordinary line,
+    appended to the session like any other, and replay will stop there — which is what the program
+    the user has now written actually says to do.
 
     Run it interpreted. Compiling it needs POSIX, because `run` is fork + execvp — the same
     constraint the shell carries.  */
@@ -89,7 +93,7 @@ Pull a terminal.
     In case of failure:
         The which becomes "no cufet on the PATH".
     Done.
-    State "Cufet REPL, evaluating with {which}. Type Leave. to go, or close the input".
+    State "Cufet REPL, evaluating with {which}. Type Exit. to go, or close the input".
 
 
     /* Prompts are for somebody typing. Piped or redirected, they would land in the output. */
@@ -124,7 +128,7 @@ Pull a terminal.
 
         Define raw as cast terminal's typed on (editing, past).
 
-        /* Void is end of input — the stream closed instead of anyone saying Leave. */
+        /* Void is end of input — the stream closed instead of anyone saying Exit. */
         If raw is void, running becomes false.
         If raw is not void:
             Define line as raw trimmed.
@@ -133,7 +137,7 @@ Pull a terminal.
                history is for, and a refused line is the one you most want back. */
             If the length of line is greater than 0, insert line into past.
 
-            If building is false and line is "Leave.":
+            If building is false and line is "Exit.":
                 The running becomes false.
                 The line becomes "".
             Done.
