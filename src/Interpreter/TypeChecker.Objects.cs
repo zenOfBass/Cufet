@@ -492,7 +492,14 @@ public sealed partial class TypeChecker
         // ★ A bundled book's layer imports ITS OWN file-scope names rather than nothing at all.
         // Safe only because those names are privatised — see ImportOwnBookNames for the bug the
         // blanket refusal was written for, and why the rename retires it.
-        if (!_checkingBookLayer) ImportTopLevelVisible(saved);
+        //
+        // ⚠⚠ EXCEPT WHEN THE BOOK IS THE PROGRAM. `cufet check src/Interpreter/Prelude/math.cufe`
+        // checks a bundled book on its own, and nothing privatises it there — there is no host to
+        // hide from, so `WithPrelude` returns the file untouched. Its top level is then entirely
+        // the book's own, which is the one case where importing all of it is exactly right. Asking
+        // for the renamed name here instead reported `'log-ten' isn't defined` on the very file
+        // that defines it, four lines up.
+        if (!_checkingBookLayer || TreatProgramAsPrelude) ImportTopLevelVisible(saved);
         else ImportOwnBookNames(saved, _bookLayerName);
         Scope["one"] = new TypeInfo(objType, new VariableReference("one", 0, 0), selfLine, IsParameter: true);
         foreach (var (type, name) in method.Parameters)

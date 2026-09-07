@@ -332,4 +332,29 @@ public class BookLoadingTests : IDisposable
             Done.
             """));
     }
+
+    [Fact]
+    public void EveryBundledBook_ChecksCleanOnItsOwn()
+    {
+        // ⚠⚠ THE GAP THAT LET A BROKEN PRELUDE SHIP. Every other test checks a PROGRAM, which gets
+        // the prelude spliced and privatised. Nobody checked a bundled book the way the editor does
+        // — `cufet check src/Interpreter/Prelude/math.cufe`, where the book IS the program and
+        // nothing privatises it. Narrowing a book's top-level import broke exactly that path, and
+        // the whole suite stayed green while the extension put a red squiggle on `math.cufe`
+        // four lines below the constant it said was undefined.
+        //
+        // ★ This is also what makes the language's own source lintable, which is why
+        // TreatProgramAsPrelude exists at all.
+        foreach (var (book, source) in TypeChecker.PreludeSources)
+        {
+            var tokens  = new CufetLexer(source).Tokenize();
+            var program = new Parser(tokens).Parse();
+
+            var failure = Record.Exception(
+                () => new TypeChecker { TreatProgramAsPrelude = true }.Check(program));
+
+            Assert.True(failure is null,
+                $"the bundled book '{book}' does not check on its own: {failure?.Message}");
+        }
+    }
 }
