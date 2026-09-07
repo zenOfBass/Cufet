@@ -82,24 +82,19 @@ Done.
 
 /*  Two watchers with nothing to do with each other. One reports every step; the other stays
     quiet until the total passes a threshold. Neither knows the checkout exists, and the
-    checkout knows only that it was handed some watchers.
+    checkout knows only that it holds a series of functions taking text.
 
-    ⚠⚠ `watcher` is a WRAPPER AROUND A FUNCTION, and it should not have to exist. The type
-    this wants is `the series of void function watchers given (the text)` — a plain series of
-    functions, which `Define` accepts and `For each` walks. It cannot be written as a
-    parameter, a field or a return type: in those positions the `function` after a base type
-    is read as "a function RETURNING that base type", so `series of ... function` means a
-    function returning a series, and the refusal describes a type nobody asked for —
+    ★ `the series of void function given (the text) watchers` is the whole of it — no wrapper
+    object, no interface for a watcher to implement, nothing to register with. Adding one is
+    `Insert`, and having none is an empty series.
 
-        Change the value to a series of numbers function given (number).
+    ⚠ Where the name sits is what says which type this is, and the two readings are both real:
 
-    So a series of functions can be built and iterated but cannot cross a declaration
-    boundary, and one object per function is the way across. This is the one piece of
-    ceremony in the file, and it is the exact ceremony the Decorator note above says the
-    language does not need — put here rather than hidden, because a wrapper that exists only
-    to carry a function is the signature of something being routed around. */
-Define object watcher with (the void function tell given (the text)).
+        the series of number function steps given (the number)   a function RETURNING a series
+        the series of number function given (the number) steps   a SERIES of functions
 
+    The `given` clause is the divider. A function element type states its own clause, so the
+    name has nowhere to go but after the whole type. */
 Bind void to narrate, given (the text note): State "    {note}". Done.
 Bind void to flag-large, given (the text note):
     If note contains "*", State "    ^ over fifty".
@@ -111,13 +106,13 @@ Bind number to check-out, given (
         the number subtotal,
         the series of charge bill,
         the number function postage-rule given (the number),
-        the series of watcher watchers):
+        the series of void function given (the text) watchers):
     Define running as subtotal.
     For each step in bill, repeat:
         The running becomes cast the apply of step on (running).
         Define mark as "" when running is not greater than 50, otherwise " *".
         For each listener in watchers, repeat:
-            Cast the tell of listener on ("{the label of step} -> {running converted to text}{mark}").
+            Cast listener on ("{the label of step} -> {running converted to text}{mark}").
         Done.
     Done.
     Return running + cast postage-rule on (running).
@@ -131,11 +126,9 @@ Pull a rabbit.
         a new charge { the label "loyalty  ", the apply loyalty },
         a new charge { the label "sales tax", the apply sales-tax }).
 
-    Define watchers as a series of watcher with (
-        a new watcher { the tell narrate },
-        a new watcher { the tell flag-large }).
+    Define watchers as a series of void function given (the text) with (narrate, flag-large).
 
-    Define quiet as a series of watcher.
+    Define quiet as a series of void function given (the text).
 
     // Watched, so the steps are visible. `quiet` below is the same parameter with nothing in
     // it — no watcher is a perfectly good number of watchers.
