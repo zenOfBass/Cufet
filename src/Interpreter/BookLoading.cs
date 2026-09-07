@@ -1,4 +1,4 @@
-using Cufet.Lexer;
+﻿using Cufet.Lexer;
 using CufetLexer = Cufet.Lexer.Lexer;
 
 namespace Cufet.Interpreter;
@@ -227,7 +227,7 @@ public static class BookLoading
     /// fail in, but the reflection walk means it cannot happen at all.
     /// </para>
     /// </remarks>
-    private static IReadOnlyList<IStatement> MakePrivate(
+    internal static IReadOnlyList<IStatement> MakePrivate(
         IReadOnlyList<IStatement> statements, string bookName)
     {
         // What the host is meant to see: the modules. Everything else the file declares at its

@@ -1200,7 +1200,11 @@ public sealed partial class TypeChecker
     /// where instantiated definitions are spliced in.
     /// </para>
     /// </remarks>
-    private static readonly string Prelude = LoadPrelude();
+    // ⚠ PER BOOK, not one blob. Each bundled book is parsed on its own so it can be given the same
+    // file privacy an external one gets — `MakePrivate` renames a file's top-level helpers after the
+    // book they belong to, and it needs to know which book that is. Concatenating first threw the
+    // boundary away.
+    private static readonly IReadOnlyList<(string Book, string Source)> PreludeBooks = LoadPrelude();
 
     /// <summary>The bundled books' own source, for a pass that needs to read what they say.</summary>
     /// <remarks>
@@ -1209,22 +1213,28 @@ public sealed partial class TypeChecker
     /// program's token list. That is exactly what made a documented bundled book answer nothing:
     /// the doc was there and the position pointed into another file.
     /// </remarks>
-    internal static string PreludeSource => Prelude;
+    internal static IReadOnlyList<(string Book, string Source)> PreludeSources => PreludeBooks;
 
     /// <summary>Reads the bundled `Prelude/*.cufe` files embedded in this assembly, in name order.</summary>
-    private static string LoadPrelude()
+    /// <remarks>
+    /// The book's name is the resource's file name without its extension, which is also the name
+    /// its module declares — `chance.cufe` holds `chance`. Kept apart rather than concatenated so
+    /// each can be made private under its own name.
+    /// </remarks>
+    private static IReadOnlyList<(string Book, string Source)> LoadPrelude()
     {
         var assembly = typeof(TypeChecker).Assembly;
-        var builder  = new System.Text.StringBuilder();
+        var books    = new List<(string, string)>();
         foreach (var resource in assembly.GetManifestResourceNames()
                      .Where(n => n.EndsWith(".cufe", StringComparison.OrdinalIgnoreCase))
                      .OrderBy(n => n, StringComparer.Ordinal))
         {
             using var stream = assembly.GetManifestResourceStream(resource)!;
             using var reader = new StreamReader(stream);
-            builder.AppendLine(reader.ReadToEnd());
+            var parts = resource.Split('.');
+            books.Add((parts.Length >= 2 ? parts[^2] : resource, reader.ReadToEnd()));
         }
-        return builder.ToString();
+        return books;
     }
 
     // The prelude's own top-level statements, by reference — how Pass1Hoist tells the prelude's
@@ -1512,10 +1522,23 @@ public sealed partial class TypeChecker
             return program;
         }
 
-        if (Prelude.Length == 0) return program;
+        if (PreludeBooks.Count == 0) return program;
 
-        var statements = new List<IStatement>(
-            new Parser(new Lexer.Lexer(Prelude).Tokenize()).Parse().Statements);
+        var statements = new List<IStatement>();
+        foreach (var (book, source) in PreludeBooks)
+        {
+            var parsed = new Parser(new Lexer.Lexer(source).Tokenize()).Parse().Statements;
+            // ★★ THE SAME FILE PRIVACY AN EXTERNAL BOOK GETS. A bundled book is spliced in before
+            // the loader ever runs, so it used to miss the loader's rename entirely — and a helper
+            // declared beside the module in `math.cufe` would have been global to every Cufet
+            // program on earth. The two kinds of book now agree.
+            //
+            // ⚠ A NO-OP TODAY, measured: every bundled book's only top-level statement is its own
+            // module, so nothing is hidden and the statements come back unchanged. It matters the
+            // first time one of them wants a constant at file scope — which is what made `log 2`
+            // appear three times in `math.cufe` rather than once.
+            statements.AddRange(BookLoading.MakePrivate(parsed, book));
+        }
         foreach (var statement in statements) _preludeStatements.Add(statement);
         statements.AddRange(program.Statements);
         return new Program(statements);

@@ -268,10 +268,15 @@ public sealed class SemanticTokenizer
             var found = new List<(string, string)>();
             try
             {
-                var tokens  = new Lexer.Lexer(TypeChecker.PreludeSource).Tokenize();
-                var program = new Parser(tokens).Parse();
-                var into    = new Dictionary<string, string>(StringComparer.Ordinal);
-                CollectInto(into, program.Statements, tokens);
+                var into = new Dictionary<string, string>(StringComparer.Ordinal);
+                // ⚠ ONE BOOK AT A TIME, matching how the checker splices them. Each is lexed
+                // against its own source, so a doc position means a line in the file that wrote it.
+                foreach (var (_, source) in TypeChecker.PreludeSources)
+                {
+                    var tokens  = new Lexer.Lexer(source).Tokenize();
+                    var program = new Parser(tokens).Parse();
+                    CollectInto(into, program.Statements, tokens);
+                }
                 foreach (var pair in into) found.Add((pair.Key, pair.Value));
             }
             catch
