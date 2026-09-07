@@ -7,7 +7,14 @@
 // The parser functions live at the TOP LEVEL rather than inside the rabbit, because parse-value
 // and parse-array call each other. A Bind nested in a block is a closure the compiler emits
 // where it stands, so neither of a mutually recursive pair could come first; top-level functions
-// are hoisted and both backends agree.
+// are hoisted and both backends agree. A `Pull` block is not a rabbit, so wrapping the pair in
+// one to reach the `collections` book costs the hoisting nothing.
+//
+// ★★ The document is scanned as a CHASE rather than as text. `the characters from spot to spot
+// of` counts UTF-8 characters from the front of the string on every read and allocates the
+// answer, so reading a document one character at a time was quadratic. A chase indexes in place.
+// The two places that built a string one character at a time were quadratic for the mirror-image
+// reason — every join rebuilt what was already there — and they are chases now too.
 
 Define object jval with (the text kind, the number num, the text str, the series of jval items).
 
@@ -15,109 +22,115 @@ Define object jval with (the text kind, the number num, the text str, the series
 // together — a caller needs the cursor to know where to carry on from.
 Define object parsed with (the jval value, the number cursor).
 
-Bind text to char-at, given (the text source, the number cursor):
-    If cursor is less than 1, return "".
-    If cursor is greater than the length of source, return "".
-    Return the characters from cursor to cursor of source.
-Done.
-
-Bind number to skip-spaces, given (the text source, the number cursor):
-    Define spot as cursor.
-    While cast char-at on (source, spot) is " ", repeat: increment spot by 1. Done.
-    Return spot.
-Done.
-
-Bind fact to is-digit, given (the text letter):
-    If letter is "0" or letter is "1" or letter is "2" or letter is "3", return true.
-    If letter is "4" or letter is "5" or letter is "6" or letter is "7", return true.
-    If letter is "8" or letter is "9", return true.
-    Return false.
-Done.
-
-Bind jval to make-leaf, given (the text kind, the number num, the text str):
-    Return a new jval { the kind kind, the num num, the str str, the items a series of jval }.
-Done.
-
-Bind parsed to parse-text, given (the text source, the number cursor):
-    Define spot as cursor + 1.                       // step over the opening quote
-    Define gathered as "".
-    While cast char-at on (source, spot) is not "\"", repeat:
-        The gathered becomes "{gathered}{cast char-at on (source, spot)}".
-        Increment spot by 1.
+Pull a book on collections.
+    Bind text to char-at, given (the chase source, the number cursor):
+        If cursor is less than 1, return "".
+        If cursor is greater than the number of source, return "".
+        Return item cursor of source.
     Done.
-    Return a new parsed { the value cast make-leaf on ("str", 0, gathered), the cursor spot + 1 }.
-Done.
 
-Bind parsed to parse-number, given (the text source, the number cursor):
-    Define spot as cursor.
-    Define gathered as "".
-    If cast char-at on (source, spot) is "-":
-        The gathered becomes "-".
-        Increment spot by 1.
+    Bind number to skip-spaces, given (the chase source, the number cursor):
+        Define spot as cursor.
+        While cast char-at on (source, spot) is " ", repeat: increment spot by 1. Done.
+        Return spot.
     Done.
-    While cast is-digit on (cast char-at on (source, spot)), repeat:
-        The gathered becomes "{gathered}{cast char-at on (source, spot)}".
-        Increment spot by 1.
+
+    Bind fact to is-digit, given (the text letter):
+        If letter is "0" or letter is "1" or letter is "2" or letter is "3", return true.
+        If letter is "4" or letter is "5" or letter is "6" or letter is "7", return true.
+        If letter is "8" or letter is "9", return true.
+        Return false.
     Done.
-    Define amount as gathered converted to number but void is 0.
-    Return a new parsed { the value cast make-leaf on ("num", amount, ""), the cursor spot }.
-Done.
 
-Bind parsed to parse-array, given (the text source, the number cursor):
-    Define spot as cast skip-spaces on (source, cursor + 1).      // step over '['
-    Define gathered as a series of jval.
-    While cast char-at on (source, spot) is not "]", repeat:
-        Define outcome as cast parse-value on (source, spot).
-        Insert the value of outcome into gathered.
-        The spot becomes cast skip-spaces on (source, the cursor of outcome).
-        If cast char-at on (source, spot) is ",", spot becomes cast skip-spaces on (source, spot + 1).
+    Bind jval to make-leaf, given (the text kind, the number num, the text str):
+        Return a new jval { the kind kind, the num num, the str str, the items a series of jval }.
     Done.
-    Define holder as a new jval { the kind "array", the num 0, the str "", the items gathered }.
-    Return a new parsed { the value holder, the cursor spot + 1 }.
-Done.
 
-Bind parsed to parse-value, given (the text source, the number cursor):
-    Define spot as cast skip-spaces on (source, cursor).
-    Define letter as cast char-at on (source, spot).
-    If letter is "[", return cast parse-array on (source, spot).
-    If letter is "\"", return cast parse-text on (source, spot).
-    If letter is "t", return a new parsed { the value cast make-leaf on ("true", 0, ""), the cursor spot + 4 }.
-    If letter is "f", return a new parsed { the value cast make-leaf on ("false", 0, ""), the cursor spot + 5 }.
-    If letter is "n", return a new parsed { the value cast make-leaf on ("null", 0, ""), the cursor spot + 4 }.
-    Return cast parse-number on (source, spot).
-Done.
-
-Bind text to render, given (the jval value):
-    If the kind of value is "null", return "null".
-    If the kind of value is "true", return "true".
-    If the kind of value is "false", return "false".
-    If the kind of value is "num", return the num of value converted to text.
-    If the kind of value is "str", return "\"{the str of value}\"".
-    If the kind of value is "array":
-        Define out as "[".
-        Define leading as true.
-        For each kid in the items of value, repeat:
-            If leading is false, out becomes "{out},".
-            The out becomes "{out}{cast render on (kid)}".
-            The leading becomes false.
+    Bind parsed to parse-text, given (the chase source, the number cursor):
+        Define spot as cursor + 1.                       // step over the opening quote
+        Define gathered as a chase.
+        While cast char-at on (source, spot) is not "\"", repeat:
+            Insert cast char-at on (source, spot) into gathered.
+            Increment spot by 1.
         Done.
-        Return "{out}]".
+        Define body as gathered converted to text.
+        Return a new parsed { the value cast make-leaf on ("str", 0, body), the cursor spot + 1 }.
     Done.
-    Return "?".
-Done.
 
-Pull a rabbit.
-    // Each of these is parsed into a tree and printed back out, so what you see is the round
-    // trip rather than the input echoed. Spacing disappears because the printer never adds any.
-    Define documents as a series of text with (
-        "[1, \"hi\", true, null, [2, -3], false]",
-        "[]",
-        "[[], [[1]]]",
-        "  [ 1 , 2 ]  ",
-        "[\"héllo 👍\"]").
+    Bind parsed to parse-number, given (the chase source, the number cursor):
+        Define spot as cursor.
+        Define gathered as a chase.
+        If cast char-at on (source, spot) is "-":
+            Insert "-" into gathered.
+            Increment spot by 1.
+        Done.
+        While cast is-digit on (cast char-at on (source, spot)), repeat:
+            Insert cast char-at on (source, spot) into gathered.
+            Increment spot by 1.
+        Done.
+        Define digits as gathered converted to text.
+        Define amount as digits converted to number but void is 0.
+        Return a new parsed { the value cast make-leaf on ("num", amount, ""), the cursor spot }.
+    Done.
 
-    For each document in documents, repeat:
-        Define outcome as cast parse-value on (document, 1).
-        State cast render on (the value of outcome).
+    Bind parsed to parse-array, given (the chase source, the number cursor):
+        Define spot as cast skip-spaces on (source, cursor + 1).      // step over '['
+        Define gathered as a series of jval.
+        While cast char-at on (source, spot) is not "]", repeat:
+            Define outcome as cast parse-value on (source, spot).
+            Insert the value of outcome into gathered.
+            The spot becomes cast skip-spaces on (source, the cursor of outcome).
+            If cast char-at on (source, spot) is ",", spot becomes cast skip-spaces on (source, spot + 1).
+        Done.
+        Define holder as a new jval { the kind "array", the num 0, the str "", the items gathered }.
+        Return a new parsed { the value holder, the cursor spot + 1 }.
+    Done.
+
+    Bind parsed to parse-value, given (the chase source, the number cursor):
+        Define spot as cast skip-spaces on (source, cursor).
+        Define letter as cast char-at on (source, spot).
+        If letter is "[", return cast parse-array on (source, spot).
+        If letter is "\"", return cast parse-text on (source, spot).
+        If letter is "t", return a new parsed { the value cast make-leaf on ("true", 0, ""), the cursor spot + 4 }.
+        If letter is "f", return a new parsed { the value cast make-leaf on ("false", 0, ""), the cursor spot + 5 }.
+        If letter is "n", return a new parsed { the value cast make-leaf on ("null", 0, ""), the cursor spot + 4 }.
+        Return cast parse-number on (source, spot).
+    Done.
+
+    Bind text to render, given (the jval value):
+        If the kind of value is "null", return "null".
+        If the kind of value is "true", return "true".
+        If the kind of value is "false", return "false".
+        If the kind of value is "num", return the num of value converted to text.
+        If the kind of value is "str", return "\"{the str of value}\"".
+        If the kind of value is "array":
+            Define out as "[".
+            Define leading as true.
+            For each kid in the items of value, repeat:
+                If leading is false, out becomes "{out},".
+                The out becomes "{out}{cast render on (kid)}".
+                The leading becomes false.
+            Done.
+            Return "{out}]".
+        Done.
+        Return "?".
+    Done.
+
+    Pull a rabbit.
+        // Each of these is parsed into a tree and printed back out, so what you see is the round
+        // trip rather than the input echoed. Spacing disappears because the printer never adds any.
+        Define documents as a series of text with (
+            "[1, \"hi\", true, null, [2, -3], false]",
+            "[]",
+            "[[], [[1]]]",
+            "  [ 1 , 2 ]  ",
+            "[\"héllo 👍\"]").
+
+        For each document in documents, repeat:
+            Define source as a chase.
+            Insert document into source.
+            Define outcome as cast parse-value on (source, 1).
+            State cast render on (the value of outcome).
+        Done.
     Done.
 Done.
