@@ -98,6 +98,7 @@ every value of every type, with `x is not the phrase` answering true.
 | `shadow` | Shadow | Deliberate shadowing |
 | `return` | Return | Return from function |
 | `stop` | Stop | Break loop |
+| `exit` | Exit | `Exit.` / `Exit with <number>.` — end the program with a chosen status |
 | `skip` | Skip | Continue loop |
 | `bury` | Bury | `Have <rabbit> bury <v>.` — hand one value out and suspend there. Never bare: a rabbit always does it |
 | `unbury` | Unbury | Resume a stash and take its next value — a `voidable T` |

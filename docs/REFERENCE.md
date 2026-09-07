@@ -3632,6 +3632,39 @@ So there are three forms, and the axis is who is connected to the terminal:
 | `run <prog> with the terminal …` | expression | yes — the child gets it | `result or failure`, `exit-code` only |
 | `Run <prog> …` | statement | yes — the child gets it | nothing; still fallible |
 
+#### The exit status
+
+`Exit.` ends the program with status 0. `Exit with <number>.` ends it with the status named:
+
+```cufet
+State "checking".
+Exit with 0.
+State "never reached".
+```
+```output
+checking
+```
+
+It is a statement, legal wherever one is — inside a function, a loop, or a rabbit. A caller sees
+the same status whether the program was interpreted or compiled: `cufet check.cufe` and a
+compiled `./check` both leave with what the program said.
+
+- **Statuses run from 0 to 255**, whole. Anything else is refused — at check time when the number
+  is written out, and where it runs when it is computed. ⚠ The operating system keeps only the low
+  eight bits, so `Exit with 256.` would leave with **0** — success, from a line that plainly meant
+  otherwise. Refusing beats that silent reinterpretation, the same call the `bits` narrowing rule
+  makes.
+- ★★ **Leaving UNWINDS.** Every open block's destructors still run on the way out, so a program
+  that chooses to leave early is not the one way out that loses an `unmaking`. A `Pull a rabbit`
+  holding a connection closes it whether the program falls off the end or exits from the middle.
+- **Nothing after it runs**, including in the blocks it is leaving through.
+- **Falling off the end is already 0**, so a bare `Exit.` is for leaving *early* and successfully.
+
+⚠ **1 and 2 are ambiguous when interpreted, and cannot be otherwise.** `cufet` itself leaves with
+1 for a program it refuses and 2 for a command line it does not understand, so `cufet run.cufe`
+answering 1 could be either. A compiled program has no such overlap. Every interpreter shares this;
+a script that needs the distinction should pick a status of its own above 2.
+
 #### Program arguments
 
 `the arguments` is what this program was invoked with — a `series of text`:

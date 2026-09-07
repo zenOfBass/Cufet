@@ -27,14 +27,10 @@ The ordering is not ceremonial: this tier's real blocker is stated below as **er
    `printf 'hostname\nLeave.\n' | cufet tools/shell.cufe` works today. So this is not a new
    execution model. It is the handful of things a program needs in order to BE a script.
 
-   **In order:**
-
-   - **An exit status the program chooses.** A script that cannot say it failed is not one a
-     caller can build on.
-   - **The shell's own machinery, handed out as a book.** `matches`, `wild`, `base-name` and
-     `expanded` are already at its file scope — glob matching and PATH-shaped work that any script
-     wants — and the language now has both the way to offer them (a declared interface) and the
-     way to keep the rest private.
+   **What is left: the shell's own machinery, handed out as a book.** `matches`, `wild`,
+   `base-name` and `expanded` are already at its file scope — glob matching and PATH-shaped work
+   that any script wants — and the language now has both the way to offer them (a declared
+   interface) and the way to keep the rest private.
 
    ⚠⚠ **DO NOT INVENT A SHELL SCRIPTING LANGUAGE.** The whole point of saying *scriptable in
    Cufet* is that Cufet already has conditionals, loops and variables — so `if [ -f x ]`, `$VAR`

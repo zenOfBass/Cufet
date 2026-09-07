@@ -10,6 +10,48 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+- **`Exit.` and `Exit with <number>.` — a program chooses its own exit status.** The second slice
+  of *the shell, scriptable in Cufet*: a script that cannot say it failed is not one a caller can
+  build on.
+
+  ```cufet-fragment
+  If the number of the arguments is 0:
+      State "usage: greet <name>".
+      Exit with 2.
+  Done.
+  ```
+
+  A statement, legal wherever one is — inside a function, a loop or a rabbit — and `cufet
+  greet.cufe` leaves with the same status a compiled `./greet` does.
+
+  ★★ **Leaving UNWINDS rather than abandons.** Every open block's destructors run on the way out,
+  on both backends. The interpreter gets it free — `ExitScope` already sits in a `finally`, so an
+  `Exit` propagating out runs each block's unmakers exactly as an exception does — and the
+  compiler's `cufet_exit` runs `cufet_run_unmakers_to(0)` before `exit()`, which is what the fault
+  path already did. That was the one thing worth being careful about: the runtime's own comment
+  records a destructor silently not firing as a real divergence caught once before, and choosing
+  to leave early must not become the second way to lose one.
+
+  ★ **0 to 255, whole, and refused otherwise** — at check time when the number is written out,
+  where it runs when it is computed. ⚠ The operating system keeps only the low eight bits, so
+  `Exit with 256.` would leave with **0**: success, from a line that plainly meant failure. That is
+  the silent reinterpretation the `bits` narrowing rule already refuses, in a place where the cost
+  of getting it wrong is a build that reports green.
+
+  ⚠ A fractional status and an out-of-range one get **different sentences**. One message covering
+  both told someone who wrote `Exit with 2.5.` about the low eight bits, which is true of a
+  different mistake than the one they made.
+
+  ⚠⚠ **`exit` is now RESERVED.** `exit-code` is a single identifier to the lexer, so the field you
+  read off a child's `run` result is untouched — `Exit with 3.` on this side and `the exit-code of`
+  on that side are one word pointing both ways, the same shape `arguments` took. Nothing in the
+  tree used `exit` as a name.
+
+  ⚠ **1 and 2 are ambiguous when interpreted, and cannot be otherwise.** `cufet` itself leaves with
+  1 for a program it refuses and 2 for a command line it does not understand, so `cufet run.cufe`
+  answering 1 could be either. A compiled program has no such overlap. Every interpreter shares
+  this; it is documented rather than worked around.
+
 - **`the arguments` — a program can read what it was invoked with.** A `series of text`, and the
   first slice of *the shell, scriptable in Cufet*.
 
