@@ -41,6 +41,7 @@ public class ExhaustivenessTests
         [typeof(ReadableStreamType)]  = new ReadableStreamType(CufetType.Text),
         [typeof(WritableStreamType)]  = new WritableStreamType(CufetType.Text),
         [typeof(MapType)]             = new MapType(CufetType.Text, CufetType.Number),
+        [typeof(SetType)]             = new SetType(CufetType.Text),
         [typeof(RecordType)]          = new RecordType([CufetType.Number], []),
         [typeof(ObjectType)]          = new ObjectType("thing", [], [], []),
         [typeof(InterfaceType)]       = new InterfaceType("shape"),

@@ -985,7 +985,7 @@ public sealed partial class CodeGenerator
     private static string FormatTypeName(CufetType t) => t switch
     {
         NumberType => "number", TextType => "text", FactType => "fact", BitsType => "bits",
-        SeriesType => "series", MapType => "map", RecordType => "record", MatrixType => "matrix",
+        SeriesType => "series", MapType => "map", SetType => "set", RecordType => "record", MatrixType => "matrix",
         ChaseType => "chase",
         StashType s     => $"stash of {FormatTypeName(s.ElementType)}",
         ObjectType o    => ModuleTypeLifting.DisplayName(o.Name),
@@ -1278,6 +1278,8 @@ public sealed partial class CodeGenerator
         ObjectType ot => $"{ObjStructName(ot.Name)}_eq({a}, {b})",
         VoidableType vt => $"{RegisterVoidableStruct(vt)}_eq({a}, {b})",
         MapType => $"({a} == {b})",   // maps: reference (pointer) equality, like the interpreter
+        // A set is a reference type stored as a map, so it compares the same way its storage does.
+        SetType => $"({a} == {b})",
         MatrixType => $"({a} == {b})",   // matrices: reference equality (interpreter ValuesEqual fallthrough)
         // ⚠ STRUCTURAL, unlike the two above, and matching the interpreter deliberately. A chase
         // follows collection conventions, and a series of the same characters compares by content;
@@ -1311,6 +1313,9 @@ public sealed partial class CodeGenerator
         ObjectType ot => $"{ObjStructName(ot.Name)}_write({valExpr})",
         VoidableType vt => $"{RegisterVoidableStruct(vt)}_write({valExpr})",
         MapType mt => $"{RegisterMapStruct(mt)}_write({valExpr})",
+        // Printed through the map it is stored as — key and value are the same element, so what
+        // comes out names each member twice. ⚠ Worth a shape of its own the day anyone prints one.
+        SetType st => $"{RegisterSetStruct(st)}_write({valExpr})",
         MatrixType => $"cufet_mat_write({valExpr})",
         // ★★ Shown as the COLLECTION it is — `(h, e, l, l, o)` — never as the text it will become.
         // A reader must never mistake a buffer for a `text`; when the text is what you want,
