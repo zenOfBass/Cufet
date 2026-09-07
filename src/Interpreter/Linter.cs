@@ -1,3 +1,4 @@
+﻿using System.Globalization;
 using Cufet.Lexer;
 
 namespace Cufet.Interpreter;
@@ -27,6 +28,7 @@ public static class Linter
         NestedBareItLoops(bag, program);
         ChangeDirectoryBeforeStartingTasks(bag, program);
         SupersededTypeDefinitions(bag, program);
+        UnreachableJudgeArms(bag, program);
         return bag.Items;
     }
 
@@ -333,4 +335,93 @@ public static class Linter
                 break;
         }
     }
+
+    // ── An arm a judgement can never reach ────────────────────────────────────
+    //
+    // Arms are tried in order, so an arm naming something an earlier arm already named is dead:
+    // the first one wins and the second body is never entered. That is well defined and it is the
+    // same first-match rule an `Otherwise if` chain follows — which is why this is advice and not
+    // a refusal, and why a program that already has one keeps running.
+    //
+    // ★ But `Judge` is the construct whose whole promise is that its arms are the cases you
+    // thought about, and it ALREADY refuses an arm written after `Otherwise` on exactly these
+    // grounds. A duplicate is the same defect one step earlier, and the only reason the parser
+    // cannot catch it is that it needs the arms compared rather than counted.
+    //
+    // ★ Both kinds of arm, because they fail identically: `A number` twice and `It is "cd"` twice
+    // are one mistake with two spellings.
+    //
+    // Reported at the LATER arm, because that is the one to remove — naming the earlier one would
+    // point at the arm that is doing its job, the same choice SupersededTypeDefinitions makes.
+    private static void UnreachableJudgeArms(DiagnosticBag bag, Program program)
+    {
+        foreach (var statement in AstSearch.EveryStatement(program.Statements))
+        {
+            if (statement is not JudgeStatement judge) continue;
+
+            // Kept per judgement, not per arm: a grouped arm makes every case it names handled, so
+            // `A number or a text` followed by `A text` has the same dead second arm.
+            var seenTypes  = new List<(CufetType Type, int Line)>();
+            var seenValues = new List<(IExpression Value, int Line)>();
+
+            foreach (var arm in judge.Arms)
+            {
+                if (arm.IsValueArm)
+                    foreach (var value in arm.Values!)
+                    {
+                        var earlier = seenValues.Where(s => SameConstant(s.Value, value))
+                                                .Select(s => (int?)s.Line).FirstOrDefault();
+                        if (earlier is { } earlierLine)
+                            bag.Warn(
+                                $"this arm can never run — {DescribeConstant(value)} is already "
+                              + $"handled on line {earlierLine}. The earlier arm "
+                              + "wins, so this body is dead and nothing in the text says so. Remove "
+                              + "it, or change the value it names.",
+                                arm.Line, arm.Column);
+                        else seenValues.Add((value, arm.Line));
+                    }
+                else
+                    foreach (var oneCase in arm.Cases)
+                    {
+                        var earlier = seenTypes.Where(s => s.Type.Equals(oneCase))
+                                               .Select(s => (int?)s.Line).FirstOrDefault();
+                        if (earlier is { } earlierLine)
+                            bag.Warn(
+                                $"this arm can never run — {TypeChecker.FormatType(oneCase)} is "
+                              + $"already handled on line {earlierLine}. The "
+                              + "earlier arm wins, so this body is dead and nothing in the text says "
+                              + "so. Remove it, or change the case it names.",
+                                arm.Line, arm.Column);
+                        else seenTypes.Add((oneCase, arm.Line));
+                    }
+            }
+        }
+    }
+
+    /// <summary>Whether two arm constants name the same value.</summary>
+    /// <remarks>
+    /// ⚠ Bits compare on VALUE ALONE. `0xFF`, `0x00FF` and `0b11111111` are one pattern written
+    /// three ways — base and width are how it is displayed, not what it is — and that is the rule
+    /// both back ends already follow when comparing them.
+    /// </remarks>
+    private static bool SameConstant(IExpression left, IExpression right) => (left, right) switch
+    {
+        (NumberLiteral a,  NumberLiteral b)  => a.Value == b.Value,
+        (StringLiteral a,  StringLiteral b)  => string.Equals(a.Value, b.Value, StringComparison.Ordinal),
+        (BooleanLiteral a, BooleanLiteral b) => a.Value == b.Value,
+        (BitsLiteral a,    BitsLiteral b)    => a.Value == b.Value,
+        _ => false,
+    };
+
+    // ⚠ InvariantCulture, or the number in the message is spelled with whatever separator the
+    // machine happens to use — the same trap that had a literal reading as 15 on one machine and
+    // 1.5 on another.
+    private static string DescribeConstant(IExpression value) => value switch
+    {
+        NumberLiteral n  => n.Value.ToString(CultureInfo.InvariantCulture),
+        StringLiteral s  => $"\"{s.Value}\"",
+        BooleanLiteral b => b.Value ? "true" : "false",
+        BitsLiteral b    => "that bit pattern",
+        _ => "that value",
+    };
 }

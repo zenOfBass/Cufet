@@ -1,4 +1,4 @@
-using Cufet.Interpreter;
+﻿using Cufet.Interpreter;
 using Xunit;
 using CufetLexer = Cufet.Lexer.Lexer;
 
@@ -327,6 +327,147 @@ public class LinterTests
         Assert.Empty(Lint("""
             Define object point with (the number x):
                 Bind number to shown: Return 1. Done.
+            Done.
+            """));
+    }
+
+    // ── An arm a judgement can never reach ────────────────────────────────
+    //
+    // Weighted toward the quiet cases on purpose, following this file's own rule: a false warning
+    // on a judgement that is already right would be worse than not having the rule.
+
+    [Fact]
+    public void ADuplicateTypeArm_IsReported()
+    {
+        var only = Assert.Single(Lint("""
+            Judge thing, where it is:
+                A number, state "first".
+                A number, state "second".
+                Otherwise, state "rest".
+            Done.
+            """));
+        // Reported at the LATER arm — the one to remove.
+        Assert.Equal(3, only.Line);
+        Assert.Contains("can never run", only.Message);
+        Assert.Contains("already handled on line 2", only.Message);
+    }
+
+    [Fact]
+    public void ADuplicateValueArm_IsReported()
+    {
+        var only = Assert.Single(Lint("""
+            Judge command, where it is:
+                It is "cd", state "first".
+                It is "cd", state "second".
+                Otherwise, state "rest".
+            Done.
+            """));
+        Assert.Equal(3, only.Line);
+        Assert.Contains("\"cd\" is already handled on line 2", only.Message);
+    }
+
+    [Fact]
+    public void ACaseAGroupedArmAlreadyTook_IsReported()
+    {
+        // ★ Why the seen-set is per JUDGEMENT and not per arm: a grouped arm handles every case it
+        // names, so a later arm naming one of them is just as dead.
+        var only = Assert.Single(Lint("""
+            Judge thing, where it is:
+                A number or a text, state "one of two".
+                A text, state "unreachable".
+                Otherwise, state "rest".
+            Done.
+            """));
+        Assert.Equal(3, only.Line);
+        Assert.Contains("text is already handled on line 2", only.Message);
+    }
+
+    [Fact]
+    public void AValueAGroupedArmAlreadyTook_IsReported()
+    {
+        var only = Assert.Single(Lint("""
+            Judge command, where it is:
+                It is "fg" or "bg", state "job control".
+                It is "bg", state "unreachable".
+                Otherwise, state "rest".
+            Done.
+            """));
+        Assert.Contains("\"bg\" is already handled on line 2", only.Message);
+    }
+
+    [Fact]
+    public void TheSameBitPatternInTwoBases_IsReported()
+    {
+        // ⚠ Bits compare on VALUE ALONE — base and width are how a pattern is displayed, not what
+        // it is — so these two arms name one pattern and the second cannot run.
+        var only = Assert.Single(Lint("""
+            Judge pattern, where it is:
+                It is 0xFF, state "all set".
+                It is 0b11111111, state "unreachable".
+                Otherwise, state "rest".
+            Done.
+            """));
+        Assert.Contains("that bit pattern is already handled on line 2", only.Message);
+    }
+
+    [Fact]
+    public void ANestedJudgementIsReachedToo()
+    {
+        // ⚠ The walk has to key on the NAMESPACE, not on IStatement: `JudgeArm` implements neither
+        // AST interface, so a hand-written walk goes straight past every arm body and this dead arm
+        // is never seen.
+        var only = Assert.Single(Lint("""
+            Judge thing, where it is:
+                A number:
+                    Judge command, where it is:
+                        It is "cd", state "first".
+                        It is "cd", state "second".
+                        Otherwise, state "rest".
+                    Done.
+                Done.
+                Otherwise, state "rest".
+            Done.
+            """));
+        Assert.Equal(5, only.Line);
+    }
+
+    [Fact]
+    public void AJudgementWithNoOverlap_IsNotReported()
+    {
+        Assert.Empty(Lint("""
+            Judge thing, where it is:
+                A number, state "a number".
+                A text, state "some text".
+                A fact, state "a fact".
+            Done.
+            """));
+    }
+
+    [Fact]
+    public void ValueArmsWithNoOverlap_AreNotReported()
+    {
+        Assert.Empty(Lint("""
+            Judge command, where it is:
+                It is "cd", state "change directory".
+                It is "fg" or "bg", state "job control".
+                Otherwise, state "run it".
+            Done.
+            """));
+    }
+
+    [Fact]
+    public void TheSameValueInTwoSEPARATEJudgements_IsNotReported()
+    {
+        // ★ The seen-set is per judgement. Two judgements over the same subject naming the same
+        // value are two independent decisions, and neither arm is dead.
+        Assert.Empty(Lint("""
+            Judge command, where it is:
+                It is "cd", state "first judgement".
+                Otherwise, state "rest".
+            Done.
+            Judge command, where it is:
+                It is "cd", state "second judgement".
+                Otherwise, state "rest".
             Done.
             """));
     }
