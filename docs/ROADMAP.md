@@ -98,7 +98,9 @@ they are large, not because they are waiting — the order among them means noth
    is a second pad of the same shape rather than new machinery. Today a worker with no handler runs
    its unmakers and calls `exit(1)`, taking the process with it.
 
-2. **Generated pages for a book.** What a reader gets when they pull a book somebody else wrote.
+2. **A package manager for books.**
+
+3. **Generated pages for a book.** What a reader gets when they pull a book somebody else wrote.
    Doc comments and hover are built; pages are the half that is not.
 
    ★ Cheap here for two reasons. A signature is **already English**, so a page's declaration line
@@ -123,7 +125,7 @@ they are large, not because they are waiting — the order among them means noth
    `examples/expected/` already are — generated output that nothing checks is the same staleness
    in a new place, and a hand-edited "generated" page is the second lying copy immediately.
 
-3. **Teaching the language: a documentation site, and an interactive tutorial.** The playground
+4. **Teaching the language: a documentation site, and an interactive tutorial.** The playground
    runs the real interpreter in the browser, loads the corpus, shows squiggles and survives a
    runaway program. What it does not do is teach anybody anything — the only way in is
    `REFERENCE.md`, which is over four thousand lines and is a reference rather than a way in.
@@ -164,8 +166,6 @@ they are large, not because they are waiting — the order among them means noth
 
 A formal soundness proof or a fresh-eyes red-team · a periodic error-message audit for internal
 vocabulary
-
-**A package manager for books.**
 
 **Composition modes for rabbits** — `sequential` / `parallel` / `responsive`, an optional adjective
 in the type-annotation slot: `Pull a responsive rabbit as dispatcher.` The mode governs how a
