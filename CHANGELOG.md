@@ -106,6 +106,42 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   prints `one` and nothing else — the session now describes a program that exits inside the `If`,
   and replay honours it rather than second-guessing it.
 
+### Fixed
+
+- **A fire-and-forget task ran its `Return` expression in one backend and not the other.** An
+  unnamed task's returned VALUE is dropped — that is documented and intended. The compiler was
+  dropping the **evaluation** with it, so the expression simply never happened:
+
+  ```cufet-fragment
+  Pull a rabbit.
+      Have rabbit start a task:
+          Return cast noisy.        ← `noisy` was never called in the compiled program
+      Done.
+  Done.
+  ```
+
+  Interpreted, `noisy` runs and prints. Compiled, the emitted task body went straight from the
+  statement before it to `return NULL`, with nothing for the expression at all. Any side effect
+  inside it was lost.
+
+  ★★ **Found while starting on rabbits-as-actors, wearing a costume.** The symptom was an
+  unawaited task that divided by zero: a message and exit 1 interpreted, complete silence and
+  exit 0 compiled. That reads exactly like a fault being swallowed, and the roadmap entry for
+  actors described today's behaviour in those terms. It was not a swallowed fault — **the division
+  never ran**, because it lived in a dropped expression. Reading the emitted C is what said so;
+  every theory formed before that was about exception handling and was wrong.
+
+  ★ **The branch conflated two cases and its own comment recorded it** — *"a bare `return.` (or a
+  value dropped by a fire-and-forget task)"*. A bare `return.` has nothing to evaluate; the other
+  has an expression whose value is unwanted and whose work is not. They now differ: the expression
+  is emitted for its effects and cast to void.
+
+  ⚠ **The existing test for this shape passed over it, one statement short.** `UnhandledFault_
+  InTask_RunsTheTasksUnmakers` ends immediately after the rabbit's `Done.`, so "the program died
+  here" and "the program carried on" produce identical stdout — and `AssertFaultOracle` compares
+  stdout only, not stderr and not the exit code. The regression tests below put a `State` after
+  the rabbit, which is the whole difference between seeing this and not.
+
 ## [0.20.0] — 2026-09-07
 
 ### Added
