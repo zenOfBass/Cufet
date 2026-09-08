@@ -19,30 +19,7 @@ version, and 1.0.0 will mark the point at which the language is considered stabl
 
 The ordering is not ceremonial: this tier's real blocker is stated below as **ergonomic rather than capability**, and the only way to find ergonomic blockers is to write large Cufet programs. They are the instrument as much as they are the goal — better to meet the gaps one program at a time than to meet all of them at once inside a compiler.
 
-1. **The shell, scriptable in Cufet.** `tools/shell.cufe` runs a line at a time and drives other
-   programs. What it cannot do is be scripted or extended by the person using it.
-
-   ★ **A shell script in Cufet is ALREADY a Cufet program.** `run … with the terminal`,
-   `run … with input`, pipes and `<` all ship, and the shell already runs non-interactively —
-   `printf 'hostname\nExit.\n' | cufet tools/shell.cufe` works today. So this is not a new
-   execution model. It is the handful of things a program needs in order to BE a script.
-
-   **What is left: the shell's own machinery, handed out as a book.** `matches`, `wild`,
-   `base-name` and `expanded` are already at its file scope — glob matching and PATH-shaped work
-   that any script wants — and the language now has both the way to offer them (a declared
-   interface) and the way to keep the rest private.
-
-   ⚠⚠ **DO NOT INVENT A SHELL SCRIPTING LANGUAGE.** The whole point of saying *scriptable in
-   Cufet* is that Cufet already has conditionals, loops and variables — so `if [ -f x ]`, `$VAR`
-   and `test` never need to exist. A second language living inside the first is exactly what this
-   entry is here to prevent, and it is the shape this kind of feature drifts into when nobody
-   writes the warning down.
-
-   ★ It also fits this section's own thesis better than anything else on it: the way to find
-   ergonomic blockers is to write large Cufet programs, and the shell has already found several —
-   value arms came from its command dispatch, and `with the terminal` from its job control.
-
-2. **The compiler, written in Cufet.** The blockers are ergonomic rather than capability: the
+1. **The compiler, written in Cufet.** The blockers are ergonomic rather than capability: the
     data model, text handling and I/O are already sufficient, and emitting C is a route a
     Cufet-written compiler can take too.
 
@@ -61,7 +38,7 @@ The ordering is not ceremonial: this tier's real blocker is stated below as **er
     compiler becoming Cufet is what makes every last part of the language Cufet-written. The
     arc above deliberately did not borrow this promise; this item owns it.
 
-3. **Compile-time macros — the `cufet` tag's expander.** Not a third program. It is here 
+2. **Compile-time macros — the `cufet` tag's expander.** Not a third program. It is here 
     rather than in *Deferred* because its blocker is now a numbered item above, which is the one rule that section states about itself.
 
     Hygienic, expanding to Cufet AST before the checker runs — *not* fexprs, which are first-class and
