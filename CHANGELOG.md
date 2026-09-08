@@ -146,6 +146,54 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+- **A task's fault no longer cuts its rabbit off mid-sentence.** An unhandled fault in a task
+  called `exit(1)` straight out of `cufet_raise` — from the *worker* thread, while the main thread
+  was still running the rabbit body. Everything that body had not yet printed simply never
+  happened.
+
+  Measured on a rabbit printing 200 lines beside a task that divides by zero:
+
+  | | stdout lines | exit |
+  |---|---|---|
+  | interpreted | **200**, every run | 1 |
+  | compiled, before | 48 / 59 / 61 / 62 / 49 / 48 | 1 |
+  | compiled, after | **200**, every run | 1 |
+
+  A different number every run, and a clean-looking prefix each time, because `exit()` flushes
+  what was already buffered. Nothing looked broken; there was just less of it.
+
+  ★★ **A worker now reports to its rabbit instead of ending the process.** It records the fault in
+  the rabbit's table — one slot per task, keyed on spawn index — and unwinds to the landing pad it
+  already had. `Done.` raises after every thread is joined, which is what makes the body's output
+  complete. That is the rabbit acting as the supervisor it already was: it owns the tasks and
+  joins them, so it is the thing that should be told.
+
+  ★ **Every fault, in SPAWN order — not the first, and not completion order.** The docs already
+  promise `Done.` waits for every task, so reporting one of three broke a promise that was already
+  written down. ⚠ Completion order would have been worse than the bug: compiled tasks fail in
+  whatever order the scheduler gives and interpreted ones in cooperative order, so the same program
+  would print different text on each backend — a nondeterministic MESSAGE, which looks deliberate
+  in a way a truncation does not. One fault reads exactly as it did before; several read:
+
+  ```
+  2 tasks failed.
+    Division by zero on line 3.
+    There's no item 5 — 'names' has 1 item (you can reach items 1 through 1). This happened on line 10.
+  ```
+
+  ⚠ **The interpreter changed too, and it was the backend that was already right.** `Drain` always
+  ran every task; only the reporting short-circuited, because the first `GetResult()` threw and the
+  rest were never looked at. It collects now. Control flow that happens to travel as an exception —
+  an interrupt unwind, an `Exit.` — is deliberately not collected and still propagates on its own
+  terms.
+
+  ⚠ Building that message identically on both sides meant dropping `Environment.NewLine` for a
+  literal `"\n"`. It would otherwise have been a Windows-only divergence hiding inside the fix.
+
+  ★ **The mingw landing pad is jumped to for the first time.** Its own note said it was written
+  with the no-unwind form "for the day something does jump to it" — a fault is that day, so the
+  `#if defined(__unix__)` that had kept the pad POSIX-only is gone.
+
 - **The shell pipes and redirects: `sort < names | uniq | head -2`.** `tools/shell.cufe` splits a
   line on `|`, pulls a `<` and its filename out as the input to the whole line, and walks the
   segments handing each one's output to the next — an ordinary loop, because `run … with input`
