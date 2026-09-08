@@ -12,6 +12,63 @@ namespace Cufet.Compiler.Tests;
 /// <summary>One slice of the pipeline oracle suite — see PipelineTestBase for why it is split.</summary>
 public class PipelineTaskTests : PipelineTestBase
 {
+    // ── A task's fault belongs to its rabbit, not to exit() ───────────────────
+
+    // ★★ THE ONE THAT MATTERS. A worker used to call exit(1) straight out of cufet_raise, which
+    // ends the process while the MAIN thread is still running the rabbit body — so however much
+    // of that body's output had not been written simply never happened. Measured before the fix:
+    // 48, 59, 61, 62, 49 and 48 lines out of 200, a different number every run, against 200 every
+    // time interpreted. The count is what makes it visible; a short body hides it behind timing.
+    [Fact]
+    public void ATaskFault_DoesNotTruncateTheRabbitBody()
+    {
+        const string src = """
+            Pull a rabbit.
+                Have rabbit start a task:
+                    Return 1 / 0.
+                Done.
+                For each n in range 1 to 200, repeat:
+                    State n converted to text.
+                Done.
+            Done.
+            """;
+        AssertFaultOracle(src);
+        // Not just "the same as interpreted" — the same as interpreted EVERY time. A truncation
+        // that happened to land on 200 once would pass the oracle above and fail people later.
+        for (int i = 0; i < 5; i++)
+            Assert.Equal(200, CompileRaw(src).Split('\n', StringSplitOptions.RemoveEmptyEntries).Length);
+    }
+
+    // ★ Every fault, not the first — the rabbit's Done. is documented to wait for every task it
+    // started, and reporting one of three breaks a promise already written down.
+    //
+    // ⚠ SPAWN order, never completion order. Compiled tasks fail in whatever order the scheduler
+    // gives and interpreted ones in cooperative order, so reporting them as they arrive would make
+    // the same program print different text on each backend — a nondeterministic MESSAGE, which is
+    // worse than the truncation it replaced because it looks deliberate. This asserts the order,
+    // which is the part a passing oracle alone would not pin.
+    [Fact]
+    public void EveryTaskFault_IsReportedInSpawnOrder()
+    {
+        const string src = """
+            Pull a rabbit.
+                Have rabbit start a task:
+                    Return 1 / 0.
+                Done.
+                Have rabbit start a task:
+                    State "middle ran".
+                Done.
+                Have rabbit start a task:
+                    Define names as a series of text with ("a").
+                    State item 5 of names.
+                Done.
+            Done.
+            """;
+        AssertFaultOracle(src);
+        // The task between the two failures still runs: a fault is not a stop signal to its siblings.
+        Assert.Contains("middle ran", CompileRaw(src));
+    }
+
     // ── A fire-and-forget task's return value is dropped; its WORK is not ─────
     //
     // ★★ The compiler used to emit nothing at all for the expression in an unnamed task's

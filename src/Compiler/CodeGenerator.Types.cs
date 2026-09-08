@@ -542,6 +542,9 @@ static const char* cufet_str_lower(const char* s) {
             // the two file-scope statics from drawing an unused warning.
             body.AppendLine("int main(int argc, char** argv) {");
             body.AppendLine("    cufet_argc = argc; cufet_argv = argv;");
+            // The hook exists only when the signals runtime does. See cufet_worker_fault_fn.
+            if (_usesSignals || _usesConcurrency)
+                body.AppendLine("    cufet_worker_fault_fn = cufet_worker_fault;");
             // Before anything is printed. Threads inherit the process's stdout mode, so tasks are
             // covered by this one call. See CUFET_NL for why it is needed at all.
             body.AppendLine("    CUFET_STDOUT_BINARY();");

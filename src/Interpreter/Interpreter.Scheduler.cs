@@ -112,8 +112,33 @@ internal sealed class CufetScheduler : SynchronizationContext
     {
         if (tasks.Length == 0) return;
         Drain(tasks);
+
+        // ★★ EVERY fault, in SPAWN order — not the first one, and not completion order.
+        //
+        // Drain above already runs every task to completion, which is what `Done.` is
+        // documented to do. Only the reporting short-circuited: the first GetResult() threw
+        // and the rest were never looked at, so a rabbit whose second and third tasks also
+        // failed said so about one of them.
+        //
+        // ⚠ The ORDER is the load-bearing part. Reporting them as they finish would make the
+        // message depend on the scheduler — cooperative here, genuinely parallel compiled —
+        // and the same program would print different text on each backend. Iterating `tasks`
+        // is spawn order, which both backends know and neither can shuffle.
+        var faults = new List<RuntimeException>();
         foreach (var t in tasks)
-            t.GetAwaiter().GetResult();
+        {
+            try { t.GetAwaiter().GetResult(); }
+            // ⚠ Only a Cufet FAULT is collected. Control flow that happens to travel as an
+            // exception — an interrupt unwind, an `Exit.` — is not a failure to report and must
+            // keep propagating on its own terms, so it rethrows here as it always did.
+            catch (RuntimeException ex) { faults.Add(ex); }
+        }
+        if (faults.Count == 0) return;
+        // One fault reads exactly as it did before: the common case gains no ceremony.
+        if (faults.Count == 1) throw faults[0];
+        throw new RuntimeException(
+            $"{faults.Count} tasks failed." + string.Concat(
+                faults.Select(f => "\n  " + f.Message)));
     }
 
     // Run N async units concurrently to completion on the calling thread. Units interleave at

@@ -562,6 +562,9 @@ public sealed partial class CodeGenerator
                     // the teardown joins EVERY task unconditionally, which is both simpler and the
                     // only thing that stays correct once several tasks may await the same task.
                     sb.AppendLine($"{inner}cufet_rbox* cf_rbox{n}[CUFET_TASK_MAX] = {{0}};");
+                    // One slot per task, in spawn order — a worker writes its unhandled fault here
+                    // instead of calling exit(), and the join below reports whatever is in it.
+                    sb.AppendLine($"{inner}char* cf_fault{n}[CUFET_TASK_MAX] = {{0}};");
                     sb.AppendLine($"{inner}(void)cf_thr{n}; (void)cf_chan{n}; (void)cf_rbox{n};");
                     _rabbitCtx.Add(n);
                 }
@@ -604,6 +607,10 @@ public sealed partial class CodeGenerator
                     // publishing, and no awaiter can still be reading, once every thread has been
                     // reaped and this is the only thread left in the rabbit.
                     sb.AppendLine($"{inner}for (int cf_ji = 0; cf_ji < cf_nthr{n}; cf_ji++) pthread_join(cf_thr{n}[cf_ji], NULL);");
+                    // ★ AFTER every thread is reaped and BEFORE the boxes are freed: the rabbit is the
+                    // supervisor, and this is the point where it has the whole picture and nothing is
+                    // still running. Raising here is what makes the body's output complete first.
+                    sb.AppendLine($"{inner}cufet_raise_task_faults(cf_fault{n}, cf_nthr{n});");
                     sb.AppendLine($"{inner}for (int cf_bi = 0; cf_bi < cf_nthr{n}; cf_bi++) cufet_rbox_free(cf_rbox{n}[cf_bi]);");
                     sb.AppendLine($"{inner}for (int cf_ci = 0; cf_ci < cf_nchan{n}; cf_ci++) cufet_chan_free_if_live(cf_chan{n}[cf_ci]);");
                     // INT.1 — the join above is the one place this thread parks for an unbounded

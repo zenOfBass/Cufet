@@ -1532,7 +1532,7 @@ public sealed partial class CodeGenerator
 
         // Arg struct + thread function (accumulated; emitted before the bodies). cf_selfbox is where
         // a named task publishes its own result; it is unused by fire-and-forget tasks.
-        _taskFns.AppendLine($"struct cufet_targ{tid} {{ cufet_rbox* cf_selfbox; {string.Join(" ", caps.Select(c => $"{CapCType(c)} {MangleName(c)};"))} }};");
+        _taskFns.AppendLine($"struct cufet_targ{tid} {{ cufet_rbox* cf_selfbox; char** cf_faultslot; {string.Join(" ", caps.Select(c => $"{CapCType(c)} {MangleName(c)};"))} }};");
         _taskFns.AppendLine($"static void* cufet_task{tid}(void* argp) {{");
         // ⚠ Per thread, and this is why: a rabbit runs on its OWN stack, with its own bounds and
         // its own need for somewhere to land when that stack runs out. The handler is installed
@@ -1543,6 +1543,9 @@ public sealed partial class CodeGenerator
         _taskFns.AppendLine($"    struct cufet_targ{tid}* cf_a = (struct cufet_targ{tid}*)argp;");
         // The arena must exist before a bridged capture can be copied into it.
         _taskFns.AppendLine($"    cufet_arena_push();");
+        // Before the body, and before the pad: an unhandled raise in here reports to the rabbit
+        // rather than ending the process. See cufet_worker_fault.
+        _taskFns.AppendLine($"    cufet_fault_slot = cf_a->cf_faultslot;");
         foreach (var c in caps)
         {
             string m = MangleName(c);
@@ -1576,9 +1579,12 @@ public sealed partial class CodeGenerator
         string bodyIndent = "    ";
         if (pad)
         {
-            _taskFns.AppendLine($"#if defined(__unix__) || defined(__APPLE__)");
+            // ⚠ NO #if. The pad used to be POSIX-only, on the reasoning that only a signal
+            // unwinds to it — true until an unhandled fault started unwinding here too, which
+            // is a thing mingw does exactly as POSIX does. The runtime defines
+            // CUFET_SETJMP/CUFET_LONGJMP on both platforms for this reason, and its own note
+            // says the mingw pad was written ready for "the day something does jump to it".
             _taskFns.AppendLine($"    if (CUFET_SETJMP(cufet_thread_top) == 0) {{ cufet_pad_set = 1;");
-            _taskFns.AppendLine($"#endif");
             bodyIndent = "        ";
         }
         var savedTF = EnterFrame(_taskFns, bodyIndent);
@@ -1599,9 +1605,7 @@ public sealed partial class CodeGenerator
         _inTaskBody        = savedInTask;
         if (pad)
         {
-            _taskFns.AppendLine($"#if defined(__unix__) || defined(__APPLE__)");
             _taskFns.AppendLine($"    }}");
-            _taskFns.AppendLine($"#endif");
         }
         // Fall-through epilogue — reached by a fire-and-forget/void task finishing normally, and by
         // an INTERRUPTED task of any kind unwinding to the pad above. A value-returning task is
@@ -1648,6 +1652,7 @@ public sealed partial class CodeGenerator
         else
             // Fire-and-forget: malloc does not zero, and the unwind path publishes unconditionally.
             sb.AppendLine($"{indent}  cf_a->cf_selfbox = NULL;");
+        sb.AppendLine($"{indent}  cf_a->cf_faultslot = &cf_fault{ctx}[cf_nthr{ctx}];");
         sb.AppendLine($"{indent}  pthread_create(&cf_thr{ctx}[cf_nthr{ctx}++], NULL, cufet_task{tid}, cf_a); }}");
     }
 

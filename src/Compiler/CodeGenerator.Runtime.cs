@@ -164,6 +164,15 @@ static const char* cufet_msgf(const char* fmt, ...) {
     va_end(ap2);
     return b;
 }
+/* ⚠ A POINTER, not a forward declaration. A WORKER records its fault in the rabbit's table and
+   unwinds to its landing pad instead of ending the process — but the pad and that machinery live
+   in the signals runtime, which is emitted only for a program that has tasks. cufet_raise is in
+   the preamble and is always emitted, so naming the function directly left every sequential
+   program with an undefined reference. main assigns this when the concurrency runtime is there;
+   NULL everywhere else, where a raise has no worker to be on and print-and-exit is the whole
+   story. */
+static int (*cufet_worker_fault_fn)(const char*) = NULL;
+
 static void cufet_raise(const char* msg) {
     if (cufet_exc_top >= 0) {
         /* ★ MESSAGE LIFETIME: cufet_msgf allocates in the arena live at the FAULT site, but the catch
@@ -191,6 +200,12 @@ static void cufet_raise(const char* msg) {
        own; `to(0)` is this thread's whole pending set, which is what unwinding to the top means.
        Free when unused — cufet_num stays 0. Files need no equivalent: exit() flushes them. */
     cufet_run_unmakers_to(0);
+    /* ★★ A worker does NOT end the process here. exit() from a task thread kills the main
+       thread wherever it happens to be, so a rabbit body still printing loses however much of
+       its output had not been written — measured at 48 to 87 lines out of 200, a different
+       number every run, against 200 every time interpreted. This hands the fault to the
+       rabbit and unwinds; Done. raises it once every task has been joined. */
+    if (cufet_worker_fault_fn) cufet_worker_fault_fn(msg);   /* does not return on a worker */
     fprintf(stderr, "%s\n", msg);
     exit(1);
 }
@@ -1682,6 +1697,7 @@ static CufetDec cufet_random_number(CufetDec low, CufetDec high, int line) {
    sigsetjmp/siglongjmp save and restore the signal mask, which is what makes the unwind safe from
    a signal-interrupted checkpoint — and which mingw has no notion of. */
 #define CUFET_SETJMP(b) sigsetjmp((b), 1)
+#define CUFET_LONGJMP(b) siglongjmp((b), 1)
 static volatile sig_atomic_t cufet_interrupted = 0;
 static _Thread_local sigjmp_buf cufet_thread_top;   /* this thread's interrupt landing pad */
 static _Thread_local int cufet_pad_set = 0;          /* 1 once this thread has established its pad */
@@ -1708,12 +1724,54 @@ static void cufet_checkpoint(void) {
    for the day something does jump to it, and the two pads should not differ in a way nobody
    intended. See CUFET_PLAIN_SETJMP. */
 #define CUFET_SETJMP(b) CUFET_PLAIN_SETJMP(b)
+/* ★ The day something jumps to this pad, anticipated by the note above, is today: an
+   unhandled fault in a worker unwinds here on mingw exactly as it does under POSIX. */
+#define CUFET_LONGJMP(b) longjmp((b), 1)
 static volatile int cufet_interrupted = 0;
 static _Thread_local jmp_buf cufet_thread_top;
 static _Thread_local int cufet_pad_set = 0;
 static void cufet_install_sigint(void) {}
 static void cufet_checkpoint(void) {}
 #endif
+
+/* ── A task fault travels to its rabbit, not to exit() ───────────────────────────────────────
+   Where this thread writes an unhandled fault instead of ending the process. NULL on the main
+   thread, which is what keeps today's behaviour there: print and exit. A worker points it at its
+   own slot in its rabbit's table before running the body. */
+static _Thread_local char** cufet_fault_slot = NULL;
+
+static int cufet_worker_fault(const char* msg) {
+    if (!cufet_fault_slot || !cufet_pad_set) return 0;   /* main thread, or no pad: caller exits */
+    /* ⚠ malloc, not the arena. The message was built in this thread's arena, which the epilogue
+       pops on the way out, and the rabbit reads it after the thread is gone. This is the one
+       allocation in the fault path that outlives its region on purpose; the join frees it. */
+    size_t n = strlen(msg) + 1;
+    char* b = (char*)malloc(n);
+    if (b) { memcpy(b, msg, n); *cufet_fault_slot = b; }
+    CUFET_LONGJMP(cufet_thread_top);
+    return 0;   /* unreachable */
+}
+
+/* The rabbit's Done. — every task fault it collected, in SPAWN order.
+   ★★ Spawn order, never completion order. Compiled tasks fail in whatever order the scheduler
+   gives and interpreted ones in cooperative order, so reporting them as they arrive would make
+   the same program print different text on each backend — a nondeterministic MESSAGE, which is
+   worse than the nondeterministic truncation it replaced because it looks deliberate. The slot
+   index is the spawn index, and both backends agree on it.
+   ★ One fault reads exactly as it did before: the common case gains no ceremony. */
+static void cufet_raise_task_faults(char** slots, int n) {
+    int count = 0;
+    for (int i = 0; i < n; i++) if (slots[i]) count++;
+    if (count == 0) return;
+    if (count == 1) for (int i = 0; i < n; i++) if (slots[i]) cufet_raise(slots[i]);
+    size_t need = 32;
+    for (int i = 0; i < n; i++) if (slots[i]) need += strlen(slots[i]) + 4;
+    char* b = (char*)cufet_arena_alloc(need);
+    int off = snprintf(b, need, "%d tasks failed.", count);
+    for (int i = 0; i < n; i++)
+        if (slots[i]) off += snprintf(b + off, need - (size_t)off, "\n  %s", slots[i]);
+    cufet_raise(b);
+}
 
 """;
 
