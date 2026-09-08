@@ -131,7 +131,12 @@ public class CommandLineTests
         string file = WriteProgram(
             "State the number of the arguments.\n" +
             "For each arg in the arguments, repeat: State arg. Done.\n");
-        string exe = Path.ChangeExtension(file, RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? ".exe" : "");
+        // ⚠ null, NOT "". Path.ChangeExtension(path, "") leaves a TRAILING DOT — `/tmp/x.cufe`
+        // becomes `/tmp/x.` — which is a real filename on Windows-by-luck and nothing at all on
+        // Linux. Both of these passed here and failed under WSL for exactly that reason.
+        string exe = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+            ? Path.ChangeExtension(file, ".exe")
+            : Path.ChangeExtension(file, null)!;
         try
         {
             string interpreted = Run(file, "alpha", "beta").Out.ReplaceLineEndings("\n");
@@ -238,7 +243,12 @@ public class CommandLineTests
             "    Exit with 7.\n" +
             "    State \"never reached\".\n" +
             "Done.\n");
-        string exe = Path.ChangeExtension(file, RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? ".exe" : "");
+        // ⚠ null, NOT "". Path.ChangeExtension(path, "") leaves a TRAILING DOT — `/tmp/x.cufe`
+        // becomes `/tmp/x.` — which is a real filename on Windows-by-luck and nothing at all on
+        // Linux. Both of these passed here and failed under WSL for exactly that reason.
+        string exe = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+            ? Path.ChangeExtension(file, ".exe")
+            : Path.ChangeExtension(file, null)!;
         try
         {
             var (iExit, iOut, _) = Run(file);

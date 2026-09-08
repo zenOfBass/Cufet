@@ -367,7 +367,24 @@ public sealed partial class CodeGenerator
                     }
                     else
                     {
-                        // A bare `return.` (or a value dropped by a fire-and-forget task): no result.
+                        // A bare `return.`, or a fire-and-forget task's `return <expr>`: no result box
+                        // to publish to.
+                        //
+                        // ⚠⚠ A dropped VALUE is not a dropped EVALUATION, and conflating the two was a
+                        // live divergence. This branch used to emit nothing for the expression at all, so
+                        // `Return cast noisy.` in an unnamed task never called `noisy` in the compiled
+                        // program while it did in the interpreted one — a print vanished, and so did a
+                        // fault, which is why an unawaited task that divided by zero looked like it was
+                        // swallowing the error. Nothing was being swallowed; the division never ran.
+                        //
+                        // ★ Emitted for its effects and cast to void, which is exactly what the docs mean
+                        // by "any value it returns is dropped": the VALUE goes, the work does not.
+                        if (ret.Value != null)
+                        {
+                            string dropped = EmitExpr(ret.Value);
+                            FlushPreEmits(sb, indent);
+                            sb.AppendLine($"{indent}(void)({dropped});");
+                        }
                         sb.AppendLine($"{indent}{UnwindTo(FrameExit)}cufet_arena_pop(); free(cf_a); return NULL;");
                     }
                     break;

@@ -12,6 +12,58 @@ namespace Cufet.Compiler.Tests;
 /// <summary>One slice of the pipeline oracle suite — see PipelineTestBase for why it is split.</summary>
 public class PipelineTaskTests : PipelineTestBase
 {
+    // ── A fire-and-forget task's return value is dropped; its WORK is not ─────
+    //
+    // ★★ The compiler used to emit nothing at all for the expression in an unnamed task's
+    // `Return`, so the call inside it never happened in the compiled program while it did in the
+    // interpreted one. The docs say "any value it returns is dropped" — the VALUE, not the
+    // evaluation, and the branch that handled a bare `return.` had swallowed both.
+    //
+    // ⚠ This is what an "unawaited task swallows its fault" divergence turned out to be. A task
+    // ending `Return 1 / 0.` printed nothing and exited 0 compiled, against a message and exit 1
+    // interpreted — which reads as a fault being discarded and is not: the division never ran.
+    // Both halves are below, because the harmless one is the one that says what the bug WAS.
+
+    [Fact]
+    public void FireAndForgetTask_StillEvaluatesWhatItReturns()
+    {
+        const string src = """
+            Bind number to noisy:
+                State "side effect ran".
+                Return 5.
+            Done.
+
+            Pull a rabbit.
+                Have rabbit start a task:
+                    State "task started".
+                    Return cast noisy.
+                Done.
+            Done.
+            State "program end".
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+        Assert.Contains("side effect ran", CompileRaw(src));
+    }
+
+    // ★ The same defect wearing the costume it was found in. A statement AFTER the rabbit is what
+    // makes it visible at all: without one, "the program died here" and "the program carried on"
+    // produce identical stdout, which is why the existing dying-cleanup test passed over it.
+    [Fact]
+    public void FireAndForgetTask_ThatFaults_DoesNotSilentlyCarryOn()
+    {
+        const string src = """
+            Pull a rabbit.
+                Have rabbit start a task:
+                    State "task ran".
+                    Return 1 / 0.
+                Done.
+            Done.
+            State "program end".
+            """;
+        AssertFaultOracle(src);
+        Assert.DoesNotContain("program end", CompileRaw(src));
+    }
+
 
     [Fact]
     public void Exception_NestedInnermostWins_ThenReRaisesOutward()
