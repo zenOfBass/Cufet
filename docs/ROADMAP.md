@@ -63,9 +63,9 @@ they are large, not because they are waiting — the order among them means noth
 
 1. **Rabbits as actors.** A rabbit already owns an isolated arena, owns and joins the tasks it
    spawns, shares nothing mutable across threads, and has escape rules the compiler enforces —
-   that is the actor invariant, and the expensive part of it is shipping. What is left is failure,
-   supervision, and the framing itself: naming this in DESIGN is part of the work, not a write-up
-   of it.
+   that is the actor invariant, and the expensive part of it is shipping. What is left is the
+   AWAITED half of failure, supervision, and the framing itself: naming this in DESIGN is part of
+   the work, not a write-up of it.
 
    **Settled:**
 
@@ -76,9 +76,6 @@ they are large, not because they are waiting — the order among them means noth
      through `the awaited result of`, which becomes `T or failure`. ⚠ **Breaking** — every awaiter
      comes under the unhandled-failure check. That is the feature, but decide it rather than
      discover it.
-   - **An unawaited task surfaces at the rabbit's `Done.`** The rabbit is the real supervisor; it
-     already joins everything it spawned. Without this a fire-and-forget fault is swallowed, which
-     is worse than today's teardown rather than better.
    - **Identity is the rabbit's name, and the send surface is `Have <rabbit> …`** — a shape that
      already exists for other reasons. The mailbox mechanism is later.
    - **A restartable body must acquire its own resources**, so a re-run re-acquires into a fresh
@@ -92,11 +89,6 @@ they are large, not because they are waiting — the order among them means noth
      file), never a captured `number` or `text`. Anything wider is a rule wider than its reason.
    - Restart policy: how many attempts, and what giving up does.
    - The mailbox itself.
-
-   ★ **The compiled side is closer than it looks.** Every task function already establishes a
-   per-thread landing pad for interrupts (`CUFET_SETJMP(cufet_thread_top)`), so isolating a fault
-   is a second pad of the same shape rather than new machinery. Today a worker with no handler runs
-   its unmakers and calls `exit(1)`, taking the process with it.
 
 2. **A package manager for books.**
 
