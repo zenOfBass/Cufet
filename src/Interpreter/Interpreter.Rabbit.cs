@@ -9,6 +9,11 @@ public sealed partial class Interpreter
     // ExecuteLaunchTask registers its spawned task on the innermost (top) list.
     private readonly Stack<List<Task>> _rabbitTaskStacks = new();
 
+    // The handle for each entry in the stack above, or null for a fire-and-forget task. Kept
+    // parallel rather than folded into one list so `JoinTasks(Task[])` keeps its signature and
+    // the scheduler stays ignorant of what a task handle is.
+    private readonly Stack<List<TaskHandle?>> _rabbitHandleStacks = new();
+
     // Runtime handle for a named task (slice 4). Created at task launch and bound to
     // the task's name in scope. The C# Task completes when the task body finishes;
     // the returned value (if any) is stored by RunTaskBody catching ReturnException.
@@ -17,6 +22,15 @@ public sealed partial class Interpreter
         public Task? CSharpTask;
         public object? Result;
         public bool HasResult;
+        /// <summary>Whether anything read this task's result.</summary>
+        /// <remarks>
+        /// ★★ Reading takes ownership of the failure. A task whose result an awaiter read is that
+        /// awaiter's business, so the rabbit's `Done.` reports only faults nobody claimed — without
+        /// this, catching a fault at the await and suppressing it still ended the program, because
+        /// the join announced the same fault a second time. A fire-and-forget task has no handle to
+        /// read, so yesterday's behaviour falls out of the same rule rather than being a second one.
+        /// </remarks>
+        public bool WasRead;
     }
 
     // "Pull a rabbit [as <name>]. ... Done."
@@ -29,7 +43,9 @@ public sealed partial class Interpreter
     private void ExecutePullRabbit(PullRabbitStatement prs)
     {
         var myTasks = new List<Task>();
+        var myHandles = new List<TaskHandle?>();
         _rabbitTaskStacks.Push(myTasks);
+        _rabbitHandleStacks.Push(myHandles);
         EnterScope();
         if (prs.Name != null)
             Scope[prs.Name] = new RabbitValue(prs.Name);
@@ -41,11 +57,12 @@ public sealed partial class Interpreter
             // guarantee: tasks cannot outlive their rabbit. The scope is still open here,
             // so task bodies can access rabbit-local variables.
             if (myTasks.Count > 0)
-                _scheduler!.JoinTasks([.. myTasks]);
+                _scheduler!.JoinTasks([.. myTasks], [.. myHandles]);
         }
         finally
         {
             _rabbitTaskStacks.Pop();
+            _rabbitHandleStacks.Pop();
             ExitScope();
         }
     }
@@ -70,6 +87,7 @@ public sealed partial class Interpreter
             handle.CSharpTask = task;
 
         _rabbitTaskStacks.Peek().Add(task);
+        _rabbitHandleStacks.Peek().Add(handle);
 
         if (lts.Name != null)
             Scope[lts.Name] = handle!;

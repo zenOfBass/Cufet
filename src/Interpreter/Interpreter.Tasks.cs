@@ -20,6 +20,11 @@ public sealed partial class Interpreter
             if (_interruptRequested) throw new InterruptUnwind();
         }
 
+        // ★ Read BEFORE the rethrow below, because a fault is exactly the case that matters: the
+        // awaiter is taking this failure whether it handles it or lets it travel, and either way
+        // the rabbit's join must not announce it again.
+        handle.WasRead = true;
+
         // Re-throw any RuntimeException (or other fault) from the task body.
         // ReturnException is caught in RunTaskBody and stored on the handle — not faulted.
         task.GetAwaiter().GetResult();

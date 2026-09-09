@@ -1624,6 +1624,11 @@ public sealed partial class CodeGenerator
         // result — so any awaiter would wait forever. An empty publish wakes them with NULL, which
         // the await site reads as "no result" and turns into a checkpoint. Harmless when nobody is
         // waiting, and NULL for a fire-and-forget task whose box does not exist.
+        // ★ The fault reaches the AWAITER through the box and the RABBIT through the table. Both,
+        // because they are different questions: the awaiter asks "what happened to my result",
+        // the rabbit asks "did anything go unclaimed". Set before the publish, so an awaiter
+        // woken by it never sees the box without the reason.
+        _taskFns.AppendLine($"    cufet_rbox_set_fault(cf_a->cf_selfbox, *cf_a->cf_faultslot);");
         _taskFns.AppendLine($"    cufet_rbox_publish(cf_a->cf_selfbox, NULL);");
         _taskFns.AppendLine($"    cufet_arena_pop();");
         _taskFns.AppendLine($"    free(cf_a);");

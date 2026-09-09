@@ -210,9 +210,15 @@ public sealed partial class CodeGenerator
         // INT.1 — an interrupted task is abandoned at its landing pad and publishes nothing, and an
         // interrupted awaiter stops waiting; both surface as NULL. There is no sensible value to
         // await then, and the interrupt is meant for this thread too, so check in.
+        //
+        // ⚠⚠ A FAULTED task also publishes nothing, and this branch used to treat it as an
+        // interrupt: it zeroed the result and handed the awaiter a fabricated 0 to compute with,
+        // while the interpreter propagated the fault at the same point. Ask the box which ending
+        // it was. Taking the fault also marks the box READ — the awaiter owns this failure now,
+        // so the rabbit's Done. must not announce it a second time.
         _preEmits.Add($"{rc} cf_ares{aid}; {{ void* cf_ar = cufet_rbox_await({box}); " +
                     $"if (cf_ar) cf_ares{aid} = {ChanArenaCopy(resultType)}(cf_ar); " +
-                    $"else {{ cufet_checkpoint(); memset(&cf_ares{aid}, 0, sizeof cf_ares{aid}); }} }}");
+                    $"else {{ char* cf_af{aid} = cufet_rbox_take_fault({box}); if (cf_af{aid}) cufet_raise(cf_af{aid}); cufet_checkpoint(); memset(&cf_ares{aid}, 0, sizeof cf_ares{aid}); }} }}");
         return $"cf_ares{aid}";
     }
 

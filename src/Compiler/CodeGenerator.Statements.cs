@@ -610,7 +610,7 @@ public sealed partial class CodeGenerator
                     // ★ AFTER every thread is reaped and BEFORE the boxes are freed: the rabbit is the
                     // supervisor, and this is the point where it has the whole picture and nothing is
                     // still running. Raising here is what makes the body's output complete first.
-                    sb.AppendLine($"{inner}cufet_raise_task_faults(cf_fault{n}, cf_nthr{n});");
+                    sb.AppendLine($"{inner}cufet_raise_task_faults(cf_fault{n}, cf_rbox{n}, cf_nthr{n});");
                     sb.AppendLine($"{inner}for (int cf_bi = 0; cf_bi < cf_nthr{n}; cf_bi++) cufet_rbox_free(cf_rbox{n}[cf_bi]);");
                     sb.AppendLine($"{inner}for (int cf_ci = 0; cf_ci < cf_nchan{n}; cf_ci++) cufet_chan_free_if_live(cf_chan{n}[cf_ci]);");
                     // INT.1 — the join above is the one place this thread parks for an unbounded

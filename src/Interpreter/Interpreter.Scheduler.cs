@@ -108,7 +108,7 @@ internal sealed class CufetScheduler : SynchronizationContext
     // Re-entrant-safe: this is called from within the main synchronous unit while
     // the outer scheduler.Run is still on the call stack. The drain loop is the same
     // queue, so pending continuations (task bodies) are processed here inline.
-    internal void JoinTasks(Task[] tasks)
+    internal void JoinTasks(Task[] tasks, Interpreter.TaskHandle?[] handles)
     {
         if (tasks.Length == 0) return;
         Drain(tasks);
@@ -125,13 +125,16 @@ internal sealed class CufetScheduler : SynchronizationContext
         // and the same program would print different text on each backend. Iterating `tasks`
         // is spawn order, which both backends know and neither can shuffle.
         var faults = new List<RuntimeException>();
-        foreach (var t in tasks)
+        for (int i = 0; i < tasks.Length; i++)
         {
-            try { t.GetAwaiter().GetResult(); }
+            try { tasks[i].GetAwaiter().GetResult(); }
             // ⚠ Only a Cufet FAULT is collected. Control flow that happens to travel as an
             // exception — an interrupt unwind, an `Exit.` — is not a failure to report and must
             // keep propagating on its own terms, so it rethrows here as it always did.
-            catch (RuntimeException ex) { faults.Add(ex); }
+            // ★★ A fault whose result was READ belongs to the awaiter, not to the rabbit.
+            // Without this, catching a task's fault at the await and suppressing it still ended
+            // the program: the join announced the same fault a second time.
+            catch (RuntimeException ex) { if (handles[i] is not { WasRead: true }) faults.Add(ex); }
         }
         if (faults.Count == 0) return;
         // One fault reads exactly as it did before: the common case gains no ceremony.

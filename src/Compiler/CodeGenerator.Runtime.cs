@@ -1752,26 +1752,6 @@ static int cufet_worker_fault(const char* msg) {
     return 0;   /* unreachable */
 }
 
-/* The rabbit's Done. — every task fault it collected, in SPAWN order.
-   ★★ Spawn order, never completion order. Compiled tasks fail in whatever order the scheduler
-   gives and interpreted ones in cooperative order, so reporting them as they arrive would make
-   the same program print different text on each backend — a nondeterministic MESSAGE, which is
-   worse than the nondeterministic truncation it replaced because it looks deliberate. The slot
-   index is the spawn index, and both backends agree on it.
-   ★ One fault reads exactly as it did before: the common case gains no ceremony. */
-static void cufet_raise_task_faults(char** slots, int n) {
-    int count = 0;
-    for (int i = 0; i < n; i++) if (slots[i]) count++;
-    if (count == 0) return;
-    if (count == 1) for (int i = 0; i < n; i++) if (slots[i]) cufet_raise(slots[i]);
-    size_t need = 32;
-    for (int i = 0; i < n; i++) if (slots[i]) need += strlen(slots[i]) + 4;
-    char* b = (char*)cufet_arena_alloc(need);
-    int off = snprintf(b, need, "%d tasks failed.", count);
-    for (int i = 0; i < n; i++)
-        if (slots[i]) off += snprintf(b + off, need - (size_t)off, "\n  %s", slots[i]);
-    cufet_raise(b);
-}
 
 """;
 
@@ -1849,15 +1829,42 @@ typedef struct {
     int    done;                  /* published (a NULL env means the task was abandoned) */
     void*  env;                   /* malloc'd result envelope, owned by the box */
     void (*freeenv)(void*);       /* per-element-type deep free, recorded at spawn */
+    /* ★ An unhandled fault in the task, handed to whoever awaits it. NULL when the task ended
+       normally or was abandoned by an interrupt — those are different endings and the await has
+       to tell them apart, which is what went wrong: the await's NULL branch was written for the
+       interrupt and started catching faults too, fabricating a zeroed result for the awaiter. */
+    char*  fault;
+    /* Whether anyone READ this box. Reading takes ownership of the failure, so the rabbit's
+       Done. reports only faults nobody claimed. */
+    int    read;
 } cufet_rbox;
 
 static cufet_rbox* cufet_rbox_new(void (*freeenv)(void*)) {
     cufet_rbox* b = (cufet_rbox*)malloc(sizeof(cufet_rbox));
     pthread_mutex_init(&b->m, NULL);
     pthread_cond_init(&b->c, NULL);
-    b->done = 0; b->env = NULL; b->freeenv = freeenv;
+    b->done = 0; b->env = NULL; b->freeenv = freeenv; b->fault = NULL; b->read = 0;
     return b;
 }
+/* Recorded by the task on its way out, before it publishes. The message is the malloc'd copy the
+   worker made, and the box owns it from here. */
+static void cufet_rbox_set_fault(cufet_rbox* b, char* msg) {
+    if (!b) return;
+    pthread_mutex_lock(&b->m);
+    b->fault = msg;
+    pthread_mutex_unlock(&b->m);
+}
+
+/* The awaiter's side: takes the fault AND marks the box read, in one lock, so two awaiters
+   cannot both decide they were the one who claimed it. NULL when there is no fault. */
+static char* cufet_rbox_take_fault(cufet_rbox* b) {
+    if (!b) return NULL;
+    pthread_mutex_lock(&b->m);
+    char* f = b->fault; b->read = 1;
+    pthread_mutex_unlock(&b->m);
+    return f;
+}
+
 static void cufet_rbox_publish(cufet_rbox* b, void* env) {
     if (!b) { if (env) free(env); return; }
     pthread_mutex_lock(&b->m);
@@ -1882,11 +1889,39 @@ static void* cufet_rbox_await(cufet_rbox* b) {
 }
 static void cufet_rbox_free(cufet_rbox* b) {
     if (!b) return;
+    if (b->fault) free(b->fault);
     if (b->env) { if (b->freeenv) b->freeenv(b->env); else free(b->env); }
     pthread_mutex_destroy(&b->m);
     pthread_cond_destroy(&b->c);
     free(b);
 }
+/* The rabbit's Done. — every task fault it collected, in SPAWN order.
+   ★★ Spawn order, never completion order. Compiled tasks fail in whatever order the scheduler
+   gives and interpreted ones in cooperative order, so reporting them as they arrive would make
+   the same program print different text on each backend — a nondeterministic MESSAGE, which is
+   worse than the nondeterministic truncation it replaced because it looks deliberate. The slot
+   index is the spawn index, and both backends agree on it.
+   ★ One fault reads exactly as it did before: the common case gains no ceremony. */
+static void cufet_raise_task_faults(char** slots, cufet_rbox** boxes, int n) {
+    /* ★★ READING A RESULT TAKES OWNERSHIP OF THE FAILURE. A task whose box an awaiter read is
+       that awaiter's business — the type system makes them deal with it — so reporting it here
+       too would announce every handled failure twice. A fire-and-forget task has no box and so
+       is never claimed, which is why yesterday's behaviour falls out of the same rule rather
+       than being a second one. */
+    for (int i = 0; i < n; i++) if (boxes[i] && boxes[i]->read) slots[i] = NULL;
+    int count = 0;
+    for (int i = 0; i < n; i++) if (slots[i]) count++;
+    if (count == 0) return;
+    if (count == 1) for (int i = 0; i < n; i++) if (slots[i]) cufet_raise(slots[i]);
+    size_t need = 32;
+    for (int i = 0; i < n; i++) if (slots[i]) need += strlen(slots[i]) + 4;
+    char* b = (char*)cufet_arena_alloc(need);
+    int off = snprintf(b, need, "%d tasks failed.", count);
+    for (int i = 0; i < n; i++)
+        if (slots[i]) off += snprintf(b + off, need - (size_t)off, "\n  %s", slots[i]);
+    cufet_raise(b);
+}
+
 static void cufet_chan_close(cufet_chan* ch) {
     pthread_mutex_lock(&ch->m); ch->closed = 1; pthread_cond_broadcast(&ch->c); pthread_mutex_unlock(&ch->m);
 }

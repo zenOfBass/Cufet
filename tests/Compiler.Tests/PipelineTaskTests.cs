@@ -12,6 +12,63 @@ namespace Cufet.Compiler.Tests;
 /// <summary>One slice of the pipeline oracle suite — see PipelineTestBase for why it is split.</summary>
 public class PipelineTaskTests : PipelineTestBase
 {
+    // ── Awaiting a task that faulted ──────────────────────────────────────────
+
+    // ⚠⚠ A REGRESSION, and the shape that let it through. Once a worker stopped calling exit() and
+    // started unwinding, it published nothing — and the await's NULL branch had been written for a
+    // task ABANDONED BY AN INTERRUPT, so it zeroed the result and handed the awaiter a fabricated
+    // `0` to compute with, while the interpreter propagated the fault at the same point. The suite
+    // was green through all of it because no test awaited a faulting task without a `but on
+    // failure`, which is exactly the shape that produces the wrong number.
+    [Fact]
+    public void AwaitingAFaultedTask_DoesNotHandBackAFabricatedValue()
+    {
+        const string src = """
+            Pull a rabbit.
+                Have rabbit start a task as job:
+                    Return 1 / 0.
+                Done.
+                State "before await".
+                State (the awaited result of job) converted to text.
+                State "after await".
+            Done.
+            """;
+        AssertFaultOracle(src);
+        // The await must not produce a value at all: nothing past it runs, and no zero appears.
+        Assert.DoesNotContain("after await", CompileRaw(src));
+        Assert.DoesNotContain("0", CompileRaw(src));
+    }
+
+    // ★★ READING A RESULT TAKES OWNERSHIP OF THE FAILURE. Catching a task's fault at the await and
+    // suppressing it must END it — the rabbit's Done. joins that same task moments later and,
+    // without a read flag, announced the identical fault a second time and killed a program whose
+    // author had handled everything they were given.
+    [Fact]
+    public void AFaultClaimedByItsAwaiter_IsNotAnnouncedAgainAtDone()
+    {
+        const string src = """
+            Pull a rabbit.
+                Have rabbit start a task as job:
+                    Return 1 / 0.
+                Done.
+                Try to:
+                    State (the awaited result of job) converted to text.
+                Done.
+                In case of exception:
+                    State "caught: {the message of the exception}".
+                    Suppress the exception.
+                Done.
+                State "body finished".
+            Done.
+            State "program end".
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+        // Handled means handled: the program runs to its end, and the message appears ONCE.
+        string got = CompileRaw(src);
+        Assert.Contains("program end", got);
+        Assert.Equal(1, got.Split("Division by zero").Length - 1);
+    }
+
     // ── A task's fault belongs to its rabbit, not to exit() ───────────────────
 
     // ★★ THE ONE THAT MATTERS. A worker used to call exit(1) straight out of cufet_raise, which
