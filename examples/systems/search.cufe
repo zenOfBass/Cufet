@@ -1,0 +1,104 @@
+/* search — the corpus's first SCRIPT.
+
+   Every other program here prints and stops. This one reads its own command line
+   and leaves with a status its caller can branch on, which is the difference
+   between a program that outputs and a program a shell can ask a question of:
+
+       cufet examples/systems/search.cufe fox examples/assets/sample.txt
+       cufet build examples/systems/search.cufe && ./search fox notes.txt
+
+   The exit contract is grep's, because grep's is the one every shell already knows:
+
+       0   something matched
+       1   nothing matched — not an error, an answer
+       2   a file could not be read, or the command line made no sense
+
+   That 1 is the whole reason statuses exist. `if search TODO notes.txt; then ...`
+   works only because "nothing matched" comes back as a status rather than as a
+   sentence, and a status is the one thing a caller receives that is not text.
+
+   Run with NO arguments it searches the file that ships beside it, so that reading
+   the example and running the example tell the same story. A half-given command
+   line — a pattern with nothing to search — is still answered the way a real
+   script answers one: usage, and 2.
+
+   Exercises:
+   - `the arguments` — a series of text, EMPTY rather than void when there are none
+   - `Exit` and `Exit with N` — from inside a function, unwinding through every block
+   - `read all lines from the file` — the fallible form, handled once per file
+*/
+
+Bind void to usage:
+    State "usage: search <text> <file>...".
+    State "".
+    State "prints every line of every file containing <text>, as path:line: text".
+    State "leaves with 0 if something matched, 1 if nothing did, 2 on a bad file".
+Done.
+
+/* One file. Gives back how many of its lines matched — and a file it cannot read
+   is a FAILURE rather than a zero, because "nothing here" and "I never looked" are
+   different answers and only one of them deserves a 2. */
+Bind number or failure to search-file, given (the text needle, the text target):
+    Define lines as read all lines from the file target or pass the failure off.
+    Define hits as 0.
+    Define index as 0.
+    For each line in lines, repeat:
+        Increment index by 1.
+        If line contains needle:
+            Increment hits by 1.
+            State "{target}:{index converted to text}: {line}".
+        Done.
+    Done.
+    Return hits.
+Done.
+
+Bind void to play:
+    Define needle as "".
+    Define targets as a series of text.
+
+    /* A pattern and nothing to search it in. This is the shape a mistyped command
+       line actually takes, and the one place usage belongs. */
+    If the number of the arguments is 1:
+        Cast usage.
+        Exit with 2.
+    Done.
+
+    If the number of the arguments is 0:
+        State "(no arguments — searching the file that ships with this example)".
+        State "".
+        The needle becomes "fox".
+        Insert "examples/assets/sample.txt" into targets.
+    Done.
+    Otherwise:
+        The needle becomes item 1 of the arguments.
+        Define index as 0.
+        For each arg in the arguments, repeat:
+            Increment index by 1.
+            If index is 1, skip.
+            Insert arg into targets.
+        Done.
+    Done.
+
+    Define total as 0.
+    Define unreadable as false.
+    For each target in targets, repeat:
+        Try to:
+            Increment total by cast search-file on (needle, target).
+        Done.
+        In case of failure:
+            /* Reported per file, and the search carries on: one unreadable path
+               out of forty should not cost you the other thirty-nine's answers. */
+            State "search: {target}: {the message of the failure}".
+            The unreadable becomes true.
+        Done.
+    Done.
+
+    State "".
+    State "{total converted to text} matching line(s) in {the number of targets converted to text} file(s)".
+
+    If unreadable, exit with 2.
+    If total is 0, exit with 1.
+    Exit.
+Done.
+
+Cast play.
