@@ -1,0 +1,135 @@
+/*  Four sensor logs averaged at once — and the two different ways a task goes wrong.
+
+    Each task takes one station's raw readings, parses them, and returns the average. The
+    stations are independent, so they run at the same time and the rabbit joins them all at
+    `Done.`
+
+    ★★ The point of the program is what happens when one of them cannot answer, because there
+    are TWO answers and Cufet keeps them apart:
+
+      - A reading that is not a number is a FAILURE the task chose to return. It rides in the
+        type — the task's result is `number or failure` — and the await is refused unless it is
+        handled. The station is reported as bad and the others carry on.
+
+      - An empty log makes the average divide by zero. Nobody chose that; it is an EXCEPTION,
+        and it travels to whoever awaits it. A `Try` at the await site catches it exactly as it
+        would catch the same division written here.
+
+    ⚠ The distinction is not a rule about tasks. `1 / 0` is an exception wherever it runs, and
+    crossing a thread boundary does not turn it into a value. That is why the two arms below are
+    `In case of failure` and `In case of exception` — the same two a sequential program uses.
+
+    ★ Each task CATCHES its helper's failure and returns one of its own, rather than passing it
+    outward. A task cannot propagate: `or pass the failure off` needs a declared fallible return
+    type, and a task header declares nothing — it may hand back a result or merely send on a
+    channel, and the line cannot say which. Catching and re-raising is the way across, and it
+    costs nothing here because the message is worth rewriting anyway.
+*/
+
+Bind number or failure to average-of, given (the text raw):
+    Define parts as raw split by ",".
+    Define total as 0.
+    Define count as 0.
+    For each part in parts, repeat:
+        Define trimmed-part as part trimmed.
+        If the length of trimmed-part is not 0:
+            Define value as trimmed-part converted to number.
+            If value is void, return a failure "'{trimmed-part}' is not a reading" of category "parse".
+            // ★ No `but void is` here: the guard above already narrowed `value` to a number,
+            // and the checker refuses the redundant one rather than letting it read as caution.
+            The total becomes total + value.
+            Increment count by 1.
+        Done.
+    Done.
+    // ⚠ NOT guarded, deliberately. An empty log is the exception half of this program: the
+    // division below raises, the task ends, and the await is where it arrives.
+    Return total / count.
+Done.
+
+Pull a rabbit.
+    Have rabbit start a task as north:
+        Try to:
+            Return cast average-of on ("12, 14, 16").
+        Done.
+        In case of failure:
+            Return a failure "{the message of the failure}" of category "parse".
+        Done.
+    Done.
+    Have rabbit start a task as south:
+        Try to:
+            Return cast average-of on ("9, 11, warm, 13").
+        Done.
+        In case of failure:
+            Return a failure "{the message of the failure}" of category "parse".
+        Done.
+    Done.
+    Have rabbit start a task as east:
+        Try to:
+            Return cast average-of on ("20, 22").
+        Done.
+        In case of failure:
+            Return a failure "{the message of the failure}" of category "parse".
+        Done.
+    Done.
+    Have rabbit start a task as west:
+        Try to:
+            Return cast average-of on ("").
+        Done.
+        In case of failure:
+            Return a failure "{the message of the failure}" of category "parse".
+        Done.
+    Done.
+
+    State "station    average".
+
+    // ★ Each await is wrapped once and handles both endings. The `Try` is what lets the loop of
+    // stations continue past a station that could not answer — without it the first bad one ends
+    // the program, which is the right default and the wrong thing here.
+    Try to:
+        State "north      {(the awaited result of north) converted to text}".
+    Done.
+    In case of failure:
+        State "north      bad reading: {the message of the failure}".
+    Done.
+    In case of exception:
+        State "north      no readings at all".
+        Suppress the exception.
+    Done.
+
+    Try to:
+        State "south      {(the awaited result of south) converted to text}".
+    Done.
+    In case of failure:
+        State "south      bad reading: {the message of the failure}".
+    Done.
+    In case of exception:
+        State "south      no readings at all".
+        Suppress the exception.
+    Done.
+
+    Try to:
+        State "east       {(the awaited result of east) converted to text}".
+    Done.
+    In case of failure:
+        State "east       bad reading: {the message of the failure}".
+    Done.
+    In case of exception:
+        State "east       no readings at all".
+        Suppress the exception.
+    Done.
+
+    Try to:
+        State "west       {(the awaited result of west) converted to text}".
+    Done.
+    In case of failure:
+        State "west       bad reading: {the message of the failure}".
+    Done.
+    In case of exception:
+        State "west       no readings at all".
+        Suppress the exception.
+    Done.
+
+    // ★ Every station was awaited, so every ending was claimed by the code above. The rabbit's
+    // `Done.` has nothing left to report — a fault reaches it only when nobody read the result.
+    State "all four stations accounted for".
+Done.
