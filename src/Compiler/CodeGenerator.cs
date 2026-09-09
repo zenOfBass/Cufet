@@ -827,7 +827,13 @@ public sealed partial class CodeGenerator
                 sb.Append($"if (v.has) cchan_{ChanIdxOf(vt.Inner)}_freeheap(v.val);");
                 break;
             case FailureType ft:
-                sb.Append($"if (!v.is_failure) cchan_{ChanIdxOf(ft.Inner)}_freeheap(v.val);");
+                // ⚠⚠ The failure side owns heap now, and this arm did not free it: the copy above
+                // started duplicating the message and category when a message stopped having to be a
+                // static literal, and freeing them was not added with it. LeakSanitizer on CI caught
+                // 30 bytes in 2 objects — one message, one category — which no local run could see.
+                sb.Append($"if (!v.is_failure) {{ cchan_{ChanIdxOf(ft.Inner)}_freeheap(v.val); }} ");
+                sb.Append($"else {{ cchan_{ChanIdxOf(TText)}_freeheap((char*)v.message); ");
+                sb.Append($"if (v.category) cchan_{ChanIdxOf(TText)}_freeheap((char*)v.category); }}");
                 break;
             case RecordType or ObjectType:
             {
