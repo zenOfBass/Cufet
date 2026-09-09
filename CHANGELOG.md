@@ -108,6 +108,34 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **Reading a task's result takes ownership of its failure.** Two things follow, and they are the
+  same rule seen from either end.
+
+  **An awaited task that faulted propagates the fault at the await.** It used to hand the awaiter a
+  fabricated `0` and carry on. Once a worker stopped calling `exit()` and started unwinding (above),
+  it published nothing — and the await's no-result branch had been written for a task *abandoned by
+  an interrupt*, so it zeroed the result and gave the program a number to compute with. The result
+  box now says which ending it was.
+
+  **And a fault the awaiter claimed is not announced again at `Done.`** Catching a task's fault at
+  the await and suppressing it still killed the program: the rabbit joined that same task moments
+  later and reported the identical fault a second time. Handled meant handled everywhere except
+  here. The box carries a read flag, the interpreter's handle a `WasRead`, and the join reports only
+  what nobody took.
+
+  ★ **Fire-and-forget needs no separate rule.** It has no result to read, so it is never claimed and
+  always reports — the behaviour above falls out of this sentence rather than being bolted beside
+  it.
+
+  ⚠ **The seam, stated plainly:** "read it and ignored it" is indistinguishable from "handled it".
+  `but on failure 0` on an await is a real handling, and so is one that discards. That is the
+  latitude `but on failure` already has everywhere else, so it gets no new answer here — but it is
+  where a future complaint would land.
+
+  ★ **Why the suite was green through all of it:** no test awaited a faulting task without a
+  `but on failure`, which is exactly the shape that produced the wrong number. The two tests added
+  with this are that shape and the catch-and-suppress one.
+
 - **A fire-and-forget task ran its `Return` expression in one backend and not the other.** An
   unnamed task's returned VALUE is dropped — that is documented and intended. The compiler was
   dropping the **evaluation** with it, so the expression simply never happened:
