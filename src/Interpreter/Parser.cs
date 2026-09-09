@@ -3555,9 +3555,20 @@ public sealed class Parser
                 // a String immediately after means the literal constructor; anything else means
                 // the bare implicit reference (only meaningful inside a failure handler).
                 var failTok = Advance(); // consume 'failure'
-                if (Peek().Type == TokenType.String)
+                // ★★ ANY text expression, not just a literal. It was a bare String for years, so a
+                // message could not name the thing that went wrong — `recursivedescent` says
+                // "expected a number" and cannot say WHICH thing was not one. The AST, the checker
+                // (which already refuses a non-text message) and both backends were general all
+                // along; this was the only place holding it to one token.
+                //
+                // ⚠ The discriminator is an ALLOWLIST of tokens that begin an expression, because
+                // bare `the failure` has to stay readable. Measured across the corpus and tests, a
+                // bare one is only ever followed by `off`, `but`, `is`, `has`, `.`, `,` or `)` —
+                // every one a keyword or punctuation, none of them an expression start.
+                if (Peek().Type is TokenType.String or TokenType.InterpolOpen
+                                or TokenType.Identifier or TokenType.LParen)
                 {
-                    var message = new StringLiteral(Advance().Lexeme);
+                    var message = ParseExpression();
                     SkipNoise();
                     IExpression? category = null;
                     if (Peek().Type == TokenType.Of)

@@ -2529,6 +2529,119 @@ public class InterpreterTests
             "State Cast the first of ops on (5)."));
     }
 
+    // ── A failure message is any text, and a Try can definitely return ────────
+    //
+    // ★★ Both of these came out of writing one real program — the corpus's first concurrent one
+    // with failure paths — and neither was predicted. A parser that pinned the message to a single
+    // String token meant a failure could not NAME what went wrong: `recursivedescent` says
+    // "expected a number" and cannot say WHICH thing was not one.
+
+    [Fact]
+    public void AFailureMessage_CanBeInterpolated()
+    {
+        Assert.Equal("bad reading: warm", Run("""
+            Bind number or failure to parse-it, given (the text w):
+                Define v as w converted to number.
+                If v is void, return a failure "bad reading: {w}".
+                Return v.
+            Done.
+            Try to:
+                State cast parse-it on ("warm") converted to text.
+            Done.
+            In case of failure:
+                State the message of the failure.
+            Done.
+            """));
+    }
+
+    // ★ A variable holding text works too, and the CATEGORY still parses after it — the wider
+    // message parse must not swallow `of category`.
+    [Fact]
+    public void AFailureMessage_CanBeAVariable_AndTheCategorySurvives()
+    {
+        Assert.Equal("computed: x / parse", Run("""
+            Bind number or failure to f, given (the text w):
+                Define note as "computed: {w}".
+                If w is "x", return a failure note of category "parse".
+                Return 1.
+            Done.
+            Try to:
+                State cast f on ("x") converted to text.
+            Done.
+            In case of failure:
+                Define cat as (the category of the failure) but void is "(none)".
+                State "{the message of the failure} / {cat}".
+            Done.
+            """));
+    }
+
+    // ⚠ The discriminator that keeps bare `the failure` readable. It is an allowlist of tokens that
+    // begin an expression, because across the whole corpus and test suite a bare one is only ever
+    // followed by `off`, `but`, `is`, `has`, `.`, `,` or `)` — all keywords or punctuation.
+    [Fact]
+    public void BareTheFailure_StillPropagates()
+    {
+        Assert.Equal("42", Run("""
+            Bind number or failure to inner, given (the text w):
+                If w is "x", return a failure "bad".
+                Return 1.
+            Done.
+            Bind number or failure to outer, given (the text w):
+                Return cast inner on (w) or pass the failure off.
+            Done.
+            State (cast outer on ("x") but on failure 42) converted to text.
+            """));
+    }
+
+    // ★★ A `Try` whose body returns and whose every handler returns DEFINITELY returns. The checker
+    // used to refuse this and say the function "can reach its end without returning one", which was
+    // not true of the program in front of it — a false refusal, which is the worst kind here.
+    [Fact]
+    public void ATryWhoseArmsAllReturn_CountsAsDefinitelyReturning()
+    {
+        Assert.Equal("wrapped: bad", Run("""
+            Bind number or failure to inner, given (the text w):
+                If w is "x", return a failure "bad".
+                Return 1.
+            Done.
+            Bind number or failure to outer, given (the text w):
+                Try to:
+                    Return cast inner on (w).
+                Done.
+                In case of failure:
+                    Return a failure "wrapped: {the message of the failure}".
+                Done.
+            Done.
+            Try to:
+                State cast outer on ("x") converted to text.
+            Done.
+            In case of failure:
+                State the message of the failure.
+            Done.
+            """));
+    }
+
+    // ⚠ And the negative, which is what keeps the rule honest: SUPPRESSING is exactly the case
+    // where control continues past the Try, so a handler that suppresses without returning must
+    // still be refused. Without this the widening would accept a real fall-through.
+    [Fact]
+    public void ATryWhoseHandlerSuppressesWithoutReturning_IsStillRefused()
+    {
+        var ex = Assert.Throws<TypeException>(() => Run("""
+            Bind number to f:
+                Try to:
+                    Return 1.
+                Done.
+                In case of exception:
+                    State "oops".
+                    Suppress the exception.
+                Done.
+            Done.
+            State cast f converted to text.
+            """));
+        Assert.Contains("without returning", ex.Message);
+    }
+
     // ── A series of functions crossing a declaration boundary ────────────────
     //
     // ★★ The type PARSED only in a `Define` and a `For each` until 0.20.0: the series literal knew

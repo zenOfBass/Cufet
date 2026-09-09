@@ -645,7 +645,9 @@ public sealed partial class CodeGenerator
             case SeriesType st: RegisterSeriesStruct(st); RegisterChanElem(st.ElementType, false); break;
             case MapType mt: RegisterMapStruct(mt); RegisterChanElem(mt.KeyType, false); RegisterChanElem(mt.ValueType, false); break;
             case VoidableType vt: RegisterVoidableStruct(vt); RegisterChanElem(vt.Inner, false); break;
-            case FailureType ft: RegisterFailableStruct(ft); RegisterChanElem(ft.Inner, false); break;
+            // ⚠ TText as well as the inner type: a failure carries a message and a category, and
+            // both are copied across a task boundary now, so their copy helper has to exist.
+            case FailureType ft: RegisterFailableStruct(ft); RegisterChanElem(ft.Inner, false); RegisterChanElem(TText, false); break;
             case MatrixType: _usesMatrix = true; break;
             case ChaseType:  _usesChase  = true; break;
             case RecordType rt:
@@ -757,9 +759,19 @@ public sealed partial class CodeGenerator
             }
             case FailureType ft:
             {
-                // Struct copy carries the tag + the static message/category; deep-copy the inner value
-                // only on the success side (a failure has no meaningful `val`).
-                sb.Append($"{tc} r = v; if (!v.is_failure) r.val = cchan_{ChanIdxOf(ft.Inner)}_copy(v.val, a); return r;");
+                // Deep-copy the inner value on the success side (a failure has no meaningful `val`)
+                // — AND the message and category on the failure side.
+                //
+                // ⚠⚠ This used to say "the tag + the STATIC message/category" and copy neither, which
+                // was true only while a failure message could not be anything but a string literal.
+                // Once it could be built — `a failure "{the message of the failure}"` — the text lives
+                // in the arena of the task that raised it, and that arena is popped as the task ends.
+                // The awaiter then read freed memory and printed bytes. It printed the RIGHT text in
+                // one program and garbage in another, which is the tell: nothing about the shape
+                // differed, only what had reused the block yet.
+                sb.Append($"{tc} r = v; if (!v.is_failure) r.val = cchan_{ChanIdxOf(ft.Inner)}_copy(v.val, a); ");
+                sb.Append($"else {{ r.message = cchan_{ChanIdxOf(TText)}_copy((char*)v.message, a); ");
+                sb.Append($"r.category = v.category ? cchan_{ChanIdxOf(TText)}_copy((char*)v.category, a) : NULL; }} return r;");
                 break;
             }
             case RecordType or ObjectType:

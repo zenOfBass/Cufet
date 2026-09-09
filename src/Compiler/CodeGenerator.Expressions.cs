@@ -159,6 +159,23 @@ public sealed partial class CodeGenerator
                     case RepeatUntilStatement ru: Walk(ru.Body); break;
                     case ForEachStatement fe: Walk(fe.Body); break;
                     case PullRabbitStatement pr: Walk(pr.Body); break;
+                    case PullStatement pl: Walk(pl.Body); break;
+                    case JudgeStatement jd:
+                        foreach (var a in jd.Arms) Walk(a.Body);
+                        if (jd.OtherwiseBody != null) Walk(jd.OtherwiseBody);
+                        break;
+                    // ⚠⚠ A Try was MISSED here, and it made the compiler refuse a program the
+                    // interpreter ran. A task whose only `return a failure` sits in a handler came
+                    // out typed `number` rather than `number or failure`, so the failure literal
+                    // reached EmitAsType with a non-failable target and died as "'a failure' is only
+                    // valid where a 'T or failure' is expected". Judge and Pull were missing for the
+                    // same reason; the rule is that every statement which can CONTAIN a return has
+                    // to be walked, and three of them were not.
+                    case TryStatement ts:
+                        Walk(ts.Body);
+                        if (ts.FailureHandler   != null) Walk(ts.FailureHandler);
+                        if (ts.ExceptionHandler != null) Walk(ts.ExceptionHandler);
+                        break;
                     // Nested LaunchTaskStatement bodies own their own returns — do not descend.
                 }
         }

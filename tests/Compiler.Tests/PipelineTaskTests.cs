@@ -12,6 +12,81 @@ namespace Cufet.Compiler.Tests;
 /// <summary>One slice of the pipeline oracle suite — see PipelineTestBase for why it is split.</summary>
 public class PipelineTaskTests : PipelineTestBase
 {
+    // ── A task that re-raises a failure from inside a Try ─────────────────────
+
+    // ⚠⚠ A LIVE DIVERGENCE: the interpreter ran this and the compiler refused to build it, with
+    // "'a failure' is only valid where a 'T or failure' is expected". The cause was upstream of the
+    // message — `InferTaskResultType`'s walk descended into If, While, RepeatUntil, ForEach and
+    // PullRabbit but NOT Try, Judge or Pull, so a task whose only `return a failure` sat in a
+    // handler came out typed `number` instead of `number or failure`, and the literal then reached
+    // EmitAsType with a target that could not hold it.
+    //
+    // ★ It matters because a task CANNOT propagate: `or pass the failure off` needs a declared
+    // fallible return and a task header declares nothing. Catching and re-raising is the only way
+    // a task hands a helper's failure outward, so this shape is not exotic — it is the only one.
+    [Fact]
+    public void ATask_CanReRaiseAFailureFromInsideATry()
+    {
+        const string src = """
+            Bind number or failure to parse-it, given (the text w):
+                Define v as w converted to number.
+                If v is void, return a failure "'{w}' is not a number" of category "parse".
+                Return v.
+            Done.
+
+            Pull a rabbit.
+                Have rabbit start a task as job:
+                    Try to:
+                        Return cast parse-it on ("warm").
+                    Done.
+                    In case of failure:
+                        Return a failure "{the message of the failure}" of category "parse".
+                    Done.
+                Done.
+                Try to:
+                    State (the awaited result of job) converted to text.
+                Done.
+                In case of failure:
+                    State "failed: {the message of the failure}".
+                Done.
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    // ★★ THE USE-AFTER-FREE, and the reason it needs its own test rather than riding on the one
+    // above. The failable deep-copy across a task boundary carried the message POINTER without
+    // copying it — its comment said "the tag + the STATIC message/category", true only while a
+    // message could not be anything but a string literal. Once it could be BUILT, the text lived in
+    // the arena of the task that raised it, and that arena is popped as the task ends.
+    //
+    // ⚠ It printed the right answer in one program and garbage in another of the same shape, which
+    // is what a read of freed memory looks like: nothing structural differs, only whether something
+    // has reused the block yet. So this runs the binary REPEATEDLY — a single green run is exactly
+    // the evidence that misled me.
+    [Fact]
+    public void AComputedFailureMessage_SurvivesTheTaskBoundary()
+    {
+        const string src = """
+            Pull a rabbit.
+                Have rabbit start a task as job:
+                    Define what as "warm".
+                    If what is "", return 0.
+                    Return a failure "'{what}' is not a number" of category "parse".
+                Done.
+                Try to:
+                    State (the awaited result of job) converted to text.
+                Done.
+                In case of failure:
+                    State the message of the failure.
+                Done.
+            Done.
+            """;
+        for (int i = 0; i < 5; i++)
+            Assert.Equal("'warm' is not a number", CompileRaw(src).Trim());
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
     // ── Awaiting a task that faulted ──────────────────────────────────────────
 
     // ⚠⚠ A REGRESSION, and the shape that let it through. Once a worker stopped calling exit() and

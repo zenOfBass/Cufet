@@ -3666,6 +3666,23 @@ public sealed partial class TypeChecker
                 && judge.Arms.All(a => DefinitelyReturns(a.Body))
                 && (judge.OtherwiseBody == null || DefinitelyReturns(judge.OtherwiseBody)))
                 return true;
+            // ★★ A Try returns when its BODY returns and every handler it HAS returns — the same
+            // shape as the If arm above, arms plus else. Without this the checker refused a
+            // function whose every path plainly returns, and said it "can reach its end without
+            // returning one", which was not true of the program in front of it.
+            //
+            // ★ The null checks are for a Try with only ONE of the two handlers, which is ordinary
+            // — a Try with NEITHER is already refused elsewhere ("a 'Try' block must have at least
+            // one handler"), so that case cannot reach here. An absent handler catches nothing, so
+            // the fault travels outward and never falls through to the statement after the Try.
+            //
+            // ⚠ A handler that SUPPRESSES without returning correctly fails this test, because
+            // suppressing is exactly the case where control does continue past the Try.
+            if (stmt is TryStatement tryStmt
+                && DefinitelyReturns(tryStmt.Body)
+                && (tryStmt.FailureHandler   == null || DefinitelyReturns(tryStmt.FailureHandler))
+                && (tryStmt.ExceptionHandler == null || DefinitelyReturns(tryStmt.ExceptionHandler)))
+                return true;
             if (stmt is PullStatement ps && DefinitelyReturns(ps.Body)) return true;
             if (stmt is PullRabbitStatement prs && DefinitelyReturns(prs.Body)) return true;
             // Loops are not counted: while/for-each may execute zero times,

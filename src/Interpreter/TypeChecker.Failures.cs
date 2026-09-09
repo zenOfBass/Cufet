@@ -12,7 +12,8 @@ public sealed partial class TypeChecker
                 "a failure message must be text",
                 null, lit.Line, lit.Column,
                 $"use a {FormatType(msgType)} as the failure message",
-                "Write the message as a text literal, e.g. a failure \"something went wrong\".");
+                "A message is any text — a literal, an interpolation naming what went wrong, or a "
+                + "variable holding one.");
 
         if (lit.Category != null)
         {
