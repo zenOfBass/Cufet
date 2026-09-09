@@ -85,6 +85,17 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   ★ `run <prog> with arguments (…)` is unaffected. One word now points both ways — what a child
   is handed, and what this program was handed — and the two positions never compete.
 
+- **`examples/systems/search.cufe` — the corpus's first script.** A grep-alike: it reads `the
+  arguments`, prints `path:line: text` for every match, and leaves with grep's own status contract
+  — 0 matched, 1 nothing matched, 2 a file could not be read or the command line made no sense.
+
+  ★ It exists because `the arguments` and `Exit` had shipped and no PROGRAM had used either — only
+  tests. It also walks `read all lines from the file`, which no example had reached before.
+
+  ★ **The 1 is the point.** `if search TODO notes.txt; then …` works only because "nothing matched"
+  comes back as a status rather than as a sentence, and a status is the one thing a caller gets
+  that is not text. Every other program in the corpus prints and stops.
+
 ### Changed
 
 - **The shell and the REPL quit on `Exit.` rather than `Leave.`** One word for one idea: the
