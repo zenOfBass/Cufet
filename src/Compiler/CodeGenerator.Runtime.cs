@@ -119,11 +119,23 @@ public sealed partial class CodeGenerator
 
    No-op off POSIX: tasks are pthreads-only, so a Windows build has no second thread to race. */
 #if defined(__unix__) || defined(__APPLE__)
-#define cufet_out_lock()   flockfile(stdout)
-#define cufet_out_unlock() funlockfile(stdout)
+/* ⚠⚠ DEPTH-COUNTED, because a fault can jump out from INSIDE the lock. The generated code
+   evaluates a value where it stands — `cufet_out_lock(); write(cv_risky(x)); cufet_out_unlock();`
+   — so a raise in `cv_risky` longjmps straight past the unlock. While an unhandled fault ended
+   the process that cost nothing; once a worker began unwinding to its landing pad instead, the
+   stranded flockfile deadlocked every other thread that printed.
+   ★★ Windows could not see it: there the lock is a no-op, so the whole suite stayed green while
+   Linux CI sat at the job timeout. The counter exists on both platforms so the release below
+   compiles identically; only the locking differs. */
+static _Thread_local int cufet_out_depth = 0;
+#define cufet_out_lock()   do { flockfile(stdout);   cufet_out_depth++; } while (0)
+#define cufet_out_unlock() do { cufet_out_depth--;   funlockfile(stdout); } while (0)
+#define CUFET_OUT_RELEASE_ALL() do { while (cufet_out_depth > 0) { cufet_out_depth--; funlockfile(stdout); } } while (0)
 #else
+static _Thread_local int cufet_out_depth = 0;
 #define cufet_out_lock()   ((void)0)
 #define cufet_out_unlock() ((void)0)
+#define CUFET_OUT_RELEASE_ALL() ((void)0)
 #endif
 
 /* ───────── Exceptions (E-prime): setjmp/longjmp over SOFTWARE faults ─────────
@@ -190,6 +202,7 @@ static void cufet_raise(const char* msg) {
         }
         cufet_exc_msg = msg;
         cufet_run_unmakers_to(cufet_exc_um[cufet_exc_top]);
+        CUFET_OUT_RELEASE_ALL();   /* the jump skips any cufet_out_unlock between here and the Try */
         longjmp(cufet_exc_bufs[cufet_exc_top], 1);
     }
     /* ★ NO HANDLER: the program is ending, but this thread's pending unmakers still run first —
@@ -1710,7 +1723,7 @@ static void cufet_install_sigint(void) {
 /* Cooperative interrupt checkpoint: if an interrupt is pending and this thread has a landing pad,
    unwind to it. No-op if no pad (a raw task thread) — its caller handles the -1 recv sentinel. */
 static void cufet_checkpoint(void) {
-    if (cufet_interrupted && cufet_pad_set) siglongjmp(cufet_thread_top, 1);
+    if (cufet_interrupted && cufet_pad_set) { CUFET_OUT_RELEASE_ALL(); siglongjmp(cufet_thread_top, 1); }
 }
 #else
 /* mingw: no sigaction and no signal mask, so Ctrl-C keeps its default (terminate) and the
@@ -1748,6 +1761,7 @@ static int cufet_worker_fault(const char* msg) {
     size_t n = strlen(msg) + 1;
     char* b = (char*)malloc(n);
     if (b) { memcpy(b, msg, n); *cufet_fault_slot = b; }
+    CUFET_OUT_RELEASE_ALL();   /* the worker may be mid-print; its pad is past the unlock */
     CUFET_LONGJMP(cufet_thread_top);
     return 0;   /* unreachable */
 }
