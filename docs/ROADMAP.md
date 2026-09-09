@@ -87,6 +87,21 @@ they are large, not because they are waiting — the order among them means noth
 
 2. **A package manager for books.**
 
+   ⚠⚠ **It has nowhere to put anything, and that is a LANGUAGE gap rather than a tooling one.**
+   Measured 2026-09-08: a pull finds a book only in the file's OWN directory — a subdirectory is
+   refused outright, and the message lists the bundled books as though nothing else could exist.
+   So "install a book" today means copying it beside every file that pulls it. Fetching,
+   versioning and a manifest are all downstream of a resolution rule the language does not have.
+
+   ★ **The first slice is therefore WHERE A BOOK LIVES, not the manager.** That is a language
+   question and a far better-shaped one than the tooling on top of it.
+
+   ⚠ A second, separate gap in the same area: **a pull RUNS the loaded file's top-level
+   statements**, so a file is either a program or a library and nothing says which. This is what
+   makes the shell's own machinery unpullable — a script cannot `Pull a book on shell.` because
+   that starts the shell. Cufet has no `if __name__ == "__main__"`, and inventing one is a
+   language feature rather than a slice.
+
 3. **Generated pages for a book.** What a reader gets when they pull a book somebody else wrote.
    Doc comments and hover are built; pages are the half that is not.
 
