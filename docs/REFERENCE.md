@@ -3954,6 +3954,67 @@ Several tasks may await the same task; each gets its own copy of the result.
 also means a cycle of tasks waiting on each other cannot be written, so this cannot deadlock.
 Awaiting a task declared later is a type error, not a hang.
 
+
+#### When a task goes wrong
+
+A task can end badly in two ways, and Cufet keeps them apart exactly as it does everywhere else.
+
+**A deliberate failure rides in the type.** A task whose body can `return a failure` has the result
+type `T or failure`, and the await must handle it — the same strict rule any fallible call obeys:
+
+```cufet
+Pull a rabbit.
+    Have rabbit start a task as risky:
+        If 1 is 2, return 1.
+        Return a failure "the well ran dry" of category "supply".
+    Done.
+    Define answer as (the awaited result of risky) but on failure 99.
+    State answer converted to text.
+Done.
+```
+```output
+99
+```
+
+Without the `but on failure` that is refused where it is written: *"this task can fail — you must
+handle the failure at the await site."*
+
+**An exception travels to whoever awaits it.** A fault the task did not choose — a division by
+zero, an index past the end — is raised at the await, so a `Try` around the await catches it just
+as it would catch the same expression written locally:
+
+```cufet
+Pull a rabbit.
+    Have rabbit start a task as job:
+        Return 1 / 0.
+    Done.
+    Try to:
+        State (the awaited result of job) converted to text.
+    Done.
+    In case of exception:
+        State "caught: {the message of the exception}".
+        Suppress the exception.
+    Done.
+Done.
+```
+```output
+caught: Division by zero on line 3.
+```
+
+⚠ **An exception does not become a failure by crossing a task boundary.** `1 / 0` is an exception
+wherever it runs, and awaiting is not the one place in the language where a possible exception is
+forced into a type.
+
+**And a fault nobody claimed surfaces at the rabbit's `Done.`** — reported after every task has
+been joined, so the body's output is complete first:
+
+- ★★ **Reading a result takes ownership of its failure.** A task whose result was awaited is that
+  awaiter's business, so `Done.` does not announce it a second time. Catching a task's fault at the
+  await and suppressing it ends it.
+- A fire-and-forget task has no result to read, so its fault is never claimed and always reports.
+- Several failing tasks are reported together, in the order they were **started** — never the order
+  they failed, which would differ between a compiled run and an interpreted one.
+
 #### Channels
 
 A channel is a typed queue for passing values between tasks. `Send <value> through

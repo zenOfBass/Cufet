@@ -63,19 +63,14 @@ they are large, not because they are waiting — the order among them means noth
 
 1. **Rabbits as actors.** A rabbit already owns an isolated arena, owns and joins the tasks it
    spawns, shares nothing mutable across threads, and has escape rules the compiler enforces —
-   that is the actor invariant, and the expensive part of it is shipping. What is left is the
-   AWAITED half of failure, supervision, and the framing itself: naming this in DESIGN is part of
-   the work, not a write-up of it.
+   that is the actor invariant, and the expensive part of it is shipping. Failure is settled and
+   built — see DESIGN. What is left is supervision: restart, and the mailbox.
 
    **Settled:**
 
    - **Lexical supervision only** — restart in place, within the block. Dynamic supervisors park
      with the region-lifetime arc, and a toggle between the two lifetimes is rejected: two rules
      means every escape question gets asked twice.
-   - **"Let it crash" is task-fault → region death → the parent is told.** An awaited task reports
-     through `the awaited result of`, which becomes `T or failure`. ⚠ **Breaking** — every awaiter
-     comes under the unhandled-failure check. That is the feature, but decide it rather than
-     discover it.
    - **Identity is the rabbit's name, and the send surface is `Have <rabbit> …`** — a shape that
      already exists for other reasons. The mailbox mechanism is later.
    - **A restartable body must acquire its own resources**, so a re-run re-acquires into a fresh

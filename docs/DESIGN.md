@@ -449,6 +449,37 @@ The two arcs where soundness was the whole problem.
   would reallocate into the task's own arena; and the pattern is a genuine data
   race that only the cooperative scheduler was hiding.
 
+- **A task's fault reaches its rabbit, and an exception does not become a failure on the way
+  (2026-09-08).** Three rules, one sentence each, and the third is the one that was weighed and
+  declined.
+
+  *A fault nobody claimed surfaces at the rabbit's `Done.`* The rabbit already owns the tasks and
+  joins them, so it is the thing to tell. A worker that ended the process instead cut the rabbit's
+  own body off mid-sentence — measured at 48 to 87 lines out of 200, a different number every run.
+  Several failures are reported together, in the order the tasks were **started**: completion order
+  would make the same program print different text on each backend, which is a worse bug than the
+  truncation it replaced because it looks deliberate.
+
+  *Reading a result takes ownership of its failure.* A task whose result was awaited is that
+  awaiter's business, so the join does not announce it again — without that rule, catching a task's
+  fault at the await and suppressing it still ended the program. Fire-and-forget needs no separate
+  rule: it has no result to read, so it is never claimed and always reports.
+
+  ★★ *An exception does NOT become a failure by crossing a task boundary — weighed and declined.*
+  The tempting version makes every `the awaited result of` a `T or failure`, so an awaiter is
+  compelled to handle whatever the task might do. It was declined on consistency: `1 / n` does not
+  make you prove `n` is not zero anywhere else in the language, and a division by zero should not
+  change category because it happened one thread over. Awaiting would have become the single place
+  where a possible exception is forced into a type.
+
+  ⚠ The argument on the other side is real and was not dismissed: you can see `1 / n` in front of
+  you and cannot see inside a task body from the await site, which is exactly why concurrency is
+  different. What settled it is that the parent is *already told* — the fault is raised at the
+  await, and a `Try` there catches it exactly as it would locally. The choice was between telling
+  and compelling, not between telling and silence. A deliberate `return a failure` is unaffected:
+  that rides in the type as it always has, and the await must still handle it.
+
+
 ---
 
 ## Foreign interoperability
