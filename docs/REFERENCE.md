@@ -3257,6 +3257,26 @@ In case of failure:
 Done.
 ```
 
+★ **A failure message is any text**, not only a literal — an interpolation is how a failure names
+what went wrong:
+
+```cufet
+Bind number or failure to parse-it, given (the text w):
+    Define v as w converted to number.
+    If v is void, return a failure "'{w}' is not a number" of category "parse".
+    Return v.
+Done.
+Try to:
+    State cast parse-it on ("warm") converted to text.
+Done.
+In case of failure:
+    State the message of the failure.
+Done.
+```
+```output
+'warm' is not a number
+```
+
 **`In case of exception`** — catches runtime exceptions (divide-by-zero,
 dynamic out-of-bounds, etc.) that the type system can't statically prevent:
 ```cufet

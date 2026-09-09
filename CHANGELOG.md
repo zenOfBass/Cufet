@@ -108,6 +108,51 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **A failure message is any text, not just a literal.** `a failure "'{word}' is not a reading"`
+  works now, and so does a variable holding one. The category could always be an expression; only
+  the message was pinned, so a failure could not name the thing that went wrong —
+  `examples/parsing/recursivedescent.cufe` says *"expected a number"* and could not say WHICH thing
+  was not one.
+
+  ★ **One line, because everything downstream was already general.** The AST typed the message as an
+  `IExpression`, the checker already refused a non-text one, and both backends already evaluated it.
+  The parser was the only place holding it to a single token.
+
+  ⚠ The discriminator is an allowlist of tokens that begin an expression, because bare `the failure`
+  has to stay readable. Measured across the corpus and the tests, a bare one is only ever followed
+  by `off`, `but`, `is`, `has`, `.`, `,` or `)` — every one a keyword or punctuation, none of them an
+  expression start.
+
+- **A `Try` whose body and handlers all return counts as definitely returning.** The checker refused
+  a function whose every path plainly returned, saying it *"can reach its end without returning
+  one"* — a false refusal, and about a program it had in front of it. `DefinitelyReturns` had arms
+  for `Return`, `If`, `Judge`, `Pull` and `PullRabbit`, and none for `Try`.
+
+  ⚠ A handler that SUPPRESSES without returning is still refused, and must be: suppressing is
+  exactly the case where control continues past the `Try`.
+
+- **A task can re-raise a failure caught from a helper — the compiler refused to build one.**
+  `InferTaskResultType`'s walk descended into `If`, `While`, `RepeatUntil`, `ForEach` and
+  `PullRabbit` but not `Try`, `Judge` or `Pull`, so a task whose only `return a failure` sat in a
+  handler came out typed `number` rather than `number or failure`. The literal then reached
+  `EmitAsType` with a target that could not hold it and died as *"'a failure' is only valid where a
+  'T or failure' is expected"* — while the interpreter ran the same program.
+
+  ★ It is not an exotic shape. A task cannot PROPAGATE — `or pass the failure off` needs a declared
+  fallible return type and a task header declares nothing — so catching and re-raising is the only
+  way a task hands a helper's failure outward.
+
+- **A built failure message no longer dangles across a task boundary.** The failable deep-copy
+  carried the message pointer without copying it; its own comment said *"the tag + the STATIC
+  message/category"*, which was true only while a message could not be anything but a literal. Once
+  it could be built, the text lived in the arena of the task that raised it and was read after that
+  arena was popped.
+
+  ⚠⚠ **Introduced by the first entry above and found by the third.** Widening the message reached a
+  copy path whose assumption nobody had reason to look at. It printed the RIGHT text in one program
+  and garbage in another of the same shape — which is what reading freed memory looks like, and why
+  a single green run is not evidence. Its test runs the binary five times.
+
 - **Reading a task's result takes ownership of its failure.** Two things follow, and they are the
   same rule seen from either end.
 
