@@ -538,10 +538,13 @@ static const char* cufet_str_lower(const char* s) {
             // explicit Pull) are safely tracked and freed at program exit. The shared constants
             // were registered before any body was emitted (see above); main only ASSIGNS them.
             // ⚠ argc/argv rather than (void): `the arguments` reads them, and they can only be
-            // had here. Unused by a program that never asks — the assignment below is what keeps
-            // the two file-scope statics from drawing an unused warning.
+            // had here. Unused by a program that never asks — the call below is what keeps the
+            // two file-scope statics from drawing an unused warning.
+            // ⚠ cufet_set_args rather than a bare assignment: on Windows the CRT's argv speaks the
+            // ANSI code page while everything else here is UTF-8, so the wide command line is
+            // fetched and converted there. On POSIX it IS the bare assignment.
             body.AppendLine("int main(int argc, char** argv) {");
-            body.AppendLine("    cufet_argc = argc; cufet_argv = argv;");
+            body.AppendLine("    cufet_set_args(argc, argv);");
             // The hook exists only when the signals runtime does. See cufet_worker_fault_fn.
             if (_usesSignals || _usesConcurrency)
                 body.AppendLine("    cufet_worker_fault_fn = cufet_worker_fault;");

@@ -600,7 +600,7 @@ public sealed partial class CodeGenerator
 
         sb.AppendLine($"{indent}{{");
         sb.AppendLine($"{inner}const char* {pathTmp} = {pathExpr};");
-        sb.AppendLine($"{inner}FILE* {sVar} = fopen({pathTmp}, \"{mode}\");");
+        sb.AppendLine($"{inner}FILE* {sVar} = cufet_fopen({pathTmp}, \"{mode}\");");
         if (_currentTryHandler is { } h)
             sb.AppendLine($"{inner}if (!{sVar}) {{ CufetFailure {err} = cufet_file_failure({pathTmp}, errno); {FailureGotoBody(h, $"{err}.message", $"{err}.category")} }}");
         else

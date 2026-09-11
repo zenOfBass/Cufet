@@ -161,6 +161,58 @@ public class CommandLineTests
         }
     }
 
+    // ★★ An argument that is not ASCII, which is where the two backends diverged for as long as
+    // both have existed. The test above is the same shape and passed throughout, because "alpha"
+    // and "beta" cross the Windows narrow-char boundary unchanged — everything below U+0080 does.
+    //
+    // ⚠⚠ MEASURED before the fix: the compiled binary received `caf[E9]` where the interpreter
+    // received `café`, because the CRT hands main() an argv converted to the process ANSI code
+    // page while every other byte in the runtime is UTF-8. The program could still PRINT the same
+    // text from a literal, so only a comparison against the argument itself shows it.
+    //
+    // ★ Two alphabets on purpose: U+00E9 exists in CP-1252 and so came back the right LENGTH with
+    // the wrong bytes, while U+4E2D does not exist there at all. Escaped rather than written out,
+    // so what is under test cannot be confounded by this file's own encoding.
+    [Fact]
+    public void TheArguments_CarryTextThatIsNotAscii_BetweenBothBackends()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+            && !RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) return;
+
+        const string accented = "caf\u00E9";
+        const string han      = "\u4E2D\u6587";
+
+        string file = WriteProgram(
+            "For each arg in the arguments, repeat: State arg. Done.\n" +
+            "State the number of the arguments.\n");
+        string exe = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+            ? Path.ChangeExtension(file, ".exe")
+            : Path.ChangeExtension(file, null)!;
+        try
+        {
+            string interpreted = Run(file, accented, han).Out.ReplaceLineEndings("\n");
+
+            var (buildExit, _, buildErr) = Run("build", file);
+            Assert.True(buildExit == 0, "build failed: " + buildErr);
+
+            var psi = new ProcessStartInfo(exe) { RedirectStandardOutput = true, WorkingDirectory = RepoRoot };
+            psi.StandardOutputEncoding = System.Text.Encoding.UTF8;
+            psi.ArgumentList.Add(accented);
+            psi.ArgumentList.Add(han);
+            using var p = Process.Start(psi)!;
+            string compiled = p.StandardOutput.ReadToEnd().ReplaceLineEndings("\n");
+            p.WaitForExit(60_000);
+
+            Assert.Equal($"{accented}\n{han}\n2\n", interpreted);
+            Assert.Equal(interpreted, compiled);
+        }
+        finally
+        {
+            File.Delete(file);
+            if (File.Exists(exe)) File.Delete(exe);
+        }
+    }
+
     // ── The exit status a program chooses ─────────────────────────────────
     //
     // ★★ Here rather than in an interpreter test for the same reason the argument tests are: the

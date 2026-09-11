@@ -54,6 +54,17 @@ public sealed partial class CodeGenerator
 #if defined(_WIN32)
 #include <io.h>
 #include <fcntl.h>
+/* ⚠ Both #defines must precede <windows.h>: LEAN_AND_MEAN drops the RPC/OLE/socket headers
+   nothing here uses, and NOMINMAX suppresses the min/max MACROS, which would rewrite those words
+   anywhere they appear later as identifiers. */
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h>
+/* ⚠ Explicitly, because WIN32_LEAN_AND_MEAN is exactly what leaves it out — and without it
+   CommandLineToArgvW is an implicit declaration returning int, which gcc reports as a
+   pointer-from-integer conversion three files away from the cause. */
+#include <shellapi.h>
+#include <wchar.h>
 #endif
 
 /* ───────── setjmp WITHOUT a Windows SEH unwind ─────────
@@ -163,6 +174,124 @@ static void cufet_reg_unmaker(void* o, void (*f)(void*)) { if (cufet_num < CUFET
 static void cufet_run_unmakers_to(int n) { while (cufet_num > n) { cufet_num--; cufet_um_fn[cufet_num](cufet_um_obj[cufet_num]); } }
 static void* cufet_arena_alloc(size_t size);            /* defined with the arena, below */
 static void* cufet_arena_alloc_at(int depth, size_t size);
+
+/* ───────── The Windows narrow-char boundary ─────────
+   ★★ Everything in this runtime is UTF-8. A string literal reaches the generated C as UTF-8
+   bytes, text is built and compared as UTF-8, and stdout is put in binary mode so those bytes go
+   out untouched. On POSIX the C library agrees — argv, getenv, getcwd, stat, fopen and opendir
+   all deal in whatever bytes the caller supplied, which in a UTF-8 locale is UTF-8 — so there is
+   no boundary to cross and every function below compiles to the plain call it wraps.
+
+   Windows has one. The CRT's NARROW entry points speak the process ANSI code page, so a path or
+   an argument holding anything above U+007F is converted on the way in and on the way out, and
+   the two encodings disagree. MEASURED: `./prog café` reached the program as `caf\xE9`, and
+   `read all from the file "café.txt"` reported the file was not found WHILE PRINTING ITS NAME
+   CORRECTLY — because the message came from the UTF-8 literal and only the lookup was converted.
+
+   ⚠⚠ The loud half is the kind half. `Write "x" to the file "café.txt"` SUCCEEDED and created
+   `cafÃ©.txt`: the two UTF-8 bytes were read as two CP-1252 characters and re-encoded, so a
+   program could write a file, read it back, and never learn that the name on disk was not the one
+   it asked for. The path predicates were quieter still — `the path "café.txt" exists` answered
+   FALSE rather than failing, so there was not even a failure to catch.
+
+   ⚠ Invisible to CI, which is Linux, and to the suite, whose every path and argument is ASCII.
+   It is the mirror of the stranded-flockfile deadlock: that one only Linux could see, this one
+   only Windows can.
+
+   So every such call crosses through the WIDE API, converting explicitly at the edge. One rule
+   covers all of it: a name going IN becomes UTF-16 and is freed immediately; a name coming OUT
+   becomes UTF-8 and is allocated wherever its Cufet value has to live. */
+#if defined(_WIN32)
+/* UTF-8 → UTF-16 for a name on its way into the C library. Heap, freed by the caller: these live
+   for exactly one call. NULL means the text was not valid UTF-8 — every caller turns that into
+   the same answer the OS gives for a name that cannot exist, because it is one. */
+static wchar_t* cufet_wide(const char* s) {
+    if (!s) return NULL;
+    int n = MultiByteToWideChar(CP_UTF8, 0, s, -1, NULL, 0);
+    if (n <= 0) return NULL;
+    wchar_t* w = (wchar_t*)malloc((size_t)n * sizeof(wchar_t));
+    if (!w) return NULL;
+    if (MultiByteToWideChar(CP_UTF8, 0, s, -1, w, n) <= 0) { free(w); return NULL; }
+    return w;
+}
+/* UTF-16 → UTF-8 into the ARENA, for a name that becomes a Cufet text value and so must outlive
+   the call that produced it — the same lifetime every other computed text here already has. */
+static const char* cufet_utf8_arena(const wchar_t* w) {
+    if (!w) return NULL;
+    int n = WideCharToMultiByte(CP_UTF8, 0, w, -1, NULL, 0, NULL, NULL);
+    if (n <= 0) return NULL;
+    char* s = (char*)cufet_arena_alloc((size_t)n);
+    if (WideCharToMultiByte(CP_UTF8, 0, w, -1, s, n, NULL, NULL) <= 0) return NULL;
+    return s;
+}
+/* UTF-16 → UTF-8 on the heap, for the one thing that outlives every arena: the process's own
+   arguments, which `the arguments` points straight at rather than copying. */
+static char* cufet_utf8_heap(const wchar_t* w) {
+    if (!w) return NULL;
+    int n = WideCharToMultiByte(CP_UTF8, 0, w, -1, NULL, 0, NULL, NULL);
+    if (n <= 0) return NULL;
+    char* s = (char*)malloc((size_t)n);
+    if (!s) return NULL;
+    if (WideCharToMultiByte(CP_UTF8, 0, w, -1, s, n, NULL, NULL) <= 0) { free(s); return NULL; }
+    return s;
+}
+#endif
+/* fopen with the path crossing the boundary. ⚠ errno is restored around the free: the wide call
+   sets it exactly as the narrow one did, and every caller's failure mapping reads it, so losing
+   it here would turn a not-found into a disk-error. */
+static FILE* cufet_fopen(const char* path, const char* mode) {
+#if defined(_WIN32)
+    wchar_t* wp = cufet_wide(path);
+    if (!wp) { errno = ENOENT; return NULL; }
+    wchar_t wm[8];
+    int mi = 0;
+    while (mode[mi] && mi < 7) { wm[mi] = (wchar_t)mode[mi]; mi++; }
+    wm[mi] = 0;
+    FILE* f = _wfopen(wp, wm);
+    int saved = errno;
+    free(wp);
+    errno = saved;
+    return f;
+#else
+    return fopen(path, mode);
+#endif
+}
+/* stat reduced to the only thing its callers want: is there anything there, and what kind is it.
+   0 when there is nothing, otherwise 1 with *mode set for S_ISDIR / S_ISREG. */
+static int cufet_stat_mode(const char* path, unsigned int* mode) {
+#if defined(_WIN32)
+    wchar_t* wp = cufet_wide(path);
+    if (!wp) return 0;
+    struct _stat64 st;
+    int r = _wstat64(wp, &st);
+    free(wp);
+    if (r != 0) return 0;
+    *mode = (unsigned int)st.st_mode;
+    return 1;
+#else
+    struct stat st;
+    if (stat(path, &st) != 0) return 0;
+    *mode = (unsigned int)st.st_mode;
+    return 1;
+#endif
+}
+/* getenv, with the NAME crossing in and the VALUE crossing out.
+   ⚠ On Windows the value is ARENA-allocated where the narrow call returned storage the CRT owned
+   for the life of the process. Callers already treat it as ordinary runtime-produced text, which
+   is why the change is invisible to them — but the old comment claiming the storage is stable is
+   no longer true, and has been corrected at the one site that said so. */
+static const char* cufet_getenv(const char* name) {
+#if defined(_WIN32)
+    wchar_t* wn = cufet_wide(name);
+    if (!wn) return NULL;
+    const wchar_t* wv = _wgetenv(wn);
+    const char* v = wv ? cufet_utf8_arena(wv) : NULL;
+    free(wn);
+    return v;
+#else
+    return getenv(name);
+#endif
+}
 /* Arena depth at each Try's setjmp — the exception MESSAGE is copied into that arena at raise time
    (see cufet_raise) so it survives the arena pops the catch performs on the way in. */
 static _Thread_local int cufet_exc_arena[CUFET_EXC_MAX];
@@ -714,6 +843,41 @@ static CufetBits cufet_bits_from_number(CufetDec d, char base_, int line) {
    give the same program the same arguments, and they disagree about the head. */
 static int    cufet_argc = 0;
 static char** cufet_argv = 0;
+/* Called once at the top of main, because argv can only be had there.
+   ★ On POSIX this is the assignment it always was: argv already holds the bytes the caller
+   passed, and in a UTF-8 locale those are UTF-8.
+   ⚠⚠ On Windows the CRT hands over an argv converted to the ANSI code page, so the real command
+   line is fetched WIDE and converted to UTF-8 instead. MEASURED side by side in one process:
+   `prog café` gave `café` through the wide path and `caf\xE9` through argv.
+   ★ It needs no extra link flag and no entry point of its own — measured: -lshell32 and
+   -municode are both unnecessary, so GccInvoker is untouched by this.
+   ★ mingw-w64 does not glob, measured: `prog *.dat` reaches both paths as the literal `*.dat`,
+   so nothing but the encoding changes here.
+   ⚠ The conversion is heap and never freed, deliberately: these live as long as the process, and
+   `the arguments` points straight at them rather than copying. Falling back to the CRT's argv on
+   any failure keeps a program's arguments ASCII-correct rather than losing them entirely. */
+static void cufet_set_args(int argc, char** argv) {
+#if defined(_WIN32)
+    int wargc = 0;
+    LPWSTR* wargv = CommandLineToArgvW(GetCommandLineW(), &wargc);
+    if (wargv) {
+        char** conv = (char**)malloc((size_t)(wargc > 0 ? wargc : 1) * sizeof(char*));
+        if (conv) {
+            int done = 0;
+            while (done < wargc && (conv[done] = cufet_utf8_heap(wargv[done])) != NULL) done++;
+            if (done == wargc) {
+                cufet_argc = wargc; cufet_argv = conv;
+                LocalFree(wargv);
+                return;
+            }
+            while (done > 0) free(conv[--done]);
+            free(conv);
+        }
+        LocalFree(wargv);
+    }
+#endif
+    cufet_argc = argc; cufet_argv = argv;
+}
 
 typedef struct { const char* message; const char* category; } CufetFailure;
 
@@ -1052,7 +1216,7 @@ static CufetFailure cufet_file_failure(const char* path, int e) {
 /* Reads the whole file into an arena buffer (binary — no newline translation, matching .NET
    ReadAllText's byte fidelity). NUL-terminates and reports the true byte length via *len. */
 static int cufet_file_slurp(const char* path, char** buf, long* len, CufetFailure* err) {
-    FILE* f = fopen(path, "rb");
+    FILE* f = cufet_fopen(path, "rb");
     if (!f) { *err = cufet_file_failure(path, errno); return 0; }
     if (fseek(f, 0, SEEK_END) != 0) { *err = cufet_file_failure(path, errno); fclose(f); return 0; }
     long sz = ftell(f);
@@ -1100,17 +1264,20 @@ static int cufet_file_read_lines(const char* path, const char*** out, int* count
     return 1;
 }
 static int cufet_file_write(const char* path, const char* text, int append, CufetFailure* err) {
-    FILE* f = fopen(path, append ? "ab" : "wb");
+    FILE* f = cufet_fopen(path, append ? "ab" : "wb");
     if (!f) { *err = cufet_file_failure(path, errno); return 0; }
     size_t len = strlen(text);
     size_t wr = fwrite(text, 1, len, f);
     if (wr != len || fclose(f) != 0) { *err = cufet_file_failure(path, errno); return 0; }
     return 1;
 }
-/* Path predicates via stat, matching File.Exists / Directory.Exists (exists = either kind). */
-static int cufet_path_exists(const char* path)  { struct stat st; return stat(path, &st) == 0; }
-static int cufet_path_is_dir(const char* path)  { struct stat st; return stat(path, &st) == 0 && S_ISDIR(st.st_mode); }
-static int cufet_path_is_file(const char* path) { struct stat st; return stat(path, &st) == 0 && S_ISREG(st.st_mode); }
+/* Path predicates via stat, matching File.Exists / Directory.Exists (exists = either kind).
+   ⚠ These ANSWER rather than fail, so a path the OS could not be asked about is indistinguishable
+   from one that is not there — which is why the narrow-char boundary mattered most here. A
+   compiled program asked `the path "café.txt" exists` and said false, with no failure to catch. */
+static int cufet_path_exists(const char* path)  { unsigned int m; return cufet_stat_mode(path, &m); }
+static int cufet_path_is_dir(const char* path)  { unsigned int m; return cufet_stat_mode(path, &m) && S_ISDIR(m); }
+static int cufet_path_is_file(const char* path) { unsigned int m; return cufet_stat_mode(path, &m) && S_ISREG(m); }
 
 /* ── Streams (slice 9B): a stream is a FILE* (an opened file, or stdin). Read results are
    arena-allocated; the FILE* itself is closed by the With-block cleanup (not the arena). ── */
@@ -1162,6 +1329,15 @@ static const char* cufet_getcwd(void) {
     /* Grown rather than fixed at PATH_MAX: a truncated answer would be a silent divergence from
        the interpreter, which has no length ceiling. Superseded buffers stay in the arena and die
        with it, and the loop runs a handful of times at most. */
+#if defined(_WIN32)
+    /* _wgetcwd(NULL, 0) allocates whatever the answer needs, so the growth loop has nothing to do
+       on this side — and the answer is UTF-16, which is the whole reason for the branch. */
+    wchar_t* w = _wgetcwd(NULL, 0);
+    if (!w) return NULL;
+    const char* out = cufet_utf8_arena(w);
+    free(w);
+    return out;
+#else
     size_t cap = 512;
     for (;;) {
         char* buf = (char*)cufet_arena_alloc(cap);
@@ -1169,20 +1345,36 @@ static const char* cufet_getcwd(void) {
         if (errno != ERANGE || cap > (1u << 20)) return NULL;
         cap *= 2;
     }
+#endif
+}
+/* chdir with the path crossing the boundary; errno restored around the free for the same reason
+   cufet_fopen restores it — the caller below maps it to a failure category. */
+static int cufet_chdir_raw(const char* path) {
+#if defined(_WIN32)
+    wchar_t* wp = cufet_wide(path);
+    if (!wp) { errno = ENOENT; return -1; }
+    int r = _wchdir(wp);
+    int saved = errno;
+    free(wp);
+    errno = saved;
+    return r;
+#else
+    return chdir(path);
+#endif
 }
 static int cufet_chdir(const char* path, CufetFailure* err) {
-    struct stat st;
-    if (stat(path, &st) != 0) {
+    unsigned int mode;
+    if (!cufet_stat_mode(path, &mode)) {
         err->category = "not-found";
         err->message  = cufet_arena_msg("the directory '%s' was not found", path);
         return 0;
     }
-    if (!S_ISDIR(st.st_mode)) {
+    if (!S_ISDIR(mode)) {
         err->category = "not-a-directory";
         err->message  = cufet_arena_msg("'%s' is not a directory", path);
         return 0;
     }
-    if (chdir(path) != 0) {
+    if (cufet_chdir_raw(path) != 0) {
         if (errno == EACCES || errno == EPERM) {
             err->category = "permission-denied";
             err->message  = cufet_arena_msg("permission denied entering directory '%s'", path);
@@ -1201,6 +1393,40 @@ static int cufet_chdir(const char* path, CufetFailure* err) {
    defines the undefined (the FormatRecord normalization move). The separator is the PLATFORM's
    (matching .NET on the same platform); a trailing separator on the input is not doubled. */
 #include <dirent.h>
+/* ── Walking a directory across the narrow-char boundary ────────────────────
+   The join below is identical on both platforms, so only the three calls that touch NAMES are
+   split. ⚠ On Windows an entry arrives as UTF-16 and is converted per entry; a name that will not
+   convert comes back NULL and is SKIPPED rather than ending the walk, because returning NULL for
+   "this one" and NULL for "no more" would silently truncate a listing. */
+#if defined(_WIN32)
+typedef struct { _WDIR* d; } CufetDir;
+static int cufet_diropen(const char* path, CufetDir* out) {
+    wchar_t* wp = cufet_wide(path);
+    if (!wp) { errno = ENOENT; out->d = NULL; return 0; }
+    out->d = _wopendir(wp);
+    int saved = errno;
+    free(wp);
+    errno = saved;
+    return out->d != NULL;
+}
+static int cufet_dirnext(CufetDir* h, const char** name) {
+    struct _wdirent* de = _wreaddir(h->d);
+    if (!de) return 0;
+    *name = cufet_utf8_arena(de->d_name);
+    return 1;
+}
+static void cufet_dirclose(CufetDir* h) { _wclosedir(h->d); }
+#else
+typedef struct { DIR* d; } CufetDir;
+static int cufet_diropen(const char* path, CufetDir* out) { out->d = opendir(path); return out->d != NULL; }
+static int cufet_dirnext(CufetDir* h, const char** name) {
+    struct dirent* de = readdir(h->d);
+    if (!de) return 0;
+    *name = de->d_name;
+    return 1;
+}
+static void cufet_dirclose(CufetDir* h) { closedir(h->d); }
+#endif
 static CufetFailure cufet_dir_failure(const char* path, int e) {
     CufetFailure f;
     if (e == ENOENT) {
@@ -1217,8 +1443,8 @@ static CufetFailure cufet_dir_failure(const char* path, int e) {
 }
 static int cufet_dir_cmp(const void* a, const void* b) { return strcmp(*(const char* const*)a, *(const char* const*)b); }
 static int cufet_dir_contents(const char* path, const char*** out_items, int* out_n, CufetFailure* err) {
-    DIR* d = opendir(path);
-    if (!d) { *err = cufet_dir_failure(path, errno); return 0; }
+    CufetDir d;
+    if (!cufet_diropen(path, &d)) { *err = cufet_dir_failure(path, errno); return 0; }
 #ifdef _WIN32
     const char sep = '\\';
 #else
@@ -1228,23 +1454,24 @@ static int cufet_dir_contents(const char* path, const char*** out_items, int* ou
     int hasSep = plen > 0 && (path[plen - 1] == '/' || path[plen - 1] == '\\');
     int n = 0, cap = 16;
     const char** items = (const char**)cufet_arena_alloc((size_t)cap * sizeof(char*));
-    struct dirent* de;
-    while ((de = readdir(d)) != NULL) {
-        if (strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0) continue;
+    const char* dn;
+    while (cufet_dirnext(&d, &dn)) {
+        if (!dn) continue;
+        if (strcmp(dn, ".") == 0 || strcmp(dn, "..") == 0) continue;
         if (n == cap) {
             cap *= 2;
             const char** ni = (const char**)cufet_arena_alloc((size_t)cap * sizeof(char*));
             memcpy(ni, items, (size_t)n * sizeof(char*));
             items = ni;
         }
-        size_t nl = strlen(de->d_name);
+        size_t nl = strlen(dn);
         char* full = (char*)cufet_arena_alloc(plen + (hasSep ? 0 : 1) + nl + 1);
         memcpy(full, path, plen);
         if (!hasSep) full[plen] = sep;
-        memcpy(full + plen + (hasSep ? 0 : 1), de->d_name, nl + 1);
+        memcpy(full + plen + (hasSep ? 0 : 1), dn, nl + 1);
         items[n] = full; n++;
     }
-    closedir(d);
+    cufet_dirclose(&d);
     qsort(items, (size_t)n, sizeof(char*), cufet_dir_cmp);
     *out_items = items; *out_n = n;
     return 1;

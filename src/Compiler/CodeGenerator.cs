@@ -899,7 +899,12 @@ public sealed partial class CodeGenerator
     // ── Misc smalls (cleanup slice): env vars, is-a-type, directory contents ──
 
     // `the environment variable "X"` → voidable text: void when unset (matches the interpreter's
-    // GetEnvironmentVariable-null→void). getenv's storage is stable here (Cufet has no setenv).
+    // GetEnvironmentVariable-null→void).
+    // ⚠ This used to say getenv's storage is stable because Cufet has no setenv. That stopped
+    // being the whole truth when the name and value began crossing the Windows narrow-char
+    // boundary: there the value is now arena-allocated by cufet_getenv, with the same lifetime
+    // every other text this runtime returns already had. Nothing downstream changes — but the
+    // sentence claiming permanence would have outlived the invariant it described.
     // `the current directory` → voidable text. NULL only when getcwd cannot answer, which mirrors
     // the interpreter turning the equivalent exception into void.
     // `the arguments` → a series of text holding argv[1..argc-1]. A fresh series each time it is
@@ -929,7 +934,7 @@ public sealed partial class CodeGenerator
         string cvd = RegisterVoidableStruct(new VoidableType(TText));
         string n = EmitExpr(env.Name);
         int id = _freshId++;
-        _preEmits.Add($"const char* cf_ev{id} = getenv({n});");
+        _preEmits.Add($"const char* cf_ev{id} = cufet_getenv({n});");
         return $"(cf_ev{id} ? ({cvd}){{ .has = 1, .val = cf_ev{id} }} : ({cvd}){{ .has = 0 }})";
     }
 
