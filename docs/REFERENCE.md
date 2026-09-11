@@ -3789,15 +3789,22 @@ Failure categories, and the message each produces:
 
 #### Directory traversal
 
-**List a directory** — `the contents of the directory path` returns the names of
-entries (files and subdirectories) inside the directory as a `series of text or
-failure`. Entry names are plain names, not full paths. Order is not guaranteed.
+**List a directory** — `the contents of the directory path` returns the entries
+(files and subdirectories) inside it as a `series of text or failure`. Each entry is the
+**path you asked for, joined to the entry's name** with the platform's separator — so
+listing `"notes"` gives `notes/todo.txt`, ready to hand straight back to a file read.
+A trailing separator on what you pass is not doubled.
+
+**The order is sorted**, ordinal, and the same on both backends. The order an operating
+system hands entries back in depends on the filesystem, so sorting defines what would
+otherwise be undefined — the same call made everywhere else a result could differ by
+machine. `.` and `..` are never included.
 
 ```cufet
 Try to:
     Define entries as the contents of the directory "/tmp".
-    For each name in entries, repeat:
-        State name.
+    For each entry-name in entries, repeat:
+        State entry-name.
     Done.
 Done.
 In case of failure:

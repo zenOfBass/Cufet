@@ -226,6 +226,30 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   stdout only, not stderr and not the exit code. The regression tests below put a `State` after
   the rabbit, which is the whole difference between seeing this and not.
 
+- **A name that is not ASCII now survives the trip into the C library on Windows.** Nine places
+  where the compiled backend hands a path, an argument or a variable's name across were speaking the
+  process ANSI code page while everything else in the runtime is UTF-8: `the arguments`, `the
+  environment variable`, `the current directory` and changing it, the three path predicates, all
+  three places a file is opened, and `the contents of the directory`.
+
+  ⚠⚠ **The quiet ones were worse than the loud ones.** Reading a file whose name holds an accented
+  letter said *the file was not found* while printing its name correctly — the message came from
+  the UTF-8 literal and only the LOOKUP was converted. `Write`, though, SUCCEEDED and created a
+  DIFFERENT FILE: its two UTF-8 bytes were read as two characters of the ANSI code page and
+  re-encoded, so a program could write a file, read it back through the same wrong name, and never
+  learn the name on disk was not the one it asked for. And the path predicates ANSWER rather than
+  fail, so `the path X exists` returned false with no failure to catch.
+
+  ★★ **Three things had to be true at once for the suite to miss all nine.** Every path and
+  argument in the tests and the corpus was ASCII; the example harness runs compiled binaries with
+  no arguments at all, so `the arguments` had only ever been compiled-tested EMPTY; and CI is
+  Linux, where none of this exists because POSIX deals in the caller's own bytes. It is the mirror
+  of the stranded output lock fixed above — that one only Linux could see.
+
+  ★ The fix is two converters and the wide entry point at each site, so POSIX compiles to exactly
+  the calls it always made. MEASURED, because each would otherwise be re-litigated: no extra link
+  flag is needed, and mingw does not expand wildcards, so nothing but the encoding changes.
+
 ## [0.20.0] — 2026-09-07
 
 ### Added
