@@ -3680,6 +3680,10 @@ compiled `./check` both leave with what the program said.
 - **Nothing after it runs**, including in the blocks it is leaving through.
 - **Falling off the end is already 0**, so a bare `Exit.` is for leaving *early* and successfully.
 
+See [`examples/systems/search.cufe`](../examples/systems/search.cufe) for a worked script that
+uses the whole contract — 0 when something matched, 1 when nothing did, 2 when a file could not
+be read — which is grep's, and the reason a status has to be a status rather than a sentence.
+
 ⚠ **1 and 2 are ambiguous when interpreted, and cannot be otherwise.** `cufet` itself leaves with
 1 for a program it refuses and 2 for a command line it does not understand, so `cufet run.cufe`
 answering 1 could be either. A compiled program has no such overlap. Every interpreter shares this;
