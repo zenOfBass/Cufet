@@ -1432,8 +1432,10 @@ public sealed partial class CodeGenerator
         // Same non-positive-step guard the value form uses — the interpreter raises on both, and
         // without it a zero step spins here forever.
         sb.AppendLine($"{inner}{RangeStepGuard(st, range.Line)}");
-        sb.AppendLine($"{inner}int {d}  = cufet_cmp({s}, {e}) <= 0 ? 1 : -1;");
-        sb.AppendLine($"{inner}for (CufetDec {iterName} = {s}; {d} > 0 ? cufet_cmp({iterName}, {e}) <= 0 : cufet_cmp({iterName}, {e}) >= 0; {iterName} = {d} > 0 ? cufet_add({iterName}, {st}) : cufet_sub({iterName}, {st})) {{");
+        // ⚠ Ascending or EMPTY — a range that ends below where it starts does not count down.
+        // See EvaluateRangeExpr for the measurement that changed it; both backends had the
+        // inferred-direction behaviour and both had to lose it together.
+        sb.AppendLine($"{inner}for (CufetDec {iterName} = {s}; cufet_cmp({iterName}, {e}) <= 0; {iterName} = cufet_add({iterName}, {st})) {{");
         // Track the loop variable's type (a number) so it resolves in the body — and so a task
         // spawned in the body can capture it (consistent with the series/map foreach).
         string raw = fe.IteratorName ?? "it";

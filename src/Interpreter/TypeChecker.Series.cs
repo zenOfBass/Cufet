@@ -597,6 +597,25 @@ public sealed partial class TypeChecker
                 $"use a {FormatType(endType)} as the end of a range",
                 "Both ends of a range must be numbers. For example: range 1 to 100.");
 
+        // ⚠⚠ A range whose ends are both WRITTEN OUT and which ends below where it starts is
+        // refused, and the refusal exists because the change that made it empty is a BREAKING one.
+        // Direction used to be inferred from operand order; now `range 100 to 1` is empty. A
+        // program relying on the old reading would silently stop looping, which is the worst way
+        // for a change to arrive — so where the fault is visible on the line, it is said out loud.
+        //
+        // ★ Only when both ends are literals. With a computed end there is nothing to refuse and
+        // empty is the right answer: `range 1 to the number of xs` over an empty series should do
+        // nothing, which is exactly the trap this whole change removes.
+        if (TryGetLiteralNumber(re.Start) is { } litStart && TryGetLiteralNumber(re.End) is { } litEnd
+            && litEnd < litStart)
+            throw TypeError(
+                $"'range {litStart:0.############} to {litEnd:0.############}' is empty, because it ends below where it starts",
+                "a range counts up; it does not turn around when the end is lower",
+                re.Line, re.Column,
+                "count down by writing the ends the other way round",
+                $"Write 'range {litEnd:0.############} to {litStart:0.############} sorted in reverse' "
+              + "for the numbers in descending order.");
+
         if (re.Step != null)
         {
             var stepType = InferType(re.Step);

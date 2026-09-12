@@ -56,11 +56,16 @@ public class PipelineControlFlowTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
+    // ⚠⚠ THIS TEST USED TO ASSERT A DESCENT. `the range 5 to 1` was `5, 4, 3, 2, 1`, and direction
+    // was inferred from operand order — which made the commonest index loop run backwards over an
+    // empty collection. It is refused now, and the test says so rather than being deleted, because
+    // a behaviour that changed is worth a line in the record.
     [Fact]
-    public void ForEach_Range_Descending_MatchesInterpreter()
+    public void ForEach_Range_Descending_IsRefused()
     {
-        const string src = "For each n in the range 5 to 1, repeat: State n. Done.";
-        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+        var e = Assert.Throws<Cufet.Interpreter.TypeException>(() =>
+            Interpret("For each n in the range 5 to 1, repeat: State n. Done."));
+        Assert.Contains("ends below where it starts", e.Message);
     }
 
     [Fact]
@@ -370,7 +375,7 @@ public class PipelineControlFlowTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
-    // ── A body's locals live BELOW the names imported for it ─────────────────
+    // ── A range counts up, or is empty ───────────────────────────────────────\n    //\n    // ★★ Direction used to be inferred from operand order, so `range 1 to 0` was `1, 0`. That made\n    // the most ordinary index loop there is — `For each n in range 1 to the number of xs` — run\n    // TWICE, BACKWARDS, over an empty series instead of not running.\n    //\n    // ⚠ MEASURED before changing it: 25 ranges across the corpus and NOT ONE descending, against\n    // three guards written purely to dodge this — two in tools/shell.cufe, one carrying a comment\n    // naming the trap, and one in the pattern engine. A feature nobody used was costing real\n    // programs a workaround apiece.\n\n    [Fact]\n    public void ARangeOverAnEmptySeries_DoesNotRun()\n    {\n        const string src = """\n            Define empty as a series of text.\n            Define count as 0.\n            For each n in range 1 to the number of empty, repeat:\n                Increment count by 1.\n            Done.\n            State count converted to text.\n            """;\n        Assert.Equal("0", Interpret(src));\n        Assert.Equal(Interpret(src), Compile(src));\n    }\n\n    [Fact]\n    public void ARangeCountsUp_AndReversingIsHowYouGoDown()\n    {\n        const string src = """\n            For each n in range 1 to 3, repeat:\n                State n converted to text.\n            Done.\n            For each n in (range 1 to 3) sorted in reverse, repeat:\n                State n converted to text.\n            Done.\n            """;\n        Assert.Equal("1\n2\n3\n3\n2\n1", Interpret(src));\n        Assert.Equal(Interpret(src), Compile(src));\n    }\n\n    // ⚠ The refusal exists because this behaviour CHANGED. A program relying on the old reading\n    // would otherwise stop looping in silence, which is the worst way for a change to arrive — so\n    // where both ends are written out and the fault is visible on the line, it is said out loud.\n    // With a computed end there is nothing to refuse and empty is simply right.\n    [Fact]\n    public void ALiteralDescendingRange_IsRefusedRatherThanSilentlyEmpty()\n    {\n        var e = Assert.Throws<Cufet.Interpreter.TypeException>(() => Interpret("""\n            For each n in range 100 to 1, repeat:\n                State n converted to text.\n            Done.\n            """));\n        Assert.Contains("is empty, because it ends below where it starts", e.Message);\n        Assert.Contains("sorted in reverse", e.Message);\n    }\n\n    // ── A body's locals live BELOW the names imported for it ─────────────────
     //
     // ★★ A function body used to share ONE scope with the top-level constants imported for it, so
     // a local named like a constant was refused as a same-block redeclaration — and

@@ -439,9 +439,10 @@ public sealed partial class CodeGenerator
         _preEmits.Add(
             $"{{ CufetDec {s} = {startExpr}; CufetDec {e} = {endExpr}; CufetDec {st} = {stepExpr}; " +
             $"{RangeStepGuard(st, range.Line)}" +
-            $"int {d} = cufet_cmp({s}, {e}) <= 0 ? 1 : -1; " +
-            $"for (CufetDec {it} = {s}; {d} > 0 ? cufet_cmp({it}, {e}) <= 0 : cufet_cmp({it}, {e}) >= 0; " +
-            $"{it} = {d} > 0 ? cufet_add({it}, {st}) : cufet_sub({it}, {st})) {name}_append({tmp}, {it}); }}");
+            // ⚠ Ascending or EMPTY, matching the loop form and the interpreter — see
+            // EvaluateRangeExpr for why the inferred direction went.
+            $"for (CufetDec {it} = {s}; cufet_cmp({it}, {e}) <= 0; " +
+            $"{it} = cufet_add({it}, {st})) {name}_append({tmp}, {it}); }}");
         return tmp;
     }
 

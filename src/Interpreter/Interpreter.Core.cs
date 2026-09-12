@@ -1981,13 +1981,24 @@ public sealed partial class Interpreter
         }
 
         var list = new List<object>();
-        // ISA.2d — a descending or zero-width range yields an EMPTY series of number.
-        if (start <= end)
-            for (decimal n = start; n <= end; n += step)
-                list.Add(n);
-        else
-            for (decimal n = start; n >= end; n -= step)
-                list.Add(n);
+        // ⚠⚠ A range that ends below where it starts is EMPTY — it does not count down.
+        // Direction used to be inferred from operand order, and that inference was silent in
+        // the direction that hurts: `range 1 to the number of xs` over an empty series ran
+        // TWICE, backwards, instead of not at all.
+        //
+        // ★ MEASURED before changing it: 25 ranges across the corpus and NOT ONE descending,
+        // against three separate guards written purely to dodge this — two in tools/shell.cufe
+        // (one carrying a comment naming the trap) and one in the pattern engine. The feature
+        // nobody used was costing real programs a workaround apiece.
+        //
+        // ★ Descending is still sayable and needs no syntax of its own: `range 1 to 100 sorted
+        // in reverse`. A default is a voiceable choice, not an inferred silence.
+        //
+        // ⚠ The comment that stood here already SAID this — "ISA.2d, a descending or
+        // zero-width range yields an EMPTY series" — directly above a loop that counted down.
+        // The note and the code had disagreed for long enough that the note lost.
+        for (decimal n = start; n <= end; n += step)
+            list.Add(n);
         return Series(list, new NumberType());   // ISA.2d
     }
 
