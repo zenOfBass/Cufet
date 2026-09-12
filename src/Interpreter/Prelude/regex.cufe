@@ -39,6 +39,7 @@
 //   kind 3 — accept
 //   kind 4 — `^`: go to `step`, but only with nothing consumed yet
 //   kind 5 — `$`: go to `step`, but only with everything consumed
+//   kind 6 — `[^…]`: match any one character NOT in `ch`, then go to `step`
 // `step` and `alt` are 1-based positions in the same series; 0 means nowhere. State 1 is the entry.
 //
 // ⚠ This list is the map a reader navigates by, and it described kinds 0-3 for an hour after 4 and
@@ -136,6 +137,14 @@ Bind fact to match, given (
                 Done.
                 If the kind of rx-node is 1:
                     Cast reach on (rx-program, the step of rx-node, rx-onward, rx-pos, rx-total).
+                Done.
+                // `[^…]` — the ch holds every EXCLUDED character, so membership is the test and
+                // failing it is what lets the path through. ★ `contains` is exact-substring, and
+                // rx-here is exactly one character, so this is character membership.
+                If the kind of rx-node is 6:
+                    If the ch of rx-node contains rx-here is false:
+                        Cast reach on (rx-program, the step of rx-node, rx-onward, rx-pos, rx-total).
+                    Done.
                 Done.
             Done.
         Done.
