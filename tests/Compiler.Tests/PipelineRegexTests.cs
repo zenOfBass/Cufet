@@ -90,6 +90,53 @@ public class PipelineRegexTests : PipelineTestBase
     public void APatternThatWouldHangABacktracker_IsAnsweredAtOnce() =>
         AssertPattern("a*a*a*a*b", "false true", new string('a', 24), new string('a', 24) + "b");
 
+    // ── Character classes ────────────────────────────────────────────────────
+    //
+    // ★★ A class desugars to an ALTERNATION of the characters it admits, so nothing downstream
+    // changed — not the construction, not the compiled record, not the engine. `[a-c]` is exactly
+    // `(a|b|c)`, which was already expressible; the slice added a way to write it. These tests are
+    // therefore as much about the reader as about matching.
+
+    [Fact]
+    public void AClass_AdmitsAnyOfItsCharacters() =>
+        AssertPattern("[abc]x", "true true false", "bx", "cx", "dx");
+
+    [Fact]
+    public void AClass_TakesRanges() =>
+        AssertPattern("[0-9]+", "true false", "abc 42", "none");
+
+    [Fact]
+    public void AClass_TakesSeveralRangesAndLooseCharacters() =>
+        AssertPattern("[a-zA-Z_]+", "true true false", "  hello", "_x", "123");
+
+    // ⚠ A '-' immediately before the ']' is an ordinary character, not a half-written range. That
+    // rule is why the reader looks ahead rather than treating every '-' as a range marker.
+    [Fact]
+    public void ADashAtTheEnd_IsAnOrdinaryCharacter() =>
+        AssertPattern("[a-]", "true true false", "a", "-", "z");
+
+    // ★ Classes compose with everything already there, because by the time the compiler sees one
+    // it is an `Or` like any other.
+    [Fact]
+    public void AClass_ComposesWithRepeatsAndGroups() =>
+        AssertPattern("([a-c]+-)+z", "true false", "ab-c-z", "abz");
+
+    [Fact]
+    public void AClassRefusal_SaysWhichFault()
+    {
+        // ⚠ Negation cannot be desugared — "every character except these" is not a finite
+        // alternation — so it is refused by name until it has a real representation.
+        Assert.Contains("cannot do yet", Refused("[^a-z]").Message);
+        Assert.Contains("runs backwards", Refused("[z-a]").Message);
+        Assert.Contains("class is empty", Refused("[]").Message);
+    }
+
+    // ⚠ `[` and `]` left the not-yet table when classes landed, so this pins that they stayed
+    // ESCAPABLE — the character has to remain writable now that the bracket is real syntax.
+    [Fact]
+    public void AnEscapedBracket_IsStillAnOrdinaryCharacter_NowThatClassesExist() =>
+        AssertPattern(@"\[[0-9]\]", "true false", "a[7] b", "a7b");
+
     // ── Escapes ──────────────────────────────────────────────────────────────
 
     // ★ The reason the lexer learned to skip an escaped bracket: `[` is a subscript in C and a
@@ -119,18 +166,18 @@ public class PipelineRegexTests : PipelineTestBase
             Done.
             """));
 
-    // ⚠⚠ THIS TEST CHANGED when repeats landed, and the change is the point. It used to assert
-    // that `a*` was refused with "'*' means a repeat, which patterns cannot do yet" — and that
-    // refusal is now support. Refusing by name rather than taking a metacharacter literally is
-    // what made that a clean upgrade: every program written against the old refusal still means
-    // what it meant, where reading `a*` as two ordinary characters would have changed meaning in
-    // silence the day this shipped.
+    // ⚠⚠ THIS TEST HAS SHED AN ENTRY TWICE NOW, and that is the point rather than churn. It
+    // once asserted `a*` was refused — repeats landed. It then asserted `[a-z]` was refused —
+    // classes landed. Each time the refusal became support and every program written against
+    // it still meant what it meant, because the refusal named the construct instead of
+    // quietly treating it as ordinary characters. Reading `a*` as two characters, or `[a-z]`
+    // as five, would have changed meaning in silence on the day each shipped.
     [Fact]
     public void AMetacharacterNotYetSpelled_IsRefusedByName()
     {
         Assert.Contains("means a start anchor", Refused("^ab").Message);
+        Assert.Contains("means an end anchor", Refused("ab$").Message);
         Assert.Contains("means a count", Refused("a{2}").Message);
-        Assert.Contains("means a character class", Refused("[a-z]").Message);
     }
 
     [Fact]

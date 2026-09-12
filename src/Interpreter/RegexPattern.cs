@@ -43,13 +43,11 @@ internal static class RegexPattern
     /// <remarks>
     /// ★ Refused BY NAME rather than taken literally, and the ordering is deliberate: a refusal
     /// that says "not supported yet" becomes support later, and a program written against it keeps
-    /// meaning what it meant. Treating `[a-z]` as five ordinary characters would be the other kind
-    /// of decision — one that changes meaning in silence the day classes arrive.
+    /// meaning what it meant. That is not hypothetical — `*` was refused this way, repeats then
+    /// landed, and every program written against the refusal still means what it meant.
     /// </remarks>
     private static readonly Dictionary<char, string> NotYet = new()
     {
-        ['['] = "a character class",
-        [']'] = "a character class",
         ['^'] = "a start anchor",
         ['$'] = "an end anchor",
         ['{'] = "a count",
@@ -214,6 +212,8 @@ internal static class RegexPattern
                            "this version reads characters, '.', '*', '+', '?', '|' and groups",
                            $@"write '\{c}' if you meant the character itself");
 
+            if (c == '[') { _at++; return ReadClass(); }
+
             if (c == '(')
             {
                 _at++;
@@ -258,7 +258,97 @@ internal static class RegexPattern
             return new Ch(c.ToString());
         }
 
+        /// <summary>Reads `[ … ]` and desugars it to an alternation of the characters it admits.</summary>
+        /// <remarks>
+        /// ★★ A class becomes an `Or` chain of ordinary characters, so NOTHING downstream changes —
+        /// not the construction, not the compiled record, not the engine. `[a-c]` is exactly
+        /// `(a|b|c)`, which was already expressible; what this slice adds is a way to WRITE it.
+        /// That is why it carries no new state kind.
+        ///
+        /// ⚠ The cost is states: `[a-z]` expands to 26 characters plus the 25 branches joining
+        /// them. Patterns are small and the simulation is linear in states times subject length, so
+        /// this is affordable — but a class over a large range is not free, and a representation
+        /// that holds ranges directly would be about THAT, not about what a class means.
+        ///
+        /// ⚠ A NEGATED class is refused by name. It cannot be desugared this way — "every
+        /// character except these" is not a finite alternation — so it needs a real representation
+        /// in the automaton and belongs in its own slice.
+        /// </remarks>
+        private Node ReadClass()
+        {
+            if (!AtEnd && Peek == '^')
+                throw fail("a class beginning with '^' means every character EXCEPT those, which "
+                         + "patterns cannot do yet",
+                           "this version spells out the characters a class admits, and there is no "
+                         + "finite way to spell out the ones it does not",
+                           @"list what should match instead, or write '\^' for the character");
+
+            Node? built = null;
+            while (!AtEnd && Peek != ']')
+            {
+                char lo = ReadClassCharacter();
+                // `a-z`, unless the '-' is the last thing before the ']' and so an ordinary dash.
+                if (!AtEnd && Peek == '-' && _at + 1 < source.Length && source[_at + 1] != ']')
+                {
+                    _at++;
+                    char hi = ReadClassCharacter();
+                    if (hi < lo)
+                        throw fail($"'{lo}-{hi}' is a range that runs backwards",
+                                   "a range goes from the earlier character to the later one",
+                                   $"write '{hi}-{lo}'");
+                    for (char c = lo; c <= hi; c++) built = Add(built, c);
+                    continue;
+                }
+                built = Add(built, lo);
+            }
+
+            if (AtEnd || Peek != ']')
+                throw fail("this pattern opens a class that is never closed",
+                           "every '[' needs a ']' after it",
+                           @"write '\[' if you meant the character");
+            _at++;
+
+            // ⚠ An empty class admits nothing, so the pattern could never match. A pattern that
+            // cannot succeed is a typo every time, and saying so beats failing silently forever.
+            return built ?? throw fail(
+                "this class is empty",
+                "a class with no characters in it admits nothing, so the pattern could never match",
+                "list the characters it should admit");
+        }
+
+        private static Node Add(Node? built, char c) =>
+            built is null ? new Ch(c.ToString()) : new Or(built, new Ch(c.ToString()));
+
+        /// <summary>One character inside a class, with escapes honoured.</summary>
+        /// <remarks>
+        /// ⚠ The escapable set differs INSIDE a class: `-` and `]` matter here and nowhere else,
+        /// and `*` or `+` are already ordinary characters in here. Refusing an unknown escape is
+        /// the same call the outer reader makes, for the same reason.
+        /// </remarks>
+        private char ReadClassCharacter()
+        {
+            char c = source[_at];
+            if (c != '\\') { _at++; return c; }
+
+            if (_at + 1 >= source.Length)
+                throw fail("this class ends in a backslash, which escapes nothing",
+                           "a backslash makes the character after it ordinary, so there has to be one",
+                           @"write '\\' for a backslash you meant literally");
+
+            char next = source[_at + 1];
+            if (next is not ('\\' or ']' or '[' or '-' or '^'))
+                throw fail($@"'\{next}' is not an escape a class understands",
+                           "inside a class a backslash may precede a backslash, a bracket, a dash "
+                         + "or a caret",
+                           $"write '{next}' on its own if you meant the character");
+            _at += 2;
+            return next;
+        }
+
+        // ⚠ `[` and `]` stay escapable outside a class even though they left the not-yet table:
+        // they are now real syntax, so `\[` has to keep meaning the character.
         private static bool IsMeta(char c) =>
-            c is '*' or '+' or '?' or '|' or '(' or ')' or '.' || NotYet.ContainsKey(c);
+            c is '*' or '+' or '?' or '|' or '(' or ')' or '.' or '[' or ']'
+            || NotYet.ContainsKey(c);
     }
 }
