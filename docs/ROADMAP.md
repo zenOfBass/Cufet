@@ -193,35 +193,72 @@ they are large, not because they are waiting — the order among them means noth
    ⚠ Whatever is written must be pinned like the doc fences are: a lesson whose code stops working
    is worse than no lesson, and this project has the machinery to catch that already.
 
-5. **`Pull a book on regex.` — a language book with bracketed patterns.** The pattern is verbatim
-    foreign text in `[ … ]`, the way an axiom's body is, with values spliced by `the <name>` rather
-    than concatenated — so a pattern cannot be built at run time and regex injection is
-    structurally impossible, the same argument `run` already makes.
+5. **`Pull a book on regex.` — the pattern language.** The book, the bracketed form and
+    check-time validation SHIPPED; patterns of ordinary characters work on both backends, and the
+    record is the CHANGELOG entry. What is left is the language itself.
 
-    ★ **Validated at CHECK time.** Because the pattern is fixed where it is written, a malformed one
-    is a static error naming the fault rather than a failure when the line finally runs. That is the
-    whole reason for the bracketed form over an ordinary function taking text.
+    ★ **Settled: an AUTOMATON, not backtracking.** Three reasons, and the third is the one specific
+    to Cufet: a backtracking engine can hang on a pattern that looks fine; the usual defence is a
+    timeout, and a timeout is nondeterministic where the oracle demands byte-for-byte agreement;
+    and the engine is written in Cufet, so it is slow by construction — backtracking's worst case on
+    a slow host is not "slow" but "never finishes". The cost is backreferences, which would need
+    their own trigger anyway. This decides the dialect.
 
-    ⚠⚠ **The engine is written in Cufet, and that is not a stylistic preference — the oracle
-    requires it.** Two engines (.NET `Regex` interpreted, POSIX `regcomp` compiled) would disagree
-    on greediness, character classes, Unicode and empty-match edges, silently, on inputs nobody
-    tested. `collections` is the precedent: every member written in Cufet, in `Prelude/`, so both
-    backends run the same code and cannot diverge.
+    ⚠⚠ **The engine is written in Cufet because the oracle requires it**, not as a preference. Two
+    engines (.NET `Regex` interpreted, POSIX `regcomp` compiled) would disagree on greediness,
+    classes and empty-match edges, silently, on inputs nobody tested. `collections` is the
+    precedent: every member written in Cufet, so both backends run the same code.
 
-    ⚠ **It is NOT the `c-language` pipeline.** That one hands verbatim text to an external compiler.
-    This one has Cufet parse and validate the pattern itself, then run it on a Cufet engine — shared
-    syntax, different machinery. Reusing the axiom path is the obvious wrong turn.
-
-    **Open, and the central question:** **backtracking or an automaton.** A backtracking engine gets
-    backreferences and can hang forever on a pattern that looks fine; an automaton is linear-time
-    and cannot do backreferences. For a language whose claim is that a program says what it means, an
-    engine that can hang is a poor fit — but that decides the dialect, so it is the first thing to
-    settle rather than something to discover. Which dialect follows from it.
+    **Next slice is the engine**, and the smallest unit that actually needs one: `.`, `*`, `+`, `?`,
+    alternation and grouping — Thompson's construction, which is not meaningfully divisible. Today's
+    lowering is `subject contains "…"`, which is why the slice after this one cannot be another
+    lowering trick. Character classes follow; splicing values into a pattern follows them.
 
     ⚠ **No witness.** No corpus program has reached for regex and routed around its absence, so this
     is wanted on design grounds and as an INSTRUMENT — a large Cufet program that will find the
-    ergonomic gaps, which is the justification this file already states for the tier above. Recorded
-    that way on purpose rather than dressed up as a trigger.
+    ergonomic gaps, which is the justification this file already states for the tier above.
+
+6. **`Pull a book on building.` — a build description that is a Cufet program.** No second
+    language for the build, the way `build.zig` is a Zig program rather than a Makefile.
+
+    ★ **Settled: a BOOK, not core.** Core was weighed and declined. What Zig gets right is that a
+    build script is an ORDINARY PROGRAM USING AN ORDINARY LIBRARY — putting the vocabulary into the
+    language would move away from that, spend permanent core surface (a build vocabulary is not
+    small: targets, steps, artifacts, toolchains), and buy its way around a module gap instead of
+    fixing it.
+
+    ★★ **The prize is bigger than a build tool: a build description is a notion of a PROJECT**, and
+    all three module walls are the absence of one. Where a book lives stops being "the file's own
+    directory" and becomes something the build file declares; program-versus-library stops needing
+    a language feature, because the build file says which a file is; and separate compilation needs
+    a build graph before it can mean anything.
+
+    ⚠ A BUNDLED book sidesteps both walls (bundled books are resolved at compile time, so nothing
+    runs a pulled file's top level). The walls return exactly when EXTENSIBILITY does, because a
+    user-written build extension is an external book. Good ordering: start without the module work,
+    and the pressure arrives when it is earned.
+
+    ★ **Settled: staleness by CONTENT HASH, not timestamp.** A timestamp answers "was this touched";
+    a build wants "is this different". They differ at the edges — same content touched, or a change
+    inside the filesystem's timestamp resolution — and the failure is a WRONG BUILD WITH NO
+    COMPLAINT, which is the category this language declines everywhere else (`Exit with 256` is
+    refused rather than truncated). Decisive: **git does not preserve modification times**, so a
+    timestamp answer depends on how the tree arrived on the machine — the same objection REFERENCE
+    already makes about line endings and how git checked a file out. A hash is also the cheaper
+    capability to let in: a pure function of bytes that both backends can agree on by construction,
+    where a clock is the most machine-dependent domain there is.
+
+    ⚠⚠ **The standard optimisation is the unsound thing.** Stat first and hash only when size or
+    mtime changed is what every fast build system does, and it silently reintroduces the resolution
+    bug as a "fast path". Written down here so nobody adds it later as an obvious win.
+
+    ⚠ The algorithm must be NAMED by the language, not "whatever the platform provides" — the
+    shared case table's lesson, where .NET casing turned out to be ICU-backed and to differ per
+    machine.
+
+    **Neither is a blocker on starting.** A build that always rebuilds is correct and merely not yet
+    useful, so the hashing surface is its own slice with this book as its witness, rather than a
+    prerequisite built on spec.
 
 ## Ongoing, no fixed slot
 
