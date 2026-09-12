@@ -734,6 +734,9 @@ not known until it has one.
 | `(ab)+` | a group, repeated as a whole |
 | `[abc]` | any one of those characters |
 | `[a-z0-9_]` | ranges and loose characters together |
+| `^abc` | only at the start of the subject |
+| `abc$` | only at the end of it |
+| `^abc$` | the whole subject, and nothing more |
 
 ```cufet
 Pull a book on regex.
@@ -751,8 +754,27 @@ true
 ```
 
 ★ **A pattern asks whether the subject HOLDS a match**, not whether the whole subject is one — so
-`[na]` finds the `na` inside `banana`. Anchors, which is how you would say "the whole thing", are
-among the things still refused by name.
+`[na]` finds the `na` inside `banana`. **Anchors are how you say "the whole thing"**, and they are
+what turns a pattern from a search into a check:
+
+```cufet
+Pull a book on regex.
+    Define regex holds-a-number as [[0-9]+].
+    Define regex is-a-number as [^[0-9]+$].
+    State (cast holds-a-number on ("abc 42")) converted to text.
+    State (cast is-a-number on ("abc 42")) converted to text.
+    State (cast is-a-number on ("42")) converted to text.
+Done.
+```
+```output
+true
+false
+true
+```
+
+★ `^` and `$` are ordinary states in the automaton rather than settings on the pattern, so they
+compose wherever anything else does — `(^cat|dog$)` anchors each side of the alternation
+separately, which a pair of flags on the whole pattern could not have expressed.
 
 #### Case, and whitespace
 
@@ -785,17 +807,19 @@ spelling, and the refusal says which character to type instead.
 
 ```cufet-refused
 Pull a book on regex.
-    Define regex p as [^abc].
+    Define regex p as [a{2}].
 Done.
 ```
 
-> `'^' means a start anchor, which patterns cannot do yet`
+> `'{' means a count, which patterns cannot do yet`
 
 ★ Refused rather than taken literally, deliberately. A refusal that says *not yet* becomes support
-later and every program written against it keeps meaning what it meant; treating `^` as an ordinary
-character would change meaning in silence the day anchors arrive. Anchors and counts are refused
-this way today — and **classes used to be**, which is the point: they landed, and every pattern
-written against that refusal still means exactly what it meant.
+later and every program written against it keeps meaning what it meant; treating `{` as an ordinary
+character would change meaning in silence the day counts arrive. ★★ That is not a prediction — it
+has now happened three times in this book. `a*` was refused this way and repeats landed; `[a-z]`
+was refused this way and classes landed; `^ab` was refused this way and **anchors landed**. Each
+time the refusal became support and every pattern written against it still meant exactly what it
+meant. Counts are what is left.
 
 ⚠ A class that begins with `^` — every character EXCEPT those — is refused for a reason of its own:
 a class is written out as the characters it admits, and there is no finite way to write out the
@@ -826,12 +850,11 @@ it triages a log by the shapes its lines hold, which is the case patterns are ac
 is never written for the thing that reads it, and half of what matters in one is a shape rather
 than a word.
 
-★ It is also where the current edges show up in a real program rather than in a test. Because a
-pattern asks whether a subject **holds** a match, that program can *count and flag* but not
-*validate* — `[[0-9]+]` is held by `abc 42` exactly as firmly as by `42`, so "this line is a
-number" has no spelling yet. Anchors are the missing piece, and they are refused by name rather
-than quietly read as ordinary characters, which is how the program ran into the limit instead of
-silently getting a wrong answer.
+★ It is also where the edges showed up in a real program rather than in a test — and it is why
+anchors exist. That program could *count and flag* but not *validate*, because a pattern asks
+whether a subject **holds** a match and there was no way to add "and that is all of it". The limit
+arrived as a refusal naming `^` rather than as a wrong answer, which is the whole argument for
+refusing by name; `^` and `$` landed in the release after it.
 
 #### It cannot hang
 

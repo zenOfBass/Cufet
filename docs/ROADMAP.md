@@ -210,19 +210,29 @@ they are large, not because they are waiting — the order among them means noth
     classes and empty-match edges, silently, on inputs nobody tested. `collections` is the
     precedent: every member written in Cufet, so both backends run the same code.
 
-    **▶ Next slice: ANCHORS (`^` and `$`) — and a real program chose them.** Writing `logtriage`
-    measured three edges of the design. A pattern cannot be built at run time (deliberate: it is
-    what makes injection structurally impossible). It gives back a `fact` rather than the text it
-    matched, so there are no captures and nothing can be EXTRACTED. And it asks whether a subject
-    HOLDS a match, never whether the subject IS one.
+    ★★ **ANCHORS SHIPPED**, and a real program chose them: `logtriage` could count and flag but not
+    VALIDATE, because a pattern asks whether a subject HOLDS a match. `^` and `$` are **state kinds
+    rather than flags on the pattern**, which is what lets them compose — `(^cat|dog$)` anchors each
+    side of an alternation separately, and a pair of flags could not have said that. They are the
+    first thing the engine needed to know beyond the state series itself, so `reach` now carries how
+    much of the subject has been consumed.
 
-    The third is the one that bites: **validation has no spelling**, because `[[0-9]+]` is held by
-    `abc 42` exactly as firmly as by `42`. Anchors are its whole fix, and they are already refused
-    BY NAME — so the day they land the refusal becomes support and no existing program changes
-    meaning, the way `a*` and `[a-z]` each did.
+    **What is left before this arc closes** — and closing it is what makes the next release 0.22.0,
+    per the versioning rule that a minor bump means the arc shut:
 
-    Deferred, each still wanting its own witness: negated classes `[^…]`, captures, and splicing a
-    value into a pattern. Backreferences are ruled out by the automaton decision above.
+    - **Counts `{2,5}`** — the last entry in the refuse-by-name table. Desugarable to repetition
+      exactly as classes were, so no engine change. ⚠ Which means the trigger question applies the
+      way it did to classes, and nothing has wanted them yet.
+    - **Negated classes `[^…]`** — NOT desugarable; "every character except these" is not a finite
+      alternation, so it needs a real state kind. It looks like a sibling of `[abc]` and is not.
+    - **Case-insensitive matching** — the one remaining way this book gives a WRONG ANSWER rather
+      than a refusal: `[WARN]` does not match `warn` and does not complain. Documented in BOOKS.md
+      for now, with `[[Ww]arn]` as the spelling that carries the choice.
+    - **Splicing a value into a pattern** — a value inserted as literal escaped text, never as
+      syntax. The honest answer to "I wanted grep", and the highest-value item here for real
+      programs.
+
+    Backreferences stay ruled out by the automaton decision above.
 
 6. **`Pull a book on building.` — a build description that is a Cufet program.** No second
     language for the build, the way `build.zig` is a Zig program rather than a Makefile.

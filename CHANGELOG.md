@@ -6,6 +6,38 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- **Anchors — `^` and `$`, which is how a pattern says "the whole thing".** Until now a pattern
+  asked only whether a subject HELD a match, so `[[0-9]+]` was held by `abc 42` exactly as firmly
+  as by `42` and there was no way to spell a CHECK rather than a SEARCH.
+
+  ```cufet-fragment
+  Pull a book on regex.
+      Define regex is-a-number as [^[0-9]+$].
+      State (cast is-a-number on ("abc 42")) converted to text.   /* false */
+      State (cast is-a-number on ("42")) converted to text.       /* true  */
+  Done.
+  ```
+
+  ★★ **A real program asked for this one.** `examples/parsing/logtriage.cufe` was written first,
+  could count and flag but not validate, and ran into the limit as a refusal naming `^` rather than
+  as a wrong answer. That is the whole argument for refusing by name, and this is the third time it
+  has paid off in this book: `a*` was refused and repeats landed, `[a-z]` was refused and classes
+  landed, `^ab` was refused and anchors landed. Counts are the only entry left.
+
+  ★ **They are STATE KINDS, not flags on the pattern**, and the difference is expressiveness rather
+  than taste. Flags would have been less work and could only anchor the very ends; as ordinary
+  states they compose wherever anything else does, so `(^cat|dog$)` anchors each side of the
+  alternation separately.
+
+  ⚠ An anchor consumes nothing but depends on WHERE the subject is, which is the first thing the
+  engine has ever needed beyond the state series itself — `reach` now carries how much has been
+  consumed. The four-field compiled record is unchanged, so the contract shared between
+  `RegexPattern.State`, the prelude and the lowering still holds.
+
 ## [0.21.1] — 2026-09-12
 
 ### Added
