@@ -667,8 +667,9 @@ Pull a book on the c-language.
                                                     If the number of stage is greater than 0:
                                                         Define head as item 1 of stage.
                                                         Define rest as a series of text.
-                                                        /*  ⚠ Guarded, because `range 2 to 1` counts DOWN rather than being empty — the same
-                                                            trap the argument loop above names. */
+                                                        /*  This guard is REDUNDANT now and kept only because it is harmless: `range 2 to 1`
+                                                            is empty, so a single-word stage adds nothing with or without it. It was written
+                                                            when a range turned around and this loop would have run backwards. */
                                                         If the number of stage is greater than 1:
                                                             For each spot in range 2 to (the number of stage), repeat:
                                                                 Define standing-for as cast expanded on (item spot of stage).
