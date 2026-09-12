@@ -1,6 +1,6 @@
 {
   "name": "cufet-playground",
-  "version": "0.21.1",
+  "version": "0.22.0",
   "description": "Browser playground for the Cufet language — the interpreter compiled to WebAssembly.",
   "license": "Apache-2.0",
   "private": true,
