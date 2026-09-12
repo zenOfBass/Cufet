@@ -1298,8 +1298,24 @@ Define hundred as range 1 to 100.        ← also valid anywhere a series goes
 - `start` and `end` are number expressions (`range 1 to n`, `range x to y`).
 - The optional article reads naturally: `range 1 to 100` or `the range 1 to 100`.
 - **Inclusive of both ends:** `range 1 to 100` is `1, 2, ..., 100`.
-- **Counts down when start > end:** `range 100 to 1` is `100, 99, ..., 1`.
+- **Ends below where it starts ⇒ EMPTY.** `range 1 to 0` is nothing at all, which is what makes
+  `For each n in range 1 to the number of xs` right over an empty series. It does not turn
+  around.
+- **To count down, say so:** `range 1 to 100 sorted in reverse`. A range is an ordinary series,
+  so the operation that reverses one is the operation that reverses this.
 - It produces an ordinary `series of number` — all series operations apply.
+
+⚠ **A range written with both ends as literals, ending below where it starts, is refused** rather
+than quietly being empty — because it can only be a mistake, and because this behaviour CHANGED:
+a range used to turn around. Where the fault is visible on the line, it is said out loud.
+
+```cufet-refused
+For each n in range 100 to 1, repeat:
+    State n.
+Done.
+```
+
+With a computed end there is nothing to refuse and empty is simply the right answer.
 
 A range plus `for each` covers everything a C-style counter loop would: there is
 no separate index-loop construct, because iterating `range 1 to 100` is the same
@@ -1314,8 +1330,8 @@ Done.                                       → 1, 3, 5, 7, 9
 
 Define halves as range 1 to 2 counting by 0.5.    → 1, 1.5, 2
 ```
-- `step` is always a **positive magnitude** — direction still comes from
-  start-vs-end, so `range 10 to 1 counting by 2` descends: `10, 8, 6, 4, 2`.
+- `step` is always a **positive magnitude**, and a range only ever counts up — so
+  `range 10 to 1 counting by 2` is empty, not a descent. Reverse the result to go down.
 - The end is included only if the step lands on it exactly; otherwise the
   range stops at the last value still within bounds (`range 1 to 10 counting
   by 2` is `1, 3, 5, 7, 9` — `10` is skipped).

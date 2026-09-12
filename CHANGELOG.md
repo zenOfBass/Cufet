@@ -208,6 +208,33 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Changed
 
+- **A range counts up, or is empty — it no longer turns around.** `range 1 to 0` was `1, 0`,
+  because direction was inferred from which end was larger. It is nothing now.
+
+  ⚠⚠ **The inference was silent in the direction that hurts.** `For each n in range 1 to the
+  number of xs` — the most ordinary index loop there is — ran TWICE, BACKWARDS, over an empty
+  collection instead of not running. Nothing said so; the loop body simply executed with a
+  position of 1 and then 0.
+
+  ★ **MEASURED before changing it: 25 ranges across the corpus and NOT ONE descending**, against
+  three guards written purely to dodge this — two in `tools/shell.cufe`, one of them carrying a
+  comment naming the trap, and one in the pattern engine. A feature nobody used was costing real
+  programs a workaround apiece, which is the clearest case for a default being wrong.
+
+  ★ **Counting down needs no syntax of its own:** `range 1 to 100 sorted in reverse`. A range is
+  an ordinary series, so the operation that reverses one reverses this — no new keyword, and no
+  name spent. It also matches the rule this language states elsewhere: a default is a voiceable
+  choice, not an inferred silence.
+
+  ⚠ **BREAKING, so it is made loud where it can be.** A range written with both ends as literals
+  and ending below where it starts is now a static error naming `sorted in reverse` — because a
+  program relying on the old reading would otherwise stop looping in silence. With a computed end
+  there is nothing to refuse and empty is simply right.
+
+  ⚠ The comment that stood over this code already SAID "a descending or zero-width range yields
+  an EMPTY series", directly above a loop that counted down. The note and the code had disagreed
+  long enough that the note lost.
+
 - **The shell and the REPL quit on `Exit.` rather than `Leave.`** One word for one idea: the
   statement a script ends itself with is now also the line you type to end an interactive session.
 
