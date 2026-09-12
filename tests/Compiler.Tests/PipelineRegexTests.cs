@@ -174,6 +174,243 @@ public class PipelineRegexTests : PipelineTestBase
     public void APositiveClass_IsUnchangedByNegationExisting() =>
         AssertPattern("[abc]x", "true false", "bx", "dx");
 
+    // ── Shorthand classes ────────────────────────────────────────────────────
+    //
+    // ★ Owed because regex has them, not because a program asked — a book on a language does not
+    // choose its own contents. All six desugar to classes that were already expressible, so they
+    // cost no state kind: `\d` is `[0-9]` and `\D` is `[^0-9]`.
+
+    [Fact]
+    public void ADigitShorthand_IsTheDigits() =>
+        AssertPattern(@"^\d+$", "true false", "42", "4a");
+
+    [Fact]
+    public void ANegatedShorthand_IsEverythingElse() =>
+        AssertPattern(@"\D", "false true", "123", "12a");
+
+    [Fact]
+    public void AWordShorthand_TakesLettersDigitsAndUnderscore() =>
+        AssertPattern(@"^\w+$", "true false", "a_1", "a-1");
+
+    // ⚠ `\s` is the six characters Perl and PCRE agree on, so a TAB is whitespace and not only a
+    // space. Pinned because the set is written out in the source rather than asked of a library.
+    [Fact]
+    public void ASpaceShorthand_IncludesTabsAndNewlines() =>
+        AssertPattern(@"a\sb", "true true false", "a b", "a\tb", "ab");
+
+    [Fact]
+    public void ANonSpaceShorthand_ExcludesThem() =>
+        AssertPattern(@"^\S+$", "true false", "abc", "a c");
+
+    // ★ Inside a class a shorthand contributes its whole set — `[\d-]` is how anyone writes
+    // "a number, possibly signed".
+    [Fact]
+    public void AShorthandInsideAClass_ContributesItsSet()
+    {
+        AssertPattern(@"^[\d-]+$", "true false", "-42", "-4a");
+        AssertPattern(@"^[\w.]+$", "true false", "a.b", "a b");
+    }
+
+    // ⚠ A NEGATED shorthand inside a class would be the union of a complement and a list, which a
+    // flat list of admitted characters cannot hold. Refused by name, pointing at the spelling that
+    // does work rather than leaving the reader to find it.
+    [Fact]
+    public void ANegatedShorthandInsideAClass_IsRefused_AndNamesTheWorkingSpelling()
+    {
+        var e = Refused(@"[\D]").Message;
+        Assert.Contains("cannot be used inside a class", e);
+        Assert.Contains("on its own, outside the brackets", e);
+    }
+
+    // ── Counts ───────────────────────────────────────────────────────────────
+    //
+    // ★★ The last debt, and the one that emptied the refuse-by-name table. Like a class and unlike
+    // a NEGATED class, a count is pure sugar: `a{3}` is `aaa`, so the engine never learns it
+    // exists.
+
+    [Fact]
+    public void AnExactCount_IsThatManyCopies() =>
+        AssertPattern("^a{3}$", "true false false", "aaa", "aa", "aaaa");
+
+    [Fact]
+    public void ARangedCount_TakesAnythingBetween() =>
+        AssertPattern("^a{2,4}$", "false true true false", "a", "aa", "aaaa", "aaaaa");
+
+    [Fact]
+    public void AnOpenEndedCount_HasNoUpperLimit() =>
+        AssertPattern("^a{2,}$", "false true", "a", "aaaaa");
+
+    [Fact]
+    public void ACountFromZero_AllowsNone() =>
+        AssertPattern("^a{0,2}$", "true true false", "", "aa", "aaa");
+
+    // ★ Over a class and over a group, which is where counts are actually used.
+    [Fact]
+    public void ACount_AppliesToWhateverPrecedesIt()
+    {
+        AssertPattern(@"^[A-Z]{2}\d{3}$", "true false", "AB123", "A1234");
+        AssertPattern("^(ab){2}$", "true false", "abab", "aba");
+    }
+
+    // ⚠⚠ Written out rather than using AssertPattern, and the reason is worth recording: that
+    // helper embeds each subject in an INTERPOLATED string, so a subject containing `{` opens an
+    // interpolation and the program does not parse. A verbatim `<<…>>` literal has no
+    // interpolation, which is the only way to hand a brace to a pattern from a test.
+    //
+    // ★ The same rule the engine relies on elsewhere: `{` is meaningful to Cufet's own text
+    // literals, quite separately from meaning a count inside a pattern.
+    [Fact]
+    public void AnEscapedBrace_IsStillAnOrdinaryCharacter_NowThatCountsExist()
+    {
+        const string src = """
+            Pull a book on regex.
+                Define regex p as [a\{b].
+                State (cast p on (<<xa{by>>)) converted to text.
+                State (cast p on ("ab")) converted to text.
+            Done.
+            """;
+        Assert.Equal("true\nfalse", Interpret(src));
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    // ── `(?…)` ───────────────────────────────────────────────────────────────
+
+    // ★ This book's groups already capture nothing — there is no way to ask for a capture — so
+    // `(?:ab)+` and `(ab)+` are the same automaton. Accepting the spelling costs nothing and lets a
+    // pattern written elsewhere arrive intact.
+    [Fact]
+    public void ANonCapturingGroup_IsAnOrdinaryGroup() =>
+        AssertPattern("^(?:ab)+$", "true true false", "ab", "abab", "aba");
+
+    // ★★ TWO KINDS OF NO, and keeping them apart is the point. Lookaround is refused PERMANENTLY
+    // because it is not regular and an automaton cannot express it; flags and captures are refused
+    // FOR NOW, the way `^` once was. A reader deserves to know which they are looking at.
+    [Fact]
+    public void AGroupExtension_IsRefused_AndSaysWhichKindOfNo()
+    {
+        // PERMANENT: not regular, so no automaton can express it.
+        Assert.Contains("an automaton cannot express", Refused("a(?=b)").Message);
+        Assert.Contains("an automaton cannot express", Refused("(?<=a)b").Message);
+        // NOT YET: regular, and the book owes it.
+        Assert.Contains("cannot do yet", Refused("(?<name>a)").Message);
+        // Neither: a letter that is not one of the flags there are.
+        Assert.Contains("not a flag this pattern understands", Refused("(?y)a").Message);
+    }
+
+    // ── Ignoring case ────────────────────────────────────────────────────────
+    //
+    // ★★ Desugars, like a class and unlike a negated one: under `(?i)` the character `a` becomes
+    // the alternation `(a|A)`, so the engine never learns that case-insensitivity exists.
+    //
+    // ⚠⚠ The casing comes from `CaseTable` — the table BOTH BACKENDS READ — and never from
+    // `char.ToUpperInvariant`. .NET's casing is ICU-backed and MEASURED to differ per machine.
+    // A pattern is compiled once in the front end, so .NET's would not make the two backends
+    // disagree with each other; it would make the same pattern mean different things on different
+    // machines, which is the one divergence this project's oracle structurally cannot see, because
+    // every machine that runs the suite is en-US.
+
+    [Fact]
+    public void AnIgnoreCaseFlag_FoldsWhatFollowsIt() =>
+        AssertPattern("(?i)WARN", "true true true false",
+                      "a warn line", "a WARN line", "a WaRn line", "a wrn line");
+
+    // ★ The scoped form stops at its own bracket, which is what makes the flag a scope rather than
+    // a property of the whole pattern.
+    [Fact]
+    public void AScopedIgnoreCaseFlag_StopsAtItsGroup() =>
+        AssertPattern("(?i:ab)C", "true true false", "ABC", "abC", "abc");
+
+    [Fact]
+    public void IgnoringCase_ReachesClassesToo() =>
+        AssertPattern("(?i)[a-c]x", "true false", "Bx", "Dx");
+
+    // ── Line structure: `(?s)` and `(?m)` ────────────────────────────────────
+    //
+    // ⚠⚠ `.` USED TO CROSS A LINE BREAK, and that was wrong rather than a choice: in every regex
+    // flavour `.` stops at one unless `(?s)` says otherwise. It was a silent divergence — a reader
+    // who knew regex would have written `.` and quietly got different answers on multi-line input.
+    // Fixing it is a BREAKING change with no static form to refuse, so it is loud in the CHANGELOG
+    // instead.
+    //
+    // ★ `.` needed no new state kind either: "any character except a line break" is exactly what a
+    // negated class already is. Only `(?m)` reached the engine.
+
+    [Fact]
+    public void ADot_StopsAtALineBreak() =>
+        AssertPattern("a.b", "false true", "a\nb", "axb");
+
+    [Fact]
+    public void TheDotAllFlag_LetsItCross() =>
+        AssertPattern("(?s)a.b", "true true", "a\nb", "axb");
+
+    // ⚠ The scoped form must not leak, and this is the case that caught a real bug: `_dotAll` was
+    // added after `_fold` and was NOT saved at the group close, so the flag escaped its own
+    // brackets. Every other flag test passed while that was broken.
+    [Fact]
+    public void AScopedDotAll_StopsAtItsGroup() =>
+        AssertPattern("(?s:a)b.c", "false true", "ab\nc", "abxc");
+
+    // ★★ `(?m)` is the one thing here that reached the ENGINE. "Is the character just consumed a
+    // line break" cannot be answered from a position alone, so `reach` carries the subject now —
+    // the second and last thing it has ever needed beyond the state series itself.
+    [Fact]
+    public void TheMultilineFlag_MakesAnchorsMeanEachLine()
+    {
+        AssertPattern("^beta", "false", "alpha\nbeta\ngamma");
+        AssertPattern("(?m)^beta", "true", "alpha\nbeta\ngamma");
+        AssertPattern("alpha$", "false", "alpha\nbeta\ngamma");
+        AssertPattern("(?m)alpha$", "true", "alpha\nbeta\ngamma");
+    }
+
+    // ⚠⚠ THE NEGATIVE CASES, AND A SABOTAGE RUN IS WHY THEY EXIST. Disabling the line-start gate
+    // entirely — making `(?m)^` match at every position — left every other multiline test GREEN,
+    // because they all assert `true` and a gate stuck open still answers `true`. Only a case that
+    // must come back FALSE can tell an open gate from a working one.
+    //
+    // ★ `(?m)^eta` must fail: `eta` sits inside `beta`, not at the head of a line. `(?m)alph$`
+    // must fail for the mirror reason.
+    [Fact]
+    public void MultilineAnchors_StillRefuseTheMiddleOfALine()
+    {
+        AssertPattern("(?m)^eta", "false", "alpha\nbeta\ngamma");
+        AssertPattern("(?m)alph$", "false", "alpha\nbeta\ngamma");
+    }
+
+    // ★ A whole LINE, which is what `^…$` under `(?m)` is for — and the first and last lines count
+    // as lines, which is where an off-by-one in either gate would show.
+    [Fact]
+    public void BothMultilineAnchors_MeanAWholeLine() =>
+        AssertPattern("(?m)^beta$", "true false false",
+                      "alpha\nbeta\ngamma", "alpha\nbetax\ngamma", "alpha\nxbeta\ngamma");
+
+    [Fact]
+    public void MultilineAnchors_CountTheFirstAndLastLines()
+    {
+        AssertPattern("(?m)^alpha$", "true", "alpha\nbeta\ngamma");
+        AssertPattern("(?m)^gamma$", "true", "alpha\nbeta\ngamma");
+    }
+
+    // Flags combine, in one bracket or several.
+    [Fact]
+    public void Flags_Combine() =>
+        AssertPattern("(?im)^BETA$", "true", "alpha\nbeta\ngamma");
+
+    [Fact]
+    public void AnUnknownFlag_IsRefusedByName() =>
+        Assert.Contains("not a flag this pattern understands", Refused("(?x)a").Message);
+
+    [Fact]
+    public void ACountRefusal_SaysWhichFault()
+    {
+        Assert.Contains("counts down", Refused("a{3,1}").Message);
+        Assert.Contains("no number in it", Refused("a{}").Message);
+        Assert.Contains("never closed", Refused("a{2").Message);
+        // ⚠ `{0}` leaves nothing behind, and an empty pattern is already refused as a typo.
+        Assert.Contains("repeats nothing zero times", Refused("a{0}").Message);
+        // ⚠ Unlike a class, a count's state cost is unbounded by what is written.
+        Assert.Contains("more than this pattern will build", Refused("a{5000}").Message);
+    }
+
     // ⚠ `[` and `]` left the not-yet table when classes landed, so this pins that they stayed
     // ESCAPABLE — the character has to remain writable now that the bracket is real syntax.
     [Fact]
@@ -215,14 +452,22 @@ public class PipelineRegexTests : PipelineTestBase
     // it still meant what it meant, because the refusal named the construct instead of
     // quietly treating it as ordinary characters. Reading `a*` as two characters, or `[a-z]`
     // as five, would have changed meaning in silence on the day each shipped.
-    [Fact]
-    public void AMetacharacterNotYetSpelled_IsRefusedByName()
-    {
-        Assert.Contains("means a count", Refused("a{2}").Message);
-        // ⚠ Only `{` and `}` are left. When counts land this test goes with them, and the shedding
-        // will have finished — which is the point of writing refusals this way rather than a
-        // catch-all "unsupported character".
-    }
+    // ⚠⚠ THIS TEST IS GONE, AND ITS DISAPPEARANCE IS THE RESULT.
+    //
+    // It once asserted that `a*`, `[a-z]`, `^ab`, `ab$` and `a{2}` were each refused by name. Every
+    // one of them is now supported, and — this is the whole point — **not one pattern written
+    // against those refusals changed meaning on the day it landed.** Reading `a*` as two
+    // characters, `[a-z]` as five, or `^ab` as a caret and two letters would each have been a
+    // silent reinterpretation of somebody's working program.
+    //
+    // ★ The `NotYet` table is empty now. It stays in the source because the next thing regex has
+    // and this book does not will need it, and because an empty table is a clearer statement than
+    // a deleted one: nothing is currently known-missing and refused.
+
+    // ★★ What is refused now is what an AUTOMATON cannot express, which is a different kind of
+    // limit — permanent and principled rather than "not yet". Backreferences and lookaround are
+    // exactly the features that make a "regular expression" not regular, and the book says so on
+    // its cover rather than pretending otherwise.
 
     // ── Anchors ──────────────────────────────────────────────────────────────
     //

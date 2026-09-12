@@ -58,18 +58,39 @@ internal static class RegexPattern
     // finite alternation — which is the whole reason it needs a kind while `[abc]` never did.
     internal const int KindNoneOf = 6;   // match any one character NOT in Ch, then go to Step
 
+    // ★ The line-wise anchors, which is what `(?m)` turns `^` and `$` into. Unlike their plain
+    // forms these need to SEE the subject — "is the character just consumed a line break" is not
+    // answerable from a position alone — which is the second and last thing the engine has ever
+    // needed beyond the state series.
+    //
+    // ★★ `Ch` carries the line separator rather than the engine knowing one. That keeps the
+    // four-field record intact for a fourth feature running, and means the separator is decided in
+    // exactly one place: here.
+    internal const int KindAtLineStart = 7;  // passable at the subject's start or just after Ch
+    internal const int KindAtLineEnd   = 8;  // passable at the subject's end or just before Ch
+
+    /// <summary>What separates one line from the next, decided here and nowhere else.</summary>
+    /// <remarks>
+    /// ★ A line break in a Cufet literal is one `\n` whatever the file is stored as — a CRLF source
+    /// does not put a `\r` into the text — so this is the whole answer rather than half of one.
+    /// `read all lines from the file` strips the `\r` too, measured.
+    /// </remarks>
+    private const string LineBreak = "\n";
+
     /// <summary>What the language will spell later; refused by name until each one lands.</summary>
     /// <remarks>
-    /// ★ Refused BY NAME rather than taken literally, and the ordering is deliberate: a refusal
-    /// that says "not supported yet" becomes support later, and a program written against it keeps
-    /// meaning what it meant. That is not hypothetical — `*` was refused this way, repeats then
-    /// landed, and every program written against the refusal still means what it meant.
+    /// ★★ EMPTY, and that is the arc FINISHING rather than the mechanism being abandoned. Every
+    /// entry this table ever held became support without changing what a single written pattern
+    /// meant: `*` then repeats, `[a-z]` then classes, `^` and `$` then anchors, `{` then counts.
+    /// Reading any of them as ordinary characters in the meantime would have silently
+    /// reinterpreted somebody's working program on the day it landed.
+    ///
+    /// ★ It stays because the next thing regex has and this book does not will need it, and
+    /// because an empty table states something a deleted one could not: nothing is currently
+    /// known-missing and refused. What IS refused now is refused permanently, for being outside
+    /// what an automaton can express — see <see cref="Reader.ReadGroupExtension"/>.
     /// </remarks>
-    private static readonly Dictionary<char, string> NotYet = new()
-    {
-        ['{'] = "a count",
-        ['}'] = "a count",
-    };
+    private static readonly Dictionary<char, string> NotYet = new();
 
     // ── The pattern's own syntax tree ────────────────────────────────────────
     private abstract record Node;
@@ -83,6 +104,8 @@ internal static class RegexPattern
     private sealed record AtStart                    : Node;   // ^
     private sealed record AtEnd                      : Node;   // $
     private sealed record NoneOf(string Excluded)    : Node;   // [^…]
+    private sealed record AtLineStart                : Node;   // ^ under (?m)
+    private sealed record AtLineEnd                  : Node;   // $ under (?m)
 
     /// <summary>
     /// The automaton this pattern compiles to. State 1 is always the entry, so the engine is told
@@ -137,6 +160,10 @@ internal static class RegexPattern
         AtStart => Emit(states, new State(KindAtStart, "", next, 0)),
         AtEnd   => Emit(states, new State(KindAtEnd, "", next, 0)),
 
+        // The separator travels in Ch, so the engine never has to know what a line break is.
+        AtLineStart => Emit(states, new State(KindAtLineStart, LineBreak, next, 0)),
+        AtLineEnd   => Emit(states, new State(KindAtLineEnd, LineBreak, next, 0)),
+
         // ★ An ordinary CONSUMING state, like a character or a dot — which is why repeats and
         // groups work on it for nothing: `[^,]+` is a plus over one state, exactly as `a+` is.
         NoneOf n => Emit(states, new State(KindNoneOf, n.Excluded, next, 0)),
@@ -190,11 +217,104 @@ internal static class RegexPattern
             return left;
         }
 
+        /// <summary>Set by `(?i)`, and restored at the end of the group it was set inside.</summary>
+        private bool _fold;
+
+        /// <summary>Set by `(?s)` — whether `.` may cross a line break.</summary>
+        private bool _dotAll;
+
+        /// <summary>Set by `(?m)` — whether `^` and `$` mean each LINE rather than the whole subject.</summary>
+        private bool _multiline;
+
+        /// <summary>
+        /// Takes `(?i)`, `(?s:`, `(?is)` and the like, applying each letter. Leaves the reader
+        /// where it found it and reports false for anything else — `(?:`, `(?=`, `(?&lt;name&gt;`.
+        /// </summary>
+        /// <remarks>
+        /// ★ Scanned to its terminator BEFORE any letter is applied, so a `(?` that turns out not
+        /// to be a flag group leaves nothing behind. That matters because `(?=` and `(?:` both
+        /// start the same way and mean something else entirely.
+        /// </remarks>
+        private bool TryTakeFlags(out bool scoped)
+        {
+            scoped = false;
+            if (AtEnd || Peek != '(' || _at + 1 >= source.Length || source[_at + 1] != '?')
+                return false;
+
+            int scan = _at + 2;
+            while (scan < source.Length && char.IsAsciiLetter(source[scan])) scan++;
+
+            // No letters at all is `(?:` or `(?=`; anything but a terminator is not a flag group.
+            if (scan == _at + 2) return false;
+            if (scan >= source.Length || (source[scan] != ')' && source[scan] != ':')) return false;
+
+            for (int i = _at + 2; i < scan; i++)
+                switch (source[i])
+                {
+                    case 'i': _fold = true; break;
+                    case 's': _dotAll = true; break;
+                    case 'm': _multiline = true; break;
+                    default:
+                        throw fail($"'{source[i]}' is not a flag this pattern understands",
+                                   "the flags are 'i' to ignore case, 's' to let '.' cross a line "
+                                 + "break, and 'm' to make '^' and '$' mean each line",
+                                   "write '(?i)', '(?s)', '(?m)' or any of them together");
+                }
+
+            scoped = source[scan] == ':';
+            _at = scan + 1;
+            return true;
+        }
+
+        /// <summary>
+        /// Both cases of every character in <paramref name="members"/>, when `(?i)` is in force.
+        /// </summary>
+        /// <remarks>
+        /// ⚠⚠ The casing comes from `CaseTable`, the table BOTH BACKENDS READ — never from
+        /// `char.ToUpperInvariant`. .NET's casing is ICU-backed and MEASURED to differ per machine,
+        /// and a pattern is compiled once in the front end, so using .NET here would not make the
+        /// two backends disagree — it would make the same pattern mean different things on
+        /// different machines, which is the one divergence the oracle structurally cannot see.
+        /// Every machine that runs this suite is en-US.
+        /// </remarks>
+        private string Folded(string members)
+        {
+            if (!_fold) return members;
+            var both = new List<char>();
+            foreach (char c in members)
+            {
+                both.Add(c);
+                char upper = (char)CaseTable.MapUpper(c);
+                char lower = (char)CaseTable.MapLower(c);
+                if (upper != c) both.Add(upper);
+                if (lower != c) both.Add(lower);
+            }
+            return new string(both.ToArray());
+        }
+
+        /// <summary>One character as a node, carrying both cases when `(?i)` is in force.</summary>
+        private Node Character(char c) => _fold ? Admitting(Folded(c.ToString())) : new Ch(c.ToString());
+
         private Node ReadSequence()
         {
             Node? built = null;
             while (!AtEnd && Peek != '|' && Peek != ')')
             {
+                // ★ `(?i)` is a DIRECTIVE, not an atom — it matches nothing and produces no state.
+                // It belongs here rather than in ReadAtom because everything ReadAtom returns is
+                // something the automaton has to be able to run. The scoped form `(?i:…)` IS an
+                // atom, so it is left for ReadAtom to open as a group.
+                // ⚠ The scan APPLIES the letters as it goes, so a scoped form has to be undone
+                // here and re-read inside the group — otherwise `(?i:ab)c` would fold the `c` too,
+                // which is the precise thing the scoped spelling exists to avoid.
+                int before = _at;
+                (bool wasFolding, bool wasDotAll, bool wasMultiline) = (_fold, _dotAll, _multiline);
+                if (TryTakeFlags(out bool scoped))
+                {
+                    if (!scoped) continue;
+                    (_at, _fold, _dotAll, _multiline) = (before, wasFolding, wasDotAll, wasMultiline);
+                }
+
                 Node piece = ReadRepeated();
                 built = built is null ? piece : new Cat(built, piece);
             }
@@ -211,8 +331,10 @@ internal static class RegexPattern
         {
             Node inner = ReadAtom();
             // Stacked, so `a+?` reads left to right the way everything else in this language does.
-            while (!AtEnd && (Peek == '*' || Peek == '+' || Peek == '?'))
+            while (!AtEnd && (Peek == '*' || Peek == '+' || Peek == '?' || Peek == '{'))
             {
+                if (Peek == '{') { inner = ReadCount(inner); continue; }
+
                 char mark = source[_at++];
                 inner = mark switch
                 {
@@ -222,6 +344,150 @@ internal static class RegexPattern
                 };
             }
             return inner;
+        }
+
+        /// <summary>`{n}`, `{n,}` or `{n,m}` — desugared to repetition of what came before it.</summary>
+        /// <remarks>
+        /// ★★ A count says nothing the book could not already say: `a{3}` is `aaa` and `a{2,4}` is
+        /// `aa(a(a)?)?`. Like a class and unlike a negated one, it needs no state kind and the
+        /// engine never learns it exists — which is why this was the cheapest of the debts and
+        /// still the one that empties the refuse-by-name table.
+        ///
+        /// ⚠ The cost is states, and unlike a class it is UNBOUNDED by what is written: `[a-z]`
+        /// costs 26 whatever you do, but `a{5000}` costs 5000. Hence the ceiling below — a pattern
+        /// is small by nature, and one that is not should say so out loud rather than quietly
+        /// building a machine nobody meant to ask for.
+        /// </remarks>
+        private const int MostRepeats = 1000;
+
+        private Node ReadCount(Node inner)
+        {
+            int open = _at;
+            _at++;                                  // past '{'
+
+            int? min = ReadCountNumber();
+            int? max = min;
+            bool openEnded = false;
+
+            if (!AtEnd && Peek == ',')
+            {
+                _at++;
+                if (!AtEnd && Peek == '}') { openEnded = true; max = null; }
+                else max = ReadCountNumber();
+            }
+
+            if (AtEnd || Peek != '}')
+                throw fail("this count is never closed",
+                           "a count is written '{n}', '{n,}' or '{n,m}'",
+                           @"write '\{' if you meant the character");
+            _at++;
+
+            if (min is null || (!openEnded && max is null))
+                throw fail("this count has no number in it",
+                           "a count says how many times to repeat, so it needs a number",
+                           $@"write '{{2}}', '{{2,}}' or '{{2,5}}' — or '\{{' for the character");
+
+            if (!openEnded && max < min)
+                throw fail($"'{{{min},{max}}}' counts down, from {min} to {max}",
+                           "a count goes from the smaller number to the larger one",
+                           $"write '{{{max},{min}}}'");
+
+            // ⚠ Zero on its own means "none of these", which leaves nothing behind — and a pattern
+            // with nothing in it is already refused as a typo. `{0,3}` is fine and means what it
+            // says; it is only the bare `{0}` that cannot be anything but a mistake.
+            if (min == 0 && !openEnded && max == 0)
+                throw fail("'{0}' repeats nothing zero times",
+                           "a count of zero leaves nothing behind, so the pattern could never use it",
+                           "remove it, or write '{0,1}' for something optional");
+
+            if (min > MostRepeats || max > MostRepeats)
+                throw fail($"a count above {MostRepeats} is more than this pattern will build",
+                           "a count is written out as that many copies, so a large one becomes a "
+                         + "very large automaton",
+                           $"use a repeat like '+' or '*' instead of counting past {MostRepeats}");
+
+            _ = open;
+            return Repeat(inner, min.Value, openEnded ? null : max);
+        }
+
+        /// <summary>
+        /// A `(?…)` that is not `(?:` — named in the refusal, and split by WHY it is refused.
+        /// </summary>
+        /// <remarks>
+        /// ★★ Two different kinds of no, and conflating them would be the lie. Lookaround is
+        /// refused PERMANENTLY: it is not regular, an automaton cannot express it, and this book
+        /// chose an automaton for reasons that still hold. Inline flags are refused FOR NOW, the
+        /// way `^` once was — they are regular and the book owes them.
+        /// </remarks>
+        private Exception ReadGroupExtension()
+        {
+            char next = _at + 1 < source.Length ? source[_at + 1] : '\0';
+
+            if (next is '=' or '!')
+                return fail("this pattern uses lookahead, which an automaton cannot express",
+                            "lookahead asks what comes next without consuming it, which needs a "
+                          + "machine that can backtrack — and backtracking is what lets a pattern "
+                          + "hang forever, so this book does not have one",
+                            "match what you mean to consume, or split the question into two patterns");
+
+            if (next == '<' && _at + 2 < source.Length && source[_at + 2] is '=' or '!')
+                return fail("this pattern uses lookbehind, which an automaton cannot express",
+                            "lookbehind asks what came before without consuming it, which needs a "
+                          + "machine that can backtrack — and backtracking is what lets a pattern "
+                          + "hang forever, so this book does not have one",
+                            "match what you mean to consume, or split the question into two patterns");
+
+            if (next == '<')
+                return fail("this pattern names a capture, which patterns cannot do yet",
+                            "a pattern answers whether the subject holds a match, and gives back no "
+                          + "part of what it matched",
+                            "use the group without a name");
+
+            // ⚠ `(?i)` and `(?i:…)` both work and are handled before this is ever reached, so
+            // arriving here with an 'i' means a form neither of those covers — `(?im)`, say.
+            if (next is 'i' or 'm' or 's' or 'x')
+                return fail($"'(?{next}' is not a flag this pattern understands",
+                            "the only flag is 'i' for ignoring case, written '(?i)' to the end of "
+                          + "the group or '(?i:…)' around part of it",
+                            "write '(?i)' on its own, or '(?i:' around what it should cover");
+
+            return fail($"'(?{next}' is not something this pattern understands",
+                        "a '(' opens a group, and '(?:' opens one that captures nothing",
+                        @"write '\(' if you meant the character");
+        }
+
+        /// <summary>Digits, or null when there are none.</summary>
+        private int? ReadCountNumber()
+        {
+            int from = _at;
+            while (!AtEnd && Peek is >= '0' and <= '9') _at++;
+            if (_at == from) return null;
+            // A run of digits this long is not a count anyone meant; the ceiling check below
+            // reports it, but the parse has to survive reaching it.
+            return int.TryParse(source[from.._at], out int n) ? n : MostRepeats + 1;
+        }
+
+        /// <summary>
+        /// <paramref name="min"/> copies, then either a star or nested options up to
+        /// <paramref name="max"/>.
+        /// </summary>
+        /// <remarks>
+        /// ★ The optional tail is built from the inside out — `(a(a)?)?` rather than `(a)?(a)?` —
+        /// because the second spelling would let a later copy match while an earlier one did not,
+        /// which is not what `{2,4}` means.
+        /// </remarks>
+        private static Node Repeat(Node inner, int min, int? max)
+        {
+            Node? built = max is null ? new Star(inner) : null;
+
+            if (max is not null)
+                for (int i = 0; i < max.Value - min; i++)
+                    built = built is null ? new Opt(inner) : new Opt(new Cat(inner, built));
+
+            for (int i = 0; i < min; i++)
+                built = built is null ? inner : new Cat(inner, built);
+
+            return built!;
         }
 
         private Node ReadAtom()
@@ -248,24 +514,61 @@ internal static class RegexPattern
                          + "classes and the anchors '^' and '$'",
                            $@"write '\{c}' if you meant the character itself");
 
-            if (c == '^') { _at++; return new AtStart(); }
-            if (c == '$') { _at++; return new AtEnd(); }
+            if (c == '^') { _at++; return _multiline ? new AtLineStart() : new AtStart(); }
+            if (c == '$') { _at++; return _multiline ? new AtLineEnd() : new AtEnd(); }
 
             if (c == '[') { _at++; return ReadClass(); }
 
             if (c == '(')
             {
                 _at++;
+
+                // ⚠⚠ A flag lasts to the end of the group it was set inside, so the group's own
+                // settings are saved here and put back below. That is what makes `(?i:ab)c` fold
+                // the `ab` and leave the `c` alone.
+                //
+                // ⚠ EVERY flag has to be saved, not just the one that existed when this was
+                // written. `_dotAll` was added later and missed here, and the leak showed up only
+                // in the one probe case written to check for exactly that — `(?s:a)b.c` matched
+                // across a line break that was outside the group.
+                (bool outerFold, bool outerDotAll, bool outerMultiline) = (_fold, _dotAll, _multiline);
+
+                // ★ `(?:…)` is a non-capturing group, and this book's groups ALREADY capture
+                // nothing — there is no way to ask for a capture, so `(ab)+` and `(?:ab)+` are the
+                // same automaton. Accepting the spelling costs nothing and lets a pattern written
+                // elsewhere arrive intact.
+                if (!AtEnd && Peek == '?' && _at + 1 < source.Length && source[_at + 1] == ':')
+                    _at += 2;
+                else if (!AtEnd && Peek == '?')
+                {
+                    // `(?i:…)` and friends. The scan sits one character before the '(' this
+                    // branch already consumed, so it is rewound for the shared reader.
+                    _at--;
+                    if (!TryTakeFlags(out bool scopedFlags) || !scopedFlags)
+                    {
+                        _at++;
+                        throw ReadGroupExtension();
+                    }
+                }
+
                 Node inside = ReadAlternation();
                 if (AtEnd || Peek != ')')
                     throw fail("this pattern opens a group that is never closed",
                                "every '(' needs a ')' after it",
                                @"write '\(' if you meant the character");
                 _at++;
+                (_fold, _dotAll, _multiline) = (outerFold, outerDotAll, outerMultiline);
                 return inside;
             }
 
-            if (c == '.') { _at++; return new Any(); }
+            // ⚠⚠ `.` STOPS AT A LINE BREAK unless `(?s)` says otherwise, which is what it means in
+            // every regex flavour — and which this book had wrong until it was measured. It used
+            // to match a newline like anything else, so a pattern read across lines that a reader
+            // who knows regex would have expected to stop at one.
+            //
+            // ★ And it needs no state kind, because "any character except a newline" is exactly
+            // what a negated class already is. The dotall form is the one that stays `Any`.
+            if (c == '.') { _at++; return _dotAll ? new Any() : new NoneOf("\n"); }
 
             if (c == '\\')
             {
@@ -281,9 +584,24 @@ internal static class RegexPattern
                                @"write '\\' for a backslash you meant literally");
 
                 char next = source[_at + 1];
+
+                // ★ The shorthand classes. `\d` desugars to the same `Or` chain `[0-9]` produces
+                // and `\D` to the same single state `[^0-9]` does, so neither reaches the engine
+                // as anything new — they are spellings for what the book could already say.
+                if (Shorthand.TryGetValue(next, out var members))
+                {
+                    _at += 2;
+                    return Admitting(Folded(members));
+                }
+                if (IsNegatedShorthand(next))
+                {
+                    _at += 2;
+                    return new NoneOf(Folded(Shorthand[char.ToLowerInvariant(next)]));
+                }
+
                 // Every metacharacter is escapable, and so is the backslash. Nothing else is: an
-                // unknown escape is refused rather than quietly meaning the bare character, because
-                // `\d` will mean digits one day and meaning 'd' until then is a change nobody sees.
+                // unknown escape is refused rather than quietly meaning the bare character — the
+                // rule that kept `\d` meaning nothing until it meant digits.
                 if (next != '\\' && !IsMeta(next))
                     throw fail($@"'\{next}' is not an escape this pattern understands",
                                "a backslash may make a metacharacter ordinary, or stand for a backslash",
@@ -292,11 +610,11 @@ internal static class RegexPattern
                                    : $"write '{next}' on its own if you meant the character");
 
                 _at += 2;
-                return new Ch(next.ToString());
+                return Character(next);
             }
 
             _at++;
-            return new Ch(c.ToString());
+            return Character(c);
         }
 
         /// <summary>Reads `[ … ]` and desugars it to an alternation of the characters it admits.</summary>
@@ -329,6 +647,29 @@ internal static class RegexPattern
             var admitted = new List<char>();
             while (!AtEnd && Peek != ']')
             {
+                // ★ A shorthand inside a class contributes its whole set — `[\d-]` is digits and a
+                // dash, which is how anyone writes "a number, possibly signed".
+                if (Peek == '\\' && _at + 1 < source.Length)
+                {
+                    char shorthand = source[_at + 1];
+                    if (Shorthand.TryGetValue(shorthand, out var members))
+                    {
+                        _at += 2;
+                        admitted.AddRange(members);
+                        continue;
+                    }
+                    // ⚠ A NEGATED shorthand inside a class would mean the union of a complement
+                    // and a list — still regular, but not something a flat list of admitted
+                    // characters can hold, and this class compiles to exactly that. Refused by
+                    // name, pointing at the spelling that does work rather than leaving the reader
+                    // to find it.
+                    if (IsNegatedShorthand(shorthand))
+                        throw fail($@"'\{shorthand}' cannot be used inside a class",
+                                   "a class is the characters it admits, and a negated shorthand is "
+                                 + "every character except some — the two cannot be listed together",
+                                   $@"write '\{shorthand}' on its own, outside the brackets");
+                }
+
                 char lo = ReadClassCharacter();
                 // `a-z`, unless the '-' is the last thing before the ']' and so an ordinary dash.
                 if (!AtEnd && Peek == '-' && _at + 1 < source.Length && source[_at + 1] != ']')
@@ -364,15 +705,20 @@ internal static class RegexPattern
                            "a class with no characters in it admits nothing, so the pattern could never match",
                            "list the characters it should admit");
 
-            if (negated) return new NoneOf(new string(admitted.ToArray()));
-
-            Node? built = null;
-            foreach (char c in admitted) built = Add(built, c);
-            return built!;
+            string chosen = Folded(new string(admitted.ToArray()));
+            return negated ? new NoneOf(chosen) : Admitting(chosen);
         }
 
         private static Node Add(Node? built, char c) =>
             built is null ? new Ch(c.ToString()) : new Or(built, new Ch(c.ToString()));
+
+        /// <summary>An alternation over every character in <paramref name="members"/>.</summary>
+        private static Node Admitting(string members)
+        {
+            Node? built = null;
+            foreach (char c in members) built = Add(built, c);
+            return built!;
+        }
 
         /// <summary>One character inside a class, with escapes honoured.</summary>
         /// <remarks>
@@ -393,14 +739,36 @@ internal static class RegexPattern
             char next = source[_at + 1];
             if (next is not ('\\' or ']' or '[' or '-' or '^'))
                 throw fail($@"'\{next}' is not an escape a class understands",
-                           "inside a class a backslash may precede a backslash, a bracket, a dash "
-                         + "or a caret",
+                           "inside a class a backslash may precede a backslash, a bracket, a dash, "
+                         + @"a caret, or one of the shorthands \d \w \s",
                            TypedDirectly.TryGetValue(next, out var whitespace)
                                ? $"write {whitespace} straight into the class — it needs no escape"
                                : $"write '{next}' on its own if you meant the character");
             _at += 2;
             return next;
         }
+
+        /// <summary>The shorthand classes, each as the characters it stands for.</summary>
+        /// <remarks>
+        /// ★ Every one of these is REGULAR and desugars to a class that was already expressible —
+        /// `\d` is `[0-9]`, `\D` is `[^0-9]` — so they cost no new state kind and no engine change.
+        /// They are owed because regex has them, not because a program asked; a book on a language
+        /// does not get to choose its own contents.
+        ///
+        /// ⚠ `\s` is the six characters Perl and PCRE agree on. Writing them out rather than
+        /// asking a Unicode table keeps both backends reading one list — the same reason the case
+        /// table is shared.
+        /// </remarks>
+        private static readonly Dictionary<char, string> Shorthand = new()
+        {
+            ['d'] = "0123456789",
+            ['w'] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_",
+            ['s'] = " \t\n\r\f\v",
+        };
+
+        /// <summary>`\D`, `\W`, `\S` — the same set, complemented.</summary>
+        private static bool IsNegatedShorthand(char c) => Shorthand.ContainsKey(char.ToLowerInvariant(c))
+                                                       && char.IsUpper(c);
 
         /// <summary>
         /// The escapes people reach for that this pattern does not have — and the character each
@@ -431,6 +799,7 @@ internal static class RegexPattern
         // written programs to add a feature.
         private static bool IsMeta(char c) =>
             c is '*' or '+' or '?' or '|' or '(' or ')' or '.' or '[' or ']' or '^' or '$'
+                or '{' or '}'
             || NotYet.ContainsKey(c);
     }
 }
