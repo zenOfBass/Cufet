@@ -153,6 +153,34 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   negated class already is. Only `(?m)` reached the engine, which now carries the subject so a
   line-wise anchor can ask whether the character just consumed was a break.
 
+### Fixed
+
+- **A `chase` now does everything a series does, which is what its documentation already said.**
+  `BOOKS.md` promises *"Everything a collection does, it does."* That was an unchecked claim, and
+  six operations did not hold it up.
+
+  **Three were refused outright** — `Remove <value> from`, `sorted`, and `sorted in reverse` — all
+  of which work on a series of text. **Three more were worse: they ran and silently ignored the
+  position.** `Insert "!" into the start of out` appended, and so did `Insert "!" after item 2 of
+  out`. No error, just the wrong answer.
+
+  ⚠⚠ **Both backends had the identical positional bug, so they agreed and the oracle saw nothing.**
+  That is its one structural blind spot — wrong in the same way twice — and it is why the new
+  compiled test pins ANSWERS rather than merely running each form.
+
+  ★★ **Found by testing the documentation's claim rather than the code.** The sentence was
+  checkable and nothing checked it: the doc fence tests run the code *samples* and say nothing
+  about the prose around them. `EverySeriesOperation_WorksOnAChase` now walks the series surface
+  against a chase, so the next operation a series gains fails there rather than drifting.
+
+  ⚠ A first probe reported the three positional forms as WORKING, because it only checked whether
+  each one ran. Testing that something runs is not testing what it does.
+
+  ★ Sorting a chase orders by CODE POINT — the unit it stores, and the unit the compiled side
+  stores — so both backends order the same integers and have nothing to disagree about. It gives
+  back a copy, exactly as a series sort does. Removing by value takes exactly one character, the
+  same rule setting a position follows.
+
 ## [0.21.1] — 2026-09-12
 
 ### Added

@@ -300,7 +300,8 @@ Pull a book on collections.
 Done.
 ```
 
-Everything a collection does, it does:
+Everything a collection does, it does — reading a position, inserting at one, removing by position
+or by value, setting, iterating, and sorting:
 
 ```cufet
 Pull a book on collections.
@@ -324,6 +325,17 @@ Done.
   dropping the rest would be a silent resolution; `Insert` is the operation that takes however
   many.
 - **Out of range says what a series says**, word for word — both go through one resolver.
+- **`sorted` and `sorted in reverse` give back a chase**, ordered by code point, leaving the buffer
+  alone — a copy, exactly as a series sort is. There is nothing to sort *by*: characters have no
+  fields.
+- **`Remove <one character> from`** takes the first occurrence out. Like setting a position, it
+  takes exactly one character and refuses a longer text when it runs.
+
+★★ **That first sentence is a promise, and it is tested rather than asserted.** It was wrong for
+six operations until 2026-09-12 — three refused, three silently ignoring the position — and nothing
+noticed, because a doc's code samples are run while the prose around them is not.
+`EverySeriesOperation_WorksOnAChase` walks the series surface against a chase so the claim has
+something holding it up.
 
 - **It follows COLLECTION conventions, not text ones.** `Insert`, `the number of`, and printing
   that looks like a collection. It deliberately grows no parallel copy of text’s API — no
