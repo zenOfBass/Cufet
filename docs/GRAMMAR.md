@@ -2061,6 +2061,22 @@ Done.
 this is the one construct whose contents are not Cufet at all, so reusing existing punctuation
 would need disambiguating by context — the last thing wanted around foreign text.
 
+**Brackets NEST, and a backslash escapes one.** The scanner counts `[` / `]` pairs to find the
+end, which is what lets a C subscript survive — `[getenv(argv[0])]` lexes. A bracket preceded by
+a backslash does not count: `[\[]` and `[[^\]]]` are both one axiom.
+
+⚠ **Counting only — nothing is unescaped.** The consumer receives exactly the characters written,
+backslashes included, which is the promise the brackets make. `[a\\]` still closes, because the
+first backslash escapes the second and the `]` is left counting.
+
+★ The rule is language-agnostic, and that is what makes it allowable here: a backslash is an
+escape in every language this delimiter is likely to carry. It exists for `regex`, where `[`
+opens a character class rather than a subscript.
+
+⚠ An unbalanced bracket inside a foreign STRING literal — `[printf("]")]` — still ends the axiom
+early. Closing that would mean knowing which language this is, which the brackets deliberately do
+not say; write `[printf("\]")]` instead.
+
 **The tag can be shortened but never dropped.** `Define a c-language axiom x as [ … ].` may be
 written `Define c-language x as [ … ].`, because the brackets already say *axiom*. They cannot say
 *which* language, and the tag names who reads it — so `Define x as [ … ].` is refused. Inferring it

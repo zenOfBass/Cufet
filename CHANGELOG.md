@@ -8,6 +8,27 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A backslash escapes a bracket inside an axiom.** The scanner counts `[` / `]` pairs to find
+  where foreign source ends — right for C, where `argv[0]` is a subscript, and wrong for a
+  language where `[` opens a character class. `[\[]` failed to lex at all and `[[^]]]` died on an
+  unexpected `]`; both are now one axiom.
+
+  ⚠ **Counting ONLY — nothing is unescaped.** The consumer still receives exactly the characters
+  written, which is the promise the brackets make. Verified by running C rather than by reading
+  the output: a two-backslash source string measures 3 characters on both backends, and `[a\\]`
+  still closes because the first backslash escapes the second.
+
+  ★ The rule is language-agnostic, which is what makes it allowable — the lexer comment used to
+  say understanding escapes "would mean knowing which foreign language this is", true of quotes
+  and comments and false of a backslash. That comment is corrected in the same change rather than
+  left standing.
+
+  ⚠ MEASURED before changing it: no axiom in `examples/`, `tools/` or the prelude contains an
+  escaped bracket, and `"\\["` in C is backslash-escapes-backslash then a bare `[`, which counts
+  exactly as before. It was done for `regex`, which is the first consumer to need it.
+
 ## [0.21.0] — 2026-09-11
 
 ### Added
