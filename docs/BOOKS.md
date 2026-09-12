@@ -920,6 +920,13 @@ day, and quietly meaning `d` until then is a change nobody would see. An **empty
 refused too, and so is an empty side of a `\|` — both would match everywhere, including the empty
 subject.
 
+★★ See [`examples/parsing/semver.cufe`](../examples/parsing/semver.cufe) for the pattern surface
+under real load — it validates semantic versions, and every case it checks carries **the answer the
+spec gives**, not one this project chose. Two backends agreeing proves only that they agree; an
+answer key written by somebody else is what makes agreement mean correct. The awkward rule is the
+one a hand-written check always gets wrong — `01.1.1` is not a version, because a numeric
+identifier may not be padded — and as a pattern that is just `0|[1-9]\d*`.
+
 See [`examples/parsing/logtriage.cufe`](../examples/parsing/logtriage.cufe) for a worked program —
 it triages a log by the shapes its lines hold, which is the case patterns are actually for: a log
 is never written for the thing that reads it, and half of what matters in one is a shape rather

@@ -75,6 +75,26 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   character before this landed and still is — `[a^]` admits a caret. ⚠ `[^]` is refused: excluding
   nothing means every character, which `.` already says more clearly.
 
+- **`examples/parsing/semver.cufe` — the corpus's first example checked against an ANSWER KEY
+  nobody here wrote.** It validates semantic versions, and every case in
+  `examples/assets/versions.txt` carries the verdict the spec gives; the program compares its own
+  answer against that and leaves with 1 if the two ever disagree.
+
+  ★★ **This goes at the hole the oracle cannot reach.** Every other pinned example records
+  whatever the program happened to print, so two backends agreeing proves they agree and nothing
+  more — *agreement is not correctness*. A specification written by someone else is the only thing
+  in this corpus that can tell the difference.
+
+  ★ **It is also the pattern surface under real load**, and the first program to use the second
+  half of the regex arc: anchors, `\d`, `\w`, a class ending in a dash, nested alternation, `*`,
+  `?`, and an escaped `\.` and `\+`. All 22 cases agreed on the first run, including the ones a
+  hand-written checker fails — `01.1.1` and `1.2.3-0123` rejected for padded numeric identifiers,
+  `1.0.0-0A.is.legal` accepted because `0A` carries a letter.
+
+  ⚠ It validates and cannot extract: a pattern gives back a fact, never the text it matched, so
+  the program can say a version is well-formed and nothing about which part is the major. That is
+  the book's shape, and for what a release checklist needs it is the whole question.
+
 - **Anchors — `^` and `$`, which is how a pattern says "the whole thing".** Until now a pattern
   asked only whether a subject HELD a match, so `[[0-9]+]` was held by `abc 42` exactly as firmly
   as by `42` and there was no way to spell a CHECK rather than a SEARCH.
