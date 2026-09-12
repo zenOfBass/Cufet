@@ -394,7 +394,7 @@ public class PipelineControlFlowTests : PipelineTestBase
                 Return tally.
             Done.
 
-            State cast inner converted to text.
+            State (cast inner) converted to text.
             State tally converted to text.
             """;
         Assert.Equal("1\n42", Interpret(src));
@@ -414,7 +414,7 @@ public class PipelineControlFlowTests : PipelineTestBase
                 Return tally.
             Done.
 
-            State cast inner converted to text.
+            State (cast inner) converted to text.
             """));
         Assert.Contains("enclosing scope", e.Message);
         // ⚠ It must NOT claim the same block, which is what it used to say.
@@ -429,15 +429,15 @@ public class PipelineControlFlowTests : PipelineTestBase
         const string src = """
             Define tally as 42 permanently.
 
-            Define object counter with (the number start):
+            Define object counter with (the number offset):
                 Bind number to reading:
                     Define a shadow tally as 7.
-                    Return tally + one's start.
+                    Return tally + one's offset.
                 Done.
             Done.
 
-            Define c as a new counter { the start 1 }.
-            State cast c's reading converted to text.
+            Define c as a new counter { the offset 1 }.
+            State (cast c's reading) converted to text.
             State tally converted to text.
             """;
         Assert.Equal("8\n42", Interpret(src));
