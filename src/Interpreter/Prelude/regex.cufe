@@ -55,6 +55,18 @@
 /// ⚠ The already-live check is what makes an epsilon CYCLE terminate — `(ab)*` reaches its own
 /// branch again without consuming anything, and without this the walk would not stop.
 ///
+/// ⚠⚠ A WORKLIST, not recursion, and that is a fix rather than a preference. This used to call
+/// itself once per branch, so the call depth grew with the pattern's epsilon chains — and
+/// `examples/parsing/semver.cufe`, whose pattern is the full semantic-version grammar, ran the
+/// WASM STACK OUT in the playground while passing on both native backends. An epsilon closure
+/// never needed a call stack: the pending list below is the same traversal with the depth moved
+/// into the heap, where a browser has room for it.
+///
+/// ★★ Only the playground could catch that. The stack guard is measured INERT on CoreCLR at every
+/// size from 1 MB to 64 MB, so `dotnet test` is structurally blind to it, and the wasm stack cannot
+/// be raised. ★ The exploration ORDER changes — a stack pops most-recent-first where recursion went
+/// depth-first-left — and that is safe because the result is a SET of live states, not a sequence.
+///
 /// ★★ `rx-seen` is how many characters of the subject have been consumed so far, and `rx-total` is
 /// how many there are. They exist only for the ANCHORS: every other state is answerable from the
 /// state series alone, which is why the engine needed nothing but the program until now. An anchor
@@ -67,43 +79,50 @@ Bind void to reach, given (
     the number rx-seen,
     the number rx-total,
     the text rx-subject):
-    If rx-index is 0, return.
-    If item rx-index of rx-active is true, return.
-    The item rx-index of rx-active becomes true.
-    Define rx-node as item rx-index of rx-program.
-    If the kind of rx-node is 2:
-        Cast reach on (rx-program, the step of rx-node, rx-active, rx-seen, rx-total, rx-subject).
-        Cast reach on (rx-program, the alt of rx-node, rx-active, rx-seen, rx-total, rx-subject).
-    Done.
-    // `^` — only where nothing has been consumed yet.
-    If the kind of rx-node is 4:
-        If rx-seen is 0, cast reach on (rx-program, the step of rx-node, rx-active, rx-seen, rx-total, rx-subject).
-    Done.
-    // `$` — only where everything has.
-    If the kind of rx-node is 5:
-        If rx-seen is rx-total, cast reach on (rx-program, the step of rx-node, rx-active, rx-seen, rx-total, rx-subject).
-    Done.
-    // `^` under (?m) — the start of the subject, or just after a line break. ★ This is the first
-    // state that reads the SUBJECT rather than only a position, which is why reach carries it.
-    If the kind of rx-node is 7:
-        If rx-seen is 0:
-            Cast reach on (rx-program, the step of rx-node, rx-active, rx-seen, rx-total, rx-subject).
-        Done.
-        If rx-seen is greater than 0:
-            If the characters from rx-seen to rx-seen of rx-subject is the ch of rx-node:
-                Cast reach on (rx-program, the step of rx-node, rx-active, rx-seen, rx-total, rx-subject).
-            Done.
-        Done.
-    Done.
-    // `$` under (?m) — the end of the subject, or just before a line break.
-    If the kind of rx-node is 8:
-        If rx-seen is rx-total:
-            Cast reach on (rx-program, the step of rx-node, rx-active, rx-seen, rx-total, rx-subject).
-        Done.
-        If rx-seen is less than rx-total:
-            Define rx-next as rx-seen + 1.
-            If the characters from rx-next to rx-next of rx-subject is the ch of rx-node:
-                Cast reach on (rx-program, the step of rx-node, rx-active, rx-seen, rx-total, rx-subject).
+    Define rx-pending as a series of number.
+    Insert rx-index into rx-pending.
+
+    While the number of rx-pending is greater than 0, repeat:
+        Define rx-at as the last of rx-pending.
+        Remove the last from rx-pending.
+
+        If rx-at is greater than 0:
+            If item rx-at of rx-active is false:
+                The item rx-at of rx-active becomes true.
+                Define rx-node as item rx-at of rx-program.
+
+                If the kind of rx-node is 2:
+                    Insert the step of rx-node into rx-pending.
+                    Insert the alt of rx-node into rx-pending.
+                Done.
+                // `^` — only where nothing has been consumed yet.
+                If the kind of rx-node is 4:
+                    If rx-seen is 0, insert the step of rx-node into rx-pending.
+                Done.
+                // `$` — only where everything has.
+                If the kind of rx-node is 5:
+                    If rx-seen is rx-total, insert the step of rx-node into rx-pending.
+                Done.
+                // `^` under (?m) — the subject's start, or just after a line break. This is the
+                // one gate that reads the SUBJECT rather than only a position.
+                If the kind of rx-node is 7:
+                    If rx-seen is 0, insert the step of rx-node into rx-pending.
+                    If rx-seen is greater than 0:
+                        If the characters from rx-seen to rx-seen of rx-subject is the ch of rx-node:
+                            Insert the step of rx-node into rx-pending.
+                        Done.
+                    Done.
+                Done.
+                // `$` under (?m) — the subject's end, or just before a line break.
+                If the kind of rx-node is 8:
+                    If rx-seen is rx-total, insert the step of rx-node into rx-pending.
+                    If rx-seen is less than rx-total:
+                        Define rx-next as rx-seen + 1.
+                        If the characters from rx-next to rx-next of rx-subject is the ch of rx-node:
+                            Insert the step of rx-node into rx-pending.
+                        Done.
+                    Done.
+                Done.
             Done.
         Done.
     Done.
