@@ -721,21 +721,51 @@ not known until it has one.
 `run "grep" with arguments (…)` makes, and the reason a pattern cannot be assembled at run time.
 `Define regex p, given (…)` is refused for that reason: a pattern takes no parameters.
 
-#### What a pattern can say so far
+#### What a pattern can say
 
-**Ordinary characters only.** Every metacharacter is refused **by name**:
+| Written | Means |
+| --- | --- |
+| `abc` | those characters, in that order |
+| `.` | any one character |
+| `a*` | `a` any number of times, including none |
+| `a+` | `a` at least once |
+| `a?` | `a` once or not at all |
+| `cat\|dog` | either side |
+| `(ab)+` | a group, repeated as a whole |
+
+```cufet
+Pull a book on regex.
+    Define regex sound as [ba(na)+].
+    Define regex maybe-u as [colou?r].
+    State (cast sound on ("banana")) converted to text.
+    State (cast sound on ("bat")) converted to text.
+    State (cast maybe-u on ("a color")) converted to text.
+Done.
+```
+```output
+true
+false
+true
+```
+
+★ **A pattern asks whether the subject HOLDS a match**, not whether the whole subject is one — so
+`[na]` finds the `na` inside `banana`. Anchors, which is how you would say "the whole thing", are
+among the things still refused by name.
+
+**What is refused, and refused by name:**
 
 ```cufet-refused
 Pull a book on regex.
-    Define regex p as [a*].
+    Define regex p as [^abc].
 Done.
 ```
 
-> `'*' means a repeat, which patterns cannot do yet`
+> `'^' means a start anchor, which patterns cannot do yet`
 
 ★ Refused rather than taken literally, deliberately. A refusal that says *not yet* becomes support
-later and every program written against it keeps meaning what it meant; treating `a*` as three
-ordinary characters would change meaning in silence the day repeats arrive.
+later and every program written against it keeps meaning what it meant; treating `^` as an ordinary
+character would change meaning in silence the day anchors arrive. Character classes, anchors and
+counts are all refused this way today.
 
 **A backslash makes a metacharacter ordinary**, and stands for itself doubled:
 
@@ -754,7 +784,18 @@ true
 
 ⚠ An unknown escape is refused for the same reason a metacharacter is: `\d` will mean digits one
 day, and quietly meaning `d` until then is a change nobody would see. An **empty** pattern is
-refused too — it would match everywhere, including the empty subject.
+refused too, and so is an empty side of a `\|` — both would match everywhere, including the empty
+subject.
+
+#### It cannot hang
+
+★★ **Patterns run on an automaton, never on backtracking.** `a*a*a*a*b` against a long run of a's
+with no `b` is the input that makes a backtracking engine try every way of dividing those a's
+between the four stars — exponential, and the reason "regular expression denial of service" is a
+phrase. Here the set of live states is carried forward one character at a time, so the cost is
+linear in the subject however the pattern is shaped.
+
+The price is **backreferences**, which an automaton cannot express and this language does not have.
 
 #### Why this book is written the way it is
 
