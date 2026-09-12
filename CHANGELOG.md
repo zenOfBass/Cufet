@@ -52,6 +52,34 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **A function's local may be named like a shared constant.** A body's parameters and locals used
+  to share ONE scope with the top-level constants imported for it, so declaring a local named
+  like one was refused as a same-block redeclaration — and `Define a shadow` could not rescue it,
+  because a shadow answers an ENCLOSING name and there was no enclosing scope to answer.
+
+  ```cufet-fragment
+  Define tally as 42 permanently.
+
+  Bind number to inner:
+      Define a shadow tally as 1.    /* refused, until now */
+      Return tally.
+  Done.
+  ```
+
+  ⚠⚠ **The MESSAGE is why this went unnoticed.** It said *"already defined in this scope … in the
+  same block"* about two different blocks, and offered *"choose a different name"* while never
+  mentioning the keyword that exists for exactly this. It talked the reader out of the right fix,
+  so the tests pin the wording as well as the behaviour.
+
+  ★ **Twelve sites, one shape** — six in the checker (functions, methods, getters, setters,
+  unmakers, operator overloads) and six in the interpreter. The compiled backend needed no change:
+  C's own block scoping already gives a shadow its own variable.
+
+  ★ Found by the doc fence tests, which is what they are for. A prelude helper named a local
+  `total`, and because the prelude is spliced into every program that made
+  `Define total as 42 permanently.` stop compiling everywhere — including in a documented sample
+  in GRAMMAR.md.
+
 - **A backslash escapes a bracket inside an axiom.** The scanner counts `[` / `]` pairs to find
   where foreign source ends — right for C, where `argv[0]` is a subscript, and wrong for a
   language where `[` opens a character class. `[\[]` failed to lex at all and `[[^]]]` died on an
