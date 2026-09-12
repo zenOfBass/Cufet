@@ -788,6 +788,67 @@ public class LexerTests
 
     // ── I/O Slice 4: process execution keyword ────────────────────────────────
 
+    // ── An escaped bracket inside an axiom ───────────────────────────────
+    //
+    // ★★ A backslash escapes the next character FOR COUNTING ONLY. The scanner counts bracket
+    // pairs to find the end of an axiom, which is right for C — `argv[0]` is a subscript — and
+    // wrong for `regex`, where `[` opens a character class and \[ is an everyday thing to write.
+    //
+    // ⚠ MEASURED before the rule changed: `[\[]` failed to lex at all ("unterminated foreign
+    // source") and `[[^]]]` died on an unexpected `]`. Neither is exotic; both are ordinary
+    // patterns.
+    //
+    // ⚠⚠ NOTHING IS UNESCAPED. The consumer receives exactly what was written — that is the
+    // promise the brackets make, and it is why this is safe to do language-agnostically. Every
+    // test below asserts on the TEXT, not just on whether it lexed.
+
+    [Fact]
+    public void AnEscapedCloseBracket_DoesNotEndAnAxiom()
+    {
+        var tokens = LexTokens(@"[a\]b]");
+        Assert.Equal(TokenType.Axiom, tokens[0].Type);
+        Assert.Equal(@"a\]b", tokens[0].Lexeme);       // both characters kept, verbatim
+    }
+
+    [Fact]
+    public void AnEscapedOpenBracket_DoesNotDemandAClose()
+    {
+        var tokens = LexTokens(@"[a\[b]");
+        Assert.Equal(TokenType.Axiom, tokens[0].Type);
+        Assert.Equal(@"a\[b", tokens[0].Lexeme);
+    }
+
+    // ⚠ The case that keeps the rule honest: a backslash escapes a BACKSLASH, so the bracket
+    // after it is NOT escaped and does close. C string literals are full of `\\`, and reading
+    // `[strlen("a\\")]` as unterminated would break foreign source that works today.
+    [Fact]
+    public void AnEscapedBackslash_LeavesTheNextBracketCounting()
+    {
+        var tokens = LexTokens(@"[a\\]");
+        Assert.Equal(TokenType.Axiom, tokens[0].Type);
+        Assert.Equal(@"a\\", tokens[0].Lexeme);
+    }
+
+    // ★ Unchanged behaviour, asserted so the change cannot quietly take it away: bracket PAIRS
+    // still nest, which is what makes a C subscript survive.
+    [Fact]
+    public void UnescapedBracketsStillNest()
+    {
+        var tokens = LexTokens("[getenv(argv[0])]");
+        Assert.Equal(TokenType.Axiom, tokens[0].Type);
+        Assert.Equal("getenv(argv[0])", tokens[0].Lexeme);
+    }
+
+    // ⚠ A trailing backslash must not consume the terminator and walk off the end — the escape
+    // branch is guarded on there being a next character, so this still reports unterminated
+    // rather than crashing or hanging.
+    [Fact]
+    public void ATrailingBackslash_StillReportsUnterminated()
+    {
+        var ex = Assert.Throws<LexerException>(() => LexTokens(@"[abc\"));
+        Assert.Contains("unterminated foreign source", ex.Message);
+    }
+
     [Fact]
     public void RunIsKeyword()
     {

@@ -731,10 +731,24 @@ public sealed class Lexer
     // be unusable for the language this delimiter exists to carry. Same depth counting as
     // ReadRawText, and for the same reason.
     //
-    // ⚠ It counts brackets and nothing else — an UNBALANCED bracket inside a foreign string
-    // literal (`[printf("]")]`) closes the axiom early. `<<...>>` has the same edge and the same
-    // answer, and closing it here would mean knowing which foreign language this is, which the
-    // brackets deliberately do not say.
+    // ⚠ A BACKSLASH escapes the next character FOR COUNTING ONLY — `\[` and `\]` do not open or
+    // close — and the text is still handed on byte for byte, because nothing is unescaped here.
+    // That distinction is the whole reason this is safe: a consumer receives exactly what was
+    // written, and only the search for the closing bracket changed.
+    //
+    // ★ It is language-AGNOSTIC, which is what makes it allowed. An earlier version of this
+    // comment said understanding escapes "would mean knowing which foreign language this is" —
+    // true of quotes and comments, false of a backslash, which every language this delimiter is
+    // likely to carry escapes with. So the scanner stays context-free and the tag stays the only
+    // thing that names the consumer.
+    //
+    // ⚠ It was added for `regex`, where `[` is a character class rather than a subscript and
+    // `\[` is an everyday thing to write. MEASURED before changing it: NO axiom in examples/,
+    // tools/ or the prelude contains an escaped bracket, and `"\\["` in C is still
+    // backslash-escapes-backslash followed by a bare `[`, which counts exactly as it did before.
+    //
+    // ⚠ An unbalanced bracket inside a foreign STRING literal (`[printf("]")]`) still closes the
+    // axiom early — that one does need to know the language, and still is not done.
     private Token ReadAxiomText()
     {
         // Foreign source is normally multi-line, so the position reported is the opener's.
@@ -751,7 +765,16 @@ public sealed class Lexer
                     "unterminated foreign source — expected ']' to close it");
             char c = Peek();
 
-            if (c == '[')
+            // Counting only: both characters are appended exactly as written.
+            if (c == '\\' && Next() != '\0')
+            {
+                Advance();
+                sb.Append('\\');
+                if (NewlineInLiteral()) { sb.Append('\n'); continue; }
+                sb.Append(Peek());
+                Advance();
+            }
+            else if (c == '[')
             {
                 depth++;
                 Advance();
