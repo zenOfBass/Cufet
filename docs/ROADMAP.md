@@ -253,15 +253,8 @@ they are large, not because they are waiting — the order among them means noth
     file-path` is not valid C, and regex has no invalid syntax to borrow, since `the needle` is a
     perfectly good pattern. Already refused in code with a test; reasoning in `docs/DESIGN.md`.
 
-6. **`Pull a book on building.` — a build description that is a Cufet program.** No second
+6. **`Pull a book on contraptions` — a build description that is a Cufet program.** No second
     language for the build, the way `build.zig` is a Zig program rather than a Makefile.
-
-    ⚠ **The NAME is provisional.** `contraption` stands as the better answer and is not settled.
-    ★ Every natural word here is already spent by the implementation itself — `construction` sits
-    on `constructor`, `compilation` on the compiler, `composition` on object embedding, and `source`
-    on axioms — so the name has to come from outside the technical vocabulary. A book name also has
-    to complete *"Pull a book on ___"*, which is why it must be a mass noun, a plural or a proper
-    name, and why `project` and `plan` were ruled out despite being clean.
 
     ★ **Settled: a BOOK, not core.** Core was weighed and declined. What Zig gets right is that a
     build script is an ORDINARY PROGRAM USING AN ORDINARY LIBRARY — putting the vocabulary into the
