@@ -1,0 +1,179 @@
+/* life — Conway's Game of Life with a real screen.
+
+   `examples/algorithms/gameoflife.cufe` is the matrix edition, and it is about
+   the board. This one is about the TERMINAL: it clears the screen, draws in
+   place, and waits for you between generations.
+
+       cufet examples/systems/life.cufe        ← press Enter to step, q to quit
+
+   ── Why this program exists ──
+
+   ★★ It could not be written in Cufet at all until the day it was. Drawing in
+   place needs an ESC character, and a text literal escapes exactly seven things
+   — none of them ESC — so an escape sequence had no spelling anywhere in the
+   language. Clearing a terminal, the most ordinary thing a full-screen program
+   does, required reaching into C.
+
+   `Insert 27 into <chase>` is what fixed that: a chase holds code points, so a
+   number names a character directly. This program is the reason that exists,
+   which is the "no ordinary capability should require an axiom" campaign
+   working the way it should — a real program finding the gap, rather than the
+   gap being guessed at.
+
+   ── Two ways to run, and why ──
+
+   ⚠ With a terminal it is interactive. With no input at all — which is how the
+   oracle runs every example — `read a line from the input` is void straight
+   away, and the program prints a fixed number of generations plainly instead,
+   with no escape sequences at all.
+
+   ★ That is not a test accommodation. It is what a well-behaved program does
+   when nobody is there: a tool that emits cursor-control codes into a pipe is
+   a tool that has not checked. The corpus's other script does the same thing —
+   `search.cufe` searches the file that ships beside it when given no arguments,
+   "so that reading the example and running the example tell the same story".
+
+   ⚠ The interactive half is therefore NOT covered by the suite. Only the
+   fallback is. That is worth knowing rather than assuming.
+*/
+
+Pull a book on collections.
+    /* The escape sequences, built the only way they can be: a chase, because a
+       number in one is a code point. 27 is ESC; "[2J" clears; "[H" homes. */
+    Bind text to screen-clear:
+        Define out as a chase.
+        Insert 27 into out.
+        Insert "[2J" into out.
+        Insert 27 into out.
+        Insert "[H" into out.
+        Return out converted to text.
+    Done.
+
+    /* Edges wrap, so a glider travels forever instead of walking off. */
+    Bind number to wrapped, given (the number spot, the number extent):
+        If spot is less than 1, return spot + extent.
+        If spot is greater than extent, return spot - extent.
+        Return spot.
+    Done.
+
+    Bind fact to live-at, given (the series of text board, the number down, the number across):
+        Define height as the number of board.
+        Define width as the length of item 1 of board.
+        Define row as item (cast wrapped on (down, height)) of board.
+        Define spot as cast wrapped on (across, width).
+        Return the characters from spot to spot of row is "#".
+    Done.
+
+    Bind number to neighbours, given (the series of text board, the number down, the number across):
+        Define total as 0.
+        For each step-down in range 0 - 1 to 1, repeat:
+            For each step-across in range 0 - 1 to 1, repeat:
+                If step-down is 0:
+                    If step-across is 0, skip.
+                Done.
+                If cast live-at on (board, down + step-down, across + step-across):
+                    Increment total by 1.
+                Done.
+            Done.
+        Done.
+        Return total.
+    Done.
+
+    /* One generation. ★ A chase per row rather than joining text: a text is
+       immutable, so building a row a character at a time by joining would
+       rebuild the whole row every time — which is the quadratic this type
+       exists to avoid. */
+    Bind series of text to stepped, given (the series of text board):
+        Define height as the number of board.
+        Define width as the length of item 1 of board.
+        Define next-board as a series of text.
+
+        For each down in range 1 to height, repeat:
+            Define row as a chase.
+            For each across in range 1 to width, repeat:
+                Define count as cast neighbours on (board, down, across).
+                Define here as cast live-at on (board, down, across).
+
+                Define lives as false.
+                If here:
+                    If count is 2, the lives becomes true.
+                    If count is 3, the lives becomes true.
+                Done.
+                Otherwise:
+                    If count is 3, the lives becomes true.
+                Done.
+
+                If lives, insert "#" into row.
+                Otherwise, insert "." into row.
+            Done.
+            Insert row converted to text into next-board.
+        Done.
+        Return next-board.
+    Done.
+
+    Bind void to draw, given (the series of text board, the number generation, the fact in-place):
+        If in-place, state cast screen-clear.
+        State "life — generation {generation converted to text}".
+        State "".
+        For each row in board, repeat:
+            State row.
+        Done.
+    Done.
+
+    Bind void to play:
+        /* A glider on a 12 by 8 board. It travels down and right, and wraps. */
+        Define board as a series of text with (
+            ".#..........",
+            "..#.........",
+            "###.........",
+            "............",
+            "............",
+            "............",
+            "............",
+            "............").
+
+        /* ⚠ ONE read decides which program this is. `read a line from the input`
+           is void at end of input, and with nobody there it is void immediately —
+           so this asks "is anyone out there" and answers it once. */
+        Define first as read a line from the input.
+        Define interactive as first is not void.
+
+        If interactive is false:
+            /* Nobody there: four generations, plainly, no escape sequences. */
+            Define generation as 0.
+            Cast draw on (board, generation, false).
+            For each tick in range 1 to 4, repeat:
+                The board becomes cast stepped on (board).
+                Increment generation by 1.
+                State "".
+                Cast draw on (board, generation, false).
+            Done.
+            Exit.
+        Done.
+
+        /* Somebody is there. The line already read is the first Enter. */
+        Define generation as 0.
+        Cast draw on (board, generation, true).
+        State "".
+        State "Enter to step, q to quit.".
+
+        Define going as true.
+        While going, repeat:
+            Define typed as read a line from the input.
+            If typed is void, the going becomes false.
+            Otherwise:
+                If typed is "q", the going becomes false.
+                Otherwise:
+                    The board becomes cast stepped on (board).
+                    Increment generation by 1.
+                    Cast draw on (board, generation, true).
+                    State "".
+                    State "Enter to step, q to quit.".
+                Done.
+            Done.
+        Done.
+        Exit.
+    Done.
+
+    Cast play.
+Done.
