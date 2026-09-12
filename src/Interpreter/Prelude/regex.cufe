@@ -40,6 +40,8 @@
 //   kind 4 — `^`: go to `step`, but only with nothing consumed yet
 //   kind 5 — `$`: go to `step`, but only with everything consumed
 //   kind 6 — `[^…]`: match any one character NOT in `ch`, then go to `step`
+//   kind 7 — `^` under (?m): go to `step` at the start, or just after a `ch`
+//   kind 8 — `$` under (?m): go to `step` at the end, or just before a `ch`
 // `step` and `alt` are 1-based positions in the same series; 0 means nowhere. State 1 is the entry.
 //
 // ⚠ This list is the map a reader navigates by, and it described kinds 0-3 for an hour after 4 and
@@ -63,22 +65,47 @@ Bind void to reach, given (
     the number rx-index,
     the series of fact rx-active,
     the number rx-seen,
-    the number rx-total):
+    the number rx-total,
+    the text rx-subject):
     If rx-index is 0, return.
     If item rx-index of rx-active is true, return.
     The item rx-index of rx-active becomes true.
     Define rx-node as item rx-index of rx-program.
     If the kind of rx-node is 2:
-        Cast reach on (rx-program, the step of rx-node, rx-active, rx-seen, rx-total).
-        Cast reach on (rx-program, the alt of rx-node, rx-active, rx-seen, rx-total).
+        Cast reach on (rx-program, the step of rx-node, rx-active, rx-seen, rx-total, rx-subject).
+        Cast reach on (rx-program, the alt of rx-node, rx-active, rx-seen, rx-total, rx-subject).
     Done.
     // `^` — only where nothing has been consumed yet.
     If the kind of rx-node is 4:
-        If rx-seen is 0, cast reach on (rx-program, the step of rx-node, rx-active, rx-seen, rx-total).
+        If rx-seen is 0, cast reach on (rx-program, the step of rx-node, rx-active, rx-seen, rx-total, rx-subject).
     Done.
     // `$` — only where everything has.
     If the kind of rx-node is 5:
-        If rx-seen is rx-total, cast reach on (rx-program, the step of rx-node, rx-active, rx-seen, rx-total).
+        If rx-seen is rx-total, cast reach on (rx-program, the step of rx-node, rx-active, rx-seen, rx-total, rx-subject).
+    Done.
+    // `^` under (?m) — the start of the subject, or just after a line break. ★ This is the first
+    // state that reads the SUBJECT rather than only a position, which is why reach carries it.
+    If the kind of rx-node is 7:
+        If rx-seen is 0:
+            Cast reach on (rx-program, the step of rx-node, rx-active, rx-seen, rx-total, rx-subject).
+        Done.
+        If rx-seen is greater than 0:
+            If the characters from rx-seen to rx-seen of rx-subject is the ch of rx-node:
+                Cast reach on (rx-program, the step of rx-node, rx-active, rx-seen, rx-total, rx-subject).
+            Done.
+        Done.
+    Done.
+    // `$` under (?m) — the end of the subject, or just before a line break.
+    If the kind of rx-node is 8:
+        If rx-seen is rx-total:
+            Cast reach on (rx-program, the step of rx-node, rx-active, rx-seen, rx-total, rx-subject).
+        Done.
+        If rx-seen is less than rx-total:
+            Define rx-next as rx-seen + 1.
+            If the characters from rx-next to rx-next of rx-subject is the ch of rx-node:
+                Cast reach on (rx-program, the step of rx-node, rx-active, rx-seen, rx-total, rx-subject).
+            Done.
+        Done.
     Done.
 Done.
 
@@ -119,7 +146,7 @@ Bind fact to match, given (
     Define rx-total as the length of rx-subject.
 
     Define rx-active as cast blank on (rx-program).
-    Cast reach on (rx-program, 1, rx-active, 0, rx-total).
+    Cast reach on (rx-program, 1, rx-active, 0, rx-total, rx-subject).
     // Before consuming anything: a pattern that can match nothing at all matches here. ★ This is
     // also where `[^$]` against an empty subject is answered — nothing consumed is also everything
     // consumed when there is nothing to consume, so both gates open.
@@ -133,17 +160,17 @@ Bind fact to match, given (
             Increment rx-index by 1.
             If item rx-index of rx-active is true:
                 If the kind of rx-node is 0:
-                    If the ch of rx-node is rx-here, cast reach on (rx-program, the step of rx-node, rx-onward, rx-pos, rx-total).
+                    If the ch of rx-node is rx-here, cast reach on (rx-program, the step of rx-node, rx-onward, rx-pos, rx-total, rx-subject).
                 Done.
                 If the kind of rx-node is 1:
-                    Cast reach on (rx-program, the step of rx-node, rx-onward, rx-pos, rx-total).
+                    Cast reach on (rx-program, the step of rx-node, rx-onward, rx-pos, rx-total, rx-subject).
                 Done.
                 // `[^…]` — the ch holds every EXCLUDED character, so membership is the test and
                 // failing it is what lets the path through. ★ `contains` is exact-substring, and
                 // rx-here is exactly one character, so this is character membership.
                 If the kind of rx-node is 6:
                     If the ch of rx-node contains rx-here is false:
-                        Cast reach on (rx-program, the step of rx-node, rx-onward, rx-pos, rx-total).
+                        Cast reach on (rx-program, the step of rx-node, rx-onward, rx-pos, rx-total, rx-subject).
                     Done.
                 Done.
             Done.
@@ -156,7 +183,7 @@ Bind fact to match, given (
         // entry is still re-seeded at every position, but a pattern beginning with a start anchor
         // now meets that gate with rx-pos characters already consumed, so every late start dies on
         // its own. Anchoring is the ABSENCE of a path, not the removal of this line.
-        Cast reach on (rx-program, 1, rx-onward, rx-pos, rx-total).
+        Cast reach on (rx-program, 1, rx-onward, rx-pos, rx-total, rx-subject).
         The rx-active becomes rx-onward.
         If cast accepting on (rx-program, rx-active), return true.
     Done.
