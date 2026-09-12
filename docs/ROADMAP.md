@@ -265,11 +265,19 @@ they are large, not because they are waiting — the order among them means noth
 A formal soundness proof or a fresh-eyes red-team · a periodic error-message audit for internal
 vocabulary
 
-**Composition modes for rabbits** — `sequential` / `parallel` / `responsive`, an optional adjective
-in the type-annotation slot: `Pull a responsive rabbit as dispatcher.` The mode governs how a
+**Composition modes for rabbits** — `sequential` / `parallel` / `automatic`, an optional adjective
+in the type-annotation slot: `Pull an automatic rabbit as dispatcher.` The mode governs how a
 rabbit's TASKS compose, never its ordinary statements, which stay sequential imperative code.
 
-- ★ **`responsive` is the only new capability, and the gap is real:** `the delivery from <channel>`
+★ **The three differ by WHO DECIDES THE ORDER**, which is what the names have to carry: you do,
+by writing them in sequence; nobody, because they run at once; or the rabbit does, driven by what
+arrives. That axis is why `automatic` beat the alternatives — `hybrid`, `combinator` and
+`differential` all said only "this one differs from the other two", which the list already says,
+and `responsive` (the earlier name here) collides with responsive design and names a quality
+rather than a behaviour. ⚠ No one-word adjective conveys "waits on several and takes the first" —
+ALT, `select` and `receive` do not either — so that belongs in the prose, not the name.
+
+- ★ **`automatic` is the only new capability, and the gap is real:** `the delivery from <channel>`
   blocks on ONE channel, so nothing today can wait on several and take whichever arrives first.
   Occam's ALT, Go's select — and how an actor-rabbit would read a mailbox.
 - **`parallel` is the default**, which is what a task-spawning rabbit already does. All three stay
@@ -280,7 +288,7 @@ rabbit's TASKS compose, never its ordinary statements, which stay sequential imp
   threads compiled, no interleaving promised.
 
 Open: whether `sequential` and `parallel` are thin labels over the join behaviour that exists, or
-need machinery of their own. `responsive` is the real build — a guarded multi-input wait. The
+need machinery of their own. `automatic` is the real build — a guarded multi-input wait. The
 mailbox and message-send surface are separate, later work.
 
 **Exponent literals** — `6.022e23` on `number`. A lexer feature; today `1.5e3` fails with
