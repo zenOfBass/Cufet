@@ -123,6 +123,23 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   consumed. The four-field compiled record is unchanged, so the contract shared between
   `RegexPattern.State`, the prelude and the lowering still holds.
 
+- **`examples/systems/life.cufe` — Conway's Game of Life with a real screen**, clearing and
+  redrawing in place, stepping on Enter. `examples/algorithms/gameoflife.cufe` is the matrix
+  edition and is about the board; this one is about the terminal.
+
+  ★★ **It could not have been written in Cufet at all until the same day it was.** Drawing in place
+  needs an ESC character, and nothing in the language could produce one — which is how the
+  code-point capability below came to exist. The program found the gap; the gap was not guessed at.
+
+  ⚠ **It checks whether anyone is there, and behaves differently when nobody is.** With no input
+  `read a line from the input` is void immediately, and it prints four generations plainly with no
+  escape sequences at all. That is not a concession to the test harness — a tool that sprays
+  cursor-control codes into a pipe is a tool that has not checked — and it is the same shape
+  `search.cufe` already uses when given no arguments.
+
+  ⚠ Only the fallback is covered by the suite; the interactive half is exercised by hand. Worth
+  knowing rather than assuming.
+
 - **A number inserted into a `chase` is a character's code point** — `Insert 72 into out` appends
   `H`. It is the one type in the language where that reading exists, and it is not a conversion: a
   chase holds code points, four bytes each, so naming an element by its number is naming the
@@ -180,6 +197,31 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   line-wise anchor can ask whether the character just consumed was a break.
 
 ### Fixed
+
+- **A race in error formatting: `SourceMap.Rewrite` read a mutable static twice.** It tested
+  `SourceMap.Current` for null and then read it again inside its replacement lambda — a
+  check-then-use — so another thread assigning the static between the two could make a perfectly
+  ordinary type error die with a `NullReferenceException` instead.
+
+  ⚠⚠ **The field's own remark explains why it looked safe: "one program is checked per process in
+  the CLI."** True of the CLI, false of `dotnet test`, which checks thousands of programs in one
+  process with test classes running in parallel.
+
+  ★★ **The existing mitigation covered only half the problem.** A `[Collection("SourceMap")]`
+  serialises the classes that *assign* the static, and its remark called that "the whole rule". It
+  is not: every class that provokes a checker error is a concurrent *reader*, because every message
+  goes through `TypeError` to `Rewrite`. The class that died assigns nothing. Expanding the
+  collection could not have fixed it — "every class that can produce a checker error" is every
+  class.
+
+  ★ **It looked random and was not.** Only a message containing six or more consecutive digits ever
+  enters that lambda, so exactly one test row was exposed: the one asserting that `1114112` is not
+  a code point. Every other row, and every run in isolation, passed.
+
+  ⚠ Related, and left as it is: `Rewrite` turns any six-digit run in a finished message into a line
+  number, on the assumption such a number came from a loaded book. The code-point messages now
+  write their bound as `U+10FFFF` rather than `1114111` so they put one fewer candidate in a
+  reader's way.
 
 - **A `chase` now does everything a series does, which is what its documentation already said.**
   `BOOKS.md` promises *"Everything a collection does, it does."* That was an unchecked claim, and

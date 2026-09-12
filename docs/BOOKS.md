@@ -373,9 +373,13 @@ Done.
 4
 ```
 
-⚠ A code point outside 0–1114111, a lone surrogate, or a number with a fractional part is not a
+⚠ A code point outside 0–U+10FFFF, a lone surrogate, or a number with a fractional part is not a
 character. Written out, it is refused before the program runs; computed, it fails where it is
 evaluated, with the same words.
+
+★ [`examples/systems/life.cufe`](../examples/systems/life.cufe) is why this exists — Conway's Game
+of Life drawing in place, which needs an ESC character and so could not be written at all until a
+number could name one.
 
 ★★ **That first sentence is a promise, and it is tested rather than asserted.** It was wrong for
 six operations until 2026-09-12 — three refused, three silently ignoring the position — and nothing
