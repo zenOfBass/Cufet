@@ -1,0 +1,119 @@
+// The pattern engine, written in Cufet.
+//
+// This file is bundled into the checker (see TypeChecker.WithPrelude): every program is checked and
+// compiled as though it began with these statements.
+//
+// ★★ It declares NO module, and that is the point. A book on a LANGUAGE offers no members — you
+// pull it to write patterns at all, not to call things on it — so the engine must not become
+// `regex's match`. Everything here is a top-level helper, and BookLoading.MakePrivate renames each
+// one after the book it belongs to: `match` becomes `match in regex`, a name with a space in it,
+// which no identifier may contain. Unwritable, uncollidable, and reached only by the code the
+// parser lowers a pattern into.
+//
+// ★★ Written in Cufet because the ORACLE requires it, not as a preference. Two engines — .NET's
+// Regex interpreted and POSIX regcomp compiled — would disagree about greediness, character
+// classes and empty matches, silently, on inputs nobody thought to test. The prelude is spliced in
+// before either backend sees the program, so there is exactly one of this and nothing to diverge.
+//
+// ★ An AUTOMATON, never backtracking. A backtracking engine can hang forever on a pattern that
+// looks fine; the usual defence is a timeout, and a timeout is nondeterministic where the oracle
+// demands byte-for-byte agreement. It also matters more here than elsewhere: this engine is itself
+// written in Cufet, so backtracking's worst case on a slow host is not "slow" but "never finishes".
+//
+// The compiled form is a series of records, built by RegexPattern.Compile:
+//   kind 0 — match this character, then go to `step`
+//   kind 1 — match any one character, then go to `step`
+//   kind 2 — go to `step` or to `alt`, consuming nothing
+//   kind 3 — accept
+// `step` and `alt` are 1-based positions in the same series; 0 means nowhere. State 1 is the entry.
+//
+// ⚠ The four field names are a contract with RegexPattern.State, and nothing checks that the two
+// agree. A change on either side is a change on both.
+
+/// Marks `index` live, and follows every branch out of it that consumes nothing.
+///
+/// ⚠ The already-live check is what makes an epsilon CYCLE terminate — `(a*)*` reaches its own
+/// branch again, and without this the walk would not stop.
+Bind void to reach, given (
+    the series of records like (the number kind, the text ch, the number step, the number alt) program,
+    the number index,
+    the series of fact active):
+    If index is 0, return.
+    If item index of active is true, return.
+    The item index of active becomes true.
+    Define node as item index of program.
+    If the kind of node is 2:
+        Cast reach on (program, the step of node, active).
+        Cast reach on (program, the alt of node, active).
+    Done.
+Done.
+
+/// Is any accepting state live?
+Bind fact to accepting, given (
+    the series of records like (the number kind, the text ch, the number step, the number alt) program,
+    the series of fact active):
+    Define index as 0.
+    For each node in program, repeat:
+        Increment index by 1.
+        If item index of active is true:
+            If the kind of node is 3, return true.
+        Done.
+    Done.
+    Return false.
+Done.
+
+/// A fresh all-false liveness map, one entry per state.
+Bind series of fact to blank, given (
+    the series of records like (the number kind, the text ch, the number step, the number alt) program):
+    Define flags as a series of fact.
+    For each node in program, repeat:
+        Insert false into flags.
+    Done.
+    Return flags.
+Done.
+
+/// Does `subject` hold a match for `program` anywhere in it?
+///
+/// ★ The set of live states is carried forward one character at a time, which is what makes the
+/// cost linear in the subject however the pattern is shaped. `a*a*a*b` against a long run of a's
+/// with no b — the input that makes a backtracking engine hang — is answered in one pass.
+Bind fact to match, given (
+    the series of records like (the number kind, the text ch, the number step, the number alt) program,
+    the text subject):
+    If the number of program is 0, return false.
+
+    Define active as cast blank on (program).
+    Cast reach on (program, 1, active).
+    // Before consuming anything: a pattern that can match nothing at all matches here.
+    If cast accepting on (program, active), return true.
+
+    Define total as the length of subject.
+    // ⚠ `range 1 to 0` COUNTS DOWN — it is `1, 0`, not empty — so without this an empty subject
+    // would step to character position 0 and be refused. Documented behaviour, and a trap sitting
+    // in the path of the most ordinary loop there is.
+    If total is 0, return false.
+
+    For each pos in range 1 to total, repeat:
+        Define here as the characters from pos to pos of subject.
+        Define onward as cast blank on (program).
+        Define index as 0.
+        For each node in program, repeat:
+            Increment index by 1.
+            If item index of active is true:
+                If the kind of node is 0:
+                    If the ch of node is here, cast reach on (program, the step of node, onward).
+                Done.
+                If the kind of node is 1:
+                    Cast reach on (program, the step of node, onward).
+                Done.
+            Done.
+        Done.
+        // Unanchored: a match may begin at any position, so the entry state is always live. This
+        // is what makes the answer "does the subject HOLD a match", which is what slice 1's
+        // `contains` lowering meant — the two must keep agreeing.
+        Cast reach on (program, 1, onward).
+        The active becomes onward.
+        If cast accepting on (program, active), return true.
+    Done.
+    Return false.
+Done.
