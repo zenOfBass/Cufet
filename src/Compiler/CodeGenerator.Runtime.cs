@@ -1763,7 +1763,7 @@ static int32_t cufet_code_point(CufetDec point, int line) {
                                cufet_text_from_dec(point), line));
     long long n = cufet_to_int(point);
     if (n < 0 || n > 0x10FFFF)
-        cufet_raise(cufet_msgf("%lld is outside the range of a code point — they run from 0 to 1114111 (line %d).",
+        cufet_raise(cufet_msgf("%lld is outside the range of a code point — they run from 0 to U+10FFFF (line %d).",
                                n, line));
     if (n >= 0xD800 && n <= 0xDFFF)
         cufet_raise(cufet_msgf("%lld is half of a character, not one — surrogates only mean anything in pairs (line %d).",

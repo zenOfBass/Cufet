@@ -251,10 +251,15 @@ public sealed partial class TypeChecker
                 "insert a fractional number as a character",
                 "Write a whole number, or '<value> converted to text' for the digits.");
 
+        // ⚠ The bound is written in HEX deliberately. `SourceMap.Rewrite` turns any run of six or
+        // more digits in a finished message back into a local line number, on the assumption that
+        // such a number came from a loaded book — so a bare `1114111` in this prose is a candidate
+        // for being silently rewritten into something meaningless. The offending value still has
+        // to be echoed, but there is no reason to put a second one beside it.
         if (point < 0 || point > 0x10FFFF)
             throw TypeError(
                 $"'{point}' is outside the range of a code point",
-                "code points run from 0 to 1114111 (U+10FFFF)",
+                "code points run from 0 to U+10FFFF",
                 line, column,
                 "insert a number outside that range as a character",
                 "Write a code point in range, or '<value> converted to text' for the digits.");

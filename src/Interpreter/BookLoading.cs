@@ -69,10 +69,21 @@ public sealed class SourceMap
     /// </remarks>
     public static string Rewrite(string message)
     {
-        if (Current is null || Current._blocks.Count == 0) return message;
+        // ⚠⚠ CAPTURED ONCE, and that is a fix rather than a tidy-up. This used to test `Current`
+        // for null and then read it again inside the lambda — a check-then-use on a static
+        // mutable field, which is a race the moment more than one program is checked at a time.
+        //
+        // The field's own remark says "one program is checked per process in the CLI", and that is
+        // true of the CLI and false of `dotnet test`, which checks thousands of programs in one
+        // process with test classes running in parallel. MEASURED: a checker error whose message
+        // contained a seven-digit number threw NullReferenceException in a full-solution run and
+        // passed every time it was run alone — because only a message with SIX OR MORE digits in
+        // it ever enters the lambda at all.
+        var map = Current;
+        if (map is null || map._blocks.Count == 0) return message;
         return System.Text.RegularExpressions.Regex.Replace(
             message, "[0-9]{6,}",
-            m => int.TryParse(m.Value, out int n) && Current.Resolve(n) is { } at
+            m => int.TryParse(m.Value, out int n) && map.Resolve(n) is { } at
                  ? at.Line.ToString(System.Globalization.CultureInfo.InvariantCulture)
                  : m.Value);
     }

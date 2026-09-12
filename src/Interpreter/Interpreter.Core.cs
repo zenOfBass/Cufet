@@ -1512,7 +1512,7 @@ public sealed partial class Interpreter
                 $"{point} is not a code point, because it is not a whole number (line {line}).");
         if (point < 0 || point > 0x10FFFF)
             throw new RuntimeException(
-                $"{point} is outside the range of a code point — they run from 0 to 1114111 (line {line}).");
+                $"{point} is outside the range of a code point — they run from 0 to U+10FFFF (line {line}).");
         if (point >= 0xD800 && point <= 0xDFFF)
             throw new RuntimeException(
                 $"{point} is half of a character, not one — surrogates only mean anything in pairs (line {line}).");
