@@ -218,17 +218,13 @@ public sealed class Parser
         // ⭐⭐ The SAME RULE the c-language tag already follows decides which of the two it is:
         // **says what it gives back ⇒ something you run; says nothing ⇒ source.** Nothing about that
         // is new here, which is the point — one rule, read off the declaration, for both tags.
-        // ── `Define regex <name> as [ … ]` ────────────────────────────────────
+        // ── `Define regex <name> as [ … ]` ────────────────────
         //
         // ★★ Lowered to an ordinary FUNCTION right here, the same move the runnable `cufet` tag
-        // makes below and for the same reason: neither backend learns that patterns exist. A
-        // pattern that is read at check time and emitted as Cufet cannot diverge between an
-        // interpreter and a compiler, because there is only one of it.
-        //
-        // ★ SLICE 1 reads literals only, so the lowering is `subject contains "<literal>"`. That is
-        // deliberately not an engine — what this slice proves is the MECHANISM (the book, the tag,
-        // the brackets, check-time validation, one shared meaning) with the matching kept trivial.
-        // The engine arrives when the pattern language does.
+        // makes below and for the same reason: neither backend learns that patterns exist. The
+        // pattern is COMPILED at check time and emitted as data; the engine that reads it is
+        // ordinary Cufet in the prelude. There is one of each, so there is nothing for an
+        // interpreter and a compiler to disagree about.
         if (value is AxiomLiteral pattern && freeWith is null && NamesRegex(declaredType))
         {
             if (parameters is not null)
@@ -239,20 +235,34 @@ public sealed class Parser
             // ⚠ Reported from the PARSE, which is earlier than the checker and still well before
             // the line could run — the promise the bracketed form makes is that a malformed
             // pattern is refused where it is written, and this keeps it.
-            string literal = RegexPattern.LiteralOf(pattern.Source, (what, why, fix) =>
+            var states = RegexPattern.Compile(pattern.Source, (what, why, fix) =>
                 new ParseException(pattern.Line, pattern.Column,
                     what + " — " + why + ". " + char.ToUpper(fix[0]) + fix[1..] + "."));
 
-            // `given (the text subject)` and a body of one `Return`. Positional calls never name
-            // the parameter, so the spelling below is what a NAMED call would have to say.
+            // The automaton as a `series of records`, which is what the engine takes.
+            var elements = new List<IExpression>(states.Count);
+            foreach (var st in states)
+                elements.Add(new RecordLiteral([], [
+                    ("kind", (IExpression)new NumberLiteral(st.Kind)),
+                    ("ch",   new StringLiteral(st.Ch)),
+                    ("step", new NumberLiteral(st.Step)),
+                    ("alt",  new NumberLiteral(st.Alt)),
+                ], line, col));
+
+            // `given (the text subject)`, and a body of one `Return` that runs the engine.
+            // ⚠ The engine's name carries a SPACE — BookLoading.MakePrivate renames a prelude
+            // file's top-level helpers after their book — so it cannot be written by hand and
+            // cannot collide with anything a program declares.
             return new BindStatement(
                 name,
                 CufetType.Fact,
                 [(CufetType.Text, "subject")],
                 [new ReturnStatement(
-                    new TextContains(
-                        new VariableReference("subject", line, col),
-                        new StringLiteral(literal), line, col),
+                    new CastExpression(
+                        new VariableReference(RegexEngineEntry, line, col),
+                        [new SeriesLiteral(elements, RegexStateType, line, col),
+                         new VariableReference("subject", line, col)],
+                        line, col),
                     line, col)],
                 UntoType: null, ConstructsTypeName: null, line, col)
             {
@@ -294,6 +304,31 @@ public sealed class Parser
             HasParameterClause = parameters is not null,
         };
     }
+
+    /// <summary>The engine's entry point, under the name file privacy gives it.</summary>
+    /// <remarks>
+    /// ★★ The SPACE is what makes this safe. `BookLoading.MakePrivate` renames a prelude file's
+    /// top-level helpers to "&lt;name&gt; in &lt;book&gt;", and no identifier may contain a space —
+    /// so `match in regex` cannot be written by hand, cannot be shadowed, and cannot collide with
+    /// anything a program declares. It is the same trick module type lifting uses.
+    ///
+    /// ⚠ It also keeps "a language book has no members" literally true: the engine is a private
+    /// top-level helper of the file, not something reachable as `regex's match`.
+    /// </remarks>
+    private const string RegexEngineEntry = "match in " + TypeChecker.RegexLanguage;
+
+    /// <summary>The compiled automaton's element type — one state.</summary>
+    /// <remarks>
+    /// ⚠⚠ These four names are a contract with THREE places at once: `RegexPattern.State`, the
+    /// annotation written on every helper in `Prelude/regex.cufe`, and this. Nothing checks that
+    /// they agree; only the tests stand between them.
+    /// </remarks>
+    private static readonly CufetType RegexStateType = new RecordType([], [
+        ("kind", CufetType.Number),
+        ("ch",   CufetType.Text),
+        ("step", CufetType.Number),
+        ("alt",  CufetType.Number),
+    ]);
 
     /// <summary>Does this declared type name the `regex` tag?</summary>
     /// <remarks>
