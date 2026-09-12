@@ -100,10 +100,6 @@ Bind fact to match, given (
     If cast accepting on (rx-program, rx-active), return true.
 
     Define rx-total as the length of rx-subject.
-    // ⚠ `range 1 to 0` COUNTS DOWN — it is `1, 0`, not empty — so without this an empty subject
-    // would step to character position 0 and be refused. Documented behaviour, and a trap sitting
-    // in the path of the most ordinary loop there is.
-    If rx-total is 0, return false.
 
     For each rx-pos in range 1 to rx-total, repeat:
         Define rx-here as the characters from rx-pos to rx-pos of rx-subject.
