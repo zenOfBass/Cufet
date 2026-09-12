@@ -722,10 +722,28 @@ public sealed partial class CodeGenerator
                 if (TypeOf(sa.Series) is ChaseType)
                 {
                     _usesChase = true;
+
+                    // ★ A NUMBER is the character's code point — the second literal form a
+                    // character has. Everything below is shared with the text form, so the only
+                    // difference is which helper puts the characters in.
+                    bool byPoint = TypeOf(sa.Value) == TNumber;
                     string chaseVal = EmitExpr(sa.Value);
                     FlushPreEmits(sb, indent);
                     string chaseTarget = EmitExpr(sa.Series);
                     FlushPreEmits(sb, indent);
+
+                    if (byPoint)
+                    {
+                        string point = $"cufet_code_point({chaseVal}, {sa.Line})";
+                        string at =
+                            sa.ToStart ? "0"
+                          : sa.AfterIndex == null ? $"({chaseTarget})->len"
+                          : $"(int)cufet_idx_check(cufet_to_int({EmitExpr(sa.AfterIndex)}), "
+                          + $"({chaseTarget})->len, \"{SeriesDisplayName(sa.Series)}\", {sa.Line})";
+                        FlushPreEmits(sb, indent);
+                        sb.AppendLine($"{indent}cufet_chase_insert_point({chaseTarget}, {at}, {point});");
+                        break;
+                    }
 
                     // ⚠⚠ POSITION is honoured here, and was not until 2026-09-12 — this emitted a
                     // bare append for every form, so `Insert "!" into the start of out` appended.

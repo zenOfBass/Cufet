@@ -130,6 +130,97 @@ public class ChaseTests
             "    State the number of out.")));
     }
 
+    // ── A character named by its CODE POINT ───────────────────────────────
+    //
+    // ★★ A chase is the one type in the language where a number can mean a character, and that is
+    // not a special case bolted on — a chase HOLDS code points, four bytes each, so naming an
+    // element by its number is naming the element. It is the second literal form a character has;
+    // a one-character text is the first.
+    //
+    // ⚠⚠ This exists because an ESC byte was unreachable. Text literals escape only
+    // `\n \t \r \\ \" \{ \}`, and nothing anywhere turned a number into a character — so clearing
+    // a terminal, the most ordinary thing a full-screen program does, required a C axiom. That is
+    // exactly what the "no ordinary capability should require an axiom" campaign is for, and a
+    // Game of Life with a real screen is the witness that found it.
+    //
+    // ★ The digits reading stays sayable and stays EXPLICIT: `Insert 27 converted to text` appends
+    // '2' and '7'. Nothing converts silently, and `Insert` never has — `Insert 27 into <series of
+    // text>` is refused — so no reader arrives expecting it to stringify.
+
+    [Fact]
+    public void ANumber_IsTheCharactersCodePoint() =>
+        Assert.Equal("Hi", Run(InCollections(
+            "    Define out as a chase.\n" +
+            "    Insert 72 into out.\n" +
+            "    Insert 105 into out.\n" +
+            "    State out converted to text.")));
+
+    [Fact]
+    public void ConvertedToText_StillMeansTheDigits() =>
+        Assert.Equal("27\n2", Run(InCollections(
+            "    Define out as a chase.\n" +
+            "    Insert 27 converted to text into out.\n" +
+            "    State out converted to text.\n" +
+            "    State the number of out.")));
+
+    // ★ The positional forms come free: it is the same statement, so a code point inserts wherever
+    // a text would have.
+    [Fact]
+    public void ACodePoint_TakesThePositionalFormsToo() =>
+        Assert.Equal("abcd", Run(InCollections(
+            "    Define out as a chase.\n" +
+            "    Insert \"bc\" into out.\n" +
+            "    Insert 97 into the start of out.\n" +
+            "    Insert 100 after item 3 of out.\n" +
+            "    State out converted to text.")));
+
+    // ⚠ Beyond the basic plane is ONE character, which is the whole reason the buffer stores code
+    // points rather than UTF-16 units.
+    [Fact]
+    public void ACodePointBeyondTheBasicPlane_IsOneCharacter() =>
+        Assert.Equal("1", Run(InCollections(
+            "    Define out as a chase.\n" +
+            "    Insert 128512 into out.\n" +
+            "    State the number of out.")));
+
+    // ★★ THE THING THIS WAS BUILT FOR. An escape sequence is ESC followed by ordinary characters,
+    // and ESC had no spelling anywhere in the language before this.
+    [Fact]
+    public void AnEscapeSequence_IsNowWritable() =>
+        Assert.Equal("4", Run(InCollections(
+            "    Define screen as a chase.\n" +
+            "    Insert 27 into screen.\n" +
+            "    Insert \"[2J\" into screen.\n" +
+            "    State the number of screen.")));
+
+    // ⚠ A WRITTEN-OUT bad code point is refused by the checker — the same treatment a literal
+    // descending range gets, because a value written out can only be a mistake.
+    [Theory]
+    [InlineData("-1",      "outside the range")]
+    [InlineData("1114112", "outside the range")]
+    [InlineData("55296",   "half of a character")]
+    [InlineData("65.5",    "not a whole number")]
+    public void ALiteralThatIsNotACodePoint_IsRefusedBeforeItRuns(string written, string fragment)
+    {
+        var e = Assert.Throws<TypeException>(() => Run(InCollections(
+            "    Define out as a chase.\n" +
+            $"    Insert {written} into out.")));
+        Assert.Contains(fragment, e.Message);
+    }
+
+    // ★ A COMPUTED one has nothing to refuse statically, so it raises where it is evaluated — and
+    // says the same thing in the same words, so a reader sees one message whichever way they got
+    // there.
+    [Fact]
+    public void AComputedValueThatIsNotACodePoint_RaisesWhenItRuns()
+    {
+        var e = Assert.Throws<RuntimeException>(() => Run(InCollections(
+            "    Define out as a chase.\n" +
+            "    Define bad as 0 - 1.\n" +
+            "    Insert bad into out.")));
+        Assert.Contains("outside the range", e.Message);
+    }
+
     // ── The parity the documentation PROMISES ─────────────────────────────
     //
     // ⚠⚠ BOOKS.md says of a chase, in as many words: "Everything a collection does, it does."
@@ -235,13 +326,23 @@ public class ChaseTests
         Assert.Throws<TypeException>(() => Run("Define out as a chase.\nState the number of out."));
     }
 
+    // ⚠⚠ THIS TEST USED TO REFUSE `Insert 42 into out`. A number is now that character's CODE
+    // POINT — the second literal form a character has — so the refusal moved to everything that is
+    // neither a text nor a number. The change is deliberate and the reason is recorded above, under
+    // "A character named by its CODE POINT": an ESC byte had no spelling anywhere in the language.
+    //
+    // ★ Nothing written against the old refusal changed meaning, because the old refusal REFUSED.
+    // A program that had `Insert 42 into out` did not compile, so there is none to reinterpret —
+    // which is the same property refusing by name buys in the pattern book.
     [Fact]
-    public void InsertingSomethingThatIsNotText_IsRefused()
+    public void InsertingSomethingThatIsNeitherTextNorACodePoint_IsRefused()
     {
         var ex = Assert.Throws<TypeException>(() => Run(InCollections(
             "    Define out as a chase.\n" +
-            "    Insert 42 into out.")));
+            "    Insert true into out.")));
         Assert.Contains("holds characters", ex.Message);
+        // ★ The hint names the spelling that works, rather than only saying no.
+        Assert.Contains("converted to text", ex.Message);
     }
 
     // ── Reading, editing, removing, iterating ────────────────────────────

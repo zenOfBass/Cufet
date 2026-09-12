@@ -485,6 +485,71 @@ public class PipelineSeriesTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
+    // ★★ A character named by its CODE POINT — the capability that made an ESC byte writable.
+    // Text literals escape only `\n \t \r \\ \" \{ \}`, and nothing anywhere turned a number into
+    // a character, so clearing a terminal needed a C axiom. A chase is the one type where a number
+    // can mean a character, because it is the one whose elements ARE code points.
+    //
+    // ⚠ The compiled side reaches this through entirely separate C — `cufet_code_point` and
+    // `cufet_chase_insert_point` — so agreement here is worth pinning rather than assuming. The
+    // astral case is the one that would catch a UTF-16 assumption on either side.
+    [Fact]
+    public void Chase_ACodePointIsACharacter_MatchesInterpreter()
+    {
+        const string src = """
+            Pull a book on collections.
+                Define out as a chase.
+                Insert 72 into out.
+                Insert 105 into out.
+                State out converted to text.
+                State the number of out.
+
+                Define digits as a chase.
+                Insert 27 converted to text into digits.
+                State digits converted to text.
+                State the number of digits.
+
+                Define mixed as a chase.
+                Insert "bc" into mixed.
+                Insert 97 into the start of mixed.
+                Insert 100 after item 3 of mixed.
+                State mixed converted to text.
+
+                Define wide as a chase.
+                Insert 128512 into wide.
+                State the number of wide.
+                State wide converted to text.
+
+                Define screen as a chase.
+                Insert 27 into screen.
+                Insert "[2J" into screen.
+                State the number of screen.
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    // ⚠ A COMPUTED value that is not a code point raises on both backends. The static check cannot
+    // see it, so this is the pair that catches one backend letting it through.
+    //
+    // ⚠⚠ `AssertFaultOracle` compares STDOUT ONLY, not the message — so the lines around the
+    // failing one are what make it an assertion at all. "before" must print on both and "after" on
+    // neither; without them this would compare "" to "" and pass however either backend behaved.
+    [Fact]
+    public void Chase_AComputedBadCodePoint_RaisesLikeTheInterpreter()
+    {
+        const string src = """
+            Pull a book on collections.
+                Define out as a chase.
+                State "before".
+                Define bad as 0 - 1.
+                Insert bad into out.
+                State "after".
+            Done.
+            """;
+        AssertFaultOracle(src);
+    }
+
     // ── Sets ──────────────────────────────────────────────────────────────
     //
     // ★★ A set is stored as a MAP of its element to itself, on both backends — so what these pin is

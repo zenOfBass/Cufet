@@ -1054,7 +1054,14 @@ public sealed partial class Interpreter
                 if (saTarget is CufetChase chaseTarget)
                 {
                     var incoming = new CufetChase();
-                    incoming.Append((string)Evaluate(sa.Value));
+                    var arriving = Evaluate(sa.Value);
+
+                    // ★ A number is the character's CODE POINT — the second literal form a
+                    // character has, and the buffer already stores exactly this.
+                    if (arriving is decimal codePoint)
+                        incoming.Add(CheckedCodePoint(codePoint, sa.Line));
+                    else
+                        incoming.Append((string)arriving);
 
                     if (sa.ToStart)
                         chaseTarget.InsertRange(0, incoming);
@@ -1489,6 +1496,28 @@ public sealed partial class Interpreter
     // Returns 0-based index. indexExpr==null means "last element".
     private int ResolveIndex(IExpression? indexExpr, List<object> list, string seriesName, int line) =>
         ResolveIndex(indexExpr, list.Count, seriesName, line);
+
+    /// <summary>
+    /// A number as a code point, or a runtime failure naming which way it is not one.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ The checker refuses a WRITTEN-OUT bad value, so reaching here means the number was
+    /// computed. Both messages say the same thing in the same words as the static ones — the point
+    /// of a pair like this is that a reader sees one message whichever way they arrived at it.
+    /// </remarks>
+    private static int CheckedCodePoint(decimal point, int line)
+    {
+        if (point != decimal.Truncate(point))
+            throw new RuntimeException(
+                $"{point} is not a code point, because it is not a whole number (line {line}).");
+        if (point < 0 || point > 0x10FFFF)
+            throw new RuntimeException(
+                $"{point} is outside the range of a code point — they run from 0 to 1114111 (line {line}).");
+        if (point >= 0xD800 && point <= 0xDFFF)
+            throw new RuntimeException(
+                $"{point} is half of a character, not one — surrogates only mean anything in pairs (line {line}).");
+        return (int)point;
+    }
 
     /// <summary>Resolves a 1-based index against a COUNT, so a chase reaches the same rules.</summary>
     /// <remarks>

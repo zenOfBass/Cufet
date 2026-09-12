@@ -180,10 +180,27 @@ public sealed partial class TypeChecker
         if (containerType is ChaseType)
         {
             var appended = InferType(add.Value);
+
+            // ★★ A NUMBER is that character's CODE POINT, and this is the only type in the
+            // language where that reading is available — a chase holds characters, stored as code
+            // points, so naming one by its number is naming the element rather than converting
+            // anything. It is not an overload of Insert with a second meaning: it is the second
+            // literal form a character has, the way a text of length one is the first.
+            //
+            // ⚠ The digits reading stays sayable and stays EXPLICIT: `Insert 27 converted to text
+            // into out` appends '2' and '7'. Nothing here converts silently, and `Insert` never
+            // has — `Insert 27 into <series of text>` is refused, so no reader arrives expecting it
+            // to stringify.
+            if (appended == CufetType.Number)
+            {
+                CheckLiteralCodePoint(add.Value, add.Line, add.Column);
+                return;
+            }
+
             if (appended != null && appended != CufetType.Text)
                 throw TypeError(
                     $"{FormatExpr(add.Series)} holds characters",
-                    "A chase is a buffer of characters, so what goes in is text",
+                    "A chase is a buffer of characters, so what goes in is a text or a code point",
                     add.Line, add.Column,
                     $"insert a {FormatType(appended)} into a chase",
                     "Convert it first: '<value> converted to text'.");
@@ -210,6 +227,45 @@ public sealed partial class TypeChecker
         CheckRegionStore(add.Value, valueType, ContainerDepthOf(add.Series), add.Line, add.Column,
             $"add a rabbit-scoped value to a series in a longer-lived region");
         add.EscapeToDepth = EscapeDepthFor(add.Value, valueType, ContainerDepthOf(add.Series));
+    }
+
+    /// <summary>
+    /// Refuses a WRITTEN-OUT code point that is not one — the same treatment a literal descending
+    /// range gets, and for the same reason.
+    /// </summary>
+    /// <remarks>
+    /// ★ Only when the value is written out. A computed one has nothing to refuse here and raises
+    /// where it is evaluated; catching the literal is what turns a typo into a message instead of
+    /// a surprise. ⚠ A lone surrogate is not a character — it is half of one — so it belongs in
+    /// this list beside the out-of-range values rather than being quietly encoded.
+    /// </remarks>
+    private void CheckLiteralCodePoint(IExpression value, int line, int column)
+    {
+        if (TryGetLiteralNumber(value) is not { } point) return;
+
+        if (point != decimal.Truncate(point))
+            throw TypeError(
+                $"'{point}' is not a code point, because it is not a whole number",
+                "a code point counts characters, so it has no fractional part",
+                line, column,
+                "insert a fractional number as a character",
+                "Write a whole number, or '<value> converted to text' for the digits.");
+
+        if (point < 0 || point > 0x10FFFF)
+            throw TypeError(
+                $"'{point}' is outside the range of a code point",
+                "code points run from 0 to 1114111 (U+10FFFF)",
+                line, column,
+                "insert a number outside that range as a character",
+                "Write a code point in range, or '<value> converted to text' for the digits.");
+
+        if (point >= 0xD800 && point <= 0xDFFF)
+            throw TypeError(
+                $"'{point}' is half of a character, not one",
+                "the values from 55296 to 57343 are surrogates — they only mean anything in pairs",
+                line, column,
+                "insert a surrogate as a character",
+                "Write the code point of the character itself; a character beyond U+FFFF has one.");
     }
 
     private void CheckSeriesRemoveValue(SeriesRemoveValueStatement removeVal)

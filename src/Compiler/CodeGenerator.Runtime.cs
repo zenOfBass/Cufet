@@ -1752,6 +1752,33 @@ static void cufet_chase_remove_at(CufetChase* c, long long index1, const char* n
     c->len--;
 }
 
+/* A number as a code point, or a failure naming which way it is not one. ⚠ The checker refuses a
+   written-out bad value, so arriving here means the number was computed — and the wording matches
+   the static message deliberately, so a reader sees one message either way. */
+static int32_t cufet_code_point(CufetDec point, int line) {
+    /* Whole means no fractional part once trailing zeros are gone — `cufet_dec_strip` is what
+       decides that everywhere else, so it decides it here too rather than a second rule. */
+    if (cufet_dec_strip(point).scale != 0)
+        cufet_raise(cufet_msgf("%s is not a code point, because it is not a whole number (line %d).",
+                               cufet_text_from_dec(point), line));
+    long long n = cufet_to_int(point);
+    if (n < 0 || n > 0x10FFFF)
+        cufet_raise(cufet_msgf("%lld is outside the range of a code point — they run from 0 to 1114111 (line %d).",
+                               n, line));
+    if (n >= 0xD800 && n <= 0xDFFF)
+        cufet_raise(cufet_msgf("%lld is half of a character, not one — surrogates only mean anything in pairs (line %d).",
+                               n, line));
+    return (int32_t)n;
+}
+
+/* One code point in, at a 0-based position. ⚠ `at` equal to the length appends. */
+static void cufet_chase_insert_point(CufetChase* c, int at, int32_t point) {
+    int moved = c->len - at;
+    cufet_chase_push(c, 0);
+    memmove(&c->data[at + 1], &c->data[at], sizeof(int32_t) * (size_t)moved);
+    c->data[at] = point;
+}
+
 /* Inserts every character of a text at a 0-based position, shifting what follows. ⚠ `at` equal to
    the length appends, which is what makes the plain form and the positional forms one helper. */
 static void cufet_chase_insert(CufetChase* c, int at, const char* text) {
