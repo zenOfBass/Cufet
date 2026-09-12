@@ -1330,8 +1330,10 @@ Done.                                       → 1, 3, 5, 7, 9
 
 Define halves as range 1 to 2 counting by 0.5.    → 1, 1.5, 2
 ```
-- `step` is always a **positive magnitude**, and a range only ever counts up — so
-  `range 10 to 1 counting by 2` is empty, not a descent. Reverse the result to go down.
+- `step` is always a **positive magnitude**, and a range only ever counts up — the step says by how
+  much, never which way. `range 10 to 1 counting by 2` is not a descent; with both ends written out
+  like that it is **refused**, on the same rule as a range without a step. Reverse the result to go
+  down.
 - The end is included only if the step lands on it exactly; otherwise the
   range stops at the last value still within bounds (`range 1 to 10 counting
   by 2` is `1, 3, 5, 7, 9` — `10` is skipped).
