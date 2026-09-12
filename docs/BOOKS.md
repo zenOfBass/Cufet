@@ -692,3 +692,78 @@ holds it, not the line it would have on its own.
 ★ Nothing about this reaches a backend. The blocks are placed and then removed while the program is
 still being checked, so what runs — interpreted or compiled — is a program of ordinary declarations,
 and neither backend has a word to say about a cufet axiom.
+
+### Patterns (`regex`)
+
+**A pattern is written in brackets and read where it is written.** `Pull a book on regex.` admits
+them, the same way the other language books admit their own source:
+
+```cufet
+Pull a book on regex.
+    Define regex greeting as [hello].
+    State (cast greeting on ("hello there")) converted to text.
+    State (cast greeting on ("goodbye")) converted to text.
+Done.
+```
+```output
+true
+false
+```
+
+A pattern takes one `text` and gives back a `fact` — whether the subject holds it.
+
+★ **It is checked before the program runs, and that is the whole reason for the brackets.** Because
+a pattern is fixed where it is written, a bad one is refused at its declaration rather than failing
+on the line that uses it. An ordinary function taking `text` could not promise that: its argument is
+not known until it has one.
+
+⚠ **A value is spliced into a pattern, never concatenated into it** — the same guarantee
+`run "grep" with arguments (…)` makes, and the reason a pattern cannot be assembled at run time.
+`Define regex p, given (…)` is refused for that reason: a pattern takes no parameters.
+
+#### What a pattern can say so far
+
+**Ordinary characters only.** Every metacharacter is refused **by name**:
+
+```cufet-refused
+Pull a book on regex.
+    Define regex p as [a*].
+Done.
+```
+
+> `'*' means a repeat, which patterns cannot do yet`
+
+★ Refused rather than taken literally, deliberately. A refusal that says *not yet* becomes support
+later and every program written against it keeps meaning what it meant; treating `a*` as three
+ordinary characters would change meaning in silence the day repeats arrive.
+
+**A backslash makes a metacharacter ordinary**, and stands for itself doubled:
+
+```cufet
+Pull a book on regex.
+    Define regex opener as [\[].
+    Define regex star as [a\*b].
+    State (cast opener on ("a[b")) converted to text.
+    State (cast star on ("xa*by")) converted to text.
+Done.
+```
+```output
+true
+true
+```
+
+⚠ An unknown escape is refused for the same reason a metacharacter is: `\d` will mean digits one
+day, and quietly meaning `d` until then is a change nobody would see. An **empty** pattern is
+refused too — it would match everywhere, including the empty subject.
+
+#### Why this book is written the way it is
+
+★★ **One meaning, not two.** A pattern is read by the front end and lowered to an ordinary function
+before either backend meets the program, so there is nothing for an interpreter and a compiler to
+disagree about. Reaching for a ready-made engine on each side — .NET's on one, POSIX's on the other
+— would have given two dialects that differ on greediness, character classes and empty matches, and
+differ silently, on inputs nobody thought to test.
+
+★ Like `cufet` and unlike `the c-language`, this is a language book Cufet **reads itself**. Nothing
+is marshalled, no toolchain is reached for, and no boundary is crossed. The brackets mean *this text
+is not the program around it* in both cases; what differs is who reads what is inside.

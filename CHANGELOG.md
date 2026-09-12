@@ -8,6 +8,48 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ## [Unreleased]
 
+### Added
+
+- **`Pull a book on regex.` — patterns, read where they are written.** A language book like
+  `cufet` and unlike `the c-language`: Cufet reads what is in the brackets itself, so nothing is
+  marshalled and no toolchain is reached for.
+
+  ```cufet-fragment
+  Pull a book on regex.
+      Define regex greeting as [hello].
+      State (cast greeting on ("hello there")) converted to text.   /* true */
+  Done.
+  ```
+
+  ★★ **Checked before the program runs, which is the whole reason for the brackets.** A pattern is
+  fixed where it is written, so a bad one is refused at its declaration rather than failing on the
+  line that uses it. A function taking `text` could not promise that — its argument is not known
+  until it has one.
+
+  ★★ **One meaning, not two.** The pattern is lowered to an ordinary function before either
+  backend sees the program, so there is nothing for an interpreter and a compiler to disagree
+  about. Reaching for a ready-made engine on each side — .NET's and POSIX's — would have shipped
+  two dialects differing on greediness, classes and empty matches, silently, on inputs nobody
+  tested. That argument decided the design before any code was written.
+
+  ★ **This slice reads ORDINARY CHARACTERS only**, and every metacharacter is refused BY NAME.
+  Refusing beats taking them literally: a refusal that says *not yet* becomes support later and
+  every program written against it keeps meaning what it meant, where reading `a*` as three
+  characters would change meaning in silence the day repeats arrive. An unknown escape and an
+  empty pattern are refused for the same reason.
+
+  ⚠ A value is spliced INTO a pattern, never concatenated into it, so `Define regex p, given (…)`
+  is refused — the same guarantee `run "grep" with arguments (…)` makes.
+
+  ⚠⚠ **The pull gate was nearly lost to the lowering.** A pattern becomes an ordinary function in
+  the parser, and after that there is no literal left for the checker to ask about — so a pattern
+  was briefly writable with no `Pull a book on regex.` anywhere. Measured, not theorised. The
+  lowered function now carries its language, which also replaced the runnable-`cufet` flag: two
+  languages wanting one gate is the moment a boolean becomes a name.
+
+  ⚠ `regex` is NOT reserved — a language book's name never is, because nobody can reserve
+  `inventory` in advance. `Define regex as 5.` still works.
+
 ### Fixed
 
 - **A backslash escapes a bracket inside an axiom.** The scanner counts `[` / `]` pairs to find

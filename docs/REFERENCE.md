@@ -4439,6 +4439,8 @@ Books have a reference of their own: **[BOOKS.md](BOOKS.md)**.
 - [Matrix](BOOKS.md#matrix) — a `collections` member, documented with the book it comes from
 - [Foreign source (`axiom`)](BOOKS.md#foreign-source-axiom) — `Pull a book on the c-language.`
   is a book with no members: it admits C source held as a value
+- [Patterns (`regex`)](BOOKS.md#patterns-regex) — `Pull a book on regex.` admits patterns in
+  brackets, read at check time rather than when the line runs
 
 ---
 

@@ -2376,6 +2376,11 @@ Done.
 **The book is `cufet`, and it is pulled like any other language book** — `Pull a book on cufet.`,
 with no article, because `cufet` is a name where `the c-language` is a common noun.
 
+★ **The article belongs to `the c-language` alone**, and every other language book so far refuses
+one: `Pull a book on cufet.`, `Pull a book on regex.` A suggestion a reader is meant to copy has
+to be a line they would have written themselves — the refusal message got this backwards for
+`regex` the first time it ran.
+
 **A block holds DECLARATIONS** — an object, an interface, a `Define` and a `Bind`. The difference between
 them is the whole point of `Cite`: a TYPE belongs to the program wherever it is written, so a cited
 object is program-scope however deeply the `Cite` sits, while a VALUE lands as a local at the site
