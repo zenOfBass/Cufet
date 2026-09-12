@@ -1,0 +1,146 @@
+/* logtriage — the corpus's first program written with PATTERNS.
+
+   A log is the honest case for them. Nobody writes a log for the thing that
+   reads it: the format drifts, a stack trace lands in the middle without a
+   timestamp, and half the interesting lines are interesting because of a shape
+   rather than a word. `contains` answers "is this exact text in there"; a
+   pattern answers "is this SHAPE in there", and that is the whole difference.
+
+       cufet examples/parsing/logtriage.cufe
+       cufet examples/parsing/logtriage.cufe /var/log/app.log
+
+   The exit contract, so a shell can branch on it:
+
+       0   the log is clean — nothing serious in it
+       1   the log holds at least one ERROR or FATAL line
+       2   the file could not be read
+
+   ⚠ That 1 means something DIFFERENT from search's 1, and deliberately so. In
+   `search` it means "nothing matched" — an answer. Here it means "something
+   matched, and you should care". Both are "the thing you asked about", which is
+   the only contract an exit status can honestly carry: a status has no room for
+   a sentence, so it must answer the question the program is named for.
+
+   ── What patterns can and cannot do here, measured while writing this ──
+
+   ★★ A pattern asks whether a subject HOLDS a match, never whether the subject
+   IS one. That is not a gap in this program, it is the shape of the tool: every
+   question below is genuinely "does this line contain such a thing". But it does
+   mean VALIDATION is not expressible yet — `[[0-9]+]` is held by "abc 42" just
+   as firmly as by "42", so "this line is a number" cannot be said. Anchors are
+   the missing piece and they are refused BY NAME today, which is how this
+   program found out rather than by quietly matching the wrong thing.
+
+   ⚠ A pattern also cannot be built at run time, so this program cannot take one
+   on its command line the way grep does. That is the same guarantee that makes
+   injection impossible here, and it is why the shapes below are written in the
+   source where a reader can check them.
+
+   ★ And a pattern gives back a `fact`, not the text it matched — there are no
+   captures. So this counts and flags; it cannot pull the timestamp OUT of a
+   line. Every question it asks is therefore a yes-or-no one, which is why the
+   report is counts rather than fields.
+
+   Exercises: alternation, groups, `+`, character classes, a class ending in a
+   dash, and an escaped `\.` — the dot that means "any character" everywhere
+   else.
+*/
+
+Pull a book on regex.
+    /* ERROR and FATAL are one question, not two: a caller branching on the exit
+       status wants "is something broken", and the two words are one answer. */
+    Define regex serious as [(ERROR|FATAL)].
+
+    Define regex caution as [WARN].
+
+    /* `2026-09-11 08:14:02` — the shape, not the values. Written loosely on
+       purpose: `[0-9]+` rather than four-then-two-then-two, because without
+       anchors a stricter pattern buys nothing a looser one does not already
+       get, and reads as though it were checking something it is not. */
+    Define regex stamped as [[0-9]+-[0-9]+-[0-9]+ [0-9]+:[0-9]+:[0-9]+].
+
+    /* ⚠ The dots are ESCAPED. Unescaped, `.` is "any character", and the pattern
+       would then be held by `10x0y0z14` — and by the timestamps, which is how a
+       silent wrong answer would have arrived. */
+    Define regex address as [[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+].
+
+    /* ★ `[a-z-]` ends in a dash, which is an ordinary character there rather
+       than a half-written range — that rule is what lets `/api/v3/orders-beta`
+       match without spelling the dash some other way. */
+    Define regex route as [/api/v[0-9]+/[a-z-]+].
+
+    Bind void to usage:
+        State "usage: logtriage [file]".
+        State "".
+        State "reads a log and reports what shapes its lines hold".
+        State "leaves with 0 if nothing is serious, 1 if something is, 2 on a bad file".
+    Done.
+
+    Bind void to play:
+        Define target as "examples/assets/server.log".
+
+        If the number of the arguments is greater than 1:
+            Cast usage.
+            Exit with 2.
+        Done.
+
+        If the number of the arguments is 0:
+            State "(no arguments — reading the log that ships with this example)".
+            State "".
+        Done.
+        Otherwise:
+            The target becomes item 1 of the arguments.
+        Done.
+
+        Define lines as a series of text.
+        Try to:
+            The lines becomes read all lines from the file target.
+        Done.
+        In case of failure:
+            State "logtriage: {target}: {the message of the failure}".
+            Exit with 2.
+        Done.
+
+        Define flagged as 0.
+        Define warnings as 0.
+        Define undated as 0.
+        Define addressed as 0.
+        Define routed as 0.
+        Define index as 0.
+
+        For each subject in lines, repeat:
+            Increment index by 1.
+
+            /* Printed as it is found rather than collected and printed after, so
+               the order of the report is the order of the log. A log read out of
+               order is a different log. */
+            If cast serious on (subject):
+                Increment flagged by 1.
+                State "{target}:{index converted to text}: {subject}".
+            Done.
+
+            If cast caution on (subject), increment warnings by 1.
+            If cast address on (subject), increment addressed by 1.
+            If cast route on (subject), increment routed by 1.
+
+            /* The only question asked in the negative, and the useful one: a line
+               with no timestamp is a continuation of the line above it, or it is
+               damage. Either way it is not a record. */
+            If cast stamped on (subject) is false, increment undated by 1.
+        Done.
+
+        If flagged is greater than 0, state "".
+
+        State "{the number of lines converted to text} line(s) read from {target}".
+        State "  {flagged converted to text} serious (ERROR or FATAL)".
+        State "  {warnings converted to text} warning(s)".
+        State "  {undated converted to text} line(s) carrying no timestamp".
+        State "  {addressed converted to text} line(s) naming an address".
+        State "  {routed converted to text} line(s) naming an api route".
+
+        If flagged is greater than 0, exit with 1.
+        Exit.
+    Done.
+
+    Cast play.
+Done.

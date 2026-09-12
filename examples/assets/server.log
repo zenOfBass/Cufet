@@ -1,0 +1,12 @@
+2026-09-11 08:14:02 INFO  10.0.0.14 GET /api/v1/orders ok
+2026-09-11 08:14:07 WARN  10.0.0.14 GET /api/v1/orders slow upstream 412ms
+2026-09-11 08:15:33 ERROR 10.0.0.9 POST /api/v1/checkout upstream refused
+2026-09-11 08:15:34 INFO  10.0.0.9 GET /api/v2/health ok
+2026-09-11 08:16:01 FATAL 10.0.0.3 POST /api/v1/checkout disk full
+2026-09-11 08:16:02 INFO  restarting worker pool
+    at worker.step, no timestamp on a continuation line
+2026-09-11 08:17:45 WARN  retry budget exhausted for 10.0.0.3
+2026-09-11 08:18:10 INFO  192.168.0.7 GET /api/v1/orders ok
+2026-09-11 08:18:11 WARN  192.168.0.7 GET /api/v3/orders-beta deprecated route
+2026-09-11 08:19:00 INFO  worker pool healthy
+truncated write, nothing parseable here

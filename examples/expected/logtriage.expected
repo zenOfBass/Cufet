@@ -1,0 +1,11 @@
+(no arguments — reading the log that ships with this example)
+
+examples/assets/server.log:3: 2026-09-11 08:15:33 ERROR 10.0.0.9 POST /api/v1/checkout upstream refused
+examples/assets/server.log:5: 2026-09-11 08:16:01 FATAL 10.0.0.3 POST /api/v1/checkout disk full
+
+12 line(s) read from examples/assets/server.log
+  2 serious (ERROR or FATAL)
+  3 warning(s)
+  2 line(s) carrying no timestamp
+  8 line(s) naming an address
+  7 line(s) naming an api route
