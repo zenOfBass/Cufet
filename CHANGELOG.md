@@ -6,7 +6,7 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ---
 
-## [Unreleased]
+## [0.22.0] — 2026-09-12
 
 ### Added
 
