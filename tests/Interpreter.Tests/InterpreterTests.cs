@@ -1289,13 +1289,34 @@ public class InterpreterTests
             "Done."));
     }
 
+    // ⚠⚠ THIS TEST USED TO ASSERT A DESCENT — `range 5 to 1` was `5, 4, 3, 2, 1`, because direction
+    // was inferred from operand order. That inference made the commonest index loop there is,
+    // `range 1 to the number of xs`, run backwards over an empty collection instead of not running.
+    // A range counts up or is empty now, and where both ends are written out the mistake is refused
+    // rather than silently doing nothing. The test says so rather than being deleted: a behaviour
+    // that changed is worth a line in the record.
     [Fact]
-    public void RangeDescendingProducesCorrectElements()
+    public void RangeDescending_IsRefused()
     {
-        Assert.Equal("5\n4\n3\n2\n1", Run(
+        var e = Assert.Throws<TypeException>(() => Run(
             "For each n in range 5 to 1, repeat:\n" +
             "    State n.\n" +
             "Done."));
+        Assert.Contains("ends below where it starts", e.Message);
+    }
+
+    // ★ The positive half of that change, and the reason for it: with a COMPUTED end there is
+    // nothing to refuse, and empty is simply the right answer. This is the shape that used to run
+    // twice, backwards, over nothing.
+    [Fact]
+    public void RangeToTheSizeOfAnEmptySeries_IsEmpty()
+    {
+        Assert.Equal("done", Run(
+            "Define xs as a series of number with ().\n" +
+            "For each n in range 1 to the number of xs, repeat:\n" +
+            "    State n.\n" +
+            "Done.\n" +
+            "State \"done\"."));
     }
 
     [Fact]
@@ -1412,13 +1433,18 @@ public class InterpreterTests
             "Done."));
     }
 
+    // ⚠ Also used to assert a descent: `range 10 to 1 counting by 2` was `10, 8, 6, 4, 2`. The step
+    // never carried the direction — start vs. end did — so removing the direction removed this too.
+    // ★ The refusal sits ABOVE the step block in `InferRangeExpr`, which is why it fires here with
+    // `counting by` present exactly as it does without one.
     [Fact]
-    public void RangeStep_DescendingDirectionFromStartEnd()
+    public void RangeStep_Descending_IsRefused()
     {
-        Assert.Equal("10\n8\n6\n4\n2", Run(
+        var e = Assert.Throws<TypeException>(() => Run(
             "For each n in range 10 to 1 counting by 2, repeat:\n" +
             "    State n.\n" +
             "Done."));
+        Assert.Contains("ends below where it starts", e.Message);
     }
 
     [Fact]

@@ -634,14 +634,19 @@ public sealed partial class TypeChecker
                     null,
                     re.Line, re.Column,
                     "count by 0",
-                    "Use a step greater than 0. The range's direction already comes from start vs. end.");
+                    "Use a step greater than 0. A range counts up; the step only says by how much.");
             if (literalStep < 0)
                 throw TypeError(
                     "the step in 'counting by' must be positive",
                     null,
                     re.Line, re.Column,
                     $"count by {literalStep}",
-                    "Direction comes from start vs. end, not the step's sign. Use a positive step, e.g. 'range 10 to 1 counting by 2' already descends.");
+                    // ⚠⚠ This advice USED TO READ "Use a positive step, e.g. 'range 10 to 1
+                    // counting by 2' already descends." It recommended a line that is now REFUSED
+                    // — the literal check above rejects it — so the checker was telling the
+                    // programmer to write something the checker rejects. A message is a summary of
+                    // the rules, and it outlived them.
+                    "A range counts up, so there is no direction for a sign to set. Use a positive step, and reverse the range if you want the numbers in descending order.");
         }
 
         return new SeriesType(CufetType.Number);

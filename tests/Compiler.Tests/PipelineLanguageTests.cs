@@ -639,25 +639,44 @@ public class PipelineLanguageTests : PipelineTestBase
             Define ups as range 1 to 5.
             State ups.
             State the number of ups.
-            Define downs as range 5 to 1 counting by 2.
-            State downs.
             """;
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     // Materializing a range and iterating one must agree — the value form reuses the for-each
-    // form's direction and step logic precisely so they cannot drift.
+    // form's stepping precisely so they cannot drift.
+    //
+    // ⚠ This used to run `range 5 to 1 counting by 2` through both forms, back when a range turned
+    // around. A descent is refused now, and the agreement this test is actually about — value form
+    // vs. for-each form — never needed one.
     [Fact]
     public void Range_ValueFormAndForEachForm_Agree()
     {
         const string src = """
             Define collected as a series of number with ().
-            For each n in range 5 to 1 counting by 2, repeat:
+            For each n in range 1 to 9 counting by 2, repeat:
                 Insert n into collected.
             Done.
             State collected.
-            State range 5 to 1 counting by 2.
+            State range 1 to 9 counting by 2.
             """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    // ★ A computed descending range is EMPTY, not refused and not a descent — the half of the
+    // change the refusal tests cannot reach, pinned on BOTH backends because "produces nothing" is
+    // exactly the kind of agreement that can be wrong in the same way twice.
+    [Fact]
+    public void Range_ComputedDescending_IsEmptyOnBothBackends()
+    {
+        const string src = """
+            Define xs as a series of number with ().
+            For each n in range 1 to the number of xs, repeat:
+                State n.
+            Done.
+            State "done".
+            """;
+        Assert.Equal("done", InterpretRaw(src).Trim());
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
