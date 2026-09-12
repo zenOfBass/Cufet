@@ -175,10 +175,63 @@ public class PipelineRegexTests : PipelineTestBase
     [Fact]
     public void AMetacharacterNotYetSpelled_IsRefusedByName()
     {
-        Assert.Contains("means a start anchor", Refused("^ab").Message);
-        Assert.Contains("means an end anchor", Refused("ab$").Message);
         Assert.Contains("means a count", Refused("a{2}").Message);
+        // ⚠ Only `{` and `}` are left. When counts land this test goes with them, and the shedding
+        // will have finished — which is the point of writing refusals this way rather than a
+        // catch-all "unsupported character".
     }
+
+    // ── Anchors ──────────────────────────────────────────────────────────────
+    //
+    // ★★ THE SLICE A REAL PROGRAM ASKED FOR. `logtriage.cufe` could count and flag but not
+    // VALIDATE, because a pattern asks whether a subject HOLDS a match and there was no way to say
+    // "and that is the whole of it". `[[0-9]+]` was held by `abc 42` as firmly as by `42`.
+    //
+    // ★ They are STATE KINDS, not flags on the pattern. Flags would have been less work and could
+    // only anchor the very ends; as states they are ordinary nodes, so they compose with
+    // alternation and grouping for nothing extra. `AnAnchor_ComposesInsideAnAlternation` is the
+    // test that would be impossible under the other design, and it is why the fork went this way.
+
+    [Fact]
+    public void AStartAnchor_MatchesOnlyAtTheBeginning() =>
+        AssertPattern("^abc", "true false", "abcxx", "xxabc");
+
+    [Fact]
+    public void AnEndAnchor_MatchesOnlyAtTheEnd() =>
+        AssertPattern("abc$", "true false", "xxabc", "abcxx");
+
+    // ★ Both together is the spelling that was missing: "the subject IS this", not "holds it".
+    [Fact]
+    public void BothAnchors_MeanTheWholeSubject() =>
+        AssertPattern("^[0-9]+$", "true false false", "42", "abc 42", "42 abc");
+
+    [Fact]
+    public void AnAnchor_ComposesInsideAnAlternation() =>
+        AssertPattern("(^cat|dog$)", "true true false false",
+                      "cat here", "a dog", "a cat", "dog here");
+
+    // ⚠ An empty subject is the one place "nothing consumed" and "everything consumed" are the
+    // same position, so both gates open at once. Worth pinning: it is the edge where an
+    // off-by-one in the anchor comparison would show up and nowhere else.
+    [Fact]
+    public void BothAnchors_OnAnEmptySubject_Match() =>
+        AssertPattern("^$", "true false", "", "x");
+
+    // ⚠⚠ `^` and `$` left the not-yet table, and every character that does must stay ESCAPABLE or
+    // a written program silently breaks — `IsMeta` reads that table, so the escape lives there
+    // until the character is real syntax. `[` and `]` made this trip when classes landed.
+    [Fact]
+    public void AnEscapedAnchor_IsStillAnOrdinaryCharacter_NowThatAnchorsExist()
+    {
+        AssertPattern(@"a\^b", "true false", "xa^by", "ab");
+        AssertPattern(@"a\$b", "true false", "xa$by", "ab");
+    }
+
+    // ★ A caret is only special as the FIRST thing in a class, where it would mean negation.
+    // Anywhere else it was an ordinary character before anchors and still is.
+    [Fact]
+    public void ACaretInsideAClass_IsStillAnOrdinaryCharacter() =>
+        AssertPattern("[a^]x", "true true false", "^x", "ax", "bx");
 
     [Fact]
     public void AnUnknownEscape_IsRefused() =>

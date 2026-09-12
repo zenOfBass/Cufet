@@ -39,6 +39,16 @@ internal static class RegexPattern
     internal const int KindBranch = 2;   // go to Step or to Alt, consuming nothing
     internal const int KindAccept = 3;
 
+    // ★ The anchors. Both consume NOTHING, like a branch — what they add is a question about
+    // WHERE the subject is, which is the first thing the engine has ever had to know beyond the
+    // state series itself. They are states rather than flags on the whole pattern precisely so
+    // they compose: `(^a|b$)` is an ordinary alternation of two ordinary paths.
+    //
+    // ⚠ Neither needs `Ch` or `Alt`, so the four-field record is unchanged — the contract this
+    // file shares with `Prelude/regex.cufe` and the lowering holds exactly as it did.
+    internal const int KindAtStart = 4;  // passable only with nothing consumed yet, then go to Step
+    internal const int KindAtEnd   = 5;  // passable only with everything consumed, then go to Step
+
     /// <summary>What the language will spell later; refused by name until each one lands.</summary>
     /// <remarks>
     /// ★ Refused BY NAME rather than taken literally, and the ordering is deliberate: a refusal
@@ -48,8 +58,6 @@ internal static class RegexPattern
     /// </remarks>
     private static readonly Dictionary<char, string> NotYet = new()
     {
-        ['^'] = "a start anchor",
-        ['$'] = "an end anchor",
         ['{'] = "a count",
         ['}'] = "a count",
     };
@@ -63,6 +71,8 @@ internal static class RegexPattern
     private sealed record Star(Node Inner)           : Node;   // *
     private sealed record Plus(Node Inner)           : Node;   // +
     private sealed record Opt(Node Inner)            : Node;   // ?
+    private sealed record AtStart                    : Node;   // ^
+    private sealed record AtEnd                      : Node;   // $
 
     /// <summary>
     /// The automaton this pattern compiles to. State 1 is always the entry, so the engine is told
@@ -109,6 +119,13 @@ internal static class RegexPattern
     {
         Ch c   => Emit(states, new State(KindChar, c.Value, next, 0)),
         Any    => Emit(states, new State(KindAny, "", next, 0)),
+
+        // ★ An anchor threads its successor exactly like anything else — it is only the engine
+        // that treats it differently, by asking where the subject is before letting the path
+        // through. Nothing about the construction is special-cased, which is the whole payoff of
+        // choosing states over flags.
+        AtStart => Emit(states, new State(KindAtStart, "", next, 0)),
+        AtEnd   => Emit(states, new State(KindAtEnd, "", next, 0)),
         Cat x  => Build(states, x.Left, Build(states, x.Right, next)),
         Or x   => Emit(states, new State(KindBranch, "",
                         Build(states, x.Left, next), Build(states, x.Right, next))),
@@ -207,10 +224,18 @@ internal static class RegexPattern
                            "a repeat applies to whatever comes just before it",
                            $@"write '\{c}' if you meant the character itself");
 
+            // ⚠ This list had said "characters, '.', '*', '+', '?', '|' and groups" since before
+            // classes shipped, so it described a version of the book that had not existed for two
+            // slices. A refusal that lists what IS supported has to be edited by whoever adds
+            // support, or it quietly becomes a lie in the one message a stuck reader trusts.
             if (NotYet.TryGetValue(c, out var meaning))
                 throw fail($"'{c}' means {meaning}, which patterns cannot do yet",
-                           "this version reads characters, '.', '*', '+', '?', '|' and groups",
+                           "this version reads characters, '.', '*', '+', '?', '|', groups, "
+                         + "classes and the anchors '^' and '$'",
                            $@"write '\{c}' if you meant the character itself");
+
+            if (c == '^') { _at++; return new AtStart(); }
+            if (c == '$') { _at++; return new AtEnd(); }
 
             if (c == '[') { _at++; return ReadClass(); }
 
@@ -370,10 +395,14 @@ internal static class RegexPattern
             ['r'] = "a carriage return",
         };
 
-        // ⚠ `[` and `]` stay escapable outside a class even though they left the not-yet table:
-        // they are now real syntax, so `\[` has to keep meaning the character.
+        // ⚠⚠ Every character that LEAVES the not-yet table has to be added here in the same
+        // change, or it silently stops being escapable — `IsMeta` reads that table, so a
+        // metacharacter's escape lives there until the metacharacter is real. `[` and `]` made
+        // this trip when classes landed; `^` and `$` made it when anchors did. Forgetting would
+        // turn `\^` from "the character" into "not an escape this pattern understands", breaking
+        // written programs to add a feature.
         private static bool IsMeta(char c) =>
-            c is '*' or '+' or '?' or '|' or '(' or ')' or '.' or '[' or ']'
+            c is '*' or '+' or '?' or '|' or '(' or ')' or '.' or '[' or ']' or '^' or '$'
             || NotYet.ContainsKey(c);
     }
 }
