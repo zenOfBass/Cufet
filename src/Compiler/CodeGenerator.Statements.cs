@@ -726,7 +726,24 @@ public sealed partial class CodeGenerator
                     FlushPreEmits(sb, indent);
                     string chaseTarget = EmitExpr(sa.Series);
                     FlushPreEmits(sb, indent);
-                    sb.AppendLine($"{indent}cufet_chase_append({chaseTarget}, {chaseVal});");
+
+                    // ⚠⚠ POSITION is honoured here, and was not until 2026-09-12 — this emitted a
+                    // bare append for every form, so `Insert "!" into the start of out` appended.
+                    // The interpreter had the identical bug, so the two backends AGREED and the
+                    // oracle saw nothing: the blind spot is always "wrong in the same way twice".
+                    if (sa.ToStart)
+                        sb.AppendLine($"{indent}cufet_chase_insert({chaseTarget}, 0, {chaseVal});");
+                    else if (sa.AfterIndex == null)
+                        sb.AppendLine($"{indent}cufet_chase_append({chaseTarget}, {chaseVal});");
+                    else
+                    {
+                        string afterIdx = EmitExpr(sa.AfterIndex);
+                        FlushPreEmits(sb, indent);
+                        sb.AppendLine(
+                            $"{indent}cufet_chase_insert({chaseTarget}, "
+                          + $"(int)cufet_idx_check(cufet_to_int({afterIdx}), ({chaseTarget})->len, "
+                          + $"\"{SeriesDisplayName(sa.Series)}\", {sa.Line}), {chaseVal});");
+                    }
                     break;
                 }
                 // ★ A SET takes the same verb and stores the value as its own key. `_put` is
@@ -791,6 +808,18 @@ public sealed partial class CodeGenerator
                     FlushPreEmits(sb, indent);
                     sb.AppendLine($"{indent}{ser}_remove_at({serExpr}, cufet_to_int({idxExpr}));");
                 }
+                break;
+            }
+
+            case SeriesRemoveValueStatement srv when TypeOf(srv.Series) is ChaseType:
+            {
+                // ⚠ Matched before the series case, the way every chase site is — a chase is not
+                // a series struct and SeriesStructOf would not know what to build.
+                string chaseExpr = EmitExpr(srv.Series);
+                string oneExpr = EmitExpr(srv.Value);
+                FlushPreEmits(sb, indent);
+                sb.AppendLine($"{indent}cufet_chase_remove_value({chaseExpr}, {oneExpr}, "
+                            + $"\"{SeriesDisplayName(srv.Series)}\", {srv.Line});");
                 break;
             }
 

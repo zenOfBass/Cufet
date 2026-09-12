@@ -9,12 +9,26 @@ public sealed partial class TypeChecker
         var seriesType = InferType(sort.Series);
         if (seriesType == null) return null;
 
+        // ★ A chase sorts as the collection it is, and gives back a chase — the same shape a
+        // series keeps. Its elements are one-character texts, so only the NATURAL order applies;
+        // there is no field to sort by.
+        if (seriesType is ChaseType)
+        {
+            if (sort.ByField != null)
+                throw TypeError(
+                    "a chase holds characters, which have no fields",
+                    null, sort.Line, sort.Column,
+                    $"sort a chase by '{sort.ByField}'",
+                    $"Write '{FormatExpr(sort.Series)} sorted' for the characters in order.");
+            return ChaseType.Instance;
+        }
+
         if (seriesType is not SeriesType st)
             throw TypeError(
-                "'sorted' works on series only",
+                "'sorted' works on series and chases only",
                 null, sort.Line, sort.Column,
                 $"sort a {FormatType(seriesType)}",
-                "Only series can be sorted. Maps, records, and other types don't support 'sorted'.");
+                "Only a series or a chase can be sorted. Maps, records, and other types cannot.");
 
         if (sort.ByField == null)
         {

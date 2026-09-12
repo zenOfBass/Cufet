@@ -1752,6 +1752,55 @@ static void cufet_chase_remove_at(CufetChase* c, long long index1, const char* n
     c->len--;
 }
 
+/* Inserts every character of a text at a 0-based position, shifting what follows. ⚠ `at` equal to
+   the length appends, which is what makes the plain form and the positional forms one helper. */
+static void cufet_chase_insert(CufetChase* c, int at, const char* text) {
+    CufetChase* incoming = cufet_chase_new();
+    cufet_chase_append(incoming, text);
+    if (incoming->len == 0) return;
+
+    int moved = c->len - at;
+    for (int i = 0; i < incoming->len; i++) cufet_chase_push(c, 0);   /* grow, then shift */
+    memmove(&c->data[at + incoming->len], &c->data[at], sizeof(int32_t) * (size_t)moved);
+    memcpy(&c->data[at], incoming->data, sizeof(int32_t) * (size_t)incoming->len);
+}
+
+/* Takes the FIRST occurrence of one character out, by value. The one-character rule is the same
+   one setting a position follows, and for the same reason: a text's length is not known until it
+   exists, and keeping its first character would be the silent resolution this language refuses. */
+static void cufet_chase_remove_value(CufetChase* c, const char* one, const char* name, int line) {
+    CufetChase* scratch = cufet_chase_new();
+    cufet_chase_append(scratch, one);
+    if (scratch->len != 1)
+        cufet_raise(cufet_msgf(
+            "'Remove' from a chase takes exactly one character, and \"%s\" is %d. This happened on line %d.",
+            one, scratch->len, line));
+    for (int i = 0; i < c->len; i++) {
+        if (c->data[i] != scratch->data[0]) continue;
+        memmove(&c->data[i], &c->data[i + 1], sizeof(int32_t) * (size_t)(c->len - i - 1));
+        c->len--;
+        return;
+    }
+    cufet_raise(cufet_msgf("Character not found in %s on line %d.", name, line));
+}
+
+/* A sorted COPY, by code point. ⚠ The unit is the point rather than the rendered character, which
+   is what keeps this identical to the interpreter — it orders the same integers. */
+static CufetChase* cufet_chase_sorted(CufetChase* c, int reverse) {
+    CufetChase* out = cufet_chase_new();
+    for (int i = 0; i < c->len; i++) cufet_chase_push(out, c->data[i]);
+    for (int a = 1; a < out->len; a++) {
+        int32_t key = out->data[a];
+        int j = a - 1;
+        while (j >= 0 && (reverse ? out->data[j] < key : out->data[j] > key)) {
+            out->data[j + 1] = out->data[j];
+            j--;
+        }
+        out->data[j + 1] = key;
+    }
+    return out;
+}
+
 /* One character out, as the one-character TEXT the language calls a character. Four bytes plus a
    terminator is the most any code point needs. */
 static const char* cufet_chase_at(CufetChase* c, int index1) {

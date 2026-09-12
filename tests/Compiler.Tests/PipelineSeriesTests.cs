@@ -444,6 +444,47 @@ public class PipelineSeriesTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
+    // ★★ THE OPERATIONS BOOKS.md PROMISED AND NEITHER BACKEND DELIVERED. Three were refused on a
+    // chase while working on a series — `Remove <value> from`, `sorted`, `sorted in reverse` — and
+    // three more ran but SILENTLY IGNORED THE POSITION, so `Insert into the start of` appended.
+    //
+    // ⚠⚠ The positional three are the reason this test exists rather than an interpreter-only one.
+    // Both backends had the identical bug, so they AGREED, and the oracle is blind to exactly
+    // that: wrong in the same way twice. A pinned ANSWER is what catches it, which is why every
+    // line below states a result rather than merely running.
+    [Fact]
+    public void Chase_PositionalInsertRemoveByValueAndSort_MatchesInterpreter()
+    {
+        const string src = """
+            Pull a book on collections.
+                Define out as a chase.
+                Insert "hello" into out.
+
+                Insert "!" into the start of out.
+                State out converted to text.
+                Insert "?" after item 3 of out.
+                State out converted to text.
+                Insert "." after the second item of out.
+                State out converted to text.
+
+                Remove "l" from out.
+                State out converted to text.
+
+                Define letters as a chase.
+                Insert "banana" into letters.
+                State (letters sorted) converted to text.
+                State (letters sorted in reverse) converted to text.
+                State letters converted to text.
+
+                Define wide as a chase.
+                Insert "bäa" into wide.
+                State (wide sorted) converted to text.
+                State the number of (wide sorted).
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
     // ── Sets ──────────────────────────────────────────────────────────────
     //
     // ★★ A set is stored as a MAP of its element to itself, on both backends — so what these pin is

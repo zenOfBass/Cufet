@@ -130,6 +130,95 @@ public class ChaseTests
             "    State the number of out.")));
     }
 
+    // ── The parity the documentation PROMISES ─────────────────────────────
+    //
+    // ⚠⚠ BOOKS.md says of a chase, in as many words: "Everything a collection does, it does."
+    // That was an unchecked claim, and it had drifted — `Remove <value> from`, `sorted` and
+    // `sorted in reverse` all worked on a series and were refused on a chase. Nothing in the suite
+    // noticed, because the doc fence tests run the code SAMPLES and say nothing about the prose
+    // around them.
+    //
+    // ★★ This walks the series surface against a chase so the promise stops being prose. When a
+    // series gains an operation, this is what fails — which is the only way a claim like that one
+    // survives contact with a growing language.
+    //
+    // ★ `contains` is deliberately absent: it is refused on a SERIES too (text-only), so a chase
+    // refusing it is parity rather than a gap. Measured before writing this, because assuming it
+    // was a gap would have added an operation the language does not have.
+    [Theory]
+    [InlineData("State the first of out.",                   "h")]
+    [InlineData("State the last of out.",                    "o")]
+    [InlineData("State the third of out.",                   "l")]
+    [InlineData("State item 2 of out.",                      "e")]
+    [InlineData("State the number of out.",                  "5")]
+    [InlineData("Insert \"!\" into out.\n    State out converted to text.",                  "hello!")]
+    [InlineData("Insert \"!\" into the start of out.\n    State out converted to text.",     "!hello")]
+    [InlineData("Insert \"!\" after item 2 of out.\n    State out converted to text.",       "he!llo")]
+    [InlineData("Insert \"!\" after the second item of out.\n    State out converted to text.", "he!llo")]
+    [InlineData("Remove the first item from out.\n    State out converted to text.",         "ello")]
+    [InlineData("Remove the last from out.\n    State out converted to text.",               "hell")]
+    [InlineData("Remove item 2 from out.\n    State out converted to text.",                 "hllo")]
+    [InlineData("Remove \"l\" from out.\n    State out converted to text.",                  "helo")]
+    [InlineData("The first of out becomes \"H\".\n    State out converted to text.",         "Hello")]
+    [InlineData("The last of out becomes \"O\".\n    State out converted to text.",          "hellO")]
+    [InlineData("The item 2 of out becomes \"E\".\n    State out converted to text.",        "hEllo")]
+    [InlineData("State (out sorted) converted to text.",                                     "ehllo")]
+    [InlineData("State (out sorted in reverse) converted to text.",                          "ollhe")]
+    [InlineData("State out converted to text.",               "hello")]
+    public void EverySeriesOperation_WorksOnAChase(string body, string expected) =>
+        Assert.Equal(expected, Run(InCollections(
+            "    Define out as a chase.\n" +
+            "    Insert \"hello\" into out.\n" +
+            "    " + body)));
+
+    // ★ `sorted` gives back a COPY, exactly as it does for a series — the buffer it was asked
+    // about is untouched. A sort that mutated in place would be the one operation on a chase that
+    // behaved differently from its series spelling.
+    [Fact]
+    public void Sorting_LeavesTheBufferAlone()
+    {
+        Assert.Equal("banana", Run(InCollections(
+            "    Define out as a chase.\n" +
+            "    Insert \"banana\" into out.\n" +
+            "    Define ordered as out sorted.\n" +
+            "    State out converted to text.")));
+    }
+
+    // ⚠ Sorting is by CODE POINT, which is the unit a chase stores — and the unit the compiled
+    // side stores too. Ordering the rendered characters instead would drag in text's comparison
+    // rules and give the two backends something to disagree about.
+    [Fact]
+    public void Sorting_OrdersByCodePoint()
+    {
+        Assert.Equal("abä", Run(InCollections(
+            "    Define out as a chase.\n" +
+            "    Insert \"bäa\" into out.\n" +
+            "    State (out sorted) converted to text.")));
+    }
+
+    // ⚠ Removing takes exactly one character, the same rule setting a position follows, and for
+    // the same reason: a text's length is not known until it exists, so keeping its first
+    // character would be a silent resolution.
+    [Fact]
+    public void RemovingMoreThanOneCharacter_IsRefusedWhenItRuns()
+    {
+        var e = Assert.Throws<RuntimeException>(() => Run(InCollections(
+            "    Define out as a chase.\n" +
+            "    Insert \"hello\" into out.\n" +
+            "    Remove \"ll\" from out.")));
+        Assert.Contains("exactly one character", e.Message);
+    }
+
+    [Fact]
+    public void RemovingSomethingAbsent_SaysSo()
+    {
+        var e = Assert.Throws<RuntimeException>(() => Run(InCollections(
+            "    Define out as a chase.\n" +
+            "    Insert \"hello\" into out.\n" +
+            "    Remove \"z\" from out.")));
+        Assert.Contains("not found", e.Message);
+    }
+
     // ── The name is only spent where the book was asked for ───────────────
 
     [Fact]

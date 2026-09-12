@@ -874,6 +874,11 @@ public sealed partial class CodeGenerator
     // by a named record/object field. Numbers compare via cufet_cmp, text via ordinal strcmp.
     private string EmitSort(SortExpression sort)
     {
+        // ★ A chase sorts by code point and gives back a chase, matching the interpreter exactly —
+        // both order the same integers, so there is nothing for the two to disagree about.
+        if (TypeOf(sort.Series) is ChaseType)
+            return $"cufet_chase_sorted({EmitExpr(sort.Series)}, {(sort.Reverse ? 1 : 0)})";
+
         var st       = (SeriesType)TypeOf(sort.Series);
         string ser   = RegisterSeriesStruct(st);
         var elemType = st.ElementType;

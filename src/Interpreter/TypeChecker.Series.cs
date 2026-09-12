@@ -231,13 +231,29 @@ public sealed partial class TypeChecker
             return;
         }
 
+        // ⚠ A chase holds characters, so removing one by value takes a TEXT — and that it must be
+        // exactly one character is a run-time refusal, for the same reason setting a position is:
+        // a text's length is not known until it exists. This mirrors CheckSeriesSet deliberately.
+        if (containerType is ChaseType)
+        {
+            var removing = InferType(removeVal.Value);
+            if (removing != null && removing != CufetType.Text)
+                throw TypeError(
+                    $"{FormatExpr(removeVal.Series)} holds characters",
+                    "A chase holds characters, so only a one-character text can be removed from it",
+                    removeVal.Line, removeVal.Column,
+                    $"remove a {FormatType(removing)} from it",
+                    "Remove a one-character text, as in 'Remove \",\" from <chase>'.");
+            return;
+        }
+
         if (containerType is not SeriesType seriesType)
             throw TypeError(
-                $"{FormatExpr(removeVal.Series)} is not a series or map",
+                $"{FormatExpr(removeVal.Series)} is not a series, chase or map",
                 $"It evaluates to {FormatTypePlural(containerType)}, which can't have items removed",
                 removeVal.Line, removeVal.Column,
                 "remove from a non-series expression",
-                "Only a series or map can be the target of 'Remove ... from'.");
+                "Only a series, a chase or a map can be the target of 'Remove ... from'.");
 
         var valueType = InferType(removeVal.Value);
         if (valueType != null && valueType != seriesType.ElementType)

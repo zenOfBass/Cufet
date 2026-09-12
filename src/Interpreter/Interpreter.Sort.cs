@@ -7,8 +7,23 @@ public sealed partial class Interpreter
     private object EvaluateSort(SortExpression sort)
     {
         var seriesVal = Evaluate(sort.Series);
+
+        // ★ A chase sorts by CODE POINT, which is what it stores — and ordering the numbers
+        // directly is what keeps both backends agreeing, since the compiled side stores the same
+        // unit. Sorting the characters as texts would drag in the comparison rules for text and
+        // make the answer depend on which of those each backend reaches for.
+        if (seriesVal is CufetChase chase)
+        {
+            var points = sort.Reverse
+                ? chase.OrderByDescending(p => p)
+                : chase.OrderBy(p => p);
+            var sorted = new CufetChase();
+            sorted.AddRange(points);
+            return sorted;
+        }
+
         if (seriesVal is not List<object> list)
-            throw new RuntimeException($"Expected a series for 'sorted' on line {sort.Line}.");
+            throw new RuntimeException($"Expected a series or chase for 'sorted' on line {sort.Line}.");
 
         // Key extractor: identity for natural sort, named field value for by-field sort.
         object KeyOf(object elem) => sort.ByField == null

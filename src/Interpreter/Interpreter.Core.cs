@@ -1043,10 +1043,28 @@ public sealed partial class Interpreter
             {
                 var saTarget = Evaluate(sa.Series);
                 // ★ A chase takes the characters of a text, however many there are. Appending what
-                // you just built is the operation a buffer exists for, so it is the one Insert does.
+                // you just built is the operation a buffer exists for, and it is the common case.
+                //
+                // ⚠⚠ But POSITION is honoured, and it was not until 2026-09-12: this branch called
+                // Append unconditionally, so `Insert "!" into the start of out` appended instead of
+                // prepending — SILENTLY, with no error, for every positional form. The bug survived
+                // a probe that only checked whether each operation RAN. BOOKS.md promises a chase
+                // does everything a collection does; EverySeriesOperation_WorksOnAChase is what
+                // holds that promise now.
                 if (saTarget is CufetChase chaseTarget)
                 {
-                    chaseTarget.Append((string)Evaluate(sa.Value));
+                    var incoming = new CufetChase();
+                    incoming.Append((string)Evaluate(sa.Value));
+
+                    if (sa.ToStart)
+                        chaseTarget.InsertRange(0, incoming);
+                    else if (sa.AfterIndex == null)
+                        chaseTarget.AddRange(incoming);
+                    else
+                        chaseTarget.InsertRange(
+                            ResolveIndex(sa.AfterIndex, chaseTarget.Count,
+                                         SeriesDisplayName(sa.Series), sa.Line) + 1,
+                            incoming);
                     break;
                 }
                 // ★ A set holds each thing ONCE, so inserting what is already there changes
@@ -1095,8 +1113,29 @@ public sealed partial class Interpreter
                         throw new RuntimeException($"Key not found in map on line {srv.Line}.");
                     break;
                 }
+                // ⚠ A chase is a List<int> of code points, not a List<object>, so it has to be
+                // matched BEFORE the series branch — the same ordering every other chase site
+                // relies on. Removing takes a one-character text, and a longer one is refused
+                // rather than silently resolved to its first character.
+                if (srvTarget is CufetChase srvChase)
+                {
+                    var dropping = Evaluate(srv.Value) as string ?? "";
+                    var wanted = new CufetChase();
+                    wanted.Append(dropping);
+                    if (wanted.Count != 1)
+                        throw new RuntimeException(
+                            $"'Remove' from a chase takes exactly one character, not {wanted.Count} "
+                          + $"(line {srv.Line}).");
+                    int at = srvChase.IndexOf(wanted[0]);
+                    if (at < 0)
+                        throw new RuntimeException(
+                            $"Character not found in {SeriesDisplayName(srv.Series)} on line {srv.Line}.");
+                    srvChase.RemoveAt(at);
+                    break;
+                }
+
                 if (srvTarget is not List<object> list)
-                    throw new RuntimeException($"Expected a series or map for 'Remove' on line {srv.Line}.");
+                    throw new RuntimeException($"Expected a series, chase or map for 'Remove' on line {srv.Line}.");
                 var value = Evaluate(srv.Value);
                 // Remove-by-value uses value equality (the same notion as `is`), NOT reference
                 // identity — a value-equal-but-distinct record/object must match. List.Remove would
