@@ -123,6 +123,32 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   consumed. The four-field compiled record is unchanged, so the contract shared between
   `RegexPattern.State`, the prelude and the lowering still holds.
 
+- **A number inserted into a `chase` is a character's code point** — `Insert 72 into out` appends
+  `H`. It is the one type in the language where that reading exists, and it is not a conversion: a
+  chase holds code points, four bytes each, so naming an element by its number is naming the
+  element. A one-character text is the other way to write the same character.
+
+  ⚠⚠ **This existed because an ESC byte was unreachable.** A text literal escapes `\n`, `\t`, `\r`,
+  `\\`, `\"`, `\{` and `\}` and nothing else, and nothing anywhere in the language turned a number
+  into a character — so **clearing a terminal, the most ordinary thing a full-screen program does,
+  required a C axiom.** That is exactly the "no ordinary capability should require an axiom"
+  campaign, and a Game of Life with a real screen is the witness that found it.
+
+  ★ **The digits reading stays sayable and stays explicit.** `Insert 27 converted to text` appends
+  `2` and `7`. Nothing converts silently, and `Insert` never has — `Insert 27 into <series of
+  text>` is refused — so no reader arrives expecting it to stringify.
+
+  ★ The positional forms come free, because it is the same statement: `Insert 97 into the start of
+  out` and `Insert 100 after item 3 of out` both take a code point.
+
+  ⚠ A value outside 0–1114111, a lone surrogate, or one with a fractional part is not a character.
+  Written out it is refused before the program runs; computed, it fails where it is evaluated, with
+  the same words either way.
+
+  ⚠ **BREAKING in the narrow sense that `Insert <number> into <chase>` used to be refused.** Since
+  it was a refusal, no working program written against it changes meaning — there were none to
+  reinterpret, which is the property refusing rather than guessing always buys.
+
 ### Changed
 
 - **⚠ BREAKING: `.` no longer matches a line break.** It used to match one like any other

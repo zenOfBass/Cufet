@@ -331,6 +331,52 @@ Done.
 - **`Remove <one character> from`** takes the first occurrence out. Like setting a position, it
   takes exactly one character and refuses a longer text when it runs.
 
+★★ **A number inserted into a chase is a character's CODE POINT.** This is the one type in the
+language where that reading exists, and it is not a conversion — a chase holds code points, so
+naming an element by its number is naming the element. A one-character text is the other way to
+write the same thing.
+
+```cufet
+Pull a book on collections.
+    Define greeting as a chase.
+    Insert 72 into greeting.
+    Insert "i" into greeting.
+    State greeting converted to text.
+
+    Define digits as a chase.
+    Insert 27 converted to text into digits.
+    State digits converted to text.
+Done.
+```
+```output
+Hi
+27
+```
+
+⚠ **The digits are still sayable, and you say so** — `Insert 27 converted to text` appends `2` and
+`7`. Nothing converts silently here, and `Insert` never has: `Insert 27 into <series of text>` is
+refused, so no reader arrives expecting it to stringify.
+
+★ **This is what makes an escape sequence writable.** A text literal escapes `\n`, `\t`, `\r`, `\\`,
+`\"`, `\{` and `\}` and nothing else, so an ESC character had no spelling anywhere — and clearing a
+terminal, which is the most ordinary thing a full-screen program does, needed a C axiom:
+
+```cufet
+Pull a book on collections.
+    Define clear as a chase.
+    Insert 27 into clear.
+    Insert "[2J" into clear.
+    State the number of clear.
+Done.
+```
+```output
+4
+```
+
+⚠ A code point outside 0–1114111, a lone surrogate, or a number with a fractional part is not a
+character. Written out, it is refused before the program runs; computed, it fails where it is
+evaluated, with the same words.
+
 ★★ **That first sentence is a promise, and it is tested rather than asserted.** It was wrong for
 six operations until 2026-09-12 — three refused, three silently ignoring the position — and nothing
 noticed, because a doc's code samples are run while the prose around them is not.
