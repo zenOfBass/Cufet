@@ -819,6 +819,32 @@ otherwise had nowhere to come from once binding declarations were dropped.
 `[printf("the file-path is %s", the file-path)]` has one hole and one piece of prose. Every candidate marker
 shares this, so it did not separate them, but it is real.
 
+### ⚠⚠ Splicing cannot reach `regex`, and the reason is the marker's own reason
+
+A pattern takes no parameters — `Define regex p, given (…)` is refused, with a test. That is not a
+temporary limitation awaiting a slice; it follows from why `the` works everywhere else.
+
+★★ **The marker is unambiguous because the embedded language has a syntax that can be VIOLATED.**
+`the file-path` is not valid C, not valid SQL, not valid Cufet — it is English sitting in code that
+is not English, which is exactly what makes it impossible to mistake for the host text.
+
+**Regex has no invalid syntax to borrow.** `the needle` is a perfectly good pattern: it matches the
+literal characters `the needle`. Every character sequence is a valid regex, so there is no marker —
+not `the`, not `@`, not any candidate weighed above — that a pattern could not also have meant
+literally. The property every rejected marker failed on is the property regex denies to all of them
+at once.
+
+★ Nor does the embedded language supply one. **No regex flavour interpolates.** Perl's `/$foo/` and
+Ruby's `/#{foo}/` are the HOST language's interpolation applied before the engine ever sees a
+string; Python, Java and JS build a string and hand it over. That every one of those ecosystems also
+ships an escaping function — `re.escape`, `Regexp.quote`, `Pattern.quote` — is the evidence that
+splicing into a pattern is a known hazard rather than a feature regex offers.
+
+⚠ So the honest consequence is the one the book already states: **a pattern is fixed where it is
+written.** A program cannot take a pattern on its command line, and `examples/systems/search.cufe`
+can never become grep. That is the guarantee working, not a gap in it — and the reason a bad
+pattern is refused at its declaration rather than failing on the line that uses it.
+
 ### What an axiom gives back is on its DECLARATION
 
 ```

@@ -10,6 +10,32 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+- **Negated character classes — `[^,]`, any one character except those.** The everyday use is
+  reading a field up to a delimiter, which had no spelling before it.
+
+  ```cufet-fragment
+  Pull a book on regex.
+      Define regex first-field as [^[^,]+,].
+      State (cast first-field on ("name,age")) converted to text.    /* true  */
+      State (cast first-field on (",leading")) converted to text.    /* false */
+  Done.
+  ```
+
+  ★★ **`[abc]` and `[^abc]` are one character apart and only one of them is sugar.** A positive
+  class desugars to `(a|b|c)` — it says nothing the book could not already say, which is why it
+  shipped without touching the engine at all. A negated one cannot be written out as a finite
+  alternation, so it carries a state kind of its own. The symmetry of the spelling hides a real
+  difference in kind.
+
+  ★ The excluded characters pack into the existing `ch` field rather than growing the compiled
+  record, so the four-field contract shared by `RegexPattern.State`, the prelude engine and the
+  lowering is unchanged for a third feature running. Membership in a one-character needle is what
+  `contains` already does, so the engine needed no new operation either.
+
+  ⚠ A `^` is a negation ONLY at the very front of a class. Anywhere else it was an ordinary
+  character before this landed and still is — `[a^]` admits a caret. ⚠ `[^]` is refused: excluding
+  nothing means every character, which `.` already says more clearly.
+
 - **Anchors — `^` and `$`, which is how a pattern says "the whole thing".** Until now a pattern
   asked only whether a subject HELD a match, so `[[0-9]+]` was held by `abc 42` exactly as firmly
   as by `42` and there was no way to spell a CHECK rather than a SEARCH.

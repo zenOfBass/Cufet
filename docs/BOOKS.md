@@ -734,6 +734,7 @@ not known until it has one.
 | `(ab)+` | a group, repeated as a whole |
 | `[abc]` | any one of those characters |
 | `[a-z0-9_]` | ranges and loose characters together |
+| `[^,]` | any one character EXCEPT those |
 | `^abc` | only at the start of the subject |
 | `abc$` | only at the end of it |
 | `^abc$` | the whole subject, and nothing more |
@@ -775,6 +776,29 @@ true
 ★ `^` and `$` are ordinary states in the automaton rather than settings on the pattern, so they
 compose wherever anything else does — `(^cat|dog$)` anchors each side of the alternation
 separately, which a pair of flags on the whole pattern could not have expressed.
+
+★★ **A negated class is not the mirror of a positive one, and the difference is worth knowing.**
+`[abc]` is shorthand for `(a|b|c)` — it says nothing the book could not already say. `[^abc]` says
+something genuinely new, because "every character except these" cannot be written out as a list.
+The two spellings are one character apart and only one of them is sugar.
+
+```cufet
+Pull a book on regex.
+    Define regex first-field as [^[^,]+,].
+    Define regex quoted as ['[^']*'].
+    State (cast first-field on ("name,age")) converted to text.
+    State (cast first-field on ((",leading"))) converted to text.
+    State (cast quoted on ("say 'hi' now")) converted to text.
+Done.
+```
+```output
+true
+false
+true
+```
+
+★ Reading up to a delimiter is what it is for, and it composes with everything else for nothing —
+`[^,]` is an ordinary one-character state, so a `+` over it works exactly as `a+` does.
 
 #### Case, and whitespace
 
@@ -821,9 +845,9 @@ was refused this way and classes landed; `^ab` was refused this way and **anchor
 time the refusal became support and every pattern written against it still meant exactly what it
 meant. Counts are what is left.
 
-⚠ A class that begins with `^` — every character EXCEPT those — is refused for a reason of its own:
-a class is written out as the characters it admits, and there is no finite way to write out the
-ones it does not. ⚠ A `-` just before the `]` is an ordinary dash, not half a range.
+⚠ A `-` just before the `]` is an ordinary dash, not half a range. ⚠ Both empty forms are refused,
+in opposite directions: `[]` admits nothing so the pattern could never match, and `[^]` excludes
+nothing and so means `.`, which says it more clearly.
 
 **A backslash makes a metacharacter ordinary**, and stands for itself doubled:
 

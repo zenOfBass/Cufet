@@ -210,6 +210,12 @@ they are large, not because they are waiting — the order among them means noth
     classes and empty-match edges, silently, on inputs nobody tested. `collections` is the
     precedent: every member written in Cufet, so both backends run the same code.
 
+    ★★ **NEGATED CLASSES SHIPPED** — `[^,]+`, the way anyone reads a field up to a delimiter.
+    ★ The asymmetry is worth keeping in mind: `[abc]` desugared to `(a|b|c)` and touched nothing,
+    while `[^abc]` cannot be written as a finite alternation and so carries a state kind of its
+    own. One character apart, and only one of them was sugar. The excluded characters pack into the
+    existing `ch` field, so the four-field record is unchanged for a third feature running.
+
     ★★ **ANCHORS SHIPPED**, and a real program chose them: `logtriage` could count and flag but not
     VALIDATE, because a pattern asks whether a subject HOLDS a match. `^` and `$` are **state kinds
     rather than flags on the pattern**, which is what lets them compose — `(^cat|dog$)` anchors each
@@ -217,22 +223,27 @@ they are large, not because they are waiting — the order among them means noth
     first thing the engine needed to know beyond the state series itself, so `reach` now carries how
     much of the subject has been consumed.
 
-    **What is left before this arc closes** — and closing it is what makes the next release 0.22.0,
-    per the versioning rule that a minor bump means the arc shut:
+    ★★ **What is left is a DEBT TO THE LANGUAGE, not a list of candidates awaiting a trigger.** A
+    book on a language does not get to choose its own contents: `[a-z]` and `{2,5}` mean what they
+    mean in regex everywhere, and a book that cannot spell them is a Cufet-flavoured subset wearing
+    regex's name on the cover. **Trigger discipline governs what Cufet INVENTS; fidelity governs a
+    book.** Refusing by name is an honest IOU in the meantime — it is why `^` was never quietly
+    read as a literal caret.
 
-    - **Counts `{2,5}`** — the last entry in the refuse-by-name table. Desugarable to repetition
-      exactly as classes were, so no engine change. ⚠ Which means the trigger question applies the
-      way it did to classes, and nothing has wanted them yet.
-    - **Negated classes `[^…]`** — NOT desugarable; "every character except these" is not a finite
-      alternation, so it needs a real state kind. It looks like a sibling of `[abc]` and is not.
-    - **Case-insensitive matching** — the one remaining way this book gives a WRONG ANSWER rather
-      than a refusal: `[WARN]` does not match `warn` and does not complain. Documented in BOOKS.md
-      for now, with `[[Ww]arn]` as the spelling that carries the choice.
-    - **Splicing a value into a pattern** — a value inserted as literal escaped text, never as
-      syntax. The honest answer to "I wanted grep", and the highest-value item here for real
-      programs.
+    - **Counts `{2,5}`** — the last entry left in the refuse-by-name table, and the last debt on
+      this list. Desugarable to repetition exactly as classes were, so no engine change.
+    - **Inline flags, `(?i)` first** — ⚠ case-sensitive matching is regex's CORRECT default, so
+      this is a missing feature rather than a wrong answer. BOOKS.md documents the gap and shows
+      `[[Ww]arn]` as today's spelling. ⚠⚠ `(?…)` opens the whole family — non-capturing groups,
+      lookahead, named groups — and wants its own conversation before any of it is built.
 
-    Backreferences stay ruled out by the automaton decision above.
+    ★ **This arc closes when that list is empty**, which is a finish line the language defines
+    rather than one we negotiate — and closing it is what makes the release after it 0.22.0.
+
+    Backreferences stay ruled out by the automaton decision above. ⚠ **Splicing a value into a
+    pattern is not on this list and never will be** — an axiom's `the`-marker works because `the
+    file-path` is not valid C, and regex has no invalid syntax to borrow, since `the needle` is a
+    perfectly good pattern. Already refused in code with a test; reasoning in `docs/DESIGN.md`.
 
 6. **`Pull a book on building.` — a build description that is a Cufet program.** No second
     language for the build, the way `build.zig` is a Zig program rather than a Makefile.
