@@ -39,7 +39,10 @@ public static class CiteExpansion
         foreach (var statement in AstSearch.EveryStatement(statements))
             switch (statement)
             {
-                case BindStatement { FromCufetAxiom: true } run:
+                // ⚠ CUFET only, deliberately. This gathers what a `Cite` can place, and a pattern
+                // is not source to place anywhere.
+                case BindStatement { FromAxiomLanguage: { } lang } run
+                        when TypeChecker.IsCufetLanguage(lang):
                     runnable.Add(run.Name);
                     break;
 

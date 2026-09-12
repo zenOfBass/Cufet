@@ -862,7 +862,9 @@ public sealed class SemanticTokenizer
         // it was never even uniform within one axiom: a `Define` inside the block emits through the
         // token stream, where the whole block is a single `Axiom` token and nothing is found, while
         // a `becomes` on the next line emits from its AST position and painted. Half a block lit.
-        if (bind.FromCufetAxiom) return;
+        // ⚠ Any lowered axiom, not just cufet. A pattern's body was SYNTHESISED by the parser and
+        // carries the declaration's position, so painting it would light up characters nobody wrote.
+        if (bind.FromAxiomLanguage is not null) return;
 
         EnterScope();
         foreach (var (_, paramName) in bind.Parameters)

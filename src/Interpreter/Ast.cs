@@ -296,8 +296,13 @@ public sealed record BindStatement(
     /// pulled. Every other axiom is checked for it through the literal it is the value of, and
     /// after lowering there is no literal left. So the fact rides here, and the checker asks the
     /// same RequireLanguagePulled everything else does — one rule, not a second one for this shape.
+    ///
+    /// ★ It names the LANGUAGE rather than saying yes-or-no, and that is the second lowering's
+    /// doing: `regex` lowers to a function too, and wants the same gate pointed at its own book. A
+    /// second boolean would have been two names for one idea, and a third language would have made
+    /// it three.
     /// </remarks>
-    public bool FromCufetAxiom { get; init; }
+    public string? FromAxiomLanguage { get; init; }
 }
 
 // Bind overloading <Op>, given (the <LeftName> is a <OperandTypeName>, the <RightName> is a <OperandTypeName>): ... Done.

@@ -218,6 +218,51 @@ public sealed class Parser
         // ⭐⭐ The SAME RULE the c-language tag already follows decides which of the two it is:
         // **says what it gives back ⇒ something you run; says nothing ⇒ source.** Nothing about that
         // is new here, which is the point — one rule, read off the declaration, for both tags.
+        // ── `Define regex <name> as [ … ]` ────────────────────────────────────
+        //
+        // ★★ Lowered to an ordinary FUNCTION right here, the same move the runnable `cufet` tag
+        // makes below and for the same reason: neither backend learns that patterns exist. A
+        // pattern that is read at check time and emitted as Cufet cannot diverge between an
+        // interpreter and a compiler, because there is only one of it.
+        //
+        // ★ SLICE 1 reads literals only, so the lowering is `subject contains "<literal>"`. That is
+        // deliberately not an engine — what this slice proves is the MECHANISM (the book, the tag,
+        // the brackets, check-time validation, one shared meaning) with the matching kept trivial.
+        // The engine arrives when the pattern language does.
+        if (value is AxiomLiteral pattern && freeWith is null && NamesRegex(declaredType))
+        {
+            if (parameters is not null)
+                throw new ParseException(line, col,
+                    "a pattern cannot be 'given' anything — a value is spliced INTO a pattern, "
+                  + "never handed to it as a parameter");
+
+            // ⚠ Reported from the PARSE, which is earlier than the checker and still well before
+            // the line could run — the promise the bracketed form makes is that a malformed
+            // pattern is refused where it is written, and this keeps it.
+            string literal = RegexPattern.LiteralOf(pattern.Source, (what, why, fix) =>
+                new ParseException(pattern.Line, pattern.Column,
+                    what + " — " + why + ". " + char.ToUpper(fix[0]) + fix[1..] + "."));
+
+            // `given (the text subject)` and a body of one `Return`. Positional calls never name
+            // the parameter, so the spelling below is what a NAMED call would have to say.
+            return new BindStatement(
+                name,
+                CufetType.Fact,
+                [(CufetType.Text, "subject")],
+                [new ReturnStatement(
+                    new TextContains(
+                        new VariableReference("subject", line, col),
+                        new StringLiteral(literal), line, col),
+                    line, col)],
+                UntoType: null, ConstructsTypeName: null, line, col)
+            {
+                // ⚠ The pull gate rides here. After lowering there is no literal left for the
+                // checker to ask about, so without this a pattern would be writable with no
+                // `Pull a book on regex.` around it — measured, before this line existed.
+                FromAxiomLanguage = TypeChecker.RegexLanguage,
+            };
+        }
+
         if (value is AxiomLiteral cufetSource && freeWith is null && NamesCufet(declaredType))
         {
             // Says what it gives back ⇒ a function, and lowered to one right here. A runnable cufet
@@ -234,7 +279,7 @@ public sealed class Parser
                     name, runnable.ReturnType, parameters ?? [], HeldCufetBody(cufetSource),
                     UntoType: null, ConstructsTypeName: null, line, col)
                 {
-                    FromCufetAxiom = true,
+                    FromAxiomLanguage = TypeChecker.CufetLanguage,
                 };
 
             // Says nothing ⇒ source, held until a `Cite` places it. A `given` clause on source is
@@ -249,6 +294,19 @@ public sealed class Parser
             HasParameterClause = parameters is not null,
         };
     }
+
+    /// <summary>Does this declared type name the `regex` tag?</summary>
+    /// <remarks>
+    /// ⚠ Only the bare spelling. `Define regex fact <name>` would be declaring what a pattern gives
+    /// back, and a pattern always gives back the same thing — so unlike `cufet`, there is no second
+    /// form to recognise here.
+    /// </remarks>
+    private static bool NamesRegex(CufetType? declared) => declared switch
+    {
+        ObjectType shell => TypeChecker.IsRegexLanguage(shell.Name),
+        AxiomType axiom  => TypeChecker.IsRegexLanguage(axiom.Language),
+        _                => false,
+    };
 
     /// <summary>Does this declared type name the `cufet` tag, in either of its two spellings?</summary>
     /// <remarks>

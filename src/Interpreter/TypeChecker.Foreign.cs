@@ -22,7 +22,7 @@ public sealed partial class TypeChecker
     /// reads this during its own initializer, where a field here may not be assigned yet — which
     /// showed up as a NullReferenceException inside the type initializer, from nowhere the stack
     /// pointed at. A method has no initialization order to get wrong.
-    private static string[] LanguageBookNames() => ["c-language", CufetLanguage];
+    private static string[] LanguageBookNames() => ["c-language", CufetLanguage, RegexLanguage];
 
     /// <summary>The language a Cufet block is tagged with — `Define cufet <name> as [ … ].`</summary>
     /// <remarks>
@@ -36,6 +36,25 @@ public sealed partial class TypeChecker
     /// either backend can pick one up by mistake.
     /// </remarks>
     internal const string CufetLanguage = "cufet";
+
+    /// <summary>The language a pattern is written in — `Define regex <name> as [ … ].`</summary>
+    /// <remarks>
+    /// ★★ A language book Cufet READS ITSELF, like `cufet` and unlike `c-language`. Nothing is
+    /// marshalled, no toolchain is reached for, and no boundary is crossed — the pattern is parsed
+    /// by the checker and lowered to an ordinary function before either backend meets the program.
+    /// That is what makes it possible to REFUSE a malformed pattern where it is written.
+    ///
+    /// ⚠ It follows the `cufet` tag’s path and not C’s, and the difference is the whole design:
+    /// `[ … ]` for C means "text an OUTSIDE compiler reads and Cufet never does". Here it means
+    /// "text CUFET reads". Reusing the foreign machinery would have marshalled a pattern across a
+    /// boundary that does not exist.
+    ///
+    /// ★ `regex` and not `regex-language`: named by ear, the same rule that gives `c-language` its
+    /// qualifier (a single letter is refused) and leaves `sql` without one.
+    /// </remarks>
+    internal const string RegexLanguage = "regex";
+
+    internal static bool IsRegexLanguage(string name) => IsSameLanguage(RegexLanguage, name);
 
     internal static bool IsCufetLanguage(string name) => IsSameLanguage(CufetLanguage, name);
 
@@ -626,12 +645,16 @@ public sealed partial class TypeChecker
 
     /// <summary>A language book's name as it is spoken — with the article where one belongs.</summary>
     /// <remarks>
-    /// ⚠ `the c-language` and plain `cufet`. One is a common noun and takes an article; the other
-    /// is a name and refuses one, the same way nobody says "the English". A suggestion a reader is
-    /// meant to copy has to be a line they would have written themselves.
+    /// ⚠ `the c-language`, plain `cufet`, plain `regex`. A suggestion a reader is meant to copy has
+    /// to be a line they would have written themselves.
+    ///
+    /// ★ The ARTICLE is the exception rather than the rule, and it was written the other way round
+    /// until `regex` arrived and was told to `Pull a book on the regex.` — measured. `c-language`
+    /// is a common noun and takes one; every other name so far refuses it, the same way nobody says
+    /// "the English". DESIGN's naming section shows all three side by side.
     /// </remarks>
     private static string Named(string language) =>
-        IsCufetLanguage(language) ? language : $"the {language}";
+        IsSameLanguage(language, "c-language") ? $"the {language}" : language;
 
     private static bool IsSameLanguage(string left, string right) =>
         string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
