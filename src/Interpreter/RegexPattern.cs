@@ -248,7 +248,9 @@ internal static class RegexPattern
                 if (next != '\\' && !IsMeta(next))
                     throw fail($@"'\{next}' is not an escape this pattern understands",
                                "a backslash may make a metacharacter ordinary, or stand for a backslash",
-                               $"write '{next}' on its own if you meant the character");
+                               TypedDirectly.TryGetValue(next, out var whitespace)
+                                   ? $"write {whitespace} straight into the pattern — it needs no escape"
+                                   : $"write '{next}' on its own if you meant the character");
 
                 _at += 2;
                 return new Ch(next.ToString());
@@ -340,10 +342,33 @@ internal static class RegexPattern
                 throw fail($@"'\{next}' is not an escape a class understands",
                            "inside a class a backslash may precede a backslash, a bracket, a dash "
                          + "or a caret",
-                           $"write '{next}' on its own if you meant the character");
+                           TypedDirectly.TryGetValue(next, out var whitespace)
+                               ? $"write {whitespace} straight into the class — it needs no escape"
+                               : $"write '{next}' on its own if you meant the character");
             _at += 2;
             return next;
         }
+
+        /// <summary>
+        /// The escapes people reach for that this pattern does not have — and the character each
+        /// one was after, which CAN simply be typed.
+        /// </summary>
+        /// <remarks>
+        /// ⚠⚠ The generic hint sent these exactly the wrong way. Someone who writes <c>\t</c>
+        /// wants a TAB, and "write 't' on its own if you meant the character" hands them the
+        /// letter t — advice that is not merely unhelpful but wrong, and silently so, because the
+        /// letter is a perfectly valid pattern.
+        ///
+        /// ★ MEASURED: a literal tab and a literal newline both work inside a pattern, and a
+        /// multi-line text literal is the ordinary way to hold a subject with one. So there is no
+        /// capability missing here at all — only a spelling — and the hint now says which.
+        /// </remarks>
+        private static readonly Dictionary<char, string> TypedDirectly = new()
+        {
+            ['t'] = "a tab",
+            ['n'] = "a line break",
+            ['r'] = "a carriage return",
+        };
 
         // ⚠ `[` and `]` stay escapable outside a class even though they left the not-yet table:
         // they are now real syntax, so `\[` has to keep meaning the character.

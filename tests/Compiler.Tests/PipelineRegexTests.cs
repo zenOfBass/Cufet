@@ -184,6 +184,33 @@ public class PipelineRegexTests : PipelineTestBase
     public void AnUnknownEscape_IsRefused() =>
         Assert.Contains(@"'\q' is not an escape", Refused(@"\q").Message);
 
+    // ⚠⚠ `\t` is refused like any unknown escape, but the HINT used to say "write 't' on its own
+    // if you meant the character" — which hands the letter t to someone who wanted a tab. Wrong
+    // advice, and silently so, because `t` is a perfectly valid pattern that simply matches
+    // something else. There is no capability missing here: a tab may be typed straight in.
+    [Fact]
+    public void AWhitespaceEscape_IsRefused_ButSaysTheCharacterCanBeTypedInstead()
+    {
+        var tab = Refused(@"a\tb").Message;
+        Assert.Contains(@"'\t' is not an escape", tab);
+        Assert.Contains("a tab straight into the pattern", tab);
+        Assert.DoesNotContain("write 't' on its own", tab);
+
+        Assert.Contains("a line break straight into the pattern", Refused(@"a\nb").Message);
+        // Inside a class the hint has to be right too, and says "class" rather than "pattern".
+        Assert.Contains("a tab straight into the class", Refused(@"[a\t]").Message);
+    }
+
+    // ★ The other half of that message, and the half that makes it true: a literal tab IS a
+    // pattern character, in a class as well as outside one. If this ever stopped holding, the hint
+    // above would become the very kind of advice it was written to replace.
+    [Fact]
+    public void ALiteralTab_IsAnOrdinaryCharacter_InAPatternAndInAClass()
+    {
+        AssertPattern("name\tvalue", "true false", "name\tvalue", "name value");
+        AssertPattern("a[\t-]b", "true true false", "a\tb", "a-b", "a b");
+    }
+
     [Fact]
     public void AnEmptyPattern_IsRefused() =>
         Assert.Contains("empty", Refused("").Message);
