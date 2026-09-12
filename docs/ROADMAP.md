@@ -256,6 +256,13 @@ they are large, not because they are waiting — the order among them means noth
 6. **`Pull a book on building.` — a build description that is a Cufet program.** No second
     language for the build, the way `build.zig` is a Zig program rather than a Makefile.
 
+    ⚠ **The NAME is provisional.** `contraption` stands as the better answer and is not settled.
+    ★ Every natural word here is already spent by the implementation itself — `construction` sits
+    on `constructor`, `compilation` on the compiler, `composition` on object embedding, and `source`
+    on axioms — so the name has to come from outside the technical vocabulary. A book name also has
+    to complete *"Pull a book on ___"*, which is why it must be a mass noun, a plural or a proper
+    name, and why `project` and `plan` were ruled out despite being clean.
+
     ★ **Settled: a BOOK, not core.** Core was weighed and declined. What Zig gets right is that a
     build script is an ORDINARY PROGRAM USING AN ORDINARY LIBRARY — putting the vocabulary into the
     language would move away from that, spend permanent core surface (a build vocabulary is not
