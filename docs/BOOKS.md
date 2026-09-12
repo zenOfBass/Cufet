@@ -732,6 +732,8 @@ not known until it has one.
 | `a?` | `a` once or not at all |
 | `cat\|dog` | either side |
 | `(ab)+` | a group, repeated as a whole |
+| `[abc]` | any one of those characters |
+| `[a-z0-9_]` | ranges and loose characters together |
 
 ```cufet
 Pull a book on regex.
@@ -764,8 +766,13 @@ Done.
 
 ★ Refused rather than taken literally, deliberately. A refusal that says *not yet* becomes support
 later and every program written against it keeps meaning what it meant; treating `^` as an ordinary
-character would change meaning in silence the day anchors arrive. Character classes, anchors and
-counts are all refused this way today.
+character would change meaning in silence the day anchors arrive. Anchors and counts are refused
+this way today — and **classes used to be**, which is the point: they landed, and every pattern
+written against that refusal still means exactly what it meant.
+
+⚠ A class that begins with `^` — every character EXCEPT those — is refused for a reason of its own:
+a class is written out as the characters it admits, and there is no finite way to write out the
+ones it does not. ⚠ A `-` just before the `]` is an ordinary dash, not half a range.
 
 **A backslash makes a metacharacter ordinary**, and stands for itself doubled:
 

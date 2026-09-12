@@ -32,11 +32,28 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   two dialects differing on greediness, classes and empty matches, silently, on inputs nobody
   tested. That argument decided the design before any code was written.
 
-  ★ **This slice reads ORDINARY CHARACTERS only**, and every metacharacter is refused BY NAME.
+  **What a pattern can say:** ordinary characters, `.` for any one, `*` `+` `?` for repeats,
+  `|` for either side, `(…)` to group, and `[a-z0-9_]` for a class. It runs on a Thompson
+  automaton written in Cufet.
+
+  ★ **A class desugars to an alternation** — `[a-c]` is exactly `(a|b|c)` — so it needed no new
+  state kind, no change to the compiled form and no change to the engine. What it added is a way
+  to WRITE what was already expressible: "one or more digits" was `(0|1|2|3|4|5|6|7|8|9)+` before
+  it, which works and which nobody would write. ⚠ The cost is states — `[a-z]` expands to 26
+  characters and the branches joining them — and a class over a large range is not free.
+
+  ★★ **It cannot hang.** `a*a*a*a*b` against a long run of a's with no `b` is the input that
+  makes a backtracking engine try every way of dividing them between the stars — exponential,
+  and the reason "regular expression denial of service" is a phrase. The set of live states is
+  carried forward one character at a time, so the cost is linear in the subject however the
+  pattern is shaped. The price is backreferences, which an automaton cannot express.
+
+  ★ **What is still refused is refused BY NAME** — character classes, anchors and counts.
   Refusing beats taking them literally: a refusal that says *not yet* becomes support later and
-  every program written against it keeps meaning what it meant, where reading `a*` as three
-  characters would change meaning in silence the day repeats arrive. An unknown escape and an
-  empty pattern are refused for the same reason.
+  every program written against it keeps meaning what it meant. That is not hypothetical —
+  `a*` WAS refused that way, repeats then landed, and every program written against the refusal
+  still means what it meant. An unknown escape, an empty pattern and an empty side of a `|` are
+  refused for the same reason.
 
   ⚠ A value is spliced INTO a pattern, never concatenated into it, so `Define regex p, given (…)`
   is refused — the same guarantee `run "grep" with arguments (…)` makes.
