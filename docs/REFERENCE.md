@@ -2432,8 +2432,8 @@ Define p as cast from-pair on ("3,4").
 
 #### Destructors
 
-A destructor runs automatically when an object goes out of scope — RAII at the
-`Done.` that closes its declaring block:
+A destructor runs automatically when a **binding** goes out of scope — RAII at the
+`Done.` that closes the block the name was declared in:
 
 ```cufet-fragment
 Bind unmaking a conn to disconnect:
@@ -2467,6 +2467,11 @@ Rules:
 - **Ownership rule** — destroy what you opened, not what you borrowed. A resource
   passed in from outside is the caller's responsibility; closing it in the destructor
   is a double-close bug.
+- **It is a hook on the BINDING, not on the object** — which is what the ownership rule above is
+  really telling you, and it is worth saying outright. `Define copy as original.` copies the
+  object, so two names exist and the destructor fires **twice**. An object reached without a
+  `Define` — a temporary, an element of a series, a field of another object — has no declaring
+  block, so its destructor **never** fires. Cufet does not track who owns a resource; you do.
 
 ---
 
