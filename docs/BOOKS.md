@@ -754,6 +754,33 @@ true
 `[na]` finds the `na` inside `banana`. Anchors, which is how you would say "the whole thing", are
 among the things still refused by name.
 
+#### Case, and whitespace
+
+⚠ **Matching is exact, and that includes case.** `[WARN]` does not match `warn` — and it does not
+complain, it simply answers `false`. There is no "ignore case" to ask for yet, so say it where you
+mean it: a class or an alternation carries the choice one character at a time.
+
+```cufet
+Pull a book on regex.
+    Define regex shout as [WARN].
+    Define regex either as [[Ww]arn].
+    State (cast shout on ("a warn line")) converted to text.
+    State (cast either on ("a warn line")) converted to text.
+    State (cast either on ("a Warn line")) converted to text.
+Done.
+```
+```output
+false
+true
+true
+```
+
+★ **Whitespace is written literally, and needs no escape.** A space, a tab or a line break typed
+into a pattern is that character — a pattern may run across lines the same way a `<<...>>` literal
+does. `\t` and `\n` are refused for the reason every unknown escape is: `\d` will mean digits one
+day, and quietly meaning `d` until then is a change nobody sees. Nothing is missing here but a
+spelling, and the refusal says which character to type instead.
+
 **What is refused, and refused by name:**
 
 ```cufet-refused

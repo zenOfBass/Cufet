@@ -6,7 +6,7 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ---
 
-## [Unreleased]
+## [0.21.1] — 2026-09-12
 
 ### Added
 
@@ -89,6 +89,22 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   would have been counted as naming an address. A wrong answer with no error.
 
 ### Fixed
+
+- **`\t` in a pattern was refused with advice that handed you the letter `t`.** The hint read
+  *"write 't' on its own if you meant the character"* — which is wrong for someone who wanted a
+  TAB, and wrong silently, because `t` is a perfectly good pattern that simply matches something
+  else. It now names the character and says it needs no escape, inside a class as well as outside
+  one.
+
+  ★ **Nothing was missing but a spelling.** A literal tab and a literal line break both work inside
+  a pattern already — a pattern may run across lines the way a `<<...>>` literal does — so this was
+  never a capability gap. MEASURED both ways, and pinned by a test, because the hint now promises
+  something that has to keep being true.
+
+  ⚠ **Documented alongside it: matching is exact, and that includes case.** `[WARN]` does not match
+  `warn`, and does not complain — it answers `false`. That is the one place this book can still
+  give a WRONG ANSWER rather than a refusal, so `docs/BOOKS.md` now says so and shows the spelling
+  that carries the choice (`[[Ww]arn]`).
 
 - **A function's local may be named like a shared constant.** A body's parameters and locals used
   to share ONE scope with the top-level constants imported for it, so declaring a local named
