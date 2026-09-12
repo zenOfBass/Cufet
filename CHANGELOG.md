@@ -48,12 +48,13 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   carried forward one character at a time, so the cost is linear in the subject however the
   pattern is shaped. The price is backreferences, which an automaton cannot express.
 
-  ★ **What is still refused is refused BY NAME** — character classes, anchors and counts.
+  ★ **What is still refused is refused BY NAME** — anchors and counts.
   Refusing beats taking them literally: a refusal that says *not yet* becomes support later and
-  every program written against it keeps meaning what it meant. That is not hypothetical —
-  `a*` WAS refused that way, repeats then landed, and every program written against the refusal
-  still means what it meant. An unknown escape, an empty pattern and an empty side of a `|` are
-  refused for the same reason.
+  every program written against it keeps meaning what it meant. That is not hypothetical, and it
+  has now happened TWICE in this one arc — `a*` was refused that way and repeats landed, then
+  `[a-z]` was refused that way and classes landed. Reading `a*` as two characters, or `[a-z]` as
+  five, would have changed meaning in silence on the day each shipped. An unknown escape, an
+  empty pattern and an empty side of a `|` are refused for the same reason.
 
   ⚠ A value is spliced INTO a pattern, never concatenated into it, so `Define regex p, given (…)`
   is refused — the same guarantee `run "grep" with arguments (…)` makes.
@@ -66,6 +67,26 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
   ⚠ `regex` is NOT reserved — a language book's name never is, because nobody can reserve
   `inventory` in advance. `Define regex as 5.` still works.
+
+- **`examples/parsing/logtriage.cufe` — the first real program written with patterns.** It triages
+  a log by the shapes its lines hold, which is the case patterns are actually for: a log is never
+  written for the thing that reads it, and half of what matters in one is a shape rather than a
+  word. `contains` asks whether an exact text is in there; a pattern asks whether a SHAPE is.
+
+  ★★ **Writing it measured three edges of the design, and each ruled out an obvious program.** A
+  pattern cannot be assembled at run time — so `search.cufe` can never become a real grep, and
+  that is the same guarantee that makes injection impossible here. A pattern gives back a `fact`
+  rather than the text it matched — there are no captures, so nothing can be extracted. And a
+  pattern asks whether a subject HOLDS a match, never whether the subject IS one — so
+  **validation has no spelling yet**: `[[0-9]+]` is held by `abc 42` exactly as firmly as by `42`.
+
+  ★ **What survives all three is classify, count and flag**, which is what the program does rather
+  than pretending to validate. It named the next slice on the way: anchors, already refused by
+  name, are the whole fix for the third edge.
+
+  ⚠ The dots in its address pattern are ESCAPED, and that is load-bearing rather than decorative:
+  unescaped, `.` matches the `-` and `:` inside `2026-09-11 08:14:02`, and every timestamped line
+  would have been counted as naming an address. A wrong answer with no error.
 
 ### Fixed
 

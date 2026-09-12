@@ -794,6 +794,18 @@ day, and quietly meaning `d` until then is a change nobody would see. An **empty
 refused too, and so is an empty side of a `\|` — both would match everywhere, including the empty
 subject.
 
+See [`examples/parsing/logtriage.cufe`](../examples/parsing/logtriage.cufe) for a worked program —
+it triages a log by the shapes its lines hold, which is the case patterns are actually for: a log
+is never written for the thing that reads it, and half of what matters in one is a shape rather
+than a word.
+
+★ It is also where the current edges show up in a real program rather than in a test. Because a
+pattern asks whether a subject **holds** a match, that program can *count and flag* but not
+*validate* — `[[0-9]+]` is held by `abc 42` exactly as firmly as by `42`, so "this line is a
+number" has no spelling yet. Anchors are the missing piece, and they are refused by name rather
+than quietly read as ordinary characters, which is how the program ran into the limit instead of
+silently getting a wrong answer.
+
 #### It cannot hang
 
 ★★ **Patterns run on an automaton, never on backtracking.** `a*a*a*a*b` against a long run of a's

@@ -193,9 +193,10 @@ they are large, not because they are waiting — the order among them means noth
    ⚠ Whatever is written must be pinned like the doc fences are: a lesson whose code stops working
    is worse than no lesson, and this project has the machinery to catch that already.
 
-5. **`Pull a book on regex.` — the pattern language.** The book, the bracketed form and
-    check-time validation SHIPPED; patterns of ordinary characters work on both backends, and the
-    record is the CHANGELOG entry. What is left is the language itself.
+5. **`Pull a book on regex.` — the pattern language.** SHIPPED: the book, the bracketed form,
+    check-time validation, the pull gate, a Thompson automaton written in Cufet, and character
+    classes. `examples/parsing/logtriage.cufe` is the witness — it triages a log by the shapes its
+    lines hold, which is the case patterns are actually for.
 
     ★ **Settled: an AUTOMATON, not backtracking.** Three reasons, and the third is the one specific
     to Cufet: a backtracking engine can hang on a pattern that looks fine; the usual defence is a
@@ -209,14 +210,19 @@ they are large, not because they are waiting — the order among them means noth
     classes and empty-match edges, silently, on inputs nobody tested. `collections` is the
     precedent: every member written in Cufet, so both backends run the same code.
 
-    **Next slice is the engine**, and the smallest unit that actually needs one: `.`, `*`, `+`, `?`,
-    alternation and grouping — Thompson's construction, which is not meaningfully divisible. Today's
-    lowering is `subject contains "…"`, which is why the slice after this one cannot be another
-    lowering trick. Character classes follow; splicing values into a pattern follows them.
+    **▶ Next slice: ANCHORS (`^` and `$`) — and a real program chose them.** Writing `logtriage`
+    measured three edges of the design. A pattern cannot be built at run time (deliberate: it is
+    what makes injection structurally impossible). It gives back a `fact` rather than the text it
+    matched, so there are no captures and nothing can be EXTRACTED. And it asks whether a subject
+    HOLDS a match, never whether the subject IS one.
 
-    ⚠ **No witness.** No corpus program has reached for regex and routed around its absence, so this
-    is wanted on design grounds and as an INSTRUMENT — a large Cufet program that will find the
-    ergonomic gaps, which is the justification this file already states for the tier above.
+    The third is the one that bites: **validation has no spelling**, because `[[0-9]+]` is held by
+    `abc 42` exactly as firmly as by `42`. Anchors are its whole fix, and they are already refused
+    BY NAME — so the day they land the refusal becomes support and no existing program changes
+    meaning, the way `a*` and `[a-z]` each did.
+
+    Deferred, each still wanting its own witness: negated classes `[^…]`, captures, and splicing a
+    value into a pattern. Backreferences are ruled out by the automaton decision above.
 
 6. **`Pull a book on building.` — a build description that is a Cufet program.** No second
     language for the build, the way `build.zig` is a Zig program rather than a Makefile.
