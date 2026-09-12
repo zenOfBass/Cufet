@@ -1,0 +1,120 @@
+/* semver — is this a well-formed version, and does the book agree with the spec?
+
+   Every other pinned example in this corpus records whatever the program
+   happened to print. This one is different: semantic versioning is specified
+   by somebody else, at semver.org, and the cases in
+   `examples/assets/versions.txt` carry the answer the SPEC gives. The program
+   compares its own verdict against that answer and leaves with 1 if the two
+   ever disagree.
+
+       cufet examples/parsing/semver.cufe
+
+   That is the only defence this corpus has against being confidently,
+   consistently wrong. Two backends agreeing proves they agree; an answer key
+   nobody here wrote is what makes agreement mean correct.
+
+   The exit contract:
+
+       0   the validator agreed with the spec on every case
+       1   it disagreed on at least one
+       2   the case file could not be read
+
+   ── Why this is a pattern program ──
+
+   ★★ A version is a SHAPE, and the fiddly parts of the shape are exactly where
+   a hand-written check goes wrong. "No leading zeroes" is the one everybody
+   forgets: `01.1.1` is not a version, and neither is `1.2.3-0123`, because a
+   numeric identifier may not be padded. Spelled as a pattern that rule is
+   `0|[1-9]\d*` — either a bare zero, or a digit that is not zero followed by
+   whatever. Spelled by hand it is three branches and an off-by-one.
+
+   ⚠ **It validates and cannot extract.** A pattern gives back a fact, never
+   the text it matched, so this says whether a version is well-formed and can
+   say nothing about which part is the major. That is the book's shape rather
+   than a gap in this program — and for the job the release checklist actually
+   needs, "is this a version" is the whole question.
+
+   Exercises anchors, `\d`, `\w`, a class ending in a dash, alternation,
+   nested groups, `*` and `?`, and an escaped `\.` and `\+`.
+*/
+
+Pull a book on regex.
+    /* The version core: three dot-separated numeric identifiers, none of them
+       padded with a leading zero. */
+    Define regex core as [^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$].
+
+    /* The whole grammar, pre-release and build metadata included.
+
+       ★ A pre-release identifier is a numeric one (unpadded) or one carrying at
+       least one non-digit — that is what `\d*[a-zA-Z-][\w-]*` says, and it is
+       why `1.0.0-0A.is.legal` is a version while `1.0.0-0123` is not.
+
+       ⚠ Build metadata is laxer than pre-release ON PURPOSE: the spec allows
+       leading zeroes there, because build metadata is not compared. Writing one
+       pattern for both would have been tidier and wrong. */
+    Define regex whole as
+        [^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-((0|[1-9]\d*|\d*[a-zA-Z-][\w-]*)(\.(0|[1-9]\d*|\d*[a-zA-Z-][\w-]*))*))?(\+([\w-]+(\.[\w-]+)*))?$].
+
+    Bind void to usage:
+        State "usage: semver".
+        State "".
+        State "checks every case in examples/assets/versions.txt against the spec's answer".
+        State "leaves with 0 if they all agreed, 1 if any disagreed, 2 on a bad file".
+    Done.
+
+    Bind void to play:
+        Define target as "examples/assets/versions.txt".
+
+        If the number of the arguments is greater than 0:
+            Cast usage.
+            Exit with 2.
+        Done.
+
+        Define lines as a series of text.
+        Try to:
+            The lines becomes read all lines from the file target.
+        Done.
+        In case of failure:
+            State "semver: {target}: {the message of the failure}".
+            Exit with 2.
+        Done.
+
+        Define checked as 0.
+        Define disagreements as 0.
+
+        For each line in lines, repeat:
+            If the length of line is 0, skip.
+
+            Define parts as line split by " ".
+            Define expected as item 1 of parts.
+            Define version as item 2 of parts.
+
+            Define ours as cast whole on (version).
+            Define theirs as expected is "valid".
+            Increment checked by 1.
+
+            /* The core alone is reported beside the full answer, because the
+               difference between them IS the pre-release and build grammar —
+               and seeing `1.0.0-alpha` fail the core while passing the whole is
+               the clearest way to show what those brackets buy. */
+            Define plain as cast core on (version).
+
+            Define mark as "  ".
+            If ours is not theirs:
+                The mark becomes "!!".
+                Increment disagreements by 1.
+            Done.
+
+            State "{mark} {version}: we say {ours converted to text}, the spec says {theirs converted to text} (core alone: {plain converted to text})".
+        Done.
+
+        State "".
+        State "{checked converted to text} case(s) checked against the spec".
+        State "{disagreements converted to text} disagreement(s)".
+
+        If disagreements is greater than 0, exit with 1.
+        Exit.
+    Done.
+
+    Cast play.
+Done.
