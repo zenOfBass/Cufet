@@ -223,22 +223,30 @@ they are large, not because they are waiting — the order among them means noth
     first thing the engine needed to know beyond the state series itself, so `reach` now carries how
     much of the subject has been consumed.
 
-    ★★ **What is left is a DEBT TO THE LANGUAGE, not a list of candidates awaiting a trigger.** A
-    book on a language does not get to choose its own contents: `[a-z]` and `{2,5}` mean what they
-    mean in regex everywhere, and a book that cannot spell them is a Cufet-flavoured subset wearing
-    regex's name on the cover. **Trigger discipline governs what Cufet INVENTS; fidelity governs a
-    book.** Refusing by name is an honest IOU in the meantime — it is why `^` was never quietly
-    read as a literal caret.
+    ✅ **THE DEBT LIST IS CLEAR.** Shorthands `\d \w \s`, counts `{2,5}`, non-capturing groups
+    `(?:…)` and ignoring case `(?i)` all landed, and the refuse-by-name table is EMPTY. **The book
+    does the regular parts of regex.**
 
-    - **Counts `{2,5}`** — the last entry left in the refuse-by-name table, and the last debt on
-      this list. Desugarable to repetition exactly as classes were, so no engine change.
-    - **Inline flags, `(?i)` first** — ⚠ case-sensitive matching is regex's CORRECT default, so
-      this is a missing feature rather than a wrong answer. BOOKS.md documents the gap and shows
-      `[[Ww]arn]` as today's spelling. ⚠⚠ `(?…)` opens the whole family — non-capturing groups,
-      lookahead, named groups — and wants its own conversation before any of it is built.
+    ★★ **The rule that governed this, and it is not trigger discipline.** A book on a language does
+    not choose its own contents — `[a-z]` and `{2,5}` mean what they mean in regex everywhere, and
+    a book that cannot spell them is a Cufet-flavoured subset wearing regex's name on the cover.
+    **Trigger discipline governs what Cufet INVENTS; fidelity governs a book.** Refusing by name was
+    the honest IOU in the meantime, and it paid off five times without one written pattern changing
+    meaning.
 
-    ★ **This arc closes when that list is empty**, which is a finish line the language defines
-    rather than one we negotiate — and closing it is what makes the release after it 0.22.0.
+    ★ **What remains refused is refused PERMANENTLY, and the line is principled rather than
+    negotiated:** lookahead, lookbehind and backreferences are precisely the features that make a
+    "regular expression" not regular. They need backtracking, which this book declined at the start
+    because it can hang forever on a pattern that looks fine — and a timeout, the usual defence, is
+    nondeterministic where two backends must agree byte for byte.
+
+    ✅ **`(?s)` and `(?m)` landed too**, and fixing `.` to stop at a line break was a BREAKING
+    change made deliberately: the old behaviour was a silent divergence from what `.` means
+    everywhere else. `(?m)` is the only one of the four flags that reached the engine, which now
+    carries the subject so a line-wise anchor can ask what the character just consumed was.
+
+    ⚠ **Still open, and honestly so:** named captures are refused as *not yet* rather than
+    *cannot* — an automaton can carry them, at real cost in complexity. No witness has asked.
 
     Backreferences stay ruled out by the automaton decision above. ⚠ **Splicing a value into a
     pattern is not on this list and never will be** — an axiom's `the`-marker works because `the

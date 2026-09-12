@@ -735,9 +735,17 @@ not known until it has one.
 | `[abc]` | any one of those characters |
 | `[a-z0-9_]` | ranges and loose characters together |
 | `[^,]` | any one character EXCEPT those |
+| `\d` `\w` `\s` | a digit, a word character, a space — and `\D` `\W` `\S` for anything else |
+| `a{3}` | exactly three of them |
+| `a{2,4}` | between two and four |
+| `a{2,}` | two or more |
 | `^abc` | only at the start of the subject |
 | `abc$` | only at the end of it |
 | `^abc$` | the whole subject, and nothing more |
+| `(?:ab)` | a group that captures nothing — which is every group here |
+| `(?i)` `(?i:…)` | ignore case, to the end of the group or just inside one |
+| `(?s)` | let `.` cross a line break |
+| `(?m)` | `^` and `$` mean each LINE rather than the whole subject |
 
 ```cufet
 Pull a book on regex.
@@ -802,24 +810,61 @@ true
 
 #### Case, and whitespace
 
-⚠ **Matching is exact, and that includes case.** `[WARN]` does not match `warn` — and it does not
-complain, it simply answers `false`. There is no "ignore case" to ask for yet, so say it where you
-mean it: a class or an alternation carries the choice one character at a time.
+⚠ **Matching is exact, and that includes case** — which is regex's own default, not a shortcoming.
+`[WARN]` does not match `warn`. **Ask for the other behaviour with `(?i)`**, which folds everything
+after it to the end of its group, or `(?i:…)` to fold just part:
 
 ```cufet
 Pull a book on regex.
     Define regex shout as [WARN].
-    Define regex either as [[Ww]arn].
+    Define regex either as [(?i)WARN].
+    Define regex partly as [(?i:ab)C].
     State (cast shout on ("a warn line")) converted to text.
-    State (cast either on ("a warn line")) converted to text.
-    State (cast either on ("a Warn line")) converted to text.
+    State (cast either on ("a WaRn line")) converted to text.
+    State (cast partly on ("abC")) converted to text.
+    State (cast partly on ("abc")) converted to text.
 Done.
 ```
 ```output
 false
 true
 true
+false
 ```
+
+★ The casing comes from the same table the rest of the language uses, so a pattern means the same
+thing on every machine — which is not automatic, because the platform's own casing is not.
+
+#### Lines
+
+⚠ **`.` stops at a line break**, and `^` and `$` mean the whole subject rather than each line.
+Both are regex's defaults, and both are askable-for: `(?s)` lets `.` cross a break, `(?m)` makes the
+anchors line-wise.
+
+```cufet
+Pull a book on regex.
+    Define lines as <<alpha
+beta>>.
+    Define regex across as [a.b].
+    Define regex crossing as [(?s)a.b].
+    Define regex any-line as [(?m)^beta$].
+    Define regex whole as [^beta$].
+    State (cast across on (lines)) converted to text.
+    State (cast crossing on (lines)) converted to text.
+    State (cast any-line on (lines)) converted to text.
+    State (cast whole on (lines)) converted to text.
+Done.
+```
+```output
+false
+true
+true
+false
+```
+
+★ A line break is one `\n` here whatever a file is stored as — a CRLF source does not put a `\r`
+into a literal, and reading a file's lines strips it — so `(?m)` needs no second answer for
+Windows.
 
 ★ **Whitespace is written literally, and needs no escape.** A space, a tab or a line break typed
 into a pattern is that character — a pattern may run across lines the same way a `<<...>>` literal
@@ -829,21 +874,27 @@ spelling, and the refusal says which character to type instead.
 
 **What is refused, and refused by name:**
 
+★★ **Nothing is refused as "not yet" any more, and that is the whole arc finishing.** Five things
+once were — `a*`, `[a-z]`, `^ab`, `ab$` and `a{2}` — each named in its refusal rather than quietly
+read as ordinary characters. Every one is now supported, and **not a single pattern written against
+those refusals changed meaning on the day it landed.** Reading `a*` as two characters would have
+silently reinterpreted somebody's working program; saying *not yet* could not.
+
+What is refused now is of a different kind — **permanent, and about what an automaton can be**:
+
 ```cufet-refused
 Pull a book on regex.
-    Define regex p as [a{2}].
+    Define regex p as [(a)\1].
 Done.
 ```
 
-> `'{' means a count, which patterns cannot do yet`
+> `'\1' is not an escape this pattern understands`
 
-★ Refused rather than taken literally, deliberately. A refusal that says *not yet* becomes support
-later and every program written against it keeps meaning what it meant; treating `{` as an ordinary
-character would change meaning in silence the day counts arrive. ★★ That is not a prediction — it
-has now happened three times in this book. `a*` was refused this way and repeats landed; `[a-z]`
-was refused this way and classes landed; `^ab` was refused this way and **anchors landed**. Each
-time the refusal became support and every pattern written against it still meant exactly what it
-meant. Counts are what is left.
+★ **Backreferences and lookaround are precisely the features that make a "regular expression" not
+regular.** They need a machine that can backtrack, and backtracking is what this book refused at
+the start — because it can hang forever on a pattern that looks fine, and because the usual defence
+is a timeout, which is nondeterministic where two backends must agree byte for byte. So the book
+does the regular parts of regex, completely, and says plainly which parts it does not do and why.
 
 ⚠ A `-` just before the `]` is an ordinary dash, not half a range. ⚠ Both empty forms are refused,
 in opposite directions: `[]` admits nothing so the pattern could never match, and `[^]` excludes

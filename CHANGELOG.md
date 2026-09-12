@@ -10,6 +10,45 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+- **The `regex` book now does the regular parts of regex — the refuse-by-name table is EMPTY.**
+  Four things landed together: the shorthand classes `\d` `\w` `\s` and their negations, counts
+  `{2}` `{2,5}` `{2,}`, non-capturing groups `(?:…)`, and ignoring case with `(?i)` / `(?i:…)`.
+
+  ```cufet-fragment
+  Pull a book on regex.
+      Define regex postcode as [^[A-Z]{2}\d{3}$].
+      Define regex shouty as [(?i)warn].
+      State (cast postcode on ("AB123")) converted to text.   /* true */
+      State (cast shouty on ("a WaRn line")) converted to text.   /* true */
+  Done.
+  ```
+
+  ★★ **Five things were once refused by name — `a*`, `[a-z]`, `^ab`, `ab$`, `a{2}` — and every one
+  is now supported without a single written pattern changing meaning.** That is what refusing by
+  name buys: reading `a*` as two characters, or `[a-z]` as five, would each have silently
+  reinterpreted somebody's working program on the day the feature arrived. The table stays in the
+  source, empty, because the next thing regex has and this book does not will need it.
+
+  ★ **Three of the four are pure sugar** and never reach the engine: `\d` is `[0-9]`, `a{3}` is
+  `aaa`, and under `(?i)` the character `a` is `(a|A)`. `(?:…)` needed nothing at all, because this
+  book's groups already capture nothing — there is no way to ask for a capture, so `(ab)+` and
+  `(?:ab)+` were always the same automaton.
+
+  ⚠⚠ **Case folding reads the SHARED CASE TABLE, never `char.ToUpperInvariant`.** .NET's casing is
+  ICU-backed and measured to differ per machine. A pattern is compiled once in the front end, so
+  the platform's casing would not make the two backends disagree with each other — it would make
+  the same pattern mean different things on different machines, which is exactly the divergence
+  the oracle cannot see, because every machine that runs the suite is en-US.
+
+  ⚠ **What is refused now is refused permanently, and says so differently.** Lookahead, lookbehind
+  and backreferences are precisely the features that make a "regular expression" not regular; they
+  need a machine that can backtrack, and backtracking is what this book declined at the start
+  because it can hang forever on a pattern that looks fine. A reader deserves to know which kind of
+  "no" they have hit, so the messages distinguish *cannot* from *not yet*.
+
+  ⚠ A count is written out as that many copies, so unlike a class its cost is unbounded by what is
+  written — `a{5000}` is refused, pointing at `+` or `*` instead.
+
 - **Negated character classes — `[^,]`, any one character except those.** The everyday use is
   reading a field up to a delimiter, which had no spelling before it.
 
@@ -63,6 +102,36 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   engine has ever needed beyond the state series itself — `reach` now carries how much has been
   consumed. The four-field compiled record is unchanged, so the contract shared between
   `RegexPattern.State`, the prelude and the lowering still holds.
+
+### Changed
+
+- **⚠ BREAKING: `.` no longer matches a line break.** It used to match one like any other
+  character, which is not what `.` means in any regex flavour — there, `.` stops at a line break
+  unless `(?s)` says otherwise. **`(?s)` now asks for the old behaviour**, and `(?m)` arrives with
+  it, making `^` and `$` mean each line rather than the whole subject.
+
+  ```cufet-fragment
+  Pull a book on regex.
+      Define regex across as [a.b].        /* no longer matches "a", break, "b" */
+      Define regex crossing as [(?s)a.b].  /* does */
+      Define regex any-line as [(?m)^beta$].
+  Done.
+  ```
+
+  ⚠⚠ **This one is SILENT and there is no static form to refuse.** Whether a subject contains a
+  line break is not knowable when the pattern is read, so unlike the `range` change there is no
+  literal case to catch — hence this entry rather than an error message. **MEASURED before
+  changing it: not one pattern in the corpus uses an unescaped `.`** (`logtriage.cufe` escapes
+  every dot it wants literally), and the tests that use `a.c` run single-line subjects.
+
+  ★★ **The argument for breaking it is that the old behaviour was the silent wrong answer.**
+  Someone who knows regex writes `.` expecting it to stop at a line break, and quietly got
+  different results on multi-line input. A book on a language does not get to choose its own
+  contents — that is the same rule that made `^` a named refusal rather than a literal caret.
+
+  ★ `.` needed no new state kind to fix: "any character except a line break" is exactly what a
+  negated class already is. Only `(?m)` reached the engine, which now carries the subject so a
+  line-wise anchor can ask whether the character just consumed was a break.
 
 ## [0.21.1] — 2026-09-12
 
