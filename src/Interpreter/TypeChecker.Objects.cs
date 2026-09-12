@@ -501,6 +501,11 @@ public sealed partial class TypeChecker
         // that defines it, four lines up.
         if (!_checkingBookLayer || TreatProgramAsPrelude) ImportTopLevelVisible(saved);
         else ImportOwnBookNames(saved, _bookLayerName);
+        // ⚠ A child scope for the body, so a local named like a top-level constant SHADOWS
+        // it rather than colliding with it. See the long note in TypeChecker.CheckBindBody —
+        // one bug, six sites, and this is one of them.
+        EnterScope();
+
         Scope["one"] = new TypeInfo(objType, new VariableReference("one", 0, 0), selfLine, IsParameter: true);
         foreach (var (type, name) in method.Parameters)
             Scope[name] = new TypeInfo(ResolveParamType(type), new VariableReference(name, 0, 0), method.Line, IsParameter: true);
@@ -573,6 +578,11 @@ public sealed partial class TypeChecker
         var saved = SaveScopes();
 
         ImportTopLevelVisible(saved);
+        // ⚠ A child scope for the body, so a local named like a top-level constant SHADOWS
+        // it rather than colliding with it. See the long note in TypeChecker.CheckBindBody —
+        // one bug, six sites, and this is one of them.
+        EnterScope();
+
         Scope["one"] = new TypeInfo(objType, new VariableReference("one", 0, 0), selfLine, IsParameter: true);
 
         var prevInFunction       = _inFunction;
@@ -621,6 +631,11 @@ public sealed partial class TypeChecker
         var saved = SaveScopes();
 
         ImportTopLevelVisible(saved);
+        // ⚠ A child scope for the body, so a local named like a top-level constant SHADOWS
+        // it rather than colliding with it. See the long note in TypeChecker.CheckBindBody —
+        // one bug, six sites, and this is one of them.
+        EnterScope();
+
         Scope["one"] = new TypeInfo(objType, new VariableReference("one", 0, 0), selfLine, IsParameter: true);
         Scope[setter.ParamName] = new TypeInfo(setter.ParamType, new VariableReference(setter.ParamName, 0, 0), setter.Line, IsParameter: true);
 
@@ -675,6 +690,11 @@ public sealed partial class TypeChecker
 
         var saved = SaveScopes();
         ImportTopLevelVisible(saved);
+        // ⚠ A child scope for the body, so a local named like a top-level constant SHADOWS
+        // it rather than colliding with it. See the long note in TypeChecker.CheckBindBody —
+        // one bug, six sites, and this is one of them.
+        EnterScope();
+
         Scope["one"] = new TypeInfo(objType, new VariableReference("one", 0, 0), ud.Line, IsParameter: true);
 
         var prevInFunction       = _inFunction;
@@ -1054,6 +1074,11 @@ public sealed partial class TypeChecker
 
         var saved = SaveScopes();
         ImportTopLevelVisible(saved);
+        // ⚠ A child scope for the body, so a local named like a top-level constant SHADOWS
+        // it rather than colliding with it. See the long note in TypeChecker.CheckBindBody —
+        // one bug, six sites, and this is one of them.
+        EnterScope();
+
         // Each operand carries ITS OWN type — the two may differ, which is the whole point.
         Scope[oad.LeftName]  = new TypeInfo(leftType,  new VariableReference(oad.LeftName, 0, 0), oad.Line);
         Scope[oad.RightName] = new TypeInfo(rightType, new VariableReference(oad.RightName, 0, 0), oad.Line);

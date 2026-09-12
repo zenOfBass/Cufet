@@ -78,6 +78,7 @@ public sealed partial class Interpreter
         var saved      = SaveScopes();
         var prevHidden = _hiddenTopLevelData;
         ImportTopLevelVisible(saved.Scopes);
+        PushBodyScope();
         Scope["one"] = receiver;
 
         object? returnValue = null;
@@ -130,6 +131,7 @@ public sealed partial class Interpreter
         var saved      = SaveScopes();
         var prevHidden = _hiddenTopLevelData;
         ImportTopLevelVisible(saved.Scopes);
+        PushBodyScope();
         Scope["one"]             = receiver;
         Scope[setter.ParamName]  = newValue;
 
@@ -295,6 +297,7 @@ public sealed partial class Interpreter
         var saved      = SaveScopes();
         var prevHidden = _hiddenTopLevelData;
         ImportTopLevelVisible(saved.Scopes);
+        PushBodyScope();
         Scope["one"] = receiver;
 
         try

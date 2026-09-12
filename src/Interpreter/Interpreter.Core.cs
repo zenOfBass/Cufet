@@ -311,6 +311,30 @@ public sealed partial class Interpreter
         _scopeReleaseBase.Add(_pendingReleases.Count);
     }
 
+    /// <summary>A child scope for a body's parameters and locals, over the names imported for it.</summary>
+    /// <remarks>
+    /// ⚠⚠ Without this a body's locals shared one dictionary with the top-level CONSTANTS imported
+    /// for it, so declaring a local named like a constant was refused as a same-block
+    /// redeclaration — and `Define a shadow x` could not rescue it either, because a shadow answers
+    /// an ENCLOSING name and there was none. Mirrors TypeChecker.CheckBindBody, where the full note
+    /// lives.
+    ///
+    /// ⚠ Pushed by hand rather than through EnterScope, and that is DELIBERATE. EnterScope arms
+    /// release bookkeeping that ExitScope unwinds, and a call does NOT call ExitScope — RestoreScopes
+    /// rebuilds the chain wholesale instead. Pushing only what RestoreScopes rebuilds keeps the
+    /// release bases exactly balanced.
+    ///
+    /// ★ It therefore changes SCOPING ONLY. A body's locals still have no destructors run for them,
+    /// which contradicts what REFERENCE promises about RAII — see the roadmap entry. That is a
+    /// separate defect with a prerequisite of its own: a value being RETURNED is not exempt from
+    /// its scope's unmakers today, so a returned object is destroyed and handed over anyway.
+    /// </remarks>
+    private void PushBodyScope()
+    {
+        _scopes.Add(new Dictionary<string, object>());
+        _scopeDefOrder.Add([]);
+    }
+
     private void ExitScope()
     {
         RunScopeUnmakers(_scopeDefOrder[^1], _scopes[^1]);
@@ -2230,6 +2254,7 @@ public sealed partial class Interpreter
         var saved      = SaveScopes();
         var prevHidden = _hiddenTopLevelData;
         ImportTopLevelVisible(saved.Scopes);
+        PushBodyScope();
         Scope[oad.LeftName]  = left;
         Scope[oad.RightName] = right;
 

@@ -92,6 +92,10 @@ public sealed partial class Interpreter
             ImportTopLevelVisible(saved.Scopes);
         }
 
+        // Both paths, matching TypeChecker.CheckBindBody: a closure captures into the scope
+        // above, and its own locals belong below that just as a top-level body's do.
+        PushBodyScope();
+
         // Bind parameters. Binding is binding: arg-passing applies the SAME region-aware
         // copy policy as Define/becomes/closure-capture — value-types (records/objects)
         // deep-copy so a mutated param can't leak to the caller; region-types (series/maps)
@@ -185,6 +189,7 @@ public sealed partial class Interpreter
             // ★ Its OWN file scope, which it could not see at all before those names were made
             // private. Keeps step with the checker — see TypeChecker.ImportOwnBookNames.
             ImportOwnBookNames(saved.Scopes, receiver.TypeName);
+        PushBodyScope();
 
         for (int i = 0; i < paramNames.Count; i++)
             Scope[paramNames[i]] = argValues[i];
