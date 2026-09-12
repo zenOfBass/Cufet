@@ -49,6 +49,15 @@ internal static class RegexPattern
     internal const int KindAtStart = 4;  // passable only with nothing consumed yet, then go to Step
     internal const int KindAtEnd   = 5;  // passable only with everything consumed, then go to Step
 
+    // ★ A negated class. `Ch` carries EVERY excluded character packed into one text, because the
+    // four-field record has exactly one text field and growing it for one kind's benefit would
+    // change the shape all three places agree on. Membership in a one-character-wide needle is
+    // what `contains` already does, so the engine needs no new operation either.
+    //
+    // ⚠ Unlike a positive class this CANNOT desugar — "every character except these" is not a
+    // finite alternation — which is the whole reason it needs a kind while `[abc]` never did.
+    internal const int KindNoneOf = 6;   // match any one character NOT in Ch, then go to Step
+
     /// <summary>What the language will spell later; refused by name until each one lands.</summary>
     /// <remarks>
     /// ★ Refused BY NAME rather than taken literally, and the ordering is deliberate: a refusal
@@ -73,6 +82,7 @@ internal static class RegexPattern
     private sealed record Opt(Node Inner)            : Node;   // ?
     private sealed record AtStart                    : Node;   // ^
     private sealed record AtEnd                      : Node;   // $
+    private sealed record NoneOf(string Excluded)    : Node;   // [^…]
 
     /// <summary>
     /// The automaton this pattern compiles to. State 1 is always the entry, so the engine is told
@@ -126,6 +136,10 @@ internal static class RegexPattern
         // choosing states over flags.
         AtStart => Emit(states, new State(KindAtStart, "", next, 0)),
         AtEnd   => Emit(states, new State(KindAtEnd, "", next, 0)),
+
+        // ★ An ordinary CONSUMING state, like a character or a dot — which is why repeats and
+        // groups work on it for nothing: `[^,]+` is a plus over one state, exactly as `a+` is.
+        NoneOf n => Emit(states, new State(KindNoneOf, n.Excluded, next, 0)),
         Cat x  => Build(states, x.Left, Build(states, x.Right, next)),
         Or x   => Emit(states, new State(KindBranch, "",
                         Build(states, x.Left, next), Build(states, x.Right, next))),
@@ -297,20 +311,22 @@ internal static class RegexPattern
         /// this is affordable — but a class over a large range is not free, and a representation
         /// that holds ranges directly would be about THAT, not about what a class means.
         ///
-        /// ⚠ A NEGATED class is refused by name. It cannot be desugared this way — "every
-        /// character except these" is not a finite alternation — so it needs a real representation
-        /// in the automaton and belongs in its own slice.
+        /// ★★ A NEGATED class is the exception, and the asymmetry is the interesting part. `[^abc]`
+        /// cannot become an alternation — "every character except these" is not a finite one — so
+        /// where `[abc]` needed no new machinery at all, `[^abc]` needs a state kind of its own.
+        /// Two spellings one bracket apart, and only one of them is sugar.
         /// </remarks>
         private Node ReadClass()
         {
-            if (!AtEnd && Peek == '^')
-                throw fail("a class beginning with '^' means every character EXCEPT those, which "
-                         + "patterns cannot do yet",
-                           "this version spells out the characters a class admits, and there is no "
-                         + "finite way to spell out the ones it does not",
-                           @"list what should match instead, or write '\^' for the character");
+            // A '^' is a negation ONLY here, at the very front. Anywhere else in a class it is an
+            // ordinary character, which is why this is read before the loop and never inside it.
+            bool negated = !AtEnd && Peek == '^';
+            if (negated) _at++;
 
-            Node? built = null;
+            // ⚠ Collected as CHARACTERS rather than built into an `Or` as it goes, because the two
+            // spellings need different things from the same list: the positive form folds it into
+            // an alternation, the negated form packs it into one state's text.
+            var admitted = new List<char>();
             while (!AtEnd && Peek != ']')
             {
                 char lo = ReadClassCharacter();
@@ -323,10 +339,10 @@ internal static class RegexPattern
                         throw fail($"'{lo}-{hi}' is a range that runs backwards",
                                    "a range goes from the earlier character to the later one",
                                    $"write '{hi}-{lo}'");
-                    for (char c = lo; c <= hi; c++) built = Add(built, c);
+                    for (char c = lo; c <= hi; c++) admitted.Add(c);
                     continue;
                 }
-                built = Add(built, lo);
+                admitted.Add(lo);
             }
 
             if (AtEnd || Peek != ']')
@@ -335,12 +351,24 @@ internal static class RegexPattern
                            @"write '\[' if you meant the character");
             _at++;
 
-            // ⚠ An empty class admits nothing, so the pattern could never match. A pattern that
-            // cannot succeed is a typo every time, and saying so beats failing silently forever.
-            return built ?? throw fail(
-                "this class is empty",
-                "a class with no characters in it admits nothing, so the pattern could never match",
-                "list the characters it should admit");
+            // ⚠ Both empty forms are refused, and each is a typo in its own direction: an empty
+            // class admits nothing so the pattern could never match, while an empty NEGATION
+            // excludes nothing and so means "any character at all" — which `.` already says, more
+            // clearly. Neither is ever what someone meant to write.
+            if (admitted.Count == 0)
+                throw negated
+                    ? fail("this class excludes nothing",
+                           "a negated class with no characters in it admits every character, which '.' already says",
+                           "write '.' for any character, or list the characters to exclude")
+                    : fail("this class is empty",
+                           "a class with no characters in it admits nothing, so the pattern could never match",
+                           "list the characters it should admit");
+
+            if (negated) return new NoneOf(new string(admitted.ToArray()));
+
+            Node? built = null;
+            foreach (char c in admitted) built = Add(built, c);
+            return built!;
         }
 
         private static Node Add(Node? built, char c) =>

@@ -124,12 +124,55 @@ public class PipelineRegexTests : PipelineTestBase
     [Fact]
     public void AClassRefusal_SaysWhichFault()
     {
-        // ⚠ Negation cannot be desugared — "every character except these" is not a finite
-        // alternation — so it is refused by name until it has a real representation.
-        Assert.Contains("cannot do yet", Refused("[^a-z]").Message);
         Assert.Contains("runs backwards", Refused("[z-a]").Message);
         Assert.Contains("class is empty", Refused("[]").Message);
+        // ⚠ The two empty forms are typos in opposite directions, so they are refused separately:
+        // `[]` admits nothing and could never match, `[^]` excludes nothing and so means `.`.
+        Assert.Contains("excludes nothing", Refused("[^]").Message);
     }
+
+    // ── Negated classes ──────────────────────────────────────────────────────
+    //
+    // ★★ The asymmetry is the whole story. `[abc]` desugars to `(a|b|c)` and needed no new
+    // machinery at all; `[^abc]` cannot — "every character except these" is not a finite
+    // alternation — so it carries a state kind of its own. Two spellings one character apart, and
+    // only one of them is sugar. That is why classes shipped without touching the engine and this
+    // could not.
+    //
+    // ★ The excluded characters are packed into the existing `ch` field rather than growing the
+    // record, so the four-field contract across RegexPattern, the prelude and the lowering is
+    // unchanged for a third feature running.
+
+    [Fact]
+    public void ANegatedClass_MatchesAnythingElse() =>
+        AssertPattern("[^,]+", "true false", "abc", ",,,");
+
+    [Fact]
+    public void ANegatedClass_TakesRanges() =>
+        AssertPattern("[^a-z]", "false true", "abc", "abZ");
+
+    // ★★ The idiom this feature exists for: reading a field up to a delimiter. It is also proof
+    // that a negated class is an ORDINARY CONSUMING STATE — the anchor and the `+` compose with it
+    // for free, exactly as they would over a single character.
+    [Fact]
+    public void ANegatedClass_ComposesWithAnchorsAndRepeats() =>
+        AssertPattern("^[^,]+,", "true false", "ab,cd", ",cd");
+
+    // The other everyday use: a quoted run that stops at its own closing mark.
+    [Fact]
+    public void ANegatedClass_ReadsAQuotedRun() =>
+        AssertPattern("'[^']*'", "true false", "say 'hi' now", "nothing here");
+
+    // ⚠ A '^' is a negation ONLY at the very front of a class. Anywhere else it was an ordinary
+    // character before this landed and still is — pinned because that is exactly the kind of thing
+    // a new meaning for a character quietly breaks.
+    [Fact]
+    public void ACaretNotAtTheFront_IsStillAnOrdinaryCharacter_NowThatNegationExists() =>
+        AssertPattern("[a^]x", "true true false", "^x", "ax", "bx");
+
+    [Fact]
+    public void APositiveClass_IsUnchangedByNegationExisting() =>
+        AssertPattern("[abc]x", "true false", "bx", "dx");
 
     // ⚠ `[` and `]` left the not-yet table when classes landed, so this pins that they stayed
     // ESCAPABLE — the character has to remain writable now that the bracket is real syntax.
