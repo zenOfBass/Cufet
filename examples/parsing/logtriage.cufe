@@ -25,11 +25,14 @@
 
    ★★ A pattern asks whether a subject HOLDS a match, never whether the subject
    IS one. That is not a gap in this program, it is the shape of the tool: every
-   question below is genuinely "does this line contain such a thing". But it does
-   mean VALIDATION is not expressible yet — `[[0-9]+]` is held by "abc 42" just
-   as firmly as by "42", so "this line is a number" cannot be said. Anchors are
-   the missing piece and they are refused BY NAME today, which is how this
-   program found out rather than by quietly matching the wrong thing.
+   question below is genuinely "does this line contain such a thing".
+
+   ★ It WAS a gap in the book, though, and this program is what found it: with no
+   way to say "and that is the whole line", validation had no spelling at all —
+   `[[0-9]+]` is held by "abc 42" just as firmly as by "42". The limit arrived as
+   a refusal naming `^` rather than as a wrong answer, and anchors landed in the
+   release after this program was written. They are `^` and `$` now, and a line
+   like `[^[0-9]+$]` says what could not be said when this was first written.
 
    ⚠ A pattern also cannot be built at run time, so this program cannot take one
    on its command line the way grep does. That is the same guarantee that makes

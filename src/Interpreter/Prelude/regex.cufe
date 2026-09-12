@@ -37,7 +37,12 @@
 //   kind 1 — match any one character, then go to `step`
 //   kind 2 — go to `step` or to `alt`, consuming nothing
 //   kind 3 — accept
+//   kind 4 — `^`: go to `step`, but only with nothing consumed yet
+//   kind 5 — `$`: go to `step`, but only with everything consumed
 // `step` and `alt` are 1-based positions in the same series; 0 means nowhere. State 1 is the entry.
+//
+// ⚠ This list is the map a reader navigates by, and it described kinds 0-3 for an hour after 4 and
+// 5 existed. Adding a kind means adding a line HERE, in RegexPattern's constants, and in `reach`.
 //
 // ⚠ The four field names are a contract with RegexPattern.State, and nothing checks that the two
 // agree. A change on either side is a change on both.
@@ -46,17 +51,33 @@
 ///
 /// ⚠ The already-live check is what makes an epsilon CYCLE terminate — `(ab)*` reaches its own
 /// branch again without consuming anything, and without this the walk would not stop.
+///
+/// ★★ `rx-seen` is how many characters of the subject have been consumed so far, and `rx-total` is
+/// how many there are. They exist only for the ANCHORS: every other state is answerable from the
+/// state series alone, which is why the engine needed nothing but the program until now. An anchor
+/// consumes nothing, so it is followed here with the branches — but it is a gate rather than a
+/// fork, and a path that reaches it in the wrong place simply stops.
 Bind void to reach, given (
     the series of records like (the number kind, the text ch, the number step, the number alt) rx-program,
     the number rx-index,
-    the series of fact rx-active):
+    the series of fact rx-active,
+    the number rx-seen,
+    the number rx-total):
     If rx-index is 0, return.
     If item rx-index of rx-active is true, return.
     The item rx-index of rx-active becomes true.
     Define rx-node as item rx-index of rx-program.
     If the kind of rx-node is 2:
-        Cast reach on (rx-program, the step of rx-node, rx-active).
-        Cast reach on (rx-program, the alt of rx-node, rx-active).
+        Cast reach on (rx-program, the step of rx-node, rx-active, rx-seen, rx-total).
+        Cast reach on (rx-program, the alt of rx-node, rx-active, rx-seen, rx-total).
+    Done.
+    // `^` — only where nothing has been consumed yet.
+    If the kind of rx-node is 4:
+        If rx-seen is 0, cast reach on (rx-program, the step of rx-node, rx-active, rx-seen, rx-total).
+    Done.
+    // `$` — only where everything has.
+    If the kind of rx-node is 5:
+        If rx-seen is rx-total, cast reach on (rx-program, the step of rx-node, rx-active, rx-seen, rx-total).
     Done.
 Done.
 
@@ -94,12 +115,14 @@ Bind fact to match, given (
     the text rx-subject):
     If the number of rx-program is 0, return false.
 
-    Define rx-active as cast blank on (rx-program).
-    Cast reach on (rx-program, 1, rx-active).
-    // Before consuming anything: a pattern that can match nothing at all matches here.
-    If cast accepting on (rx-program, rx-active), return true.
-
     Define rx-total as the length of rx-subject.
+
+    Define rx-active as cast blank on (rx-program).
+    Cast reach on (rx-program, 1, rx-active, 0, rx-total).
+    // Before consuming anything: a pattern that can match nothing at all matches here. ★ This is
+    // also where `[^$]` against an empty subject is answered — nothing consumed is also everything
+    // consumed when there is nothing to consume, so both gates open.
+    If cast accepting on (rx-program, rx-active), return true.
 
     For each rx-pos in range 1 to rx-total, repeat:
         Define rx-here as the characters from rx-pos to rx-pos of rx-subject.
@@ -109,17 +132,22 @@ Bind fact to match, given (
             Increment rx-index by 1.
             If item rx-index of rx-active is true:
                 If the kind of rx-node is 0:
-                    If the ch of rx-node is rx-here, cast reach on (rx-program, the step of rx-node, rx-onward).
+                    If the ch of rx-node is rx-here, cast reach on (rx-program, the step of rx-node, rx-onward, rx-pos, rx-total).
                 Done.
                 If the kind of rx-node is 1:
-                    Cast reach on (rx-program, the step of rx-node, rx-onward).
+                    Cast reach on (rx-program, the step of rx-node, rx-onward, rx-pos, rx-total).
                 Done.
             Done.
         Done.
         // Unanchored: a match may begin at any position, so the entry state is always live. This is
         // what makes the answer "does the subject HOLD a match", which is what the first slice's
         // `contains` lowering meant — the two must keep agreeing.
-        Cast reach on (rx-program, 1, rx-onward).
+        //
+        // ★★ And this line is exactly where `^` earns its keep, without a single special case: the
+        // entry is still re-seeded at every position, but a pattern beginning with a start anchor
+        // now meets that gate with rx-pos characters already consumed, so every late start dies on
+        // its own. Anchoring is the ABSENCE of a path, not the removal of this line.
+        Cast reach on (rx-program, 1, rx-onward, rx-pos, rx-total).
         The rx-active becomes rx-onward.
         If cast accepting on (rx-program, rx-active), return true.
     Done.
