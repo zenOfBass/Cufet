@@ -370,6 +370,80 @@ public class PipelineControlFlowTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
+    // ── A body's locals live BELOW the names imported for it ─────────────────
+    //
+    // ★★ A function body used to share ONE scope with the top-level constants imported for it, so
+    // a local named like a constant was refused as a same-block redeclaration — and
+    // `Define a shadow` could not rescue it, because a shadow answers an ENCLOSING name and there
+    // was no enclosing scope to answer. Twelve sites had the shape: six in the checker, six in the
+    // interpreter.
+    //
+    // ⚠ The MESSAGE was the reason it went unnoticed for so long. It said "already defined in this
+    // scope ... in the same block" about two different blocks, and recommended "choose a different
+    // name" while never mentioning the keyword that exists for exactly this. It talked the reader
+    // out of the correct fix, so the tests below pin the wording as well as the behaviour.
+
+    [Fact]
+    public void AFunctionLocal_MayShadowASharedConstant()
+    {
+        const string src = """
+            Define tally as 42 permanently.
+
+            Bind number to inner:
+                Define a shadow tally as 1.
+                Return tally.
+            Done.
+
+            State cast inner converted to text.
+            State tally converted to text.
+            """;
+        Assert.Equal("1\n42", Interpret(src));
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    // ⚠ Shadowing still has to be ASKED FOR. The rule is unchanged; what changed is that the
+    // refusal now describes the situation truthfully and names the remedy.
+    [Fact]
+    public void AFunctionLocal_ShadowingASharedConstant_WithoutSayingSo_IsRefused()
+    {
+        var e = Assert.Throws<Cufet.Interpreter.TypeException>(() => Interpret("""
+            Define tally as 42 permanently.
+
+            Bind number to inner:
+                Define tally as 1.
+                Return tally.
+            Done.
+
+            State cast inner converted to text.
+            """));
+        Assert.Contains("enclosing scope", e.Message);
+        // ⚠ It must NOT claim the same block, which is what it used to say.
+        Assert.DoesNotContain("same block", e.Message.Replace("without shadowing", ""));
+    }
+
+    // ★ An OBJECT METHOD has the same shape and was broken the same way — the fix is one change
+    // repeated, and a test that only covered plain functions would have missed five of the sites.
+    [Fact]
+    public void AMethodLocal_MayShadowASharedConstant()
+    {
+        const string src = """
+            Define tally as 42 permanently.
+
+            Define object counter with (the number start):
+                Bind number to reading:
+                    Define a shadow tally as 7.
+                    Return tally + one's start.
+                Done.
+            Done.
+
+            Define c as a new counter { the start 1 }.
+            State cast c's reading converted to text.
+            State tally converted to text.
+            """;
+        Assert.Equal("8\n42", Interpret(src));
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
     /// <summary>
     /// A name shadowed at a DIFFERENT type comes back at its own type after the block.
     /// </summary>
