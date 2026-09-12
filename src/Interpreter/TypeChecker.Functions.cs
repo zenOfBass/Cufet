@@ -272,6 +272,22 @@ public sealed partial class TypeChecker
             // ImportTopLevelVisible — the rule and the reason for it live there, once.
             ImportTopLevelVisible(saved);
         }
+        // ⚠⚠ The imports above land in the scope this body was given; the PARAMETERS AND LOCALS
+        // go in a child of it. Without this step they all shared one dictionary, and a body that
+        // declared a local named like a top-level constant was refused as a SAME-BLOCK
+        // redeclaration — "already defined in this scope", pointing at the local. It is not the
+        // same block, and `Define a shadow x` could not rescue it either, because shadowing
+        // answers an ENCLOSING name and there was no enclosing scope to shadow.
+        //
+        // ★ MEASURED: `Define total as 42 permanently.` plus any function declaring a local
+        // `total` was refused, in either order. The same names inside an `If` block always worked,
+        // which is what located it — blocks enter a scope and function bodies did not.
+        //
+        // ⚠ Parameters stay WITH the locals, deliberately. Moving them out too would make
+        // `Define a shadow` able to hide a parameter, which is a separate question nobody has
+        // asked; this keeps that relationship exactly as it was.
+        EnterScope();
+
         foreach (var (type, name) in bind.Parameters)
             Scope[name] = new TypeInfo(ResolveParamType(type), new VariableReference(name, 0, 0), bind.Line, IsParameter: true);
 
