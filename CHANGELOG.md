@@ -8,6 +8,8 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ## [Unreleased]
 
+## [0.21.0] — 2026-09-11
+
 ### Added
 
 - **`Exit.` and `Exit with <number>.` — a program chooses its own exit status.** The second slice
