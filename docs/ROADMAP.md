@@ -311,38 +311,49 @@ rather than the operators `bits` already shipped.
 
 ---
 
-## A returned value is destroyed on its way out
+## Nothing owns an object
 
-⚠⚠ **MEASURED 2026-09-11, on BOTH backends.** A value returned from inside a block whose scope runs
-destructors is unmade *and handed to the caller anyway*:
+⚠⚠ **MEASURED 2026-09-12, identical on BOTH backends.** Whether a destructor runs — never, once, or
+twice — falls out of which scope happens to hold a name pointing at the object. Three cases, one
+`handle` type with an unmaker:
+
+| What happens to it | Unmaker runs | |
+| --- | --- | --- |
+| returned from a block, BOUND by the caller | **twice** | ✗ a double free, or a double close |
+| returned from a block, DISCARDED | once | ✓ |
+| inserted into a series | **never** | ✗ leaked |
 
 ```
 Bind handle to open-it:
     If 1 is 1:
-        Define h as a new handle { the name "x" }.
-        Return h.                     ← its unmaker runs HERE
+        Define h as a new handle { the name "resource" }.
+        Return h.                     ← unmade HERE, leaving the block
     Done.
 Done.
+Define got as cast open-it.           ← and unmade AGAIN when this block ends
 ```
 
-The caller receives an object whose destructor has already run. If that destructor closed a file,
-the caller is holding a closed one.
+★★ **The oracle cannot see any of it.** Both backends agree exactly, so agreement is total and
+correctness is absent — the third time that shape has been the operative failure. All three were
+found by hand.
 
-★★ **The oracle cannot see it** — both backends do the same thing, so agreement is total and
-correctness is absent. It was found by hand, while investigating something else.
+⚠⚠ **A patch makes it worse, and that is the point of this entry.** The obvious fix is to exempt a
+returned value from the unmakers of the scope it leaves. That repairs row 1 and BREAKS row 2: today
+the leaving scope is the only thing that unmakes a discarded result, so exempting it leaks the
+destructor entirely. The rows are not three bugs; they are one missing idea seen three times.
 
-**The missing rule is ownership transfer**: a value being RETURNED has to be exempt from its
-scope's unmakers. That is a design question rather than a patch, and it is the PREREQUISITE for the
-item below rather than a detail of it.
+**The missing idea is OWNERSHIP** — every object has exactly one owner at every moment, ownership
+moves on return, and whoever owns it at the end unmakes it once. Row 3 says the idea has to reach
+inside collections too, which is a bigger question than the return path alone.
 
-⚠ **And it inverts the obvious fix for a second defect.** A function body runs no destructors at all
-for its own locals — which contradicts REFERENCE's promise of *"RAII at the `Done.` that closes its
-declaring block"*, and looks like a plain bug. It is not safe to fix first: making function bodies
-unmake their locals, while a returned value is still not exempt, would destroy the result of EVERY
-function that returns an object. That would turn a missing destructor into an early one, everywhere.
+★ **Order is forced.** A function body runs NO destructors for its own locals, which contradicts
+REFERENCE's promise of *"RAII at the `Done.` that closes its declaring block"* and looks like the
+obvious thing to fix first. It is not safe to fix first: while a returned value is still unowned,
+making function bodies unmake their locals would destroy the result of EVERY function that returns
+an object. Ownership first; RAII for function bodies second.
 
-★ So the order is forced: **ownership on return first, RAII for function bodies second.** Recorded
-together because fixing either alone is worse than fixing neither.
+⚠ Related and not the same: *Move semantics at channel send*, below. Both are about a value having
+one owner as it crosses a boundary, and settling ownership here should be done knowing that.
 
 ## Deferred — blocked on something that is not itself on the list
 
