@@ -56,6 +56,35 @@ The ordering is not ceremonial: this tier's real blocker is stated below as **er
     interpreter *written in C* — a third implementation, or a divergence. Note also that an explicit
     `eval` is not a fexpr and would cost neither `check` nor monomorphization; the C-interpreter bill is what rules it out.
 
+## No ordinary capability should require an axiom
+
+A campaign rather than an item. Every `axiom` a program reaches for to do something **ordinary** is
+a capability the language should have had, and the axiom is the gap's own witness — written into
+the source by somebody who needed it.
+
+⚠ **Strictly about capabilities the language itself should have.** Binding somebody else's C
+library — sqlite, zlib, a vendor SDK — is NOT in scope and never becomes so: the FFI is the door to
+other people's code and stays. This campaign is about axioms used to reach the operating system or
+to fill a hole in the language.
+
+⚠ It is also not about the compiler emitting C or the runtime being written in it. That target is
+settled (DESIGN), and "the implementation is Cufet" is the tier above's promise, not this one's.
+The claim here is narrower and checkable: point at a program and ask whether it needed C.
+
+**Open, with a witness:**
+
+- **Job control.** `tools/shell.cufe` reaches into a `jobs-support` axiom for `&`, `jobs`, `fg`,
+  pipes and `<`. The tool bends around the FFI's own limits to do it — a series cannot cross into
+  an axiom, so it asks about ONE job at a time because only one number crosses back. That
+  contortion is recorded in the shell's own comments, which is what makes this the clearest gap
+  on the list.
+
+★ **The list is rate-limited by how many real programs exist**, and that is the point rather than a
+complaint: a capability nobody has reached for is not yet known to be missing. Measured 2026-09-11,
+six corpus programs use an axiom and five are demonstrations of the FFI itself — the shell is the
+only true witness. The `building` book is expected to produce the next one, since deciding whether
+a file is stale is exactly a reach-for-C problem, but it has not been written and is not listed.
+
 ## The design mountains
 
 All need a design session before they can be ordered against anything. They are here because
@@ -163,6 +192,36 @@ they are large, not because they are waiting — the order among them means noth
 
    ⚠ Whatever is written must be pinned like the doc fences are: a lesson whose code stops working
    is worse than no lesson, and this project has the machinery to catch that already.
+
+5. **`Pull a book on regex.` — a language book with bracketed patterns.** The pattern is verbatim
+    foreign text in `[ … ]`, the way an axiom's body is, with values spliced by `the <name>` rather
+    than concatenated — so a pattern cannot be built at run time and regex injection is
+    structurally impossible, the same argument `run` already makes.
+
+    ★ **Validated at CHECK time.** Because the pattern is fixed where it is written, a malformed one
+    is a static error naming the fault rather than a failure when the line finally runs. That is the
+    whole reason for the bracketed form over an ordinary function taking text.
+
+    ⚠⚠ **The engine is written in Cufet, and that is not a stylistic preference — the oracle
+    requires it.** Two engines (.NET `Regex` interpreted, POSIX `regcomp` compiled) would disagree
+    on greediness, character classes, Unicode and empty-match edges, silently, on inputs nobody
+    tested. `collections` is the precedent: every member written in Cufet, in `Prelude/`, so both
+    backends run the same code and cannot diverge.
+
+    ⚠ **It is NOT the `c-language` pipeline.** That one hands verbatim text to an external compiler.
+    This one has Cufet parse and validate the pattern itself, then run it on a Cufet engine — shared
+    syntax, different machinery. Reusing the axiom path is the obvious wrong turn.
+
+    **Open, and the central question:** **backtracking or an automaton.** A backtracking engine gets
+    backreferences and can hang forever on a pattern that looks fine; an automaton is linear-time
+    and cannot do backreferences. For a language whose claim is that a program says what it means, an
+    engine that can hang is a poor fit — but that decides the dialect, so it is the first thing to
+    settle rather than something to discover. Which dialect follows from it.
+
+    ⚠ **No witness.** No corpus program has reached for regex and routed around its absence, so this
+    is wanted on design grounds and as an INSTRUMENT — a large Cufet program that will find the
+    ergonomic gaps, which is the justification this file already states for the tier above. Recorded
+    that way on purpose rather than dressed up as a trigger.
 
 ## Ongoing, no fixed slot
 
