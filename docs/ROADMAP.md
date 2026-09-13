@@ -302,20 +302,23 @@ they are large, not because they are waiting — the order among them means noth
     ✅ **Slice 1 shipped** — steps with inferred dependencies, topologically ordered, every one
     executed. No hashing yet, so a build always rebuilds: correct, and merely not yet useful.
 
-    ★★ **Next, and WITNESSED rather than argued: `cufet build <file.cufe> [out]`.** Writing a real
-    blueprint for this repo found that `cufet build <f>.cufe` writes `<f>.exe` beside the source on
-    Windows and `<f>` elsewhere, with no way to ask for an output path — so `the makes` cannot be
-    written portably and a blueprint is platform-shaped for no good reason. ★ This is not new
-    surface: the sibling verb already takes one, `cufet emit-c <file.cufe> [out.c]`, so it is two
-    verbs being made to agree.
+    ★★ **Next: content-hash staleness.** Every step runs every time, which is what makes the build
+    correct and not yet useful. `the needs` exists FOR this — ordering alone could have used step
+    names; hashing cannot, because you hash files. The design is settled above: content, never
+    timestamps, with the algorithm named by the language rather than the platform's.
 
-    ⚠ **A "blueprint cannot say a file is a LIBRARY" gap was claimed here and WITHDRAWN.** A
-    blueprint has no need to say it — libraries are not built, they are pulled by the programs that
-    are, and a build wanting to check one can run `cufet check` on it as an ordinary step. The
-    refusal that prompted the claim (`cufet build tools/terminal.cufe` → *"declares things but never
-    does anything"*) was the tool correctly catching a mistake in the blueprint, not a missing
-    capability. Recorded because it was written here in the measured voice on the strength of a
-    wrong assumption, which is the failure this file keeps finding elsewhere.
+    ⚠⚠ **TWO gaps were claimed here after the first real blueprint and BOTH were WITHDRAWN.** They
+    are recorded because each was written in the measured voice and neither survived being checked.
+
+    - *"A blueprint cannot say a file is a LIBRARY."* It never needs to: libraries are not built,
+      they are pulled by the programs that are, and a build wanting to check one runs `cufet check`
+      as an ordinary step. The refusal that prompted this (`cufet build tools/terminal.cufe` →
+      *"declares things but never does anything"*) was the tool correctly catching a mistake in the
+      blueprint.
+    - *"`the makes` cannot be written portably, so `cufet build` needs an output-path argument."*
+      A blueprint is an ORDINARY PROGRAM and computes its own path — `the environment variable
+      "OS"` is enough, MEASURED. Adding CLI surface here would have been working around having
+      forgotten this entry's own founding premise.
 
     ⚠ The real blueprint was deliberately NOT committed. This project's own Cufet tools cannot be
     compiled on Windows at all (`repl` and `shell` need subprocess support the compiled runtime has
