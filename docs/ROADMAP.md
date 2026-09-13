@@ -82,8 +82,11 @@ The claim here is narrower and checkable: point at a program and ask whether it 
 ★ **The list is rate-limited by how many real programs exist**, and that is the point rather than a
 complaint: a capability nobody has reached for is not yet known to be missing. Measured 2026-09-11,
 six corpus programs use an axiom and five are demonstrations of the FFI itself — the shell is the
-only true witness. The `blueprints` book is expected to produce the next one, since deciding whether
-a file is stale is exactly a reach-for-C problem, but it has not been written and is not listed.
+only true witness. ✅ The `blueprints` book was expected to produce the next one, since deciding
+whether a file is stale is exactly a reach-for-C problem. It is written now, and it produced the
+OPPOSITE: `blueprints's checksum` is a native member of the book, so no program reaches for an
+axiom to hash a file. ★ That is this campaign working rather than failing — the prediction was that
+a capability would be missing, and the answer was to supply it.
 
 ## The design mountains
 
@@ -471,39 +474,6 @@ indistinguishable from having forgotten.
   only shows up as "this needs library X": `#include <sqlite3.h>` gets the declarations and then
   fails with "undefined reference", which is why headers alone would ship a feature that cannot
   work for the case that motivates it. ★ The trigger is checkable, which is what keeps this honest.
-
-- **Named loops — a label so `Stop.` can leave an OUTER loop.** *Blocker: no demonstrated need.*
-  MEASURED 2026-09-13 across 47 examples and 3 tools, including a triple-nested sudoku search: 5
-  uses of `Stop.` and 10 of `Skip.`, and **not one wants to escape an outer loop**. The deepest
-  nesting escapes with `return` from inside a function, and extracting a nested search into a named
-  function is usually better than labelling the loop anyway.
-
-  ⚠ **The one flag that looks like the workaround is not one.** `tools/shell.cufe` sets `broken` in
-  its redirect parse, but the loop is single and the flag's job is to carry *"this failed"* PAST
-  the loop's end — which no label would remove. Check for that shape before reading a flag as
-  evidence.
-
-  ★ **Checked against a prediction written before the program existed.** `beamforming.cufe` was
-  recorded in advance as unlikely to trigger this, and did not: its loops ACCUMULATE — visit
-  everything and sum — so by construction there is nothing to leave early. Its C original does
-  carry four early exits, all one level deep and all *"break loop from error"* — a shape Cufet
-  answers better with `return a failure` or `Exit`. **The trigger wants a SEARCH**, and both
-  searches in the corpus declined it.
-
-  **The argument worth revisiting is readability, not capability:** `Stop.` silently means "the
-  innermost one", and in a triple-nested loop the reader has to count. An optional label could make
-  *existing* code clearer without enabling anything new.
-
-  **The trigger:** the first program that needs a mutable flag purely to break an outer loop.
-
-  ★ **A PREDICTION ON THE RECORD, 2026-09-13.** It will be a `Skip.` — CONTINUE the outer loop —
-  rather than a `Stop.`, and it will surface in a SCANNER. *"Extract it into a function and
-  `return`"* defeats a break but not a continue: returning lands back inside the outer body with
-  the rest of it still to run, which is the flag again, reached by following the advice.
-  Extraction resists hardest when the early exit must also advance SEVERAL SCALARS, because
-  records and objects copy while only collections are reference-typed — and a hand-written lexer
-  (design mountain 1, the compiler in Cufet) advances position, line and column together on every
-  match. ⚠ If the trigger turns out to be a plain break out of a search, this was wrong.
 
 - **`is any of (…)` — membership as a comparison.** `If x is any of (1, 2, 3)` over
   `If x is 1 or x is 2 or x is 3`. *Blocker: small win.* ⚠ If built, it must be a **comparison,

@@ -34,6 +34,20 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   native libraries would disagree in their last digit, and a phase is not somewhere a last digit
   can be allowed to wander.
 
+- **`examples/parsing/readings.cufe` — a CSV validator that judges each row against the answer the
+  row carries.** Twelve readings, three patterns, and a disagreement leaves with 1.
+
+  ★★ **It was written to CHECK A PREDICTION**, recorded before the program existed:
+  that the witness for named loops would be a `Skip.` — continue the outer loop — in a program that
+  scans, and that a CSV reader was the likeliest shape. **No nested loop appeared at all.** A row's
+  fields are judged by checks that share no rule, so nothing loops over them; and the
+  character-level scanning that would have looped is what a pattern is for.
+
+  ★ So the answer is stronger than the old one, and now lives in DESIGN rather than the ROADMAP: it is not that no program has happened to
+  need a named loop, it is that **`regex` structurally removes the shape that would want one.** A
+  continue-outer needs a nested scan, and in a language with patterns the nested scan does not get
+  written.
+
 - **`Pull a book on blueprints.` — a build description that is a Cufet program.** `cufet build`
   with no arguments reads `blueprint.cufe`, works out what is out of date, and does it. With a file
   it still compiles that one file, as it always has — the verb is **overloaded by arity**, which is

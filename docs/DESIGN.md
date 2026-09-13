@@ -947,6 +947,46 @@ because a macro consumes it before the checker.
 `Bind series of element to unique, given (the series of element xs)`, so every program that
 calls `unique` monomorphizes. It is the mechanism generics run on.
 
+### Named loops stay out, and patterns are why
+
+`Stop.` and `Skip.` act on the innermost loop, and there is no label to make either act on an outer
+one. That was originally *no demonstrated need* — an absence, which rots. It is now a reason.
+
+**MEASURED 2026-09-13, across 48 examples and 3 tools** including a triple-nested sudoku search: 5
+uses of `Stop.` and 11 of `Skip.`, and **not one wants to escape an outer loop**. The deepest
+nesting escapes with `return` from inside a function, and extracting a nested search into a named
+function is usually better than labelling the loop anyway.
+
+★★ **Two programs were written to hunt the witness, and failed for DIFFERENT reasons — which is
+what turns an absence into an argument.**
+
+- `examples/algorithms/beamforming.cufe` could not produce one structurally. Its loops ACCUMULATE —
+  visit everything and sum — so by construction there is nothing to leave early.
+- `examples/parsing/readings.cufe` was written to the shape that should have produced one: a CSV
+  validator, predicted in advance to want a *continue-outer*. **No nested loop appeared at all.** A
+  row's fields are judged by checks that share no rule, so nothing loops over them — and the
+  character-level scanning that WOULD have looped is what a pattern is for.
+
+★★ **So `regex` structurally removes the shape that would want a named loop.** A continue-outer
+needs a nested scan, and in a language with patterns the nested scan does not get written. That is
+why five real programs have now failed to produce a witness.
+
+⚠ **The one flag that looks like the workaround is not one.** `tools/shell.cufe` sets `broken` in
+its redirect parse, but the loop is single and the flag's job is to carry *"this failed"* PAST the
+loop's end — which no label would remove. Check for that shape before reading a flag as evidence.
+
+⚠ **What would reopen this**, and it is a program this project has already committed to writing: a
+hand-written LEXER, walking characters one at a time — the one scan a pattern cannot do for you —
+advancing position, line and column together. Extraction resists hardest when an early exit must
+also advance several scalars, because records and objects copy while only collections are
+reference-typed. If the compiler-in-Cufet does not want a named loop either, that is close to
+decisive.
+
+★ And the argument none of this touches is **readability, not capability**: `Stop.` silently means
+"the innermost one", and in a triple-nested loop the reader has to count. An optional label could
+make *existing* code clearer without enabling anything new. That is the case that could still carry
+the feature even if no program ever strictly needs it.
+
 ---
 
 ## Two backends, one language
