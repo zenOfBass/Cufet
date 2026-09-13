@@ -299,9 +299,25 @@ they are large, not because they are waiting — the order among them means noth
       parser already uses to reach `match in regex`. So there is no marshalling layer and no new
       public API, and the compiled backend gets the build system for free, the way it gets `regex`.
 
-    **Slice 1:** steps with dependencies, topologically ordered, every one executed. No hashing, no
-    modules, no extensibility. ⚠ Dependencies are in slice 1 deliberately — without them the plan
-    is a LIST rather than a graph, which is option A of the fork with extra ceremony.
+    ✅ **Slice 1 shipped** — steps with inferred dependencies, topologically ordered, every one
+    executed. No hashing yet, so a build always rebuilds: correct, and merely not yet useful.
+
+    ★★ **Next, and now WITNESSED rather than argued.** Writing a real blueprint for this repo hit
+    two walls immediately, and they are the same wall: **a blueprint cannot say things about a file
+    that the build needs to know.**
+
+    - **It cannot say a file is a LIBRARY.** `cufet build tools/terminal.cufe` is refused — *"declares
+      things but never does anything"* — and a blueprint has no way to describe a project that
+      contains one. This entry already claims the build file solves exactly that; it does not yet.
+    - **It cannot say WHERE OUTPUT GOES.** `cufet build <f>.cufe` writes `<f>.exe` beside the source
+      on Windows and `<f>` elsewhere, and there is no output-path flag — so `the makes` cannot be
+      written portably, and a blueprint is platform-shaped for no good reason.
+
+    ⚠ The real blueprint was deliberately NOT committed. This project's own Cufet tools cannot be
+    compiled on Windows at all (`repl` and `shell` need subprocess support the compiled runtime has
+    only where fork/exec exists — which is why `ExampleOracleTests` skips them there), so a root
+    `blueprint.cufe` would be a front door that fails on the maintainer's machine every time. The
+    experiment succeeded; its result was these two gaps.
 
     ★ **Settled: a BOOK, not core.** Core was weighed and declined. What Zig gets right is that a
     build script is an ORDINARY PROGRAM USING AN ORDINARY LIBRARY — putting the vocabulary into the
