@@ -302,10 +302,34 @@ they are large, not because they are waiting — the order among them means noth
     ✅ **Slice 1 shipped** — steps with inferred dependencies, topologically ordered, every one
     executed. No hashing yet, so a build always rebuilds: correct, and merely not yet useful.
 
-    ★★ **Next: content-hash staleness.** Every step runs every time, which is what makes the build
-    correct and not yet useful. `the needs` exists FOR this — ordering alone could have used step
-    names; hashing cannot, because you hash files. The design is settled above: content, never
-    timestamps, with the algorithm named by the language rather than the platform's.
+    ★★ **Next: content-hash staleness — and it is BLOCKED on one thing, not on design.** Every step
+    runs every time, which is what makes the build correct and not yet useful. `the needs` exists
+    FOR this: ordering alone could have used step names; hashing cannot, because you hash files.
+
+    ✅ `blueprints's checksum of (path)` is shipped — FNV-1a 64 over a file's bytes, `voidable bits`,
+    pinned to published vectors on both backends.
+
+    ✅ **The algorithm is proven**, built and verified by hand 2026-09-13 before being reverted: a
+    step is skipped when its signature matches what was recorded AND every output still exists, and
+    rebuilds on a changed input, a deleted output, or a changed argv. ⚠ The signature must cover
+    `the runs`, not only `the needs` — a changed flag has to invalidate.
+
+    ⚠⚠ **THE BLOCKER.** The helpers that compute a signature need `blueprints's checksum`, and a
+    plain prelude function cannot see the book — *"a plain function has no caller to inherit from"*.
+    The only way found is a SELF-PULL (the helper doing `Pull a book on blueprints.` in its own
+    body), which works — and marks the book as PULLED IN EVERY PROGRAM, defeating
+    `DropUnpulledLayers`. MEASURED: 17 helper references in a program that pulls nothing, and since
+    the walker uses `run`, every compiled program then failed to link.
+
+    **What it needs:** a marker for *"this pull site came from the prelude"*, so the drop can tell a
+    program's pull from the prelude's own. None exists — `_checkingBookLayer` covers module layers
+    only, and prelude line numbers are no help because the prelude is parsed separately. That is a
+    contained change to shared checker machinery, and it is what the next attempt should start from.
+
+    ★ Also recorded so it is not rediscovered: comparing a RECONSTRUCTED signature never matches. A
+    signature ends with a separator, so splitting a cached line yields an empty final field and
+    rejoining puts the separator back. Compare whole lines instead. ⚠⚠ It cost nothing visible —
+    **a build that rebuilds too often looks exactly like one that works.**
 
     ⚠⚠ **TWO gaps were claimed here after the first real blueprint and BOTH were WITHDRAWN.** They
     are recorded because each was written in the measured voice and neither survived being checked.
