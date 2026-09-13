@@ -268,8 +268,40 @@ they are large, not because they are waiting — the order among them means noth
     not execute a blueprint, you build from it.
 
     ⚠⚠ **`cufet build` IS ALREADY TAKEN**, and by the neighbouring meaning: it compiles one
-    `.cufe` to a native binary. This is exactly Zig's `zig build-exe` versus `zig build`, and the
-    verb that walks a plan needs settling before the book has a front door.
+    `.cufe` to a native binary — exactly Zig's `zig build-exe` versus `zig build`. **Settled:
+    OVERLOAD IT BY ARITY.** No argument builds the project from `blueprint.cufe`; a file argument
+    compiles that file. ⚠ `cufet build blueprint.cufe` is refused BY NAME, because under the
+    overload it would silently compile the build description itself.
+
+    ★★ **Settled 2026-09-13 — the whole shape, found by writing the file before the book.**
+
+    - A blueprint defines `Bind series of records like (the text name, the series of text needs,
+      the series of text makes, the series of text runs) to blueprint:` and **calls nothing**.
+      Running it performs nothing, which is the fork above being honest.
+    - **A step is a STRUCTURAL RECORD, not a named type.** `BookLoading.MakePrivate` renames any
+      object a book layer declares to `<name> in <book>`, so a book cannot hand out a nominal type
+      without native machinery — `matrix` and `chase` are native C# types for exactly that reason.
+      `regex.cufe` already crosses the boundary as records. Measured: the whole shape type-checks
+      and runs today with no new machinery at all.
+    - **`the runs` is argv, program first.** It began as separate command and arguments fields;
+      `arguments` is a RESERVED WORD, and folding them into one series beat renaming — it matches
+      what argv is and removes a field. name / needs / makes / runs.
+    - ★★ **Dependencies are INFERRED from `needs`/`makes`, never written as edges.** Staleness is
+      by content hash, so inputs must be declared regardless; declaring edges too states one fact
+      twice, and an edge can then claim a dependency the inputs deny with nothing to catch it.
+    - ⚠ **`Pull a book on blueprints.` is KEPT although the record shape does not need it.** The
+      book introduces no type and no members: it is a GATE, not a library. The file declares what
+      it is, and `cufet build` can refuse a blueprint that does not pull it, rather than treating a
+      magic function name as special. Precedent: `chance` and the language books are all
+      `BookType(name, [])`.
+    - **The walker is written in CUFET, inside the book**, reached by a driver statement the CLI
+      APPENDS to the parsed program — the mechanism `WithPrelude` already uses, and the one the
+      parser already uses to reach `match in regex`. So there is no marshalling layer and no new
+      public API, and the compiled backend gets the build system for free, the way it gets `regex`.
+
+    **Slice 1:** steps with dependencies, topologically ordered, every one executed. No hashing, no
+    modules, no extensibility. ⚠ Dependencies are in slice 1 deliberately — without them the plan
+    is a LIST rather than a graph, which is option A of the fork with extra ceremony.
 
     ★ **Settled: a BOOK, not core.** Core was weighed and declined. What Zig gets right is that a
     build script is an ORDINARY PROGRAM USING AN ORDINARY LIBRARY — putting the vocabulary into the

@@ -3,11 +3,13 @@
 A **book** is a module that comes in the box. This is the reference for the ones Cufet ships
 with — what they hold, and what pulling them admits.
 
-Books come in two kinds, and the difference is what you get out of one:
+Books come in three kinds, and the difference is what you get out of one:
 
 - **Standard-library books** have *members you call*: `math`, `collections`, `chance`.
-- **Language books** have no members at all. Pulling one admits a *syntax* — writing axioms in
-  that language — and `the c-language` is the one that exists today.
+- **Language books** have no members at all. Pulling one admits a *syntax* — writing axioms, Cufet
+  blocks, or patterns: `the c-language`, `cufet` and `regex`.
+- **`blueprints`** has neither members nor a syntax. Pulling it is how a file declares that it IS a
+  build description, which is what lets `cufet build` refuse one that does not.
 
 `Pull` itself is a module mechanism one level above books, and lives in
 [REFERENCE.md](REFERENCE.md#modules-pull). For the language in full, see
@@ -31,6 +33,8 @@ Books come in two kinds, and the difference is what you get out of one:
     - [How far an interrupt reaches](#how-far-an-interrupt-reaches)
   - [Cufet source (`cufet`)](#cufet-source-cufet)
   - [Patterns (`regex`)](#patterns-regex)
+- [Part III. The build description](#part-iii-the-build-description)
+  - [Blueprints (`blueprints`)](#blueprints-blueprints)
 
 ---
 
@@ -47,7 +51,9 @@ without the noun — "Pull a math." A book is still a module, and `Pull` asks it
 question; only the spelling differs.
 
 Books are resolved at compile time. There is no dynamic loading, and no external loader
-yet — the bundled books are `math`, `collections`, and `chance`.
+yet. The bundled books are `math`, `collections`, `chance` and `blueprints`, plus the
+**language books** `the c-language`, `cufet` and `regex` — pulled for what they let you *write* rather than for
+anything you call on them, which is why they offer no members.
 
 **Several at once** — `Pull books on …` (plural) takes a comma-separated list, with an
 optional `and` before the last. One `Done.` closes the block for all of them:
@@ -1152,3 +1158,76 @@ differ silently, on inputs nobody thought to test.
 ★ Like `cufet` and unlike `the c-language`, this is a language book Cufet **reads itself**. Nothing
 is marshalled, no toolchain is reached for, and no boundary is crossed. The brackets mean *this text
 is not the program around it* in both cases; what differs is who reads what is inside.
+
+---
+
+## Part III. The build description
+
+### Blueprints (`blueprints`)
+
+**A project is built by a Cufet program, not by a second language.** `cufet build` with no
+arguments reads `blueprint.cufe` and does what it describes. With a file it compiles that one
+file, as it always has — the verb is overloaded by arity.
+
+```cufet-fragment
+Pull a book on blueprints.
+    Bind series of records like (
+        the text name,
+        the series of text needs,
+        the series of text makes,
+        the series of text runs) to blueprint:
+        Define work as a series of records like (
+            the text name,
+            the series of text needs,
+            the series of text makes,
+            the series of text runs).
+
+        Insert a record with (
+            the name "shell",
+            the needs a series of text with ("tools/shell.cufe"),
+            the makes a series of text with ("build/cufetsh"),
+            the runs a series of text with ("cufet", "build", "tools/shell.cufe")) into work.
+
+        Insert a record with (
+            the name "smoke",
+            the needs a series of text with ("build/cufetsh"),
+            the makes a series of text with (),
+            the runs a series of text with ("build/cufetsh", "--version")) into work.
+
+        Return work.
+    Done.
+Done.
+```
+
+A step is four things:
+
+| field | what it is |
+| --- | --- |
+| `name` | what to call it when reporting |
+| `needs` | paths that must exist first, and what orders it against other steps |
+| `makes` | paths it produces, which is how another step comes to need it |
+| `runs` | argv, program first |
+
+★★ **Running a blueprint performs nothing.** It defines `blueprint` and calls nothing, so what
+comes out is a plan; the build happens afterwards, to that plan. Run it with plain `cufet
+blueprint.cufe` and you get no output and no compilation, which is correct rather than a bug.
+
+★★ **The graph is never written down.** `smoke` above runs after `shell` because it needs a path
+`shell` makes — and nothing says so. There are no edges to declare, and that is not brevity:
+staleness is decided by hashing what a step needs, so `needs` has to be declared regardless.
+Writing edges too would state one fact twice, and an edge could then claim a dependency the inputs
+deny with nothing to catch it.
+
+★ **The book is a gate, not a library.** It offers no members and introduces no type — a step is an
+ordinary structural record, so nothing crosses the book boundary at all. Pulling it is how a file
+declares what it *is*, which is what lets `cufet build` refuse a blueprint that does not.
+
+⚠ **`cufet build blueprint.cufe` is refused by name.** Under the overload it would compile the
+build description itself into a binary, which is never what anyone means — and it would do it
+quietly, which is the failure this language declines everywhere else.
+
+⚠ **Steps that need each other are refused**, not hung on: *"these steps need each other and cannot
+be ordered."*
+
+⚠ **Every step runs every time.** There is no staleness checking yet. A build that always rebuilds
+is correct and merely not yet useful, and the hashing that fixes it is its own slice.

@@ -34,6 +34,52 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   native libraries would disagree in their last digit, and a phase is not somewhere a last digit
   can be allowed to wander.
 
+- **`Pull a book on blueprints.` — a build description that is a Cufet program.** `cufet build`
+  with no arguments reads `blueprint.cufe`, works out what is out of date, and does it. With a file
+  it still compiles that one file, as it always has — the verb is **overloaded by arity**, which is
+  Zig's `zig build` against `zig build-exe` without spending a second verb.
+
+  ```cufet-fragment
+  Pull a book on blueprints.
+      Bind series of records like (
+          the text name,
+          the series of text needs,
+          the series of text makes,
+          the series of text runs) to blueprint:
+          Define work as a series of records like (
+              the text name,
+              the series of text needs,
+              the series of text makes,
+              the series of text runs).
+          Insert a record with (
+              the name "shell",
+              the needs a series of text with (),
+              the makes a series of text with ("build/cufetsh"),
+              the runs a series of text with ("cufet", "build", "tools/shell.cufe")) into work.
+          Return work.
+      Done.
+  Done.
+  ```
+
+  ★★ **Running a blueprint performs nothing.** It defines `blueprint` and calls nothing at all, so
+  what comes out is a PLAN and the build happens afterwards, to that plan. Every build system that
+  survived is this shape — Zig, CMake, Bazel, Gradle; *performing* is what a `build.sh` does.
+
+  ★★ **The graph is never written down.** A step declares what it `needs` and what it `makes`, and
+  a step needing a path another step makes runs second. There are no edges to declare, and that is
+  not brevity: staleness is by content hash, so `needs` must be declared regardless — writing edges
+  as well would state one fact twice, and an edge could then claim a dependency the inputs deny,
+  with nothing to catch it.
+
+  ★ **The book is a GATE, not a library.** It offers no members and introduces no type; a step is a
+  structural record, so nothing crosses the book boundary. Pulling it is how a file declares what it
+  IS, which is what lets `cufet build` refuse one that does not — rather than treating a bare
+  function name as magic. ⚠ `cufet build blueprint.cufe` is refused by name: under the overload it
+  would silently compile the build description itself.
+
+  ⚠ **This slice always rebuilds.** No staleness checking yet, which is correct and merely not yet
+  useful — the hashing surface is its own slice with this book as its witness.
+
 ### Changed
 
 - **`constructor` and `destructor` are now `maker` and `unmaker` everywhere a programmer can see
@@ -77,6 +123,24 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   exclusion, because a documented baseline is only a canary if someone rereads it.
 
 ### Fixed
+
+- **A book the program never pulls now really does cost nothing.** GRAMMAR has said so for a long
+  time, and it was true of the book's MODULE and false of its file: `DropUnpulledLayers` dropped the
+  module object and left behind every helper declared beside it. ★★ MEASURED — a program that was
+  literally `State "hello".` carried the **entire pattern engine**: `cv_match_in_regex`,
+  `cv_reach_in_regex`, `cv_accepting_in_regex`, `cv_blank_in_regex`. That has been in every compiled
+  Cufet binary.
+
+  ⚠ It stayed invisible because it was only dead weight. It stopped being invisible the first time a
+  book's helper used something the runtime split TRIMS: the `blueprints` walker runs a subprocess,
+  `cufet_run_inherit` is emitted only for a program that runs one, and every compiled program failed
+  to link at once. Dead weight is silent until it is load-bearing.
+
+  The drop now covers any privacy-renamed declaration — `Bind`, `Define`, object, interface — whose
+  owning book is unpulled and unneeded, trimmed at the **last** `" in "` the way module type lifting
+  does. `BookDroppingTests` pins both directions, because neither half means anything alone:
+  dropping everything would pass the absence test, and dropping nothing would pass the guard that a
+  pulled book keeps its engine.
 
 - **GRAMMAR no longer claims a fractional `power` is platform-owned.** It named exactly two
   results as *"genuinely platform-owned"*: filesystem enumeration order, and `power` with a

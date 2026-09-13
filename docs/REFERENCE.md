@@ -4354,8 +4354,14 @@ collector, no interpreter loop.
 ```
 cufet program.cufe                  run it (interpreted)
 cufet build program.cufe            compile to a native binary
+cufet build                         build the PROJECT, from its blueprint.cufe
 cufet emit-c program.cufe out.c     emit the C, without invoking gcc
 ```
+
+★ **`build` is overloaded by arity.** With a file it compiles that one file; with nothing it reads
+`blueprint.cufe` and does what the build description says — see [BOOKS.md](BOOKS.md#blueprints-blueprints).
+⚠ `cufet build blueprint.cufe` is refused by name, because under the overload it would quietly
+compile the build description itself into a binary.
 
 `build` requires **`gcc` on your `PATH`**. Nothing else — the generated C is
 self-contained, with no external libraries and no flags beyond `-O2`, `-pthread`
