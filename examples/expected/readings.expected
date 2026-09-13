@@ -1,0 +1,15 @@
+   ok,ALPHA-1,2026-03-14,12.5: we say true, the file says true
+   ok,BETA-7,2026-03-14,-3.25: we say true, the file says true
+   bad,,2026-03-14,12.5: we say false, the file says false
+   bad,GAMMA-2,14-03-2026,12.5: we say false, the file says false
+   bad,DELTA-9,2026-03-14,warm: we say false, the file says false
+   ok,EPSILON-3,2026-12-31,0: we say true, the file says true
+   bad,ZETA-4,2026-13-01,12.5: we say false, the file says false
+   bad,ETA-5,2026-03-14,: we say false, the file says false
+   ok,THETA-6,2026-01-01,999.875: we say true, the file says true
+   bad,IOTA-8,2026-03-14,12.5,extra: we say false, the file says false
+   bad,KAPPA-0,2026-03-14: we say false, the file says false
+   ok,LAMBDA-2,2026-06-30,-40: we say true, the file says true
+
+12 row(s) checked
+0 disagreement(s)

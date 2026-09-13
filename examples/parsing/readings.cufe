@@ -1,0 +1,123 @@
+/* readings — is every row of this instrument log well formed?
+
+   Each line of `examples/assets/readings.csv` carries the answer first, then a
+   reading: a station, a date, and a temperature. The program judges the reading
+   on its own and leaves with 1 if it ever disagrees with the answer.
+
+       cufet examples/parsing/readings.cufe
+
+   ── Why this program is in the corpus ──
+
+   ★★ It was written to CHECK A PREDICTION recorded before it existed. Cufet has
+   no named loops — no label letting `Stop.` or `Skip.` act on an outer loop —
+   and the trigger for adding them was "the first program that needs a mutable
+   flag purely to break an outer loop". The prediction said that witness would
+   be a `Skip.` rather than a `Stop.` — CONTINUE the outer loop — in a program
+   that scans, and that a CSV reader was the likeliest shape, because the four
+   `break`s in the C program this corpus borrowed its beamforming data from all
+   live in its CSV reader.
+
+   ⚠ It was written the way it would have been written anyway. Bending a program
+   toward the answer you predicted is how you learn nothing.
+
+   The exit contract:
+
+       0   the reader agreed with every recorded answer
+       1   it disagreed about at least one row
+       2   the file could not be read
+
+   ── What the shape turned out to be ──
+
+   ★★ THERE IS NO NESTED LOOP HERE AT ALL, and that is the finding. A row is
+   judged by three checks that do not resemble each other, so nothing loops over
+   the fields; and the character-level scanning that WOULD have looped — is this
+   a month, is this a decimal, is this a station code — is what a pattern is for.
+   `regex` absorbed the inner loop before it could exist.
+
+   ★ So the prediction's *shape* was right and its *witness* was wrong: a
+   continue-outer wants a nested scan, and in a language with patterns the
+   nested scan does not get written. See DESIGN, *Named loops stay out, and
+   patterns are why*, which now records both.
+*/
+
+Pull a book on regex.
+
+    /* A station code: letters, a dash, a number. */
+    Define regex station as [^[A-Z]+-\d+$].
+
+    /* A date that is real enough to trust — the month and day ranges are in the
+       pattern rather than in a check afterwards, which is most of why no loop
+       appears below. ⚠ It does not know how long February is; nothing here
+       claims to. */
+    Define regex stamp as [^(19|20)\d\d-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$].
+
+    /* A temperature: whole or decimal, possibly below zero. */
+    Define regex reading as [^-?\d+(\.\d+)?$].
+
+    /// Is this row a well-formed reading?
+    ///
+    /// ★ Three checks, not a loop over three fields — they share no rule. The
+    /// count is checked first because the others would read past the end.
+    Bind fact to sound, given (the series of text fields):
+        If the number of fields is not 4, return false.
+        If cast station on (item 2 of fields) is false, return false.
+        If cast stamp on (item 3 of fields) is false, return false.
+        If cast reading on (item 4 of fields) is false, return false.
+        Return true.
+    Done.
+
+    Bind void to usage:
+        State "usage: readings".
+        State "".
+        State "judges every row in examples/assets/readings.csv against the answer it carries".
+        State "leaves with 0 if they all agreed, 1 if any disagreed, 2 on a bad file".
+    Done.
+
+    Bind void to play:
+        Define target as "examples/assets/readings.csv".
+
+        If the number of the arguments is greater than 0:
+            Cast usage.
+            Exit with 2.
+        Done.
+
+        Define lines as a series of text.
+        Try to:
+            The lines becomes read all lines from the file target.
+        Done.
+        In case of failure:
+            State "readings: {target}: {the message of the failure}".
+            Exit with 2.
+        Done.
+
+        Define checked as 0.
+        Define disagreements as 0.
+
+        For each line in lines, repeat:
+            If the length of line is 0, skip.
+
+            Define fields as line split by ",".
+            Define expected as item 1 of fields.
+            Define ours as cast sound on (fields).
+            Define theirs as expected is "ok".
+            Increment checked by 1.
+
+            Define mark as "  ".
+            If ours is not theirs:
+                The mark becomes "!!".
+                Increment disagreements by 1.
+            Done.
+
+            State "{mark} {line}: we say {ours converted to text}, the file says {theirs converted to text}".
+        Done.
+
+        State "".
+        State "{checked converted to text} row(s) checked".
+        State "{disagreements converted to text} disagreement(s)".
+
+        If disagreements is greater than 0, exit with 1.
+        Exit.
+    Done.
+
+    Cast play.
+Done.
