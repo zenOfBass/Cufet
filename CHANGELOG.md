@@ -131,6 +131,12 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   produces a different result, so hashing inputs alone would skip exactly the rebuild the change was
   made to cause.
 
+  ★★ **Staleness travels the chain, and stops where the content stops.** A step consuming what
+  another makes reruns when that content changes — and does NOT rerun when the producing step runs
+  again and emits byte-identical output. Early cutoff falls out of hashing content rather than
+  tracking which steps ran, and it is pinned by test because it could be lost by a change that
+  looks entirely reasonable.
+
   ★ **A skipped step says nothing.** The output of a build with nothing to do is empty, and that
   emptiness is the report. ⚠ It also means a wrongly-skipped step is silent — which is why the test
   pins the three ways of going stale and not only the skip. **A build that rebuilds too often looks

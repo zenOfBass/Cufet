@@ -1244,10 +1244,17 @@ nothing to do. The emptiness is the report.
 but whose flags changed produces a different result, so comparing inputs alone would skip exactly
 the rebuild the change was made to cause.
 
+★★ **Staleness travels the chain, and stops where the content stops.** `smoke` needs what `shell`
+makes, so changing `tools/shell.cufe` runs both. But if `shell` runs again and produces a
+byte-identical binary — because you edited a comment, or deleted the output and remade it — `smoke`
+does **not** run, since what it depends on never actually changed. A build keyed on *"did the step
+I depend on run"* rebuilds the world there; one keyed on content stops at the first thing that
+really moved.
+
 The record is written after every step that succeeds, so a build that fails halfway keeps what it
-did and the next one carries on rather than starting over. ⚠ **There is no rebuild-everything
-flag** — deleting `.cufet-build` is how you ask for one, and a project under version control
-usually ignores it.
+did and the next one carries on rather than starting over. A step that fails records nothing and
+runs again. ⚠ **There is no rebuild-everything flag** — deleting `.cufet-build` is how you ask for
+one, and a project under version control usually ignores it.
 
 **Its one member is `checksum`**, which is what staleness is decided by:
 
