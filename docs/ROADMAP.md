@@ -256,16 +256,20 @@ they are large, not because they are waiting — the order among them means noth
 6. **`Pull a book on blueprints` — a build description that is a Cufet program.** No second
     language for the build, the way `build.zig` is a Zig program rather than a Makefile.
 
-    ★★ **OPEN, and bigger than the name: does running the build file PERFORM the build, or produce
-    a PLAN something else walks?** Zig, CMake, Bazel and Gradle are all the second — CMake's
-    configure phase compiles nothing and emits a graph, which is also why an IDE can list your
-    targets without building anything. Performing is what a `build.sh` does, and what every build
-    system that survived converged away from. Three of this entry's own commitments lean the same
-    way: content-hash staleness must inspect a step before running it, a whole graph can be refused
-    before touching disk, and a described value has no half-copy seam the way a builder object does.
+    ★★ **Settled: running the build file PRODUCES A PLAN, it does not perform the build.** Nothing
+    is compiled while the file runs; what comes out is a value, and something else walks it. Zig,
+    CMake, Bazel and Gradle are all this shape — CMake's configure phase compiles nothing and emits
+    a graph, which is also why an IDE can list your targets without building anything. Performing
+    is what a `build.sh` does, and what every build system that survived converged away from.
 
-    ⚠ **The name presumes that answer** — you do not execute a blueprint, you build from it. If the
-    file turns out to PERFORM, `blueprints` goes with it.
+    Three of this entry's own commitments already leaned that way: content-hash staleness must
+    inspect a step before running it, a whole graph can be refused before touching disk, and a
+    described value has no half-copy seam the way a builder object does. The name agrees — you do
+    not execute a blueprint, you build from it.
+
+    ⚠⚠ **`cufet build` IS ALREADY TAKEN**, and by the neighbouring meaning: it compiles one
+    `.cufe` to a native binary. This is exactly Zig's `zig build-exe` versus `zig build`, and the
+    verb that walks a plan needs settling before the book has a front door.
 
     ★ **Settled: a BOOK, not core.** Core was weighed and declined. What Zig gets right is that a
     build script is an ORDINARY PROGRAM USING AN ORDINARY LIBRARY — putting the vocabulary into the
