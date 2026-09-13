@@ -1502,6 +1502,31 @@ public sealed partial class TypeChecker
     /// than a reachability closure. A layer that pulls another book would need this to iterate.
     /// </para>
     /// </remarks>
+    /// <summary>
+    /// The bundled book a privacy-renamed declaration belongs to, or null if it is not one.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ The kinds here are exactly the kinds <see cref="BookLoading.MakePrivate"/> renames. If a
+    /// declaration is added there and not here, its body quietly returns to being emitted into
+    /// every program — which is the bug this exists to close.
+    /// </remarks>
+    private static string? OwningBook(IStatement statement)
+    {
+        string? name = statement switch
+        {
+            BindStatement b       => b.Name,
+            DefineStatement d     => d.Name,
+            ObjectDefinition o    => o.Name,
+            InterfaceDefinition i => i.Name,
+            _ => null,
+        };
+        if (name is null) return null;
+        int at = name.LastIndexOf(" in ", StringComparison.Ordinal);
+        if (at < 0) return null;
+        var book = name[(at + 4)..];
+        return BuiltinBooks.ContainsKey(book) ? book : null;
+    }
+
     private IReadOnlyList<IStatement> DropUnpulledLayers(IReadOnlyList<IStatement> statements)
     {
         if (_pulledBooks.Count == BuiltinBooks.Count) return statements;
@@ -1523,6 +1548,25 @@ public sealed partial class TypeChecker
                 && !_pulledBooks.Contains(od.Name)
                 && !_moduleNeeds.Values.Any(needs => needs.Contains(od.Name)))
                 continue;
+
+            // ⚠⚠ AND THE LAYER'S PRIVATE HELPERS, which used to stay behind. `MakePrivate` renames
+            // everything a book's file declares beside its module to "<name> in <book>", and only
+            // the module was dropped above — so the bodies were emitted into EVERY compiled program
+            // whether or not the book was pulled. MEASURED: `State "hello".` carried the whole
+            // pattern engine, `cv_match_in_regex` and all.
+            //
+            // It was invisible while it was only dead weight. It stopped being invisible the first
+            // time a helper used something the runtime SPLIT trims away: `blueprints` runs a
+            // subprocess, `cufet_run_inherit` is only emitted for a program that runs one, and
+            // every compiled program failed to link at once.
+            //
+            // ★ Trimmed at the LAST " in ", the same rule module type lifting uses, so a name that
+            // contains the word survives having a book name after it.
+            if (OwningBook(statement) is { } owner
+                && !_pulledBooks.Contains(owner)
+                && !_moduleNeeds.Values.Any(needs => needs.Contains(owner)))
+                continue;
+
             kept.Add(statement);
         }
         return kept.Count == statements.Count ? statements : kept;

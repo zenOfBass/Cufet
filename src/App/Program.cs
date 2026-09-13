@@ -24,9 +24,23 @@ if (args.Length >= 1 && args[0] is "--help" or "-h" or "help" or "-?" or "/?")
     Help();
 else if (args.Length >= 1 && args[0] is "--version" or "-v")
     Console.WriteLine($"cufet {Version()}");
+// ★★ `build` is OVERLOADED BY ARITY. Bare, it builds the PROJECT from its blueprint; with a file,
+// it compiles that one file, which is what it has always meant. Zig's `zig build` versus
+// `zig build-exe`, without spending a second verb.
+else if (args.Length == 1 && args[0].Equals("build", StringComparison.OrdinalIgnoreCase))
+    BuildProject();
 else if (args.Length >= 2 && args[0].Equals("build", StringComparison.OrdinalIgnoreCase))
 {
     RefuseExtraArguments("build", args[2..], "cufet build <file.cufe>");
+    // ⚠ Refused BY NAME rather than allowed to mean something surprising. Under the overload above
+    // this would compile the build DESCRIPTION into a binary, which is never what anyone means —
+    // and it would do it silently, which is the failure this language declines everywhere else.
+    if (Path.GetFileName(args[1]).Equals("blueprint.cufe", StringComparison.OrdinalIgnoreCase))
+    {
+        Console.Error.WriteLine("build: that is the build description, not a program to compile.");
+        Console.Error.WriteLine("Run 'cufet build' with no file to build the project it describes.");
+        Environment.Exit(2);
+    }
     Build(args[1]);
 }
 else if (args.Length >= 2 && args[0].Equals("emit-c", StringComparison.OrdinalIgnoreCase))
@@ -412,6 +426,66 @@ static void RefuseIfNothingToRun(string verb, string shown, Cufet.Interpreter.Pr
     Console.Error.WriteLine(
         "  building, and build that.");
     Environment.Exit(2);
+}
+
+// ── Building a PROJECT, from its blueprint ─────────────────────────────────────────────────────
+//
+// ★ Nothing is compiled while the blueprint runs. The file defines `blueprint` and calls nothing,
+// so running it produces a PLAN and performs no build. The driver appended below is the only thing
+// that acts — which is the whole of the settled design: a blueprint describes, `build` does.
+static void BuildProject()
+{
+    const string blueprintFile = "blueprint.cufe";
+    // The walker, under the name file privacy gives it. ★★ The SPACE is what makes this safe:
+    // `BookLoading.MakePrivate` renames a prelude file's top-level helpers to "<name> in <book>",
+    // and no identifier may contain a space — so this cannot be written by hand, cannot be
+    // shadowed, and cannot collide with anything a blueprint declares. It is exactly the trick the
+    // pattern engine's entry point uses to stay unreachable.
+    const string walker = "bp-walk in blueprints";
+    const string entry  = "blueprint";
+
+    if (!File.Exists(blueprintFile))
+    {
+        Console.Error.WriteLine($"build: there is no {blueprintFile} here.");
+        Console.Error.WriteLine(
+            "A project is built from its blueprint. Write one, or name a file to compile instead: "
+            + "'cufet build <file.cufe>'.");
+        Environment.Exit(1);
+        return;
+    }
+
+    string source;
+    try { source = File.ReadAllText(blueprintFile); }
+    catch (IOException e) { Console.Error.WriteLine(e.Message); Environment.Exit(1); return; }
+
+    var checker = MakeChecker(blueprintFile);
+    Cufet.Interpreter.Program program;
+    try
+    {
+        program = new Parser(new Lexer(source).Tokenize()).Parse();
+        // ⚠ APPENDED, not spliced in front. The driver casts `blueprint`, so the file must have
+        // defined it by the time this runs — the mirror image of how WithPrelude puts a book's
+        // statements BEFORE a program.
+        program = new Cufet.Interpreter.Program(
+        [
+            .. program.Statements,
+            new CastStatement(
+                new VariableReference(walker, 1, 1),
+                [new CastExpression(new VariableReference(entry, 1, 1), [], 1, 1)],
+                1, 1),
+        ]);
+        program = checker.Check(program);
+    }
+    catch (LexerException e) { Console.Error.WriteLine(e.Message); Environment.Exit(1); return; }
+    catch (ParseException e) { Console.Error.WriteLine(e.Message); Environment.Exit(1); return; }
+    catch (TypeException e)  { Console.Error.WriteLine(e.Message); Environment.Exit(1); return; }
+
+    WriteWarnings(blueprintFile, checker.Diagnostics);
+
+    var interpreter = new Interpreter { ForeignRunner = new GccForeignRunner() };
+    RunOnLargeStack(() => interpreter.Execute(program));
+    if (interpreter.ExitStatus is { } chosen) Environment.Exit(chosen);
+    if (interpreter.WasInterrupted) Environment.Exit(130);
 }
 
 static void Build(string sourcePath)

@@ -27,6 +27,12 @@ public sealed partial class TypeChecker
         };
         books["collections"] = new BookType("collections", [], collectionsTypes);
 
+        // blueprints book — ★ a GATE, not a library. No members and no introduced types: a
+        // blueprint's steps are structural records, so nothing crosses the book boundary. Pulling
+        // it is how a file declares that it IS a build description, which is what lets `cufet
+        // build` refuse one that does not. Same shape as `chance` and the language books.
+        books["blueprints"] = new BookType("blueprints", []);
+
         // chance book — effectful randomness (stateful global RNG).
         // Functions are NOT registered here as book members because they use natural-language
         // surface syntax (RandomNumber/RandomItem/RandomlyShuffled/RandomGuess AST nodes) rather
