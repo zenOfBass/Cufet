@@ -8,8 +8,9 @@ Books come in three kinds, and the difference is what you get out of one:
 - **Standard-library books** have *members you call*: `math`, `collections`, `chance`.
 - **Language books** have no members at all. Pulling one admits a *syntax* — writing axioms, Cufet
   blocks, or patterns: `the c-language`, `cufet` and `regex`.
-- **`blueprints`** has neither members nor a syntax. Pulling it is how a file declares that it IS a
-  build description, which is what lets `cufet build` refuse one that does not.
+- **`blueprints`** admits no syntax and offers one member, `checksum`. Pulling it is mostly how a
+  file declares that it IS a build description, which is what lets `cufet build` refuse one that
+  does not.
 
 `Pull` itself is a module mechanism one level above books, and lives in
 [REFERENCE.md](REFERENCE.md#modules-pull). For the language in full, see
@@ -1218,9 +1219,32 @@ staleness is decided by hashing what a step needs, so `needs` has to be declared
 Writing edges too would state one fact twice, and an edge could then claim a dependency the inputs
 deny with nothing to catch it.
 
-★ **The book is a gate, not a library.** It offers no members and introduces no type — a step is an
-ordinary structural record, so nothing crosses the book boundary at all. Pulling it is how a file
-declares what it *is*, which is what lets `cufet build` refuse a blueprint that does not.
+★ **The book introduces no TYPE** — a step is an ordinary structural record, so no type crosses
+the book boundary. Pulling it is mostly how a file declares what it *is*, which is what lets `cufet
+build` refuse a blueprint that does not.
+
+**Its one member is `checksum`**, which is what staleness will be decided by:
+
+```cufet-fragment
+Pull a book on blueprints.
+    Define mark as blueprints's checksum of ("tools/shell.cufe").
+Done.
+```
+
+`blueprints's checksum of (path)` is **FNV-1a, 64-bit, over the file's bytes**, and gives back
+`voidable bits` — void when the file cannot be read, because a build asks about inputs that do not
+exist yet constantly and "nothing there to checksum" is an answer rather than an error.
+
+★★ **Content, never timestamps.** A timestamp answers *"was this touched"*; a build wants *"is this
+different"*. They differ at the edges — a file touched without changing, or a change inside the
+filesystem's timestamp resolution — and the failure is a wrong build with no complaint. Decisive:
+git does not preserve modification times, so a timestamp answer depends on how the tree arrived on
+the machine.
+
+⚠ **Non-cryptographic, and 64 bits.** It detects change; it does not resist an adversary. A
+collision is possible in principle — at a few thousand files, somewhere around one in ten trillion
+— and a collision is a stale build with no complaint, so it is stated here rather than pretended
+away.
 
 ⚠ **`cufet build blueprint.cufe` is refused by name.** Under the overload it would compile the
 build description itself into a binary, which is never what anyone means — and it would do it

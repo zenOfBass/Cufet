@@ -77,8 +77,28 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   function name as magic. ⚠ `cufet build blueprint.cufe` is refused by name: under the overload it
   would silently compile the build description itself.
 
-  ⚠ **This slice always rebuilds.** No staleness checking yet, which is correct and merely not yet
-  useful — the hashing surface is its own slice with this book as its witness.
+  **`blueprints's checksum of (path)`** — FNV-1a, 64-bit, over a file's bytes, giving back
+  `voidable bits`. Void when the file cannot be read, because a build asks about inputs that do not
+  exist yet constantly and *"nothing there to checksum"* is an answer rather than an error.
+
+  ★★ **Content, never timestamps.** A timestamp answers *"was this touched"*; a build wants *"is
+  this different"*. Decisive: git does not preserve modification times, so a timestamp answer
+  depends on how the tree arrived on the machine.
+
+  ★ **The one native member in any bundled book**, where `math` and `collections` migrated the
+  other way — a checksum runs over every input on every build, so its cost lands on each build
+  rather than only when a program reaches for it. ⚠ Native is not the same as platform-provided:
+  the rule this owes is against DELEGATING, and FNV-1a is written out on both sides and pinned to
+  **published test vectors**, so neither backend is graded by the other. It takes the PATH rather
+  than the contents, so no byte ever crosses into Cufet — which is why hashing a binary needs no
+  byte type and no byte-reading surface.
+
+  ⚠ **Non-cryptographic, and 64 bits.** It detects change; it does not resist an adversary. A
+  collision is possible in principle — around one in ten trillion at a few thousand files — and a
+  collision is a stale build with no complaint, so it is stated rather than pretended away.
+
+  ⚠ **This slice still always rebuilds.** `checksum` exists but nothing consults it yet; wiring it
+  into the walker is the next slice.
 
 ### Changed
 
