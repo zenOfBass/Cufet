@@ -5277,7 +5277,7 @@ public sealed class Parser
     {
         if (_nestDepth > 0)
             throw new ParseException(Peek(),
-                "— destructors must be declared at the top level, not inside a block");
+                "— unmakers must be declared at the top level, not inside a block");
 
         var savedInObjectDef   = _inObjectDef;
         var savedInFreeFunction = _inFreeFunction;
@@ -5298,7 +5298,7 @@ public sealed class Parser
 
         if (Peek().Type == TokenType.Given)
             throw new ParseException(Peek(),
-                "— destructors take no parameters (omit 'given (...)' entirely)");
+                "— unmakers take no parameters (omit 'given (...)' entirely)");
 
         _functionDepth++;
         var body = ParseVoidBodyOrBlock();   // a destructor is void, so its inline form is a statement

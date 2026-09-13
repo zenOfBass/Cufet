@@ -189,7 +189,7 @@ public sealed partial class TypeChecker
     {
         if (ctor.UntoType != null)
             throw TypeError(
-                $"a constructor can't also be an 'unto' method",
+                $"a maker can't also be an 'unto' method",
                 null, ctor.Line, ctor.Column,
                 $"declare 'Bind making a {ctor.ConstructsTypeName} to {ctor.Name} unto ...'",
                 "Constructors are free functions — they can't be attached to a type with 'unto'.");
@@ -198,8 +198,8 @@ public sealed partial class TypeChecker
             throw TypeError(
                 $"'{ctor.ConstructsTypeName}' is not a defined object type",
                 null, ctor.Line, ctor.Column,
-                $"declare a constructor for '{ctor.ConstructsTypeName}'",
-                $"Define 'object {ctor.ConstructsTypeName}' before declaring constructors for it.");
+                $"declare a maker for '{ctor.ConstructsTypeName}'",
+                $"Define 'object {ctor.ConstructsTypeName}' before declaring makers for it.");
 
         // Resolve the shell ObjectType in the return type to the canonical instance before
         // type-checking the body — otherwise IsAssignable against returned object literals fails.

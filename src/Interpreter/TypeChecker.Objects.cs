@@ -685,8 +685,8 @@ public sealed partial class TypeChecker
             throw TypeError(
                 $"'{ud.UnmakesTypeName}' is not a defined object type",
                 null, ud.Line, ud.Column,
-                $"declare a destructor for '{ud.UnmakesTypeName}'",
-                $"Define 'object {ud.UnmakesTypeName}' before declaring a destructor for it.");
+                $"declare an unmaker for '{ud.UnmakesTypeName}'",
+                $"Define 'object {ud.UnmakesTypeName}' before declaring an unmaker for it.");
 
         var saved = SaveScopes();
         ImportTopLevelVisible(saved);

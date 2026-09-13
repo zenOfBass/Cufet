@@ -2057,17 +2057,17 @@ public sealed partial class TypeChecker
                 throw TypeError(
                     $"'{typeName}' is not a defined object type — 'making a {typeName}' has no type to register on",
                     null, ctors[0].Line, ctors[0].Column,
-                    $"declare a constructor for '{typeName}'",
-                    $"Define 'object {typeName}' before declaring constructors for it, or check the spelling.");
+                    $"declare a maker for '{typeName}'",
+                    $"Define 'object {typeName}' before declaring makers for it, or check the spelling.");
 
             var newCtorNames = ot.Constructors.ToList();
             foreach (var ctor in ctors)
             {
                 if (newCtorNames.Contains(ctor.Name))
                     throw TypeError(
-                        $"'{typeName}' already has a constructor named '{ctor.Name}'",
+                        $"'{typeName}' already has a maker named '{ctor.Name}'",
                         null, ctor.Line, ctor.Column,
-                        $"declare another constructor named '{ctor.Name}' for '{typeName}'",
+                        $"declare another maker named '{ctor.Name}' for '{typeName}'",
                         "Constructor names must be unique per type. Rename one of them.");
                 newCtorNames.Add(ctor.Name);
 
@@ -2097,10 +2097,10 @@ public sealed partial class TypeChecker
             if (stmt is not UnmakerDeclaration ud) continue;
             if (unmakeByType.ContainsKey(ud.UnmakesTypeName))
                 throw TypeError(
-                    $"'{ud.UnmakesTypeName}' already has a destructor — 'Bind unmaking a {ud.UnmakesTypeName}' appeared twice",
+                    $"'{ud.UnmakesTypeName}' already has an unmaker — 'Bind unmaking a {ud.UnmakesTypeName}' appeared twice",
                     null, ud.Line, ud.Column,
-                    $"declare a second destructor for '{ud.UnmakesTypeName}'",
-                    "Remove the duplicate. Each type has exactly one destructor — one way to die.");
+                    $"declare a second unmaker for '{ud.UnmakesTypeName}'",
+                    "Remove the duplicate. Each type has exactly one unmaker — one way to die.");
             unmakeByType[ud.UnmakesTypeName] = ud;
         }
         foreach (var (typeName, ud) in unmakeByType)
@@ -2109,8 +2109,8 @@ public sealed partial class TypeChecker
                 throw TypeError(
                     $"'{typeName}' is not a defined object type — 'unmaking a {typeName}' has no type to register on",
                     null, ud.Line, ud.Column,
-                    $"declare a destructor for '{typeName}'",
-                    $"Define 'object {typeName}' before declaring a destructor for it, or check the spelling.");
+                    $"declare an unmaker for '{typeName}'",
+                    $"Define 'object {typeName}' before declaring an unmaker for it, or check the spelling.");
             _objectDefs[typeName] = new ObjectType(
                 ot.Name, ot.PositionalTypes, ot.NamedFields, ot.Methods,
                 ot.Getters, ot.Setters, ot.EmbeddedTypeName, ot.ConformedInterfaces,
