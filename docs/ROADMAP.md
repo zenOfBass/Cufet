@@ -82,7 +82,7 @@ The claim here is narrower and checkable: point at a program and ask whether it 
 ★ **The list is rate-limited by how many real programs exist**, and that is the point rather than a
 complaint: a capability nobody has reached for is not yet known to be missing. Measured 2026-09-11,
 six corpus programs use an axiom and five are demonstrations of the FFI itself — the shell is the
-only true witness. The `building` book is expected to produce the next one, since deciding whether
+only true witness. The `blueprints` book is expected to produce the next one, since deciding whether
 a file is stale is exactly a reach-for-C problem, but it has not been written and is not listed.
 
 ## The design mountains
@@ -103,7 +103,7 @@ they are large, not because they are waiting — the order among them means noth
    - **Identity is the rabbit's name, and the send surface is `Have <rabbit> …`** — a shape that
      already exists for other reasons. The mailbox mechanism is later.
    - **A restartable body must acquire its own resources**, so a re-run re-acquires into a fresh
-     region. Parallel to the destructor ownership rule.
+     region. Parallel to the unmaker ownership rule.
 
    **Open:**
 
@@ -394,11 +394,22 @@ indistinguishable from having forgotten.
   work for the case that motivates it. ★ The trigger is checkable, which is what keeps this honest.
 
 - **Named loops — a label so `Stop.` can leave an OUTER loop.** *Blocker: no demonstrated need.*
-  Across 28 examples — a sudoku solver with triple-nested loops, a JSON parser, recursive descent,
-  Dijkstra, Huffman — there are 7 uses of `Stop.`/`Skip.` and **not one wants to escape an outer
-  loop**, nor is there any trace of the flag workaround that would appear if the need were being
-  routed around. The deepest nesting escapes with `return` from inside a function, and extracting a
-  nested search into a named function is usually better than labelling the loop anyway.
+  MEASURED 2026-09-13 across 47 examples and 3 tools, including a triple-nested sudoku search: 5
+  uses of `Stop.` and 10 of `Skip.`, and **not one wants to escape an outer loop**. The deepest
+  nesting escapes with `return` from inside a function, and extracting a nested search into a named
+  function is usually better than labelling the loop anyway.
+
+  ⚠ **The one flag that looks like the workaround is not one.** `tools/shell.cufe` sets `broken` in
+  its redirect parse, but the loop is single and the flag's job is to carry *"this failed"* PAST
+  the loop's end — which no label would remove. Check for that shape before reading a flag as
+  evidence.
+
+  ★ **Checked against a prediction written before the program existed.** `beamforming.cufe` was
+  recorded in advance as unlikely to trigger this, and did not: its loops ACCUMULATE — visit
+  everything and sum — so by construction there is nothing to leave early. Its C original does
+  carry four early exits, all one level deep and all *"break loop from error"* — a shape Cufet
+  answers better with `return a failure` or `Exit`. **The trigger wants a SEARCH**, and both
+  searches in the corpus declined it.
 
   **The argument worth revisiting is readability, not capability:** `Stop.` silently means "the
   innermost one", and in a triple-nested loop the reader has to count. An optional label could make
@@ -462,7 +473,7 @@ indistinguishable from having forgotten.
   crosses a **version boundary**. Adding a field is a breaking change for every construction
   site, which is nobody's problem while one person owns them all and everybody's the moment
   books are user-authored and depended on — so this arrives with the package manager, not before.
-  Until then, named constructors (`making a <type>`) already cover "I do not want to write six
+  Until then, named makers (`making a <type>`) already cover "I do not want to write six
   fields", and `voidable` already covers "may be absent" while keeping the absence visible where
   the object is built.
 

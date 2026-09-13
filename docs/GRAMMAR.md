@@ -55,7 +55,7 @@ Keywords are **case-insensitive** (`State`, `state`, `STATE` are identical).
 ### ★ Where a declaration belongs
 
 **A TYPE declaration belongs to the PROGRAM, wherever it is written.** `Define object`, an
-interface, an `unmake`, an operator overload and a named constructor are all registered for the
+interface, an unmaker, an operator overload and a named maker are all registered for the
 whole program even when written inside a function, a loop, an `If` arm or a rabbit block — so a
 type declared in one is usable after it.
 
@@ -196,11 +196,11 @@ meaning two different things.
 |---|---|---|
 | function with a return type | expression | `Bind number to double, given (the number amount), amount * 2.` |
 | getter | expression | `Get area as number, one's radius * one's radius * 3.` |
-| named constructor | expression | `Bind making a vec to square-vec, given (the number seed), a new vec { … }.` |
+| named maker | expression | `Bind making a vec to square-vec, given (the number seed), a new vec { … }.` |
 | operator overload | expression | `Bind overloading +, given (the lhs is a vec, the rhs is a vec), a new vec { … }.` |
 | `void` function | statement | `Bind void to shout, given (the text word), State word in uppercase.` |
 | setter | statement | `Set radius given (the number r), one's radius becomes r.` |
-| destructor | statement | `Bind unmaking a gate to close-gate, State "closing {one's id}".` |
+| unmaker | statement | `Bind unmaking a gate to close-gate, State "closing {one's id}".` |
 | `If`, `Judge` arm | statement | `If x is 1, State "one".` |
 | **task** | statement | `Have rabbit start a task as batch-1, return 1 + 2 + 3.` |
 
@@ -301,8 +301,8 @@ equality `is` uses. `Descend.` (explicit fall-through) is reserved and not yet a
 | `one` | One | Self-reference inside methods |
 | `get` | GetKw | Getter declaration |
 | `set` | SetKw | Setter declaration |
-| `making` | MakingKw | Named constructor marker |
-| `unmaking` | UnmakingKw | Destructor marker |
+| `making` | MakingKw | Named maker marker |
+| `unmaking` | UnmakingKw | Unmaker marker |
 | `overloading` | OverloadingKw | Operator overload marker |
 | `unto` | Unto | External method attachment |
 | `function` | FunctionKw | Function type annotation |
@@ -1715,11 +1715,11 @@ Done.
 
 `Define nodes as a series of node.` **inside** an object body is a parse error.
 
-### Named constructors initialize empty complex fields
+### Named makers initialize empty complex fields
 
 When fields have types like `series of T` or `map from K to V`, you cannot write
 `a new graph` to create an empty instance — you must supply all field values.
-Use a `Bind making a` constructor to hide that:
+Use a `Bind making a` maker to hide that:
 
 ```cufet-fragment
 Bind making a graph to new-graph:
@@ -2687,7 +2687,7 @@ Done.
 which is the same reason a nested `Bind` is a closure rather than a free function.
 
 **It applies to every body that leaves the top-level scope**, in exactly the same terms: a
-top-level function, a **method**, a **getter**, a **setter**, a **destructor**, an **operator
+top-level function, a **method**, a **getter**, a **setter**, a **unmaker**, an **operator
 overload**, a **pipe stage**. There is one rule, not one per body kind.
 
 A **lambda literal is not in that list** — it *captures* its enclosing scope, so a lambda sitting
@@ -2874,7 +2874,7 @@ second place.
 When called, it runs in an isolated environment: other top-level functions are
 visible (enabling mutual recursion) and top-level `permanently` constants are
 visible, but ordinary top-level `Define`d values are not. Methods, getters,
-setters, destructors and operator overloads run in the same isolation.
+setters, unmakers and operator overloads run in the same isolation.
 
 ```
 Define total as 0.
@@ -3471,7 +3471,7 @@ cascade parse errors.
 
 ### Object methods: `one` is the only self-reference
 
-Inside any method (or getter, setter, destructor), `one` is the receiver. Fields
+Inside any method (or getter, setter, unmaker), `one` is the receiver. Fields
 are never in scope directly — always `one's fieldname`. Mutations to series fields
 work through a local alias (same reference). Map and scalar field mutations use
 possessive-set (`one's field becomes X`) or in-place map operations.
@@ -3483,7 +3483,7 @@ Define xs as a series of number.             ← empty series
 Define m  as a map from text to number.      ← empty map
 ```
 
-Both create empty, typed, mutable collections. Use `Bind making a` constructors
+Both create empty, typed, mutable collections. Use `Bind making a` makers
 to encapsulate initialization of objects that have collection fields.
 
 ### Failure vs void — orthogonal concepts

@@ -61,8 +61,8 @@ deliberate differences are marked where they arise and summarised under
       - [Interfaces (polymorphism)](#interfaces-polymorphism)
       - [Methods defined outside the object body (`unto`)](#methods-defined-outside-the-object-body-unto)
       - [Getters and setters](#getters-and-setters)
-      - [Named constructors](#named-constructors)
-      - [Destructors](#destructors)
+      - [Named makers](#named-makers)
+      - [Unmakers](#unmakers)
       - [Recursive shapes](#recursive-shapes)
     - [Operator overloading](#operator-overloading)
     - [Functions](#functions)
@@ -299,7 +299,7 @@ Done.
 ```
 
 Every body that leaves the top-level scope reads them on the same terms — a function, a method, a
-getter, a setter, a destructor, an operator overload, a pipe stage.
+getter, a setter, an unmaker, an operator overload, a pipe stage.
 
 The difference is mutation, not scope. Functions are kept away from top-level data so data flow
 stays explicit and nothing can be changed behind your back — and a permanent binding cannot be
@@ -2292,10 +2292,10 @@ rather than needing a third form.
 Either half may stand alone: a getter with no setter is read-only (`circle's area`
 above), and a setter with no getter is write-only.
 
-#### Named constructors
+#### Named makers
 
-A named constructor is a function that builds and returns an object. It is declared
-with `making a <type>` in the return-type slot:
+A named maker is a function that builds and returns an object — a *constructor*, in
+the C++ or Java sense. It is declared with `making a <type>` in the return-type slot:
 
 ```cufet-fragment
 Define object point with (the number x, the number y).
@@ -2322,12 +2322,12 @@ Define p as cast from-pair on ("3,4").
 - Fallible form: `Bind making a <type> or failure to <name>:` — the body may
   `return a failure ...`.
 - Called via the standard `Cast <name> on (args)` syntax — no new call syntax.
-- A type can have multiple named constructors; the `{...}` literal is still available.
+- A type can have multiple named makers; the `{...}` literal is still available.
 
-#### Destructors
+#### Unmakers
 
-A destructor runs automatically when a **binding** goes out of scope — RAII at the
-`Done.` that closes the block the name was declared in:
+An unmaker runs automatically when a **binding** goes out of scope — a *destructor*, or
+Rust's `Drop`. It is RAII at the `Done.` that closes the block the name was declared in:
 
 ```cufet-fragment
 Bind unmaking a conn to disconnect:
@@ -2338,18 +2338,18 @@ Done.
 If 1 is 1:
     Define db as cast open-conn on ("localhost").
     Cast query on (db, "SELECT 1").
-Done.                              ← destructor fires here, before leaving the block
+Done.                              ← unmaker fires here, before leaving the block
 ```
 
 Rules:
 
 - `Bind unmaking a <type> to <name>: ... Done.` — top-level only, no parameters.
-- **One per type** — a second destructor for the same type is a static error.
+- **One per type** — a second unmaker for the same type is a static error.
 - **Infallible** — `return a failure` in the body is a static error. For cleanup
   that *can* fail, expose a fallible method (`close`/`flush`/`commit`) and call it
-  *before* the scope ends. Relying on the destructor for fallible cleanup risks silent
-  data loss — the destructor swallows all outcomes.
-- **LIFO order** — when multiple objects in the same scope have destructors, they
+  *before* the scope ends. Relying on the unmaker for fallible cleanup risks silent
+  data loss — the unmaker swallows all outcomes.
+- **LIFO order** — when multiple objects in the same scope have unmakers, they
   fire in reverse definition order (last-defined, first-destroyed).
 - **Every way out of the block fires them** — reaching its `Done.`, a `Stop.`, a
   `return`, an exception caught further out, and an exception that is never caught and
@@ -2359,13 +2359,13 @@ Rules:
 - **`one` is the object being destroyed** — its fields and methods are accessible
   via `one's <field>` and `Cast <method> on one`.
 - **Ownership rule** — destroy what you opened, not what you borrowed. A resource
-  passed in from outside is the caller's responsibility; closing it in the destructor
+  passed in from outside is the caller's responsibility; closing it in the unmaker
   is a double-close bug.
 - **It is a hook on the BINDING, not on the object** — which is what the ownership rule above is
   really telling you, and it is worth saying outright. `Define copy as original.` copies the
-  object, so two names exist and the destructor fires **twice**. An object reached without a
+  object, so two names exist and the unmaker fires **twice**. An object reached without a
   `Define` — a temporary, an element of a series, a field of another object — has no declaring
-  block, so its destructor **never** fires. Cufet does not track who owns a resource; you do.
+  block, so its unmaker **never** fires. Cufet does not track who owns a resource; you do.
 
 ---
 
@@ -2890,9 +2890,9 @@ Cufet has a static type checker that runs before execution. It catches:
 - File reads (`read all from the file`, `read all lines from the file`) and
   process execution (`run`) outside a `Try` block or propagation context —
   their failable return types must be handled
-- Declaring a second destructor (`Bind unmaking a <type>`) for a type that
+- Declaring a second unmaker (`Bind unmaking a <type>`) for a type that
   already has one — duplicate unmaker is a static error
-- Using `return a failure` inside a destructor body — destructors are infallible
+- Using `return a failure` inside an unmaker body — unmakers are infallible
 - `Get ... as void:` — getters must return a typed value; void is a parse error
 
 **Records use structural typing** — shape is identity. Two records with the same
@@ -3216,7 +3216,7 @@ Done.
 ```
 
 Leaving the handler this way releases everything the handler opened — objects
-with destructors are unmade, files opened inside it are closed — exactly as
+with unmakers are unmade, files opened inside it are closed — exactly as
 `Stop` does on the way out of a loop.
 
 Both handlers can appear in the same `Try`:
@@ -3573,7 +3573,7 @@ compiled `./check` both leave with what the program said.
   eight bits, so `Exit with 256.` would leave with **0** — success, from a line that plainly meant
   otherwise. Refusing beats that silent reinterpretation, the same call the `bits` narrowing rule
   makes.
-- ★★ **Leaving UNWINDS.** Every open block's destructors still run on the way out, so a program
+- ★★ **Leaving UNWINDS.** Every open block's unmakers still run on the way out, so a program
   that chooses to leave early is not the one way out that loses an `unmaking`. A `Pull a rabbit`
   holding a connection closes it whether the program falls off the end or exits from the middle.
 - **Nothing after it runs**, including in the blocks it is leaving through.
@@ -4177,7 +4177,7 @@ each thread establishes a landing pad it unwinds to at its next checkpoint. In p
 | Tight loop in a program that never mentions interrupts | interruptible — every statement is a checkpoint | interruptible — the default signal disposition applies |
 | Tight loop in a program that handles its own interrupts | not interruptible until it polls; a second Ctrl-C terminates | not interruptible until it polls; a second Ctrl-C terminates |
 | Blocked on `the delivery from` | interruptible | interruptible — a real blocked thread genuinely wakes |
-| Inside a running task | interruptible at its checkpoints | interruptible; the task unwinds, its destructors run, its files close, and the rabbit reaps it at the join |
+| Inside a running task | interruptible at its checkpoints | interruptible; the task unwinds, its unmakers run, its files close, and the rabbit reaps it at the join |
 | Waiting at a rabbit's `Done.` for tasks | n/a | the wait ends as its tasks unwind, and the program then tears down |
 
 An interrupt that is never acknowledged tears the program down cleanly — open files are

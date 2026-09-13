@@ -34,6 +34,31 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   native libraries would disagree in their last digit, and a phase is not somewhere a last digit
   can be allowed to wander.
 
+### Changed
+
+- **`constructor` and `destructor` are now `maker` and `unmaker` everywhere a programmer can see
+  them.** The keywords were always `making` and `unmaking` — `Bind making a graph to new-graph:`,
+  `Bind unmaking a gate to close-gate:` — while the documentation and the checker's own messages
+  described them in borrowed C++ vocabulary. A reader met one set of words in the syntax and a
+  different set in the error message.
+
+  ⚠ `unmaker` was already in circulation as an undeclared third name, and that had REFERENCE
+  **stating one rule twice under two vocabularies, 550 lines apart**: *"a second destructor for the
+  same type is a static error"* and *"duplicate unmaker is a static error"*. A reader who arrived
+  at one could not grep their way to the other.
+
+  ★ Both REFERENCE sections keep a one-clause bridge to the word a reader arrives with — *"a named
+  maker is a function that builds and returns an object — a constructor, in the C++ or Java
+  sense"* — so the familiar term still finds the page.
+
+  This is visible in diagnostics: `'gate' already has a destructor` now reads `'gate' already has
+  an unmaker`. ⚠ Internal C# identifiers and comments were deliberately left alone — a dozen of
+  `src/`'s `constructor` mentions are real C# constructors, and renaming those would corrupt
+  working prose to no reader's benefit.
+
+- **GRAMMAR no longer calls `unmaking` an `unmake`.** There is no such keyword; the marker is
+  `unmaking`, and the declaration-placement rule had been citing a form that does not exist.
+
 ### Fixed
 
 - **GRAMMAR no longer claims a fractional `power` is platform-owned.** It named exactly two

@@ -197,17 +197,17 @@ What it means for a value not to be there, and how types relate.
 
 What an object owns, and what a property may do.
 
-- **Destructor close/flush companion convention** (guidance, prevents silent data
+- **Unmaker close/flush companion convention** (guidance, prevents silent data
   loss): `unmake` is the infallible last-resort backstop. For cleanup that *can* fail
   (flushing a buffered writer, committing a transaction), the object should expose a
   fallible method (`close`/`flush`/`commit`) and the caller handles the failure
   *before* the object's scope ends. Relying on `unmake` alone to flush risks silent
-  data loss — the destructor swallows all outcomes. (Same pattern as Rust `Drop`+
+  data loss — the unmaker swallows all outcomes. (Same pattern as Rust `Drop`+
   `.close()` / Java `Closeable.close()`+`finalize`.)
 
-- **Destructor ownership rule:** `unmake` closes what the object *opened*, not what
+- **Unmaker ownership rule:** `unmake` closes what the object *opened*, not what
   it *borrowed*. A resource injected from outside is owned by the caller — closing it
-  in the destructor is a double-close bug.
+  in the unmaker is a double-close bug.
 
 - **Setters are infallible and transform-only (Option A — settled).** A setter may
   clamp, convert, normalize, or derive — but it cannot reject. Validation-that-rejects
