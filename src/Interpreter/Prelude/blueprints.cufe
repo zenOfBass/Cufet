@@ -1,6 +1,6 @@
 // The build book, written in Cufet.
 //
-// ★★ A GATE, NOT A LIBRARY. This book offers no members and introduces no type. A blueprint's
+// ★★ MOSTLY A GATE. This book introduces no type and offers exactly one member, `checksum`. A blueprint's
 // steps are STRUCTURAL RECORDS, so nothing has to be handed across the book boundary at all —
 // `Pull a book on blueprints.` exists so a file can DECLARE WHAT IT IS, and so `cufet build` can
 // refuse a build description that does not say so, rather than treating a bare function name as
@@ -34,7 +34,9 @@
 // way the parser reaches `match in regex`. It is deliberately not a module member: a blueprint's
 // author never calls it, and a member would invite them to.
 
-Define object blueprints with () and module.
+// No module declaration, and that is load-bearing: a book WITH a Cufet layer binds at the
+// layer and its BookType disappears (CheckPullStatement), which would put the native `hash`
+// member out of reach. `blueprints` has no Cufet members, so it needs no layer.
 
 /// Is this path produced by a step that has not run yet?
 ///
