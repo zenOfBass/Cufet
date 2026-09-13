@@ -3041,9 +3041,24 @@ passed "an open union" without having typed the word `union` anywhere. Name the 
 
 ### ★ A book in another file, and where its errors point
 
-`Pull a book on ‹name›.` resolves in three steps: a bundled book, then a module defined in this
-file, then `‹name›.cufe` beside the file being run. A missing file is not an error of its own —
-the name falls through to the refusal `Pull` already had, which names what is available.
+`Pull a book on ‹name›.` resolves in four steps: a bundled book, then a module defined in this
+file, then `‹name›.cufe` beside **the file that pulls it**, then `‹name›.cufe` in the project's
+`books` folder. A missing file is not an error of its own — the name falls through to the refusal
+`Pull` already had, which now also names the places it looked.
+
+★ **A project is a directory holding `blueprint.cufe`**, found by walking up. Only its LOCATION is
+read, never its contents: every tool that resolves a pull would otherwise have to execute a build
+description to import a book. No blueprint above the file means no project, and the `books` step is
+simply skipped.
+
+★★ **Nearest wins**, so a book beside the puller shadows the project's. ⚠ Still one book per NAME in
+a program whichever place it came from — `MakePrivate` renames what a book declares to
+`‹name› in ‹book›`, so two files answering to one name would collide on every declaration.
+
+⚠ A book's own pulls resolve beside **that book**, not beside the entry program. MEASURED
+unobservable today, since a book is always found in one of the two search places and the shared
+folder is a fallback at every level — it becomes visible only once a book can live somewhere that
+is not itself a search place.
 
 **Loaded in a front-end pass, ahead of `Cite` and the hoist.** After it the loaded file does not
 exist: its statements are the program’s, and the checker and both backends meet one longer

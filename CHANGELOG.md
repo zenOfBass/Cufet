@@ -150,6 +150,25 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   file that can be seen and removed, rather than CLI surface spent on a verb that is currently
   overloaded by arity and nothing else.
 
+- **A book may live in the project's `books` folder, so two programs can share one.** A pull now
+  resolves beside **the file that pulls it**, then in `books/` at the project root — where a project
+  is any directory holding a `blueprint.cufe`, found by walking up.
+
+  ★★ **Local wins**: a `canvas.cufe` beside `paint.cufe` is the one `paint` gets, while another
+  program still gets the project's. The shared folder is a default rather than a ceiling.
+
+  ⚠ Only the blueprint's **location** is read, never its contents. `cufet check`, the editor and a
+  plain run all have to resolve a pull, and none of them should execute a build description to
+  import a book. No blueprint above a file means no project, and resolution is then exactly what it
+  was before — a loose `.cufe` anywhere keeps meaning what it meant.
+
+  Before this a book had to sit in the pulling file's own directory and nowhere else, so two
+  programs in two folders could only share a book by keeping a copy each.
+
+  ⚠ **The refusal now names where it looked.** A failed pull used to offer the bundled books and an
+  object definition and stop — telling someone whose file was one folder off, in effect, that a book
+  cannot be a file at all.
+
 ### Changed
 
 - **`constructor` and `destructor` are now `maker` and `unmaker` everywhere a programmer can see

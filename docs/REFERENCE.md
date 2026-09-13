@@ -4230,13 +4230,40 @@ This is not new syntax. `Pull a rabbit.` was always this form; what changed is t
 name in it no longer has to be one the language shipped.
 
 **A module may live in another file.** A pull looks for a bundled book, then for a module defined
-here, then for `‹name›.cufe` beside the file being run:
+here, then for `‹name›.cufe` **beside the file that pulls it**, and finally in the project's shared
+`books` folder:
 
 ```cufet-fragment
 Pull a book on greeting-kit.        ← loads greeting-kit.cufe if nothing here is called that
     State cast greeting-kit's greet on ("world").
 Done.
 ```
+
+★ **Beside the file that pulls it** — which, when one book pulls another, means beside *that book*
+rather than beside whatever program started things. A folder holding a book and what it needs works
+wherever you put it.
+
+**A project is a directory with a `blueprint.cufe` in it**, found by walking up from the file. Books
+that more than one of its programs need go in `books/` at the root:
+
+```
+myproject/
+    blueprint.cufe          ← this is what makes it a project
+    books/
+        canvas.cufe         ← both programs below can pull it
+    paint/
+        paint.cufe
+    game/
+        game.cufe
+```
+
+★★ **Local wins.** A `canvas.cufe` sitting beside `paint.cufe` is the one `paint` gets, and `game`
+still gets the project's. The shared folder is a default, not a ceiling.
+
+⚠ Only the blueprint's *location* is read; it is never run. Finding a file is a walk up the tree,
+and `cufet check`, the editor and a plain `cufet run` all resolve pulls without executing anything.
+⚠ No blueprint above a file means no project, and a pull then looks only beside the pulling file —
+so a loose `.cufe` anywhere on disk keeps meaning exactly what it meant.
 
 ★ **Either spelling reaches a file.** `Pull a book on ‹name›.` and `Pull a ‹name›.` both load one;
 which you write depends on what the thing IS, not on where it lives — see

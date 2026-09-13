@@ -119,14 +119,25 @@ they are large, not because they are waiting — the order among them means noth
 
 2. **A package manager for books.**
 
-   ⚠⚠ **It has nowhere to put anything, and that is a LANGUAGE gap rather than a tooling one.**
-   Measured 2026-09-08: a pull finds a book only in the file's OWN directory — a subdirectory is
-   refused outright, and the message lists the bundled books as though nothing else could exist.
-   So "install a book" today means copying it beside every file that pulls it. Fetching,
-   versioning and a manifest are all downstream of a resolution rule the language does not have.
+   ✅ **The first slice — WHERE A BOOK LIVES — is DONE, 2026-09-13.** A pull resolves beside the
+   file that pulls it, then in `books/` at the project root, where a project is a directory holding
+   `blueprint.cufe`. Local wins. Only the blueprint's LOCATION is read, so no tool has to execute a
+   build description to import a book. The refusal now names the places it looked, which it never
+   did — that message, more than the rule, is why this read as a language with no file resolution.
 
-   ★ **The first slice is therefore WHERE A BOOK LIVES, not the manager.** That is a language
-   question and a far better-shaped one than the tooling on top of it.
+   ⚠ **Still missing for a manager: a book has nowhere of its OWN.** Everything installed would
+   land flat in one `books/` folder, so two books cannot carry different versions of a third and
+   nothing distinguishes a fetched book from one you wrote. The loader already resolves a book's
+   own pulls beside THAT BOOK rather than beside the program, which is the half that makes a
+   per-book folder work — but that is currently unobservable, and no folder shape is decided.
+
+   ⚠ **And a book still leaks its dependencies to its caller.** MEASURED 2026-09-13 on the first
+   real two-directory project: a program pulling `canvas` had to write `Pull books on palette, and
+   canvas.` although it never mentions `palette` — because a module's dependencies come from the
+   block it is USED in, not the one it is written in. That rule is deliberate and predates books
+   living elsewhere; the question it now raises is whether it should reach a book you INSTALLED,
+   whose internals are not yours to know. Installing a book otherwise means naming its whole
+   transitive dependency set at every pull site.
 
    ⚠ A second, separate gap in the same area: **a pull RUNS the loaded file's top-level
    statements**, so a file is either a program or a library and nothing says which. This is what
