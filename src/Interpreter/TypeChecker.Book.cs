@@ -260,12 +260,27 @@ public sealed partial class TypeChecker
         }
 
         var available = string.Join(", ", BuiltinBooks.Keys.OrderBy(k => k).Select(k => $"'{k}'"));
+
+        // ⚠⚠ THE PLACES IT LOOKED, by name. This message used to offer the bundled books and an
+        // object definition and stop — so a writer whose file was simply in the wrong folder was
+        // told, in effect, that books in files do not exist. A reader cannot fix a search that
+        // will not say what it searched.
+        var shared = BookLoading.SharedBooks(SourceDirectory);
+        string where = SourceDirectory is null
+            ? ""
+            : $" A book may also be a file named '{name}.cufe', beside the file that pulls it"
+              + (shared is null
+                    ? $" — there is no '{BookLoading.SharedFolder}' folder in a project above this "
+                      + $"file, so that is the only place looked."
+                    : $", or in '{shared}'.");
+
         throw TypeError(
             $"there is nothing named '{name}' to pull",
             null, ps.Line, ps.Column,
             $"pull '{name}'",
             $"Pull one of the bundled books ({available}), or define an object named "
-            + $"'{name}' as a module: 'Define object {name} with (...) and {ModuleInterface}:'.");
+            + $"'{name}' as a module: 'Define object {name} with (...) and {ModuleInterface}:'."
+            + where);
     }
 
     /// <summary>Names the language itself owns: the bundled books, and the rabbit.</summary>

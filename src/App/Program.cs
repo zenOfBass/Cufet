@@ -435,7 +435,9 @@ static void RefuseIfNothingToRun(string verb, string shown, Cufet.Interpreter.Pr
 // that acts — which is the whole of the settled design: a blueprint describes, `build` does.
 static void BuildProject()
 {
-    const string blueprintFile = "blueprint.cufe";
+    // ⚠ From the loader, not spelled again here. The same name marks a project root for book
+    // resolution, and two places stating one filename is how they come to disagree.
+    const string blueprintFile = BookLoading.BlueprintFile;
     // The walker, under the name file privacy gives it. ★★ The SPACE is what makes this safe:
     // `BookLoading.MakePrivate` renames a prelude file's top-level helpers to "<name> in <book>",
     // and no identifier may contain a space — so this cannot be written by hand, cannot be

@@ -1,4 +1,4 @@
-﻿using Cufet.Lexer;
+using Cufet.Lexer;
 using CufetLexer = Cufet.Lexer.Lexer;
 
 namespace Cufet.Interpreter;
@@ -124,6 +124,63 @@ public sealed class SourceMap
 /// </remarks>
 public static class BookLoading
 {
+    /// <summary>The file whose presence marks the root of a project.</summary>
+    /// <remarks>
+    /// ★★ Its LOCATION is what is read, never its contents. Every tool that resolves a pull —
+    /// `check`, the editor, `run` on a single file — needs the project root, and none of them
+    /// should have to EXECUTE a build description to import a book. Finding a file is a walk up
+    /// the tree; running one is arbitrary code.
+    /// </remarks>
+    public const string BlueprintFile = "blueprint.cufe";
+
+    /// <summary>Where a project keeps books that more than one of its programs pulls.</summary>
+    /// <remarks>
+    /// ⚠ A fixed name, and deliberately the same kind of decision as <see cref="BlueprintFile"/>
+    /// rather than a new one. Without it the shared place is the project root itself, and a root
+    /// holding a build description plus every library file is what a package manager would then
+    /// install into.
+    /// </remarks>
+    public const string SharedFolder = "books";
+
+    /// <summary>
+    /// The project's shared book folder, or null when there is no project or no such folder.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ No blueprint above the file means no project, and resolution is then exactly what it was
+    /// before any of this existed: the pulling file's own directory and nowhere else. A loose
+    /// `.cufe` in a downloads folder keeps working and keeps meaning the same thing.
+    /// </remarks>
+    public static string? SharedBooks(string? directory)
+    {
+        if (directory is null) return null;
+        DirectoryInfo? dir;
+        try { dir = new DirectoryInfo(Path.GetFullPath(directory)); }
+        catch (Exception e) when (e is ArgumentException or NotSupportedException or PathTooLongException)
+        { return null; }
+
+        for (; dir is not null; dir = dir.Parent)
+        {
+            if (!File.Exists(Path.Combine(dir.FullName, BlueprintFile))) continue;
+            var books = Path.Combine(dir.FullName, SharedFolder);
+            return Directory.Exists(books) ? books : null;
+        }
+        return null;
+    }
+
+    /// <summary>The file a pull names, looked for beside the puller and then in the project's.</summary>
+    /// <remarks>
+    /// ★★ LOCAL WINS. A program may keep its own `canvas.cufe` beside it and have that one rather
+    /// than the project's, which is what makes the shared folder a default instead of a ceiling.
+    /// </remarks>
+    private static string? Resolve(string bookName, string directory, string? shared)
+    {
+        var beside = Path.Combine(directory, bookName + ".cufe");
+        if (File.Exists(beside)) return beside;
+        if (shared is null) return null;
+        var atRoot = Path.Combine(shared, bookName + ".cufe");
+        return File.Exists(atRoot) ? atRoot : null;
+    }
+
     /// <summary>
     /// Hands back the very same list when nothing pulls a book that is not already here, which is
     /// every single-file program.
@@ -136,7 +193,7 @@ public static class BookLoading
 
         var loaded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var brought = new List<IStatement>();
-        Gather(statements, directory, map, alreadyKnown, loaded, brought, []);
+        Gather(statements, directory, SharedBooks(directory), map, alreadyKnown, loaded, brought, []);
         if (brought.Count == 0) return statements;
 
         // ⚠ BEFORE the host's own statements. Functions are hoisted, so order does not decide what
@@ -146,8 +203,16 @@ public static class BookLoading
         return brought;
     }
 
+    /// <param name="directory">
+    /// The directory of the file these statements came from — NOT the program's. ⚠⚠ That
+    /// distinction is the whole of what makes a book portable: a book's own pulls resolve beside
+    /// the BOOK, so a folder holding a book and what it needs works wherever it is dropped. This
+    /// used to pass the entry program's directory the whole way down, which meant a book depended
+    /// on where whoever used it happened to live — and no book could ever be installed.
+    /// </param>
+    /// <param name="shared">The project's shared book folder, computed once and passed unchanged.</param>
     private static void Gather(
-        IReadOnlyList<IStatement> statements, string directory, SourceMap map,
+        IReadOnlyList<IStatement> statements, string directory, string? shared, SourceMap map,
         Func<string, bool> alreadyKnown, HashSet<string> loaded, List<IStatement> brought,
         List<string> chain)
     {
@@ -178,8 +243,12 @@ public static class BookLoading
                 // Loaded once, however many books pull it — a diamond is not a ring.
                 if (!loaded.Add(bookName)) continue;
 
-                var path = Path.Combine(directory, bookName + ".cufe");
-                if (!File.Exists(path))
+                // ⚠ One book per NAME in a program, whichever place it came from. That is not a
+                // simplification: `MakePrivate` renames what a book declares to "<name> in <book>",
+                // so two files answering to one name would collide on every declaration they have.
+                // The name IS the namespace, and local winning above is how a program chooses.
+                var path = Resolve(bookName, directory, shared);
+                if (path is null)
                 {
                     // ⚠ Not an error HERE. A name that is neither bundled, nor defined, nor a file
                     // is refused by the checker, which already says what is available and how to
@@ -206,7 +275,19 @@ public static class BookLoading
                 var inner = new Parser(new CufetLexer(text, offset, 0).Tokenize()).Parse();
 
                 chain.Add(bookName);
-                Gather(inner.Statements, directory, map, alreadyKnown, loaded, brought, chain);
+                // ★★ The BOOK's directory, not the one we arrived from — this is what "beside the
+                // pulling file" actually says, applied at every level rather than only the first.
+                //
+                // ⚠⚠ MEASURED UNOBSERVABLE TODAY, and recorded so nobody reads the test names above
+                // as covering it. With exactly two places to look — the puller's directory and the
+                // project's shared folder — a book is always FOUND in one of those two, and the
+                // shared folder is a fallback at every level anyway. So passing the entry's
+                // directory down instead cannot change any answer, and reverting this line leaves
+                // the whole suite green. It becomes observable the moment a book can live somewhere
+                // that is not itself a search root — an installed book in its own folder with its
+                // dependencies beside it, which is the shape a package manager needs.
+                Gather(inner.Statements, Path.GetDirectoryName(Path.GetFullPath(path))!, shared,
+                       map, alreadyKnown, loaded, brought, chain);
                 chain.RemoveAt(chain.Count - 1);
 
                 brought.AddRange(MakePrivate(inner.Statements, bookName));
