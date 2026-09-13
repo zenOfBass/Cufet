@@ -1,0 +1,296 @@
+/* beamforming — delay-and-sum over real microwave imaging data.
+
+   Eight antennas stand in a ring of radius 77 mm. Each of the eight channels
+   here is one transmit/receive pair, and for each pair the instrument recorded
+   a complex scattering value at every frequency in a swept band. To ask what
+   is at a point inside the ring, you work out how long the wave took to travel
+   transmitter → point → receiver, undo that much phase on every measurement,
+   and add them all up. Where the point really is a scatterer the phases line up
+   and the sum is large; everywhere else they cancel.
+
+       cufet examples/algorithms/beamforming.cufe
+
+   ── Why this program is in the corpus ──
+
+   ★★ It is checked against an ANSWER KEY THIS LANGUAGE DID NOT WRITE.
+   `examples/assets/beamform-key.csv` was produced by the original C
+   implementation — `long double complex`, `cexp`, the C library's `sqrt` — run
+   over the same measurements. Every other pinned example records whatever the
+   program happened to print, which proves the two backends agree and nothing
+   more. Here a disagreement with C is an error, and the program leaves with 1.
+
+   ★ It is also a different SHAPE of code from the rest of the corpus: no
+   puzzle, no parsing, just a long chain of exact decimal arithmetic — 64 terms
+   summed per point, each one a square root and two transcendental functions
+   deep.
+
+   The exit contract:
+
+       0   every point agreed with the C reference
+       1   at least one point disagreed by more than the tolerance
+       2   an input file could not be read
+
+   ── Three things worth knowing about the arithmetic ──
+
+   ★★ NO COMPLEX NUMBERS ARE NEEDED, and that is not a workaround. The C keeps
+   the data as `long double complex` and takes `creall` of the product at the
+   end, but only the real part ever survives:
+
+       Re[(a + bi)(cos t - i sin t)]  =  a cos t + b sin t
+
+   Two multiplies and an add. A complex type was weighed and declined for this
+   language; this program is the witness that the decision holds for real work,
+   rather than an argument that it does.
+
+   ★★ SINE AND COSINE ARE WRITTEN HERE, IN CUFET, and that follows the house
+   style rather than working around it. `math` has no trigonometry, but the
+   whole of that book is itself written in Cufet and nothing in it touches a
+   `double` — square root is Newton-Raphson on the decimal, `log` and `exp` sum
+   a series, and `power` is built from those two. The reason is the oracle: two
+   native libraries would disagree in their last digit, and a phase is not
+   somewhere a last digit can be allowed to wander. So this is the same answer
+   `regex.cufe` reached — if two implementations would disagree, write one
+   implementation — and if a second program ever wants trigonometry, these
+   belong in `math` beside the series that are already there.
+
+   ⚠ The terms are built by RECURRENCE, never as x^n / n!. Factorials leave a
+   number's range around 29! and the naive spelling would fail on data it should
+   handle; each term is the one before it times -x*x / ((2k)(2k+1)), which stays
+   small the whole way.
+
+   ★ Antenna identifiers in the channel table count from 1, and a series counts
+   from 1, so `item id of antennas` is simply right. It is worth saying only
+   because the C had to write `antLoc[id]` into an array that counts from 0,
+   which read every antenna one slot around the ring and ran off the end of the
+   table on the last one.
+*/
+
+Pull a book on math.
+
+    /* An angle folded into (-pi, pi], where the series converges fastest. */
+    Bind number to reduced, given (the number angle):
+        Define two-pi as 2 * math's pi.
+        Define folded as angle - (two-pi * math's floor of (angle / two-pi)).
+        If folded is greater than math's pi, the folded becomes folded - two-pi.
+        Return folded.
+    Done.
+
+    /* sin x = x - x^3/3! + x^5/5! - ...  ⚠ Thirty terms is not a guess: the
+       thirtieth is below 1e-28 for any folded angle, which is past the last
+       digit a number carries, so the sum has stopped moving before it stops. */
+    Bind number to sine, given (the number angle):
+        Define radians as cast reduced on (angle).
+        Define term as radians.
+        Define total as radians.
+        Define step as 1.
+        While step is less than 30, repeat:
+            Define denominator as (2 * step) * ((2 * step) + 1).
+            The term becomes 0 - (term * radians * radians / denominator).
+            The total becomes total + term.
+            Increment step by 1.
+        Done.
+        Return total.
+    Done.
+
+    /* cos radians = 1 - radians^2/2! + radians^4/4! - ... , the same recurrence shifted by one. */
+    Bind number to cosine, given (the number angle):
+        Define radians as cast reduced on (angle).
+        Define term as 1.
+        Define total as 1.
+        Define step as 1.
+        While step is less than 30, repeat:
+            Define denominator as ((2 * step) - 1) * (2 * step).
+            The term becomes 0 - (term * radians * radians / denominator).
+            The total becomes total + term.
+            Increment step by 1.
+        Done.
+        Return total.
+    Done.
+
+    /* Every comma-separated number on one line. A field that will not convert
+       is a corrupt input file, not a zero — say so and leave. */
+    Bind series of number to numbers-in, given (the text line, the text source):
+        Define values as a series of number.
+        For each field in line split by ",", repeat:
+            If the length of field is 0, skip.
+            Define value as field converted to number.
+            If value is void:
+                State "beamforming: {source}: '{field}' is not a number".
+                Exit with 2.
+            Done.
+            Insert (value but void is 0) into values.
+        Done.
+        Return values.
+    Done.
+
+    /* Every line of a file, parsed. Exits with 2 if the file will not open. */
+    Bind series of series of number to table-from, given (the text source):
+        Define rows as a series of series of number.
+        Define lines as a series of text.
+        Try to:
+            The lines becomes read all lines from the file source.
+        Done.
+        In case of failure:
+            State "beamforming: {source}: {the message of the failure}".
+            Exit with 2.
+        Done.
+        For each line in lines, repeat:
+            If the length of line is 0, skip.
+            Insert cast numbers-in on (line, source) into rows.
+        Done.
+        Return rows.
+    Done.
+
+    /* Transmitter to the point, plus the point to the receiver, over the speed
+       of the wave in the medium. VERBATIM in structure from the original C:
+       the same two square roots over the same three squared differences.
+
+       ⚠ A relative permittivity of 1 is free space, which is what the original
+       assumed. It is almost certainly wrong for whatever was inside the ring,
+       and it scales every delay by the same factor — so it moves the focus
+       without changing whether this program agrees with the C it is checked
+       against. Left as the original had it, deliberately. */
+    Bind number to time-delay, given (
+        the number transmit-x, the number transmit-y, the number transmit-z,
+        the number receive-x, the number receive-y, the number receive-z,
+        the number point-x, the number point-y, the number point-z):
+        Define speed-of-light as 299792458.
+        Define relative-permittivity as 1.
+
+        /* ★ A square root is VOIDABLE, because the root of a negative number is
+           void rather than a NaN. Every argument below is a sum of squares or a
+           permittivity, so none of them can be negative — but that is something
+           this program knows and the checker cannot, so each one says what it
+           would mean by a void it will never see. */
+        Define to-receiver as (math's square-root of (
+            ((receive-x - point-x) * (receive-x - point-x))
+            + ((receive-y - point-y) * (receive-y - point-y))
+            + ((receive-z - point-z) * (receive-z - point-z))) but void is 0).
+        Define from-transmitter as (math's square-root of (
+            ((transmit-x - point-x) * (transmit-x - point-x))
+            + ((transmit-y - point-y) * (transmit-y - point-y))
+            + ((transmit-z - point-z) * (transmit-z - point-z))) but void is 0).
+
+        Define wave-speed as speed-of-light
+            / (math's square-root of (relative-permittivity) but void is 1).
+        Return (to-receiver + from-transmitter) / wave-speed.
+    Done.
+
+    /* One pixel: sum the phase-corrected measurement over every channel and
+       every frequency.
+
+       ★ The delay is hoisted out of the frequency loop, where the original
+       recomputed it 201 times per channel. Exact arithmetic makes that a pure
+       speed change — the value is the same one, computed once. */
+    Bind number to point-value, given (
+        the series of series of number antennas,
+        the series of series of number channels,
+        the series of number frequencies,
+        the series of series of number iq,
+        the number point-x, the number point-y):
+        Define total as 0.
+        Define point-z as 0.
+        Define channel-index as 0.
+
+        For each pairing in channels, repeat:
+            Increment channel-index by 1.
+
+            Define receiver as item (item 1 of pairing) of antennas.
+            Define transmitter as item (item 2 of pairing) of antennas.
+
+            Define delay as cast time-delay on (
+                item 1 of transmitter, item 2 of transmitter, item 3 of transmitter,
+                item 1 of receiver, item 2 of receiver, item 3 of receiver,
+                point-x, point-y, point-z).
+
+            Define frequency-index as 0.
+            For each frequency in frequencies, repeat:
+                Increment frequency-index by 1.
+
+                /* The IQ table is one row per frequency, the channels laid out
+                   across it as real, imaginary, real, imaginary. */
+                Define row as item frequency-index of iq.
+                Define real-part as item ((2 * channel-index) - 1) of row.
+                Define imaginary-part as item (2 * channel-index) of row.
+
+                Define phase as 2 * math's pi * delay * frequency.
+                The total becomes total
+                    + (real-part * cast cosine on (phase))
+                    + (imaginary-part * cast sine on (phase)).
+            Done.
+        Done.
+        Return total.
+    Done.
+
+    Bind void to usage:
+        State "usage: beamforming".
+        State "".
+        State "beamforms six image points from the measurements in examples/assets/".
+        State "and checks each against beamform-key.csv, which the original C wrote.".
+        State "leaves with 0 if they all agreed, 1 if any disagreed, 2 on a bad file".
+    Done.
+
+    Bind void to play:
+        If the number of the arguments is greater than 0:
+            Cast usage.
+            Exit with 2.
+        Done.
+
+        Define antennas as cast table-from on ("examples/assets/beamform-antennas.csv").
+        Define channels as cast table-from on ("examples/assets/beamform-channels.csv").
+        Define frequency-rows as cast table-from on ("examples/assets/beamform-frequencies.csv").
+        Define iq as cast table-from on ("examples/assets/beamform-iq.csv").
+        Define answer-key as cast table-from on ("examples/assets/beamform-key.csv").
+
+        Define frequencies as a series of number.
+        For each frequency-row in frequency-rows, repeat:
+            Insert item 1 of frequency-row into frequencies.
+        Done.
+
+        /* ⚠ The C reference carries `long double` — about nineteen significant
+           digits — and computes its phase in plain `double`, which is sixteen.
+           A number here carries twenty-eight. So the two cannot agree past the
+           C side's own precision, and this tolerance is the C's limit showing
+           through, not this language's. Anything larger than it is a real
+           disagreement about the arithmetic.
+
+           ★ MEASURED, and that is where this number comes from: the six points
+           below disagree by between 2e-17 and 9e-16. A tolerance of 1e-14
+           leaves about a factor of ten of headroom over the worst of them and
+           still fails on anything that is actually wrong. A looser one would
+           pass a broken program. */
+        Define tolerance as 0.00000000000001.
+
+        Define disagreements as 0.
+
+        For each expected in answer-key, repeat:
+            Define point-x as item 1 of expected.
+            Define point-y as item 2 of expected.
+            Define theirs as item 3 of expected.
+
+            Define ours as cast point-value on (
+                antennas, channels, frequencies, iq, point-x, point-y).
+
+            Define difference as math's absolute-value of (ours - theirs).
+            Define mark as "  ".
+            If difference is greater than tolerance:
+                The mark becomes "!!".
+                Increment disagreements by 1.
+            Done.
+
+            State "{mark} point ({point-x converted to text}, {point-y converted to text})".
+            State "      cufet      {ours converted to text}".
+            State "      reference  {theirs converted to text}".
+            State "      differ by  {difference converted to text}".
+        Done.
+
+        State "".
+        State "{the number of answer-key converted to text} point(s) checked against the C reference".
+        State "{disagreements converted to text} disagreement(s)".
+
+        If disagreements is greater than 0, exit with 1.
+        Exit.
+    Done.
+
+    Cast play.
+Done.
