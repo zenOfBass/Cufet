@@ -293,6 +293,74 @@ Which capabilities are spelled into the language and which are pulled from a boo
   `*` means matrix product (standard dot product), full stop; Hadamard product, if
   ever added, will be a named `collections` function precisely because `*` is taken.
 
+### The pattern engine is an automaton, and is written in Cufet
+
+`regex` ships a Thompson automaton, never a backtracking matcher, and the engine lives in
+`src/Interpreter/Prelude/regex.cufe` rather than in either backend. Both choices are forced, and by
+the same thing.
+
+★★ **The engine is Cufet because the ORACLE requires it.** Reaching for a ready-made engine on each
+side — .NET's `Regex` interpreted, POSIX `regcomp` compiled — would have shipped two dialects that
+disagree about greediness, character classes and empty matches: silently, on inputs nobody thought
+to test. One implementation spliced in before either backend sees a program has nothing to diverge
+from. `collections` is the precedent.
+
+★★ **An automaton because backtracking cannot be made deterministic here.** A backtracking engine
+can hang forever on a pattern that looks fine, and the usual defence is a timeout — which is
+nondeterministic exactly where this project demands byte-for-byte agreement. ★ The third reason is
+specific to Cufet and is the decisive one: **the engine is itself written in Cufet**, so
+backtracking's worst case on a slow host is not "slow", it is "never finishes".
+
+⚠ That decision is what rules out **backreferences**, permanently rather than pending a trigger —
+along with lookahead and lookbehind, which are precisely the features that make a "regular
+expression" not regular. All three need the backtracking this book declined at the start.
+
+★ **A book on a LANGUAGE does not choose its own contents.** `[a-z]` and `{2,5}` mean what they mean
+in regex everywhere, and a book that cannot spell them is a Cufet-flavoured subset wearing regex's
+name on the cover. **Trigger discipline governs what Cufet INVENTS; FIDELITY governs a book.**
+Refusing unbuilt metacharacters BY NAME was the honest IOU in the meantime — it paid off five times
+without one written pattern changing meaning.
+
+### Named loops stay out, and patterns are why
+
+`Stop.` and `Skip.` act on the innermost loop, and there is no label to make either act on an outer
+one. That was originally *no demonstrated need* — an absence, which rots. It is now a reason.
+
+**MEASURED 2026-09-13, across 48 examples and 3 tools** including a triple-nested sudoku search: 5
+uses of `Stop.` and 11 of `Skip.`, and **not one wants to escape an outer loop**. The deepest
+nesting escapes with `return` from inside a function, and extracting a nested search into a named
+function is usually better than labelling the loop anyway.
+
+★★ **Two programs were written to hunt the witness, and failed for DIFFERENT reasons — which is
+what turns an absence into an argument.**
+
+- `examples/algorithms/beamforming.cufe` could not produce one structurally. Its loops ACCUMULATE —
+  visit everything and sum — so by construction there is nothing to leave early.
+- `examples/parsing/readings.cufe` was written to the shape that should have produced one: a CSV
+  validator, predicted in advance to want a *continue-outer*. **No nested loop appeared at all.** A
+  row's fields are judged by checks that share no rule, so nothing loops over them — and the
+  character-level scanning that WOULD have looped is what a pattern is for.
+
+★★ **So `regex` structurally removes the shape that would want a named loop.** A continue-outer
+needs a nested scan, and in a language with patterns the nested scan does not get written. That is
+why five real programs have now failed to produce a witness.
+
+⚠ **The one flag that looks like the workaround is not one.** `tools/shell.cufe` sets `broken` in
+its redirect parse, but the loop is single and the flag's job is to carry *"this failed"* PAST the
+loop's end — which no label would remove. Check for that shape before reading a flag as evidence.
+
+⚠ **What would reopen this**, and it is a program this project has already committed to writing: a
+hand-written LEXER, walking characters one at a time — the one scan a pattern cannot do for you —
+advancing position, line and column together. Extraction resists hardest when an early exit must
+also advance several scalars, because records and objects copy while only collections are
+reference-typed. If the compiler-in-Cufet does not want a named loop either, that is close to
+decisive.
+
+★ And the argument none of this touches is **readability, not capability**: `Stop.` silently means
+"the innermost one", and in a triple-nested loop the reader has to count. An optional label could
+make *existing* code clearer without enabling anything new. That is the case that could still carry
+the feature even if no program ever strictly needs it.
+
 ---
 
 ## Memory and concurrency
@@ -946,46 +1014,6 @@ because a macro consumes it before the checker.
 ⚠ **Monomorphization is load-bearing, not speculative** — the prelude ships
 `Bind series of element to unique, given (the series of element xs)`, so every program that
 calls `unique` monomorphizes. It is the mechanism generics run on.
-
-### Named loops stay out, and patterns are why
-
-`Stop.` and `Skip.` act on the innermost loop, and there is no label to make either act on an outer
-one. That was originally *no demonstrated need* — an absence, which rots. It is now a reason.
-
-**MEASURED 2026-09-13, across 48 examples and 3 tools** including a triple-nested sudoku search: 5
-uses of `Stop.` and 11 of `Skip.`, and **not one wants to escape an outer loop**. The deepest
-nesting escapes with `return` from inside a function, and extracting a nested search into a named
-function is usually better than labelling the loop anyway.
-
-★★ **Two programs were written to hunt the witness, and failed for DIFFERENT reasons — which is
-what turns an absence into an argument.**
-
-- `examples/algorithms/beamforming.cufe` could not produce one structurally. Its loops ACCUMULATE —
-  visit everything and sum — so by construction there is nothing to leave early.
-- `examples/parsing/readings.cufe` was written to the shape that should have produced one: a CSV
-  validator, predicted in advance to want a *continue-outer*. **No nested loop appeared at all.** A
-  row's fields are judged by checks that share no rule, so nothing loops over them — and the
-  character-level scanning that WOULD have looped is what a pattern is for.
-
-★★ **So `regex` structurally removes the shape that would want a named loop.** A continue-outer
-needs a nested scan, and in a language with patterns the nested scan does not get written. That is
-why five real programs have now failed to produce a witness.
-
-⚠ **The one flag that looks like the workaround is not one.** `tools/shell.cufe` sets `broken` in
-its redirect parse, but the loop is single and the flag's job is to carry *"this failed"* PAST the
-loop's end — which no label would remove. Check for that shape before reading a flag as evidence.
-
-⚠ **What would reopen this**, and it is a program this project has already committed to writing: a
-hand-written LEXER, walking characters one at a time — the one scan a pattern cannot do for you —
-advancing position, line and column together. Extraction resists hardest when an early exit must
-also advance several scalars, because records and objects copy while only collections are
-reference-typed. If the compiler-in-Cufet does not want a named loop either, that is close to
-decisive.
-
-★ And the argument none of this touches is **readability, not capability**: `Stop.` silently means
-"the innermost one", and in a triple-nested loop the reader has to count. An optional label could
-make *existing* code clearer without enabling anything new. That is the case that could still carry
-the feature even if no program ever strictly needs it.
 
 ---
 

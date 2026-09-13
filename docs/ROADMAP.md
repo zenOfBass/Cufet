@@ -196,67 +196,7 @@ they are large, not because they are waiting — the order among them means noth
    ⚠ Whatever is written must be pinned like the doc fences are: a lesson whose code stops working
    is worse than no lesson, and this project has the machinery to catch that already.
 
-5. **`Pull a book on regex.` — the pattern language.** SHIPPED: the book, the bracketed form,
-    check-time validation, the pull gate, a Thompson automaton written in Cufet, and character
-    classes. `examples/parsing/logtriage.cufe` is the witness — it triages a log by the shapes its
-    lines hold, which is the case patterns are actually for.
-
-    ★ **Settled: an AUTOMATON, not backtracking.** Three reasons, and the third is the one specific
-    to Cufet: a backtracking engine can hang on a pattern that looks fine; the usual defence is a
-    timeout, and a timeout is nondeterministic where the oracle demands byte-for-byte agreement;
-    and the engine is written in Cufet, so it is slow by construction — backtracking's worst case on
-    a slow host is not "slow" but "never finishes". The cost is backreferences, which would need
-    their own trigger anyway. This decides the dialect.
-
-    ⚠⚠ **The engine is written in Cufet because the oracle requires it**, not as a preference. Two
-    engines (.NET `Regex` interpreted, POSIX `regcomp` compiled) would disagree on greediness,
-    classes and empty-match edges, silently, on inputs nobody tested. `collections` is the
-    precedent: every member written in Cufet, so both backends run the same code.
-
-    ★★ **NEGATED CLASSES SHIPPED** — `[^,]+`, the way anyone reads a field up to a delimiter.
-    ★ The asymmetry is worth keeping in mind: `[abc]` desugared to `(a|b|c)` and touched nothing,
-    while `[^abc]` cannot be written as a finite alternation and so carries a state kind of its
-    own. One character apart, and only one of them was sugar. The excluded characters pack into the
-    existing `ch` field, so the four-field record is unchanged for a third feature running.
-
-    ★★ **ANCHORS SHIPPED**, and a real program chose them: `logtriage` could count and flag but not
-    VALIDATE, because a pattern asks whether a subject HOLDS a match. `^` and `$` are **state kinds
-    rather than flags on the pattern**, which is what lets them compose — `(^cat|dog$)` anchors each
-    side of an alternation separately, and a pair of flags could not have said that. They are the
-    first thing the engine needed to know beyond the state series itself, so `reach` now carries how
-    much of the subject has been consumed.
-
-    ✅ **THE DEBT LIST IS CLEAR.** Shorthands `\d \w \s`, counts `{2,5}`, non-capturing groups
-    `(?:…)` and ignoring case `(?i)` all landed, and the refuse-by-name table is EMPTY. **The book
-    does the regular parts of regex.**
-
-    ★★ **The rule that governed this, and it is not trigger discipline.** A book on a language does
-    not choose its own contents — `[a-z]` and `{2,5}` mean what they mean in regex everywhere, and
-    a book that cannot spell them is a Cufet-flavoured subset wearing regex's name on the cover.
-    **Trigger discipline governs what Cufet INVENTS; fidelity governs a book.** Refusing by name was
-    the honest IOU in the meantime, and it paid off five times without one written pattern changing
-    meaning.
-
-    ★ **What remains refused is refused PERMANENTLY, and the line is principled rather than
-    negotiated:** lookahead, lookbehind and backreferences are precisely the features that make a
-    "regular expression" not regular. They need backtracking, which this book declined at the start
-    because it can hang forever on a pattern that looks fine — and a timeout, the usual defence, is
-    nondeterministic where two backends must agree byte for byte.
-
-    ✅ **`(?s)` and `(?m)` landed too**, and fixing `.` to stop at a line break was a BREAKING
-    change made deliberately: the old behaviour was a silent divergence from what `.` means
-    everywhere else. `(?m)` is the only one of the four flags that reached the engine, which now
-    carries the subject so a line-wise anchor can ask what the character just consumed was.
-
-    ⚠ **Still open, and honestly so:** named captures are refused as *not yet* rather than
-    *cannot* — an automaton can carry them, at real cost in complexity. No witness has asked.
-
-    Backreferences stay ruled out by the automaton decision above. ⚠ **Splicing a value into a
-    pattern is not on this list and never will be** — an axiom's `the`-marker works because `the
-    file-path` is not valid C, and regex has no invalid syntax to borrow, since `the needle` is a
-    perfectly good pattern. Already refused in code with a test; reasoning in `docs/DESIGN.md`.
-
-6. **`Pull a book on blueprints` — a build description that is a Cufet program.** No second
+5. **`Pull a book on blueprints` — a build description that is a Cufet program.** No second
     language for the build, the way `build.zig` is a Zig program rather than a Makefile.
 
     ★★ **Settled: running the build file PRODUCES A PLAN, it does not perform the build.** Nothing
@@ -474,6 +414,11 @@ indistinguishable from having forgotten.
   only shows up as "this needs library X": `#include <sqlite3.h>` gets the declarations and then
   fails with "undefined reference", which is why headers alone would ship a feature that cannot
   work for the case that motivates it. ★ The trigger is checkable, which is what keeps this honest.
+
+- **Named captures for `regex`.** *Blocker: no witness has asked.* The only part of the pattern
+  book refused as *not yet* rather than *cannot* — an automaton can carry them, at real cost in
+  complexity. ⚠ Everything else still refused is refused PERMANENTLY and for a stated reason; see
+  DESIGN, *The pattern engine is an automaton, and is written in Cufet*.
 
 - **`is any of (…)` — membership as a comparison.** `If x is any of (1, 2, 3)` over
   `If x is 1 or x is 2 or x is 3`. *Blocker: small win.* ⚠ If built, it must be a **comparison,
