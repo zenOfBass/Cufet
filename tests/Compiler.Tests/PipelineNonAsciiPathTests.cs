@@ -39,7 +39,7 @@ public class PipelineNonAsciiPathTests : PipelineTestBase
     /// <summary>A fresh empty directory whose own name is not ASCII.</summary>
     private static string NonAsciiDir()
     {
-        var dir = Path.Combine(Path.GetTempPath(), "cufet-na-" + Accented + "-" + Guid.NewGuid().ToString("N"));
+        var dir = Path.Combine(TestScratch.Root, "cufet-na-" + Accented + "-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
         return dir;
     }

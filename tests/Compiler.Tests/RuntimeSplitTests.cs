@@ -301,7 +301,7 @@ public class RuntimeSplitTests
         // sandbox has to fall back to compiling the runtime in place — which is exactly what every
         // build did before the cache existed. Keeping `gcc is the only requirement` true is worth
         // more than the few hundred milliseconds.
-        string asFile = Path.Combine(Path.GetTempPath(), "cufet-cache-not-a-dir-" + Guid.NewGuid().ToString("N"));
+        string asFile = Path.Combine(TestScratch.Root, "cufet-cache-not-a-dir-" + Guid.NewGuid().ToString("N"));
         File.WriteAllText(asFile, "this is a file, not a directory");
         try
         {

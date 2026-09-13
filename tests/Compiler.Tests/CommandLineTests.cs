@@ -61,7 +61,7 @@ public class CommandLineTests
     /// <summary>A source file that checks and runs cleanly, for the accept-side tests.</summary>
     private static string WriteProgram(string body)
     {
-        string path = Path.Combine(Path.GetTempPath(), "cufet-cli-" + Guid.NewGuid().ToString("N") + ".cufe");
+        string path = Path.Combine(TestScratch.Root, "cufet-cli-" + Guid.NewGuid().ToString("N") + ".cufe");
         File.WriteAllText(path, body);
         return path;
     }

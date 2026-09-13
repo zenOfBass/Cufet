@@ -324,7 +324,7 @@ public class PipelineTaskTests : PipelineTestBase
         // ★ The crux: a fault INSIDE a With-open block, caught by an OUTER handler — the longjmp
         // jumps past the emit-time fclose, so the RUNTIME registry must flush+close the file. The
         // read-back proves no data loss (the 9B proof, applied to the nonlocal-jump path).
-        var path = (Path.GetTempPath().Replace('\\', '/').TrimEnd('/')) + "/cufet-eprime-" + Guid.NewGuid().ToString("N")[..8] + ".txt";
+        var path = (TestScratch.Root.Replace('\\', '/').TrimEnd('/')) + "/cufet-eprime-" + Guid.NewGuid().ToString("N")[..8] + ".txt";
         try
         {
             string src = $"""

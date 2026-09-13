@@ -576,7 +576,7 @@ public class PipelineBooksTests : PipelineTestBase
         // sorting defines the undefined (normalize-the-unobservable, the FormatRecord move). The
         // full paths use the platform separator, identical same-platform. Failures: not-found
         // message + category, and but-on-failure composes.
-        var dir = Path.Combine(Path.GetTempPath(), "cufet-dirtest-" + Guid.NewGuid().ToString("N")[..8])
+        var dir = Path.Combine(TestScratch.Root, "cufet-dirtest-" + Guid.NewGuid().ToString("N")[..8])
                       .Replace('\\', '/');
         Directory.CreateDirectory(dir);
         File.WriteAllText(dir + "/zeta.txt", "z");
@@ -611,7 +611,7 @@ public class PipelineBooksTests : PipelineTestBase
     public void DirectoryContents_MemorySafety_ASan()
     {
         // The listing's arena strings + array free cleanly at scope exit.
-        var dir = Path.Combine(Path.GetTempPath(), "cufet-dirasan-" + Guid.NewGuid().ToString("N")[..8])
+        var dir = Path.Combine(TestScratch.Root, "cufet-dirasan-" + Guid.NewGuid().ToString("N")[..8])
                       .Replace('\\', '/');
         Directory.CreateDirectory(dir);
         File.WriteAllText(dir + "/one.txt", "1");

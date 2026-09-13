@@ -708,7 +708,7 @@ public class PipelineChannelTests : PipelineTestBase
         // and must free at Done. — zero leaks / UAF. Proves the OS-error bridge + read results
         // cooperate with the arena, reusing the string/series arena model. Linux-only.
 
-        var path = Path.Combine(Path.GetTempPath(), "cufet-io-asan-" + Guid.NewGuid().ToString("N") + ".txt")
+        var path = Path.Combine(TestScratch.Root, "cufet-io-asan-" + Guid.NewGuid().ToString("N") + ".txt")
             .Replace('\\', '/');
         var src = $$"""
             Pull a rabbit.
@@ -742,7 +742,7 @@ public class PipelineChannelTests : PipelineTestBase
         // reads (arena strings + line series), and closes on normal exit — plus arena churn. No
         // leaks / UAF (the FILE* handles all close; the arena frees at Done). Linux-only.
 
-        var path = Path.Combine(Path.GetTempPath(), "cufet-io-with-asan-" + Guid.NewGuid().ToString("N") + ".txt")
+        var path = Path.Combine(TestScratch.Root, "cufet-io-with-asan-" + Guid.NewGuid().ToString("N") + ".txt")
             .Replace('\\', '/');
         var src = $$"""
             Pull a rabbit.

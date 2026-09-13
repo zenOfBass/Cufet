@@ -90,7 +90,7 @@ public abstract class PipelineTestBase
         // A unique stem WITHOUT creating a file: GetTempFileName is unique only while its file exists,
         // and deleting it to reuse the stem releases the name for another thread to be handed.
 
-        var tmp    = Path.Combine(Path.GetTempPath(), "cufet-" + Guid.NewGuid().ToString("N"));
+        var tmp    = Path.Combine(TestScratch.Root, "cufet-" + Guid.NewGuid().ToString("N"));
         var work   = Directory.CreateDirectory(tmp);
         var cPath  = Path.Combine(tmp, "program.c");
         var rtPath = Path.Combine(tmp, RuntimeSplit.SourceFileName);
@@ -239,7 +239,7 @@ public abstract class PipelineTestBase
     // Documents (where an unsigned freshly-compiled binary is blocked from writing). Forward-
     // slashed so the interpreter (.NET) and the compiled binary (fopen) resolve it identically.
     protected static string WritableTempPath() =>
-        Path.Combine(Path.GetTempPath(), "cufet-io-" + Guid.NewGuid().ToString("N") + ".txt")
+        Path.Combine(TestScratch.Root, "cufet-io-" + Guid.NewGuid().ToString("N") + ".txt")
             .Replace('\\', '/');
 
     // Runs a source template through the oracle, substituting {PATH}, {PATH2}, {PATH3} with fresh
@@ -264,7 +264,7 @@ public abstract class PipelineTestBase
     protected static void AssertCwdOracle(string template)
     {
         var original = Directory.GetCurrentDirectory();
-        var dir = Path.Combine(Path.GetTempPath(), "cufet-cwd-" + Guid.NewGuid().ToString("N"));
+        var dir = Path.Combine(TestScratch.Root, "cufet-cwd-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(dir);
         var src = template.Replace("{DIR}", dir.Replace('\\', '/'));
         try
@@ -420,7 +420,7 @@ public abstract class PipelineTestBase
         // A unique stem WITHOUT creating a file: GetTempFileName is unique only while its file exists,
         // and deleting it to reuse the stem releases the name for another thread to be handed.
 
-        var tmp     = Path.Combine(Path.GetTempPath(), "cufet-" + Guid.NewGuid().ToString("N"));
+        var tmp     = Path.Combine(TestScratch.Root, "cufet-" + Guid.NewGuid().ToString("N"));
         var cPath   = tmp + ".c";
         var binPath = tmp;
         try
@@ -472,7 +472,7 @@ public abstract class PipelineTestBase
         // A unique stem WITHOUT creating a file: GetTempFileName is unique only while its file exists,
         // and deleting it to reuse the stem releases the name for another thread to be handed.
 
-        var tmp     = Path.Combine(Path.GetTempPath(), "cufet-" + Guid.NewGuid().ToString("N"));
+        var tmp     = Path.Combine(TestScratch.Root, "cufet-" + Guid.NewGuid().ToString("N"));
         var cPath   = tmp + ".c";
         var binPath = tmp; // no extension on Linux
         try
