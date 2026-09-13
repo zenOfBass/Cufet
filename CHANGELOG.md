@@ -6,6 +6,44 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- **`examples/algorithms/beamforming.cufe` — delay-and-sum over real microwave measurements,
+  checked against an answer key C produced.** Eight antennas in a ring of radius 77 mm, swept from
+  1.4 to 3.2 GHz. The program beamforms six image points and compares each against
+  `examples/assets/beamform-key.csv`, which the original C implementation wrote; it leaves with 1
+  on any disagreement.
+
+  ★★ **The corpus's second external answer key, and the first written in another LANGUAGE.**
+  `semver.cufe` checks against a specification; this checks against `long double complex`
+  arithmetic run through `cexp` and the C library's `sqrt`. The two agree to between 2e-17 and
+  9e-16 across the six points — that gap is the C side's `double` phase showing through, not this
+  language drifting — so the tolerance is pinned at 1e-14, about ten times the worst case.
+
+  ★★ **No complex number type was needed, and that is the finding.** Only the real part of the
+  product ever survives, and `Re[(a + bi)(cos t - i sin t)]` is `a cos t + b sin t` — two
+  multiplies and an add. A `complex` type was weighed and declined; this is the witness that the
+  decision holds under work it was supposed to be hard for.
+
+  ★ **Sine and cosine are written in the example, in Cufet**, built by recurrence rather than as
+  `x^n / n!` — factorials leave a number's range around 29!, so the naive spelling would fail on
+  data it should handle. Accurate to 28 digits, with `sin² + cos²` exactly 1. `math` has no
+  trigonometry, and the whole of that book is itself written in Cufet for the same reason: two
+  native libraries would disagree in their last digit, and a phase is not somewhere a last digit
+  can be allowed to wander.
+
+### Fixed
+
+- **GRAMMAR no longer claims a fractional `power` is platform-owned.** It named exactly two
+  results as *"genuinely platform-owned"*: filesystem enumeration order, and `power` with a
+  fractional exponent, which *"may differ in its last digit"*. That stopped being true when `math`
+  became a book written in Cufet — `power` is built from that book's own `log` and `exp`, nothing
+  in it touches a `double`, and BOOKS already said so in the past tense. ⚠ A determinism guarantee
+  is precisely the kind of claim a reader cannot check for themselves, which is what made a stale
+  one worth chasing down rather than leaving.
+
 ## [0.22.0] — 2026-09-12
 
 ### Added

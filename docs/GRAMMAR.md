@@ -15,9 +15,13 @@ both. A rule that holds for one and not the other is a bug, not a caveat: either
 behaviour is made precise on both sides or the compiler refuses outright. The deliberate
 exceptions are called out inline where they arise, and there are two kinds:
 **concurrency scheduling** (interpreted tasks are cooperative, compiled tasks are real OS
-threads — so no interleaving is specified), and a few genuinely **platform-owned** results
-(`power` with a fractional exponent may differ in its last digit, and filesystem
-enumeration order).
+threads — so no interleaving is specified), and a genuinely **platform-owned** result
+(filesystem enumeration order).
+
+⚠ A fractional `power` used to be named here as a second platform-owned result. It is not one
+any more: `math` is written in Cufet, `power` is built from that book's own `log` and `exp`, and
+both backends run the same algorithm on the same decimal. See BOOKS, *the whole book is written
+in Cufet*.
 
 **Maintenance:** every feature slice that adds a keyword, syntactic form, or
 constraint must update this document. The reserved-keyword list in §1 especially.
