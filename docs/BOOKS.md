@@ -1223,7 +1223,33 @@ deny with nothing to catch it.
 the book boundary. Pulling it is mostly how a file declares what it *is*, which is what lets `cufet
 build` refuse a blueprint that does not.
 
-**Its one member is `checksum`**, which is what staleness will be decided by:
+**A step nothing has changed is skipped.** `cufet build` keeps a record beside the blueprint in
+`.cufet-build` — one line per step, holding its argv and the checksum of every path it needs. The
+step runs when that line differs from what was recorded, or when anything it makes is no longer
+there.
+
+```
+$ cufet build
+cufet build: shell
+cufet build: smoke
+
+$ cufet build
+$
+```
+
+★ **A skipped step says nothing**, so the second build above is the whole output of a build with
+nothing to do. The emptiness is the report.
+
+★★ **The argv is part of what is compared**, not only the inputs. A step whose files are untouched
+but whose flags changed produces a different result, so comparing inputs alone would skip exactly
+the rebuild the change was made to cause.
+
+The record is written after every step that succeeds, so a build that fails halfway keeps what it
+did and the next one carries on rather than starting over. ⚠ **There is no rebuild-everything
+flag** — deleting `.cufet-build` is how you ask for one, and a project under version control
+usually ignores it.
+
+**Its one member is `checksum`**, which is what staleness is decided by:
 
 ```cufet-fragment
 Pull a book on blueprints.

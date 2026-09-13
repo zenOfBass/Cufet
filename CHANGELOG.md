@@ -118,8 +118,31 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   meets this — `cufet build` runs it interpreted — but a program pulling the book for its checksum
   alone will interpret fine and fail to compile on Windows.
 
-  ⚠ **This slice still always rebuilds.** `checksum` exists but nothing consults it yet; wiring it
-  into the walker is the next slice.
+- **A step whose inputs, argv and outputs are all unchanged is SKIPPED.** `cufet build` keeps a
+  record beside the blueprint in `.cufet-build`: one line per step, holding its argv and the
+  checksum of every path it needs. A step runs when that line differs from what was recorded, or
+  when anything it claims to make is no longer there.
+
+  ★★ **Two questions, and both must agree.** The signature answers *did the inputs or the command
+  change*; the outputs are asked after separately. Either alone is wrong — an untouched input with
+  a deleted output has to rebuild, and an intact output with a changed input has to rebuild too.
+
+  ★★ **The argv is part of the signature.** A step whose files are untouched but whose flags changed
+  produces a different result, so hashing inputs alone would skip exactly the rebuild the change was
+  made to cause.
+
+  ★ **A skipped step says nothing.** The output of a build with nothing to do is empty, and that
+  emptiness is the report. ⚠ It also means a wrongly-skipped step is silent — which is why the test
+  pins the three ways of going stale and not only the skip. **A build that rebuilds too often looks
+  exactly like one that works.**
+
+  The record is written after every step that succeeds, so a build that fails halfway keeps what it
+  did and the next one carries on. A failed step records nothing and runs again. A record that
+  cannot be written is a message, not a failure: losing it costs one rebuild.
+
+  ⚠ **There is no rebuild-everything flag.** Deleting `.cufet-build` is the escape hatch — a real
+  file that can be seen and removed, rather than CLI surface spent on a verb that is currently
+  overloaded by arity and nothing else.
 
 ### Changed
 
@@ -182,6 +205,12 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   does. `BookDroppingTests` pins both directions, because neither half means anything alone:
   dropping everything would pass the absence test, and dropping nothing would pass the guard that a
   pulled book keeps its engine.
+
+  ⚠ **And a book pulling ITSELF no longer counts as the program pulling it.** A bundled book's
+  helper is a free function, and a free function reaches a module only where it is written — so the
+  `blueprints` staleness helpers pull their own book to reach `checksum`. Recorded naively, that
+  marked the book pulled in every program on earth and undid the whole drop. The checker now knows
+  which pull sites came from the prelude and does not count them as the program's.
 
 - **GRAMMAR no longer claims a fractional `power` is platform-owned.** It named exactly two
   results as *"genuinely platform-owned"*: filesystem enumeration order, and `power` with a
