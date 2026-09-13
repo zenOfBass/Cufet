@@ -2208,8 +2208,16 @@ public sealed partial class CodeGenerator
     // bundled book has a native member left — both are written in Cufet, and a call to one of
     // their members types as ordinary method dispatch long before this is reached. What remains
     // here is the answer for a member that exists in no layer, which the emitter then refuses.
+    // ⚠ `TNumber` is a FALLBACK, not an answer — it is what a member nobody taught this about
+    // becomes, and it used to be the only arm. A native member whose return type is not a number
+    // and is not listed here does not fail cleanly: it crashes the compiler downstream, where
+    // something casts the inferred type and finds a NumberType. `blueprints's checksum` did exactly
+    // that before this arm existed.
     private CufetType BookMemberReturnType(string bookName, string member, IReadOnlyList<IExpression> args) =>
-        TNumber;
+        bookName.Equals("blueprints", StringComparison.OrdinalIgnoreCase)
+        && member.Equals("checksum", StringComparison.OrdinalIgnoreCase)
+            ? new VoidableType(CufetType.Bits)
+            : TNumber;
 
     private static CufetType BookConstantType(string bookName, string member) => TNumber;   // math pi / e
 

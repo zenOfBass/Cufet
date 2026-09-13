@@ -1214,13 +1214,41 @@ public sealed partial class CodeGenerator
         return ret;
     }
 
-    // ★ NOTHING reaches here any more. Both bundled books are written in Cufet, in their own
-    // layers (`src/Interpreter/Prelude/*.cufe`), so every book-member call emits as ordinary
-    // method dispatch — CufetLayerHasMethod routes it before this is consulted. The refusal is
-    // kept as the honest answer for a member no layer defines, rather than deleted, because a
-    // book name with no member behind it should say so rather than emit something.
-    private string EmitBookFunction(string bookName, string member, IReadOnlyList<IExpression> args) =>
+    // ★ Almost nothing reaches here. `math` and `collections` are written in Cufet, in their own
+    // layers (`src/Interpreter/Prelude/*.cufe`), so their member calls emit as ordinary method
+    // dispatch — CufetLayerHasMethod routes them before this is consulted. The refusal below is
+    // kept as the honest answer for a member no layer defines, because a book name with no member
+    // behind it should say so rather than emit something.
+    //
+    // ⚠ `blueprints's checksum` is the one member that is NATIVE on purpose: it runs over every input
+    // on every build, so the cost lands on each build rather than only when a program reaches for
+    // it — the trade `math.cufe` and `regex.cufe` make does not carry across. See TypeChecker.Book.
+    private string EmitBookFunction(string bookName, string member, IReadOnlyList<IExpression> args)
+    {
+        if (bookName.Equals("blueprints", StringComparison.OrdinalIgnoreCase)
+            && member.Equals("checksum", StringComparison.OrdinalIgnoreCase)
+            && args.Count == 1)
+        {
+            int id      = _freshId++;
+            var wrapper = RegisterVoidableStruct(new VoidableType(CufetType.Bits));
+            var path    = EmitExpr(args[0]);
+            // ⚠⚠ The C half of an algorithm written TWICE. `Interpreter.Book.Checksum` is the other,
+            // and nothing checks that they agree except BlueprintChecksumTests, which pins BOTH to the
+            // published FNV-1a vectors. Change one and you must change the other.
+            //
+            // ★ `{0}` leaves `has` at 0, so an unreadable file is void without a second branch —
+            // which is the answer a build wants, not an error.
+            // ⚠ `bits` is a STRUCT (CufetBits carries its base and width, so `0xFF` prints as it was
+            // written), not a bare integer — assigning the raw unsigned long long does not compile.
+            // Base 'x' and width 64: a hash reads as hex, and FNV-1a 64 is exactly 64 bits wide.
+            _preEmits.Add(
+                $"{wrapper} cf_sum{id} = {{0}}; {{ unsigned long long cf_sv{id}; "
+                + $"if (cufet_checksum_file({path}, &cf_sv{id})) {{ cf_sum{id}.has = 1; "
+                + $"cf_sum{id}.val = (CufetBits){{ .value = cf_sv{id}, .base = 'x', .width = 64 }}; }} }}");
+            return $"cf_sum{id}";
+        }
         throw new CompilerException($"book '{bookName}' has no member '{member}'.");
+    }
 
     // Handles is void / is not void, voidable-vs-voidable, and voidable-vs-plain-T equality.
     // Returns null when neither operand is void/voidable (the caller falls through).

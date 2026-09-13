@@ -27,11 +27,27 @@ public sealed partial class TypeChecker
         };
         books["collections"] = new BookType("collections", [], collectionsTypes);
 
-        // blueprints book — ★ a GATE, not a library. No members and no introduced types: a
-        // blueprint's steps are structural records, so nothing crosses the book boundary. Pulling
-        // it is how a file declares that it IS a build description, which is what lets `cufet
-        // build` refuse one that does not. Same shape as `chance` and the language books.
-        books["blueprints"] = new BookType("blueprints", []);
+        // blueprints book — pulling it is how a file declares that it IS a build description,
+        // which is what lets `cufet build` refuse one that does not. It introduces no TYPE: a
+        // blueprint's steps are ordinary structural records, so nothing has to cross the boundary.
+        //
+        // ★★ Its ONE member is native, and deliberately so where `math` and `collections` migrated
+        // the other way. A checksum runs over every input on every build, so the cost lands on each
+        // build rather than only when a program reaches for it — the trade `regex.cufe` and
+        // `math.cufe` make does not carry across.
+        //
+        // ⚠ Native is NOT the same as platform-provided. The rule this entry owes — *the algorithm
+        // must be NAMED by the language, not whatever the platform provides* — is a rule against
+        // DELEGATING, and comes from .NET casing turning out to be ICU-backed and per-machine.
+        // FNV-1a is written out on both sides and pinned to published vectors, so neither backend
+        // is graded by the other.
+        //
+        // ★ It takes the PATH, not the contents, so a byte never crosses into Cufet — which is why
+        // the language needs no byte type and no byte-reading surface to hash a binary.
+        books["blueprints"] = new BookType("blueprints",
+        [
+            ("checksum", new FunctionType([CufetType.Text], new VoidableType(CufetType.Bits))),
+        ]);
 
         // chance book — effectful randomness (stateful global RNG).
         // Functions are NOT registered here as book members because they use natural-language

@@ -118,6 +118,37 @@ public sealed partial class CodeGenerator
 #endif
 #define cufet_nl() fputs(CUFET_NL, stdout)
 
+/* FNV-1a, 64-bit, over a file's bytes. Returns 1 and sets *out on success; 0 when the file cannot
+   be read, which the caller turns into void rather than a failure — a build asks about inputs that
+   do not exist yet constantly, and "nothing there to hash" is an answer.
+
+   ⚠⚠ THIS IS ONE HALF OF AN ALGORITHM WRITTEN TWICE. The other is Interpreter.Book.Checksum, in
+   C#. Two implementations of one function is the divergence the oracle exists to catch, and it
+   would catch this only if some program's output happened to differ — so both are pinned to the
+   PUBLISHED FNV-1a vectors in BlueprintChecksumTests, and neither is graded by the other.
+
+   ★ Read in chunks rather than whole: a build input can be large, and the hash never needs more
+   than one pass. "rb" matters on Windows, where a text-mode read would silently eat carriage
+   returns and hash a file differently from the C# side. */
+static int cufet_checksum_file(const char* path, unsigned long long* out) {
+    FILE* f = fopen(path, "rb");
+    if (!f) return 0;
+    unsigned long long h = 0xcbf29ce484222325ULL;   /* the FNV offset basis */
+    unsigned char buf[8192];
+    size_t got;
+    while ((got = fread(buf, 1, sizeof buf, f)) > 0)
+        for (size_t i = 0; i < got; i++) {
+            h ^= (unsigned long long)buf[i];
+            h *= 0x100000001b3ULL;                  /* the FNV prime */
+        }
+    int bad = ferror(f);
+    fclose(f);
+    if (bad) return 0;
+    *out = h;
+    return 1;
+}
+
+
 /* ───────── One `State` is ONE line, even from two threads ─────────
    A State writes in several calls — the value, then the terminator, and a series or record writes
    every element and separator separately. Two threads printing at once interleaved BETWEEN those

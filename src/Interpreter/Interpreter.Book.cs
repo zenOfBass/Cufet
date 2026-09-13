@@ -6,6 +6,41 @@ public sealed partial class Interpreter
 
     private static readonly Dictionary<string, BookValue> BuiltinBookValues = BuildBuiltinBookValues();
 
+    /// <summary>FNV-1a, 64-bit, over a file's bytes — void when the file cannot be read.</summary>
+    /// <remarks>
+    /// ⚠⚠ THIS ALGORITHM IS WRITTEN TWICE — here, and as `cufet_checksum_file` in the emitted runtime.
+    /// Two implementations of one function is exactly the divergence the oracle exists to catch,
+    /// and the oracle would only catch it if some program's output happened to differ. What makes
+    /// it safe is that FNV-1a has PUBLISHED TEST VECTORS, so neither side is graded by the other —
+    /// both are checked against numbers nobody on this project wrote. Pinned in BlueprintChecksumTests.
+    ///
+    /// ★ Non-cryptographic on purpose: a build detects change, it does not resist an adversary.
+    /// ⚠ 64 bits means a collision is possible in principle, and a collision is a stale build with
+    /// no complaint — the failure this language declines everywhere. At a few thousand files that
+    /// is around one in ten trillion, which is documented rather than pretended away.
+    ///
+    /// ★ Void rather than a failure for an unreadable file: a build asks about inputs that do not
+    /// exist yet all the time, and "there is nothing there to checksum" is an answer, not an error.
+    /// </remarks>
+    private static object Checksum(string path)
+    {
+        byte[] bytes;
+        try { bytes = File.ReadAllBytes(path); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException
+                                    or ArgumentException or NotSupportedException)
+        {
+            return VoidValue.Instance;
+        }
+
+        ulong hash = 0xcbf29ce484222325;          // the FNV offset basis
+        foreach (var one in bytes)
+        {
+            hash ^= one;
+            hash *= 0x100000001b3;                // the FNV prime
+        }
+        return new BitsValue(hash, 'x', 64);
+    }
+
     private static Dictionary<string, BookValue> BuildBuiltinBookValues()
     {
         var books = new Dictionary<string, BookValue>(StringComparer.OrdinalIgnoreCase);
@@ -26,6 +61,16 @@ public sealed partial class Interpreter
         books["collections"] = new BookValue(
             "collections",
             new Dictionary<string, Func<object[], object?>>(StringComparer.OrdinalIgnoreCase),
+            new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase));
+
+        // blueprints book — one native member, `checksum`. See TypeChecker.Book for why this one stays
+        // native where math and collections migrated to Cufet.
+        books["blueprints"] = new BookValue(
+            "blueprints",
+            new Dictionary<string, Func<object[], object?>>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["checksum"] = args => Checksum(args[0] as string ?? ""),
+            },
             new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase));
 
         // chance book — effectful randomness. Functions are dispatched via dedicated AST nodes
