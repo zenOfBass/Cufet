@@ -63,6 +63,128 @@ Bind fact to bp-owed, given (
     Return false.
 Done.
 
+/// What a file's contents amount to, as one word — or "missing" when there is no such file.
+///
+/// ⚠⚠ THE SELF-PULL IS LOAD-BEARING AND IS NOT A MISTAKE. `checksum` is a member of this book, and
+/// a plain function reaches a module only where it is WRITTEN — a module's methods inherit what
+/// their caller pulled, and a free function has no caller to inherit from. So the book pulls
+/// itself. The checker knows this pull came from the prelude and does NOT record it as the
+/// PROGRAM's pull, which is what keeps an unpulled `blueprints` out of every compiled binary.
+/// See `_inPrelude` in TypeChecker.Core, and BookDroppingTests, which pin both directions.
+///
+/// ★ "missing" rather than a failure, and rather than an empty word. A file that does not exist has
+/// an answer — and because the answer goes into a signature, an input APPEARING has to read as a
+/// change. It does: "missing" is not any checksum.
+Bind text to bp-stamp, given (the text bp-path):
+    Pull a book on blueprints.
+        Define bp-sum as blueprints's checksum of (bp-path).
+        If bp-sum is void, return "missing".
+        Return "{bp-sum}".
+    Done.
+Done.
+
+/// One line standing for everything a step depends on: its argv, and the contents of every input.
+///
+/// ★★ THE ARGV IS PART OF IT, and that is not padding. A step whose inputs are untouched but whose
+/// flags changed produces a different result, so a signature over inputs alone would skip exactly
+/// the rebuild the change was made to cause.
+///
+/// ⚠ The two lists are separated by a marked field, so an argv word can never be read as a path.
+/// Without the markers, moving a word from one list to the other would change what the step means
+/// and leave the line identical.
+Bind text to bp-signature, given (
+    the text bp-name, the series of text bp-runs, the series of text bp-needs):
+    Define bp-line as "{bp-name}|runs".
+    For each bp-word in bp-runs, repeat:
+        The bp-line becomes "{bp-line}|{bp-word}".
+    Done.
+    The bp-line becomes "{bp-line}|needs".
+    For each bp-need in bp-needs, repeat:
+        The bp-line becomes "{bp-line}|{bp-need}|{cast bp-stamp on (bp-need)}".
+    Done.
+    Return bp-line.
+Done.
+
+/// Is everything this step claims to produce actually there?
+///
+/// ★ `checksum` answering void for a file it cannot read IS the existence test — there is nothing
+/// separate to ask. A deleted output shows up here rather than in the signature, which is why the
+/// two questions are asked separately and a step is skipped only when both agree.
+Bind fact to bp-made-already, given (the series of text bp-makes):
+    For each bp-made in bp-makes, repeat:
+        If cast bp-stamp on (bp-made) is "missing", return false.
+    Done.
+    Return true.
+Done.
+
+/// What the last build recorded, a line per step.
+///
+/// ★ A failure is an empty answer, not an error. Having no record is the ordinary state of a
+/// project nobody has built yet, and the first build must not be the one that reports a problem.
+Bind series of text to bp-remembered:
+    Define bp-lines as a series of text.
+    Try to:
+        The bp-lines becomes read all lines from the file ".cufet-build".
+    Done.
+    In case of failure:
+        Define bp-none as a series of text.
+        The bp-lines becomes bp-none.
+    Done.
+    Return bp-lines.
+Done.
+
+/// The line the last build recorded for this step, or "" if it recorded none.
+///
+/// ⚠⚠ THE WHOLE LINE, never a reconstruction of it. An earlier version returned just the signature,
+/// by splitting on the separator and rejoining everything after the name — and it NEVER MATCHED: a
+/// signature's last field can be empty, so the split yields a trailing blank and the rejoin puts
+/// the separator back. Every step rebuilt every time. ★★ It cost nothing visible, which is the
+/// whole lesson — a build that rebuilds too often looks exactly like one that works. So only the
+/// first field is ever read, and what comes back is the text that went in.
+Bind text to bp-recalled, given (the series of text bp-lines, the text bp-name):
+    For each bp-line in bp-lines, repeat:
+        Define bp-fields as bp-line split by "|".
+        If the number of bp-fields is greater than 0:
+            If item 1 of bp-fields is bp-name, return bp-line.
+        Done.
+    Done.
+    Return "".
+Done.
+
+/// Everything recorded except this step's line — what the new one is added to.
+Bind series of text to bp-forgotten, given (the series of text bp-lines, the text bp-name):
+    Define bp-kept as a series of text.
+    For each bp-line in bp-lines, repeat:
+        Define bp-fields as bp-line split by "|".
+        Define bp-mine as false.
+        If the number of bp-fields is greater than 0:
+            If item 1 of bp-fields is bp-name, the bp-mine becomes true.
+        Done.
+        If bp-mine is false, insert bp-line into bp-kept.
+    Done.
+    Return bp-kept.
+Done.
+
+/// Put down what has been built, all of it, as it stands.
+///
+/// ★ Called after EVERY step that runs rather than once at the end, so a build that fails halfway
+/// keeps what it did and the next one carries on instead of starting over.
+///
+/// ⚠ A record that cannot be written is a MESSAGE, not a failure. Losing the record costs one
+/// rebuild; refusing to build because the record could not be kept costs the build.
+Bind void to bp-remember, given (the series of text bp-lines):
+    Define bp-written as "".
+    For each bp-line in bp-lines, repeat:
+        The bp-written becomes "{bp-written}{bp-line}\n".
+    Done.
+    Try to:
+        Write bp-written to the file ".cufet-build".
+    Done.
+    In case of failure:
+        State "cufet build: could not record what was built: {the message of the failure}".
+    Done.
+Done.
+
 /// Run every step, each one after whatever it needs.
 ///
 /// ⚠ A WORKLIST, never recursion — the same lesson `regex.cufe` learned the hard way, where an
@@ -78,6 +200,12 @@ Bind void to bp-walk, given (
     For each bp-step in bp-plan, repeat:
         Insert false into bp-ran.
     Done.
+
+    // ⚠⚠ ONCE, before the loop, and never again. Re-reading per step would let a build see its own
+    // writes: a step that just recorded its line would be read back as current by a later step
+    // asking about the same name, and the record would start agreeing with itself. The signatures
+    // are recomputed live from the files anyway — this is only what the LAST build left behind.
+    Define bp-cache as cast bp-remembered.
 
     Define bp-left as the number of bp-plan.
     While bp-left is greater than 0, repeat:
@@ -105,28 +233,57 @@ Bind void to bp-walk, given (
 
         Define bp-doing as item bp-pick of bp-plan.
         Define bp-argv as the runs of bp-doing.
-        State "cufet build: {the name of bp-doing}".
 
-        If the number of bp-argv is greater than 0:
-            Define bp-program as item 1 of bp-argv.
-            Define bp-rest as a series of text.
-            Define bp-arg-at as 0.
-            For each bp-word in bp-argv, repeat:
-                Increment bp-arg-at by 1.
-                If bp-arg-at is greater than 1, insert bp-word into bp-rest.
-            Done.
+        // ★★ TWO questions, and a step is skipped only when both agree. The signature says the
+        // INPUTS and the argv are what they were; `bp-made-already` says the OUTPUTS are still
+        // there. Either alone is a wrong answer — an untouched input with a deleted output has to
+        // rebuild, and an intact output with a changed input has to rebuild too.
+        //
+        // ⚠ The signature is taken BEFORE the step runs, which is the only moment it means
+        // anything. A step earlier in the walk may have just rewritten one of these inputs, and
+        // that is exactly the change this has to see.
+        Define bp-line as cast bp-signature on (
+            the name of bp-doing, bp-argv, the needs of bp-doing).
+        Define bp-was as cast bp-recalled on (bp-cache, the name of bp-doing).
+        Define bp-current as bp-line is bp-was.
+        If bp-current is true:
+            If cast bp-made-already on (the makes of bp-doing) is false, the bp-current becomes false.
+        Done.
 
-            Try to:
-                Define bp-outcome as run bp-program with the terminal with arguments bp-rest.
-                If the exit-code of bp-outcome is not 0:
-                    State "cufet build: {the name of bp-doing} failed with {the exit-code of bp-outcome converted to text}.".
+        // ★ A SKIPPED STEP SAYS NOTHING. The output of a build with nothing to do is empty, and
+        // that emptiness is the report. ⚠ It also means a wrongly-skipped step is silent, which is
+        // why the three ways of going stale are tested and not only the skip.
+        If bp-current is false:
+            State "cufet build: {the name of bp-doing}".
+
+            If the number of bp-argv is greater than 0:
+                Define bp-program as item 1 of bp-argv.
+                Define bp-rest as a series of text.
+                Define bp-arg-at as 0.
+                For each bp-word in bp-argv, repeat:
+                    Increment bp-arg-at by 1.
+                    If bp-arg-at is greater than 1, insert bp-word into bp-rest.
+                Done.
+
+                Try to:
+                    Define bp-outcome as run bp-program with the terminal with arguments bp-rest.
+                    If the exit-code of bp-outcome is not 0:
+                        State "cufet build: {the name of bp-doing} failed with {the exit-code of bp-outcome converted to text}.".
+                        Exit with 1.
+                    Done.
+                Done.
+                In case of failure:
+                    State "cufet build: {the name of bp-doing}: {the message of the failure}".
                     Exit with 1.
                 Done.
             Done.
-            In case of failure:
-                State "cufet build: {the name of bp-doing}: {the message of the failure}".
-                Exit with 1.
-            Done.
+
+            // ⚠ AFTER the step, and only when it succeeded — both `Exit with 1` above leave without
+            // reaching here, so a failed step records nothing and rebuilds next time. The whole
+            // record goes down each time, so a build that dies later keeps everything up to here.
+            The bp-cache becomes cast bp-forgotten on (bp-cache, the name of bp-doing).
+            Insert bp-line into bp-cache.
+            Cast bp-remember on (bp-cache).
         Done.
 
         The item bp-pick of bp-ran becomes true.
