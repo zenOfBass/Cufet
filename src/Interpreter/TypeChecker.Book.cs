@@ -207,7 +207,17 @@ public sealed partial class TypeChecker
             // pulls it — see DropUnpulledLayers. A layer's members are reachable only through a
             // pull, so the pull sites are the whole reachability question, and the checker
             // already visits every one of them. No AST walk of our own, which is the point.
-            _pulledBooks.Add(name);
+            //
+            // ⚠⚠ Except the book's OWN pull of itself. A bundled book's helper is a free function,
+            // and a free function reaches a module only where it is written — so `blueprints`'
+            // staleness helpers pull `blueprints` around their own bodies to reach the native
+            // `checksum`. That pull says what the BOOK needs, not what the PROGRAM asked for, and
+            // recording it marked the book pulled everywhere and defeated the drop entirely.
+            // ⚠ `_checkingBookLayer` is the same rule for the other shape a book's source takes: a
+            // free helper is caught by the rename `_inPrelude` reads, a book's MODULE body by this.
+            // No bundled book's module pulls anything today; both halves are here because the
+            // reason covers both and only one of them was reachable when it was written.
+            if (!_inPrelude && !_checkingBookLayer) _pulledBooks.Add(name);
             return bookType;
         }
 

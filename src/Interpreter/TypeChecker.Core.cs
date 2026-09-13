@@ -1273,6 +1273,23 @@ public sealed partial class TypeChecker
     // pull site. What it is for is DropUnpulledLayers, below.
     private readonly HashSet<string> _pulledBooks = new(StringComparer.OrdinalIgnoreCase);
 
+    // ★★ Set while a statement the PRELUDE contributed is being checked, so a pull written inside a
+    // bundled book does not count as the PROGRAM pulling that book. A book's own helper reaches its
+    // native members the only way a free function can — by pulling the book around its body — and
+    // without this that self-pull marks the book pulled in every program on earth, which is exactly
+    // what DropUnpulledLayers exists to prevent. MEASURED: 17 leaked helper references in a program
+    // that pulls nothing, and since the `blueprints` walker runs a subprocess, every compiled
+    // program then failed to link at once.
+    //
+    // ⚠⚠ Decided by the NAME MakePrivate gave the declaration, never by object identity — `Check`
+    // re-enters itself on a FRESH TypeChecker whose `_preludeStatements` is empty, so a
+    // reference-based answer is silently wrong for every program that uses a generic. See CheckBlock.
+    //
+    // ⚠ Pass2CheckOverloads body-checks operator overloads BEFORE that walk, so a pull inside one
+    // would escape this flag. No bundled book declares an overload today; if one ever does, its
+    // bodies need the same treatment there.
+    private bool _inPrelude;
+
     // Set while a bundled book's Cufet layer is being checked, so its bodies do not import the
     // writer's top-level names. See the note in CheckMethodBody.
     private bool _checkingBookLayer;
@@ -1500,6 +1517,12 @@ public sealed partial class TypeChecker
     /// ⚠ It assumes no layer reaches into ANOTHER book's layer. That is true today (each calls
     /// only its own members, through `one`) and it is what keeps this a one-step drop rather
     /// than a reachability closure. A layer that pulls another book would need this to iterate.
+    /// </para>
+    /// <para>
+    /// ★ A layer pulling ITSELF is the one case that exists, and it is the degenerate one: the
+    /// `blueprints` helpers pull their own book to reach its native `checksum`, which adds no edge
+    /// to close over. That pull is not recorded as the program's — see `_inPrelude` — so it neither
+    /// keeps the layer alive nor drags another one in.
     /// </para>
     /// </remarks>
     /// <summary>
@@ -3748,7 +3771,21 @@ public sealed partial class TypeChecker
         var guardNarrowed = new List<(string Name, CufetType? Prev, bool Had)>();
         foreach (var s in body)
         {
+            // ⚠⚠ BY NAME, NOT BY REFERENCE, and that is the whole of what makes it survive. The
+            // obvious test is `_preludeStatements.Contains(s)` — and it is right exactly once:
+            // `Check` RE-ENTERS itself on a fresh TypeChecker to splice in filled-in templates, and
+            // that child's `WithPrelude` returns early, so its `_preludeStatements` is EMPTY. The
+            // flag then never fired on any program using a generic, and the leak came straight back
+            // in every template test while the targeted ones stayed green. `OwningBook` reads the
+            // rename MakePrivate put into the AST, which no pass can lose.
+            //
+            // ⚠ SET TRUE, NEVER FALSE. The self-pull is nested inside a Bind BODY, so the recursive
+            // CheckBlock for that body meets statements that own no book — recomputing the flag
+            // would clear it at exactly the depth it is needed. Save and restore is what nests.
+            bool wasInPrelude = _inPrelude;
+            if (OwningBook(s) is not null) _inPrelude = true;
             CheckStatement(s);
+            _inPrelude = wasInPrelude;
             if (s is IfStatement { Arms.Count: 1, ElseBody: null } guard
                 && DefinitelyReturns(guard.Arms[0].Body))
             {
