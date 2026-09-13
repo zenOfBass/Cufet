@@ -97,6 +97,13 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   collision is possible in principle — around one in ten trillion at a few thousand files — and a
   collision is a stale build with no complaint, so it is stated rather than pretended away.
 
+  ⚠⚠ **It is for blueprints, and nothing else.** Pulling this book is a file's declaration that it
+  IS a build description, so reaching for `checksum` from an ordinary program is off-label. The
+  consequence is concrete: pulling the book brings the step-walker with it, the walker runs
+  subprocesses, and a compiled binary can only do that where `fork`/`exec` exist. A blueprint never
+  meets this — `cufet build` runs it interpreted — but a program pulling the book for its checksum
+  alone will interpret fine and fail to compile on Windows.
+
   ⚠ **This slice still always rebuilds.** `checksum` exists but nothing consults it yet; wiring it
   into the walker is the next slice.
 

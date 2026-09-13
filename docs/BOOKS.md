@@ -1246,6 +1246,15 @@ collision is possible in principle — at a few thousand files, somewhere around
 — and a collision is a stale build with no complaint, so it is stated here rather than pretended
 away.
 
+⚠⚠ **It is for blueprints, and nothing else.** `checksum` exists to decide staleness, and pulling
+this book is a file's declaration that it IS a build description — so reaching for it from an
+ordinary program is off-label rather than merely unusual. The practical consequence is concrete:
+pulling the book brings the step-walker with it, the walker runs subprocesses, and a compiled
+binary can only do that where `fork`/`exec` exist. A blueprint never meets this, because `cufet
+build` runs it interpreted. A program that pulls the book for its checksum alone will interpret
+fine and fail to compile on Windows — and that is the book being used for something it is not for,
+not a limitation of the checksum.
+
 ⚠ **`cufet build blueprint.cufe` is refused by name.** Under the overload it would compile the
 build description itself into a binary, which is never what anyone means — and it would do it
 quietly, which is the failure this language declines everywhere else.
