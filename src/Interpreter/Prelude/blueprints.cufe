@@ -1,0 +1,128 @@
+// The build book, written in Cufet.
+//
+// ★★ A GATE, NOT A LIBRARY. This book offers no members and introduces no type. A blueprint's
+// steps are STRUCTURAL RECORDS, so nothing has to be handed across the book boundary at all —
+// `Pull a book on blueprints.` exists so a file can DECLARE WHAT IT IS, and so `cufet build` can
+// refuse a build description that does not say so, rather than treating a bare function name as
+// magic. `chance` and the language books are the same shape: a name, and nothing else.
+//
+// ★ Why a record and not a `step` type: BookLoading.MakePrivate renames everything a book layer
+// declares beside its module to `<name> in <book>`, so a book CANNOT hand out a nominal type
+// without native machinery — which is why `matrix` and `chase` are C# types rather than Cufet
+// ones. `regex.cufe` crosses the same boundary the same way. A structural record costs nothing
+// and needs no registration.
+//
+// A step is `a record with (the text name, the series of text needs, the series of text makes,
+// the series of text runs)`:
+//   name   — what to call it when reporting
+//   needs  — paths that must exist before it runs, and which order it against other steps
+//   makes  — paths it produces, which is how another step comes to need it
+//   runs   — argv, program first
+//
+// ★★ THE GRAPH IS NEVER WRITTEN DOWN. A step that needs a path another step makes must run
+// second, and that is the whole of the ordering rule — there are no edges to declare. Staleness is
+// by content hash, so `needs` has to be declared regardless; declaring edges as well would state
+// one fact twice, and the two could then disagree with nothing to catch it.
+//
+// ⚠⚠ EVERY NAME THIS FILE BINDS IS PREFIXED `bp-`, and that is not decoration. This file is
+// spliced into EVERY Cufet program, and a top-level function's local shares a scope with a
+// program's shared constants — an unprefixed `Define total` here would make `Define total as 42
+// permanently.` refuse to compile in every program on earth. See the same warning in `regex.cufe`,
+// which is where that was measured.
+//
+// ⚠ The walker is reached by a driver statement `cufet build` APPENDS to the parsed program, the
+// way the parser reaches `match in regex`. It is deliberately not a module member: a blueprint's
+// author never calls it, and a member would invite them to.
+
+Define object blueprints with () and module.
+
+/// Is this path produced by a step that has not run yet?
+///
+/// ★ This is the whole of the ordering rule. A step waits exactly as long as something it needs is
+/// still owed by a step that has not run — no edges, no graph structure, just the two lists.
+Bind fact to bp-owed, given (
+    the series of records like (the text name, the series of text needs, the series of text makes, the series of text runs) bp-plan,
+    the series of fact bp-ran,
+    the text bp-path):
+    Define bp-at as 0.
+    For each bp-step in bp-plan, repeat:
+        Increment bp-at by 1.
+        If item bp-at of bp-ran is false:
+            For each bp-made in the makes of bp-step, repeat:
+                If bp-made is bp-path, return true.
+            Done.
+        Done.
+    Done.
+    Return false.
+Done.
+
+/// Run every step, each one after whatever it needs.
+///
+/// ⚠ A WORKLIST, never recursion — the same lesson `regex.cufe` learned the hard way, where an
+/// epsilon closure written as recursion ran the WASM stack out on a pattern both native backends
+/// handled. Depth belongs in the heap.
+///
+/// ★ Repeatedly taking the first ready step is quadratic in the number of steps. That is the right
+/// trade here: a build graph is tens of steps, not millions, and the simple rule is the one a
+/// reader can check against the sentence above it.
+Bind void to bp-walk, given (
+    the series of records like (the text name, the series of text needs, the series of text makes, the series of text runs) bp-plan):
+    Define bp-ran as a series of fact.
+    For each bp-step in bp-plan, repeat:
+        Insert false into bp-ran.
+    Done.
+
+    Define bp-left as the number of bp-plan.
+    While bp-left is greater than 0, repeat:
+        Define bp-pick as 0.
+        Define bp-at as 0.
+        For each bp-step in bp-plan, repeat:
+            Increment bp-at by 1.
+            If bp-pick is 0:
+                If item bp-at of bp-ran is false:
+                    Define bp-ready as true.
+                    For each bp-need in the needs of bp-step, repeat:
+                        If cast bp-owed on (bp-plan, bp-ran, bp-need), the bp-ready becomes false.
+                    Done.
+                    If bp-ready is true, the bp-pick becomes bp-at.
+                Done.
+            Done.
+        Done.
+
+        // ★ Nothing is ready and something is left, so every remaining step is waiting on another
+        // one. That is a cycle, and it is reported rather than hung on.
+        If bp-pick is 0:
+            State "cufet build: these steps need each other and cannot be ordered.".
+            Exit with 1.
+        Done.
+
+        Define bp-doing as item bp-pick of bp-plan.
+        Define bp-argv as the runs of bp-doing.
+        State "cufet build: {the name of bp-doing}".
+
+        If the number of bp-argv is greater than 0:
+            Define bp-program as item 1 of bp-argv.
+            Define bp-rest as a series of text.
+            Define bp-arg-at as 0.
+            For each bp-word in bp-argv, repeat:
+                Increment bp-arg-at by 1.
+                If bp-arg-at is greater than 1, insert bp-word into bp-rest.
+            Done.
+
+            Try to:
+                Define bp-outcome as run bp-program with the terminal with arguments bp-rest.
+                If the exit-code of bp-outcome is not 0:
+                    State "cufet build: {the name of bp-doing} failed with {the exit-code of bp-outcome converted to text}.".
+                    Exit with 1.
+                Done.
+            Done.
+            In case of failure:
+                State "cufet build: {the name of bp-doing}: {the message of the failure}".
+                Exit with 1.
+            Done.
+        Done.
+
+        The item bp-pick of bp-ran becomes true.
+        The bp-left becomes bp-left - 1.
+    Done.
+Done.
