@@ -59,6 +59,23 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 - **GRAMMAR no longer calls `unmaking` an `unmake`.** There is no such keyword; the marker is
   `unmaking`, and the declaration-placement rule had been citing a form that does not exist.
 
+- **Compiled tests write to one directory, `%TEMP%/cufet-tests`, instead of scattering across
+  `%TEMP%`.** Names underneath are still unique per test, so nothing about collision-safety or
+  parallelism changes — only the location.
+
+  ★★ The reason is measured rather than tidiness. Every compiled test links a *novel* executable
+  and runs it once, so on Windows it always pays first-execution antivirus scanning and never
+  collects the discount a second run would get: **482 ms** for novel contents against **41 ms**
+  for the same binary again, about 480 ms of a ~1.6 s test. That is fixable only by excluding the
+  directory from real-time scanning — and while artifacts were spread across bare `%TEMP%` from
+  eleven files, the only exclusion that would have helped was a contributor's entire temp folder.
+
+  ⚠ **The suite had silently drifted to 13 m 41 s against the 7.6 minutes CONTRIBUTING records
+  from 2026-08-31.** With one folder to exclude it is back to **7 m 50 s**. Nothing about the
+  suite's structure changed, no class was split, and `-O2` stayed — measured at 10 % of one
+  component, it was never the cost. CONTRIBUTING now carries the numbers and the one-line
+  exclusion, because a documented baseline is only a canary if someone rereads it.
+
 ### Fixed
 
 - **GRAMMAR no longer claims a fractional `power` is platform-owned.** It named exactly two

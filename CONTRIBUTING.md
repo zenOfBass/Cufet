@@ -139,6 +139,26 @@ interpreter are 1,942 of those tests in 42 seconds, and they cover the entire sh
 end — where most changes land, since both backends are downstream of it. Nothing is skipped,
 only deferred to the moment it can still catch you.
 
+⚠⚠ **On Windows, suspect your antivirus before you believe a slower number.** Every compiled
+test links a *novel* executable and runs it exactly once, so it always pays first-execution
+scanning and never collects the discount a second run would get. Measured 2026-09-13 with
+Defender real-time protection on: a binary with novel contents takes **482 ms** to start, the
+same binary again **41 ms**, and a copy of already-scanned content **119 ms** — roughly 480 ms
+of a ~1.6 s test, across 900-odd tests. The suite had drifted to **13 m 41 s** against the 7.6
+above, and excluding a single directory put it back to **7 m 50 s**. Compiled tests write
+everything to `%TEMP%\cufet-tests` (see `TestScratch`) exactly so that exclusion can name one
+folder rather than your whole temp directory:
+
+```
+Add-MpPreference -ExclusionPath "$env:TEMP\cufet-tests"      # elevated PowerShell
+Remove-MpPreference -ExclusionPath "$env:TEMP\cufet-tests"   # to undo
+```
+
+★ **The instrument degrades too.** `dotnet build` and `dotnet test` leave MSBuild worker nodes
+alive between invocations, and a dozen of them on an eight-core machine will quietly spoil any
+timing you take afterwards — including the timing of whatever you just changed. Run
+`dotnet build-server shutdown` first, and set `MSBUILDDISABLENODEREUSE=1` for the run itself.
+
 ⚠ **Do not buy the time back by lowering `-O2` in the harness.** It would work, and it costs
 the two things the suite exists for: `-O2` is what turns latent undefined behaviour into a
 wrong answer instead of a forgiving one, and a harness that compiles differently from `cufet

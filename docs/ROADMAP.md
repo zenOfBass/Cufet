@@ -417,6 +417,15 @@ indistinguishable from having forgotten.
 
   **The trigger:** the first program that needs a mutable flag purely to break an outer loop.
 
+  ★ **A PREDICTION ON THE RECORD, 2026-09-13.** It will be a `Skip.` — CONTINUE the outer loop —
+  rather than a `Stop.`, and it will surface in a SCANNER. *"Extract it into a function and
+  `return`"* defeats a break but not a continue: returning lands back inside the outer body with
+  the rest of it still to run, which is the flag again, reached by following the advice.
+  Extraction resists hardest when the early exit must also advance SEVERAL SCALARS, because
+  records and objects copy while only collections are reference-typed — and a hand-written lexer
+  (design mountain 1, the compiler in Cufet) advances position, line and column together on every
+  match. ⚠ If the trigger turns out to be a plain break out of a search, this was wrong.
+
 - **`is any of (…)` — membership as a comparison.** `If x is any of (1, 2, 3)` over
   `If x is 1 or x is 2 or x is 3`. *Blocker: small win.* ⚠ If built, it must be a **comparison,
   never a value** — `Define maybe as any of (1,2,3).` would import Raku-style junctions, whose
