@@ -302,16 +302,20 @@ they are large, not because they are waiting — the order among them means noth
     ✅ **Slice 1 shipped** — steps with inferred dependencies, topologically ordered, every one
     executed. No hashing yet, so a build always rebuilds: correct, and merely not yet useful.
 
-    ★★ **Next, and now WITNESSED rather than argued.** Writing a real blueprint for this repo hit
-    two walls immediately, and they are the same wall: **a blueprint cannot say things about a file
-    that the build needs to know.**
+    ★★ **Next, and WITNESSED rather than argued: `cufet build <file.cufe> [out]`.** Writing a real
+    blueprint for this repo found that `cufet build <f>.cufe` writes `<f>.exe` beside the source on
+    Windows and `<f>` elsewhere, with no way to ask for an output path — so `the makes` cannot be
+    written portably and a blueprint is platform-shaped for no good reason. ★ This is not new
+    surface: the sibling verb already takes one, `cufet emit-c <file.cufe> [out.c]`, so it is two
+    verbs being made to agree.
 
-    - **It cannot say a file is a LIBRARY.** `cufet build tools/terminal.cufe` is refused — *"declares
-      things but never does anything"* — and a blueprint has no way to describe a project that
-      contains one. This entry already claims the build file solves exactly that; it does not yet.
-    - **It cannot say WHERE OUTPUT GOES.** `cufet build <f>.cufe` writes `<f>.exe` beside the source
-      on Windows and `<f>` elsewhere, and there is no output-path flag — so `the makes` cannot be
-      written portably, and a blueprint is platform-shaped for no good reason.
+    ⚠ **A "blueprint cannot say a file is a LIBRARY" gap was claimed here and WITHDRAWN.** A
+    blueprint has no need to say it — libraries are not built, they are pulled by the programs that
+    are, and a build wanting to check one can run `cufet check` on it as an ordinary step. The
+    refusal that prompted the claim (`cufet build tools/terminal.cufe` → *"declares things but never
+    does anything"*) was the tool correctly catching a mistake in the blueprint, not a missing
+    capability. Recorded because it was written here in the measured voice on the strength of a
+    wrong assumption, which is the failure this file keeps finding elsewhere.
 
     ⚠ The real blueprint was deliberately NOT committed. This project's own Cufet tools cannot be
     compiled on Windows at all (`repl` and `shell` need subprocess support the compiled runtime has
