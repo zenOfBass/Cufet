@@ -20,12 +20,59 @@ namespace Cufet.Compiler.Tests;
 /// parent's own output and compares fine.
 /// </para>
 /// <para>
-/// ★ Linux-gated wherever a child actually runs, like every other subprocess test — the compiled
-/// backend's launch is POSIX. The parse and type refusals need no child and run everywhere.
+/// ★ Linux-gated wherever a child actually runs, like every other subprocess test — not because
+/// the launch is POSIX-only any more (the terminal form builds on Windows since the `_spawnvp`
+/// path), but because these particular children are <c>sh</c>. The parse and type refusals need no
+/// child and run everywhere. ⚠ The CAPTURING form is still POSIX-only, which is what keeps
+/// <c>shell</c> and <c>repl</c> off Windows.
 /// </para>
 /// </remarks>
 public class PipelineTerminalRunTests : PipelineTestBase
 {
+    /// <summary>An argument holding a space stays ONE argument, on both backends and both OSes.</summary>
+    /// <remarks>
+    /// <para>
+    /// ⚠⚠ A MEASURED DIVERGENCE, caught the hour the Windows launch was written. POSIX hands argv to
+    /// the child as a vector; Windows joins it into one command line that the child splits back up,
+    /// and <c>_spawnvp</c> joins WITHOUT quoting — so <c>("two words", "plain")</c> reached the
+    /// child as THREE arguments compiled and two interpreted. Not a display difference: argument
+    /// boundaries were destroyed, and any program taking a path with a space in it was broken.
+    /// </para>
+    /// <para>
+    /// ★ The child is COMPILED rather than borrowed from the OS, which is what lets this run
+    /// everywhere — there is no argument-counting program both platforms ship. And it prints
+    /// nothing, exiting with its own argument count, which is what the oracle rule above demands
+    /// of this form: the parent's line is the only output either harness sees.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void AnArgumentHoldingASpace_StaysOneArgument()
+    {
+        var child = CompileToBinary("""
+            Define count as the number of the arguments.
+            Exit with count.
+            """);
+        try
+        {
+            var src = $$"""
+                Try to:
+                    Define seen as run "{{child.Replace('\\', '/')}}" with the terminal
+                        with arguments ("two words", "plain").
+                    State "count=" joined to (the exit-code of seen converted to text).
+                Done.
+                In case of failure:
+                    State "failed: " joined to (the message of the failure).
+                Done.
+                """;
+
+            var interpreted = InterpretRaw(src);
+            Assert.Equal(interpreted, CompileRaw(src));
+            // ⚠ And the value itself, or both backends agreeing on 3 would pass the line above.
+            Assert.Contains("count=2", interpreted);
+        }
+        finally { try { File.Delete(child); } catch (IOException) { } }
+    }
+
     [LinuxFact]
     public void TerminalRun_ReportsTheRealExitCodeAndEmptyStreams()
     {

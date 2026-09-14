@@ -1510,19 +1510,20 @@ static int cufet_dir_contents(const char* path, const char*** out_items, int* ou
 
 """;
 
-    // Subprocess runtime (slice 9C): POSIX fork/exec/pipe/waitpid — matches the interpreter's
-    // no-shell direct exec (ProcessStartInfo.ArgumentList) with separate stdout/stderr + exit code.
-    // Emitted ONLY when a program uses `run`/pipe (so non-run programs compile anywhere), and
-    // #if-guarded to POSIX (a `run` program is Linux-targeted, like the OS-homework shell; on
-    // Windows/mingw — which lacks fork — it simply won't link, which is correct).
+    // Subprocess runtime (slice 9C): POSIX fork/exec/pipe/waitpid, plus a Windows `_spawnvp` path
+    // for the terminal form — matching the interpreter's no-shell direct exec
+    // (ProcessStartInfo.ArgumentList) with separate stdout/stderr + exit code.
+    //
+    // Emitted ONLY when a program uses `run`/pipe, so non-run programs compile anywhere.
+    // ⚠ The CAPTURING form is still POSIX-guarded, and on Windows a program using it does not
+    // link. That is a real limitation rather than a chosen one: separated stdout and stderr need
+    // CreateProcess with explicit handles, which is a bigger piece than the spawn above.
     private const string ProcessRuntime =
 """
-#if defined(__unix__) || defined(__APPLE__)
-#include <unistd.h>
-#include <sys/wait.h>
-#include <poll.h>
-#include <fcntl.h>
-
+/* ★ SHARED by both launch paths on every platform that has one. `_spawnvp` sets the same errno
+   values `execvp` does — MEASURED on mingw-w64: a missing program gives ENOENT there too — so the
+   mapping from a failed launch to a Cufet failure is one piece of knowledge, not two. */
+#if defined(__unix__) || defined(__APPLE__) || defined(_WIN32)
 /* errno → Cufet launch failure, matching the interpreter's LaunchFailure. */
 static CufetFailure cufet_launch_failure(const char* program, int e) {
     CufetFailure f;
@@ -1538,6 +1539,98 @@ static CufetFailure cufet_launch_failure(const char* program, int e) {
     }
     return f;
 }
+#endif
+
+#if defined(_WIN32)
+#include <process.h>
+
+/* One argument, quoted so the child's own parser recovers EXACTLY the text it was given.
+
+   ⚠⚠ MEASURED, and it is a semantic bug rather than a cosmetic one. `_spawnvp` joins argv into a
+   single command line WITHOUT quoting anything, and the child then splits that line back up — so
+   an argument holding a space arrives as two. Passing ("child", "two words", "plain") reached the
+   child as THREE arguments compiled and two interpreted, which is the oracle catching a real
+   divergence: the interpreter builds the command line with .NET's quoting and is correct.
+
+   ★ These are the rules the child's CRT applies in reverse (the `CommandLineToArgvW` convention):
+   a backslash is literal unless it runs into a quote, a run of N backslashes before a quote is
+   N/2 backslashes and possibly an escape, so each must be doubled there and nowhere else. An
+   argument with nothing special in it is passed through untouched, and an EMPTY one still needs
+   its quotes or it would vanish from the line entirely. */
+static const char* cufet_win_quote(const char* arg) {
+    size_t n = strlen(arg);
+    int special = (n == 0);
+    for (size_t i = 0; i < n && !special; i++)
+        if (arg[i] == ' ' || arg[i] == '\t' || arg[i] == '\n' || arg[i] == '\v' || arg[i] == '"')
+            special = 1;
+    if (!special) return arg;
+
+    /* Worst case doubles every character and adds the two quotes and a terminator. */
+    char* out = (char*)cufet_arena_alloc(n * 2 + 3);
+    size_t w = 0;
+    out[w++] = '"';
+    for (size_t i = 0; i < n; ) {
+        size_t slashes = 0;
+        while (i < n && arg[i] == '\\') { slashes++; i++; }
+        if (i == n) {                       /* trailing run: doubled, so the closing quote is safe */
+            for (size_t k = 0; k < slashes * 2; k++) out[w++] = '\\';
+            break;
+        }
+        if (arg[i] == '"') {                /* doubled, plus one more to escape the quote itself */
+            for (size_t k = 0; k < slashes * 2 + 1; k++) out[w++] = '\\';
+        } else {
+            for (size_t k = 0; k < slashes; k++) out[w++] = '\\';
+        }
+        out[w++] = arg[i++];
+    }
+    out[w++] = '"';
+    out[w]   = '\0';
+    return out;
+}
+
+/* `run <program>.` where the child INHERITS this process's stdio — the terminal form.
+
+   ★★ Windows has no fork/exec, and it does not need them for this. `_spawnvp` with `_P_WAIT` runs
+   the child to completion with every handle inherited, which IS the terminal form: no pipes, so the
+   child's output is live and a program asking stdout what terminal it is gets a real answer. The
+   POSIX side needs fork + an exec-status pipe only to tell "no such program" from "it ran and
+   failed"; here `_spawnvp` answers that directly by returning -1 with errno set.
+
+   ⚠ The capturing form is NOT here. `cufet_run_capture` needs separated stdout and stderr, which
+   on Windows means CreateProcess with explicit handles rather than a spawn — a bigger piece, and
+   what `shell` and `repl` still wait on.
+
+   ⚠⚠ ARGUMENT QUOTING IS THE PLATFORM'S, NOT OURS. POSIX passes argv as a vector all the way to
+   the child; Windows joins it into one command line and the child pulls it apart again, so an
+   argument holding a space or a quote is subject to rules this code does not impose. Pinned by
+   test rather than assumed, because it is exactly the kind of difference the oracle exists to
+   catch.
+
+   ⚠ A killed child has no signal number here, so the POSIX `128 + signal` convention has nothing
+   to report — `_spawnvp` hands back the exit code and only that. */
+static int cufet_run_inherit(const char* program, char* const argv[], CufetFailure* err, int* out_exit) {
+    /* ⚠⚠ FLUSHED FIRST, for the same measured reason as the POSIX path: the child writes to the
+       same handle while this program's own output may still be sitting in stdio's buffer, so
+       without it the child's lines overtake text that was printed before. */
+    fflush(NULL);
+    /* ⚠ Quoted on the way past, argv[0] included — it becomes the head of the command line like
+       any other word, so a program path holding a space breaks the same way an argument does. */
+    size_t count = 0; while (argv[count]) count++;
+    const char** passed = (const char**)cufet_arena_alloc((count + 1) * sizeof(char*));
+    for (size_t i = 0; i < count; i++) passed[i] = cufet_win_quote(argv[i]);
+    passed[count] = NULL;
+    intptr_t code = _spawnvp(_P_WAIT, program, (const char* const*)passed);
+    if (code == -1) { *err = cufet_launch_failure(program, errno); return 0; }
+    if (out_exit) *out_exit = (int)code;
+    return 1;
+}
+#endif
+
+#if defined(__unix__) || defined(__APPLE__)
+#include <unistd.h>
+#include <sys/wait.h>
+#include <poll.h>
+#include <fcntl.h>
 
 /* Runs `program` with `argv` (NULL-terminated, no shell), optionally feeding `stdin_data`;
    captures stdout + stderr (arena strings) and the exit code. Returns 1 on a successful LAUNCH

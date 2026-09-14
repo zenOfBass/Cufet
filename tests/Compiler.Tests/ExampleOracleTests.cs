@@ -158,13 +158,21 @@ public class ExampleOracleTests
     /// existing only in the POSIX branch. Widening the fence and giving the mingw branch a plain
     /// `setjmp` pad was the whole fix.
     ///
-    /// What remains here is genuinely POSIX: fork/exec has no mingw equivalent to reach for.
+    /// ⚠⚠ **And the same reasoning was wrong here a second time.** This said *"fork/exec has no
+    /// mingw equivalent to reach for"* — false. `_spawnvp` is the equivalent for the form that
+    /// hands the child this process's own stdio, and the terminal form builds on Windows since
+    /// 2026-09-13. Twice now a "genuinely POSIX" line has turned out to name the absent primitive
+    /// rather than the absent CAPABILITY. Check what is actually needed before writing either.
+    ///
+    /// What remains is narrower: the CAPTURING form wants separated stdout and stderr, which on
+    /// Windows means CreateProcess with explicit handles rather than a spawn — and these three
+    /// also reach for `sh`, `cat`, `grep` and `seq`, which Windows does not ship at all.
     /// </remarks>
     private static readonly Dictionary<string, string> WindowsOnlySkips = new()
     {
-        ["shell.cufe"]            = "subprocess — fork/exec",
-        ["subprocess-pipes.cufe"] = "subprocess pipes — fork/exec",
-        ["repl.cufe"]             = "subprocess — fork/exec; it hands each line to `cufet`",
+        ["shell.cufe"]            = "captures subprocess output, and needs a POSIX shell",
+        ["subprocess-pipes.cufe"] = "subprocess pipes, and Unix tools Windows does not have",
+        ["repl.cufe"]             = "captures subprocess output; it hands each line to `cufet`",
     };
 
     /// <summary>
