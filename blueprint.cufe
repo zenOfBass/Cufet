@@ -1,0 +1,67 @@
+/*  How this project's own Cufet programs are built.
+
+        cufet build
+
+    ★★ Running this file builds nothing. It defines `blueprint` and calls nothing, so what comes
+    out is a PLAN; `cufet build` is what walks it. Run it plainly with `cufet blueprint.cufe` and
+    you get no output and no compilation, which is correct rather than a bug.
+
+    ── What is in scope, and what is not ──
+
+    ★ The blueprint describes what CUFET builds, not what builds Cufet. The tools below are Cufet
+    programs, so they belong here. The .NET solution does not: it produces the `cufet` this file
+    depends on, so a step naming it would describe something that must already have happened. That
+    stays `dotnet build Cufet.sln` — see CONTRIBUTING.
+
+    ⚠ It runs `cufet` from PATH, which is the INSTALLED tool rather than this working copy. That is
+    the right front door for someone who installed Cufet and cloned the repo, and it is the wrong
+    instrument for checking a change you just made — for that, build a tool the long way:
+
+        dotnet run --project src/App/Cufet.App.csproj -- build tools/shell.cufe
+
+    ── What the graph says, and what it does not ──
+
+    ★★ Nothing here declares that anything depends on anything. `needs` and `makes` are all there
+    is, and the order falls out of them — both tools need `tools/terminal.cufe`, so editing it
+    rebuilds both. Staleness is by content, so a step is skipped when every path it needs hashes to
+    what it hashed last time AND everything it makes is still there. There is nothing to build
+    twice and nothing to say twice.
+
+    ⚠ A binary's name is the platform's business, which is why the suffix is COMPUTED. This is an
+    ordinary Cufet program and can simply ask.
+*/
+
+Pull a book on blueprints.
+    Bind series of records like (
+        the text name,
+        the series of text needs,
+        the series of text makes,
+        the series of text runs) to blueprint:
+
+        /* Windows is the only platform that puts an extension on an executable. ★ `OS` is the one
+           variable Windows sets and POSIX does not, so the absence is the answer elsewhere. */
+        Define suffix as ".exe" when (the environment variable "OS" but void is "") is "Windows_NT", otherwise "".
+
+        Define work as a series of records like (
+            the text name,
+            the series of text needs,
+            the series of text makes,
+            the series of text runs).
+
+        /* Both tools pull `terminal`, so both list it. That is the only reason the build knows
+           they share anything. */
+        Insert a record with (
+            the name "shell",
+            the needs a series of text with ("tools/shell.cufe", "tools/terminal.cufe"),
+            the makes a series of text with ("tools/shell{suffix}"),
+            the runs a series of text with ("cufet", "build","tools/shell.cufe")) into work.
+
+        Insert a record with (
+            the name "repl",
+            the needs a series of text with ("tools/repl.cufe", "tools/terminal.cufe"),
+            the makes a series of text with ("tools/repl{suffix}"),
+            the runs a series of text with ("cufet", "build","tools/repl.cufe")) into work.
+
+        Return work.
+    Done.
+Done.
