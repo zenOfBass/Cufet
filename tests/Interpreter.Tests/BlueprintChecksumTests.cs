@@ -72,6 +72,77 @@ public class BlueprintChecksumTests
             """));
     }
 
+    /// <summary>`step` names the record shape — and is interchangeable with writing it out.</summary>
+    /// <remarks>
+    /// <para>
+    /// ★★ THE WHOLE CLAIM IS INTERCHANGEABILITY, so both directions are here. Record typing is
+    /// structural, so `step` is a NAME for a shape rather than a new type: a value built with
+    /// `a record with (…)` satisfies it, and a `step`-typed value satisfies a parameter written out
+    /// longhand. If that ever stopped being true, every blueprint would break at the point its
+    /// result meets the walker, which is a long way from where the mistake would be.
+    /// </para>
+    /// <para>
+    /// ⚠⚠ THE CALL IS OUTSIDE THE PULL, and that placement is the entire test. Everything here
+    /// passes with the fix reverted if the call sits INSIDE the pull block — measured, twice, on
+    /// two earlier drafts of this test that proved nothing. Outside is where the appended `cufet
+    /// build` driver puts it, and outside is where `step` is not in scope, so that is the only
+    /// arrangement that meets the defect: the signature resolved before any pull was walked, stayed
+    /// an ObjectType shell, and the blueprint checked CLEAN before failing against the walker with
+    /// *"a series of step objects"*. See RegisterPulledBookTypes.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void TheStepType_IsInterchangeableWithTheShapeWrittenOut()
+    {
+        Assert.Equal("took 1", Run("""
+            Bind void to took, given (
+                the series of records like (
+                    the text name,
+                    the series of text needs,
+                    the series of text makes,
+                    the series of text runs) items):
+                State "took {the number of items converted to text}".
+            Done.
+
+            Pull a book on blueprints.
+                Bind series of step to made:
+                    Define work as a series of step.
+                    Insert a record with (
+                        the name "one-thing",
+                        the needs a series of text with (),
+                        the makes a series of text with (),
+                        the runs a series of text with ()) into work.
+                    Return work.
+                Done.
+            Done.
+
+            Cast took on (cast made).
+            """));
+    }
+
+    /// <remarks>
+    /// ⚠⚠ The guard on the PRELUDE'S OWN PULL. `bp-stamp in blueprints` pulls `blueprints` to reach
+    /// `checksum`, and that statement is spliced into every program — so counting it as the
+    /// program's pull put `step` in scope everywhere. MEASURED before the guard: a program pulling
+    /// nothing could name the type. This is the second time in one day the prelude's own pull had
+    /// to be told apart from the writer's; see `_inPrelude`.
+    /// </remarks>
+    [Fact]
+    public void AProgramThatPullsNothing_CannotNameTheStepType()
+    {
+        var refused = Assert.Throws<TypeException>(() => Run("""
+            Define holder as a series of step.
+            Insert a record with (
+                the name "x",
+                the needs a series of text with (),
+                the makes a series of text with (),
+                the runs a series of text with ()) into holder.
+            State "unreachable".
+            """));
+
+        Assert.Contains("step", refused.Message);
+    }
+
     /// <remarks>
     /// ⚠ The half that would catch a hash that ignores its input — a constant passes every vector
     /// test above if the constant happens to be right, and passes none of them if it is not, but a

@@ -28,8 +28,13 @@ public sealed partial class TypeChecker
         books["collections"] = new BookType("collections", [], collectionsTypes);
 
         // blueprints book — pulling it is how a file declares that it IS a build description,
-        // which is what lets `cufet build` refuse one that does not. It introduces no TYPE: a
-        // blueprint's steps are ordinary structural records, so nothing has to cross the boundary.
+        // which is what lets `cufet build` refuse one that does not.
+        //
+        // ★★ It introduces `step`, and that is a NAME FOR A SHAPE rather than a new type. A step
+        // is still an ordinary structural record — `a record with (the name …, …)` builds one, and
+        // the longhand `records like (…)` spelling remains exactly interchangeable with it —
+        // so neither backend learns anything and nothing crosses the book boundary. What it saves
+        // is a writer spelling the same four fields out twice in every blueprint.
         //
         // ★★ Its ONE member is native, and deliberately so where `math` and `collections` migrated
         // the other way. A checksum runs over every input on every build, so the cost lands on each

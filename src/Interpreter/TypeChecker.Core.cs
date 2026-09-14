@@ -1,4 +1,4 @@
-﻿using Cufet.Lexer;
+using Cufet.Lexer;
 using System.Globalization;
 
 namespace Cufet.Interpreter;
@@ -1072,7 +1072,10 @@ public sealed partial class TypeChecker
         if (!ReferenceEquals(dispatched, program.Statements)) program = new Program(dispatched);
 
         Pass1Hoist(program);
+        // ⭐⭐ IN SCOPE FOR THE RESOLVE, AND TAKEN AWAY AGAIN. See RegisterPulledBookTypes.
+        var bookTypeNames = RegisterPulledBookTypes(program);
         Pass2ResolveTypes();          // resolve all placeholder ObjectType refs in _objectDefs + global scope
+        foreach (var name in bookTypeNames) _typeScopes[^1].Remove(name);
         Pass2HoistSharedConstants(program); // top-level `permanently` — visible to bodies checked below
         Pass2CheckOverloads(program); // body-check all overloads; populates _overloadReturnTypes
         CheckBlock(program.Statements);
@@ -1797,6 +1800,74 @@ public sealed partial class TypeChecker
     // (1b) — then function signatures, excluding 'unto' methods, which are not free
     // functions (1c). Interfaces registered first so object conformance declarations can be
     // validated against them.
+    /// <summary>
+    /// Puts the types a pulled book introduces into scope before any SIGNATURE is resolved.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ⭐⭐ A book-introduced type has to be resolvable where a type is WRITTEN, not only where a
+    /// value is built. A function declared inside `Pull a book on blueprints:` may say
+    /// `Bind series of step to blueprint:` — and its signature is resolved by
+    /// <c>Pass2ResolveTypes</c>, which runs before any pull site is walked. The name was still
+    /// unknown there, so <c>ResolveParamType</c> left it an ObjectType shell and the signature kept
+    /// a placeholder for good.
+    /// </para>
+    /// <para>
+    /// ⚠ MEASURED, and the symptom is why this is worth the pass: the blueprint checked CLEAN and
+    /// then failed where its result met the walker — <i>"must be a series of record (…), but you
+    /// passed a series of step objects"</i>. The body was fine throughout, because by then the pull
+    /// had registered the name. Only the signature was wrong, and only against another file's type.
+    /// </para>
+    /// <para>
+    /// ⚠ ONLY for books the program actually pulls. `matrix` written without pulling `collections`
+    /// must still reach the "pull it first" refusal that ResolveParamType's next arm exists to
+    /// produce — so this widens what a type NAME reaches, and never what an unpulled book offers.
+    /// </para>
+    /// <para>
+    /// ⚠⚠ FOR THE RESOLVE ONLY, and the caller takes the names away again. A book's type is
+    /// LEXICALLY SCOPED to its pull — close the block and `matrix` stops being a type, which
+    /// <c>BookType_IsStillUnavailableOutsideTheBooksScope</c> pins. Registering these program-wide
+    /// broke exactly that test, which is the guarantee doing its job: signature resolution is flat
+    /// and has no blocks to be scoped by, so it gets the names; <c>CheckBlock</c>, which is where
+    /// lexical scope means anything, does not.
+    /// </para>
+    /// <para>Returns the names it added, so only those are removed afterwards.</para>
+    /// </remarks>
+    private List<string> RegisterPulledBookTypes(Program program)
+    {
+        var added = new List<string>();
+        foreach (var top in program.Statements)
+        {
+            // ⚠⚠ A BOOK'S OWN DECLARATIONS PULL FOR THEIR OWN REASONS, and that is not the program
+            // asking. `bp-stamp in blueprints` pulls `blueprints` to reach the native `checksum` —
+            // the only way a free function can reach a book — so counting it put `step` in scope
+            // for every program on earth. MEASURED: a program that pulled nothing could name the
+            // type. Same trap and same test as `_inPrelude` in CheckBlock, by the name MakePrivate
+            // gave the declaration; twice in one day, which is what says it is a shape rather than
+            // an accident.
+            if (OwningBook(top) is not null) continue;
+
+            foreach (var stmt in AstSearch.EveryStatement([top]))
+            {
+                if (stmt is not PullStatement pull) continue;
+                foreach (var (bookName, _) in pull.Books)
+                {
+                    if (!BuiltinBooks.TryGetValue(bookName, out var book)) continue;
+                    foreach (var (typeName, typeObj) in book.IntroducedTypes)
+                    {
+                        var key = typeName.ToLowerInvariant();
+                        // ⚠ Never claim a name something else already owns — only what this put
+                        // in may be taken out, or the removal would delete a writer's own type.
+                        if (_typeScopes[^1].ContainsKey(key)) continue;
+                        RegisterScopedType(key, typeObj);
+                        added.Add(key);
+                    }
+                }
+            }
+        }
+        return added;
+    }
+
     private void Pass1Hoist(Program program)
     {
         foreach (var stmt in AstSearch.EveryStatement(program.Statements))
