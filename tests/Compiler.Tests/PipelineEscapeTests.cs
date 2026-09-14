@@ -722,6 +722,83 @@ public class PipelineEscapeTests : PipelineTestBase
     // grouped-arm bug did. Two things narrow that gap: the generator refuses instead of guessing
     // (EmitMemberAccess has no catch-all any more), and a gcc failure is reported as what it is.
 
+    /// <summary>
+    /// A missing `cufet_` function is a version or platform mismatch, not a compiler bug.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ⚠⚠ MEASURED TWICE, on 2026-09-13 and 14, and the second time it was this repo's own front
+    /// door: `cufet build` at the root with 0.22.0 installed died on `cufet_run_capture` — the
+    /// capturing form had only just been written — and reported it as *"★ This is a bug in the
+    /// Cufet compiler."* True of the old compiler, useless as a way of saying "yours is out of
+    /// date", and it sent two separate investigations after a defect that did not exist.
+    /// </para>
+    /// <para>
+    /// ★ Both halves gcc reads are written by the same compiler, so their DISAGREEING is the
+    /// signal: either the halves came from different compilers, or the platform has no
+    /// implementation. Every other way gcc can reject generated C really is a compiler bug, and
+    /// the test below still pins that message.
+    /// </para>
+    /// <para>
+    /// ⚠ Driven through real gcc rather than a fabricated string, because the thing most likely to
+    /// break is gcc's own wording — it quotes with ASCII apostrophes on mingw and U+2018 on most
+    /// Linux builds, and a message this reads has to match what the local toolchain actually says.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void AMissingRuntimeFunction_SaysTheCompilerIsOutOfDate_NotThatItIsBroken()
+    {
+        var cPath   = Path.Combine(TestScratch.Root, "cufet-" + Guid.NewGuid().ToString("N")) + ".c";
+        var binPath = Path.Combine(TestScratch.Root, "cufet-" + Guid.NewGuid().ToString("N")) + (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? ".exe" : "");
+        try
+        {
+            // Calling a `cufet_` helper the runtime never defined — what a program built by an
+            // older compiler looks like from here.
+            File.WriteAllText(cPath, "int main(void) { return cufet_not_in_this_runtime(); }\n");
+            var e = Assert.Throws<CompilerException>(() => new GccInvoker().Compile(cPath, binPath));
+
+            Assert.Contains("cufet_not_in_this_runtime", e.Message);   // it names the function
+            Assert.Contains("older than the source", e.Message);       // and the likely cause
+            Assert.Contains("no implementation on this platform", e.Message);  // and the other one
+            Assert.DoesNotContain("★ This is a bug in the Cufet compiler", e.Message);
+        }
+        finally
+        {
+            try { File.Delete(cPath); } catch { }
+            try { File.Delete(binPath); } catch { }
+        }
+    }
+
+    /// <remarks>
+    /// ⚠⚠ THE LINK HALF, and it is the one that decided the ORDER of the checks. A link error names
+    /// the OBJECT file, not the .c — so `undefined reference to 'cufet_…'` never mentions the
+    /// generated file, and the "nothing points inside the generated file, so it is your toolchain"
+    /// arm would have swallowed it whole. That arm now runs after this one.
+    /// </remarks>
+    [Fact]
+    public void ARuntimeFunctionDeclaredButNeverDefined_IsTheSameAnswer()
+    {
+        var cPath   = Path.Combine(TestScratch.Root, "cufet-" + Guid.NewGuid().ToString("N")) + ".c";
+        var binPath = Path.Combine(TestScratch.Root, "cufet-" + Guid.NewGuid().ToString("N")) + (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? ".exe" : "");
+        try
+        {
+            // Declared, so the COMPILE succeeds and the linker is what complains.
+            File.WriteAllText(cPath,
+                "int cufet_declared_but_absent(void);\n" +
+                "int main(void) { return cufet_declared_but_absent(); }\n");
+            var e = Assert.Throws<CompilerException>(() => new GccInvoker().Compile(cPath, binPath));
+
+            Assert.Contains("cufet_declared_but_absent", e.Message);
+            Assert.Contains("older than the source", e.Message);
+            Assert.DoesNotContain("problem with the toolchain", e.Message);
+        }
+        finally
+        {
+            try { File.Delete(cPath); } catch { }
+            try { File.Delete(binPath); } catch { }
+        }
+    }
+
     [Fact]
     public void GccFailureOnGeneratedC_IsReportedAsACompilerBug()
     {
