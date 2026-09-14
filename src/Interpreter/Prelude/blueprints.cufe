@@ -4,8 +4,9 @@
 // exists to decide staleness and is FOR BLUEPRINTS ONLY — pulling this book is a file's
 // declaration that it is a build description, so reaching for the member from an ordinary program
 // is off-label. ⚠ That is why the walker riding along with the book is not a coupling bug: a
-// program pulling the book inherits the builder, and a compiled one therefore needs fork/exec.
-// A blueprint never meets that, because `cufet build` runs it interpreted. A blueprint's
+// program pulling the book inherits the builder, so a compiled one needs a way to launch a child.
+// ✅ It has one on every platform now — the terminal form builds on Windows through `_spawnvp`
+// since 2026-09-13, so a blueprint COMPILES rather than only running interpreted. A blueprint's
 // steps are STRUCTURAL RECORDS, so nothing has to be handed across the book boundary at all —
 // `Pull a book on blueprints.` exists so a file can DECLARE WHAT IT IS, and so `cufet build` can
 // refuse a build description that does not say so, rather than treating a bare function name as
