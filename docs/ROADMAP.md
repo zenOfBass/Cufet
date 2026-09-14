@@ -278,16 +278,20 @@ they are large, not because they are waiting — the order among them means noth
       "OS"` is enough, MEASURED. Adding CLI surface here would have been working around having
       forgotten this entry's own founding premise.
 
-    ✅ **The root `blueprint.cufe` is COMMITTED**, after the Windows subprocess work removed the
-    reason it never could be. It builds `tools/shell.cufe` and `tools/repl.cufe`, both of which need
-    `tools/terminal.cufe` — and that shared need is the only thing tying them together. Measured on
-    the real tree: a cold build runs both, an unchanged build is silent, TOUCHING `terminal.cufe`
-    stays silent (content, not timestamps) and EDITING it rebuilds both.
+    ⚠⚠ **A root `blueprint.cufe` was written, VERIFIED, committed, and then REMOVED, 2026-09-14.**
+    It built `tools/shell.cufe` and `tools/repl.cufe`, both of which need `tools/terminal.cufe` —
+    and that shared need was the only thing tying them together. Measured on the real tree: a cold
+    build ran both, an unchanged build was silent, TOUCHING `terminal.cufe` stayed silent (content,
+    not timestamps) and EDITING it rebuilt both. **The design is proven; only the file is gone.**
 
-    ⚠ **It needs a `cufet` at least as new as the checkout**, because the steps run `cufet` from
-    PATH. An older one meets source it cannot build, and says so badly: gcc rejects C the OLD
-    compiler wrote, so the report is *"★ This is a bug in the Cufet compiler"*. The file documents
-    its own requirement and names that shape, which is the mitigation rather than the fix.
+    ★ It was removed on the author's call, not because anything was wrong with it. ⚠ Recorded
+    because the v0.23.0 TAG says *"Cufet's own tools are built by a blueprint at the root of this
+    repo"* — which was true when it was written and is not now, and a tag cannot be edited.
+
+    ⚠ **Its one real friction, if it comes back:** the steps ran `cufet` from PATH, so it needed an
+    installed `cufet` at least as new as the checkout. That failure is much better reported now —
+    the compiler names the missing `cufet_` function and says the installed build may be older than
+    the source, instead of announcing a bug in itself.
 
     ★ **The real wart is that message**, and it is a compiler-diagnostics job, not a blueprint one:
     "your installed cufet predates this source" is a diagnosable case that currently reads as an

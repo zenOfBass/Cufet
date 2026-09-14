@@ -129,15 +129,14 @@ dotnet run --project src\App\Cufet.App.csproj -- build myprogram.cufe
 # Emit the generated C without compiling (cross-toolchain builds, inspection)
 dotnet run --project src\App\Cufet.App.csproj -- emit-c myprogram.cufe myprogram.c
 
-# Build this project's own Cufet tools (shell, repl) from the root blueprint
-cufet build
+# Build one of this project's own Cufet tools
+dotnet run --project src\App\Cufet.App.csproj -- build tools\shell.cufe
 ```
 
-⚠ **`cufet build` uses the INSTALLED `cufet`, not this working copy.** It needs one at least as new
-as your checkout; an older one meets source it cannot build and reports it as a compiler bug, which
-is true of the old compiler and confusing here. To build a tool with the code you are editing, take
-the long way: `dotnet run --project src\App\Cufet.App.csproj -- build tools\shell.cufe`. The root
-`blueprint.cufe` says the same thing at more length.
+⚠ **This repo has no root `blueprint.cufe`**, so plain `cufet build` does nothing here. One was
+written and verified, then removed — see the `blueprints` entry in ROADMAP for what it did and why
+it went. ★ Build a tool the long way instead, as above: that uses the compiler you are editing,
+where `cufet` from PATH would use whatever happens to be installed.
 
 ★ **Use the fast loop while working, and the full suite before pushing.** The compiler
 suite compiles and runs 852 programs through gcc — measured 2026-08-31 at **52 minutes of
