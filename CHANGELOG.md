@@ -150,6 +150,26 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   file that can be seen and removed, rather than CLI surface spent on a verb that is currently
   overloaded by arity and nothing else.
 
+- **`blueprints` introduces `step`, so a blueprint no longer spells its shape out twice.**
+  `Bind series of step to blueprint:` and `Define work as a series of step.` replace the four-field
+  record written longhand in both places — twelve lines of type before a single step was described.
+
+  ★★ **It is a NAME for a shape, not a new type.** Record typing is structural, so a step is still
+  an ordinary record: `a record with (the name …, …)` builds one, and the longhand spelling remains
+  exactly interchangeable with `step`. Neither backend learns anything, because there is nothing new
+  to emit. Pinned by a test that passes a `step`-typed value to a longhand-typed parameter.
+
+  ⚠ The book's own note said a book *cannot* hand out a `step` type without native machinery. That
+  was **wider than its reason** — true of a NOMINAL type, and silent about a shape. `BookType`
+  already carried `IntroducedTypes`, which is how `collections` hands out `matrix`.
+
+  ⚠⚠ **A book-introduced type now resolves in a SIGNATURE, not only in a body.** Signatures are
+  resolved in one flat pass before any pull site is walked, so the name was still unknown there and
+  stayed a placeholder — a blueprint using it checked CLEAN and then failed where its result met the
+  walker, reported as *"a series of step objects"*. The names are put in scope for that pass and
+  taken away again, because a book's type is **lexically scoped to its pull** and closing the block
+  must still take it away. Registering them program-wide broke that guarantee, and its test caught it.
+
 - **A book may live in the project's `books` folder, so two programs can share one.** A pull now
   resolves beside **the file that pulls it**, then in `books/` at the project root — where a project
   is any directory holding a `blueprint.cufe`, found by walking up.

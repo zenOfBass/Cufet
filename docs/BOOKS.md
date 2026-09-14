@@ -1172,16 +1172,8 @@ file, as it always has — the verb is overloaded by arity.
 
 ```cufet-fragment
 Pull a book on blueprints.
-    Bind series of records like (
-        the text name,
-        the series of text needs,
-        the series of text makes,
-        the series of text runs) to blueprint:
-        Define work as a series of records like (
-            the text name,
-            the series of text needs,
-            the series of text makes,
-            the series of text runs).
+    Bind series of step to blueprint:
+        Define work as a series of step.
 
         Insert a record with (
             the name "shell",
@@ -1219,9 +1211,29 @@ staleness is decided by hashing what a step needs, so `needs` has to be declared
 Writing edges too would state one fact twice, and an edge could then claim a dependency the inputs
 deny with nothing to catch it.
 
-★ **The book introduces no TYPE** — a step is an ordinary structural record, so no type crosses
-the book boundary. Pulling it is mostly how a file declares what it *is*, which is what lets `cufet
-build` refuse a blueprint that does not.
+★★ **`step` is a NAME for that shape, not a new type.** The book introduces it the way
+`collections` introduces `matrix`, but a step stays an ordinary structural record: you build one
+with `a record with (…)`, and writing the shape out longhand means exactly the same thing —
+
+```cufet-fragment
+Pull a book on blueprints.
+    Bind void to count-them, given (
+        the series of records like (
+            the text name,
+            the series of text needs,
+            the series of text makes,
+            the series of text runs) items):
+        State the number of items.
+    Done.
+Done.
+```
+
+— is the same parameter as `the series of step items`. Neither backend learns anything; what it
+saves is spelling four fields out twice in every blueprint.
+
+⚠ **The name is lexically scoped to the pull**, like `matrix`. Close the block and `step` stops
+being a type. Pulling the book is still mostly how a file declares what it *is*, which is what lets
+`cufet build` refuse a blueprint that does not.
 
 **A step nothing has changed is skipped.** `cufet build` keeps a record beside the blueprint in
 `.cufet-build` — one line per step, holding its argv and the checksum of every path it needs. The
