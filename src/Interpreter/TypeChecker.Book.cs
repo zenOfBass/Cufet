@@ -44,10 +44,21 @@ public sealed partial class TypeChecker
         //
         // ★ It takes the PATH, not the contents, so a byte never crosses into Cufet — which is why
         // the language needs no byte type and no byte-reading surface to hash a binary.
+        var textSeries = new SeriesType(CufetType.Text);
+        var blueprintTypes = new Dictionary<string, CufetType>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["step"] = new RecordType([],
+            [
+                ("name",  CufetType.Text),
+                ("needs", textSeries),
+                ("makes", textSeries),
+                ("runs",  textSeries),
+            ]),
+        };
         books["blueprints"] = new BookType("blueprints",
         [
             ("checksum", new FunctionType([CufetType.Text], new VoidableType(CufetType.Bits))),
-        ]);
+        ], blueprintTypes);
 
         // chance book — effectful randomness (stateful global RNG).
         // Functions are NOT registered here as book members because they use natural-language
