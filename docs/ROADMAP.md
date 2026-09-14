@@ -278,27 +278,27 @@ they are large, not because they are waiting — the order among them means noth
       "OS"` is enough, MEASURED. Adding CLI surface here would have been working around having
       forgotten this entry's own founding premise.
 
-    ▶ **The root blueprint is WRITTEN and VERIFIED, and is HELD until the next release.** It builds
-    `tools/shell.cufe` and `tools/repl.cufe`, both of which need `tools/terminal.cufe` — and that
-    shared need is the only thing tying them together. Measured on the real tree: a cold build runs
-    both, an unchanged build is silent, TOUCHING `terminal.cufe` stays silent (content, not
-    timestamps) and EDITING it rebuilds both.
+    ✅ **The root `blueprint.cufe` is COMMITTED**, after the Windows subprocess work removed the
+    reason it never could be. It builds `tools/shell.cufe` and `tools/repl.cufe`, both of which need
+    `tools/terminal.cufe` — and that shared need is the only thing tying them together. Measured on
+    the real tree: a cold build runs both, an unchanged build is silent, TOUCHING `terminal.cufe`
+    stays silent (content, not timestamps) and EDITING it rebuilds both.
 
-    ⚠⚠ **Why it is held, and it is a correction.** This entry said on 2026-09-13 that the old
-    blocker — this project's tools not compiling on Windows — was GONE. That is half true and the
-    half matters. The WORKING COPY builds them; the INSTALLED `cufet` is 0.22.0 and dies on
-    `implicit declaration of function 'cufet_run_capture'`, the very gap closed that day. The steps
-    run `cufet` from PATH, so the front door fails until a release carrying the Windows subprocess
-    work is installed. Committing it before then would ship a root file whose failure reads
-    *"★ This is a bug in the Cufet compiler"* — the worst possible way to say "your cufet is old".
+    ⚠ **It needs a `cufet` at least as new as the checkout**, because the steps run `cufet` from
+    PATH. An older one meets source it cannot build, and says so badly: gcc rejects C the OLD
+    compiler wrote, so the report is *"★ This is a bug in the Cufet compiler"*. The file documents
+    its own requirement and names that shape, which is the mitigation rather than the fix.
 
-    ⚠ Land it WITH that release, and add `.cufet-build` to `.gitignore` in the same change.
+    ★ **The real wart is that message**, and it is a compiler-diagnostics job, not a blueprint one:
+    "your installed cufet predates this source" is a diagnosable case that currently reads as an
+    internal error. Nothing is assigned to it.
 
     ★ The question it raised and did not settle: a project that USES Cufet should say `cufet` in its
-    blueprint, but this repo IS Cufet, and a language whose own front door bootstraps from PATH is
-    permanently one release behind its own source. The alternative — steps running
-    `dotnet run --project src/App/Cufet.App.csproj -- build …` — never goes stale and never reads
-    as a demonstration of the feature either.
+    blueprint, but this repo IS Cufet, and a front door bootstrapping from PATH is permanently one
+    release behind its own source. Settled for now by what the maintainer actually does — they run
+    `cufet` from PATH. The alternative, steps running
+    `dotnet run --project src/App/Cufet.App.csproj -- build …`, never goes stale and never reads as
+    a demonstration of the feature either.
 
     ★ **Settled: a BOOK, not core.** Core was weighed and declined. What Zig gets right is that a
     build script is an ORDINARY PROGRAM USING AN ORDINARY LIBRARY — putting the vocabulary into the
