@@ -73,6 +73,51 @@ public class PipelineTerminalRunTests : PipelineTestBase
         finally { try { File.Delete(child); } catch (IOException) { } }
     }
 
+    /// <summary>A child that fills BOTH pipes is drained without deadlocking.</summary>
+    /// <remarks>
+    /// <para>
+    /// ⚠⚠ THE FAILURE THIS GUARDS IS A HANG, not a wrong answer. Read stdout to the end first and a
+    /// child that has filled its stderr pipe blocks forever waiting for someone to drain it, while
+    /// the parent blocks waiting for more stdout. The POSIX path uses `poll`; Windows pipes are not
+    /// pollable, so that side asks `PeekNamedPipe` which stream has bytes and never issues a read
+    /// that could block. Both are easy to write in a way that works on small output and hangs on
+    /// real output — which is why the sizes below are past the pipe buffer rather than illustrative.
+    /// </para>
+    /// <para>
+    /// ★ Cufet has no way to write to stderr, so the child cannot be a Cufet program: it is the
+    /// platform's own shell running a loop. That is also why this is Linux-gated like its
+    /// neighbours — the Windows half of the same code is exercised by hand and by `shell.cufe`,
+    /// which is no longer skipped there.
+    /// </para>
+    /// </remarks>
+    [LinuxFact]
+    public void AChildFillingBothPipes_IsDrainedWithoutDeadlock()
+    {
+        // ★ 3000 lines of ~60 bytes on each stream — comfortably past the 64 KB a pipe will hold,
+        // so a one-stream-then-the-other reader cannot get to the end of this.
+        const string src = """
+            Try to:
+                Define loud as run "sh" with arguments (
+                    "-c",
+                    "i=0; while [ $i -lt 3000 ]; do echo \"OUT $i padding padding padding padding padding\"; echo \"ERR $i padding padding padding padding padding\" 1>&2; i=$((i+1)); done; exit 7").
+                State "exit=" joined to (the exit-code of loud converted to text).
+                State "out=" joined to (the length of (the output of loud) converted to text).
+                State "err=" joined to (the length of (the errors of loud) converted to text).
+            Done.
+            In case of failure:
+                State "failed: " joined to (the message of the failure).
+            Done.
+            """;
+
+        var interpreted = InterpretRaw(src);
+        Assert.Equal(interpreted, CompileRaw(src));
+        // ⚠ And that it really did overflow the buffer, or a child that printed nothing would pass.
+        Assert.Contains("exit=7", interpreted);
+        Assert.DoesNotContain("failed:", interpreted);
+        var outLength = int.Parse(interpreted.Split("out=")[1].Split('\n')[0].Trim());
+        Assert.True(outLength > 100_000, $"expected well over one pipe buffer, got {outLength}");
+    }
+
     [LinuxFact]
     public void TerminalRun_ReportsTheRealExitCodeAndEmptyStreams()
     {

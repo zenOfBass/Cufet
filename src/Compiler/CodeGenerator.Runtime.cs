@@ -1515,9 +1515,10 @@ static int cufet_dir_contents(const char* path, const char*** out_items, int* ou
     // (ProcessStartInfo.ArgumentList) with separate stdout/stderr + exit code.
     //
     // Emitted ONLY when a program uses `run`/pipe, so non-run programs compile anywhere.
-    // ⚠ The CAPTURING form is still POSIX-guarded, and on Windows a program using it does not
-    // link. That is a real limitation rather than a chosen one: separated stdout and stderr need
-    // CreateProcess with explicit handles, which is a bigger piece than the spawn above.
+    // ★ BOTH forms now exist on both platforms: the terminal form through `_spawnvp`, the
+    // capturing form through CreatePipe + CreateProcess with PeekNamedPipe draining, which is the
+    // Windows answer to the POSIX side's `poll` — neither pipe may be read to the end before the
+    // other or a chatty child deadlocks the parent.
     private const string ProcessRuntime =
 """
 /* ★ SHARED by both launch paths on every platform that has one. `_spawnvp` sets the same errno
@@ -1622,6 +1623,160 @@ static int cufet_run_inherit(const char* program, char* const argv[], CufetFailu
     intptr_t code = _spawnvp(_P_WAIT, program, (const char* const*)passed);
     if (code == -1) { *err = cufet_launch_failure(program, errno); return 0; }
     if (out_exit) *out_exit = (int)code;
+    return 1;
+}
+
+/* ⚠ LEAN_AND_MEAN and NOMINMAX before windows.h, for the reason the overflow handler above gives:
+   RuntimeSplit copies preprocessor lines into the generated HEADER too, where a stray `min`/`max`
+   macro would collide with generated code. */
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h>
+
+/* GetLastError → the errno the shared failure mapping already speaks. */
+static int cufet_win_launch_errno(DWORD e) {
+    if (e == ERROR_FILE_NOT_FOUND || e == ERROR_PATH_NOT_FOUND || e == ERROR_INVALID_NAME) return ENOENT;
+    if (e == ERROR_ACCESS_DENIED  || e == ERROR_PRIVILEGE_NOT_HELD) return EACCES;
+    return EIO;
+}
+
+/* The whole argv as ONE command line, which is what CreateProcess takes.
+
+   ⚠ Writable, because CreateProcessA may modify the buffer it is handed — passing a literal or an
+   arena string it could write through is undefined behaviour that happens to work. */
+static char* cufet_win_command_line(char* const argv[]) {
+    size_t total = 1;
+    for (size_t i = 0; argv[i]; i++) total += strlen(cufet_win_quote(argv[i])) + 1;
+    char* line = (char*)cufet_arena_alloc(total);
+    size_t w = 0;
+    for (size_t i = 0; argv[i]; i++) {
+        const char* piece = cufet_win_quote(argv[i]);
+        if (i) line[w++] = ' ';
+        size_t n = strlen(piece);
+        memcpy(line + w, piece, n);
+        w += n;
+    }
+    line[w] = '\0';
+    return line;
+}
+
+/* `run <program> capturing` on Windows: separate stdout and stderr, optional stdin, exit code.
+
+   ★★ The POSIX twin forks and dup2s; there is nothing to fork here, so the handles are arranged
+   BEFORE the child exists — CreatePipe for each stream, the child's end inheritable and ours
+   explicitly not, handed over through STARTUPINFO. The exec-status pipe the POSIX side needs has
+   no counterpart either: CreateProcess fails in THIS process when the program is not there, so
+   "no such program" and "it ran and failed" are already distinct without a channel to ask down.
+
+   ⚠⚠ NEITHER PIPE MAY BE DRAINED TO THE END BEFORE THE OTHER. A child writing enough to stderr
+   fills that pipe and blocks forever while we sit in a blocking read on stdout — the classic
+   deadlock, and the reason the POSIX path uses `poll`. Windows pipes are not pollable, so this
+   asks PeekNamedPipe which one has bytes and only ever reads what is already there. Nothing here
+   blocks on a read.
+
+   ⚠ A child that produces nothing for a while would spin, so a sleep goes in the idle branch —
+   only when BOTH pipes were empty on a pass, so a chatty child is never slowed by it. */
+static int cufet_run_capture(const char* program, char* const argv[], const char* stdin_data,
+                             const char** out_stdout, const char** out_stderr, int* out_exit,
+                             CufetFailure* err) {
+    SECURITY_ATTRIBUTES sa;
+    sa.nLength = sizeof(sa); sa.lpSecurityDescriptor = NULL; sa.bInheritHandle = TRUE;
+
+    HANDLE out_r = NULL, out_w = NULL, err_r = NULL, err_w = NULL, in_h = INVALID_HANDLE_VALUE;
+    if (!CreatePipe(&out_r, &out_w, &sa, 0)) { *err = cufet_launch_failure(program, EIO); return 0; }
+    if (!CreatePipe(&err_r, &err_w, &sa, 0)) {
+        CloseHandle(out_r); CloseHandle(out_w);
+        *err = cufet_launch_failure(program, EIO); return 0;
+    }
+    /* ⚠ OUR ends must not be inherited, or the child holds a copy of the write end open and the
+       read never sees EOF — the program hangs at the end of a child that exited cleanly. */
+    SetHandleInformation(out_r, HANDLE_FLAG_INHERIT, 0);
+    SetHandleInformation(err_r, HANDLE_FLAG_INHERIT, 0);
+
+    /* ★ A temp file rather than a pipe for stdin, matching the POSIX side's `tmpfile()` — writing
+       into a pipe would block as soon as the input outgrew the pipe buffer and nobody was reading
+       it yet. DELETE_ON_CLOSE so a killed build leaves nothing behind. */
+    if (stdin_data) {
+        char dir[MAX_PATH], name[MAX_PATH];
+        DWORD dn = GetTempPathA((DWORD)sizeof(dir), dir);
+        if (dn == 0 || dn > sizeof(dir) || GetTempFileNameA(dir, "cft", 0, name) == 0) {
+            CloseHandle(out_r); CloseHandle(out_w); CloseHandle(err_r); CloseHandle(err_w);
+            *err = cufet_launch_failure(program, EIO); return 0;
+        }
+        in_h = CreateFileA(name, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, &sa,
+                           CREATE_ALWAYS, FILE_ATTRIBUTE_TEMPORARY | FILE_FLAG_DELETE_ON_CLOSE, NULL);
+        if (in_h == INVALID_HANDLE_VALUE) {
+            CloseHandle(out_r); CloseHandle(out_w); CloseHandle(err_r); CloseHandle(err_w);
+            *err = cufet_launch_failure(program, EIO); return 0;
+        }
+        DWORD wrote = 0; DWORD len = (DWORD)strlen(stdin_data);
+        if (len) WriteFile(in_h, stdin_data, len, &wrote, NULL);
+        SetFilePointer(in_h, 0, NULL, FILE_BEGIN);
+    }
+
+    STARTUPINFOA si; ZeroMemory(&si, sizeof(si)); si.cb = sizeof(si);
+    si.dwFlags    = STARTF_USESTDHANDLES;
+    si.hStdInput  = stdin_data ? in_h : GetStdHandle(STD_INPUT_HANDLE);
+    si.hStdOutput = out_w;
+    si.hStdError  = err_w;
+
+    PROCESS_INFORMATION pi; ZeroMemory(&pi, sizeof(pi));
+    /* ⚠⚠ FLUSHED BEFORE THE CHILD, for the same measured reason as the terminal form: the child
+       may write to a handle this program still has buffered text for. */
+    fflush(NULL);
+    BOOL started = CreateProcessA(NULL, cufet_win_command_line(argv), NULL, NULL,
+                                  TRUE, 0, NULL, NULL, &si, &pi);
+    DWORD launch_error = started ? 0 : GetLastError();
+
+    /* Our copies of the child's ends go NOW, whether it started or not — while we hold them the
+       pipes cannot report EOF. */
+    CloseHandle(out_w); CloseHandle(err_w);
+    if (stdin_data) CloseHandle(in_h);
+
+    if (!started) {
+        CloseHandle(out_r); CloseHandle(err_r);
+        *err = cufet_launch_failure(program, cufet_win_launch_errno(launch_error));
+        return 0;
+    }
+
+    char* ob = (char*)malloc(256); size_t oc = 256, ol = 0;
+    char* eb = (char*)malloc(256); size_t ec = 256, el = 0;
+    HANDLE  pipes[2] = { out_r, err_r };
+    char**  bufs [2] = { &ob, &eb };
+    size_t* caps [2] = { &oc, &ec };
+    size_t* lens [2] = { &ol, &el };
+    int     open [2] = { 1, 1 };
+
+    while (open[0] || open[1]) {
+        int moved = 0;
+        for (int i = 0; i < 2; i++) {
+            if (!open[i]) continue;
+            DWORD avail = 0;
+            if (!PeekNamedPipe(pipes[i], NULL, 0, NULL, &avail, NULL)) { open[i] = 0; continue; }
+            if (avail == 0) continue;
+            char tmp[4096];
+            DWORD want = avail > (DWORD)sizeof(tmp) ? (DWORD)sizeof(tmp) : avail;
+            DWORD got  = 0;
+            if (!ReadFile(pipes[i], tmp, want, &got, NULL) || got == 0) { open[i] = 0; continue; }
+            while (*lens[i] + (size_t)got + 1 > *caps[i]) { *caps[i] *= 2; *bufs[i] = (char*)realloc(*bufs[i], *caps[i]); }
+            memcpy(*bufs[i] + *lens[i], tmp, (size_t)got);
+            *lens[i] += (size_t)got;
+            moved = 1;
+        }
+        if (!moved && (open[0] || open[1])) Sleep(1);
+    }
+    CloseHandle(out_r); CloseHandle(err_r);
+
+    WaitForSingleObject(pi.hProcess, INFINITE);
+    DWORD code = 0;
+    if (!GetExitCodeProcess(pi.hProcess, &code)) code = (DWORD)-1;
+    CloseHandle(pi.hProcess); CloseHandle(pi.hThread);
+    *out_exit = (int)code;
+
+    char* os = (char*)cufet_arena_alloc(ol + 1); memcpy(os, ob, ol); os[ol] = '\0';
+    char* es = (char*)cufet_arena_alloc(el + 1); memcpy(es, eb, el); es[el] = '\0';
+    free(ob); free(eb);
+    *out_stdout = os; *out_stderr = es;
     return 1;
 }
 #endif

@@ -164,15 +164,21 @@ public class ExampleOracleTests
     /// 2026-09-13. Twice now a "genuinely POSIX" line has turned out to name the absent primitive
     /// rather than the absent CAPABILITY. Check what is actually needed before writing either.
     ///
-    /// What remains is narrower: the CAPTURING form wants separated stdout and stderr, which on
-    /// Windows means CreateProcess with explicit handles rather than a spawn — and these three
-    /// also reach for `sh`, `cat`, `grep` and `seq`, which Windows does not ship at all.
+    /// ✅ **And `shell.cufe` and `repl.cufe` came off on 2026-09-13**, once the CAPTURING form got
+    /// its Windows path too (CreatePipe + CreateProcess, reading both pipes through PeekNamedPipe so
+    /// neither can deadlock the other). Both now compile and run there, and the two backends agree.
+    ///
+    /// ⚠ Be honest about what that buys: this harness closes stdin immediately, so neither program
+    /// does any real work on ANY platform — what is pinned is that they start, see EOF and leave,
+    /// identically on both backends. That is worth having (it is exactly what the missing
+    /// `cufet_run_inherit` broke) and it is not coverage of a shell.
+    ///
+    /// What remains is not about subprocesses at all: `echo`, `cat`, `seq`, `grep` and `wc` are not
+    /// programs on Windows, so a pipeline naming them cannot run there whatever the runtime does.
     /// </remarks>
     private static readonly Dictionary<string, string> WindowsOnlySkips = new()
     {
-        ["shell.cufe"]            = "captures subprocess output, and needs a POSIX shell",
-        ["subprocess-pipes.cufe"] = "subprocess pipes, and Unix tools Windows does not have",
-        ["repl.cufe"]             = "captures subprocess output; it hands each line to `cufet`",
+        ["subprocess-pipes.cufe"] = "names Unix tools (echo, cat, seq, grep, wc) Windows does not have",
     };
 
     /// <summary>
