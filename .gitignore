@@ -53,3 +53,8 @@ publish/
 /tools/shell
 /tools/repl
 /tools/terminal
+
+# What `cufet build` remembers, so it can skip a step nothing has changed: one line per step,
+# holding its argv and the checksum of every path it needs. Machine-local and rebuildable —
+# deleting it is the supported way to ask for a full rebuild, which is why there is no flag.
+.cufet-build

@@ -13,11 +13,21 @@
     depends on, so a step naming it would describe something that must already have happened. That
     stays `dotnet build Cufet.sln` — see CONTRIBUTING.
 
-    ⚠ It runs `cufet` from PATH, which is the INSTALLED tool rather than this working copy. That is
-    the right front door for someone who installed Cufet and cloned the repo, and it is the wrong
-    instrument for checking a change you just made — for that, build a tool the long way:
+    ⚠⚠ **IT NEEDS A `cufet` AT LEAST AS NEW AS THIS CHECKOUT.** The steps run `cufet` from PATH —
+    the INSTALLED tool, not this working copy — so an older one meets source it cannot build.
+
+    ★ When that happens the message is misleading, and it is worth knowing why before you chase it:
+    gcc rejects C that the OLD compiler emitted, so `cufet` reports *"★ This is a bug in the Cufet
+    compiler, not in your program."* That is true of the compiler that wrote the C, and it is not a
+    bug in anything here. `implicit declaration of function 'cufet_run_capture'` is the
+    recognisable shape of it — a runtime missing something the tools now use.
+
+    The fix is to install the current build, or to bypass PATH and build a tool the long way:
 
         dotnet run --project src/App/Cufet.App.csproj -- build tools/shell.cufe
+
+    ⚠ That long form is also the right instrument for checking a change you just made, since PATH
+    answers with whatever is installed rather than with what you just wrote.
 
     ── What the graph says, and what it does not ──
 
