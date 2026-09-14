@@ -42,21 +42,13 @@
 */
 
 Pull a book on blueprints.
-    Bind series of records like (
-        the text name,
-        the series of text needs,
-        the series of text makes,
-        the series of text runs) to blueprint:
+    Bind series of step to blueprint:
 
         /* Windows is the only platform that puts an extension on an executable. ★ `OS` is the one
            variable Windows sets and POSIX does not, so the absence is the answer elsewhere. */
         Define suffix as ".exe" when (the environment variable "OS" but void is "") is "Windows_NT", otherwise "".
 
-        Define work as a series of records like (
-            the text name,
-            the series of text needs,
-            the series of text makes,
-            the series of text runs).
+        Define work as a series of step.
 
         /* Both tools pull `terminal`, so both list it. That is the only reason the build knows
            they share anything. */

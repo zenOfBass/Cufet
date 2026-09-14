@@ -12,11 +12,19 @@
 // refuse a build description that does not say so, rather than treating a bare function name as
 // magic. `chance` and the language books are the same shape: a name, and nothing else.
 //
-// ★ Why a record and not a `step` type: BookLoading.MakePrivate renames everything a book layer
-// declares beside its module to `<name> in <book>`, so a book CANNOT hand out a nominal type
-// without native machinery — which is why `matrix` and `chase` are C# types rather than Cufet
-// ones. `regex.cufe` crosses the same boundary the same way. A structural record costs nothing
-// and needs no registration.
+// ★★ A STEP IS A RECORD, AND `step` IS A NAME FOR THAT SHAPE — both, not either.
+//
+// ⚠ This note used to say a book CANNOT hand out a `step` type, because MakePrivate renames
+// everything a book layer declares to `<name> in <book>` and a nominal type needs native
+// machinery — which is why `matrix` and `chase` are C# types. That reasoning was WIDER THAN ITS
+// REASON: it is true of a NOMINAL type and says nothing about a shape. `BookType` already carries
+// `IntroducedTypes`, and a `RecordType` is an ordinary CufetType, so the book registers `step` as
+// a name for the record and neither backend needs to know: record typing is STRUCTURAL, so
+// `a record with (the name …, …)` still builds one and the two spellings are interchangeable.
+//
+// ★ What that buys is not cosmetic. A blueprint used to write the four-field shape out twice —
+// once as the return type, once for the series — which was twelve lines of type for a four-field
+// record before a single step was described.
 //
 // A step is `a record with (the text name, the series of text needs, the series of text makes,
 // the series of text runs)`:
