@@ -1,69 +1,39 @@
-/*  How this project's own Cufet programs are built.
+/*  How this project's own Cufet tools are built.  Run it with:  cufet build
 
-        cufet build
+    ★★ Running this file builds NOTHING. It defines `blueprint` and calls nothing, so what comes
+    out is a plan; `cufet build` is what walks it. `cufet blueprint.cufe` gives no output and no
+    compilation, which is correct rather than a bug.
 
-    ★★ Running this file builds nothing. It defines `blueprint` and calls nothing, so what comes
-    out is a PLAN; `cufet build` is what walks it. Run it plainly with `cufet blueprint.cufe` and
-    you get no output and no compilation, which is correct rather than a bug.
+    ★ It describes what CUFET builds, not what builds Cufet. The .NET solution produces the `cufet`
+    this file needs, so it cannot be a step here — that stays `dotnet build`, see CONTRIBUTING.
 
-    ── What is in scope, and what is not ──
+    ⚠ The steps run `cufet` from PATH, so this needs one at least as new as the checkout.
+    CONTRIBUTING says what an older one looks like when it fails, and how to build without PATH.
 
-    ★ The blueprint describes what CUFET builds, not what builds Cufet. The tools below are Cufet
-    programs, so they belong here. The .NET solution does not: it produces the `cufet` this file
-    depends on, so a step naming it would describe something that must already have happened. That
-    stays `dotnet build Cufet.sln` — see CONTRIBUTING.
-
-    ⚠⚠ **IT NEEDS A `cufet` AT LEAST AS NEW AS THIS CHECKOUT.** The steps run `cufet` from PATH —
-    the INSTALLED tool, not this working copy — so an older one meets source it cannot build.
-
-    ★ When that happens the message is misleading, and it is worth knowing why before you chase it:
-    gcc rejects C that the OLD compiler emitted, so `cufet` reports *"★ This is a bug in the Cufet
-    compiler, not in your program."* That is true of the compiler that wrote the C, and it is not a
-    bug in anything here. `implicit declaration of function 'cufet_run_capture'` is the
-    recognisable shape of it — a runtime missing something the tools now use.
-
-    The fix is to install the current build, or to bypass PATH and build a tool the long way:
-
-        dotnet run --project src/App/Cufet.App.csproj -- build tools/shell.cufe
-
-    ⚠ That long form is also the right instrument for checking a change you just made, since PATH
-    answers with whatever is installed rather than with what you just wrote.
-
-    ── What the graph says, and what it does not ──
-
-    ★★ Nothing here declares that anything depends on anything. `needs` and `makes` are all there
-    is, and the order falls out of them — both tools need `tools/terminal.cufe`, so editing it
-    rebuilds both. Staleness is by content, so a step is skipped when every path it needs hashes to
-    what it hashed last time AND everything it makes is still there. There is nothing to build
-    twice and nothing to say twice.
-
-    ⚠ A binary's name is the platform's business, which is why the suffix is COMPUTED. This is an
-    ordinary Cufet program and can simply ask.
+    ★★ Nothing below declares that anything depends on anything. `needs` and `makes` are all there
+    is, and both tools name `tools/terminal.cufe` — so editing it rebuilds both, and nothing had to
+    say so. Staleness is by content: a step is skipped when everything it needs hashes to what it
+    hashed last time and everything it makes is still there. See BOOKS for the full design.
 */
 
 Pull a book on blueprints.
     Bind series of step to blueprint:
 
-        /* Windows is the only platform that puts an extension on an executable. ★ `OS` is the one
-           variable Windows sets and POSIX does not, so the absence is the answer elsewhere. */
+        /* ⚠ A binary's name is the platform's business. `OS` is the one variable Windows sets and
+           POSIX does not, so the absence is the answer elsewhere — and a blueprint is an ordinary
+           program, so it can simply ask. */
         Define suffix as ".exe" when (the environment variable "OS" but void is "") is "Windows_NT", otherwise "".
 
-        Define work as a series of step.
-
-        /* Both tools pull `terminal`, so both list it. That is the only reason the build knows
-           they share anything. */
-        Insert a record with (
-            the name "shell",
-            the needs a series of text with ("tools/shell.cufe", "tools/terminal.cufe"),
-            the makes a series of text with ("tools/shell{suffix}"),
-            the runs a series of text with ("cufet", "build","tools/shell.cufe")) into work.
-
-        Insert a record with (
-            the name "repl",
-            the needs a series of text with ("tools/repl.cufe", "tools/terminal.cufe"),
-            the makes a series of text with ("tools/repl{suffix}"),
-            the runs a series of text with ("cufet", "build","tools/repl.cufe")) into work.
-
-        Return work.
+        Return a series of step with (
+            a record with (
+                the name "shell",
+                the needs a series of text with ("tools/shell.cufe", "tools/terminal.cufe"),
+                the makes a series of text with ("tools/shell{suffix}"),
+                the runs a series of text with ("cufet", "build","tools/shell.cufe")),
+            a record with (
+                the name "repl",
+                the needs a series of text with ("tools/repl.cufe", "tools/terminal.cufe"),
+                the makes a series of text with ("tools/repl{suffix}"),
+                the runs a series of text with ("cufet", "build","tools/repl.cufe"))).
     Done.
 Done.
