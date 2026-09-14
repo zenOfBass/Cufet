@@ -169,6 +169,28 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   object definition and stop — telling someone whose file was one folder off, in effect, that a book
   cannot be a file at all.
 
+- **`run <program> with the terminal` compiles and runs on Windows.** The compiled runtime's launch
+  was fenced to `__unix__ || __APPLE__`, so any program reaching for a subprocess failed to link
+  there — including every blueprint, since pulling the `blueprints` book brings the step walker
+  along. Windows has no `fork`/`exec` and needs neither for this form: `_spawnvp` with `_P_WAIT`
+  runs the child to completion with stdio inherited, which is exactly what the terminal form means,
+  and reports a missing program the same way `execvp` does.
+
+  ⚠⚠ **The first version of it destroyed argument boundaries, and the oracle caught it the same
+  hour.** POSIX hands argv to a child as a vector; Windows joins it into one command line that the
+  child splits back up, and `_spawnvp` joins without quoting — so `("two words", "plain")` arrived
+  as THREE arguments compiled and two interpreted. Not cosmetic: any program handed a path with a
+  space in it was broken. Arguments are now quoted by the `CommandLineToArgvW` rules, pinned by a
+  test that runs on both platforms with a child compiled on the spot.
+
+  ★ **A second "genuinely POSIX" claim that named the missing primitive rather than the missing
+  capability.** The skip list said *"fork/exec has no mingw equivalent to reach for"*; the same
+  reasoning had already been wrong about pthreads and concurrency in August.
+
+  ⚠ The **capturing** form is still POSIX-only — separated stdout and stderr need `CreateProcess`
+  with explicit handles rather than a spawn. That is what keeps `shell` and `repl` off Windows,
+  together with their need for `sh`, `cat` and `grep`.
+
 ### Changed
 
 - **`constructor` and `destructor` are now `maker` and `unmaker` everywhere a programmer can see

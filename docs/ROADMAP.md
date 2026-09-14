@@ -278,11 +278,11 @@ they are large, not because they are waiting — the order among them means noth
       "OS"` is enough, MEASURED. Adding CLI surface here would have been working around having
       forgotten this entry's own founding premise.
 
-    ⚠ The real blueprint was deliberately NOT committed. This project's own Cufet tools cannot be
-    compiled on Windows at all (`repl` and `shell` need subprocess support the compiled runtime has
-    only where fork/exec exists — which is why `ExampleOracleTests` skips them there), so a root
-    `blueprint.cufe` would be a front door that fails on the maintainer's machine every time. The
-    experiment succeeded; its result was these two gaps.
+    ⚠ The real blueprint was deliberately NOT committed, and the reason has since HALVED. A
+    blueprint itself now compiles everywhere — the terminal form the walker uses builds on Windows
+    through `_spawnvp` as of 2026-09-13. What still cannot be compiled there is `repl` and `shell`,
+    which CAPTURE a child's output, so a root blueprint naming them as steps is still a front door
+    that fails on the maintainer's machine. The experiment succeeded; its result was these two gaps.
 
     ★ **Settled: a BOOK, not core.** Core was weighed and declined. What Zig gets right is that a
     build script is an ORDINARY PROGRAM USING AN ORDINARY LIBRARY — putting the vocabulary into the
