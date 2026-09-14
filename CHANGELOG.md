@@ -8,6 +8,25 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ## [Unreleased]
 
+### Fixed
+
+- **An installed `cufet` older than the source it is building no longer reports itself as a
+  compiler bug.** When gcc says a `cufet_` function is missing — `implicit declaration of function
+  'cufet_run_capture'`, or the linker's `undefined reference to` — the two halves cufet writes have
+  come from different compilers, or the platform has no implementation. Both are the reader's to
+  act on. The message now names the function, names the compiler's own version, and gives those two
+  causes.
+
+  ⚠⚠ MEASURED twice, and the second time it was this repo's own front door: `cufet build` at the
+  root with 0.22.0 installed died on `cufet_run_capture` and announced *"★ This is a bug in the
+  Cufet compiler, not in your program."* True of the old compiler, useless as a way of saying
+  "yours is out of date", and it sent two separate investigations after a defect that did not exist.
+
+  ★ Narrower than what it replaces, deliberately: every other way gcc can reject generated C really
+  is a compiler bug, and that message is unchanged. ⚠ The check runs BEFORE the "nothing points
+  inside the generated file, so it is your toolchain" arm, because a link error names the object
+  file rather than the `.c` — which would have swallowed the whole link half of the case.
+
 ## [0.23.0] — 2026-09-14
 
 ### Added
