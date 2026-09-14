@@ -198,6 +198,11 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   stream has bytes waiting and only ever reads what is already there. Verified at ~200 KB on both
   streams at once, three times the pipe buffer, with both backends byte-identical.
 
+  ⚠ **A `cufet` older than this release still cannot build them.** The failure reads *"★ This is a
+  bug in the Cufet compiler, not in your program"*, which is true of the old compiler and unhelpful
+  as a way of saying "your installed cufet predates this". Worth knowing if a project's build steps
+  run `cufet` from PATH.
+
   ✅ `shell.cufe` and `repl.cufe` are no longer Windows-skipped. ⚠ Worth being honest about what
   that pins: the example harness closes stdin immediately, so neither does real work on any
   platform — what is checked is that they start, see EOF and leave, identically on both backends.
