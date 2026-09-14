@@ -187,9 +187,22 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   capability.** The skip list said *"fork/exec has no mingw equivalent to reach for"*; the same
   reasoning had already been wrong about pthreads and concurrency in August.
 
-  ⚠ The **capturing** form is still POSIX-only — separated stdout and stderr need `CreateProcess`
-  with explicit handles rather than a spawn. That is what keeps `shell` and `repl` off Windows,
-  together with their need for `sh`, `cat` and `grep`.
+- **The capturing form runs on Windows too, and `shell` and `repl` came off the skip list.**
+  `run <program>` with separated stdout, stderr and exit code now works there through `CreatePipe`
+  and `CreateProcess`, with `with input` fed from a temporary file the way the POSIX side uses
+  `tmpfile()`.
+
+  ⚠⚠ **Neither pipe may be drained before the other.** A child that fills its stderr pipe blocks
+  forever while the parent sits in a blocking read on stdout — the classic deadlock, and why the
+  POSIX path uses `poll`. Windows pipes are not pollable, so the reader asks `PeekNamedPipe` which
+  stream has bytes waiting and only ever reads what is already there. Verified at ~200 KB on both
+  streams at once, three times the pipe buffer, with both backends byte-identical.
+
+  ✅ `shell.cufe` and `repl.cufe` are no longer Windows-skipped. ⚠ Worth being honest about what
+  that pins: the example harness closes stdin immediately, so neither does real work on any
+  platform — what is checked is that they start, see EOF and leave, identically on both backends.
+  `subprocess-pipes.cufe` stays skipped, now for the only reason left: `echo`, `cat`, `seq`, `grep`
+  and `wc` are not programs on Windows.
 
 ### Changed
 

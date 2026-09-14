@@ -278,11 +278,12 @@ they are large, not because they are waiting — the order among them means noth
       "OS"` is enough, MEASURED. Adding CLI surface here would have been working around having
       forgotten this entry's own founding premise.
 
-    ⚠ The real blueprint was deliberately NOT committed, and the reason has since HALVED. A
-    blueprint itself now compiles everywhere — the terminal form the walker uses builds on Windows
-    through `_spawnvp` as of 2026-09-13. What still cannot be compiled there is `repl` and `shell`,
-    which CAPTURE a child's output, so a root blueprint naming them as steps is still a front door
-    that fails on the maintainer's machine. The experiment succeeded; its result was these two gaps.
+    ✅ **The reason the real blueprint was not committed is GONE as of 2026-09-13.** It was that
+    this project's own tools could not be compiled on Windows, so a root `blueprint.cufe` naming
+    them as steps would fail on the maintainer's machine every time. Both subprocess forms now build
+    there — the terminal form through `_spawnvp`, the capturing form through CreatePipe and
+    CreateProcess — and `shell.cufe` and `repl.cufe` have come off the Windows skip list entirely.
+    Committing a root blueprint is now an ordinary piece of work rather than a blocked one.
 
     ★ **Settled: a BOOK, not core.** Core was weighed and declined. What Zig gets right is that a
     build script is an ORDINARY PROGRAM USING AN ORDINARY LIBRARY — putting the vocabulary into the
