@@ -293,6 +293,20 @@ they are large, not because they are waiting — the order among them means noth
     "your installed cufet predates this source" is a diagnosable case that currently reads as an
     internal error. Nothing is assigned to it.
 
+    ▶ **The step's SHAPE is not settled.** The author is not sold on how a blueprint reads, and
+    said so after the `step` type and the series-literal return had already taken it from 82 lines
+    to 39. What remains is four fields per step, three of which are `a series of text with (…)`.
+
+    ⚠ Two reductions were weighed and declined, both recorded so they are not re-derived:
+    **inferring `makes` from `runs`** — derivable for a `cufet build` step and for nothing else, so
+    it would make the build book know one program's behaviour and go silently wrong if that
+    behaviour changed; and **a step-constructor in the book** — the first item of exactly the build
+    vocabulary this entry declined to spend, and it cannot supply `needs` anyway, since
+    `tools/terminal.cufe` is a dependency only because `shell.cufe` PULLS it.
+    ★ A helper written in the blueprint itself needs no language change at all and is what
+    `build.zig` does — measured at this size it costs about twelve lines to save fourteen, so it
+    starts paying around five steps.
+
     ★ The question it raised and did not settle: a project that USES Cufet should say `cufet` in its
     blueprint, but this repo IS Cufet, and a front door bootstrapping from PATH is permanently one
     release behind its own source. Settled for now by what the maintainer actually does — they run

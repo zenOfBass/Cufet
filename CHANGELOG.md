@@ -8,6 +8,8 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ## [Unreleased]
 
+## [0.23.0] — 2026-09-14
+
 ### Added
 
 - **`examples/algorithms/beamforming.cufe` — delay-and-sum over real microwave measurements,
