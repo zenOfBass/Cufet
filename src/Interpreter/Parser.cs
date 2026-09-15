@@ -5549,9 +5549,57 @@ public sealed class Parser
     {
         var tok = Peek();
         if (tok.Type != expected)
-            throw new ParseException(tok, expected.ToString());
+        {
+            // ★★ A RESERVED WORD IN A NAME'S PLACE IS ITS OWN MISTAKE, and the mechanical message
+            // never said so: `expected Identifier, got Key "key"` leaves a reader to work out that
+            // `key` is taken. ⚠ WITNESS: six reserved-word collisions across two sessions of
+            // writing Cufet — `a`, `one`, `channel`, `key`, `arguments`, `from` — every one of
+            // them an everyday noun, and every one costing a parse error and a rename.
+            //
+            // ★ No keyword table is needed to detect it. The lexer turns a bare word into an
+            // Identifier unless the word is one the language took, so a WORD arriving as anything
+            // else is reserved by construction.
+            if (expected == TokenType.Identifier && LooksLikeAWord(tok))
+                throw new ParseException(tok.Line, tok.Column,
+                    $"'{tok.Lexeme}' is a word Cufet has taken, so it cannot be a name here. "
+                  + "A reserved word can be neither a variable nor a field, anywhere in any "
+                  + "program. Choose another name — see the reserved list in GRAMMAR.");
+
+            throw new ParseException(tok, Describe(expected));
+        }
         return Advance();
     }
+
+    /// <summary>Is this token a WORD the lexer refused to treat as a name?</summary>
+    /// <remarks>
+    /// ⚠ Letters only. A number, a string or a bracket arriving where a name was wanted is a
+    /// different mistake and gets the ordinary message — telling someone that `(` is a reserved
+    /// word would be false and confusing.
+    /// </remarks>
+    private static bool LooksLikeAWord(Token tok) =>
+        tok.Lexeme.Length > 0 && char.IsLetter(tok.Lexeme[0]);
+
+    /// <summary>What to CALL a token type in a message meant for a person.</summary>
+    /// <remarks>
+    /// ⚠⚠ The mechanical message printed the ENUM NAME: `expected Dot`, `expected Colon`,
+    /// `expected Eof`. Nobody outside this repo knows what a `Dot` is, and it is the first
+    /// vocabulary a beginner meets, because punctuation is what they get wrong first.
+    /// <para>
+    /// ★ Only the tokens that are JARGON need an entry. A keyword's enum name is the keyword —
+    /// `expected Done`, `expected As` — so those already read correctly and fall through.
+    /// </para>
+    /// </remarks>
+    private static string Describe(TokenType expected) => expected switch
+    {
+        TokenType.Dot        => "'.'",
+        TokenType.Colon      => "':'",
+        TokenType.Comma      => "','",
+        TokenType.LParen     => "'('",
+        TokenType.RParen     => "')'",
+        TokenType.Identifier => "a name",
+        TokenType.Eof        => "the end of the file",
+        _                    => expected.ToString(),
+    };
 
     // Parses an interpolated string starting just after InterpolOpen was consumed.
     // Collects StringPiece tokens and InterpolHoleOpen…InterpolHoleClose expression
