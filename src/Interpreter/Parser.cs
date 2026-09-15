@@ -1236,25 +1236,25 @@ public sealed class Parser
         var arms = new List<ConditionArm>();
         IReadOnlyList<IStatement>? elseBody = null;
 
-        Consume(TokenType.If);
+        var ifTok = Consume(TokenType.If);
         SkipNoise();
-        arms.Add(new ConditionArm(ParseCondition(), ParseIfBody()));
+        arms.Add(new ConditionArm(ParseCondition(), ParseIfBody(ifTok)));
 
         while (true)
         {
             SkipNoise();
             if (Peek().Type != TokenType.Otherwise) break;
-            Consume(TokenType.Otherwise);
+            var otherwiseTok = Consume(TokenType.Otherwise);
             SkipNoise();
             if (Peek().Type == TokenType.If)
             {
-                Consume(TokenType.If);
+                var elseIfTok = Consume(TokenType.If);
                 SkipNoise();
-                arms.Add(new ConditionArm(ParseCondition(), ParseIfBody()));
+                arms.Add(new ConditionArm(ParseCondition(), ParseIfBody(elseIfTok)));
             }
             else
             {
-                elseBody = ParseIfBody();
+                elseBody = ParseIfBody(otherwiseTok);
                 break;
             }
         }
@@ -1266,7 +1266,12 @@ public sealed class Parser
     // Colon → Done.-terminated block (same machinery as loop bodies).
     // The two forms are unambiguous: the parser knows which it's in from the
     // comma-vs-colon immediately after the condition, before the body is parsed.
-    private IReadOnlyList<IStatement> ParseIfBody()
+    /// <param name="opener">
+    /// The word that opened this arm — `If`, `Otherwise`, or a `Judge` arm's own token — so an
+    /// unclosed block can point AT IT rather than at the end of the file. ⚠ Optional only because
+    /// not every caller has one to give; a caller that can pass one should.
+    /// </param>
+    private IReadOnlyList<IStatement> ParseIfBody(Token? opener = null)
     {
         SkipNoise();
         if (Peek().Type == TokenType.Comma)
@@ -1280,7 +1285,7 @@ public sealed class Parser
         }
         Consume(TokenType.Colon);
         _nestDepth++;
-        var result = ParseLoopBody();
+        var result = ParseLoopBody(opener, "If x is 1, state \"one\".");
         _nestDepth--;
         return result;
     }
@@ -1411,7 +1416,7 @@ public sealed class Parser
                 // "expected Done, got Eof" pointed at the last line of the program, which is never
                 // where the mistake is — and the fix is usually to DROP `repeat:` rather than to
                 // add `Done.`, which the old message could not suggest.
-                return ParseLoopBody(repeatTok);
+                return ParseLoopBody(repeatTok, "For each n in items, State n.");
             }
             return new[] { ParseStatement() };
         }
@@ -1461,8 +1466,8 @@ public sealed class Parser
             // default could never be reached.
             if (Peek().Type == TokenType.Otherwise)
             {
-                Advance();
-                otherwise = ParseIfBody();
+                var defaultTok = Advance();
+                otherwise = ParseIfBody(defaultTok);
                 SkipNoise();
                 break;
             }
@@ -1489,7 +1494,7 @@ public sealed class Parser
                     values.Add(ParseArmValue());
                     SkipNoise();
                 }
-                arms.Add(new JudgeArm([], ParseIfBody(), armTok.Line, armTok.Column, values));
+                arms.Add(new JudgeArm([], ParseIfBody(armTok), armTok.Line, armTok.Column, values));
                 continue;
             }
 
@@ -1507,7 +1512,7 @@ public sealed class Parser
                 SkipNoise();
             }
 
-            arms.Add(new JudgeArm(cases, ParseIfBody(), armTok.Line, armTok.Column));
+            arms.Add(new JudgeArm(cases, ParseIfBody(armTok), armTok.Line, armTok.Column));
         }
 
         Consume(TokenType.Done);
@@ -1578,7 +1583,38 @@ public sealed class Parser
     // The BLOCK form of a loop body — reached only after `repeat:`, so it always ends in `Done.`
     // The single-statement form is ParseLoopBodyOrInline's other branch.
     // A closer on the same line is fine: "While ...: x becomes x + 1. Done."
-    private IReadOnlyList<IStatement> ParseLoopBody(Token? opener = null)
+    /// <summary>The message for a block whose `Done.` never arrived, in one place.</summary>
+    /// <remarks>
+    /// <para>
+    /// ⚠⚠ THIS EXISTED FOR `repeat` AND NOWHERE ELSE, which meant the commonest mistake a beginner
+    /// makes — leaving a block open — answered `expected Done, got Eof ""` for `If`, `Try`, the
+    /// failure handler and `With`, while `For each` got a sentence explaining itself. The parser
+    /// always knew which construct was open and where it began; six of seven call sites simply
+    /// never handed that over. Nothing here is new analysis.
+    /// </para>
+    /// <para>
+    /// ⚠ The inline half is OPTIONAL because it is not universally true. MEASURED 2026-09-14:
+    /// `If` and `While` take a comma and one statement; `Try` and `With … open … as` do NOT, and
+    /// offering them an inline form would send a beginner to write something the parser refuses.
+    /// A construct that has no inline form is told only to close the block.
+    /// </para>
+    /// </remarks>
+    /// <param name="construct">
+    /// What to CALL the thing, when its opening word is not the name anyone would use for it.
+    /// ⚠ `In case of failure:` opens on the word `In`, and *"this 'In' opens a block"* names a
+    /// preposition rather than a construct — so those two arms say what they are.
+    /// </param>
+    private static ParseException Unclosed(Token opener, string? inlineExample, string? construct = null) =>
+        new(opener.Line, opener.Column,
+            $"this '{construct ?? opener.Lexeme}' opens a block, and the file ended before its 'Done.'. "
+          + (inlineExample is null
+                ? "Close it with 'Done.'."
+                : "Either close it with 'Done.', or — if the body is a single statement — write the "
+                + "inline form instead, which takes a comma and no 'Done.': "
+                + $"'{inlineExample}'"));
+
+    private IReadOnlyList<IStatement> ParseLoopBody(
+        Token? opener = null, string? inlineExample = null, string? construct = null)
     {
         var stmts = new List<IStatement>();
         while (true)
@@ -1590,11 +1626,7 @@ public sealed class Parser
         if (stmts.Count == 0)
             throw new ParseException(Peek(), "at least one statement in loop body");
         if (Peek().Type == TokenType.Eof && opener != null)
-            throw new ParseException(opener.Line, opener.Column,
-                $"this '{opener.Lexeme}' opens a block, and the file ended before its 'Done.'. " +
-                "Either close it with 'Done.', or — if the body is a single statement — write the " +
-                "inline form instead, which takes a comma and no 'Done.': " +
-                "'For each n in items, State n.'");
+            throw Unclosed(opener, inlineExample, construct);
         Consume(TokenType.Done);
         Consume(TokenType.Dot);
         return stmts;
@@ -1715,7 +1747,7 @@ public sealed class Parser
                 else
                 {
                     var opener = Consume(TokenType.Colon);
-                    consumerBody = ParseLoopBody(opener);
+                    consumerBody = ParseLoopBody(opener, "For each n in items, State n.");
                 }
             }
             finally
@@ -2252,7 +2284,7 @@ public sealed class Parser
         SkipNoise();
         Consume(TokenType.Colon);
         _nestDepth++;
-        var body = ParseLoopBody(); // consumes Done.
+        var body = ParseLoopBody(lineTok); // consumes Done.
         _nestDepth--;
         return new WithOpenStatement(mode, pathExpr, bindingName, body, line, col);
     }
@@ -5035,7 +5067,7 @@ public sealed class Parser
         SkipNoise();
         Consume(TokenType.Colon);
         _nestDepth++;
-        var body = ParseLoopBody();
+        var body = ParseLoopBody(lineTok);
         _nestDepth--;
         SkipNoise();
 
@@ -5045,13 +5077,13 @@ public sealed class Parser
         // Optional failure handler — must come first if both handlers are present.
         if (PeekHandlerKind() == TokenType.Failure)
         {
-            Consume(TokenType.In);   SkipNoise();
+            var failureTok = Consume(TokenType.In);   SkipNoise();
             Consume(TokenType.Case); SkipNoise();
             Consume(TokenType.Of);   SkipNoise();
             Consume(TokenType.Failure); SkipNoise();
             Consume(TokenType.Colon);
             _nestDepth++;
-            failureHandler = ParseLoopBody();
+            failureHandler = ParseLoopBody(failureTok, null, "In case of failure");
             _nestDepth--;
             SkipNoise();
         }
@@ -5061,7 +5093,7 @@ public sealed class Parser
         // Optional exception handler.
         if (PeekHandlerKind() == TokenType.Exception)
         {
-            Consume(TokenType.In);        SkipNoise();
+            var exceptionTok = Consume(TokenType.In);        SkipNoise();
             Consume(TokenType.Case);      SkipNoise();
             Consume(TokenType.Of);        SkipNoise();
             Consume(TokenType.Exception); SkipNoise();
@@ -5092,7 +5124,7 @@ public sealed class Parser
             }
             Consume(TokenType.Colon);
             _nestDepth++;
-            exceptionHandler = ParseLoopBody();
+            exceptionHandler = ParseLoopBody(exceptionTok, null, "In case of exception");
             _nestDepth--;
         }
 
