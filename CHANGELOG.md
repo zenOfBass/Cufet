@@ -32,6 +32,24 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   example — and its PARSE refusals mostly have one. That lands where it hurts most, since a
   beginner leaves a block open long before they mismatch a type. The rest is ROADMAP item 6.
 
+- **A reserved word used as a name says so.** `Define key as 3.` answered *expected Identifier, got
+  Key "key"*, leaving a reader to deduce that `key` was taken. It now says *"'key' is a word Cufet
+  has taken, so it cannot be a name here. A reserved word can be neither a variable nor a field,
+  anywhere in any program."*
+
+  ★ It needs no keyword table: the lexer turns a bare word into a name unless the language has
+  taken that word, so a WORD arriving as anything else is reserved by construction. ⚠ Letters only
+  — a bracket or a number where a name was wanted is a different mistake and keeps the ordinary
+  message.
+
+  ⚠⚠ Six collisions across two sessions of writing Cufet prompted this — `a`, `one`, `channel`,
+  `key`, `arguments`, `from` — every one an everyday noun somebody would reach for.
+
+- **Parse errors no longer name token types at people.** `expected Dot` is `expected '.'`,
+  `expected Colon` is `expected ':'`, `expected Identifier` is `expected a name`. ★ Only the seven
+  types that are jargon were translated — a keyword's internal name is the keyword, so `expected
+  Done` and `expected As` already read correctly and are untouched.
+
 ### Fixed
 
 - **An installed `cufet` older than the source it is building no longer reports itself as a

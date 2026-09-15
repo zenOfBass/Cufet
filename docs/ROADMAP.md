@@ -425,22 +425,29 @@ they are large, not because they are waiting — the order among them means noth
    was also UNTESTED — the one good parse error in the codebase could have been refactored away in
    silence. `UnclosedBlockTests` pins all of them now.
 
-   ⚠ **What remains is the mechanical constructor**, `ParseException(Token got, string expected)`,
-   which prints RAW TOKEN-TYPE NAMES at people: `expected Dot`, `expected Colon`, `expected
-   Identifier, got Key "key"`. Nobody outside this repo knows what a `Dot` is. Measured examples:
+   ✅ **The EXPECTED half of the mechanical message stopped speaking lexer, same day.** `Consume`
+   translated the seven token types that are jargon — `expected '.'`, `expected ':'`, `expected a
+   name` — and leaves keywords alone, since a keyword's enum name IS the keyword. ★ And a RESERVED
+   WORD in a name's place now says so outright rather than answering *expected Identifier, got Key
+   "key"*; no keyword table was needed, because the lexer only refuses a bare word an Identifier
+   when the language has taken it.
 
-   - a missing `.` → *expected Dot, got State "State"*
-   - a missing `:` → *expected Colon, got State "State"*
-   - ★★ a RESERVED WORD as a name → *expected Identifier, got Key "key"* — which never says `key`
-     is reserved. This one has a witness: six reserved-word collisions across two sessions of
-     writing Cufet, every one of them costing a parse error and a rename.
-   - `Otherwise` without the `Done.` that closes the arm before it → *expected statement keyword*
-   - a `Bind` body left unclosed — still mechanical, because `Bind` does not route through
+   ⚠ **What remains, and the largest piece is deliberately NOT the generic message:**
+
+   - **The `got` half still prints enum names** — *expected As, got Equal "="*. ⚠ Two tests depend
+     on that format: `DocBlockTests`' `RanOutOfInput` regex, and a `DoesNotContain("got Eof")`
+     assertion in `PipelineInlineFormTests` that would become VACUOUS if the wording moved. The win
+     is small anyway, since the lexeme is already quoted beside it.
+   - **`Define x = 3`** → *expected As, got Equal "="*. ★ Cufet already has an educational message
+     for `x = 5` in STATEMENT position (`EqualSignStatementErrorTests`); the `Define` site simply
+     does not reach it. A targeted fix with a working precedent beats widening the generic one.
+   - **`Otherwise` without the `Done.` that closes the arm before it** → *expected statement
+     keyword*. A plausible belief — that `Otherwise` closes the `If` — answered by nothing.
+   - **An unclosed `Bind` body** — still mechanical, because `Bind` does not route through
      `ParseLoopBody`.
 
-   ⚠ Scope is still the open question for that half: how many of the 61 throw sites are reached by
-   a plausible mistake rather than by nonsense. Rewriting all of them is a different job from
-   fixing the handful anybody actually hits.
+   ★ The pattern across all four: the remaining wins are SPECIFIC mistakes deserving their own
+   message, not a better generic one. Which is the same shape the type errors already have.
 
 ## Ongoing, no fixed slot
 
