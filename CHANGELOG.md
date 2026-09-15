@@ -93,6 +93,25 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **`chase` is now actually reserved inside a `collections` pull, instead of silently shadowing the
+  name.** The reservation was DESIGNED and never enforced: `Define chase as 5.` inside the pull was
+  accepted, and every later `chase` parsed as the TYPE, so `State chase converted to text.` printed
+  nothing at all and `chase + 1` refused with *"with chase and number"*. The 5 was bound to a name
+  no line in the program could read.
+
+  ⚠ Both backends did the identical wrong thing, so the oracle was structurally blind to it — a
+  silent wrong answer rather than a divergence. It is now a parse error at the name, in the same
+  voice as any other reserved word, and it names where the word is still free: *"'chase' is a type
+  while 'collections' is pulled — outside that pull it is an ordinary name."*
+
+  ★ FOUR places already stated this rule — two parser comments, `docs/BOOKS.md`, and the 0.19.0
+  entry that introduced the type — and none of them enforced it. Shadowed-by-book is exactly what
+  reserved-by-book exists to prevent.
+
+  ⚠ The guard is keyed on words a PULL reserves, not on every contextual reclassification, so
+  `matrix` stays an ordinary name inside the pull — it becomes a type only when `with` follows,
+  which is the asymmetry that made `chase` need a gate in the first place. Pinned both ways.
+
 - **A pull is LEXICAL: a function written inside one keeps it when called from outside.** ⚠⚠ A
   BACKEND DIVERGENCE, measured 2026-09-15. This program passed `check`, printed the right answer
   compiled, and died interpreted with *"'math' isn't defined … Declare it first: Define math as
