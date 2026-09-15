@@ -482,4 +482,27 @@ public class ChaseTests
         Assert.Contains("is a type, and this program has not pulled it", ex.Message);
         Assert.Contains("collections", ex.Message);
     }
+
+    /// <remarks>
+    /// ⚠⚠ THE SAME SENTENCE FIRED WHEN THE BOOK WAS PULLED, which made it FALSE exactly where the
+    /// writer had done the right thing. MEASURED 2026-09-15: inside `Pull a book on collections.`,
+    /// `Define out as a matrix.` said *"this program has not pulled it"* and advised wrapping line
+    /// 2 in the pull that is already on line 1. It never asked whether the book was in scope.
+    ///
+    /// ★ It reached TWO of the three book-introduced types — `matrix` and `blueprints`' `step`.
+    /// `chase` escaped only because a bare `a chase` is a complete construction, so it never
+    /// failed the lookup that leads here. Every other collection can be built with no tail
+    /// (`a catalogue`, `an atlas`, `a series of number`, `a set of text`); `matrix` alone cannot,
+    /// which is why it was the one that walked into the wrong sentence.
+    /// </remarks>
+    [Fact]
+    public void UsingTheNamePulled_SaysWhatIsActuallyMissing()
+    {
+        var ex = Assert.Throws<TypeException>(() => Run(InCollections("    Define out as a matrix.")));
+        Assert.Contains("a type on its own isn't a value", ex.Message);
+        Assert.Contains("IS pulled here", ex.Message);
+        // ★ And it no longer advises adding the pull the program already has.
+        Assert.DoesNotContain("has not pulled it", ex.Message);
+        Assert.DoesNotContain("Wrap it in", ex.Message);
+    }
 }

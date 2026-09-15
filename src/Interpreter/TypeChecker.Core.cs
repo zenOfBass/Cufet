@@ -1454,12 +1454,35 @@ public sealed partial class TypeChecker
             // never reaching for a variable. Naming the book turns "I have no idea what you meant"
             // into one line they can act on.
             if (BookIntroducing(vr.Name) is { } fromBook)
+            {
+                // ★★ WHICH mistake this is depends on whether the book is PULLED HERE, and the
+                // sentence below never asked — it told every reader to wrap the line in a pull.
+                // ⚠⚠ MEASURED: inside `Pull a book on collections.`, `Define out as a matrix.`
+                // said "this program has not pulled it" and "you're trying to use 'matrix' outside
+                // a 'collections' pull" — on line 2 of a program whose line 1 is that pull. The
+                // advice was to add what was already there. `step` inside a `blueprints` pull said
+                // the same, so it reached two of the three book types; `chase` escaped only
+                // because a bare `a chase` is a complete construction and never fails lookup.
+                //
+                // ★★ The type being IN SCOPE is exactly the question, and it is already
+                // answerable — a pull registers its book's types, lowercased, for the block.
+                if (TryLookupScopedType(vr.Name.ToLowerInvariant(), out _))
+                    throw TypeError(
+                        $"'{vr.Name}' is a type, and a type on its own isn't a value",
+                        $"The '{fromBook}' book IS pulled here, so the name is in scope — what is "
+                      + "missing is the rest of the construction",
+                        vr.Line, vr.Column,
+                        $"use '{vr.Name}' by itself where a value goes",
+                        $"Give it the rest of what it is built from — see the '{fromBook}' book "
+                      + "in docs/BOOKS.md.");
+
                 throw TypeError(
                     $"'{vr.Name}' is a type, and this program has not pulled it",
                     $"The '{fromBook}' book introduces it, and the name means the type only inside that pull",
                     vr.Line, vr.Column,
                     $"use '{vr.Name}' outside a '{fromBook}' pull",
                     $"Wrap it in 'Pull a book on {fromBook}. … Done.'");
+            }
 
             throw TypeError(
                 $"'{vr.Name}' isn't defined",
