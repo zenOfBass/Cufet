@@ -5548,6 +5548,23 @@ public sealed class Parser
     private Token Consume(TokenType expected)
     {
         var tok = Peek();
+
+        // ★★ A word a PULL has taken is reserved WHERE THAT PULL IS, and nowhere else. The token
+        // still arrives as an Identifier — only `EffectiveType` knows better — so without this it
+        // sails through every name site and binds a name no later line can read.
+        //
+        // ⚠⚠ MEASURED, and silent in BOTH backends: inside `Pull a book on collections.`,
+        // `Define chase as 5.` was accepted and every later `chase` parsed as the TYPE, so
+        // `State chase converted to text.` printed nothing at all and `chase + 1` refused with
+        // "with chase and number". The 5 was unreachable. Two comments in this file and the
+        // 0.19.0 changelog all said this name was "gone" inside the pull; none of them were
+        // enforced anywhere, and shadowed-by-book is exactly what reserved-by-book exists to stop.
+        if (expected == TokenType.Identifier && PullReservedBook(tok) is { } book)
+            throw new ParseException(tok.Line, tok.Column,
+                $"'{tok.Lexeme}' is a type while '{book}' is pulled, so it cannot be a name here. "
+              + $"Outside that pull it is an ordinary name. Choose another name, or move this "
+              + $"out of the '{book}' pull.");
+
         if (tok.Type != expected)
         {
             // ★★ A RESERVED WORD IN A NAME'S PLACE IS ITS OWN MISTAKE, and the mechanical message
@@ -5569,6 +5586,21 @@ public sealed class Parser
         }
         return Advance();
     }
+
+    /// <summary>The book whose pull has taken this word, or null — see <see cref="EffectiveType"/>.</summary>
+    /// <remarks>
+    /// ★ Asked THROUGH `EffectiveType` rather than by re-testing the word and the depth, so the
+    /// condition that makes `chase` a type lives in exactly one place. Two copies of it would drift
+    /// the moment the gate changed, and the two halves would then disagree about whether a name is
+    /// legal — the shape that produced the silent binding this guards.
+    ///
+    /// ⚠ ONLY the pull-gated words belong here. A word freed by a MANDATORY following token —
+    /// `matrix with`, `randomly shuffled` — is a name like any other, and `Define matrix as 5.`
+    /// inside the pull still works. That difference is the whole reason `chase` needed a gate at
+    /// all, and widening this to every reclassification would take those names away for nothing.
+    /// </remarks>
+    private string? PullReservedBook(Token tok) =>
+        EffectiveType(tok) == TokenType.Chase ? "collections" : null;
 
     /// <summary>Is this token a WORD the lexer refused to treat as a name?</summary>
     /// <remarks>
@@ -5827,6 +5859,9 @@ public sealed class Parser
             // variable of that name. What tells them apart is that the book introducing it was
             // asked for: inside that pull the word is the type, and outside it is a name like any
             // other. The cost is real and narrow — `Define chase as 5.` inside the pull is gone.
+            // ★ ENFORCED IN `Consume`, via `PullReservedBook` EM not here. This switch decides
+            // what a word MEANS in expression position; it cannot refuse a name, and for a
+            // long time nothing did, so the binding was accepted and then unreadable.
             "chase"    when _collectionsDepth > 0                    => TokenType.Chase,
             "randomly" when NextWordIs("shuffled")                   => TokenType.Randomly,
             "random"   when PeekAfterCurrent() is TokenType.NumberKw or TokenType.Item

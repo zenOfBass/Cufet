@@ -326,6 +326,52 @@ public class ChaseTests
         Assert.Throws<TypeException>(() => Run("Define out as a chase.\nState the number of out."));
     }
 
+    /// <remarks>
+    /// ⚠ THE OTHER HALF OF "reserved by book", and it was MISSING — measured 2026-09-15. Two
+    /// comments in the parser and the 0.19.0 changelog all stated that `Define chase as 5.` inside
+    /// the pull was gone; nothing enforced it. The `Define` was accepted and every later `chase`
+    /// parsed as the TYPE, so `State chase converted to text.` printed nothing and `chase + 1`
+    /// refused with "with chase and number" — the 5 bound to a name no line could read.
+    ///
+    /// ★ BOTH BACKENDS did the identical wrong thing, so the oracle could not see it.
+    /// Shadowed-by-book is precisely what reserved-by-book exists to prevent, and a silent wrong
+    /// answer is the worse half of the trade the reservation was paying for.
+    /// </remarks>
+    [Fact]
+    public void InsideThePull_ChaseCannotBeAName()
+    {
+        var ex = Assert.Throws<ParseException>(() => Run(InCollections("    Define chase as 5.")));
+        Assert.Contains("'chase' is a type while 'collections' is pulled", ex.Message);
+        // ★ And it says where the name IS free, rather than only refusing.
+        Assert.Contains("Outside that pull it is an ordinary name", ex.Message);
+    }
+
+    /// <remarks>⚠ Every name site, not just `Define` — a parameter bound the same unreadable
+    /// name. One guard in `Consume` covers all 33 of them.</remarks>
+    [Fact]
+    public void InsideThePull_AParameterCannotBeNamedChase()
+    {
+        var ex = Assert.Throws<ParseException>(() => Run(InCollections(
+            "    Bind number to f, given (the number chase):\n"
+          + "        Return chase + 1.\n"
+          + "    Done.")));
+        Assert.Contains("'chase' is a type while 'collections' is pulled", ex.Message);
+    }
+
+    /// <remarks>
+    /// ⚠ THE LINE THE GUARD MUST NOT CROSS. `matrix` becomes a type only when `with` FOLLOWS
+    /// it, so nothing is ambiguous and the name stays free — inside the pull as well as outside.
+    /// That asymmetry is the stated reason `chase` needed a gate at all, and a guard keyed on every
+    /// reclassification rather than on the pull-gated ones would take this name away for nothing.
+    /// </remarks>
+    [Fact]
+    public void InsideThePull_MatrixIsStillAnOrdinaryName()
+    {
+        Assert.Equal("5", Run(InCollections(
+            "    Define matrix as 5.\n"
+          + "    State matrix converted to text.")));
+    }
+
     // ⚠⚠ THIS TEST USED TO REFUSE `Insert 42 into out`. A number is now that character's CODE
     // POINT — the second literal form a character has — so the refusal moved to everything that is
     // neither a text nor a number. The change is deliberate and the reason is recorded above, under
