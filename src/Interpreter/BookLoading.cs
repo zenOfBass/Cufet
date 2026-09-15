@@ -45,6 +45,19 @@ public sealed class SourceMap
         return start;
     }
 
+    /// <summary>Every FILE this program loaded, in the order the loader reached them.</summary>
+    /// <remarks>
+    /// ★ The map already knew this — it records a path per block so the reporter can turn a virtual
+    /// line back into a file. Reading it out is what `cufet pulls` needs and nothing more: no new
+    /// walk, no second resolution, and no way for the answer to disagree with what was loaded.
+    /// <para>
+    /// ⚠ FILES ONLY, by construction. A bundled book is spliced in without ever being a path, so it
+    /// never reaches this list — which is exactly right for a build, where a `need` has to be
+    /// something that can be hashed.
+    /// </para>
+    /// </remarks>
+    public IReadOnlyList<string> LoadedFiles => [.. _blocks.Select(b => b.Path)];
+
     /// <summary>The line to PRINT for a virtual line — the local one, when it came from a book.</summary>
     /// <remarks>
     /// ⚠⚠ Messages name the line in their prose as well as in the reporter’s header, and the two

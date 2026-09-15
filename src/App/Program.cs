@@ -54,6 +54,8 @@ else if (args.Length >= 2 && args[0].Equals("check", StringComparison.OrdinalIgn
     Check(args[1..]);
 else if (args.Length >= 2 && args[0].Equals("tokens", StringComparison.OrdinalIgnoreCase))
     Tokens(args[1..]);
+else if (args.Length >= 2 && args[0].Equals("pulls", StringComparison.OrdinalIgnoreCase))
+    Pulls(args[1..]);
 else
     // ⚠ Deliberately NOT refused here, unlike every verb above: `cufet script.cufe one two` hands
     // `one two` to the program as `the arguments`. This comment used to say the silence was kept
@@ -125,6 +127,7 @@ static void Help()
           cufet check [--json] [--native] [--strict] <f>
                                                report problems without running it
           cufet tokens --json <file.cufe>      report what each name in the file IS
+          cufet pulls <file.cufe> [more…]      report which FILES a file brings in
           cufet build <file.cufe>              compile to a native binary (needs gcc)
           cufet emit-c <file.cufe> [out.c]     write the generated C without compiling
                                        (out.c plus cufet-runtime.c/.h beside it)
@@ -290,6 +293,74 @@ static void Check(string[] rest)
 // The error prints like `check`'s and the exit code says so.
 //
 // Exit: 0 classified (even with no names in the file), 1 the file has an error, 2 unreadable.
+// ── `cufet pulls <file.cufe>…` — which FILES a file brings in ─────────────────────────────────
+//
+// ★★ It exists so a BLUEPRINT need not list them. A build step's `needs` is what staleness hashes,
+// and a blueprint that enumerates its own directory can find the files but not what they PULL — a
+// directory listing cannot see that `shell.cufe` needs `terminal.cufe`. MEASURED 2026-09-15: the
+// enumeration half already works in ordinary Cufet; this is the half that was missing.
+//
+// ⚠⚠ It reports what the LOADER RESOLVED, never a re-reading of the source. Matching `Pull ` by
+// hand over-declares on a comment (harmless) and UNDER-declares on any form it does not know —
+// `Pull books on a, and b.`, a nested pull, a name that resolves through the project's `books`
+// folder — and an under-declared `need` is a silently stale build. The SourceMap already holds
+// exactly what was loaded, so this answer cannot disagree with what the compiler did.
+//
+// ★ Bundled books never appear, by construction rather than by filtering: `math` and
+// `the c-language` are spliced in without being paths, so they are not in the map. That is right
+// for a build, where a `need` must be something that can be hashed.
+//
+// ★ TRANSITIVE, because the loader is. `shell` pulls `terminal`, and whatever `terminal` pulls is
+// equally a reason to rebuild `shell`.
+static void Pulls(string[] rest)
+{
+    const string pullsUsage = "cufet pulls <file.cufe> [more.cufe …]";
+    var files = rest.Where(a => !a.StartsWith("--", StringComparison.Ordinal)).ToArray();
+    RefuseExtraArguments("pulls", UnknownFlags(rest, ""), pullsUsage);
+    if (files.Length == 0)
+    {
+        Console.Error.WriteLine($"pulls: expected a source file — '{pullsUsage}'.");
+        Environment.Exit(2);
+        return;
+    }
+
+    bool anyMissing = false;
+    foreach (var file in files)
+    {
+        string source;
+        try { source = File.ReadAllText(file); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            Console.Error.WriteLine($"pulls: {file}: {e.Message}");
+            anyMissing = true;
+            continue;
+        }
+
+        var checker = MakeChecker(file);
+        try { checker.Check(new Parser(new Lexer(source).Tokenize()).Parse()); }
+        // ⚠ A program that does not CHECK still has pulls, and its blueprint still has to rebuild
+        // it when they change — so a type error is not a reason to answer nothing. Loading happens
+        // early in Check and the map is filled by the time anything can refuse.
+        catch (Exception e) when (e is LexerException or ParseException or TypeException) { }
+
+        foreach (var loaded in checker.Sources.LoadedFiles)
+            Console.WriteLine($"{file}: {Relative(loaded)}");
+    }
+
+    Environment.Exit(anyMissing ? 2 : 0);
+}
+
+/// <summary>A loaded file's path as a build would write it — relative to where we are.</summary>
+/// <remarks>
+/// ⚠ The map stores full paths, and a step's `needs` is hashed relative to the working directory,
+/// so handing back an absolute path would produce a `needs` that only works on one machine.
+/// </remarks>
+static string Relative(string full)
+{
+    try { return Path.GetRelativePath(Directory.GetCurrentDirectory(), full).Replace('\\', '/'); }
+    catch (ArgumentException) { return full; }
+}
+
 static void Tokens(string[] rest)
 {
     const string tokensUsage = "cufet tokens [--json] <file>";
