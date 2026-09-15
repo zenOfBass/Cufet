@@ -93,6 +93,25 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **A book's type used bare no longer claims you never pulled the book.** Inside `Pull a book on
+  collections.`, `Define out as a matrix.` refused with *"'matrix' is a type, and this program has
+  not pulled it"* and advised wrapping line 2 in the pull already sitting on line 1. The message
+  never asked whether the book was in scope, so it was false in exactly the case where the writer
+  had done the right thing.
+
+  ⚠ It reached TWO of the three book-introduced types — `matrix`, and `blueprints`' `step`.
+  `chase` escaped only because a bare `a chase` is a complete construction, so it never failed the
+  lookup that leads to the sentence. When the book IS pulled the refusal now says what is actually
+  missing: *"'matrix' is a type, and a type on its own isn't a value — the 'collections' book IS
+  pulled here, so the name is in scope."* The unpulled message is unchanged.
+
+  ★ WHY `matrix` is the one that walked into it, which is worth writing down: every other
+  collection has a no-tail form — `a catalogue`, `an atlas`, `a chase`, `a series of number`,
+  `a set of text`, `a map from text to number` — and every one of those GROWS by insertion. A
+  matrix has fixed dimensions and no `Insert`; cells are written with `becomes`. So there is
+  nothing an empty one could become, and `a matrix with 2 by 3 filled with 0` is the honest
+  spelling. The asymmetry is real and principled; only the sentence was wrong.
+
 - **`chase` is now actually reserved inside a `collections` pull, instead of silently shadowing the
   name.** The reservation was DESIGNED and never enforced: `Define chase as 5.` inside the pull was
   accepted, and every later `chase` parsed as the TYPE, so `State chase converted to text.` printed
