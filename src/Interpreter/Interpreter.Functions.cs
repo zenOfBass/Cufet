@@ -90,6 +90,12 @@ public sealed partial class Interpreter
             // Top-level function: function-typed bindings, plus top-level CONSTANTS. See
             // ImportTopLevelVisible — the rule and the reason for it live there, once.
             ImportTopLevelVisible(saved.Scopes);
+
+            // ⚠⚠ AND THE PULLS IT WAS WRITTEN INSIDE. Hoisting is transparent to a `Pull … Done.`
+            // body, so this function may be called from outside the block that gave it `math` —
+            // and `SaveScopes` carries only what the CALLER had. See FunctionValue.LexicalPulls
+            // for the measured divergence this closes.
+            BindLexicalPulls(func.LexicalPulls, line);
         }
 
         // Both paths, matching TypeChecker.CheckBindBody: a closure captures into the scope

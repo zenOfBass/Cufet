@@ -518,6 +518,22 @@ public sealed partial class Interpreter
         public required IReadOnlyList<IStatement> Body           { get; init; }
         // null for top-level functions; non-null for closures (captured at creation time).
         public Dictionary<string, object>?        CapturedEnv    { get; init; }
+
+        /// <summary>The pulls this function was WRITTEN inside, as (local name, book name).</summary>
+        /// <remarks>
+        /// ⚠⚠ A PULL IS LEXICAL, and this is what makes that true here. Hoisting is transparent to
+        /// a `Pull … Done.` body, so a function written inside one is callable from outside it —
+        /// and `SaveScopes` carries book bindings out of the CALLER's live scope, which has none.
+        /// MEASURED 2026-09-15: `check` passed, the COMPILER printed the right answer, and this
+        /// interpreter died with *"'math' isn't defined … Declare it first"* on a program that
+        /// pulls `math` four lines up. A backend divergence the corpus could not see, because every
+        /// program in it calls such a function from inside the block it was written in.
+        /// <para>
+        /// ★ Empty for a closure and for a function written at top level, so this costs nothing
+        /// anywhere else.
+        /// </para>
+        /// </remarks>
+        public IReadOnlyList<(string Local, string Book)> LexicalPulls { get; init; } = [];
     }
 
     private sealed class ObjectValue
@@ -736,6 +752,39 @@ public sealed partial class Interpreter
     private static IEnumerable<IStatement> FlattenHoistable(IEnumerable<IStatement> stmts) =>
         TypeChecker.FlattenHoistable(stmts);
 
+    /// <summary>Every hoistable function, paired with the pulls it was written inside.</summary>
+    /// <remarks>
+    /// <para>
+    /// ⚠⚠ IT MUST DESCEND EXACTLY WHERE <see cref="TypeChecker.FlattenHoistable"/> DESCENDS, or
+    /// this hoists a different set of functions than the checker checked. That method's own note
+    /// says why it is public: both backends need one answer to "which scopes is hoisting
+    /// transparent to", and the last time the two halves drifted, a rabbit-block constant was
+    /// shared by one and not the other.
+    /// </para>
+    /// <para>
+    /// ★ A RABBIT IS NOT CAPTURED. `FlattenHoistable` descends into a rabbit body too, and a
+    /// function written there is hoisted the same way — but a rabbit is a REGION with a lifetime,
+    /// not a capability, and handing one to a call made after the block ended would be exactly the
+    /// escape the region rules exist to refuse. Only `PullStatement` is recorded.
+    /// </para>
+    /// </remarks>
+    private static IEnumerable<(BindStatement Bind, IReadOnlyList<(string Local, string Book)> Pulls)>
+        HoistableBinds(IEnumerable<IStatement> stmts, IReadOnlyList<(string Local, string Book)> enclosing)
+    {
+        foreach (var s in stmts)
+        {
+            if (s is BindStatement { UntoType: null } bind) yield return (bind, enclosing);
+
+            if (s is PullStatement ps)
+            {
+                var deeper = enclosing.Concat(ps.Books.Select(b => (b.Item2, b.Item1))).ToList();
+                foreach (var inner in HoistableBinds(ps.Body, deeper)) yield return inner;
+            }
+            if (s is PullRabbitStatement prs)
+                foreach (var inner in HoistableBinds(prs.Body, enclosing)) yield return inner;
+        }
+    }
+
     // True when the program stopped because of a Ctrl-C rather than by reaching its end. The CLI
     // turns this into exit code 130 (128 + SIGINT), so a script wrapping cufet can tell an
     // interrupted run from a completed one.
@@ -837,16 +886,14 @@ public sealed partial class Interpreter
             if (stmt is DefineStatement { Permanent: true } constant)
                 _permanentTopLevel.Add(constant.Name);
 
-        // Hoist top-level function definitions.
-        foreach (var stmt in FlattenHoistable(program.Statements))
-        {
-            if (stmt is BindStatement { UntoType: null } bind)
-                Scope[bind.Name] = new FunctionValue
-                {
-                    ParameterNames = bind.Parameters.Select(p => p.Name).ToList(),
-                    Body           = bind.Body,
-                };
-        }
+        // Hoist top-level function definitions, each remembering the pulls it was WRITTEN inside.
+        foreach (var (bind, enclosing) in HoistableBinds(program.Statements, []))
+            Scope[bind.Name] = new FunctionValue
+            {
+                ParameterNames = bind.Parameters.Select(p => p.Name).ToList(),
+                Body           = bind.Body,
+                LexicalPulls   = enclosing,
+            };
 
         foreach (var stmt in program.Statements)
         {

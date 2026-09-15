@@ -96,6 +96,55 @@ public sealed partial class Interpreter
     // Names bound by a `Pull` that is still open — see the note in SaveScopes for what it is for.
     private readonly HashSet<string> _pulledModuleNames = new(StringComparer.Ordinal);
 
+    /// <summary>What a `Pull` binds for one name — and what a lexically captured pull rebinds.</summary>
+    /// <remarks>
+    /// <para>
+    /// ⚠⚠ ONE PLACE, because it is now asked from two. `ExecutePullStatement` asks when the block
+    /// opens; a function written inside that block asks again when it is CALLED, possibly long
+    /// after the block closed. Two copies of this would be two answers to "what is a pulled name",
+    /// and the divergence this exists to fix was exactly that kind of disagreement.
+    /// </para>
+    /// <para>
+    /// ★ PULLING INSTANTIATES, and a fresh instance is semantically exact because module objects
+    /// are FIELDLESS by decision — there is no state for two instances to disagree about. The
+    /// compiled backend has always done this: it emits a fresh compound literal rather than the
+    /// pull's binding, and its own note says that is what makes a `Bind` hoisted out of a pull body
+    /// work. ⚠ If modules ever grow state, this is the line that breaks first, in both backends.
+    /// </para>
+    /// </remarks>
+    private object PulledValue(string bookName, int line)
+    {
+        if (BuiltinBookValues.TryGetValue(bookName, out var bookValue))
+            // ★ A book with a Cufet layer — the prelude defines a module object under the book's
+            // own name — is pulled as ONE module: the layer is instantiated here and rides on the
+            // binding, and dispatch lets its members win over the native ones. A book without a
+            // layer binds the shared native singleton as before.
+            return _objectDefs.TryGetValue(bookName, out var layerDef)
+                ? new BookValue(bookValue.Name, bookValue.Functions, bookValue.Constants,
+                                (ObjectValue)InstantiateModule(layerDef, line))
+                : bookValue;
+
+        // ★ A MODULE: pulling INSTANTIATES it, the same way `Pull a rabbit as den.` makes a region
+        // rather than naming a shared one. That is what keeps a book's singleton-ness a property of
+        // books rather than of the mechanism.
+        if (!_objectDefs.TryGetValue(bookName, out var moduleDef))
+            throw new RuntimeException($"Nothing named '{bookName}' to pull (line {line}).");
+        return InstantiateModule(moduleDef, line);
+    }
+
+    /// <summary>Rebinds the pulls a function was written inside, for a call made outside them.</summary>
+    /// <remarks>
+    /// ⚠ FILLS GAPS ONLY. A pull live at the call site already carries through `SaveScopes`, and an
+    /// alias there may legitimately name the same book differently — so this adds what is missing
+    /// and overwrites nothing.
+    /// </remarks>
+    private void BindLexicalPulls(IReadOnlyList<(string Local, string Book)> pulls, int line)
+    {
+        foreach (var (local, book) in pulls)
+            if (!Scope.ContainsKey(local))
+                Scope[local] = PulledValue(book, line);
+    }
+
     private void ExecutePullStatement(PullStatement ps)
     {
         EnterScope();
@@ -105,26 +154,7 @@ public sealed partial class Interpreter
             foreach (var (bookName, localName) in ps.Books)
             {
                 if (_pulledModuleNames.Add(localName)) pulledHere.Add(localName);
-                if (BuiltinBookValues.TryGetValue(bookName, out var bookValue))
-                {
-                    // ★ A book with a Cufet layer — the prelude defines a module object under the
-                    // book's own name — is pulled as ONE module: the layer is instantiated here
-                    // (pulling INSTANTIATES) and rides on the binding, and dispatch lets its
-                    // members win over the native ones. A book without a layer binds the shared
-                    // native singleton as before.
-                    Scope[localName] = _objectDefs.TryGetValue(bookName, out var layerDef)
-                        ? new BookValue(bookValue.Name, bookValue.Functions, bookValue.Constants,
-                                        (ObjectValue)InstantiateModule(layerDef, ps.Line))
-                        : bookValue;
-                    continue;
-                }
-
-                // ★ A MODULE: pulling INSTANTIATES it, the same way `Pull a rabbit as den.` makes a
-                // region rather than naming a shared one. That is what keeps a book's singleton-ness
-                // a property of books rather than of the mechanism.
-                if (!_objectDefs.TryGetValue(bookName, out var moduleDef))
-                    throw new RuntimeException($"Nothing named '{bookName}' to pull (line {ps.Line}).");
-                Scope[localName] = InstantiateModule(moduleDef, ps.Line);
+                Scope[localName] = PulledValue(bookName, ps.Line);
             }
             foreach (var s in ps.Body)
                 Execute(s);
