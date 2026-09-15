@@ -33,6 +33,24 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Changed
 
+- **A module written inside a pull keeps it, instead of charging its caller.** A module's needs come
+  from the block it is USED in — that is what lets a library file say `math's pi` and leave `math`
+  to whoever pulls it — but the rule was also applied to names the module had already resolved for
+  itself. MEASURED on the first real two-directory project: `canvas` pulls `palette` in its own
+  file, and a program wanting `canvas` still had to write `Pull books on palette, and canvas.`
+  though it never mentions `palette` — a private dependency made part of a public spelling.
+
+  ★★ The rule's own justification never covered this case. It exists because a module's methods run
+  inside the caller's block, so a name the module **cannot** resolve is the caller's to supply — and
+  a module written inside a pull can resolve it. Deferral is untouched: a module that pulls nothing
+  has no provider of its own and still asks its caller, which is the pattern a library file uses.
+
+  ⚠⚠ Both halves had to move together. The checker resolved such a name all along and recorded the
+  need anyway, because the interpreter delivered only what the CALLER pulled — so relaxing the check
+  alone would have turned a refusal into a run-time death, which is the trade this project refuses
+  hardest. A module now rebinds the pulls it was written inside when a method is dispatched, exactly
+  as a function does. Each half is pinned by a test that goes red on its own.
+
 - **A block left open now names itself and points at where it began.** `If`, `Otherwise`, a `Judge`
   arm, `Try`, `In case of failure`, `In case of exception` and `With … open … as` used to answer
   `expected Done, got Eof ""` and point at the end of the file — which is never where the mistake

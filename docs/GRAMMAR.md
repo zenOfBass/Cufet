@@ -1564,6 +1564,43 @@ caller pulled.** Those are the only two, and the second is the whole reason the 
 exception: a pulled module is a capability of the block that uses the body, which is what lets a
 module's method say `math's pi` and leave `math` to whoever pulls it.
 
+★★ **A module's needs are its caller's only where the module has no provider of its own.** A module
+written *inside* a pull keeps it, exactly as a function written there does — so a book that pulls
+what it needs in its own file is pulled by one name, and its dependencies stay private:
+
+```cufet
+Pull a book on math.
+    Define object circles with () and book:
+        Bind number to area, given (the number r):
+            Return math's pi * r * r.
+        Done.
+    Done.
+Done.
+
+Pull a book on circles.
+    State (cast circles's area on (2)) converted to text.
+Done.
+```
+
+A module written at top level pulls nothing, so its names are still the caller's to supply. That is
+the shape a library file uses to say `math's pi` and leave `math` open, and it is unchanged:
+
+```cufet
+Define object circles with () and book:
+    Bind number to area, given (the number r):
+        Return math's pi * r * r.
+    Done.
+Done.
+
+Pull books on math, and circles.
+    State (cast circles's area on (2)) converted to text.
+Done.
+```
+
+⚠ Both programs print `12.566370614359172953850573533`. The difference is only which pull site has
+to know about `math`, and a module that resolves a name where it is written no longer makes its
+caller name it too.
+
 A name that is neither is refused **when the program is checked**, not when the line runs:
 
 ```cufet-refused
