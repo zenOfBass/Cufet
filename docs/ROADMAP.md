@@ -338,22 +338,23 @@ they are large, not because they are waiting — the order among them means noth
     edit to the blueprint.** ★ Convention-over-configuration needs no config FORMAT here — the loop
     is the convention and an `If` is the exception, in one language.
 
-    ⚠⚠ **What it cannot see is what a file PULLS.** A directory listing does not reveal that
-    `shell.cufe` needs `terminal.cufe`, so a generated step's `needs` holds only its own file and
-    editing a book rebuilds nothing. Two ways out, and only one is good:
+    ✅ **And `cufet pulls` closed the other half, 2026-09-15.** A directory listing cannot see that
+    `shell.cufe` needs `terminal.cufe`; the loader can, and now says so. **A blueprint that names no
+    file and no dependency is possible today** — MEASURED: it builds a new `.cufe` the moment it
+    appears, rebuilds only the file edited, and rebuilds both consumers when their shared book
+    changes.
 
-    - Declare every file as a need for every step. ⚠ It over-declares, so the build rebuilds
-      constantly — and **a build that rebuilds too often looks exactly like one that works**, which
-      is the trap this entry already records. Silent waste is the worst shape available.
-    - ★★ **Let the blueprint ASK.** `BookLoading.Gather` already resolves every pull to a path, to
-      build the program at all; there is simply no surface for the answer. As a `blueprints` member
-      — *"what does this file pull?"* — a blueprint asks in-language rather than shelling out, and
-      a generated step's `needs` becomes correct. ⚠ Transitivity is the open question: `shell`
-      pulls `terminal`, and whatever `terminal` pulls is also a need.
+    ⚠ Two shapes were weighed and declined, recorded so they are not re-derived. A **book member**
+    would need a C implementation, since a native member is emitted into compiled programs — and
+    *"what does this file pull"* means parsing Cufet, which the C runtime cannot do. An **axiom** is
+    the same wall: it is a way to call C, and C still cannot parse Cufet. ★ A Cufet-side heuristic
+    that greps for `Pull ` works and is the right PROOF that no language surface was needed, but it
+    under-declares on any form it does not know, and an under-declared `need` is a silently stale
+    build.
 
-    ★ This is also what would make an EDITOR able to keep a project current without editing the
-    blueprint — see item 4's note that a build file which is a program is read by tools rather than
-    written by them.
+    ★ This is also what would let an EDITOR keep a project current without editing the blueprint —
+    see item 4's note that a build file which is a program is read by tools rather than written by
+    them.
 
     ▶ **The step's SHAPE is not settled.** The author is not sold on how a blueprint reads, and
     said so after the `step` type and the series-literal return had already taken it from 82 lines

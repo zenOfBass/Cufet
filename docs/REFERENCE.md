@@ -4383,7 +4383,25 @@ cufet program.cufe                  run it (interpreted)
 cufet build program.cufe            compile to a native binary
 cufet build                         build the PROJECT, from its blueprint.cufe
 cufet emit-c program.cufe out.c     emit the C, without invoking gcc
+cufet pulls program.cufe            list the FILES it brings in
 ```
+
+★ **`pulls` exists so a blueprint need not list dependencies by hand.** It prints one
+`<file>: <pulled>` line per pair, always prefixed, however many files you ask about:
+
+```
+$ cufet pulls tools/shell.cufe tools/repl.cufe
+tools/shell.cufe: tools/terminal.cufe
+tools/repl.cufe: tools/terminal.cufe
+```
+
+It reports what the **loader resolved**, not a re-reading of your source, so it cannot disagree
+with what a build actually loads. ★ Bundled books never appear — `math` and `the c-language` are
+spliced in without being paths, and a build `need` has to be something that can be hashed. It is
+**transitive**, because a file pulled by a file you pull is equally a reason to rebuild.
+
+⚠ A file that does not type-check still reports its pulls. `pulls` is a question about loading, and
+a build whose source is momentarily broken must still know what to watch.
 
 ★ **`build` is overloaded by arity.** With a file it compiles that one file; with nothing it reads
 `blueprint.cufe` and does what the build description says — see [BOOKS.md](BOOKS.md#blueprints-blueprints).

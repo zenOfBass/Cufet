@@ -8,6 +8,29 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ## [Unreleased]
 
+### Added
+
+- **`cufet pulls <file.cufe> …` — which FILES a file brings in**, so a blueprint need not list
+  dependencies by hand. One `<file>: <pulled>` line per pair, always prefixed however many files
+  are asked about, and nothing at all for a file that pulls none.
+
+  ★★ **Together with directory enumeration, a blueprint can now maintain itself completely.**
+  MEASURED end to end: a blueprint that names no file and no dependency builds a new `.cufe` the
+  moment it appears, rebuilds **only** the file you edited, and rebuilds **both** consumers when
+  the book they share changes. That last pair is the whole point — under-declaring gives a stale
+  build, over-declaring gives one that *looks* like it works, and neither happened.
+
+  ⚠⚠ **It reports what the LOADER RESOLVED**, never a re-reading of the source. Matching `Pull `
+  by hand over-declares on a comment, which is harmless, and under-declares on any form it does not
+  know — `Pull books on a, and b.`, a nested pull, a name resolved through the project's `books`
+  folder — and an under-declared `need` is a silently stale build.
+
+  ★ Bundled books never appear, by construction rather than by filtering: `math` and
+  `the c-language` are spliced in without ever being paths, so they are not in the source map —
+  which is right, because a `need` must be something that can be hashed. Transitive, because the
+  loader is. ⚠ A file that does not type-check still reports its pulls: `pulls` asks about loading,
+  and a build whose source is momentarily broken must still know what to watch.
+
 ### Changed
 
 - **A block left open now names itself and points at where it began.** `If`, `Otherwise`, a `Judge`
