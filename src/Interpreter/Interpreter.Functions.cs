@@ -195,6 +195,14 @@ public sealed partial class Interpreter
             // ★ Its OWN file scope, which it could not see at all before those names were made
             // private. Keeps step with the checker — see TypeChecker.ImportOwnBookNames.
             ImportOwnBookNames(saved.Scopes, receiver.TypeName);
+
+        // ⚠⚠ AND THE PULLS THE MODULE WAS WRITTEN INSIDE — the module half of the same rule
+        // ExecuteCall applies to a function. `SaveScopes` carries what the CALLER pulled, which is
+        // the dynamic half and stays; this adds what the DEFINITION SITE had, and fills gaps only,
+        // so a caller's own pull still wins. See _moduleLexicalPulls.
+        if (_moduleLexicalPulls.TryGetValue(receiver.TypeName, out var lexical))
+            BindLexicalPulls(lexical, line);
+
         PushBodyScope();
 
         for (int i = 0; i < paramNames.Count; i++)

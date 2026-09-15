@@ -134,4 +134,91 @@ public class PipelineLexicalPullTests : PipelineTestBase
 
         Assert.Equal(Interpret(src), Compile(src));
     }
+    // ── The MODULE half of the same sentence ──────────────────────────────────
+    //
+    // ★★ A pull is LEXICAL for a function and DYNAMIC for a module. The tests above pin the first
+    // rule; these pin where the second one STOPS. A module's needs come from the block it is used
+    // in — that is what lets a library file defer `math` and pull nothing — but a module written
+    // INSIDE a pull already has a provider, and pushing that debt onto its caller made a private
+    // dependency part of the public spelling: `canvas` pulls `palette` in its own file, and a
+    // program wanting `canvas` was still made to write `Pull books on palette, and canvas.`
+    //
+    // ⚠ The rule's own justification never covered this case. It exists because "a plain function
+    // has no caller to inherit from"; a module written inside a pull does have somewhere to look.
+
+    /// <remarks>★ The witness. MEASURED as refused before the fix, with a message telling the
+    /// reader to pull a book the program never mentions.</remarks>
+    [Fact]
+    public void AModuleWrittenInsideAPull_KeepsItWhenPulledElsewhere()
+    {
+        const string src = """
+            Pull a book on math.
+                Define object circles with () and book:
+                    Bind number to area, given (the number r):
+                        Return math's pi * r * r.
+                    Done.
+                Done.
+            Done.
+
+            Pull a book on circles.
+                State (cast circles's area on (2)) converted to text.
+            Done.
+            """;
+
+        var interpreted = Interpret(src);
+        Assert.Equal(interpreted, Compile(src));
+        Assert.Contains("12.56637", interpreted);
+    }
+
+    /// <remarks>⚠ A WRITER'S OWN MODULE reaching another one, so the rule is about pulling rather
+    /// than about books — the same shape `canvas` and `palette` were measured in.</remarks>
+    [Fact]
+    public void AModuleReachingAnotherModuleItWasWrittenInside_KeepsIt()
+    {
+        const string src = """
+            Define object palette with () and module:
+                Bind text to ink: Return "blue". Done.
+            Done.
+
+            Pull a palette.
+                Define object canvas with () and module:
+                    Bind text to describe: Return cast palette's ink. Done.
+                Done.
+            Done.
+
+            Pull a canvas.
+                State cast canvas's describe.
+            Done.
+            """;
+
+        var interpreted = Interpret(src);
+        Assert.Equal(interpreted, Compile(src));
+        Assert.Contains("blue", interpreted);
+    }
+
+    /// <remarks>
+    /// ⚠⚠ LOAD-BEARING, and the reason the fix is additive rather than a replacement. A module
+    /// that pulls NOTHING has no lexical provider, so its needs must still be the caller's — this
+    /// is the *"a library file defers `math`"* pattern `DropUnpulledLayers` relies on, and it
+    /// prints this number today.
+    /// </remarks>
+    [Fact]
+    public void AModuleThatPullsNothing_StillDefersToItsCaller()
+    {
+        const string src = """
+            Define object circles with () and book:
+                Bind number to area, given (the number r):
+                    Return math's pi * r * r.
+                Done.
+            Done.
+
+            Pull books on math, and circles.
+                State (cast circles's area on (2)) converted to text.
+            Done.
+            """;
+
+        var interpreted = Interpret(src);
+        Assert.Equal(interpreted, Compile(src));
+        Assert.Contains("12.56637", interpreted);
+    }
 }

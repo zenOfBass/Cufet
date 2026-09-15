@@ -139,9 +139,18 @@ public class ProjectBookResolutionTests : IDisposable
             Done.
             """);
 
-        // ⚠ `palette` is named here as well, because a module's dependencies come from the block it
-        // is USED in rather than the one it is written in. That rule predates this change and is
-        // deliberate; what this test pins is only WHERE the two files were found.
+        // ★★ `palette` is NOT named here, and that is the point of the pair of files. `canvas`
+        // pulls it in its own file, so the dependency is satisfied where it was written and stays
+        // private — a program wanting `canvas` asks for `canvas`. This assertion USED to name both
+        // and carried a comment explaining why it had to; that explanation outlived its fact.
+        Assert.Equal("drawn with #", RunIn("paint", """
+            Pull a book on canvas.
+                State cast canvas's draw.
+            Done.
+            """));
+
+        // ⚠ And naming it anyway is still fine — a caller's own pull WINS and the lexical one only
+        // fills gaps, so adding a dependency to a pull site can never change which one a book got.
         Assert.Equal("drawn with #", RunIn("paint", """
             Pull books on palette, and canvas.
                 State cast canvas's draw.

@@ -96,6 +96,31 @@ public sealed partial class Interpreter
     // Names bound by a `Pull` that is still open — see the note in SaveScopes for what it is for.
     private readonly HashSet<string> _pulledModuleNames = new(StringComparer.Ordinal);
 
+    /// <summary>The pulls each MODULE was written inside, by the name it was declared under.</summary>
+    /// <remarks>
+    /// <para>
+    /// ⚠⚠ The module half of `FunctionValue.LexicalPulls`, and the runtime that had to land before
+    /// the checker could stop charging a module's private dependencies to its caller. A module
+    /// written inside `Pull a book on math.` reaches `math` while it is CHECKED — the checker's own
+    /// `SaveScopes` carries the pull into a detached body — and then found nothing at run time,
+    /// because `ExecuteMethod` imports the CALLER's scope. That gap is the whole reason the need
+    /// was pushed onto the caller in the first place.
+    /// </para>
+    /// <para>
+    /// ★ Keyed by NAME rather than carried on the instance, because a module is reached through an
+    /// `ObjectValue` that is deep-copied at every binding site, and a capability is a property of
+    /// the DECLARATION, not of any one copy of it. `_objectDefs` is keyed the same way for the same
+    /// reason.
+    /// </para>
+    /// <para>
+    /// ⚠ Only a declaration written inside a pull appears here at all, so a module declared at top
+    /// level costs nothing and keeps deferring to its caller exactly as before — which is the
+    /// `circles` pattern `DropUnpulledLayers` relies on.
+    /// </para>
+    /// </remarks>
+    private readonly Dictionary<string, IReadOnlyList<(string Local, string Book)>> _moduleLexicalPulls =
+        new(StringComparer.Ordinal);
+
     /// <summary>What a `Pull` binds for one name — and what a lexically captured pull rebinds.</summary>
     /// <remarks>
     /// <para>

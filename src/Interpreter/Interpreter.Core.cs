@@ -752,7 +752,7 @@ public sealed partial class Interpreter
     private static IEnumerable<IStatement> FlattenHoistable(IEnumerable<IStatement> stmts) =>
         TypeChecker.FlattenHoistable(stmts);
 
-    /// <summary>Every hoistable function, paired with the pulls it was written inside.</summary>
+    /// <summary>Every hoistable statement, paired with the pulls it was written inside.</summary>
     /// <remarks>
     /// <para>
     /// ⚠⚠ IT MUST DESCEND EXACTLY WHERE <see cref="TypeChecker.FlattenHoistable"/> DESCENDS, or
@@ -767,21 +767,28 @@ public sealed partial class Interpreter
     /// not a capability, and handing one to a call made after the block ended would be exactly the
     /// escape the region rules exist to refuse. Only `PullStatement` is recorded.
     /// </para>
+    /// <para>
+    /// ★★ It yields EVERY statement rather than only the binds, because the same question is asked
+    /// of two declarations now: a function keeps the pulls it was written inside, and so does a
+    /// MODULE. One descent answering both is the point — the note above says this walk must
+    /// descend exactly where <see cref="TypeChecker.FlattenHoistable"/> does, and two copies of
+    /// that descent is the drift it warns about.
+    /// </para>
     /// </remarks>
-    private static IEnumerable<(BindStatement Bind, IReadOnlyList<(string Local, string Book)> Pulls)>
-        HoistableBinds(IEnumerable<IStatement> stmts, IReadOnlyList<(string Local, string Book)> enclosing)
+    private static IEnumerable<(IStatement Statement, IReadOnlyList<(string Local, string Book)> Pulls)>
+        HoistableWithPulls(IEnumerable<IStatement> stmts, IReadOnlyList<(string Local, string Book)> enclosing)
     {
         foreach (var s in stmts)
         {
-            if (s is BindStatement { UntoType: null } bind) yield return (bind, enclosing);
+            yield return (s, enclosing);
 
             if (s is PullStatement ps)
             {
                 var deeper = enclosing.Concat(ps.Books.Select(b => (b.Item2, b.Item1))).ToList();
-                foreach (var inner in HoistableBinds(ps.Body, deeper)) yield return inner;
+                foreach (var inner in HoistableWithPulls(ps.Body, deeper)) yield return inner;
             }
             if (s is PullRabbitStatement prs)
-                foreach (var inner in HoistableBinds(prs.Body, enclosing)) yield return inner;
+                foreach (var inner in HoistableWithPulls(prs.Body, enclosing)) yield return inner;
         }
     }
 
@@ -886,14 +893,22 @@ public sealed partial class Interpreter
             if (stmt is DefineStatement { Permanent: true } constant)
                 _permanentTopLevel.Add(constant.Name);
 
-        // Hoist top-level function definitions, each remembering the pulls it was WRITTEN inside.
-        foreach (var (bind, enclosing) in HoistableBinds(program.Statements, []))
-            Scope[bind.Name] = new FunctionValue
-            {
-                ParameterNames = bind.Parameters.Select(p => p.Name).ToList(),
-                Body           = bind.Body,
-                LexicalPulls   = enclosing,
-            };
+        // Hoist top-level function definitions, each remembering the pulls it was WRITTEN inside —
+        // and record the same for any MODULE written inside one, which its methods rebind on
+        // dispatch. See _moduleLexicalPulls for why a module needs its own table rather than
+        // riding on the instance.
+        foreach (var (stmt, enclosing) in HoistableWithPulls(program.Statements, []))
+        {
+            if (stmt is BindStatement { UntoType: null } bind)
+                Scope[bind.Name] = new FunctionValue
+                {
+                    ParameterNames = bind.Parameters.Select(p => p.Name).ToList(),
+                    Body           = bind.Body,
+                    LexicalPulls   = enclosing,
+                };
+            else if (stmt is ObjectDefinition od && enclosing.Count > 0)
+                _moduleLexicalPulls[od.Name] = enclosing;
+        }
 
         foreach (var stmt in program.Statements)
         {

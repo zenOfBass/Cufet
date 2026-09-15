@@ -1382,19 +1382,32 @@ public sealed partial class TypeChecker
         return names;
     }
 
-    /// <summary>A RESOLVED name that is another pulled module — still a requirement.</summary>
+    /// <summary>A RESOLVED name that is another pulled module — satisfied where it was found.</summary>
     /// <remarks>
-    /// ⚠ Resolving is not the same as being satisfied. A module written INSIDE `Pull units.` finds
-    /// `units` while it is checked, so nothing looked missing — and then it was called from a block
-    /// where `units` was not pulled and died at run time. A dependency is a dependency whether or
-    /// not the definition site happened to have it, so it is recorded either way and checked where
-    /// the module is pulled.
+    /// <para>
+    /// ★★ A pull is LEXICAL for a function and DYNAMIC for a module, and this is where the second
+    /// rule STOPS. A module's needs are its caller's because its methods run inside the caller's
+    /// block — but that is an argument about a name the module could NOT resolve for itself. One it
+    /// resolved has a provider already: `SaveScopes` carries a pulled module into a detached body,
+    /// so a name found here was in scope where the module was WRITTEN.
+    /// </para>
+    /// <para>
+    /// ⚠ It used to be recorded anyway, and the reason was real at the time: the interpreter
+    /// delivered only what the CALLER pulled, so a module written inside `Pull units.` checked
+    /// clean and died at run time. That gap is closed — `Interpreter._moduleLexicalPulls` rebinds a
+    /// module's own pulls on dispatch, exactly as `FunctionValue.LexicalPulls` does for a function
+    /// — so charging the caller now buys nothing and costs the thing it was measured to cost:
+    /// `canvas` pulling `palette` in its own file forced every program wanting `canvas` to write
+    /// `Pull books on palette, and canvas.`, making a private dependency part of a public spelling.
+    /// </para>
+    /// <para>
+    /// ⚠⚠ DEFERRAL IS UNTOUCHED, and that is what makes this additive. A module that pulls nothing
+    /// never reaches here at all — its names are unresolved, so `NoteUnresolvedName` records them
+    /// and `CheckPendingPulls` asks the pull site, which is the `circles` pattern
+    /// `DropUnpulledLayers` relies on.
+    /// </para>
     /// </remarks>
-    private CufetType? NoteModuleUse(string name, TypeInfo info)
-    {
-        if (info.IsPulledModule) NoteModuleNeed(name);
-        return info.Type;
-    }
+    private static CufetType? NoteModuleUse(string name, TypeInfo info) => info.Type;
 
     private void NoteModuleNeed(string name)
     {
