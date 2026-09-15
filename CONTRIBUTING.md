@@ -134,9 +134,15 @@ dotnet run --project src\App\Cufet.App.csproj -- build tools\shell.cufe
 ```
 
 ⚠ **This repo has no root `blueprint.cufe`**, so plain `cufet build` does nothing here. One was
-written and verified, then removed — see the `blueprints` entry in ROADMAP for what it did and why
-it went. ★ Build a tool the long way instead, as above: that uses the compiler you are editing,
-where `cufet` from PATH would use whatever happens to be installed.
+written, verified and committed on 2026-09-14, then removed — nothing was wrong with it. ⚠ The
+**v0.23.0 tag** still says *"Cufet's own tools are built by a blueprint at the root of this repo"*,
+which was true when written and cannot be edited. DESIGN (*The build description, and what a
+project is*) holds the reasoning behind the build system.
+
+★ Build a tool the long way instead, as above: that uses the compiler you are editing, where
+`cufet` from PATH would use whatever happens to be installed. ⚠ That was the removed blueprint's
+one friction — a project that USES Cufet should say `cufet` in its steps, but this repo IS Cufet,
+so a front door bootstrapping from PATH is permanently one release behind its own source.
 
 ★ **Use the fast loop while working, and the full suite before pushing.** The compiler
 suite compiles and runs 852 programs through gcc — measured 2026-08-31 at **52 minutes of

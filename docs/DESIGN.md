@@ -363,6 +363,98 @@ the feature even if no program ever strictly needs it.
 
 ---
 
+## The build description, and what a project is
+
+Shipped 0.23.0. The decisions are here because the entry that argued them is gone; the history is
+in the changelog.
+
+**A blueprint PRODUCES A PLAN — it performs nothing.** Running the file compiles nothing; what
+comes out is a value, and `cufet build` walks it. Zig, CMake, Bazel and Gradle all converged here,
+and performing is what a `build.sh` does. It is also what lets a whole graph be refused before
+touching disk, and what lets a tool list a project's targets without building anything.
+
+★★ **The graph is never written down.** A step declares `needs` and `makes`; a step that needs a
+path another step makes runs second, and nothing anywhere states an edge. Staleness is by content,
+so inputs must be declared regardless — declaring edges too would state one fact twice, and the two
+could then disagree with nothing to catch it.
+
+**A step is a structural record, and `step` is a NAME for that shape.** A book cannot hand out a
+NOMINAL type without native machinery — `BookLoading.MakePrivate` renames whatever a book layer
+declares, which is why `matrix` and `chase` are C# types. A shape needs none of that: record typing
+is structural, so `a record with (the name …, …)` builds one and the longhand spelling stays
+interchangeable. ⚠ The rule that said a book "cannot hand out a type" was wider than its reason.
+
+**`Pull a book on blueprints.` is a GATE, not a library.** The record shape does not need it. It is
+there so a file can declare what it IS, which is what lets `cufet build` refuse a blueprint that
+does not say so, rather than treating a bare function name as magic.
+
+★ **A book, not core.** Putting a build vocabulary into the language — targets, steps, artifacts,
+toolchains — would spend permanent surface and move away from what Zig gets right: a build script
+is an ordinary program using an ordinary library. Two consequences follow and were both measured.
+A blueprint computes its own paths, so `the environment variable "OS"` supplies a binary's
+extension and no CLI output flag is needed. And a blueprint never needs to say a file is a LIBRARY:
+libraries are not built, they are pulled by the programs that are, and a build wanting one checked
+runs `cufet check` as an ordinary step.
+
+★ **How a blueprint reads was worked until it was right.** `step` as a name for the record shape,
+and returning a series literal rather than building one up, took this repo's own blueprint from 82
+lines to 39. ⚠ Two further reductions were weighed and DECLINED, recorded so they are not
+re-derived:
+
+- **Inferring `makes` from `runs`.** Derivable for a `cufet build` step and nothing else, so it
+  would make the build book know one program's behaviour, and go silently wrong if that behaviour
+  changed. ⚠ `needs` cannot be inferred that way at all — `terminal.cufe` is a dependency only
+  because `shell.cufe` PULLS it, which is what `cufet pulls` exists to answer.
+- **A step-constructor in the book.** The first item of exactly the build vocabulary this design
+  declined to spend. ★ A helper written in the blueprint ITSELF needs no language change and is
+  what `build.zig` does — MEASURED at two steps it costs about twelve lines to save fourteen, so it
+  starts paying somewhere around five.
+
+★★ **A project is a directory holding `blueprint.cufe`**, and only the file's LOCATION is read —
+never its contents. Every tool that resolves a pull needs the project root, and none of them should
+execute a build description to import a book. Finding a file is a walk up the tree; running one is
+arbitrary code.
+
+### Staleness is by content, and the fast path is the unsound one
+
+**Content hash, never timestamps.** A timestamp answers *"was this touched"*; a build wants *"is
+this different"*. They differ at the edges — a file touched without changing, or a change inside
+the filesystem's timestamp resolution — and the failure is a wrong build with no complaint, which
+is the category this language declines everywhere else. Decisive: **git does not preserve
+modification times**, so a timestamp answer depends on how the tree arrived on the machine.
+
+⚠⚠ **The standard optimisation is the unsound thing.** Stat first and hash only when size or mtime
+changed is what every fast build system does, and it silently reintroduces the resolution bug as a
+"fast path". Written down so nobody adds it later as an obvious win.
+
+⚠ The algorithm is NAMED by the language rather than taken from the platform — FNV-1a, written out
+on both backends and pinned to published vectors. The lesson is the shared case table's: .NET
+casing turned out to be ICU-backed and to differ per machine.
+
+★★ **A build that rebuilds too often looks exactly like one that works.** This is why the skip is
+never tested alone: an over-declared dependency, a signature compared after being reconstructed, a
+step with no outputs — each produces correct output forever while doing far too much work. Only the
+three ways of going stale, tested separately, say the skip was decided rather than guessed.
+
+### A blueprint can maintain itself
+
+`the contents of the directory` is sorted and identical on both backends, so a blueprint can
+enumerate its own tree and generate a step per file. `cufet pulls <file>` supplies the other half —
+which FILES a file brings in, reported from what the loader resolved rather than from re-reading
+the source. Together, a blueprint that names no file and no dependency rebuilds correctly.
+
+★ Convention-over-configuration needs no config FORMAT here, because the build file is a program:
+the loop is the convention and an `If` is the exception, in one language.
+
+⚠ Two shapes were declined for `pulls` and should not be re-derived. A **book member** would need a
+C implementation, since a native member is emitted into compiled programs — and answering *"what
+does this file pull"* means parsing Cufet, which the C runtime cannot do. An **axiom** hits the same
+wall: it is a way to call C, and C still cannot parse Cufet. A Cufet-side heuristic that matches
+`Pull ` works and proves no language surface was needed, but it under-declares on any form it does
+not know, and an under-declared `need` is a silently stale build.
+
+---
+
 ## Memory and concurrency
 
 The two arcs where soundness was the whole problem.
