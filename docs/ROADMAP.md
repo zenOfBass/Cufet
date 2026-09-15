@@ -330,6 +330,31 @@ they are large, not because they are waiting — the order among them means noth
     "your installed cufet predates this source" is a diagnosable case that currently reads as an
     internal error. Nothing is assigned to it.
 
+    ▶ **A blueprint can already ENUMERATE its own tree — the gap is `needs`.** MEASURED
+    2026-09-15: a blueprint is an ordinary program and `the contents of the directory` is sorted
+    and identical on both backends, so a loop over `tools/` that generates a step per `.cufe` works
+    today with no language change. Verified end to end: cold build ran every file, an unchanged
+    build was silent, and **dropping in a new `.cufe` built that one and only that one, with no
+    edit to the blueprint.** ★ Convention-over-configuration needs no config FORMAT here — the loop
+    is the convention and an `If` is the exception, in one language.
+
+    ⚠⚠ **What it cannot see is what a file PULLS.** A directory listing does not reveal that
+    `shell.cufe` needs `terminal.cufe`, so a generated step's `needs` holds only its own file and
+    editing a book rebuilds nothing. Two ways out, and only one is good:
+
+    - Declare every file as a need for every step. ⚠ It over-declares, so the build rebuilds
+      constantly — and **a build that rebuilds too often looks exactly like one that works**, which
+      is the trap this entry already records. Silent waste is the worst shape available.
+    - ★★ **Let the blueprint ASK.** `BookLoading.Gather` already resolves every pull to a path, to
+      build the program at all; there is simply no surface for the answer. As a `blueprints` member
+      — *"what does this file pull?"* — a blueprint asks in-language rather than shelling out, and
+      a generated step's `needs` becomes correct. ⚠ Transitivity is the open question: `shell`
+      pulls `terminal`, and whatever `terminal` pulls is also a need.
+
+    ★ This is also what would make an EDITOR able to keep a project current without editing the
+    blueprint — see item 4's note that a build file which is a program is read by tools rather than
+    written by them.
+
     ▶ **The step's SHAPE is not settled.** The author is not sold on how a blueprint reads, and
     said so after the `step` type and the series-literal return had already taken it from 82 lines
     to 39. What remains is four fields per step, three of which are `a series of text with (…)`.
@@ -431,6 +456,19 @@ they are large, not because they are waiting — the order among them means noth
    WORD in a name's place now says so outright rather than answering *expected Identifier, got Key
    "key"*; no keyword table was needed, because the lexer only refuses a bare word an Identifier
    when the language has taken it.
+
+   ⚠⚠ **THE RESERVED-WORD MESSAGE IS NARROWER THAN IT LOOKS, and it was caught the same day by
+   collision number SEVEN.** It fires only where the parser explicitly asks for an `Identifier`. A
+   reserved word used as a LOOP VARIABLE does not reach that consume: `For each entry in found`
+   answers *expected In, got Entry "entry"*, because the name slot was skipped and the parser was
+   already looking for `in`. So `Define key as 3.` is covered and `For each entry in …` is not —
+   which is the case a beginner is likelier to write.
+
+   ★ The shape of the fix is probably not another special case: a word-shaped RESERVED token
+   appearing where a NAME was wanted is the same mistake whichever token the parser happened to ask
+   for next. Recognising it by the token rather than by the expectation would cover every name
+   position at once. ⚠ Not attempted — it needs to know which positions are name positions, and
+   guessing wrong would mislabel an ordinary syntax error as a reserved word.
 
    ⚠ **What remains, and the largest piece is deliberately NOT the generic message:**
 
