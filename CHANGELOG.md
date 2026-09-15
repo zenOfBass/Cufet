@@ -8,6 +8,30 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ## [Unreleased]
 
+### Changed
+
+- **A block left open now names itself and points at where it began.** `If`, `Otherwise`, a `Judge`
+  arm, `Try`, `In case of failure`, `In case of exception` and `With … open … as` used to answer
+  `expected Done, got Eof ""` and point at the end of the file — which is never where the mistake
+  is. They now say *"this 'If' opens a block, and the file ended before its 'Done.'"* at the line
+  the `If` is on, which is what `For each` has said all along.
+
+  ★ **It needed no new analysis.** `ParseLoopBody` has always accepted the opening token; six of its
+  seven call sites never passed one. The parser knew which construct was open the whole time.
+
+  ⚠ **The inline-form advice is offered only where an inline form exists.** MEASURED: `If` and
+  `While` take a comma and one statement; `Try` and `With … open … as` do not, and telling someone
+  to write one would send them at something the parser refuses. Those are told only to close the
+  block.
+
+  ⚠ `In case of failure:` opens on the word `In`, so those two arms say what they are rather than
+  naming a preposition.
+
+  ⚠⚠ Found by writing broken programs to pick a first tutorial lesson, which is also how the wider
+  gap surfaced: Cufet's TYPE refusals have four parts — the rule, what you did, the fix, a worked
+  example — and its PARSE refusals mostly have one. That lands where it hurts most, since a
+  beginner leaves a block open long before they mismatch a type. The rest is ROADMAP item 6.
+
 ### Fixed
 
 - **An installed `cufet` older than the source it is building no longer reports itself as a

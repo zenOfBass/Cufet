@@ -188,6 +188,39 @@ they are large, not because they are waiting — the order among them means noth
      (variables, loops, functions) may not be the right one. Rabbits and failure-as-a-value are
      what make it different, and they are not chapter nine.
 
+   ▶ **DESIGNED 2026-09-14, not built.** The author's vision, and the reasoning that came out of
+   working it through. The CONTENT is the work and it is medium-independent — write the lessons as
+   markdown pinned by the doc fences first, and decide the shell afterwards with them in hand.
+
+   - **The frame: the Velveteen Rabbit meets Peter Rabbit.** Grace and Hopper are not real yet, and
+     sneak into the garden to find out how. ★ The mascots are a LANGUAGE FEATURE — `Pull a rabbit.`
+     brings one into being — so the last lesson can be the learner writing it, and they become real
+     because the learner made them. The story's ending is the language's most distinctive construct.
+   - ★★ **Debugging FIRST, writing later.** Most tutorials teach the happy path and leave the first
+     error message as a cliff. Cufet inverts well because its refusals explain themselves. Four
+     stages, and they map onto the language's own taxonomy: *it won't run* (a refusal) → *it runs
+     and is wrong* (a failure) → *fill in the hole* → *blank page*.
+   - ★★ **The curriculum is the refusal messages.** Every "no" already names the rule, what you
+     did, the fix, and an example. A lesson picks which no to teach and lets the compiler deliver
+     it. It cannot drift from the language, because the language is doing the teaching.
+   - **Dialogue, not narration.** Grace is careful, Hopper is not. The learner overhears rather than
+     being lectured, and identifies with the one making the mistake. *"Good little rabbits always
+     remember to …"* is Grace's catchphrase; Hopper pushing back is what keeps it from preaching.
+   - ⚠ **Authoring constraint:** a broken program must be broken in exactly ONE legible way, or the
+     refusal points somewhere other than the mistake and the learner concludes the compiler is
+     confusing. And the check must compare OUTPUT, never just "it ran" — otherwise deleting the
+     offending line passes.
+   - **Shape, weighed:** a branching tree was DECLINED (2^N paths, and it fights the prerequisite
+     order). What survives is a **navigable map with gates**, which makes the dependency graph
+     diegetic — nodes are written once, and a locked door is a puzzle you cannot yet solve rather
+     than a permission check. ⚠ That is a small GAME, and none of it is Cufet work. The spine must
+     be decided before rooms are written, or the becoming-real ending cannot know you are ready.
+
+   ⚠⚠ **Found by trying to teach: PARSE errors do not explain themselves.** A missing `Done.` gives
+   `Line 4, column 1: expected Done, got Eof ""` against the four-part type errors. A beginner meets
+   that long before a type error, so the debugging lessons cannot start where beginners actually
+   start. That is a gap in the language's own voice rather than a tutorial problem — see item 6.
+
    ★ **A REPL page, and it is the cheapest thing on this entry.** `tools/repl.cufe` already
    answers the question a REPL usually poses — how to keep state across evaluations — and answers
    it by REPLAY: it accumulates the typed lines, re-runs the whole program each time, and shows
@@ -359,6 +392,55 @@ they are large, not because they are waiting — the order among them means noth
     that a pull site from the PRELUDE is not the PROGRAM asking for the book, or `DropUnpulledLayers`
     put the whole walker into every compiled binary. Measured before the fix: 17 leaked helper
     references, and since the walker runs a subprocess, every compiled program failed to link.
+
+6. **A parse error should explain itself the way a type error does.** ⚠⚠ MEASURED 2026-09-14, by
+   writing five broken programs to pick a first tutorial lesson. Every TYPE refusal has four parts —
+   the rule, what you did, the fix, and a worked example:
+
+   ```
+   That doesn't work: you can only join text to text.
+     Here on line 2, you're trying to join text to a number.
+
+     Convert the number first: use 'converted to text'.
+     For example: "score: " joined to n converted to text.
+   ```
+
+   A missing `Done.` gives the whole of this:
+
+   ```
+   Line 4, column 1: expected Done, got Eof "".
+   ```
+
+   ★★ **This is an inconsistency in the language's own voice, not a missing feature.** Cufet's
+   claim is that it refuses clearly and says why; that claim holds in the checker and stops at the
+   parser. ⚠ And it lands where it does the most harm: a beginner meets an unclosed block long
+   before a type mismatch, so the first refusal anyone sees is the worst one the language produces.
+
+   ⚠ It also blocks item 4 — debugging-first lessons cannot start where beginners actually start.
+
+   ✅ **The UNCLOSED-BLOCK half is done, 2026-09-14** — `If`, `Otherwise`, a `Judge` arm, `Try`,
+   both handler arms and `With … open … as` now name the construct and point at where it began,
+   joining `repeat`, which already did. ★ It needed no new analysis: `ParseLoopBody` had always
+   taken an opener token and six of its seven call sites never passed one. ⚠ The `repeat` message
+   was also UNTESTED — the one good parse error in the codebase could have been refactored away in
+   silence. `UnclosedBlockTests` pins all of them now.
+
+   ⚠ **What remains is the mechanical constructor**, `ParseException(Token got, string expected)`,
+   which prints RAW TOKEN-TYPE NAMES at people: `expected Dot`, `expected Colon`, `expected
+   Identifier, got Key "key"`. Nobody outside this repo knows what a `Dot` is. Measured examples:
+
+   - a missing `.` → *expected Dot, got State "State"*
+   - a missing `:` → *expected Colon, got State "State"*
+   - ★★ a RESERVED WORD as a name → *expected Identifier, got Key "key"* — which never says `key`
+     is reserved. This one has a witness: six reserved-word collisions across two sessions of
+     writing Cufet, every one of them costing a parse error and a rename.
+   - `Otherwise` without the `Done.` that closes the arm before it → *expected statement keyword*
+   - a `Bind` body left unclosed — still mechanical, because `Bind` does not route through
+     `ParseLoopBody`.
+
+   ⚠ Scope is still the open question for that half: how many of the 61 throw sites are reached by
+   a plausible mistake rather than by nonsense. Rewriting all of them is a different job from
+   fixing the handful anybody actually hits.
 
 ## Ongoing, no fixed slot
 
