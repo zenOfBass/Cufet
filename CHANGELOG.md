@@ -75,6 +75,39 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **A pull is LEXICAL: a function written inside one keeps it when called from outside.** ⚠⚠ A
+  BACKEND DIVERGENCE, measured 2026-09-15. This program passed `check`, printed the right answer
+  compiled, and died interpreted with *"'math' isn't defined … Declare it first: Define math as
+  \<value\>"* — advice to `Define` a book it pulls four lines above:
+
+  ```cufet
+  Pull a book on math.
+      Bind number to area, given (the number r): Return math's pi * r * r. Done.
+  Done.
+
+  State (cast area on (2)) converted to text.
+  ```
+
+  Hoisting is transparent to a `Pull … Done.` body, so such a function is callable from outside the
+  block — and the interpreter carried book bindings out of the CALLER's live scope, which has none.
+  It now records the pulls a function was written inside and rebinds them at the call. ★ The
+  compiler was right all along and its own note says why: it emits a fresh receiver rather than the
+  pull's binding, *precisely* so a `Bind` hoisted out of a pull body works.
+
+  ★ All three pull kinds were affected identically — bundled book, book in another file, and a
+  writer's own module — so the fault was never about books, but about pulling. It survived call
+  chains and nested pulls.
+
+  ⚠⚠ **The oracle could not see it.** Every program in the corpus calls such a function from inside
+  the block it was written in, where the dynamic and lexical answers coincide, so the suite was
+  green throughout. That is a SHAPE blind spot — a program nobody had written — rather than the
+  machine blind spot already on record.
+
+  ⚠ A RABBIT is deliberately not captured this way. Hoisting reaches into a rabbit body too, but a
+  rabbit is a region with a lifetime rather than a capability, and handing one to a call made after
+  the block closed is the escape the region rules exist to refuse.
+
+
 - **An installed `cufet` older than the source it is building no longer reports itself as a
   compiler bug.** When gcc says a `cufet_` function is missing — `implicit declaration of function
   'cufet_run_capture'`, or the linker's `undefined reference to` — the two halves cufet writes have
