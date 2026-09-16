@@ -275,6 +275,93 @@ public class DocBlockTests
             "\n\nEither the sample changed meaning, or the output block was never right.");
     }
 
+    /// <summary>
+    /// A documented REFUSAL is produced, and what it says must be the block underneath it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ★★ The mirror of the test above, for the half the docs could never check. `cufet-refused`
+    /// proves only that a counter-example STAYS refused; the message it prints was quoted and
+    /// believed. That is the weaker half of the promise, because a refusal's WORDS are what a
+    /// reader is being taught — especially in a debugging-first tutorial, where the error text is
+    /// not an aside but the lesson.
+    /// </para>
+    /// <para>
+    /// ★ Exact, not a substring. A message that gained a sentence, lost a hint, or renamed a type
+    /// is a doc that now misquotes the language, and "contains" would sail past all three.
+    /// `TypeChecker.TypeError` builds the whole four-part text into the exception, so there is a
+    /// complete answer to compare against.
+    /// </para>
+    /// <para>
+    /// ⚠ Same adjacency rule as the pairing above, and for the same reason: an `output` block
+    /// belongs to the fence IMMEDIATELY before it. A refusal quoted three paragraphs later is
+    /// nobody's output.
+    /// </para>
+    /// <para>
+    /// ⚠⚠ IT COMPARES THE WORDS, NOT THE LAYOUT — every non-empty line, trimmed, in order. The
+    /// exception carries the message UNINDENTED; the CLI indents its continuation lines when it
+    /// prints, and a playground will do something else again. Indentation is the presenter's
+    /// choice, so pinning it would make a doc that shows what a reader SEES fail against a
+    /// language that is behaving perfectly. The words and their order are the language's, and
+    /// those are pinned exactly — a message that gains a sentence, loses a hint or renames a type
+    /// still fails.
+    /// </para>
+    /// <para>
+    /// ⚠⚠ No minimum-pairs floor here, deliberately. The one above asserts `checkedPairs >= 15`
+    /// because it has 15 pairs to lose; this starts with ONE and is built for the lessons that are
+    /// coming, so a floor would either be 1 — which guards nothing — or a number that fails
+    /// today. What it does assert is that every pair it FINDS is right.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void EveryDocumentedRefusal_IsWhatTheProgramAboveItSays()
+    {
+        var blocks = TaggedBlocks().ToList();
+        var wrong  = new List<string>();
+
+        for (int i = 1; i < blocks.Count; i++)
+        {
+            if (blocks[i].Tag != "output") continue;
+            var program = blocks[i - 1];
+            if (program.Tag != "cufet-refused" || program.File != blocks[i].File) continue;
+            if (blocks[i].Line - 1 != program.EndLine + 1) continue;
+
+            string said;
+            try
+            {
+                var parsed = new Parser(new CufetLexer(program.Source).Tokenize()).Parse();
+                new TypeChecker().Check(parsed);
+                wrong.Add($"  {program.File}:{program.Line}\n      {program.Head}\n" +
+                          "      — it CHECKS CLEAN now, so it prints no refusal at all");
+                continue;
+            }
+            catch (Exception e)
+            {
+                said = e.Message.Replace("\r\n", "\n").TrimEnd('\n');
+            }
+
+            var expected = blocks[i].Source;
+            if (Words(said) != Words(expected))
+                wrong.Add($"  {blocks[i].File}:{blocks[i].Line}\n" +
+                          $"      documented: {Show(Words(expected))}\n" +
+                          $"      said:       {Show(Words(said))}");
+        }
+
+        Assert.True(wrong.Count == 0,
+            $"{wrong.Count} documented refusal(s) are not what the language says:\n\n" +
+            string.Join("\n\n", wrong) +
+            "\n\nEither the message changed, or the block was never what it printed.");
+    }
+
+    /// <summary>A message reduced to its WORDS: non-empty lines, trimmed, in order.</summary>
+    /// <remarks>⚠ See the note above — indentation and blank lines belong to whoever is printing,
+    /// not to the language, so they are normalised away and nothing else is.</remarks>
+    private static string Words(string message) =>
+        string.Join("\n", message.Replace("\r\n", "\n")
+                                 .Split('\n')
+                                 .Select(line => line.Trim())
+                                 .Where(line => line.Length > 0));
+
     // Running a sample that calls C source needs a foreign runner this in-process harness does not
     // have. `cufet <file>` runs them; here they are skipped and counted.
     private static readonly Regex NeedsMoreThanThisHarness =
