@@ -102,6 +102,23 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   ⚠ Every inline form quoted in these messages was RUN before it was written into one; the
   setter's shape took two tries to get right. A refusal that hands someone a line the parser would
   reject is worse than the mechanical message it replaces.
+
+- **A block left open by the NEXT ARM says so too, not just one left open by the end of the file.**
+  A block-form `If` with no `Done.` before its `Otherwise` answered
+  `expected statement keyword, got Otherwise "Otherwise"`, blamed the `Otherwise`, and never
+  mentioned the `If` still open two lines up. It now points at the `If` and names the arm that
+  arrived: *"this 'If' opens a block, and 'Otherwise' arrived on line 3 before its 'Done.'"*.
+
+  ★ THE LANGUAGE INVITES THIS ONE, which is why the message names both spellings rather than only
+  refusing. The INLINE form takes no `Done.` at all — `examples/basics/fizzbuzz.cufe` is written
+  that way — while the block form needs one before every arm. Two neighbouring spellings disagree
+  about it, so the refusal says what each requires.
+
+  ⚠ `Judge` arm bodies go through the same helper and were the same hole; they are fixed with it.
+
+  ⚠⚠ It fires ONLY where `Otherwise` genuinely continues the construct — a stray `Otherwise`
+  inside a `For each` with no `If` open still gets the ordinary message, because reporting the loop
+  as unclosed would be a confident wrong answer. That boundary is pinned by its own test.
 - **A reserved word used as a name says so.** `Define key as 3.` answered *expected Identifier, got
   Key "key"*, leaving a reader to deduce that `key` was taken. It now says *"'key' is a word Cufet
   has taken, so it cannot be a name here. A reserved word can be neither a variable nor a field,
