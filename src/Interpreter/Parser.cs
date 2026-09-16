@@ -1768,6 +1768,17 @@ public sealed class Parser
             iterName = Advance().Lexeme;
             SkipNoise();
         }
+        // ★★ THE SLOT ABOVE TAKES EVERY IDENTIFIER, so a word-shaped token still sitting here is
+        // RESERVED by construction — the same reasoning `Consume` uses, reached the other way
+        // round. Because the name is optional, a reserved word was never consumed at all and the
+        // failure surfaced later as `expected In, got Entry "entry"`, which names a token type and
+        // blames the wrong slot. MEASURED on `entry`, `key` and `path`, all everyday nouns.
+        //
+        // ⚠ `In` and `From` are the only tokens that may legitimately follow, and the bare form
+        // `For each in xs, state it.` is real — so excluding them is what keeps this from
+        // refusing a program that works.
+        else if (LooksLikeAWord(Peek()) && Peek().Type is not (TokenType.In or TokenType.From))
+            throw ReservedWordAsName(Peek());
 
         // Consumer for-each: 'for each <name> from the input: <body> Done.'
         if (Peek().Type == TokenType.From)
@@ -5648,10 +5659,7 @@ public sealed class Parser
             // Identifier unless the word is one the language took, so a WORD arriving as anything
             // else is reserved by construction.
             if (expected == TokenType.Identifier && LooksLikeAWord(tok))
-                throw new ParseException(tok.Line, tok.Column,
-                    $"'{tok.Lexeme}' is a word Cufet has taken, so it cannot be a name here. "
-                  + "A reserved word can be neither a variable nor a field, anywhere in any "
-                  + "program. Choose another name — see the reserved list in GRAMMAR.");
+                throw ReservedWordAsName(tok);
 
             throw new ParseException(tok, Describe(expected));
         }
@@ -5672,6 +5680,21 @@ public sealed class Parser
     /// </remarks>
     private string? PullReservedBook(Token tok) =>
         EffectiveType(tok) == TokenType.Chase ? "collections" : null;
+
+    /// <summary>A reserved word sitting where a name belongs, in one sentence.</summary>
+    /// <remarks>
+    /// ⚠⚠ SHARED because it is now thrown from two places that reach it differently. `Consume`
+    /// asks when an `Identifier` was D—ANDED; `ParseForEachStatement` asks when a name slot was
+    /// OPTIONAL and therefore simply not filled — `For each entry in xs` never consumed an
+    /// identifier at all, so it fell through to `Consume(TokenType.In)` and answered
+    /// `expected In, got Entry "entry"`. Two copies of this sentence would be two answers to one
+    /// question.
+    /// </remarks>
+    private static ParseException ReservedWordAsName(Token tok) =>
+        new(tok.Line, tok.Column,
+            $"'{tok.Lexeme}' is a word Cufet has taken, so it cannot be a name here. "
+          + "A reserved word can be neither a variable nor a field, anywhere in any "
+          + "program. Choose another name — see the reserved list in GRAMMAR.");
 
     /// <summary>Is this token a WORD the lexer refused to treat as a name?</summary>
     /// <remarks>

@@ -33,6 +33,9 @@ public class ParseWordingTests
         Assert.DoesNotContain("expected Dot", ex.Message);
     }
 
+    private static Cufet.Interpreter.Program Parses(string source) =>
+        new Parser(new CufetLexer(source).Tokenize()).Parse();
+
     [Fact]
     public void AMissingColon_AsksForTheCharacter()
     {
@@ -103,5 +106,57 @@ public class ParseWordingTests
 
         Assert.DoesNotContain("word Cufet has taken", ex.Message);
         Assert.Contains("expected a name", ex.Message);
+    }
+    // —— A reserved word where the name slot is OPTIONAL ————————————————————
+    //
+    // ⚠⚠ THE ME★AGE ABOVE WAS NARROWER THAN IT LOOKED. It fires where the parser D—ANDS an
+    // `Identifier`, and a loop's iterator name is optional — `For each in xs, state it.` is a
+    // real program. So `For each entry in xs` never consumed an identifier at all, fell through to
+    // `Consume(TokenType.In)`, and answered `expected In, got Entry "entry"`: a token type, and
+    // the wrong slot blamed.
+    //
+    // ★★ The rule that fixes it is the same one the message already rests on, read the other way
+    // round: the slot takes EVERY identifier, so a word-shaped token still sitting there is
+    // reserved by construction. No keyword table, no list to maintain.
+
+    /// <remarks>⚠ Collisions four, seven and eight — all everyday nouns, all in the one position
+    /// a beginner writes first.</remarks>
+    [Theory]
+    [InlineData("entry")]
+    [InlineData("key")]
+    [InlineData("path")]
+    public void AReservedWordAsALoopVariable_SaysItIsReserved(string word)
+    {
+        var ex = ParseFails($"Define xs as a series of number with (1, 2). For each {word} in xs, state {word}.");
+
+        Assert.Contains($"'{word}' is a word Cufet has taken", ex.Message);
+        Assert.DoesNotContain("expected In", ex.Message);
+    }
+
+    /// <remarks>
+    /// ⚠⚠ THE LINE THE GUARD MUST NOT CRO★. The iterator name is genuinely optional, so `In` and
+    /// `From` may legitimately follow the slot — firing on those would refuse two working
+    /// programs. Both are pinned here rather than left to the suite at large.
+    /// </remarks>
+    [Fact]
+    public void TheBareLoopForms_StillParse()
+    {
+        Parses("""
+            Define xs as a series of number with (1, 2).
+            For each in xs, state it.
+            """);
+
+        Parses("For each line from the input, state line.");
+    }
+
+    /// <remarks>★ And a name that is merely ordinary is still taken, rather than the guard
+    /// grabbing at anything word-shaped.</remarks>
+    [Fact]
+    public void AnOrdinaryLoopVariable_IsUnaffected()
+    {
+        Parses("""
+            Define xs as a series of number with (1, 2).
+            For each n in xs, state n.
+            """);
     }
 }
