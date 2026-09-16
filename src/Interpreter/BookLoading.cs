@@ -287,6 +287,8 @@ public static class BookLoading
                 int offset = map.Add(Path.GetFullPath(path));
                 var inner = new Parser(new CufetLexer(text, offset, 0).Tokenize()).Parse();
 
+                RefuseAProgram(inner.Statements, bookName, pull);
+
                 chain.Add(bookName);
                 // ★★ The BOOK's directory, not the one we arrived from — this is what "beside the
                 // pulling file" actually says, applied at every level rather than only the first.
@@ -305,6 +307,67 @@ public static class BookLoading
 
                 brought.AddRange(MakePrivate(inner.Statements, bookName));
             }
+        }
+    }
+
+    /// <summary>Refuses a pulled file whose top level DOES something rather than declaring.</summary>
+    /// <remarks>
+    /// <para>
+    /// ⚠⚠ A PULL RUNS THE LOADED FILE'S TOP LEVEL, and used to do it in SILENCE. MEASURED: a book
+    /// file with one `State` line at the bottom printed it when another program pulled it, before
+    /// that program's own first line, exit 0, no warning. Pulling somebody's library executed their
+    /// program inside your block.
+    /// </para>
+    /// <para>
+    /// ★★ SO A FILE IS A PROGRAM OR A LIBRARY, and pulling decides which one it has to be — the
+    /// answer Rust and Go both give, rather than a marker for "only when I am the one being run".
+    /// The witness is `tools/shell.cufe`: its machinery is worth pulling and its last line STARTS
+    /// THE SHELL, so nothing can borrow it. Splitting such a file needs no language feature, and
+    /// inventing one when a split suffices would be a rule wider than its reason.
+    /// </para>
+    /// <para>
+    /// ⚠ The running was never the un-Cufet part — the silence was. This language's claim is that
+    /// it refuses clearly and says why, and here it did something surprising without a word.
+    /// </para>
+    /// <para>
+    /// ★ `Define` IS ALLOWED, loose or `permanently`: a constant is how a library is written, and
+    /// the witness only asks that ACTIONS be refused. ⚠ That knowingly leaves a hole —
+    /// `Define x as &lt;something effectful&gt;` still runs at pull time — and closing it means
+    /// deciding what makes an expression effectful, which needs an effect system Cufet does not
+    /// have and no witness has asked for.
+    /// </para>
+    /// <para>
+    /// ⚠⚠ IT DESCENDS THROUGH `Pull ... Done.`, by asking
+    /// <see cref="TypeChecker.FlattenHoistable"/> rather than walking again. That is not tidiness:
+    /// `examples/language/pennies.cufe` keeps its ENTIRE body inside a pull, so a check that
+    /// stopped at the outermost statement would refuse a file the corpus already relies on. One
+    /// answer to "which scopes is this transparent to", asked where it already lives.
+    /// </para>
+    /// <para>
+    /// ★ MEASURED at zero blast radius when it landed: every pulled file in the tree and every
+    /// prelude file was already declarations-only. The rule was universally observed and simply
+    /// unenforced.
+    /// </para>
+    /// </remarks>
+    private static void RefuseAProgram(
+        IReadOnlyList<IStatement> statements, string bookName, PullStatement pull)
+    {
+        foreach (var statement in TypeChecker.FlattenHoistable(statements))
+        {
+            if (statement is BindStatement or ObjectDefinition or InterfaceDefinition
+                          or GetterDeclaration or SetterDeclaration or UnmakerDeclaration
+                          or OperatorOverloadDeclaration or DefineStatement
+                          or PullStatement or PullRabbitStatement)
+                continue;
+
+            throw TypeChecker.TypeError(
+                $"'{bookName}' does something at its top level, so it cannot be pulled",
+                "A pulled file is a LIBRARY: its top level may DECLARE things, but anything that "
+              + "runs would run inside your pull, before your own first line",
+                pull.Line, pull.Column,
+                $"pull '{bookName}'",
+                $"Split it in two: leave the declarations in '{bookName}.cufe', and move the lines "
+              + "that DO something into a program of their own that pulls it.");
         }
     }
 

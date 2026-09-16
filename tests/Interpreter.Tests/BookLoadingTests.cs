@@ -100,14 +100,16 @@ public class BookLoadingTests : IDisposable
             """);
         Write("outer", """
             Pull a book on inner.
-                State "outer loaded".
-            Done.
-
-            Define object outer with () and book:
-                Bind number to quadruple, given (the number n): Return n * 4. Done.
+                Define object outer with () and book:
+                    Bind number to quadruple, given (the number n): Return n * 4. Done.
+                Done.
             Done.
             """);
-        Assert.Equal("outer loaded\n40", Run("""
+        // ⚠⚠ THIS A★ERTION USED TO READ `"outer loaded\n40"`, because `outer.cufe` carried a
+        // top-level `State` and a pull RAN it. That is exactly the behaviour now refused — a
+        // pulled file is a library, so its top level declares and does not act. The test's subject
+        // is unchanged and is the whole of its name: one book may pull another.
+        Assert.Equal("40", Run("""
             Pull a book on outer.
                 State cast outer's quadruple on (10).
             Done.
@@ -119,8 +121,10 @@ public class BookLoadingTests : IDisposable
     {
         // ★ Named rather than silently stopped. A ring is a mistake with a shape, and printing the
         // ring is what makes it fixable.
-        Write("left", "Pull a book on right.\n    State \"left\".\nDone.\n");
-        Write("right", "Pull a book on left.\n    State \"right\".\nDone.\n");
+        // ⚠ The bodies DECLARE rather than act: a pulled file that does something is now
+        // refused before the ring is reached, and this test is about the ring.
+        Write("left", "Pull a book on right.\n    Define left-side as 1.\nDone.\n");
+        Write("right", "Pull a book on left.\n    Define right-side as 2.\nDone.\n");
         var e = Refused("""
             Pull a book on left.
                 State "host".
@@ -356,5 +360,113 @@ public class BookLoadingTests : IDisposable
             Assert.True(failure is null,
                 $"the bundled book '{book}' does not check on its own: {failure?.Message}");
         }
+    }
+    // —— A file is a PROGRAM or a LIBRARY ————————————————————————
+    //
+    // ⚠⚠ A PULL RUNS THE LOADED FILE'S TOP LEVEL, and used to do it in SILENCE. MEASURED: a book
+    // file with one `State` at the bottom printed it when another program pulled it — before that
+    // program's own first line, exit 0, not a word. Pulling somebody's library ran their program
+    // inside your block.
+    //
+    // ★★ The running was never the un-Cufet part; the SILENCE was. So a file is one or the other,
+    // which is what Rust and Go both answer, and needs no marker for "only when I am the one being
+    // run". The witness is `tools/shell.cufe`: its machinery is worth pulling and its last line
+    // starts the shell, so nothing can borrow it.
+
+    [Fact]
+    public void AFileThatDoesSomethingAtItsTopLevel_CannotBePulled()
+    {
+        Write("greeter", """
+            Define object greeter with () and book:
+                Bind text to hello: Return "hi". Done.
+            Done.
+
+            State "this runs when you pull me".
+            """);
+
+        var ex = Assert.Throws<TypeException>(() => Run("""
+            Pull a book on greeter.
+                State cast greeter's hello.
+            Done.
+            """));
+
+        Assert.Contains("does something at its top level", ex.Message);
+        // ★ And it says what to DO, which is the whole of the fix: split the file.
+        Assert.Contains("Split it in two", ex.Message);
+    }
+
+    /// <remarks>
+    /// ★ THE JUDG—ENT CALL, pinned so it is a decision rather than an accident. A `Define` stays
+    /// allowed — loose or `permanently` — because a constant is how a library is written, and the
+    /// witness only asked that ACTIONS be refused. ⚠ The hole this leaves is known and deliberate:
+    /// a `Define` whose VALUE does something still runs at pull time, and closing that needs an
+    /// effect system the language does not have.
+    /// </remarks>
+    [Fact]
+    public void ALibraryMayStillHoldDefines()
+    {
+        Write("sizes", """
+            Define object sizes with () and book:
+                Bind number to double, given (the number n): Return n * 2. Done.
+            Done.
+
+            Define loose as 5.
+            Define fixed as 7 permanently.
+            """);
+
+        Assert.Equal("8", Run("""
+            Pull a book on sizes.
+                State (cast sizes's double on (4)) converted to text.
+            Done.
+            """));
+    }
+
+    /// <remarks>
+    /// ⚠⚠ THE CASE THAT MAKES THE CHECK DESCEND. `examples/language/pennies.cufe` keeps its whole
+    /// body inside `Pull a book on math. ... Done.`, so a check that looked only at the outermost
+    /// statement would refuse a file the corpus already relies on. The walk asks
+    /// `TypeChecker.FlattenHoistable` rather than repeating its descent.
+    /// </remarks>
+    [Fact]
+    public void ALibraryWrittenEntirelyInsideAPull_IsStillALibrary()
+    {
+        Write("pennies", """
+            Pull a book on math.
+                Define object pennies with () and book:
+                    Bind number to to-the-penny, given (the number amount):
+                        Return (cast math's round on (amount * 100)) / 100.
+                    Done.
+                Done.
+            Done.
+            """);
+
+        Assert.Equal("36.76", Run("""
+            Pull a book on pennies.
+                State (cast pennies's to-the-penny on (36.756)) converted to text.
+            Done.
+            """));
+    }
+
+    /// <remarks>⚠ And an action nested inside that pull is still caught — the descent finds it
+    /// rather than the outer `Pull` hiding it.</remarks>
+    [Fact]
+    public void AnActionInsideThePull_IsCaughtToo()
+    {
+        Write("noisy", """
+            Pull a book on math.
+                Define object noisy with () and book:
+                    Bind number to one-thing: Return 1. Done.
+                Done.
+                State "still runs".
+            Done.
+            """);
+
+        var ex = Assert.Throws<TypeException>(() => Run("""
+            Pull a book on noisy.
+                State (cast noisy's one-thing) converted to text.
+            Done.
+            """));
+
+        Assert.Contains("does something at its top level", ex.Message);
     }
 }
