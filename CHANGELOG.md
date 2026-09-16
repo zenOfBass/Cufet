@@ -10,6 +10,22 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+- **`docs/BOOKS.md` is now checked against the books themselves.** Two tests: every public member of
+  every bundled book is named in BOOKS.md, and every member BOOKS.md claims a book provides still
+  exists. Two places telling one story means one is already lying, and nothing made these two agree.
+
+  ★ MEASURED while writing it, and it CORRECTED the roadmap: BOOKS.md and the `///` comments do
+  not "say the same things". BOOKS.md is an inventory plus book-level behaviour; the `///` carries
+  per-member semantics that appear nowhere in BOOKS.md. They are complementary, so generated pages
+  for bundled books would replace nothing — the only real staleness was the inventory, which is
+  what these pin. Public surface measured at sixteen.
+
+  ⚠⚠ Two of the test's own bugs are recorded in it, because both looked like findings. Reading
+  members from a CHE✅ED program lost `collections`' `unique`: a generic function's T—PLATE is
+  dropped before either backend runs, so a member that works was not there. And pairing inline
+  code spans across a ``` fence shifted every span after it, reporting `floor`, `exp` and `power`
+  as undocumented while `round` and `pi` passed — from a doc that names all five identically.
+
 - **`examples/language/pennies.cufe` and `basket.cufe` — a book that pulls what it needs.** The
   counterpart to `bookkeeping.cufe`, which names `math` without pulling it and leaves the debt to
   whoever pulls the module — the reason `ledger.cufe` has to nest `Pull a book on math.` around

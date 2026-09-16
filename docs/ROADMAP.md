@@ -143,14 +143,22 @@ they are large, not because they are waiting — the order among them means noth
    books by other people to read, and the loader and the package manager are both still below
    ("Shipping a book").
 
-   **Two forks, both real:**
+   ✅ **The bundled-book fork is SETTLED, 2026-09-16: pages are for USER books only**, and the
+   premise it rested on was wrong. The entry claimed BOOKS.md and the `///` comments "say the same
+   things". MEASURED: they do not. BOOKS.md is an INVENTORY plus book-level behaviour (*"Each
+   yields void for an empty series"*); the `///` carries per-member semantics (*"`-2.5` floors to
+   `-3`, not `-2`"*) that appear nowhere in BOOKS.md. They are complementary, so there was nothing
+   to generate away.
+
+   ★ **The only real staleness was the inventory, and it is now pinned** by
+   `BookDocumentationTests`: every public member is named in BOOKS.md, and every member BOOKS.md
+   claims a book provides still exists. ⚠ MEASURED public surface: sixteen — 13 Cufet-layer
+   members, `math`'s `pi` and `e`, and `blueprints`' native `checksum`.
+
+   **One fork left:**
 
    - **Output format**, which lands on the deferred `docs/`-folder and GitHub-Pages question — if
      Pages ever publishes from `docs/`, that folder IS the site and generated pages belong to it.
-   - **Do the BUNDLED books get generated pages?** ⚠ No longer hypothetical: `docs/BOOKS.md`
-     describes their members in prose, and since 2026-09-07 the books carry `///` in their own
-     source saying the same things. **The two places already exist.** Either generated pages are for
-     USER books only, or BOOKS.md's member descriptions become generated from the source.
 
    ⚠ **Whatever is generated must be pinned and tested**, the way the doc-block fence tags and
    `examples/expected/` already are — generated output that nothing checks is the same staleness
