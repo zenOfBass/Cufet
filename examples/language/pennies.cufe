@@ -1,0 +1,33 @@
+/*  A book that pulls what it needs, so nobody else has to.
+
+    This is the other half of bookkeeping.cufe. That module names `math` without pulling it and
+    leaves the debt to whoever pulls the module — which is why ledger.cufe has to open
+    `Pull a book on math.` around it. This file does the opposite: the book is written INSIDE the
+    pull it needs, so it keeps it, and a program that wants pennies asks for pennies.
+
+    ★ Both spellings are right, and the choice is about who the dependency belongs to. Defer, as
+    bookkeeping does, when the caller is meant to supply it — a library that leaves `math` open can
+    be handed a different one. Pull it yourself, as this does, when the dependency is an
+    implementation detail and naming it at every call site would make it part of the spelling.
+
+    ⚠ A module that pulls NOTHING has no provider of its own, so it still defers. That is not a
+    fallback, it is the same rule read the other way: a name is satisfied where it is found.  */
+
+Pull a book on math.
+    Define object pennies with () and book:
+
+        /// Rounds an amount to whole pennies, away from the halfway point.
+        Bind number to to-the-penny, given (the number amount):
+            Return (cast math's round on (amount * 100)) / 100.
+        Done.
+
+        /// Adds a series of amounts and rounds the result once, at the end.
+        Bind number to total, given (the series of number amounts):
+            Define running as 0.
+            For each item in amounts, repeat:
+                Increment running by item.
+            Done.
+            Return cast one's to-the-penny on (running).
+        Done.
+    Done.
+Done.

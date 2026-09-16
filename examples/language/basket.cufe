@@ -1,0 +1,20 @@
+/*  The consumer, and the point of the pair: it names ONE book.
+
+    `pennies` pulls `math` in its own file, so this program never mentions it. Compare ledger.cufe,
+    which has to nest `Pull a book on math.` around `Pull a bookkeeping.` because `bookkeeping`
+    leaves that name open — there, the dependency is part of the spelling; here it is not.
+
+    ★ Pulling resolves BESIDE THE FILE THAT PULLS, so `pennies` is found next to this one with no
+    project, no configuration and no path. A `books/` folder at a project root is the second place
+    it looks, not the first.  */
+
+Pull a book on pennies.
+    Define prices as a series of number with (3.514, 24.99, 8.252).
+
+    For each item in prices, repeat:
+        State "item:    {item}".
+    Done.
+
+    State "".
+    State "rounded: {cast pennies's total on (prices)}".
+Done.
