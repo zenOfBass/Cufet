@@ -5714,6 +5714,16 @@ public sealed class Parser
     /// ★ Only the tokens that are JARGON need an entry. A keyword's enum name is the keyword —
     /// `expected Done`, `expected As` — so those already read correctly and fall through.
     /// </para>
+    /// <para>
+    /// ⚠⚠ THE `got` HALF IS DELIBERATELY STILL AN ENUM NAME — `got Equal "="`, `got Eof ""` —
+    /// and that is a decision rather than an oversight. The win would be small, because the LEX—E
+    /// is already quoted right beside it; and TWO TESTS read the format, so moving the wording
+    /// would quietly weaken them rather than fail: `DocBlockTests.RanOutOfInput` matches
+    /// `got Eof`, and `PipelineInlineFormTests` asserts `DoesNotContain("got Eof")` — an
+    /// assertion that becomes VACUOUS the moment the string can no longer appear.
+    ///
+    /// ★ Reword it only together with those two, never on its own.
+    /// </para>
     /// </remarks>
     private static string Describe(TokenType expected) => expected switch
     {
