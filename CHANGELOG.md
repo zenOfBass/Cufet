@@ -10,17 +10,18 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
-- **`docs/TUTORIAL.md` — a way IN to the language, starting with lesson one.** Grace and Hopper, two
-  rabbits who are not real yet, learning Cufet by getting it wrong. It teaches DEBUGGING FIRST:
-  lesson one's centrepiece is a refusal, read line by line, because the first thing anybody meets in
-  a new language is a refusal and Cufet's are written to be read.
+- **`docs/TUTORIAL.md` — a way IN to the language, starting with lesson one.** It teaches
+  DEBUGGING FIRST: the lesson opens on a program that does not work, and the refusal is read line by
+  line before anything is fixed. The first thing anybody meets in a new language is a refusal, and
+  Cufet's are written to be read — so lesson one is a table of a refusal's four parts.
 
   ★ Every program in it is run by the suite and every message beneath one is compared to what the
   language actually says — the refusal, the fixed version, and the interpolated version alike. A
   lesson cannot drift from the language without the suite going red.
 
-  ⚠ Deliberately LINEAR and small. The navigable-map-with-gates design stays recorded in the
-  roadmap and unbuilt; a simple tutorial is what teaches, and the game is a separate appetite.
+  ⚠ Plain prose, no framing story, and no game. Both were considered and are recorded in the
+  roadmap rather than built: the tutorial's job is to teach the language, and a narrative is a
+  separate appetite that can be added to lessons that already work.
 
   ⚠⚠ Its first draft claimed to be verified and WAS NOT: an `output` block must open on the line
   IMMEDIATELY after the previous fence closes, and one blank line between them made both pairs skip

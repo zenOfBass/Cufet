@@ -1,6 +1,6 @@
 # Cufet, from the beginning
 
-Two rabbits, learning the language by getting it wrong.
+A way *in* to the language. It assumes nothing and goes in order.
 
 | If you want to know | Read |
 | --- | --- |
@@ -8,36 +8,17 @@ Two rabbits, learning the language by getting it wrong.
 | How to use a feature | [REFERENCE.md](REFERENCE.md) |
 | Exactly what the rules are | [GRAMMAR.md](GRAMMAR.md) |
 
-This is a way *in*. It assumes nothing, it goes in order, and it teaches by breaking things —
-because the first thing anybody meets in a new language is a refusal, and Cufet's refusals are
-written to be read.
+It teaches by breaking things first. The first thing anybody meets in a new language is a refusal,
+and Cufet's refusals are written to be read — so learning to read them is the shortest way in.
 
-> Every program in this file is run by the test suite, and every message beneath one is compared
-> to what the language actually says. If a lesson claims Cufet prints something, Cufet prints it.
+> Every program in this file is run by the test suite, and every message beneath one is compared to
+> what the language actually says. If a lesson claims Cufet prints something, Cufet prints it.
 
 ---
 
-## Lesson 1 — Hopper counts his carrots
+## Lesson 1 — Saying something, and the first refusal
 
-### Under the fence
-
-There are two rabbits at the bottom of the garden, and neither of them is real yet.
-
-Grace is the careful one. Hopper is not.
-
-They have heard that things become real in the garden — that if you can get in, and if you can
-make something *work*, you stop being stuffed and start being a rabbit. Nobody has told them how.
-So they go under the fence to find out.
-
-> **HOPPER:** I've written one. I've written a program.
->
-> **GRACE:** Already.
->
-> **HOPPER:** I counted my carrots and then I told everyone. That's a program.
->
-> **GRACE:** Run it, then.
-
-Run it, and Cufet says no:
+Here is a program that counts something and says so. It does not work.
 
 ```cufet-refused
 Define carrots as 3.
@@ -51,27 +32,24 @@ Convert the number first: use 'converted to text'.
 For example: "score: " joined to n converted to text.
 ```
 
-> **HOPPER:** It hates me.
->
-> **GRACE:** It does not hate you. It told you four things. Look.
->
-> **GRACE:** *The rule.* You can only join text to text.
->
-> **GRACE:** *What you did.* You joined text to a number.
->
-> **GRACE:** *What to do.* Use `converted to text`.
->
-> **GRACE:** And then it wrote you an example, in case you weren't sure of the shape.
->
-> **HOPPER:** …it's being quite nice about it, actually.
->
-> **GRACE:** It usually is. That's the whole trick, Hopper. Everything in here tells you what is
-> wrong with it. Most of learning this is learning to **read the no**.
+### Read the refusal
 
-### What the no meant
+That message has four parts, and every refusal in Cufet has the same four:
+
+| Part | What it says |
+| --- | --- |
+| **The rule** | You can only join text to text. |
+| **What you did** | You joined text to a number. |
+| **What to do** | Use `converted to text`. |
+| **An example** | The shape it should be, written out. |
+
+Most of learning Cufet is learning to read those four parts. They are not an apology for a failure
+— they are the language telling you the rule you have just met.
+
+### Why it refused
 
 `"Hopper has "` is text. `carrots` is `3`, which is a number. Cufet will not quietly turn one into
-the other — quietly turning things into other things is where wrong answers come from.
+the other: quietly turning things into other things is where wrong answers come from.
 
 Add the two words it asked for, and it runs:
 
@@ -83,19 +61,13 @@ State "Hopper has " joined to carrots converted to text.
 Hopper has 3
 ```
 
-> **HOPPER:** I'm real!
->
-> **GRACE:** You are not remotely real. You printed a three.
->
-> **HOPPER:** It's a start.
+`Define` introduces a name. `State` says something. `joined to` puts two pieces of text together,
+and `converted to text` is how a number becomes text you can join.
 
-> **Good little rabbits always remember to say which kind of thing they mean.**
+### A shorter way to say the same thing
 
-### Grace has a tidier way
-
-> **GRACE:** May I.
->
-> **HOPPER:** You've been sitting on it this whole time, haven't you.
+Writing `joined to … converted to text` for every value gets long. A **hole** in a piece of text —
+curly braces around a name — does the same job:
 
 ```cufet
 Define carrots as 3.
@@ -105,30 +77,15 @@ State "Hopper has {carrots} carrots.".
 Hopper has 3 carrots.
 ```
 
-> **HOPPER:** That's cheating.
->
-> **GRACE:** It is not cheating. The rule still holds. The curly braces are a **hole** — a place in
-> the sentence where you have said *"a value goes here"*. You asked for the conversion by the shape
-> of what you wrote. You just did not have to say it twice.
->
-> **HOPPER:** So why did I have to do it the long way?
->
-> **GRACE:** So you would know what the hole is doing for you.
+The rule has not changed. A hole is a place where you have said *"a value goes here"*, so you asked
+for the conversion by the shape of what you wrote rather than by naming it. The long form is worth
+knowing first, because it is what the hole is doing for you.
 
-### Before you go
+### Try it
 
-Give Hopper `12` carrots and run it again.
-
-Then give Grace some carrots of her own, and get them both into one sentence.
-
-> **HOPPER:** How many do *you* have?
->
-> **GRACE:** Four.
->
-> **HOPPER:** Four?
->
-> **GRACE:** I ate the rest. Come on.
+- Change `3` to `12` and run it again.
+- Add a second name with a number of its own, and get both into one sentence.
 
 ---
 
-**Next:** Grace has a basket, and Hopper has put the wrong thing in it.
+**Next:** collections, and what happens when you put the wrong kind of thing in one.
