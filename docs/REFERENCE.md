@@ -600,8 +600,12 @@ Judge command, where it is:
     Otherwise, state "something else".
 Done.
 ```
-```
+```output
 That doesn't work: this judgement mixes arms that match a type with arms that match a value.
+  The first arm matches a value, so every arm in this judgement has to.
+  Here on line 5, you're trying to match a type and a value in one judgement.
+
+  Split it into two judgements, or test the odd case with an 'If' inside the arm it belongs to.
 ```
 
 

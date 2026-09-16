@@ -10,6 +10,24 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+- **A documented REFUSAL is now checked against what the language actually says.** `cufet-refused`
+  proved only that a counter-example STAYS refused; the message printed beside it was quoted and
+  believed. An `output` block placed under one is now compared to the real refusal, the mirror of
+  the pairing that already checks a program's printed output.
+
+  ★★ It matters most for what comes next. The tutorial is DEBUGGING-FIRST — its first lesson is
+  a four-part error message, read line by line — so the error text is not an aside there, it is
+  the lesson. Writing lessons against text nothing verifies would be building the one part of this
+  project's documentation that can lie.
+
+  ⚠ It compares the WORDS, not the layout: every non-empty line, trimmed, in order. The exception
+  carries the message unindented, the CLI indents continuation lines when it prints, and a
+  playground will differ again — so pinning indentation would fail a doc that shows what a reader
+  actually SEES. A message that gains a sentence, loses a hint or renames a type still fails.
+
+  ★ `REFERENCE.md`'s mixed-`Judge`-arms example quoted only its headline; it now carries the whole
+  refusal, MEASURED by running it rather than transcribed.
+
 - **`docs/BOOKS.md` is now checked against the books themselves.** Two tests: every public member of
   every bundled book is named in BOOKS.md, and every member BOOKS.md claims a book provides still
   exists. Two places telling one story means one is already lying, and nothing made these two agree.
