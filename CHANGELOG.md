@@ -119,6 +119,19 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   ⚠⚠ It fires ONLY where `Otherwise` genuinely continues the construct — a stray `Otherwise`
   inside a `For each` with no `If` open still gets the ordinary message, because reporting the loop
   as unclosed would be a confident wrong answer. That boundary is pinned by its own test.
+
+- **`Define x = 3.` now teaches, instead of answering `expected As, got Equal "="`.** The
+  educational message for `=` has existed for a long time and fired only in STAT—ENT position
+  (`x = 5.`); the `Define` site — one keyword away, and the likelier of the two for a beginner who
+  is still introducing names — never reached it and named a token type instead.
+
+  ★ It leads with `as` where the statement-position message leads with `becomes`: the writer
+  already typed `Define`, so they have said which of the two they mean, and answering with the
+  other one first would answer a question they did not ask. Both are still offered.
+
+  ⚠ `=` stays comparison everywhere it legitimately is one. The check sits at the `Define`
+  keyword's own `as` slot, not in expression position, so `If x = 3, state "three".` is untouched
+  — pinned by its own test.
 - **A reserved word used as a name says so.** `Define key as 3.` answered *expected Identifier, got
   Key "key"*, leaving a reader to deduce that `key` was taken. It now says *"'key' is a word Cufet
   has taken, so it cannot be a name here. A reserved word can be neither a variable nor a field,
