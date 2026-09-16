@@ -1308,7 +1308,8 @@ public sealed class Parser
     // A body that must produce a value (a function or getter with a return type). The one thing is
     // an EXPRESSION and its `Return` is implicit — dropping `Return` and `Done.` is the whole of
     // what this form buys, and it is the same trade the inline `If` already made.
-    private IReadOnlyList<IStatement> ParseValueBodyOrBlock()
+    private IReadOnlyList<IStatement> ParseValueBodyOrBlock(
+        Token? blockOpener = null, string? inlineExample = null, string? construct = null)
     {
         SkipNoise();
         if (Peek().Type == TokenType.Comma)
@@ -1340,7 +1341,7 @@ public sealed class Parser
         }
         Consume(TokenType.Colon);
         _nestDepth++;
-        var body = ParseFunctionBody();
+        var body = ParseFunctionBody(blockOpener, inlineExample, construct);
         _nestDepth--;
         return body;
     }
@@ -1358,7 +1359,8 @@ public sealed class Parser
 
     // A body that returns nothing (a void function, a setter, a destructor). The one thing is a
     // STATEMENT, because there is no value to imply a `Return` for.
-    private IReadOnlyList<IStatement> ParseVoidBodyOrBlock()
+    private IReadOnlyList<IStatement> ParseVoidBodyOrBlock(
+        Token? blockOpener = null, string? inlineExample = null, string? construct = null)
     {
         SkipNoise();
         if (Peek().Type == TokenType.Comma)
@@ -1391,7 +1393,7 @@ public sealed class Parser
         }
         Consume(TokenType.Colon);
         _nestDepth++;
-        var body = ParseFunctionBody();
+        var body = ParseFunctionBody(blockOpener, inlineExample, construct);
         _nestDepth--;
         return body;
     }
@@ -4796,7 +4798,9 @@ public sealed class Parser
         // a void one gets the statement form, there being no value to imply a return for. Both are
         // reached by the same comma — the difference is what one thing means for that body.
         _functionDepth++;
-        var body = returnType == null ? ParseVoidBodyOrBlock() : ParseValueBodyOrBlock();
+        var body = returnType == null
+            ? ParseVoidBodyOrBlock(bindTok, "Bind void to greet, State \"hi\".")
+            : ParseValueBodyOrBlock(bindTok, "Bind number to double, given (the number n), n * 2.");
         _functionDepth--;
         _inObjectDef    = savedInObjectDef;
         _inFreeFunction = savedInFreeFunction;
@@ -4995,7 +4999,18 @@ public sealed class Parser
     }
 
     // Function bodies end at Done. — like loop bodies, but no empty-body restriction.
-    private IReadOnlyList<IStatement> ParseFunctionBody()
+    /// <remarks>
+    /// ⚠⚠ THE SIX CONSTRUCTS THIS PARSES WERE THE ONES LEFT OUT. When `Unclosed` was written the
+    /// seven BLOCK statements got it and every DECLARATION body — `Bind`, a getter, a setter, an
+    /// unmaker, an overload — kept answering `expected Done, got Eof ""` and pointing at the end
+    /// of the file, which is never where the mistake is. `Bind` is the commonest block in the
+    /// language, so the gap was widest exactly where it was cheapest to hit.
+    ///
+    /// ★ Nothing here is new analysis, the same way nothing was for the loop bodies: the parser
+    /// already held the opening token, and this signature is the only reason it could not say so.
+    /// </remarks>
+    private IReadOnlyList<IStatement> ParseFunctionBody(
+        Token? opener = null, string? inlineExample = null, string? construct = null)
     {
         var stmts = new List<IStatement>();
         while (true)
@@ -5004,6 +5019,8 @@ public sealed class Parser
             if (Peek().Type is TokenType.Done or TokenType.Eof) break;
             stmts.Add(ParseStatement());
         }
+        if (Peek().Type == TokenType.Eof && opener != null)
+            throw Unclosed(opener, inlineExample, construct);
         Consume(TokenType.Done);
         Consume(TokenType.Dot);
         return stmts;
@@ -5249,7 +5266,8 @@ public sealed class Parser
             throw new ParseException(Peek(), "a return type — getters cannot be void");
         SkipNoise();
         _functionDepth++;
-        var body = ParseValueBodyOrBlock();   // a getter always returns, so its inline form is an expression
+        // a getter always returns, so its inline form is an expression
+        var body = ParseValueBodyOrBlock(lineTok, "Get doubled unto box as number, one's n * 2.");
         _functionDepth--;
 
         _inObjectDef    = savedInObjectDef;
@@ -5292,7 +5310,8 @@ public sealed class Parser
         Consume(TokenType.RParen);
         SkipNoise();
         _functionDepth++;
-        var body = ParseVoidBodyOrBlock();   // a setter is void, so its inline form is a statement
+        // a setter is void, so its inline form is a statement
+        var body = ParseVoidBodyOrBlock(lineTok, "Set bump unto box given (the number v), one's n becomes v.");
         _functionDepth--;
 
         _inObjectDef    = savedInObjectDef;
@@ -5333,7 +5352,8 @@ public sealed class Parser
                 "— unmakers take no parameters (omit 'given (...)' entirely)");
 
         _functionDepth++;
-        var body = ParseVoidBodyOrBlock();   // a destructor is void, so its inline form is a statement
+        // a destructor is void, so its inline form is a statement
+        var body = ParseVoidBodyOrBlock(lineTok, "Bind unmaking a handle to release, State \"closed\".", "Bind unmaking");
         _functionDepth--;
 
         _inObjectDef    = savedInObjectDef;
@@ -5425,7 +5445,8 @@ public sealed class Parser
         SkipNoise();
 
         _functionDepth++;
-        var body = ParseValueBodyOrBlock();   // an overload always returns, so its inline form is an expression
+        // an overload always returns, so its inline form is an expression
+        var body = ParseValueBodyOrBlock(lineTok, "Bind overloading +, given (the lhs is a vec, the rhs is a vec), a new vec { the x lhs's x + rhs's x }.", "Bind overloading");
         _functionDepth--;
 
         _inObjectDef    = savedInObjectDef;
