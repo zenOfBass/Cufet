@@ -10,6 +10,23 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+- **`docs/TUTORIAL.md` — a way IN to the language, starting with lesson one.** Grace and Hopper, two
+  rabbits who are not real yet, learning Cufet by getting it wrong. It teaches DEBUGGING FIRST:
+  lesson one's centrepiece is a refusal, read line by line, because the first thing anybody meets in
+  a new language is a refusal and Cufet's are written to be read.
+
+  ★ Every program in it is run by the suite and every message beneath one is compared to what the
+  language actually says — the refusal, the fixed version, and the interpolated version alike. A
+  lesson cannot drift from the language without the suite going red.
+
+  ⚠ Deliberately LINEAR and small. The navigable-map-with-gates design stays recorded in the
+  roadmap and unbuilt; a simple tutorial is what teaches, and the game is a separate appetite.
+
+  ⚠⚠ Its first draft claimed to be verified and WAS NOT: an `output` block must open on the line
+  IMMEDIATELY after the previous fence closes, and one blank line between them made both pairs skip
+  in silence. Every sabotage passed. That is exactly the failure this pinning exists to prevent, met
+  on the first document to use it, and the rule is now written where the tags are described.
+
 - **A documented REFUSAL is now checked against what the language actually says.** `cufet-refused`
   proved only that a counter-example STAYS refused; the message printed beside it was quoted and
   believed. An `output` block placed under one is now compared to the real refusal, the mirror of
