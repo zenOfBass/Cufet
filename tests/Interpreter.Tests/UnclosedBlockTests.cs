@@ -242,4 +242,119 @@ public class UnclosedBlockTests
         Assert.Contains("this 'Bind overloading' opens a block", ex.Message);
         Assert.Equal(2, ex.Line);
     }
+    // —— Left open by what came NEXT ————————————————————
+    //
+    // ⚠⚠ A block can be left open by the next ARM arriving, not only by the file ending, and
+    // only the second half had a sentence. MEASURED: a block-form `If` with no `Done.` before its
+    // `Otherwise` answered `expected statement keyword, got Otherwise "Otherwise"`, blamed the
+    // `Otherwise`, and never mentioned the `If` still open two lines up.
+    //
+    // ★★ THE LANGUAGE INVITES THIS ONE, which is why it earns its own message rather than a
+    // generic one. The INLINE form takes no `Done.` at all — fizzbuzz.cufe is written that way —
+    // while the block form requires one before every arm. Two neighbouring spellings disagree, so
+    // the message names both.
+
+    private static Cufet.Interpreter.Program Parses(string source) =>
+        new Parser(new CufetLexer(source).Tokenize()).Parse();
+
+    [Fact]
+    public void AnUnclosedIfBeforeOtherwise_NamesTheIfAndTheArm()
+    {
+        var ex = ParseFails("""
+            If 1 is 1:
+                State "one".
+            Otherwise:
+                State "other".
+            Done.
+            """);
+
+        Assert.Contains("this 'If' opens a block", ex.Message);
+        Assert.Contains("'Otherwise' arrived on line 3", ex.Message);
+        // ★ It points at the `If`, not at the token it tripped over.
+        Assert.Equal(1, ex.Line);
+        Assert.DoesNotContain("expected statement keyword", ex.Message);
+    }
+
+    /// <remarks>★ Both spellings are named, because the reader's next question is which one they
+    /// meant to be writing.</remarks>
+    [Fact]
+    public void ThatMessage_NamesBothFormsAndTheirDoneRule()
+    {
+        var ex = ParseFails("""
+            If 1 is 1:
+                State "one".
+            Otherwise:
+                State "other".
+            Done.
+            """);
+
+        Assert.Contains("every arm closes before the next one begins", ex.Message);
+        Assert.Contains("the one that needs no 'Done.'", ex.Message);
+    }
+
+    /// <remarks>⚠ A `Judge` arm body is parsed by the same helper, so it was the same hole.</remarks>
+    [Fact]
+    public void AnUnclosedJudgeArmBeforeOtherwise_IsCaughtToo()
+    {
+        var ex = ParseFails("""
+            Define object circle with (the number r).
+            Define s as a new circle { the r 2 }.
+            Judge s, where it is:
+                A circle:
+                    State "round".
+                Otherwise:
+                    State "other".
+            Done.
+            """);
+
+        Assert.Contains("opens a block", ex.Message);
+        Assert.Contains("'Otherwise' arrived on line 6", ex.Message);
+    }
+
+    // —— The controls ————————————————————
+
+    /// <remarks>★ The correct block form still parses — the new check must not fire on the shape
+    /// it is teaching people to write.</remarks>
+    [Fact]
+    public void TheCorrectBlockForm_StillParses()
+    {
+        Parses("""
+            If 1 is 1:
+                State "one".
+            Done.
+            Otherwise:
+                State "other".
+            Done.
+            """);
+    }
+
+    /// <remarks>★ And the inline form, which needs no `Done.` anywhere.</remarks>
+    [Fact]
+    public void TheInlineForm_NeedsNoDone()
+    {
+        Parses("""
+            If 1 is 1, state "one".
+            Otherwise, state "other".
+            """);
+    }
+
+    /// <remarks>
+    /// ⚠⚠ THE LINE THE CHECK MUST NOT CRO★. An `Otherwise` inside a LOOP body, with no `If`
+    /// open at all, is an ordinary mistake — reporting the loop as unclosed would be a confident
+    /// wrong answer, which is the trap `IsStatementOpener` already warns about. Only
+    /// `ParseIfBody` passes the continuation token, so a loop body is untouched.
+    /// </remarks>
+    [Fact]
+    public void AStrayOtherwiseInALoop_IsNotBlamedOnTheLoop()
+    {
+        var ex = ParseFails("""
+            For each n in the range 1 to 2, repeat:
+                Otherwise:
+                    State "x".
+            Done.
+            """);
+
+        Assert.DoesNotContain("opens a block", ex.Message);
+        Assert.Contains("Otherwise", ex.Message);
+    }
 }

@@ -1285,7 +1285,8 @@ public sealed class Parser
         }
         Consume(TokenType.Colon);
         _nestDepth++;
-        var result = ParseLoopBody(opener, "If x is 1, state \"one\".");
+        var result = ParseLoopBody(opener, "If x is 1, state \"one\".",
+                                   armContinuation: TokenType.Otherwise);
         _nestDepth--;
         return result;
     }
@@ -1615,14 +1616,47 @@ public sealed class Parser
                 + "inline form instead, which takes a comma and no 'Done.': "
                 + $"'{inlineExample}'"));
 
+    /// <summary>A block left open by WHAT CAME NEXT, rather than by the file ending.</summary>
+    /// <remarks>
+    /// <para>
+    /// ⚠⚠ MEASURED: `If x is 1:` — block form, no `Done.` — followed by `Otherwise:` answered
+    /// `expected statement keyword, got Otherwise "Otherwise"`, pointed at the `Otherwise`, and
+    /// said nothing about the `If` two lines up that was still open. `Unclosed` covers the same
+    /// mistake when the FILE ends; a block can equally be left open by the next arm arriving, and
+    /// only the first half had a sentence.
+    /// </para>
+    /// <para>
+    /// ★★ THE LANGUAGE INVITES THIS ONE. The inline form takes no `Done.` at all —
+    /// `If x is 1, state "one".` then `Otherwise, state "other".` — while the block form requires
+    /// one before every arm. Two neighbouring spellings disagree about it, so the message names
+    /// both rather than only refusing.
+    /// </para>
+    /// </remarks>
+    private static ParseException UnclosedBeforeArm(Token opener, Token found, string? construct = null) =>
+        new(opener.Line, opener.Column,
+            $"this '{construct ?? opener.Lexeme}' opens a block, and '{found.Lexeme}' arrived on "
+          + $"line {found.Line} before its 'Done.'. In the block form every arm closes before the "
+          + "next one begins: 'If x is 1: ... Done. Otherwise: ... Done.'. The INLINE form is the "
+          + "one that needs no 'Done.': 'If x is 1, state \"one\". Otherwise, state \"other\".'");
+
+    /// <param name="armContinuation">
+    /// A token that CONTINUES the construct this body belongs to, so meeting it means the body was
+    /// never closed. ⚠ Passed only by <see cref="ParseIfBody"/>, where `Otherwise` genuinely has
+    /// that meaning. A loop body gets null: an `Otherwise` inside a `For each` with no `If` open is
+    /// an ordinary mistake, and reporting the loop as unclosed would be a confident wrong answer —
+    /// the same trap `IsStatementOpener` warns about.
+    /// </param>
     private IReadOnlyList<IStatement> ParseLoopBody(
-        Token? opener = null, string? inlineExample = null, string? construct = null)
+        Token? opener = null, string? inlineExample = null, string? construct = null,
+        TokenType? armContinuation = null)
     {
         var stmts = new List<IStatement>();
         while (true)
         {
             SkipNoise();
             if (Peek().Type is TokenType.Done or TokenType.Eof) break;
+            if (armContinuation is { } arm && Peek().Type == arm && opener != null)
+                throw UnclosedBeforeArm(opener, Peek(), construct);
             stmts.Add(ParseStatement());
         }
         if (stmts.Count == 0)
