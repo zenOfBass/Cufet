@@ -26,7 +26,11 @@ namespace Cufet.Compiler.Tests;
 /// <item><c>```cufet-refused</c> — a counter-example. It must STAY refused. ⚠ This is the one
 /// nothing else could ever check: a counter-example that quietly starts working means the language
 /// moved under the doc, and it looks exactly like a counter-example that still fails.</item>
-/// <item><c>```output</c> — what the block above it prints. Not asserted yet.</item>
+/// <item><c>```output</c> — what the block above it prints, or the refusal it draws. Asserted
+/// against a real run, for a <c>cufet</c> block and a <c>cufet-refused</c> one alike. ⚠⚠ It must
+/// open on the line IMMEDIATELY after the previous fence closes — one blank line between them and
+/// the pair is silently skipped, which is how a doc can claim to be verified while nothing checks
+/// it. MEASURED: `docs/TUTORIAL.md` was written with a blank line and passed every sabotage.</item>
 /// </list>
 /// <para>
 /// ⚠ This REPLACED a hash baseline — a recorded list of blocks that happened to pass on some past
@@ -43,8 +47,13 @@ namespace Cufet.Compiler.Tests;
 /// </remarks>
 public class DocBlockTests
 {
+    /// <remarks>
+    /// ⚠ A HAND-KEPT LIST, deliberately: `docs/` also holds ROADMAP and DESIGN, whose samples
+    /// describe language that does not exist yet and must NOT be held to compiling. ★ The cost is
+    /// that a new doc is unchecked until it is named here, which is the trade being made knowingly.
+    /// </remarks>
     private static readonly string[] DocFiles =
-        ["README.md", "docs/BOOKS.md", "docs/GRAMMAR.md", "docs/REFERENCE.md"];
+        ["README.md", "docs/BOOKS.md", "docs/GRAMMAR.md", "docs/REFERENCE.md", "docs/TUTORIAL.md"];
 
     private static string RepoRoot => FindRepoRoot();
 
