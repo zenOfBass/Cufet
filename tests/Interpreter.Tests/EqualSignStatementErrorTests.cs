@@ -114,4 +114,51 @@ public class EqualSignStatementErrorTests
     {
         Assert.Equal("5", Run("Define x as 5. State x."));
     }
+    // —— The same mistake at the `Define` site ————————————————————
+    //
+    // ⚠⚠ ONE KEYWORD AWAY AND UNREACHED. The educational message above has answered `x = 5.` for
+    // a long time, while `Define x = 3.` — the SAME habit, carried in from every other language,
+    // and the likelier of the two for a beginner who is still introducing names — answered
+    // `expected As, got Equal "="`, naming a token type nobody outside the parser has heard of.
+
+    [Fact]
+    public void DefineWithEquals_GivesTheEducationalError()
+    {
+        var ex = ParseFails("Define x = 3.");
+        Assert.Contains("comparison, not assignment", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("expected As", ex.Message);
+    }
+
+    /// <remarks>
+    /// ★ It leads with `as`, where the statement-position message leads with `becomes`. The writer
+    /// already typed `Define`, so they have said which of the two they mean; answering with the
+    /// other one first would be answering a question they did not ask.
+    /// </remarks>
+    [Fact]
+    public void DefineWithEquals_LeadsWithAsAndStillOffersBecomes()
+    {
+        var ex = ParseFails("Define x = 3.");
+        Assert.Contains("'Define x as ...'", ex.Message);
+        Assert.Contains("'x becomes ...'", ex.Message);
+        Assert.True(ex.Message.IndexOf("Define x as") < ex.Message.IndexOf("x becomes"),
+                    "the introduce form should come first at a Define");
+    }
+
+    /// <remarks>⚠ The typed form takes the same path, and the message names the variable rather
+    /// than the type.</remarks>
+    [Fact]
+    public void DefineWithATypeAndEquals_IsCaughtToo()
+    {
+        var ex = ParseFails("Define the number x = 3.");
+        Assert.Contains("comparison, not assignment", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("'Define x as ...'", ex.Message);
+    }
+
+    /// <remarks>★ And `=` stays comparison everywhere it legitimately is one — the check sits at
+    /// the `Define` keyword's own `as` slot, not in expression position.</remarks>
+    [Fact]
+    public void EqualInAConditionAfterADefine_StillWorks()
+    {
+        Assert.Equal("three", Run("Define x as 3.\nIf x = 3, state \"three\"."));
+    }
 }

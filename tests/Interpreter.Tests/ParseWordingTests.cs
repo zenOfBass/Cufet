@@ -49,11 +49,18 @@ public class ParseWordingTests
     /// <remarks>
     /// ★ The guard against translating too much. `Done` and `As` are words a reader has typed, so
     /// the enum name IS the right word and the map must leave them alone.
+    ///
+    /// ⚠⚠ THE PROGRAM CHANGED, THE SUBJECT DID NOT. This used to be written `Define carrots = 3.`
+    /// — until that shape got an educational message of its own and stopped reaching
+    /// `expected As` at all. `Define carrots to 3.` is the same `Consume(TokenType.As)` at the same
+    /// call site, reached by a wrong word rather than by the one mistake now handled ahead of it.
+    /// The assertion is untouched: a test whose fixture is only a VEHICLE gets a new vehicle, never
+    /// a weaker claim.
     /// </remarks>
     [Fact]
     public void AKeywordsOwnNameIsLeftAlone()
     {
-        var ex = ParseFails("Define carrots = 3.");
+        var ex = ParseFails("Define carrots to 3.");
         Assert.Contains("expected As", ex.Message);
     }
 

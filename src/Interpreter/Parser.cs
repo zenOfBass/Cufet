@@ -189,6 +189,22 @@ public sealed class Parser
         // `Define c-language open-file, given (…), as [ … ].` — the clause sits between two commas,
         // the way an aside does in English. The second one only exists when the clause does.
         if (parameters is not null && Peek().Type == TokenType.Comma) { Advance(); SkipNoise(); }
+
+        // ★★ THE SAME MISTAKE THE STAT—ENT FORM ALREADY TEACHES, one keyword away and unreached.
+        // `x = 5.` has answered *"'=' is comparison, not assignment"* for a long time (see
+        // ParseBecomesStatement); `Define x = 3.` answered `expected As, got Equal "="`, which
+        // names a token type a beginner has never heard of for the commonest habit carried in from
+        // every other language.
+        //
+        // ⚠ It says `as` FIRST, because the writer already typed `Define` and so has already said
+        // they mean to introduce — offering `becomes` first would answer a question they did not
+        // ask. The sibling message leads the other way for the same reason.
+        if (Peek().Type == TokenType.Equal)
+            throw new ParseException(line, col,
+                $"'=' is comparison, not assignment. A 'Define' introduces a name with 'as': "
+              + $"'Define {name} as ...'. To update a name that already exists, write "
+              + $"'{name} becomes ...'.");
+
         Consume(TokenType.As);
         SkipNoise(); // skips article 'an' before 'interface'
         if (Peek().Type == TokenType.Interface)
