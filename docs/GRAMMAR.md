@@ -3088,6 +3088,36 @@ read, never its contents: every tool that resolves a pull would otherwise have t
 description to import a book. No blueprint above the file means no project, and the `books` step is
 simply skipped.
 
+★★ **A PULLED FILE IS A LIBRARY: its top level may DECLARE, but not ACT.** Pulling loads the
+file and runs it, so anything that does something would do it inside your pull, before your own
+first line — and it used to do exactly that, in silence. A file is therefore a program or a
+library, and a file that acts at its top level is refused at the pull, with the fix: split it in
+two.
+
+Declarations, plus `Define`, plus `Pull ... Done.` (which is transparent — a library may keep its
+whole body inside one):
+
+```cufet-fragment
+Define object pennies with () and book:
+    Bind number to to-the-penny, given (the number amount), amount.
+Done.
+Define rate as 5.
+```
+
+All of that is fine. A `State` line beside them is not, and is refused at the pull.
+
+⚠ No fence tag can show that half: `State "loaded".` is a perfectly good PROGRAM on its
+own, and is refused only when the file holding it is pulled. The refusal belongs to the
+pull, not to the line.
+
+⚠ `Define` stays allowed because a constant is how a library is written. The hole that leaves is
+known and deliberate: a `Define` whose VALUE does something still runs at pull time, and closing it
+needs an effect system the language does not have.
+
+★ The witness is `tools/shell.cufe` — its machinery is worth pulling and its last line starts the
+shell, so nothing can borrow it. Splitting such a file needs no language feature, which is why
+Cufet has no `if __name__ == "__main__"` and does not want one.
+
 ★★ **Nearest wins**, so a book beside the puller shadows the project's. ⚠ Still one book per NAME in
 a program whichever place it came from — `MakePrivate` renames what a book declares to
 `‹name› in ‹book›`, so two files answering to one name would collide on every declaration.

@@ -47,6 +47,28 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Changed
 
+- **A pulled file is a LIBRARY: its top level may declare, but not act.** Pulling loads a file and
+  runs it, so a `State` at a book's top level printed when somebody pulled it — before their own
+  first line, exit 0, not a word said. Pulling somebody's library ran their program inside your
+  block. That is now refused at the pull, naming the file and the fix.
+
+  ★★ THE RUNNING WAS NEVER THE UN-CUFET PART; THE SILENCE WAS. So a file is a program or a
+  library, which is what Rust and Go both answer, and needs no marker for *"only when I am the one
+  being run"*. The witness is `tools/shell.cufe`: its machinery is worth pulling and its last line
+  starts the shell, so nothing can borrow it. Splitting such a file needs no language feature, and
+  inventing one when a split suffices would be a rule wider than its reason.
+
+  ★ `Define` stays allowed, loose or `permanently`, because a constant is how a library is
+  written. ⚠ The hole that leaves is deliberate — a `Define` whose VALUE acts still runs at pull
+  time, and closing it needs an effect system Cufet does not have and no witness has asked for.
+
+  ⚠⚠ The check descends through `Pull ... Done.` by asking `TypeChecker.FlattenHoistable` rather
+  than walking again: `examples/language/pennies.cufe` keeps its ENTIRE body inside a pull, so a
+  check that stopped at the outermost statement would refuse a file the corpus relies on.
+
+  ★ MEASURED at zero blast radius: every pulled file in the tree and every prelude file was
+  already declarations-only. The rule was universally observed and simply unenforced.
+
 - **A module written inside a pull keeps it, instead of charging its caller.** A module's needs come
   from the block it is USED in — that is what lets a library file say `math's pi` and leave `math`
   to whoever pulls it — but the rule was also applied to names the module had already resolved for
