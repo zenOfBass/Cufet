@@ -8,6 +8,15 @@ public sealed partial class TypeChecker
 
     private static readonly Dictionary<string, BookType> BuiltinBooks = BuildBuiltinBooks();
 
+    /// <summary>Every bundled book and its NATIVE members, for the documentation check.</summary>
+    /// <remarks>
+    /// ★ `internal`, not public: this is not language surface, it is the one table
+    /// `BookDocumentationTests` reads so the check cannot re-derive a second answer to "what does
+    /// this book hand out". ⚠ The CUFET-layer members are not here — they live in the prelude's
+    /// object definition and are read from a checked program, which is the only place they exist.
+    /// </remarks>
+    internal static IReadOnlyDictionary<string, BookType> BundledBooks => BuiltinBooks;
+
     private static Dictionary<string, BookType> BuildBuiltinBooks()
     {
         var books = new Dictionary<string, BookType>(StringComparer.OrdinalIgnoreCase);
