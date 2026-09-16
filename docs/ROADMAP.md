@@ -208,10 +208,12 @@ they are large, not because they are waiting — the order among them means noth
      than a permission check. ⚠ That is a small GAME, and none of it is Cufet work. The spine must
      be decided before rooms are written, or the becoming-real ending cannot know you are ready.
 
-   ⚠⚠ **Found by trying to teach: PARSE errors do not explain themselves.** A missing `Done.` gives
-   `Line 4, column 1: expected Done, got Eof ""` against the four-part type errors. A beginner meets
-   that long before a type error, so the debugging lessons cannot start where beginners actually
-   start. That is a gap in the language's own voice rather than a tutorial problem — see item 5.
+   ✅ **The parse-error blocker is CLEARED, 2026-09-15**, and it was found by trying to teach: a
+   beginner meets a missing `Done.` long before a type error, so debugging lessons could not start
+   where beginners actually start. Unclosed blocks and declaration bodies, a missing `Done.` before
+   `Otherwise`, `Define x = 3`, and a reserved word used as a loop variable all explain themselves
+   now. ★ It was a gap in the language's own voice rather than a tutorial problem, which is why it
+   was worth fixing first — the lessons would have had to apologise for it.
 
    ★ **A REPL page, and it is the cheapest thing on this entry.** `tools/repl.cufe` already
    answers the question a REPL usually poses — how to keep state across evaluations — and answers
@@ -231,75 +233,6 @@ they are large, not because they are waiting — the order among them means noth
 
    ⚠ Whatever is written must be pinned like the doc fences are: a lesson whose code stops working
    is worse than no lesson, and this project has the machinery to catch that already.
-
-5. **A parse error should explain itself the way a type error does.** ⚠⚠ MEASURED 2026-09-14, by
-   writing five broken programs to pick a first tutorial lesson. Every TYPE refusal has four parts —
-   the rule, what you did, the fix, and a worked example:
-
-   ```
-   That doesn't work: you can only join text to text.
-     Here on line 2, you're trying to join text to a number.
-
-     Convert the number first: use 'converted to text'.
-     For example: "score: " joined to n converted to text.
-   ```
-
-   A missing `Done.` gives the whole of this:
-
-   ```
-   Line 4, column 1: expected Done, got Eof "".
-   ```
-
-   ★★ **This is an inconsistency in the language's own voice, not a missing feature.** Cufet's
-   claim is that it refuses clearly and says why; that claim holds in the checker and stops at the
-   parser. ⚠ And it lands where it does the most harm: a beginner meets an unclosed block long
-   before a type mismatch, so the first refusal anyone sees is the worst one the language produces.
-
-   ⚠ It also blocks item 4 — debugging-first lessons cannot start where beginners actually start.
-
-   ✅ **The UNCLOSED-BLOCK half is done, 2026-09-14** — `If`, `Otherwise`, a `Judge` arm, `Try`,
-   both handler arms and `With … open … as` now name the construct and point at where it began,
-   joining `repeat`, which already did. ★ It needed no new analysis: `ParseLoopBody` had always
-   taken an opener token and six of its seven call sites never passed one. ⚠ The `repeat` message
-   was also UNTESTED — the one good parse error in the codebase could have been refactored away in
-   silence. `UnclosedBlockTests` pins all of them now.
-
-   ✅ **The EXPECTED half of the mechanical message stopped speaking lexer, same day.** `Consume`
-   translated the seven token types that are jargon — `expected '.'`, `expected ':'`, `expected a
-   name` — and leaves keywords alone, since a keyword's enum name IS the keyword. ★ And a RESERVED
-   WORD in a name's place now says so outright rather than answering *expected Identifier, got Key
-   "key"*; no keyword table was needed, because the lexer only refuses a bare word an Identifier
-   when the language has taken it.
-
-   ⚠⚠ **THE RESERVED-WORD MESSAGE IS NARROWER THAN IT LOOKS, and it was caught the same day by
-   collision number SEVEN.** It fires only where the parser explicitly asks for an `Identifier`. A
-   reserved word used as a LOOP VARIABLE does not reach that consume: `For each entry in found`
-   answers *expected In, got Entry "entry"*, because the name slot was skipped and the parser was
-   already looking for `in`. So `Define key as 3.` is covered and `For each entry in …` is not —
-   which is the case a beginner is likelier to write.
-
-   ★ The shape of the fix is probably not another special case: a word-shaped RESERVED token
-   appearing where a NAME was wanted is the same mistake whichever token the parser happened to ask
-   for next. Recognising it by the token rather than by the expectation would cover every name
-   position at once. ⚠ Not attempted — it needs to know which positions are name positions, and
-   guessing wrong would mislabel an ordinary syntax error as a reserved word.
-
-   ⚠ **What remains, and the largest piece is deliberately NOT the generic message:**
-
-   - **The `got` half still prints enum names** — *expected As, got Equal "="*. ⚠ Two tests depend
-     on that format: `DocBlockTests`' `RanOutOfInput` regex, and a `DoesNotContain("got Eof")`
-     assertion in `PipelineInlineFormTests` that would become VACUOUS if the wording moved. The win
-     is small anyway, since the lexeme is already quoted beside it.
-   - **`Define x = 3`** → *expected As, got Equal "="*. ★ Cufet already has an educational message
-     for `x = 5` in STATEMENT position (`EqualSignStatementErrorTests`); the `Define` site simply
-     does not reach it. A targeted fix with a working precedent beats widening the generic one.
-   - **`Otherwise` without the `Done.` that closes the arm before it** → *expected statement
-     keyword*. A plausible belief — that `Otherwise` closes the `If` — answered by nothing.
-   - **An unclosed `Bind` body** — still mechanical, because `Bind` does not route through
-     `ParseLoopBody`.
-
-   ★ The pattern across all four: the remaining wins are SPECIFIC mistakes deserving their own
-   message, not a better generic one. Which is the same shape the type errors already have.
 
 ## Ongoing, no fixed slot
 
