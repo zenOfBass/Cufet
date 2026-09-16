@@ -87,6 +87,21 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   example — and its PARSE refusals mostly have one. That lands where it hurts most, since a
   beginner leaves a block open long before they mismatch a type. The rest is ROADMAP item 6.
 
+
+- **And so does a declaration body — `Bind`, a getter, a setter, an unmaker and an overload.** The
+  pass above reached every block STAT—ENT and left every DECLARATION body answering
+  `expected Done, got Eof ""` at the end of the file. `Bind` is the commonest block in the language,
+  so the gap was widest exactly where a beginner meets it first. All six now name the construct and
+  point at its opening line, and the two that open on the word `Bind` say which kind they are:
+  *"this 'Bind unmaking' opens a block"*.
+
+  ★ Each offers the inline form that is right for IT — a value body's is an expression
+  (`Bind number to double, given (the number n), n * 2.`) and a void body's is a statement
+  (`Bind void to greet, State "hi".`), so the two `Bind` branches cannot share one example.
+
+  ⚠ Every inline form quoted in these messages was RUN before it was written into one; the
+  setter's shape took two tries to get right. A refusal that hands someone a line the parser would
+  reject is worse than the mechanical message it replaces.
 - **A reserved word used as a name says so.** `Define key as 3.` answered *expected Identifier, got
   Key "key"*, leaving a reader to deduce that `key` was taken. It now says *"'key' is a word Cufet
   has taken, so it cannot be a name here. A reserved word can be neither a variable nor a field,
