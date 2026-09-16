@@ -132,6 +132,20 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   ⚠ `=` stays comparison everywhere it legitimately is one. The check sits at the `Define`
   keyword's own `as` slot, not in expression position, so `If x = 3, state "three".` is untouched
   — pinned by its own test.
+
+- **A reserved word used as a LOOP VARIABLE now says so.** `For each entry in xs` answered
+  `expected In, got Entry "entry"` — a token type, and the wrong slot blamed. It now gets the same
+  sentence every other reserved-word collision gets. MEASURED on `entry`, `key` and `path`:
+  collisions four, seven and eight, all everyday nouns, all in the position a beginner writes first.
+
+  ★ THE EXISTING ME★AGE WAS NARROWER THAN IT LOOKED, and this is why. It fires where the parser
+  D—ANDS an identifier; a loop's iterator name is optional, so a reserved word was never consumed
+  at all and the failure surfaced two tokens later. The fix rests on the rule the message already
+  rested on, read the other way round: the slot takes EVERY identifier, so a word-shaped token
+  still sitting there is reserved by construction. No keyword table, nothing to maintain.
+
+  ⚠ `In` and `From` are excluded, because the name really is optional — `For each in xs, state
+  it.` and `For each line from the input, ...` are both real programs, and both are pinned.
 - **A reserved word used as a name says so.** `Define key as 3.` answered *expected Identifier, got
   Key "key"*, leaving a reader to deduce that `key` was taken. It now says *"'key' is a word Cufet
   has taken, so it cannot be a name here. A reserved word can be neither a variable nor a field,
