@@ -10,6 +10,20 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+- **`examples/language/pennies.cufe` and `basket.cufe` — a book that pulls what it needs.** The
+  counterpart to `bookkeeping.cufe`, which names `math` without pulling it and leaves the debt to
+  whoever pulls the module — the reason `ledger.cufe` has to nest `Pull a book on math.` around
+  `Pull a bookkeeping.` Here the book is written INSIDE the pull it needs, so it keeps it, and the
+  consumer names one book and never hears about `math`.
+
+  ★ The pair is the two halves of one rule, side by side in the same folder: defer when the caller
+  is meant to supply the dependency, pull it yourself when it is an implementation detail. Neither
+  is the fallback — a name is satisfied where it is found.
+
+  ⚠ It is a real demonstration rather than a program that happens to be in two files: with the
+  module fix reverted, `basket.cufe` is REFUSED with *"'pennies' uses 'math', which isn't pulled
+  here"*. MEASURED both ways before it was committed.
+
 - **`cufet pulls <file.cufe> …` — which FILES a file brings in**, so a blueprint need not list
   dependencies by hand. One `<file>: <pulled>` line per pair, always prefixed however many files
   are asked about, and nothing at all for a file that pulls none.
