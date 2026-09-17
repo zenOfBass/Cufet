@@ -4404,6 +4404,7 @@ collector, no interpreter loop.
 cufet program.cufe                  run it (interpreted)
 cufet build program.cufe            compile to a native binary
 cufet build                         build the PROJECT, from its blueprint.cufe
+cufet install                       fetch the books that blueprint PINS
 cufet emit-c program.cufe out.c     emit the C, without invoking gcc
 cufet pulls program.cufe            list the FILES it brings in
 ```
@@ -4429,6 +4430,17 @@ a build whose source is momentarily broken must still know what to watch.
 `blueprint.cufe` and does what the build description says — see [BOOKS.md](BOOKS.md#blueprints-blueprints).
 ⚠ `cufet build blueprint.cufe` is refused by name, because under the overload it would quietly
 compile the build description itself into a binary.
+
+★ **`install` reads the PINS in that same blueprint** — each one a book, a git source and an exact
+commit — clones each source once into `books/.cufet-cache/`, and writes the pinned file to `books/`,
+where a pull already looks. Books that a fetched book pins are fetched too, so a project pins what
+it uses and not what its books use. Full detail, including the `pin` shape, is in
+[BOOKS.md](BOOKS.md#pinned-books-cufet-install).
+
+⚠⚠ **Reading a fetched book's pins RUNS its blueprint**, so installing a book runs code from its
+repository. That is the npm/pip postinstall hazard, taken deliberately so a blueprint may compute
+its pins; `install` names each blueprint before it runs one. `install` requires **`git` on your
+`PATH`**, and nothing else — there is no registry, and publishing a book is `git push`.
 
 `build` requires **`gcc` on your `PATH`**. Nothing else — the generated C is
 self-contained, with no external libraries and no flags beyond `-O2`, `-pthread`

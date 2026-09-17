@@ -301,6 +301,17 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **`cufet --help` listed neither `cufet install` nor bare `cufet build`.** Both shipped
+  undiscoverable — and bare `build`, the project build, was the headline of 0.23.0. `--help` is the
+  only place a person looks before reading source, so a verb missing from it is a verb they do not
+  have. `docs/REFERENCE.md`'s command table was missing `install` too.
+
+  ★★ **The help text had NO TEST AT ALL**, which is exactly how two verbs went missing from it. It
+  has one now, and it is DERIVED FROM THE DISPATCH rather than from a list kept beside it: a verb
+  added without a help line fails the day it is written. ⚠ The derivation is itself guarded against
+  going inert, because a derived set that quietly empties passes by having nothing to check — the
+  failure shape that cost an afternoon in the playground the same day.
+
 - **The playground never placed `pennies.cufe`, so `basket.cufe` could not run there.** Found by
   CI. The build decides which corpus files are BOOKS worth seeding by matching how a module
   declares itself, and that pattern was anchored at COLUMN 0 — which assumes a book is declared at
