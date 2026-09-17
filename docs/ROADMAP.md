@@ -125,11 +125,55 @@ they are large, not because they are waiting — the order among them means noth
    build description to import a book. The refusal now names the places it looked, which it never
    did — that message, more than the rule, is why this read as a language with no file resolution.
 
-   ⚠ **Still missing for a manager: a book has nowhere of its OWN.** Everything installed would
-   land flat in one `books/` folder, so two books cannot carry different versions of a third and
-   nothing distinguishes a fetched book from one you wrote. The loader already resolves a book's
-   own pulls beside THAT BOOK rather than beside the program, which is the half that makes a
-   per-book folder work — but that is currently unobservable, and no folder shape is decided.
+   ✅ **The SHAPE is settled, 2026-09-16 — designed, not built.**
+
+   ★★ **One constraint decides nearly all of it:** *one book per NAME in a program, whichever
+   place it came from*, because `MakePrivate` renames what a book declares to `<name> in <book>` and
+   the name IS the namespace. So two versions of one book cannot coexist, by construction. Cufet
+   needs version SELECTION, never isolation — npm's nested private copies are structurally
+   unavailable. ★ Python is the precedent, not npm: `site-packages` is flat with one version
+   per name, and virtualenvs exist because of it. Cufet already has the virtualenv — `books/`
+   is per-project by construction.
+
+   - **Exact pins, so there is no resolver.** No constraint sublanguage, no negotiation. ★ A
+     diamond therefore becomes a REFUSAL naming both pins, which is the answer this language gives
+     everywhere else, rather than npm nesting two copies or pip taking whichever landed last.
+   - **`books/` stays FLAT** — one file per name on disk, mirroring one book per name in the
+     program. ⚠ The old complaint here, *"two books cannot carry different versions of a
+     third"*, DISSOLVES: it is not a folder problem and no folder shape can fix it.
+   - **Dependencies are DERIVED, not declared.** `Pull a book on canvas.` IS the declaration and
+     `cufet pulls` already reports what the loader resolved — the same move `blueprints` made.
+     A manifest listing dependencies would be a second copy of something derivable. What cannot be
+     derived is ORIGIN: which source, which version.
+   - **Pins live in `blueprint.cufe`**, read by an installer that RUNS it, exactly as `cufet build`
+     does today. ★ *"Only its LOCATION is read"* constrains the LOADER — `check`, `run`,
+     the editor — so that importing never executes a build description. An installer is a
+     build-time tool, and by the time the loader runs, `books/` is already populated.
+   - **A book is a PROJECT when you develop it and a FILE when you consume it.** Its own
+     `blueprint.cufe` carries its pins and travels only as far as the installer; only the `.cufe`
+     lands in `books/`. ⚠ That is forced rather than chosen: a blueprint inside `books/`
+     would mark that directory a project root.
+   - ★ **Fetched versus written is then answered for free** — anything in `books/` was
+     fetched, because a book you wrote lives beside the file that pulls it, where *nearest wins*
+     already puts it first.
+
+   ⚠⚠ **A THIRD GAP, found 2026-09-16 and bigger than the two written down: a book cannot
+   have PRIVATE PARTS.** Book names are one flat global namespace, loaded once however many books
+   pull them, and MEASURED: `Resolve` accepts exactly `<name>.cufe` — a book is precisely one
+   file. So a book that outgrows one file must split into OTHER books, each taking a global name,
+   and two unrelated libraries with an internal `utils` collide. ★ Note this is a different
+   privacy from the one shipped 2026-09-15: a book's DEPENDENCY is private (a program pulling
+   `canvas` never names `palette`), but the NAME is not. ⚠ This is the one thing that could
+   still argue for per-book directories, against the flat shape above — they are answers to
+   different problems, and only this one is unsolved.
+
+   **Open, and nothing above depends on either:**
+
+   - **Who writes the transitive list.** With exact pins, the project's full flat pin list IS the
+     lockfile. ⚠ Having `cufet install` write it back is `go mod tidy` — and it is a
+     tool editing your source, which this project may not want.
+   - **What a SOURCE is.** A URL, a git ref, a registry name. Pins work the same whatever it turns
+     out to be, so it can be decided last.
 
 3. **Generated pages for a book.** What a reader gets when they pull a book somebody else wrote.
    Doc comments and hover are built; pages are the half that is not.
