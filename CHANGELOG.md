@@ -240,6 +240,23 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **Two files answering to one book name are refused, instead of one silently winning by ORDER.**
+  MEASURED: a library with its own `utils` beside it, and a program with a different `utils` beside
+  that. `Pull books on utils, and alpha.` handed the library the PROGRAM's helper; swapping the two
+  names handed the program the LIBRARY's. Same files, same program, different answer by the order
+  the names were written — exit 0, nothing said.
+
+  ★★ The cause is one word: the loaded set was keyed by NAME, but what has to be unique is
+  the FILE. Two pulls of one name resolving to one file is a DIAMOND and stays legal; resolving to
+  two is a CONFLICT, and the refusal names both paths, because the fix is to rename one and you
+  cannot do that without being told which two they are.
+
+  ⚠ The loader runs ahead of both backends, so this was not a divergence — both printed
+  the same wrong answer, and the oracle is structurally blind to that.
+
+  ★ A library still keeps its OWN helper when the program does not pull that name at all;
+  that was measured before the fix and is unchanged by it. Privacy held right up to the collision.
+
 - **The reference no longer promises RAII the language does not deliver.** `REFERENCE.md` described
   an unmaker as running *"when a binding goes out of scope"* and listed `a return` among the ways
   out that fire one, without saying that a function or method BODY is not a block. MEASURED in both

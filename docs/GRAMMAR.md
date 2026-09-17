@@ -3122,6 +3122,16 @@ Cufet has no `if __name__ == "__main__"` and does not want one.
 a program whichever place it came from — `MakePrivate` renames what a book declares to
 `‹name› in ‹book›`, so two files answering to one name would collide on every declaration.
 
+⚠⚠ **And two files answering to one name is REFUSED, naming both.** A library with its own
+`utils` beside it and a program with a different `utils` beside that are two files for one name, so
+the program is refused rather than handed one of them. ★ Two pulls of one name resolving to
+the SAME file is an ordinary diamond and stays legal — that is a shared dependency, not a
+conflict.
+
+★ It used to be decided by ORDER, and said nothing: whichever name was written first claimed
+the file, so `Pull books on utils, and alpha.` and `Pull books on alpha, and utils.` ran the same
+libraries and printed different answers.
+
 ⚠ A book's own pulls resolve beside **that book**, not beside the entry program. MEASURED
 unobservable today, since a book is always found in one of the two search places and the shared
 folder is a fallback at every level — it becomes visible only once a book can live somewhere that
