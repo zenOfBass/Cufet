@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
 using Xunit;
 
 namespace Cufet.Compiler.Tests;
@@ -479,5 +480,50 @@ public class CommandLineTests
             Assert.Contains("1", stdout);
         }
         finally { File.Delete(file); }
+    }
+
+    /// <summary>Every verb the command routes is findable in `--help`.</summary>
+    /// <remarks>
+    /// <para>
+    /// ⚠⚠ **THE HELP HAD NO TEST AT ALL**, and that is exactly how two things went missing from it:
+    /// `cufet install` shipped undiscoverable, and so did bare `cufet build` — the project build,
+    /// which was the headline of 0.23.0. MEASURED 2026-09-17. A verb nobody can find is a verb
+    /// nobody has.
+    /// </para>
+    /// <para>
+    /// ★★ **DERIVED FROM THE DISPATCH, not from a list here.** A list in this file would go stale
+    /// the same way the help did, and for the same reason — two places stating one fact. Reading
+    /// the dispatch means a verb added without a help line fails this the day it is written.
+    /// </para>
+    /// <para>
+    /// ⚠ **The derivation is guarded**, because a derived set that quietly empties passes by having
+    /// nothing to check. That failure shape cost a CI-red afternoon in the playground the same day:
+    /// there, a shrinking derivation DELETED tests and the suite went green two tests lighter.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void EveryVerbTheCommandRoutes_IsListedInTheHelp()
+    {
+        string dispatch = File.ReadAllText(Path.Combine(RepoRoot, "src", "App", "Program.cs"));
+        var verbs = Regex.Matches(dispatch, @"args\[0\]\.Equals\(""([a-z-]+)""")
+                         .Select(m => m.Groups[1].Value)
+                         .Distinct(StringComparer.Ordinal)
+                         .ToList();
+
+        Assert.True(verbs.Count >= 6,
+            $"only {verbs.Count} verb(s) were found in the dispatch — the spelling changed and this "
+            + "test is now inert, which is worse than a missing help line.");
+
+        var (exit, help, _) = Run("--help");
+        Assert.Equal(0, exit);
+
+        foreach (var verb in verbs)
+            Assert.True(help.Contains($"cufet {verb}", StringComparison.Ordinal),
+                $"'cufet {verb}' is routed but never listed in --help:\n\n{help}");
+
+        // ★ `build` is overloaded by ARITY, so the derivation above cannot see the bare form — it
+        // is the same verb, and the one that went missing. Pinned by shape: the word, then the
+        // column the descriptions line up in.
+        Assert.Matches(@"(?m)^\s*cufet build\s{2,}\S", help.Replace("\r\n", "\n"));
     }
 }

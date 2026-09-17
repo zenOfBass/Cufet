@@ -135,6 +135,8 @@ static void Help()
           cufet tokens --json <file.cufe>      report what each name in the file IS
           cufet pulls <file.cufe> [more…]      report which FILES a file brings in
           cufet build <file.cufe>              compile to a native binary (needs gcc)
+          cufet build                          build the PROJECT its blueprint.cufe describes
+          cufet install                        fetch the books that blueprint pins (needs git)
           cufet emit-c <file.cufe> [out.c]     write the generated C without compiling
                                        (out.c plus cufet-runtime.c/.h beside it)
 
@@ -151,6 +153,16 @@ static void Help()
         cannot tell those apart in Cufet, so an editor layers this over its own colouring.
         Exit: 0 when the file was classified, 1 when it does not lex, parse or type-check
         (an unchecked file cannot be classified reliably), 2 when it cannot be read.
+
+        build is overloaded by arity: with a file it compiles that one file, with nothing
+        it reads blueprint.cufe and does what the build description says. A project is a
+        directory holding one.
+
+        install reads the pins in that same blueprint — each one a book, a source and an
+        exact commit — clones each source into books/.cufet-cache/ and writes the pinned
+        file to books/, where a pull looks. Books a fetched book pins are fetched too, and
+        reading them RUNS that book's blueprint, so installing a book runs code from its
+        repository. Every blueprint is named before it is run.
         """);
 }
 
