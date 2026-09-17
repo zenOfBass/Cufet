@@ -194,6 +194,32 @@ Bind void to bp-remember, given (the series of text bp-lines):
     Done.
 Done.
 
+/// Every book a blueprint pins, one per line, as `name<TAB>source<TAB>commit`.
+///
+/// ★★ WHAT A PIN MEANS STAYS IN CUFET; HOW A PIN IS FETCHED IS PLUMBING. The `pin` type and the
+/// blueprint that declares them are the language's half, and this is the seam between them —
+/// `cufet install` asks a blueprint what it pins by RUNNING it and reading what it prints back.
+/// Fetching is a CLOSURE over a graph (clone, extract, then follow the fetched book's own
+/// blueprint), and a loop that lives half in each language is a loop nobody can read. It moved to
+/// C#, beside the gcc shelling that was already there.
+///
+/// ⚠ TAB-SEPARATED, and that is not arbitrary. A name is an identifier and a source is a path or
+/// a URL, so neither can hold a tab — where the readable form this used to print,
+/// `name <- source at commit`, could be torn apart by a directory called `at`.
+///
+/// ⚠ It spells the record shape out rather than naming `pin`, for the same reason `bp-walk`
+/// spells out a step: a book's type is in scope only inside a pull on that book, and this file IS
+/// the book.
+///
+/// ★ A blueprint that pins nothing prints nothing. Most projects depend on no books at all, and
+/// the caller says so in words — an empty listing is not a thing to be read twice.
+Bind void to bp-pins, given (
+    the series of records like (the text name, the text source, the text commit) bp-list):
+    For each bp-one in bp-list, repeat:
+        State "{the name of bp-one}\t{the source of bp-one}\t{the commit of bp-one}".
+    Done.
+Done.
+
 /// Run every step, each one after whatever it needs.
 ///
 /// ⚠ A WORKLIST, never recursion — the same lesson `regex.cufe` learned the hard way, where an
@@ -203,98 +229,6 @@ Done.
 /// ★ Repeatedly taking the first ready step is quadratic in the number of steps. That is the right
 /// trade here: a build graph is tens of steps, not millions, and the simple rule is the one a
 /// reader can check against the sentence above it.
-/// What `cufet install` would fetch: one line per pin, in the order the blueprint lists them.
-///
-/// ★★ REPORTING BEFORE ACTING, which is the order `cufet pulls` established and the reason
-/// this exists as its own step rather than as a flag on the fetch. A dependency list you cannot
-/// read before it runs is one you find out about afterwards.
-///
-/// ⚠ It spells the record shape out rather than naming `pin`, for the same reason `bp-walk`
-/// spells out a step: a book's type is in scope only inside a pull on that book, and this file IS
-/// the book.
-///
-/// ★ A blueprint that pins nothing is not an error. Most projects depend on no books at all,
-/// and saying so plainly beats an empty listing a reader has to interpret.
-Bind void to bp-pins, given (
-    the series of records like (the text name, the text source, the text commit) bp-list):
-    If the number of bp-list is 0:
-        State "This project pins no books.".
-        Return.
-    Done.
-    For each bp-one in bp-list, repeat:
-        State "{the name of bp-one} <- {the source of bp-one} at {the commit of bp-one}".
-    Done.
-Done.
-
-/// Fetches every pinned book into `books/`, cloning each source once and keeping the clone.
-///
-/// ★★ THE CLONE IS THE CACHE, and it lives at `books/.cufet-cache/<name>` for a measured
-/// reason rather than a tidy one: `Write` does not create parent directories and Cufet cannot make
-/// one, so `books/` has to be created by something. `git clone` creates its target INCLUDING
-/// parents, so cloning into a subdirectory of `books/` is what brings `books/` into being.
-///
-/// ★ Deleting `books/` therefore removes everything the installer made — one directory,
-/// the same escape hatch `.cufet-build` offers the build.
-///
-/// ⚠ `--no-checkout` on purpose. Nothing needs a working tree, and a checkout is where git
-/// rewrites line endings: on Windows `core.autocrlf` would change the bytes of every book fetched.
-/// `git show <commit>:<file>` reads straight out of the object store, which no config rewrites.
-Bind void to bp-fetch, given (
-    the series of records like (the text name, the text source, the text commit) bp-list):
-    For each bp-one in bp-list, repeat:
-        Define bp-where as "books/.cufet-cache/{the name of bp-one}".
-        Define bp-into as "books/{the name of bp-one}.cufe".
-
-        // ★ Asked of the DIRECTORY rather than by letting a clone fail: a clone can fail for
-        // a dozen reasons, and reading "already there" out of any of them would turn a bad source
-        // into a silent no-op.
-        Define bp-cached as true.
-        Try to:
-            Define bp-seen as the contents of the directory bp-where.
-        Done.
-        In case of failure:
-            The bp-cached becomes false.
-        Done.
-
-        Try to:
-            If bp-cached is false:
-                State "cufet install: fetching {the name of bp-one}".
-                Define bp-got as run "git" with arguments (
-                    "clone", "--quiet", "--no-checkout", the source of bp-one, bp-where).
-                If the exit-code of bp-got is not 0:
-                    State "cufet install: {the name of bp-one}: {the errors of bp-got}".
-                    Exit with 1.
-                Done.
-            Done.
-
-            // ⚠ A pinned commit may not be in a cache fetched before it existed, so an
-            // already-cached source is brought up to date before the commit is asked for.
-            If bp-cached is true:
-                Define bp-new as run "git" with arguments ("-C", bp-where, "fetch", "--quiet").
-                If the exit-code of bp-new is not 0:
-                    State "cufet install: {the name of bp-one}: {the errors of bp-new}".
-                    Exit with 1.
-                Done.
-            Done.
-
-            Define bp-file as run "git" with arguments (
-                "-C", bp-where, "show",
-                "{the commit of bp-one}:{the name of bp-one}.cufe").
-            If the exit-code of bp-file is not 0:
-                State "cufet install: {the name of bp-one}: {the errors of bp-file}".
-                Exit with 1.
-            Done.
-
-            Write the output of bp-file to the file bp-into.
-            State "cufet install: {the name of bp-one} at {the commit of bp-one}".
-        Done.
-        In case of failure:
-            State "cufet install: {the name of bp-one}: {the message of the failure}".
-            Exit with 1.
-        Done.
-    Done.
-Done.
-
 Bind void to bp-walk, given (
     the series of records like (the text name, the series of text needs, the series of text makes, the series of text runs) bp-plan):
     Define bp-ran as a series of fact.
