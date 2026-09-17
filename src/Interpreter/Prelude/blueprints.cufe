@@ -203,6 +203,29 @@ Done.
 /// ★ Repeatedly taking the first ready step is quadratic in the number of steps. That is the right
 /// trade here: a build graph is tens of steps, not millions, and the simple rule is the one a
 /// reader can check against the sentence above it.
+/// What `cufet install` would fetch: one line per pin, in the order the blueprint lists them.
+///
+/// ★★ REPORTING BEFORE ACTING, which is the order `cufet pulls` established and the reason
+/// this exists as its own step rather than as a flag on the fetch. A dependency list you cannot
+/// read before it runs is one you find out about afterwards.
+///
+/// ⚠ It spells the record shape out rather than naming `pin`, for the same reason `bp-walk`
+/// spells out a step: a book's type is in scope only inside a pull on that book, and this file IS
+/// the book.
+///
+/// ★ A blueprint that pins nothing is not an error. Most projects depend on no books at all,
+/// and saying so plainly beats an empty listing a reader has to interpret.
+Bind void to bp-pins, given (
+    the series of records like (the text name, the text source, the text commit) bp-list):
+    If the number of bp-list is 0:
+        State "This project pins no books.".
+        Return.
+    Done.
+    For each bp-one in bp-list, repeat:
+        State "{the name of bp-one} <- {the source of bp-one} at {the commit of bp-one}".
+    Done.
+Done.
+
 Bind void to bp-walk, given (
     the series of records like (the text name, the series of text needs, the series of text makes, the series of text runs) bp-plan):
     Define bp-ran as a series of fact.
