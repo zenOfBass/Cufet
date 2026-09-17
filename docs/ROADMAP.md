@@ -179,8 +179,35 @@ they are large, not because they are waiting — the order among them means noth
    - **Who writes the transitive list.** With exact pins, the project's full flat pin list IS the
      lockfile. ⚠ Having `cufet install` write it back is `go mod tidy` — and it is a
      tool editing your source, which this project may not want.
-   - **What a SOURCE is.** A URL, a git ref, a registry name. Pins work the same whatever it turns
-     out to be, so it can be decided last.
+   ✅ **What a SOURCE is — SETTLED 2026-09-17: a git repo and a COMMIT SHA, fetched by
+   shelling out to `git`.** No registry, and no network capability of Cufet's own — MEASURED,
+   there is none anywhere in the toolchain today. Publishing a book is `git push` and nothing else,
+   which is the whole reason to start here: the barrier for a publisher is zero and there is no
+   account, no upload, and no name authority to squat.
+
+   ★★ **The pin format and the transport are COUPLED, which is what decided it.** A pin that
+   recorded a CONTENT CHECKSUM could not be fetched by git: MEASURED in this very repo,
+   `core.autocrlf=true` with no `.gitattributes`, so a clone rewrites LF to CRLF on checkout and a
+   fetched book's bytes differ from the publisher's. Hashing after normalising "fixes" that by
+   discarding what a checksum is for. A COMMIT SHA has no such problem — it names the commit,
+   not the working tree, and git guarantees it.
+
+   ★ **And a sha stays true whoever fetched it**, so the transport can change later without
+   invalidating a single pin already published. That is the precedent in both ecosystems: `go get`
+   shelled out to `git` for years before `GOPROXY`, and pip STILL shells out to git for
+   `pip install git+https://...` while owning HTTP for the registry it has.
+
+   ⚠ **What this costs, recorded so nobody rediscovers it as a surprise:** a consumer needs
+   `git` on PATH; a fetch failure arrives in git's vocabulary rather than Cufet's four-part voice;
+   and two machines with different autocrlf settings end up with different BYTES in `books/`, so
+   `blueprints` sees a changed input and rebuilds when nothing changed. ★ That last one is
+   wasted work rather than a wrong answer, but this project has a line about exactly it —
+   *"a build that rebuilds too often looks exactly like one that works"* — so it is the first
+   thing to watch once books are real.
+
+   ⚠ **Still open:** what a pin LOOKS LIKE in a blueprint. `blueprints` introduces `step` as
+   a name for a shape; a pin wants the same treatment, and that is language surface rather than a
+   detail.
 
 3. **Generated pages for a book.** What a reader gets when they pull a book somebody else wrote.
    Doc comments and hover are built; pages are the half that is not.
