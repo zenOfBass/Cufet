@@ -240,6 +240,23 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **The reference no longer promises RAII the language does not deliver.** `REFERENCE.md` described
+  an unmaker as running *"when a binding goes out of scope"* and listed `a return` among the ways
+  out that fire one, without saying that a function or method BODY is not a block. MEASURED in both
+  backends: an object declared in an `If` or a loop fires its unmaker; the same object declared
+  directly in a function body, or at the program's top level, fires nothing.
+
+  ⚠⚠ **The gap is real and now has an entry of its own.** A function that opens a resource and
+  lets it fall out of scope leaks it — the case destructors exist for. ★ It is deliberate rather
+  than accidental (one rule, implemented twice: unmakers fire for bindings declared in a BLOCK, and
+  a frame is not a block) and it has a MEASURED prerequisite: a value being returned is not exempt
+  from its scope's unmakers, so firing them at a frame's exit today would destroy what a function
+  hands back.
+
+  ⚠ `PushBodyScope`'s comment pointed at a roadmap entry that had been deleted, so the defect sat
+  recorded in the code with nothing in the roadmap to surface it. Nothing about the language
+  changed here — only what the documentation claims about it.
+
 - **A book's type used bare no longer claims you never pulled the book.** Inside `Pull a book on
   collections.`, `Define out as a matrix.` refused with *"'matrix' is a type, and this program has
   not pulled it"* and advised wrapping line 2 in the pull already sitting on line 1. The message

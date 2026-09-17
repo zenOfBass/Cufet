@@ -2360,6 +2360,15 @@ Rules:
   ends the program. A dying program still unmakes what the blocks it is leaving hold.
 - **A task body is a block** — an object defined at the top of `Have <rabbit> start a
   task:` is unmade at that task's `Done.`, whether the task finishes or faults.
+- ⚠⚠ **A function or method BODY is NOT a block, and its own `Define`s are never unmade.**
+  Neither is the program's top level. MEASURED: the same object declared in an `If` or a loop fires
+  its unmaker, and declared directly in a function body fires nothing — in both backends. Only the
+  task body above is the exception. So a function that opens a resource and lets it fall out of
+  scope LEAKS it, which is the case this feature exists for.
+  ★ The workaround is a block: wrap the binding in `If`, a loop, or a rabbit, and it fires at that
+  `Done.` ⚠ This is a known limitation with a prerequisite of its own — a value being RETURNED is
+  not exempt from its scope's unmakers today, so simply firing them here would destroy what a
+  function hands back. See the ROADMAP entry.
 - **`one` is the object being destroyed** — its fields and methods are accessible
   via `one's <field>` and `Cast <method> on one`.
 - **Ownership rule** — destroy what you opened, not what you borrowed. A resource

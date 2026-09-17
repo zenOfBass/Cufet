@@ -173,14 +173,46 @@ they are large, not because they are waiting — the order among them means noth
    whose examples RUN, in the page, against the same front end that compiles them, is a playground
    with prose around it. Nothing new has to be built to execute a lesson.
 
-   **Two decisions, both open:**
+   **One decision, still open:**
 
    - **What the site IS.** Generated pages, hand-written lessons, or REFERENCE reorganised — and
      where it lives, which lands on the same deferred `docs/`-folder and GitHub-Pages question
      item 2 above already carries. Both should be answered once.
-   - **What a tutorial teaches first.** Cufet's shape is unusual enough that the ordinary tour
-     (variables, loops, functions) may not be the right one. Rabbits and failure-as-a-value are
-     what make it different, and they are not chapter nine.
+
+   ✅ **THE CURRICULUM IS SETTLED, 2026-09-16**, and lesson 1 is written — `docs/TUTORIAL.md`,
+   with every program and every message in it run by the suite.
+
+   ★★ **Ordered by the refusals a beginner MEETS, not by topic.** `REFERENCE.md` reaches the type
+   system in Part V; lesson 1 meets a type refusal on its SECOND LINE. A tutorial built on the
+   reference's shape would teach in chapter five what the reader hit in minute one.
+
+   1. Say and compute — text vs number. ✅ written.
+   2. Absence — `void`, `but void is`.
+   3. Choose and repeat — `If`/`Otherwise`, `For each`, `Judge`.
+   4. Collections — series, maps, records.
+   5. Borrowing — `Pull a book on math.` and `collections`.
+   6. Your own words — `Bind`, parameters, `Return`.
+   7. When it can fail — `Try`, failure. The language makes you handle it, so it cannot be late.
+   8. Your own things — objects, fields, methods, and their UNMAKERS.
+   9. Things that own things — rabbits, and why a structure needs a region.
+   10. Reading and writing — files, arguments, input.
+   11. Your own books — a second file, modules, and the library-versus-program rule.
+   12. A project — `blueprints` and `cufet build`.
+
+   ⚠ **MEASURED, and it placed 9:** no example in `basics/` needs a rabbit. Twelve of fifty pull
+   one, and every one is a data structure, concurrency, `patterns`/`stashes`, or FFI — so a rabbit
+   arrives exactly when something OWNS something else, and not before.
+
+   ⚠ **Lesson 8 depends on item 5 below.** An unmaker fires at the `Done.` of the BLOCK a binding
+   was declared in — an `If` or a loop is enough, no rabbit needed — but a function body is not a
+   block, so the lesson cannot show the shape a reader will actually write until that is settled.
+
+   ★ **Deliberately outside the string**, to stop it becoming a second reference: concurrency
+   (tasks and channels, a follow-on after 9) and the type system proper (interfaces, generics,
+   unions — introduced where they are needed rather than as a unit).
+
+   ⚠ The order of 2 and 7 is the least defended. Absence and fallibility are both distinctive
+   enough to want to be earlier, and writing the broken programs would settle it.
 
    ▶ **DESIGNED 2026-09-14, not built.** The author's vision, and the reasoning that came out of
    working it through. The CONTENT is the work and it is medium-independent — write the lessons as
@@ -235,6 +267,41 @@ they are large, not because they are waiting — the order among them means noth
 
    ⚠ Whatever is written must be pinned like the doc fences are: a lesson whose code stops working
    is worse than no lesson, and this project has the machinery to catch that already.
+
+5. **Unmakers do not run for a function's own bindings.** ⚠⚠ A live correctness gap, and the
+   documentation promised more than the language delivered until 2026-09-16.
+
+   MEASURED, in BOTH backends: an object declared in an `If` or a loop body has its unmaker fire at
+   that `Done.`; the same object declared DIRECTLY in a function or method body, or at the program's
+   top level, fires nothing. A block NESTED inside the function does fire. So a function that opens
+   a resource and lets it fall out of scope leaks it — the case destructors exist for.
+
+   ★ **It is deliberate and coherent, not an accident.** One rule, implemented twice: *unmakers
+   fire for bindings declared in a BLOCK, and a frame is not a block.* `PushBodyScope` says so, and
+   the compiler's UNMK note mirrors it deliberately, listing the task body as the one exception.
+   ⚠ What was wrong was REFERENCE, which described RAII without saying a frame body is excluded.
+
+   **Three steps, and only the last is hard:**
+
+   1. Register frame-level `Define`s — the interpreter arms the release bookkeeping
+      `PushBodyScope` currently skips; the compiler lets a `_scopeDepth == 0` Define register.
+   2. Run them at frame exit. The machinery already exists on both sides
+      (`RunScopeUnmakers`, `cufet_run_unmakers_to`, `_frameUnmakerBase`).
+   3. ⚠⚠ **Exempt the value being RETURNED.** MEASURED as necessary: a function returning an
+      object declared in a block prints its unmaker's output and hands the object over anyway. Do
+      step 1 without this and every `Bind <type> to make-thing:` destroys what it returns, which is
+      worse than the leak.
+
+   ★ **Step 3 may not need the full concept.** The obvious blocker is *"this binding is spent"* —
+   the same one **Move semantics at channel send** names in Deferred, which makes this its second
+   and more urgent witness. But a NARROW rule may do: *the binding named directly in a `Return` is
+   exempt from its scope's unmakers.* It is syntactic and checkable, and `Define copy as original.`
+   already COPIES an object, so there is far less aliasing to reason about than in a language with
+   references. ▶ Measure the narrow rule before assuming this is blocked on the arc.
+
+   ⚠ **Recorded because it went invisible once.** `PushBodyScope`'s comment says *"see the roadmap
+   entry"* and there was none — the defect stayed in the code while its entry was deleted, and it
+   took somebody's instinct rather than this file to resurface it.
 
 ## Ongoing, no fixed slot
 
