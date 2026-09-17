@@ -174,14 +174,34 @@ they are large, not because they are waiting — the order among them means noth
    language's one-book-per-name rule, but it is still a limit. ★ This is the one thing that
    could argue for per-book directories or a real namespace, against the flat shape above.
 
-   ▶ **BUILT:** `blueprints` introduces `pin`; `cufet install` clones each pinned source once
-   into `books/.cufet-cache/<name>` and writes the pinned file to `books/<name>.cufe`. MEASURED end
-   to end against a real git repository: install, then a program pulls the fetched book and runs.
+   ✅ **BUILT, INCLUDING THE TRANSITIVE HALF, 2026-09-17.** `blueprints` introduces `pin`;
+   `cufet install` clones each pinned source once into `books/.cufet-cache/<name>`, writes the
+   pinned file to `books/<name>.cufe`, and then follows that book's OWN blueprint for its pins.
+   MEASURED end to end against real git repositories: a project pinning only `canvas` installs
+   `deep` as well, and a program pulling `canvas` runs. A name pinned twice to different commits is
+   refused naming both pins; twice to the same commit is one fetch.
 
-   ⚠ **NOT built: the transitive half.** A fetched book's own blueprint is not read, so its
-   pins are not followed — a project must currently pin every book it needs, including the ones
-   its books need. That is the next slice, and it is where the *who writes the transitive list*
-   fork below stops being hypothetical.
+   ★ **Pins cannot form a cycle**, so there is no cycle test and that is a finding rather than a
+   gap: a commit cannot contain its own sha, so B cannot be committed pinning an A that does not
+   exist until B does. Exact pins are acyclic by construction, for the same reason a git history
+   is. The worklist's seen-set still guards the loop, and the same-commit diamond exercises it.
+
+   ★★ **What a pin MEANS stayed in Cufet; how a pin is FETCHED moved to C#.** `bp-pins` prints
+   one tab-separated line per pin and that is the whole seam — a blueprint is asked what it pins by
+   RUNNING it and reading what it prints, because `Interpreter` hands back no values, only a
+   TextWriter. ⚠ The Cufet `bp-fetch` of the previous slice was right for one flat list and stopped
+   being right the moment it had to recurse: a closure over a graph cannot live half in each
+   language.
+
+   ⚠⚠ **A fetched blueprint is EXECUTED**, which is the npm/pip postinstall hazard and was chosen
+   deliberately so a blueprint may COMPUTE its pins. The installer names each one before running it
+   and `docs/BOOKS.md` states the hazard. ⚠ It is a deliberate exception to `blueprint.cufe`'s own
+   rule that only its LOCATION is read — a rule about the LOADER, which still holds there.
+
+   ★ **A vacuous test, caught only by sabotaging after green.** The same-commit diamond first
+   asserted that `fetching deep` appeared once — and with the seen-set sabotaged away it STILL
+   appeared once, because the second pass found the clone already cached and said nothing. The test
+   was measuring the cache, not the thing it was written for. It counts the INSTALL line now.
 
    ★ **A LANGUAGE GAP, found by building this and worth the campaign's attention:** Cufet can
    read a file, write a file and list a directory, and can neither CREATE nor DELETE one. The
@@ -192,8 +212,11 @@ they are large, not because they are waiting — the order among them means noth
    **Open, and nothing above depends on either:**
 
    - **Who writes the transitive list.** With exact pins, the project's full flat pin list IS the
-     lockfile. ⚠ Having `cufet install` write it back is `go mod tidy` — and it is a
-     tool editing your source, which this project may not want.
+     lockfile, and now that transitive pins are followed this is LIVE rather than hypothetical:
+     today the closure is recomputed from the fetched blueprints on every install, so what a
+     project actually installs is not written down anywhere. ⚠ Having `cufet install` write it
+     back into `blueprint.cufe` is `go mod tidy` — and it is a tool editing your source, which
+     this project may not want. **Not built, and not to be built without asking.**
    ✅ **What a SOURCE is — SETTLED 2026-09-17: a git repo and a COMMIT SHA, fetched by
    shelling out to `git`.** No registry, and no network capability of Cufet's own — MEASURED,
    there is none anywhere in the toolchain today. Publishing a book is `git push` and nothing else,

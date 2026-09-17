@@ -36,6 +36,7 @@ Books come in three kinds, and the difference is what you get out of one:
   - [Patterns (`regex`)](#patterns-regex)
 - [Part III. The build description](#part-iii-the-build-description)
   - [Blueprints (`blueprints`)](#blueprints-blueprints)
+  - [Pinned books (`cufet install`)](#pinned-books-cufet-install)
 
 ---
 
@@ -1319,5 +1320,81 @@ quietly, which is the failure this language declines everywhere else.
 ⚠ **Steps that need each other are refused**, not hung on: *"these steps need each other and cannot
 be ordered."*
 
-⚠ **Every step runs every time.** There is no staleness checking yet. A build that always rebuilds
-is correct and merely not yet useful, and the hashing that fixes it is its own slice.
+### Pinned books (`cufet install`)
+
+**A book is fetched by `git`, and by nothing else.** `cufet install` reads the pins in
+`blueprint.cufe`, clones each source once, and writes the file the pin names into `books/`, where a
+pull already looks. There is no registry and no network capability of Cufet's own — publishing a
+book is `git push`, and a source is whatever `git clone` accepts.
+
+```cufet-fragment
+Pull a book on blueprints.
+    Bind series of pin to books:
+        Return a series of pin with (
+            a record with (
+                the name "canvas",
+                the source "https://github.com/someone/canvas",
+                the commit "afb061c5b438a0ae5dcd56074d2a9096984b4ada")).
+    Done.
+Done.
+```
+
+A pin is three things:
+
+| field | what it is |
+| --- | --- |
+| `name` | the book's name, which is also the file written: `books/<name>.cufe` |
+| `source` | anything `git clone` takes — a URL, or a path |
+| `commit` | the exact commit to read the book out of |
+
+★★ **A pin names a COMMIT, and the transport is why.** A version string would be a second name for
+the same thing, and the two can disagree. A content checksum is the obvious alternative and it
+cannot survive the journey: `git` rewrites line endings on checkout where `core.autocrlf` is set,
+so the bytes that arrive are not always the bytes that were published. A commit sha is the one
+identifier `git` itself guarantees. The installer clones with `--no-checkout` and reads the file
+with `git show <commit>:<file>`, straight out of the object store, so there is no working tree for
+any setting to rewrite.
+
+★ **The clone is kept, as a cache**, at `books/.cufet-cache/<name>`; a second install re-reads it
+instead of fetching again. That location is measured rather than tidy: `Write` does not create
+parent directories and Cufet cannot make one, so `books/` has to be brought into being by
+something — and `git clone` creates its target including parents. Deleting `books/` therefore
+removes everything the installer made, which is the same escape hatch deleting `.cufet-build`
+offers the build.
+
+**A book's own pins are followed.** If a fetched book carries a `blueprint.cufe`, the books IT pins
+are fetched too, and theirs after that. A project pins what it uses and nothing else; a library's
+dependencies stay the library's business.
+
+⚠⚠ **`cufet install` RUNS a fetched blueprint.** That is how its pins are read — the blueprint is
+executed and prints them — and it is the npm/pip postinstall hazard, chosen deliberately so that a
+blueprint may *compute* its pins rather than only spell them out. **Installing a book runs code
+from its repository.** The installer names each one before it runs — untagged below because no one
+sample program produces it, and an `output` block nothing can be paired against would claim a
+verification it does not have:
+
+```
+cufet install: fetching canvas
+cufet install: canvas at afb061c5b438a0ae5dcd56074d2a9096984b4ada
+cufet install: running canvas's blueprint to read its pins
+cufet install: fetching deep
+cufet install: deep at 662ebab7a91d45760eae51ccb354fa987470bed3
+```
+
+⚠ It is also an exception to the rule stated for `blueprint.cufe` elsewhere — that only its
+LOCATION is ever read and never its contents. That rule is about the **loader**, so that importing
+a book can never execute a build description, and it still holds there. The installer is the one
+tool that deliberately does otherwise.
+
+⚠⚠ **One book per name, so a name pinned twice to different commits is refused**, naming both pins
+and who wrote each. A program holds one book per NAME — that is what makes the name the namespace —
+so exact pins force a *selection*, and there is nobody but you to make it. Two books wanting the
+same book at the same commit is agreement rather than conflict, and costs one fetch.
+
+★ **Pins cannot form a cycle.** A commit cannot contain its own sha, so for A to pin B while B pins
+that same A, B would have to be committed knowing a sha that does not exist until B does. Exact
+pins are acyclic by construction, for the same reason a git history is.
+
+⚠ **A project must still pin what it uses directly.** Reaching a book because something else
+happened to pin it works, and it is not a dependency you declared — the next version of that
+library may drop it.

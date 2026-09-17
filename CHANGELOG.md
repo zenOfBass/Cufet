@@ -10,10 +10,15 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
-- **`cufet install` — fetches the books a project pins, at the commits it pins them to.** Each
-  source is cloned once into `books/.cufet-cache/<name>` and the pinned file is written to
+- **`cufet install` — fetches the books a project pins, the books THOSE books pin, and so on.**
+  Each source is cloned once into `books/.cufet-cache/<name>` and the pinned file is written to
   `books/<name>.cufe`, where a pull already looks. A blueprint that pins nothing says so and
   succeeds; a directory with no blueprint is refused with where it looked.
+
+  ★★ **A project pins what it uses and nothing else.** If a fetched book carries a
+  `blueprint.cufe`, the books it pins are fetched too. Without this a library's private
+  dependencies become part of every consumer's spelling — the exact thing module privacy removed at
+  the language level, reappearing one layer down in the package manager.
 
   ★★ **A source is a git repo and a COMMIT**, fetched by shelling out to `git`. No registry
   and no network capability of Cufet's own — publishing a book is `git push` and nothing else.
@@ -29,8 +34,28 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   `books/` therefore removes everything the installer made, the same escape hatch `.cufet-build`
   offers the build.
 
-  ★ Same shape as `cufet build`: read the blueprint, append a call to a walker WRITTEN IN
-  CUFET (`bp-fetch`), run it. The CLI holds no policy about what a pin means.
+  ⚠⚠ **A fetched blueprint is EXECUTED** — that is how its pins are read, and it is the npm/pip
+  postinstall hazard, taken deliberately so that a blueprint may COMPUTE its pins rather than only
+  spell them out. Installing a book runs code from its repository, so the installer NAMES each
+  blueprint before running it and `docs/BOOKS.md` states the hazard where a reader will meet it.
+  ⚠ It is also a deliberate exception to `blueprint.cufe`'s own rule that only its LOCATION is read
+  and never its contents — a rule about the LOADER, which still holds there.
+
+  ★★ **What a pin MEANS stays in Cufet; how a pin is FETCHED moved to C#.** The `pin` type and the
+  blueprint declaring them are the language's half, and `bp-pins` is the seam: a blueprint is asked
+  what it pins by running it and reading the tab-separated lines it prints. The fetch is a CLOSURE
+  over a graph, and a loop written half in each language is a loop nobody can read. ⚠ The Cufet
+  `bp-fetch` of the previous slice was right for one flat list and stopped being right the moment
+  it had to recurse.
+
+  ⚠⚠ **One book per NAME, so a name pinned twice to different commits is refused**, naming both
+  pins and who wrote each. Exact pins force a SELECTION and there is nobody but the author to make
+  it — picking "the newer" would need an ordering commits do not have. Two books wanting the same
+  book at the SAME commit is agreement, and costs one fetch.
+
+  ★ **Pins cannot form a cycle**, and that is a finding rather than an untested case: a commit
+  cannot contain its own sha, so B cannot be committed pinning an A that does not exist until B
+  does. Exact pins are acyclic by construction, for the same reason a git history is.
 
   ⚠ Whether a project pins anything is asked of the PARSED file, not of the run. A blueprint
   with no pins has no `books` binding at all, so casting it would refuse with *"'books' isn't
@@ -275,6 +300,28 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   Done` and `expected As` already read correctly and are untouched.
 
 ### Fixed
+
+- **The playground never placed `pennies.cufe`, so `basket.cufe` could not run there.** Found by
+  CI. The build decides which corpus files are BOOKS worth seeding by matching how a module
+  declares itself, and that pattern was anchored at COLUMN 0 — which assumes a book is declared at
+  a file's top level. Since the module half of lexical pulls, the interesting shape is the opposite
+  one: a book written INSIDE the pull it needs, so that it keeps it. `pennies.cufe` exists to
+  demonstrate exactly that, its declaration is indented, and it was never copied to the site.
+
+  ★★ **THREE derivations were wrong and two of them cancelled out.** The test that picks which
+  examples pull a book (a) matched the book name inside a COMMENT — `basket.cufe`'s opening
+  paragraph mentions `Pull a bookkeeping.` while discussing a sibling example — and (b) could not
+  match `Pull a book on <name>`, the spelling most of the corpus uses, because the pattern allowed
+  "a " or "book on " but never "a book on ". So `basket.cufe` was tested as a puller of a book it
+  does not pull, and the failure named the wrong file.
+
+  ⚠⚠ **Fixing only those two would have made it WORSE, and the sabotage check is what showed it.**
+  With comments correctly ignored, `basket.cufe` stopped being a puller at all, its two tests ceased
+  to exist, and the suite went GREEN two tests lighter. Every derivation there reads FROM the seeded
+  set, so a book that stops being seeded does not break a test — it deletes one. A guard for the
+  other direction is now in place: every book an example pulls from another file must have been
+  seeded, derived from the corpus (a name is a book in another file exactly when
+  `examples/<name>.cufe` exists), so no list of bundled books has to be kept in step.
 
 - **A book's type used as a function's RETURN TYPE no longer crashes the compiler.**
   `Bind series of step to plan:` checked clean, ran interpreted, and killed the compiler with an
