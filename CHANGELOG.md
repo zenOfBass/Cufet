@@ -10,6 +10,16 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+- **`blueprints` introduces `pin`** — one book a project depends on, held at one commit:
+  `the name`, `the source`, `the commit`. A name for a SHAPE, the same treatment `step` gets, so a
+  blueprint does not spell three fields out for every dependency.
+
+  ★ A commit SHA rather than a version string or a content checksum, and that is the decision
+  the rest of the package manager hangs off. A version string would be a second name for the commit.
+  A content checksum cannot survive `git`: MEASURED, this repo has `core.autocrlf=true` and no
+  `.gitattributes`, so a clone rewrites line endings and a fetched book's bytes differ from the
+  publisher's. A sha names the commit, not the working tree.
+
 - **`docs/TUTORIAL.md` — a way IN to the language, starting with lesson one.** It teaches
   DEBUGGING FIRST: the lesson opens on a program that does not work, and the refusal is read line by
   line before anything is fixed. The first thing anybody meets in a new language is a refusal, and
@@ -239,6 +249,22 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   Done` and `expected As` already read correctly and are untouched.
 
 ### Fixed
+
+- **A book's type used as a function's RETURN TYPE no longer crashes the compiler.**
+  `Bind series of step to plan:` checked clean, ran interpreted, and killed the compiler with an
+  unhandled `KeyNotFoundException` and a stack trace — not a `CompilerException`, in a language
+  whose distinguishing feature is that refusals explain themselves.
+
+  ★★ The checker resolved the signature into its own scope and left the AST spelling `step`
+  as an ObjectType SHELL; the compiler re-derives its types from the AST, so it met a name with
+  nothing behind it. One type under two spellings — which is precisely what the rule already
+  written beside the fix warns about: *no shell may survive the front end*. That rule was enforced
+  for FILLED template shells only, and a book's type name is an unfilled one.
+
+  ⚠⚠ `Bind series of step to blueprint:` is the shape EVERY blueprint uses, so every
+  blueprint ever written would have crashed the compiler. It went unseen because a blueprint is
+  never compiled: `cufet build` INTERPRETS it to get the plan, and no corpus program compiles one.
+  A program nobody had written — the same blind spot the lexical-pull divergence had.
 
 - **Two files answering to one book name are refused, instead of one silently winning by ORDER.**
   MEASURED: a library with its own `utils` beside it, and a program with a different `utils` beside

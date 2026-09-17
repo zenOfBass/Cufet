@@ -1166,6 +1166,18 @@ is not the program around it* in both cases; what differs is who reads what is i
 
 ### Blueprints (`blueprints`)
 
+★ **The book introduces two shapes.** A `step` is one thing the build does; a `pin` is one
+book the project depends on, held at one commit:
+
+| shape | fields |
+| --- | --- |
+| `step` | `the name`, `the needs`, `the makes`, `the runs` |
+| `pin` | `the name`, `the source`, `the commit` |
+
+⚠ A pin records a COMMIT rather than a version: a version string would be a second name for
+the same thing, and a content checksum cannot survive a `git` checkout that rewrites line endings.
+
+
 **A project is built by a Cufet program, not by a second language.** `cufet build` with no
 arguments reads `blueprint.cufe` and does what it describes. With a file it compiles that one
 file, as it always has — the verb is overloaded by arity.
