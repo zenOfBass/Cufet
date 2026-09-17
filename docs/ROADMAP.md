@@ -212,9 +212,15 @@ they are large, not because they are waiting — the order among them means noth
    one, and every one is a data structure, concurrency, `patterns`/`stashes`, or FFI — so a rabbit
    arrives exactly when something OWNS something else, and not before.
 
-   ⚠ **Lesson 8 depends on item 5 below.** An unmaker fires at the `Done.` of the BLOCK a binding
-   was declared in — an `If` or a loop is enough, no rabbit needed — but a function body is not a
-   block, so the lesson cannot show the shape a reader will actually write until that is settled.
+   ✅ **Lesson 8 is unblocked: item 5 is SETTLED, not pending.** An unmaker fires at the
+   `Done.` of the BLOCK a binding was declared in — an `If` or a loop is enough, no rabbit
+   needed — and a frame body is deliberately not a block. So the lesson teaches the block rule
+   and the idempotency caveat, which is what a reader needs, rather than waiting on a change that is
+   not coming.
+
+   ⚠ **Lessons 11 and 12 depend on item 2**, and that is the real ordering constraint here:
+   they teach what `books/` holds, what a `blueprint.cufe` carries, and whether a book is one file
+   — exactly the surface a package manager would move. Lessons 2 to 10 depend on none of it.
 
    ★ **Deliberately outside the string**, to stop it becoming a second reference: concurrency
    (tasks and channels, a follow-on after 9) and the type system proper (interfaces, generics,
