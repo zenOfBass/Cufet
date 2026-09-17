@@ -1,4 +1,4 @@
-﻿// Assembles the deployable playground into ./site.
+// Assembles the deployable playground into ./site.
 //
 // Three inputs come together here:
 //   1. web/app.ts     — the interface, bundled with Monaco by esbuild
@@ -243,10 +243,18 @@ if (existsSync(assetsFrom)) {
 // checkout. That is why these are seeded by basename while the assets above keep their folders:
 // an asset is addressed by the path a program writes, a book by the name a program pulls.
 //
-// ⚠ DERIVED from how a module DECLARES itself, anchored at column 0. Matching `and module`
-// anywhere would also catch ledger.cufe, which only mentions the phrase in its opening comment —
-// and seeding the program that does the pulling would be silently pointless.
-const DECLARES_A_MODULE = /^Define object [\w-]+ .*\band (module|book)\b/m;
+// ⚠ DERIVED from how a module DECLARES itself, anchored to the START OF A LINE. Matching
+// `and module` anywhere would also catch ledger.cufe, which only mentions the phrase in its opening
+// comment — and seeding the program that does the pulling would be silently pointless.
+//
+// ⚠⚠ LEADING WHITESPACE ALLOWED, and that is the whole of a CI failure. This was anchored at
+// COLUMN 0, which assumes a book is declared at a file's top level — and since the module half of
+// lexical pulls (2026-09-15) the interesting shape is the opposite one: a book written INSIDE the
+// pull it needs, so that it KEEPS that pull. `examples/language/pennies.cufe` exists to demonstrate
+// exactly that, its declaration is indented four spaces inside `Pull a book on math.`, and it was
+// therefore never placed on the page at all. MEASURED 2026-09-17: the fix seeds one more file,
+// `pennies.cufe`, and nothing else.
+const DECLARES_A_MODULE = /^[ \t]*Define object [\w-]+ .*\band (module|book)\b/m;
 
 async function cufeFilesUnder(dir) {
     const found = [];

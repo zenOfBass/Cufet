@@ -113,12 +113,67 @@ const seededBooks = JSON.parse(readFileSync(join(site, "seed-manifest.json"), "u
     .filter(path => path.endsWith(".cufe"))
     .map(path => path.replace(/\.cufe$/, ""));
 
+// ⚠⚠ COMMENTS FIRST, because a book NAMED in prose is not a book PULLED. `basket.cufe` opens by
+// saying it is worth comparing with ledger.cufe, "which has to nest `Pull a book on math.` around
+// `Pull a bookkeeping.`" — and that sentence alone put it in this list as a puller of
+// `bookkeeping`, a book it does not pull. MEASURED 2026-09-17: the CI failure it produced named
+// the wrong book, and sent a reader looking at the file that works.
+const withoutComments = source =>
+    source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+
 const pullers = exampleFiles().filter(file => {
-    const source = readFileSync(file, "utf8");
+    const source = withoutComments(readFileSync(file, "utf8"));
     // ⚠ `\\b`, not `\b`. Inside a TEMPLATE LITERAL a single backslash-b is the
     // BACKSPACE character, so the pattern quietly looked for a control code, matched nothing, and
     // the derived set came out empty — green, and testing nothing.
-    return seededBooks.some(book => new RegExp(`Pull (a |books? on )?${book}\\b`).test(source));
+    //
+    // ⚠⚠ `Pull a book on <name>` HAS TO BE IN HERE, and it was not: `(a |books? on )?` permits
+    // ONE of "a " or "book on ", never "a book on " — which is the spelling most of the corpus
+    // uses. `basket.cufe` pulls `pennies` exactly that way and matched nothing of its own; it was
+    // in this list solely by the comment accident above. Two derivations, both inert, and they
+    // cancelled out into a test that ran against the wrong book.
+    return seededBooks.some(book =>
+        new RegExp(`Pull (?:an? )?(?:books? on )?${book}\\b`).test(source));
+});
+
+// ⚠⚠ THE OTHER DIRECTION, and it is the only thing here that fails when a book goes MISSING.
+// Everything above is derived FROM the seeded set, so a book that stops being seeded does not break
+// a test — it deletes one. MEASURED 2026-09-17: with build.mjs's derivation sabotaged back to its
+// old form, `basket.cufe` simply stopped being a puller, its two tests ceased to exist, and this
+// suite went GREEN two tests lighter. A test that can vanish is not a test.
+//
+// ★ Derived from the CORPUS, with no list of bundled books to maintain: a name is a book in another
+// FILE exactly when `examples/**/<name>.cufe` exists. `math` and `rabbit` live in the prelude and
+// have no file here, so they never qualify and never need an exception.
+const PULLS = /^[ \t]*Pull (?:an? )?(?:books? on )?(.+?)\.[ \t]*$/gm;
+
+const corpus = new Map(exampleFiles().map(path => [basename(path).replace(/\.cufe$/, ""), path]));
+
+/** The books, living in other files of this corpus, that this example needs placed beside it. */
+function booksNeededBy(path) {
+    const source = withoutComments(readFileSync(path, "utf8"));
+    const self = basename(path).replace(/\.cufe$/, "");
+    const needed = new Set();
+    for (const [, clause] of source.matchAll(PULLS))
+        for (const name of clause.split(/,\s*(?:and\s+)?|\s+and\s+/))
+            if (corpus.has(name.trim()) && name.trim() !== self) needed.add(name.trim());
+    return [...needed];
+}
+
+test("every book an example pulls from another file was seeded", () => {
+    const wanted = new Map();
+    for (const path of exampleFiles())
+        for (const book of booksNeededBy(path)) wanted.set(book, basename(path));
+
+    assert.ok(wanted.size > 0,
+        "no example pulls a book from another file — either the corpus lost its multi-file "
+        + "examples, or the `Pull` spellings changed and this derivation is now inert.");
+
+    for (const [book, puller] of wanted)
+        assert.ok(seededBooks.includes(book),
+            `${puller} pulls '${book}', which lives in examples/${book}.cufe and was NOT seeded `
+            + `(seeded: ${seededBooks.join(", ") || "none"}). build.mjs decides what to place from `
+            + "how a module declares itself — check DECLARES_A_MODULE against that file.");
 });
 
 test("a seeded book is actually pulled by some example", () => {
