@@ -226,6 +226,75 @@ Bind void to bp-pins, given (
     Done.
 Done.
 
+/// Fetches every pinned book into `books/`, cloning each source once and keeping the clone.
+///
+/// ★★ THE CLONE IS THE CACHE, and it lives at `books/.cufet-cache/<name>` for a measured
+/// reason rather than a tidy one: `Write` does not create parent directories and Cufet cannot make
+/// one, so `books/` has to be created by something. `git clone` creates its target INCLUDING
+/// parents, so cloning into a subdirectory of `books/` is what brings `books/` into being.
+///
+/// ★ Deleting `books/` therefore removes everything the installer made — one directory,
+/// the same escape hatch `.cufet-build` offers the build.
+///
+/// ⚠ `--no-checkout` on purpose. Nothing needs a working tree, and a checkout is where git
+/// rewrites line endings: on Windows `core.autocrlf` would change the bytes of every book fetched.
+/// `git show <commit>:<file>` reads straight out of the object store, which no config rewrites.
+Bind void to bp-fetch, given (
+    the series of records like (the text name, the text source, the text commit) bp-list):
+    For each bp-one in bp-list, repeat:
+        Define bp-where as "books/.cufet-cache/{the name of bp-one}".
+        Define bp-into as "books/{the name of bp-one}.cufe".
+
+        // ★ Asked of the DIRECTORY rather than by letting a clone fail: a clone can fail for
+        // a dozen reasons, and reading "already there" out of any of them would turn a bad source
+        // into a silent no-op.
+        Define bp-cached as true.
+        Try to:
+            Define bp-seen as the contents of the directory bp-where.
+        Done.
+        In case of failure:
+            The bp-cached becomes false.
+        Done.
+
+        Try to:
+            If bp-cached is false:
+                State "cufet install: fetching {the name of bp-one}".
+                Define bp-got as run "git" with arguments (
+                    "clone", "--quiet", "--no-checkout", the source of bp-one, bp-where).
+                If the exit-code of bp-got is not 0:
+                    State "cufet install: {the name of bp-one}: {the errors of bp-got}".
+                    Exit with 1.
+                Done.
+            Done.
+
+            // ⚠ A pinned commit may not be in a cache fetched before it existed, so an
+            // already-cached source is brought up to date before the commit is asked for.
+            If bp-cached is true:
+                Define bp-new as run "git" with arguments ("-C", bp-where, "fetch", "--quiet").
+                If the exit-code of bp-new is not 0:
+                    State "cufet install: {the name of bp-one}: {the errors of bp-new}".
+                    Exit with 1.
+                Done.
+            Done.
+
+            Define bp-file as run "git" with arguments (
+                "-C", bp-where, "show",
+                "{the commit of bp-one}:{the name of bp-one}.cufe").
+            If the exit-code of bp-file is not 0:
+                State "cufet install: {the name of bp-one}: {the errors of bp-file}".
+                Exit with 1.
+            Done.
+
+            Write the output of bp-file to the file bp-into.
+            State "cufet install: {the name of bp-one} at {the commit of bp-one}".
+        Done.
+        In case of failure:
+            State "cufet install: {the name of bp-one}: {the message of the failure}".
+            Exit with 1.
+        Done.
+    Done.
+Done.
+
 Bind void to bp-walk, given (
     the series of records like (the text name, the series of text needs, the series of text makes, the series of text runs) bp-plan):
     Define bp-ran as a series of fact.
