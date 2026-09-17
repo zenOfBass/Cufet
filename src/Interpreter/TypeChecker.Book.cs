@@ -68,6 +68,26 @@ public sealed partial class TypeChecker
                 ("makes", textSeries),
                 ("runs",  textSeries),
             ]),
+
+            // ★★ A PIN: one book this project depends on, held at one commit. Same treatment
+            // as `step` and for the same reason — a name for a SHAPE, so a blueprint does not
+            // spell three fields out for every dependency, and nothing crosses the book boundary.
+            //
+            // ★ Three fields, and a version string is deliberately not a fourth: it would be
+            // a second name for the commit, and two names for one thing is the failure this project
+            // keeps catching. `source` is what `git` is handed; `commit` is what it is asked for.
+            //
+            // ⚠ A SHA rather than a content checksum, and the two are not interchangeable.
+            // MEASURED: this repo has `core.autocrlf=true` and no `.gitattributes`, so a clone
+            // rewrites line endings on checkout and a fetched book's BYTES differ from the
+            // publisher's. A sha names the commit rather than the working tree, so git guarantees it
+            // whatever the checkout does.
+            ["pin"] = new RecordType([],
+            [
+                ("name",   CufetType.Text),
+                ("source", CufetType.Text),
+                ("commit", CufetType.Text),
+            ]),
         };
         books["blueprints"] = new BookType("blueprints",
         [
