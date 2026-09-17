@@ -1097,10 +1097,34 @@ public sealed partial class TypeChecker
         // else did, and that filling still has to reach the program.
         // No template declared ⇒ no shell can exist, so the walk stays off the path of every
         // ordinary program — the same gate StashTransform.Expand uses for the same reason.
-        if (_genericObjectDefs.Count > 0)
+        // ⚠⚠ AND A BOOK'S TYPE NAME IS A SHELL TOO, which this used to miss because it only
+        // looked at FILLED ones. MEASURED 2026-09-17: `Bind series of step to plan:` checked clean,
+        // ran interpreted, and CRASHED the compiler with an unhandled KeyNotFoundException — the
+        // checker had resolved the signature into its own scope while the AST still spelled `step`
+        // as an ObjectType shell, and the compiler re-derives its types from the AST. One type
+        // under two spellings, which is exactly what the note above describes.
+        //
+        // ★★ `Bind series of step to blueprint:` is the shape EVERY blueprint uses, so every
+        // blueprint ever written would have crashed the compiler. Unseen because a blueprint is
+        // never compiled: `cufet build` INTERPRETS it to get the plan.
+        //
+        // ★ The names are put back in scope for the substitution and taken away again, the
+        // same trick RegisterPulledBookTypes plays for signature resolution, and safe for the same
+        // reason PLUS a stronger one: CheckBlock has already run, so a program that named a book
+        // type outside its pull was refused before this line. Nothing here can widen what is legal.
+        var shellNames = RegisterPulledBookTypes(program);
+        if (_genericObjectDefs.Count > 0 || shellNames.Count > 0)
             program = new Program(AstRebuilder.Apply(program.Statements,
                 t => AstRebuilder.SubstituteDeep(t,
-                    inner => inner is ObjectType { TypeArguments.Count: > 0 } ? ResolveParamType(inner) : inner)));
+                    inner => inner is ObjectType { TypeArguments.Count: > 0 } ? ResolveParamType(inner)
+                           : inner is ObjectType { TypeArguments.Count: 0, PositionalTypes.Count: 0,
+                                                   NamedFields.Count: 0, Methods.Count: 0,
+                                                   EmbeddedTypeName: null,
+                                                   ConformedInterfaces.Count: 0 } shell
+                             && TryLookupScopedType(shell.Name.ToLowerInvariant(), out var bookType)
+                             ? bookType
+                           : inner)));
+        foreach (var name in shellNames) _typeScopes[^1].Remove(name);
 
         // ★ A filled-in template became an ordinary definition, but only in this checker's tables —
         // and the COMPILER emits from the program's statements. Splice them in and check once more

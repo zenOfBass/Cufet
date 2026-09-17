@@ -765,4 +765,76 @@ public class PipelineBooksTests : PipelineTestBase
         Assert.Equal("12", Interpret(src));
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
+    // —— A book's type as a function's RETURN TYPE ————————————————————
+
+    /// <remarks>
+    /// <para>
+    /// ⚠⚠ MEASURED 2026-09-17: this CRASHED the compiler with an unhandled
+    /// `KeyNotFoundException` and a stack trace — not a `CompilerException`, in a language whose
+    /// distinguishing feature is that refusals explain themselves. The checker resolved the
+    /// signature into its own scope and left the AST spelling `step` as an ObjectType SHELL; the
+    /// compiler re-derives types from the AST, so it met a name with no definition behind it.
+    /// </para>
+    /// <para>
+    /// ★★ `Bind series of step to blueprint:` is the shape EVERY blueprint uses, so every
+    /// blueprint ever written would have crashed the compiler. It went unseen because a blueprint is
+    /// never compiled — `cufet build` INTERPRETS it to get the plan — and no corpus program
+    /// compiles one. A program nobody had written, which is the same blind spot the lexical-pull
+    /// divergence had.
+    /// </para>
+    /// <para>
+    /// ★ The rule it breaks was already written down beside the fix: *no shell may survive the
+    /// front end*, enforced for FILLED template shells and not for an unfilled book-type name.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void ABooksTypeAsAReturnType_CompilesAndAgrees()
+    {
+        const string src = """
+            Pull a book on blueprints.
+                Bind series of step to plan:
+                    Return a series of step with (
+                        a record with (
+                            the name "shell",
+                            the needs a series of text with ("a.cufe"),
+                            the makes a series of text with ("a.exe"),
+                            the runs a series of text with ("cufet", "build", "a.cufe"))).
+                Done.
+
+                For each one-step in cast plan, repeat:
+                    State the name of one-step.
+                Done.
+            Done.
+            """;
+
+        var interpreted = Interpret(src);
+        Assert.Equal(interpreted, Compile(src));
+        Assert.Equal("shell", interpreted);
+    }
+
+    /// <remarks>★ The same shape for `pin`, the second type `blueprints` introduces — a
+    /// book's OTHER type must not need its own fix.</remarks>
+    [Fact]
+    public void ASecondBookTypeAsAReturnType_AlsoCompiles()
+    {
+        const string src = """
+            Pull a book on blueprints.
+                Bind series of pin to books:
+                    Return a series of pin with (
+                        a record with (
+                            the name "canvas",
+                            the source "github.com/zenOfBass/canvas",
+                            the commit "3f9a1c7e")).
+                Done.
+
+                For each one-pin in cast books, repeat:
+                    State "{the name of one-pin} @ {the commit of one-pin}".
+                Done.
+            Done.
+            """;
+
+        var interpreted = Interpret(src);
+        Assert.Equal(interpreted, Compile(src));
+        Assert.Equal("canvas @ 3f9a1c7e", interpreted);
+    }
 }
