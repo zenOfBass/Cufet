@@ -56,6 +56,11 @@ else if (args.Length >= 2 && args[0].Equals("tokens", StringComparison.OrdinalIg
     Tokens(args[1..]);
 else if (args.Length >= 2 && args[0].Equals("pulls", StringComparison.OrdinalIgnoreCase))
     Pulls(args[1..]);
+else if (args.Length >= 1 && args[0].Equals("install", StringComparison.OrdinalIgnoreCase))
+{
+    RefuseExtraArguments("install", args[1..], "cufet install");
+    InstallProject();
+}
 else
     // ⚠ Deliberately NOT refused here, unlike every verb above: `cufet script.cufe one two` hands
     // `one two` to the program as `the arguments`. This comment used to say the silence was kept
@@ -539,6 +544,78 @@ static void BuildProject()
         // ⚠ APPENDED, not spliced in front. The driver casts `blueprint`, so the file must have
         // defined it by the time this runs — the mirror image of how WithPrelude puts a book's
         // statements BEFORE a program.
+        program = new Cufet.Interpreter.Program(
+        [
+            .. program.Statements,
+            new CastStatement(
+                new VariableReference(walker, 1, 1),
+                [new CastExpression(new VariableReference(entry, 1, 1), [], 1, 1)],
+                1, 1),
+        ]);
+        program = checker.Check(program);
+    }
+    catch (LexerException e) { Console.Error.WriteLine(e.Message); Environment.Exit(1); return; }
+    catch (ParseException e) { Console.Error.WriteLine(e.Message); Environment.Exit(1); return; }
+    catch (TypeException e)  { Console.Error.WriteLine(e.Message); Environment.Exit(1); return; }
+
+    WriteWarnings(blueprintFile, checker.Diagnostics);
+
+    var interpreter = new Interpreter { ForeignRunner = new GccForeignRunner() };
+    RunOnLargeStack(() => interpreter.Execute(program));
+    if (interpreter.ExitStatus is { } chosen) Environment.Exit(chosen);
+    if (interpreter.WasInterrupted) Environment.Exit(130);
+}
+
+// —— Installing a project's PINNED BOOKS ————————————————————
+//
+// ★★ The same shape as BuildProject, and deliberately so: read the blueprint, append a call
+// to a walker WRITTEN IN CUFET, and run it. The CLI holds no policy — what a pin means lives in
+// the language, where it can be read.
+//
+// ⚠ This slice REPORTS and does not fetch. `cufet pulls` was built the same way round, and
+// for the same reason: a list you can read before anything is downloaded is the half that can be
+// checked.
+static void InstallProject()
+{
+    const string blueprintFile = BookLoading.BlueprintFile;
+    const string walker = "bp-pins in blueprints";
+    const string entry  = "books";
+
+    if (!File.Exists(blueprintFile))
+    {
+        Console.Error.WriteLine($"install: there is no {blueprintFile} here.");
+        Console.Error.WriteLine(
+            "A project's books are pinned in its blueprint. Write one, or run this from the "
+            + "directory that holds it.");
+        Environment.Exit(1);
+        return;
+    }
+
+    string source;
+    try { source = File.ReadAllText(blueprintFile); }
+    catch (IOException e) { Console.Error.WriteLine(e.Message); Environment.Exit(1); return; }
+
+    var checker = MakeChecker(blueprintFile);
+    Cufet.Interpreter.Program program;
+    try
+    {
+        program = new Parser(new Lexer(source).Tokenize()).Parse();
+
+        // ⚠⚠ ASKED OF THE PARSED FILE, not of the run. A blueprint that pins nothing has no
+        // `books` binding at all, so casting it would fail with "not defined" — a refusal about
+        // the language for something that is simply the ordinary case. Most projects depend on no
+        // books, and that has to read as an answer rather than a mistake.
+        bool pinsAnything = TypeChecker.FlattenHoistable(program.Statements)
+            .OfType<BindStatement>()
+            .Any(b => b.UntoType is null
+                   && b.Name.Equals(entry, StringComparison.OrdinalIgnoreCase));
+
+        if (!pinsAnything)
+        {
+            Console.WriteLine("This project pins no books.");
+            return;
+        }
+
         program = new Cufet.Interpreter.Program(
         [
             .. program.Statements,
