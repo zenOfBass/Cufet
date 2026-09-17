@@ -204,7 +204,7 @@ public static class BookLoading
     {
         if (directory is null) return statements;
 
-        var loaded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var loaded = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var brought = new List<IStatement>();
         Gather(statements, directory, SharedBooks(directory), map, alreadyKnown, loaded, brought, []);
         if (brought.Count == 0) return statements;
@@ -226,7 +226,7 @@ public static class BookLoading
     /// <param name="shared">The project's shared book folder, computed once and passed unchanged.</param>
     private static void Gather(
         IReadOnlyList<IStatement> statements, string directory, string? shared, SourceMap map,
-        Func<string, bool> alreadyKnown, HashSet<string> loaded, List<IStatement> brought,
+        Func<string, bool> alreadyKnown, Dictionary<string, string> loaded, List<IStatement> brought,
         List<string> chain)
     {
         foreach (var statement in AstSearch.EveryStatement(statements))
@@ -253,22 +253,50 @@ public static class BookLoading
                         "Break the ring — move what both of them need into a third book they can "
                       + "each pull.");
 
-                // Loaded once, however many books pull it — a diamond is not a ring.
-                if (!loaded.Add(bookName)) continue;
-
                 // ⚠ One book per NAME in a program, whichever place it came from. That is not a
                 // simplification: `MakePrivate` renames what a book declares to "<name> in <book>",
                 // so two files answering to one name would collide on every declaration they have.
                 // The name IS the namespace, and local winning above is how a program chooses.
                 var path = Resolve(bookName, directory, shared);
                 if (path is null)
-                {
                     // ⚠ Not an error HERE. A name that is neither bundled, nor defined, nor a file
                     // is refused by the checker, which already says what is available and how to
                     // define one — and says it about every kind of pull, not just this one.
-                    loaded.Remove(bookName);
+                    continue;
+
+                var from = Path.GetFullPath(path);
+
+                // ★★ LOADED ONCE PER FILE, NOT PER NAME. A diamond is not a ring — and it is
+                // not a CONFLICT either, which is the distinction this used to lose. Keyed by name
+                // alone, the FIRST pull of a name claimed it and every later one was skipped in
+                // silence, however different the file it had resolved to.
+                //
+                // ⚠⚠ MEASURED 2026-09-16: a library with its own `utils` beside it, and a
+                // program with a different `utils` beside THAT, gave a different answer depending
+                // on the ORDER the two names were written in — `Pull books on utils, and alpha.`
+                // handed the library the program's helper, and swapping the two names handed the
+                // program the library's. Exit 0 either way, and identical in both backends, so the
+                // oracle was blind to it.
+                //
+                // ★ Compared case-insensitively on purpose: a program may spell the same book
+                // `Utils` in one pull and `utils` in another, and book names ARE case-insensitive,
+                // so those must stay one book rather than become a false conflict.
+                if (loaded.TryGetValue(bookName, out var alreadyFrom))
+                {
+                    if (!string.Equals(alreadyFrom, from, StringComparison.OrdinalIgnoreCase))
+                        throw TypeChecker.TypeError(
+                            $"'{bookName}' is pulled from two different files",
+                            $"One is '{alreadyFrom}' and the other is '{from}', and a program holds "
+                          + "one book per NAME — what a book declares is renamed to "
+                          + "'<name> in <book>', so two files answering to one name would collide "
+                          + "on every declaration they have",
+                            pull.Line, pull.Column,
+                            $"pull '{bookName}' from both",
+                            "Rename one of them. A book's name is its namespace, so the language "
+                          + "cannot hold two.");
                     continue;
                 }
+                loaded[bookName] = from;
 
                 string text;
                 try { text = File.ReadAllText(path); }

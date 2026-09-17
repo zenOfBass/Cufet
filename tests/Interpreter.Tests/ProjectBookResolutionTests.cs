@@ -199,4 +199,95 @@ public class ProjectBookResolutionTests : IDisposable
         Assert.Contains("beside the file that pulls it", refused.Message);
         Assert.Contains(Path.Combine(_root, "books"), refused.Message);
     }
+    // —— One NAME, two FILES ——————————
+
+    private const string LibraryUtils = """
+        Define object utils with () and book:
+            Bind text to who: Return "the LIBRARY's utils". Done.
+        Done.
+        """;
+
+    private const string LibraryAlpha = """
+        Pull a book on utils.
+            Define object alpha with () and book:
+                Bind text to speak: Return cast utils's who. Done.
+            Done.
+        Done.
+        """;
+
+    private const string AppUtils = """
+        Define object utils with () and book:
+            Bind text to who: Return "the APP's utils". Done.
+        Done.
+        """;
+
+    /// <remarks>
+    /// ⚠⚠ MEASURED 2026-09-16, and it was an ORDER-DEPENDENT SILENT WRONG ANSWER. `alpha`
+    /// pulls its own `utils` beside itself; the app has a different `utils` beside the program.
+    /// Pulling both, whichever name came FIRST claimed the file and the other silently got it:
+    /// `Pull books on utils, and alpha.` handed the library the APP's helper, and reversing the two
+    /// names handed the app the LIBRARY's. Same files, same program, different answer by textual
+    /// order — exit 0, nothing said, and identical in both backends, so the oracle could not
+    /// see it.
+    ///
+    /// ★★ The cause is one word: `loaded` was keyed by NAME, but what must be unique is the
+    /// FILE. Two pulls of one name resolving to one file is a DIAMOND and is fine; resolving to two
+    /// is a CONFLICT, and the language refuses those rather than picking.
+    /// </remarks>
+    [Theory]
+    [InlineData("Pull books on utils, and alpha.")]
+    [InlineData("Pull books on alpha, and utils.")]
+    public void OneNameResolvingToTwoFiles_IsRefusedWhicheverOrder(string pull)
+    {
+        MarkProject();
+        Write("books", "utils", LibraryUtils);
+        Write("books", "alpha", LibraryAlpha);
+        Write("paint", "utils", AppUtils);
+
+        var refused = Assert.Throws<TypeException>(() => RunIn("paint",
+            pull + "\n    State cast alpha's speak.\nDone.\n"));
+
+        Assert.Contains("'utils' is pulled from two different files", refused.Message);
+        // ★ Both files are named, because the fix is to rename one and you cannot do that
+        // without being told which two they are.
+        Assert.Contains("utils.cufe", refused.Message);
+    }
+
+    /// <remarks>
+    /// ⚠ THE LINE THE REFUSAL MUST NOT CROSS. Two books pulling the SAME file is an ordinary
+    /// diamond and stays legal — refusing it would make a shared dependency impossible, which
+    /// is the normal case rather than the broken one.
+    /// </remarks>
+    [Fact]
+    public void TwoBooksPullingTheSameFile_IsStillADiamond()
+    {
+        MarkProject();
+        Write("books", "utils", LibraryUtils);
+        Write("books", "alpha", LibraryAlpha);
+
+        Assert.Equal("the LIBRARY's utils", RunIn("paint", """
+            Pull books on utils, and alpha.
+                State cast alpha's speak.
+            Done.
+            """));
+    }
+
+    /// <remarks>
+    /// ★ And a library keeps its OWN helper when the program does not pull that name at all
+    /// — measured before the fix and unchanged by it. Privacy held right up to the collision.
+    /// </remarks>
+    [Fact]
+    public void ALibraryKeepsItsOwnHelper_WhenTheProgramDoesNotPullTheName()
+    {
+        MarkProject();
+        Write("books", "utils", LibraryUtils);
+        Write("books", "alpha", LibraryAlpha);
+        Write("paint", "utils", AppUtils);
+
+        Assert.Equal("the LIBRARY's utils", RunIn("paint", """
+            Pull a book on alpha.
+                State cast alpha's speak.
+            Done.
+            """));
+    }
 }
