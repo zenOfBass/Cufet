@@ -1,6 +1,7 @@
 ﻿using Cufet.Compiler;
 using Cufet.Interpreter;
 using Cufet.Lexer;
+using System.Diagnostics;
 using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -568,18 +569,21 @@ static void BuildProject()
 
 // —— Installing a project's PINNED BOOKS ————————————————————
 //
-// ★★ The same shape as BuildProject, and deliberately so: read the blueprint, append a call
-// to a walker WRITTEN IN CUFET, and run it. The CLI holds no policy — what a pin means lives in
-// the language, where it can be read.
+// ★★ WHAT A PIN MEANS LIVES IN CUFET; HOW A PIN IS FETCHED LIVES HERE. The `pin` type and the
+// blueprint declaring them are the language's half, and `bp-pins` is the seam: a blueprint is asked
+// what it pins by RUNNING it and reading the lines it prints. The fetch itself is a CLOSURE over a
+// graph — clone, extract, then follow the fetched book's own blueprint — and a loop written half in
+// each language is a loop nobody can read. ⚠ An earlier slice had a Cufet `bp-fetch` doing the
+// fetching, which was right for one flat list and stopped being right the moment it had to recurse.
 //
-// ⚠ This slice REPORTS and does not fetch. `cufet pulls` was built the same way round, and
-// for the same reason: a list you can read before anything is downloaded is the half that can be
-// checked.
+// ⚠⚠ A FETCHED BLUEPRINT IS EXECUTED. That is the npm/pip postinstall hazard, chosen deliberately
+// (2026-09-17) so that a blueprint may COMPUTE its pins rather than only spell them out. It also
+// stands against `blueprint.cufe`'s own rule that only its LOCATION is read and never its contents
+// — a rule about the LOADER, which still holds there. Because it is an exception, the installer
+// SAYS SO before each one runs, and `docs/BOOKS.md` names the hazard where a reader will meet it.
 static void InstallProject()
 {
     const string blueprintFile = BookLoading.BlueprintFile;
-    const string walker = "bp-fetch in blueprints";
-    const string entry  = "books";
 
     if (!File.Exists(blueprintFile))
     {
@@ -595,7 +599,70 @@ static void InstallProject()
     try { source = File.ReadAllText(blueprintFile); }
     catch (IOException e) { Console.Error.WriteLine(e.Message); Environment.Exit(1); return; }
 
-    var checker = MakeChecker(blueprintFile);
+    // ★ A WORKLIST, never recursion — the same rule `bp-walk` follows, and here it also gives
+    // cycle termination for free: a name already seen is never queued again, so two books pinning
+    // each other stop rather than spin.
+    var queue = new Queue<(Pin Pin, string From)>();
+    foreach (var pin in PinsOf(source, blueprintFile, "this project"))
+        queue.Enqueue((pin, "this project"));
+
+    var seen = new Dictionary<string, (Pin Pin, string From)>(StringComparer.OrdinalIgnoreCase);
+
+    while (queue.Count > 0)
+    {
+        var (pin, from) = queue.Dequeue();
+
+        if (seen.TryGetValue(pin.Name, out var already))
+        {
+            // ★ An ordinary diamond: two books wanting the same book at the same commit is the
+            // case this whole design is FOR, and it costs one fetch rather than two.
+            if (string.Equals(already.Pin.Source, pin.Source, StringComparison.Ordinal)
+             && string.Equals(already.Pin.Commit, pin.Commit, StringComparison.Ordinal))
+                continue;
+
+            // ⚠⚠ NAMING BOTH, because neither one alone is the mistake. A program holds one book
+            // per NAME — that is what makes the name the namespace — so exact pins force a
+            // SELECTION and there is nobody but the author to make it. Guessing "the newer one"
+            // would need an ordering commits do not have.
+            Console.Error.WriteLine(
+                $"install: '{pin.Name}' is pinned twice, to different things:");
+            Console.Error.WriteLine(
+                $"  {already.From} pins it to {already.Pin.Source} at {already.Pin.Commit}");
+            Console.Error.WriteLine($"  {from} pins it to {pin.Source} at {pin.Commit}");
+            Console.Error.WriteLine(
+                "A program holds one book per name, so these cannot both be installed. Pin "
+                + $"{pin.Name} in this project's blueprint to say which one wins.");
+            Environment.Exit(1);
+            return;
+        }
+
+        seen[pin.Name] = (pin, from);
+
+        string? nested = Fetch(pin);
+        if (nested is null) continue;
+
+        // ⚠ Said out loud, every time. Running a fetched repository's build description is the one
+        // place this tool executes code it did not get from the person running it.
+        Console.WriteLine($"cufet install: running {pin.Name}'s blueprint to read its pins");
+        string where = Path.Combine(BookLoading.SharedFolder, Cache.Folder, pin.Name);
+        foreach (var onward in PinsOf(nested, Path.Combine(where, blueprintFile), pin.Name))
+            queue.Enqueue((onward, $"{pin.Name}'s blueprint"));
+    }
+
+    if (seen.Count == 0) Console.WriteLine("This project pins no books.");
+}
+
+/// What a blueprint pins, asked by running it. Null is never returned — a blueprint that cannot be
+/// read leaves through <see cref="Environment.Exit"/>, the way every other front-end failure here
+/// does.
+static List<Pin> PinsOf(string source, string forFile, string whose)
+{
+    // The printer, under the name file privacy gives it. ★★ The SPACE is what makes this safe:
+    // no identifier may contain one, so a blueprint cannot shadow it. Same trick as `bp-walk`.
+    const string walker = "bp-pins in blueprints";
+    const string entry  = "books";
+
+    var checker = MakeChecker(forFile);
     Cufet.Interpreter.Program program;
     try
     {
@@ -610,11 +677,7 @@ static void InstallProject()
             .Any(b => b.UntoType is null
                    && b.Name.Equals(entry, StringComparison.OrdinalIgnoreCase));
 
-        if (!pinsAnything)
-        {
-            Console.WriteLine("This project pins no books.");
-            return;
-        }
+        if (!pinsAnything) return [];
 
         program = new Cufet.Interpreter.Program(
         [
@@ -626,16 +689,128 @@ static void InstallProject()
         ]);
         program = checker.Check(program);
     }
-    catch (LexerException e) { Console.Error.WriteLine(e.Message); Environment.Exit(1); return; }
-    catch (ParseException e) { Console.Error.WriteLine(e.Message); Environment.Exit(1); return; }
-    catch (TypeException e)  { Console.Error.WriteLine(e.Message); Environment.Exit(1); return; }
+    catch (LexerException e) { Refuse(whose, e.Message); return []; }
+    catch (ParseException e) { Refuse(whose, e.Message); return []; }
+    catch (TypeException e)  { Refuse(whose, e.Message); return []; }
 
-    WriteWarnings(blueprintFile, checker.Diagnostics);
+    WriteWarnings(forFile, checker.Diagnostics);
 
-    var interpreter = new Interpreter { ForeignRunner = new GccForeignRunner() };
+    // ★ The mechanism: `Interpreter` hands back no values, only `Execute` — but it takes a
+    // TextWriter, so what a blueprint PRINTS is how a pin comes back out. The same capture
+    // `PipelineTestBase` and `BookDocumentationTests` already rely on.
+    var printed = new StringWriter();
+    var interpreter = new Interpreter(printed) { ForeignRunner = new GccForeignRunner() };
     RunOnLargeStack(() => interpreter.Execute(program));
-    if (interpreter.ExitStatus is { } chosen) Environment.Exit(chosen);
     if (interpreter.WasInterrupted) Environment.Exit(130);
+    if (interpreter.ExitStatus is { } chosen && chosen != 0)
+    {
+        Console.Error.Write(printed.ToString());
+        Environment.Exit(chosen);
+    }
+
+    var pins = new List<Pin>();
+    foreach (var line in printed.ToString()
+                                .Split('\n', StringSplitOptions.RemoveEmptyEntries))
+    {
+        // ⚠ STRICT, and every line must be a pin. A blueprint DESCRIBES — `cufet build` settled
+        // that — so anything else on this channel is a mistake, and reading past it would drop a
+        // malformed pin in silence, which is the one outcome a pin exists to prevent.
+        var fields = line.TrimEnd('\r').Split('\t');
+        if (fields.Length != 3)
+        {
+            Refuse(whose, $"a blueprint may only describe, and this one printed: {line.Trim()}");
+            return [];
+        }
+        pins.Add(new Pin(fields[0], fields[1], fields[2]));
+    }
+    return pins;
+
+    static void Refuse(string whose, string message)
+    {
+        Console.Error.WriteLine($"install: reading the pins of {whose}: {message}");
+        Environment.Exit(1);
+    }
+}
+
+/// Puts one pinned book in `books/`, and hands back its OWN blueprint if it has one.
+static string? Fetch(Pin pin)
+{
+    string where = Path.Combine(BookLoading.SharedFolder, Cache.Folder, pin.Name);
+    string into  = Path.Combine(BookLoading.SharedFolder, pin.Name + ".cufe");
+
+    // ★ Asked of the DIRECTORY rather than by letting a clone fail: a clone can fail for a dozen
+    // reasons, and reading "already there" out of any of them would turn a bad source into a
+    // silent no-op.
+    if (!Directory.Exists(where))
+    {
+        Console.WriteLine($"cufet install: fetching {pin.Name}");
+        // ⚠ `--no-checkout` on purpose. Nothing here needs a working tree, and a checkout is where
+        // git rewrites line endings — on Windows `core.autocrlf` would change the bytes of every
+        // book fetched. There is no working tree at all, so no config can touch them.
+        var got = Git(null, "clone", "--quiet", "--no-checkout", pin.Source, where);
+        if (got.Exit != 0) FetchFailed(pin, got.Err);
+    }
+    else
+    {
+        // ⚠ A pinned commit may be missing from a cache filled before it existed, so an
+        // already-cloned source is brought up to date before the commit is asked for.
+        var fresh = Git(where, "fetch", "--quiet");
+        if (fresh.Exit != 0) FetchFailed(pin, fresh.Err);
+    }
+
+    var file = Git(where, "show", $"{pin.Commit}:{pin.Name}.cufe");
+    if (file.Exit != 0) FetchFailed(pin, file.Err);
+
+    try { File.WriteAllText(into, file.Out); }
+    catch (IOException e) { FetchFailed(pin, e.Message); }
+    Console.WriteLine($"cufet install: {pin.Name} at {pin.Commit}");
+
+    // ★ A book with no blueprint of its own is the ordinary case, not a failure: a book that pins
+    // nothing needs no build description, and `git show` saying so IS the answer.
+    var nested = Git(where, "show", $"{pin.Commit}:{BookLoading.BlueprintFile}");
+    return nested.Exit == 0 ? nested.Out : null;
+
+    static void FetchFailed(Pin pin, string why)
+    {
+        Console.Error.WriteLine($"install: {pin.Name}: {why.TrimEnd()}");
+        Environment.Exit(1);
+    }
+}
+
+/// Shelling out to `git`, which is the whole of this package manager's transport.
+///
+/// ★★ No registry and no network capability of Cufet's own — publishing a book is `git push` and
+/// nothing else. A pin names a COMMIT rather than a version (a second name for the same thing) or
+/// a content checksum (which cannot survive a checkout that rewrites line endings).
+static (int Exit, string Out, string Err) Git(string? at, params string[] args)
+{
+    var psi = new ProcessStartInfo("git")
+    {
+        RedirectStandardOutput = true,
+        RedirectStandardError  = true,
+        UseShellExecute        = false,
+        StandardOutputEncoding = new UTF8Encoding(false),
+        StandardErrorEncoding  = new UTF8Encoding(false),
+    };
+    if (at is not null) { psi.ArgumentList.Add("-C"); psi.ArgumentList.Add(at); }
+    foreach (var a in args) psi.ArgumentList.Add(a);
+
+    try
+    {
+        using var git = Process.Start(psi)!;
+        // ⚠ BOTH pipes read at once. Draining stdout to the end first deadlocks the moment stderr
+        // fills its buffer, and a book's source is easily large enough to make that real.
+        var output = git.StandardOutput.ReadToEndAsync();
+        var errors = git.StandardError.ReadToEndAsync();
+        git.WaitForExit();
+        return (git.ExitCode, output.Result, errors.Result);
+    }
+    catch (System.ComponentModel.Win32Exception)
+    {
+        // 127 is the shell's own "no such command", so a caller need not tell the two apart.
+        return (127, "", "git is not installed, or is not on PATH. "
+                       + "A pin is fetched with git, so 'cufet install' needs it.");
+    }
 }
 
 static void Build(string sourcePath)
@@ -783,4 +958,21 @@ static void RunOnLargeStack(Action action)
     thread.Join();
     if (caught is not null)
         ExceptionDispatchInfo.Capture(caught).Throw();
+}
+
+/// One book, named and fixed to an exact commit of an exact source.
+readonly record struct Pin(string Name, string Source, string Commit);
+
+file static class Cache
+{
+    /// Where a pinned source's clone is kept.
+    ///
+    /// ★★ THE CLONE IS THE CACHE, and this location is measured rather than tidy: `Write` does not
+    /// create parent directories and Cufet cannot make one, so `books/` has to be brought into
+    /// being by something — and `git clone` creates its target INCLUDING parents, so cloning into
+    /// a subdirectory of `books/` is what brings `books/` into existence.
+    ///
+    /// ★ Deleting `books/` therefore removes everything the installer made, which is the same
+    /// escape hatch deleting `.cufet-build` offers the build.
+    public const string Folder = ".cufet-cache";
 }

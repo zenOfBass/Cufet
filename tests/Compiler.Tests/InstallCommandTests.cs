@@ -5,7 +5,8 @@ using Xunit;
 namespace Cufet.Compiler.Tests;
 
 /// <summary>
-/// `cufet install` — fetching the books a project pins, at the commits it pins them to.
+/// `cufet install` — fetching the books a project pins, at the commits it pins them to, and the
+/// books THOSE books pin.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -18,13 +19,20 @@ namespace Cufet.Compiler.Tests;
 /// <para>
 /// ★ A pin records a COMMIT, not a version: a version string would be a second name for the same
 /// thing, and a content checksum cannot survive a git checkout that rewrites line endings.
-/// `--no-checkout` plus `git show <commit>:<file>` reads straight out of the object store, which no
-/// `core.autocrlf` setting touches.
+/// `--no-checkout` plus `git show &lt;commit&gt;:&lt;file&gt;` reads straight out of the object
+/// store, which no `core.autocrlf` setting touches.
 /// </para>
 /// <para>
 /// ⚠ The clone is KEPT, at `books/.cufet-cache/‹name›`, and that location is measured rather than
 /// chosen: `Write` does not create parent directories and Cufet cannot make one, so `books/` has to
 /// be created by something — and `git clone` creates its target including parents.
+/// </para>
+/// <para>
+/// ⚠⚠ **There is no cycle test, and that is a finding rather than a gap.** A pin names a commit,
+/// and a commit cannot contain its own sha — so for book A to pin B while B pins that same A, B
+/// would have to be committed knowing a sha that does not exist until B exists. Exact pins are
+/// ACYCLIC BY CONSTRUCTION, for the same reason a git history is. The installer's seen-set still
+/// guards the loop, and <see cref="ADiamond_AtTheSameCommit_IsFetchedOnce"/> is what exercises it.
 /// </para>
 /// </remarks>
 public class InstallCommandTests : IDisposable
@@ -47,13 +55,8 @@ public class InstallCommandTests : IDisposable
         Path.Combine(TestScratch.Root, "install-" + Guid.NewGuid().ToString("N"));
 
     private string Project => Path.Combine(_root, "project");
-    private string Library => Path.Combine(_root, "library");
 
-    public InstallCommandTests()
-    {
-        Directory.CreateDirectory(Project);
-        Directory.CreateDirectory(Library);
-    }
+    public InstallCommandTests() => Directory.CreateDirectory(Project);
 
     /// <remarks>
     /// ⚠ GIT MARKS ITS OBJECT FILES READ-ONLY, so a plain recursive delete throws
@@ -97,32 +100,55 @@ public class InstallCommandTests : IDisposable
 
     private (int Exit, string Out, string Err) Install() => Run(CufetExe, Project, "install");
 
-    /// <summary>Publishes a one-file book as a real git repo, and hands back its commit sha.</summary>
-    private string PublishBook(string name, string body)
+    private readonly record struct Pinned(string Name, string Source, string Commit);
+
+    /// <summary>Where a published book's own repository lives.</summary>
+    private string RepoOf(string name) => Path.Combine(_root, "source-" + name);
+
+    /// <summary>
+    /// Publishes a book as a real git repo, with its own blueprint if it pins anything, and hands
+    /// back the commit sha. Publishing the same name twice commits again to the same repo, which is
+    /// how a source comes to have two commits worth pinning.
+    /// </summary>
+    private string Publish(string name, string body, params Pinned[] pins)
     {
-        File.WriteAllText(Path.Combine(Library, name + ".cufe"), body);
-        Run("git", Library, "init", "--quiet");
-        Run("git", Library, "add", name + ".cufe");
-        Run("git", Library, "-c", "user.email=t@example.com", "-c", "user.name=t",
+        string repo = RepoOf(name);
+        Directory.CreateDirectory(repo);
+        File.WriteAllText(Path.Combine(repo, name + ".cufe"), body);
+        if (pins.Length > 0)
+            File.WriteAllText(Path.Combine(repo, "blueprint.cufe"), Blueprint(pins));
+
+        Run("git", repo, "init", "--quiet");
+        Run("git", repo, "add", "-A");
+        Run("git", repo, "-c", "user.email=t@example.com", "-c", "user.name=t",
             "commit", "--quiet", "-m", name);
-        return Run("git", Library, "rev-parse", "HEAD").Out.Trim();
+        return Run("git", repo, "rev-parse", "HEAD").Out.Trim();
     }
 
-    // ⚠ Forward slashes: a Cufet text literal reads a backslash as an escape.
-    private string LibraryPath => Library.Replace('\\', '/');
+    private Pinned Pin(string name, string commit) => new(name, RepoOf(name), commit);
 
-    private void PinBlueprint(string name, string commit) =>
-        File.WriteAllText(Path.Combine(Project, "blueprint.cufe"), $"""
-            Pull a book on blueprints.
-                Bind series of pin to books:
-                    Return a series of pin with (
-                        a record with (
-                            the name "{name}",
-                            the source "{LibraryPath}",
-                            the commit "{commit}")).
-                Done.
-            Done.
-            """);
+    /// <remarks>
+    /// ⚠ Forward slashes: a Cufet text literal reads a backslash as an escape, so a Windows path
+    /// written straight into generated Cufet becomes a lexer error about `\U`.
+    /// </remarks>
+    private static string Blueprint(params Pinned[] pins)
+    {
+        string records = string.Join(",\n", pins.Select(p =>
+            "            a record with (\n"
+          + $"                the name \"{p.Name}\",\n"
+          + $"                the source \"{p.Source.Replace('\\', '/')}\",\n"
+          + $"                the commit \"{p.Commit}\")"));
+
+        return "Pull a book on blueprints.\n"
+             + "    Bind series of pin to books:\n"
+             + "        Return a series of pin with (\n"
+             + records + ").\n"
+             + "    Done.\n"
+             + "Done.\n";
+    }
+
+    private void PinsInProject(params Pinned[] pins) =>
+        File.WriteAllText(Path.Combine(Project, "blueprint.cufe"), Blueprint(pins));
 
     private const string Canvas = """
         Define object canvas with () and book:
@@ -130,11 +156,33 @@ public class InstallCommandTests : IDisposable
         Done.
         """;
 
+    private const string Deep = """
+        Define object deep with () and book:
+            Bind text to greet: Return "hello from deep". Done.
+        Done.
+        """;
+
+    /// <summary>A canvas that cannot work unless `deep` is installed alongside it.</summary>
+    private const string CanvasOverDeep = """
+        Pull a book on deep.
+            Define object canvas with () and book:
+                Bind text to draw: Return "canvas says: {cast deep's greet}". Done.
+            Done.
+        Done.
+        """;
+
+    private void ProgramPulling(string book, string call) =>
+        File.WriteAllText(Path.Combine(Project, "main.cufe"),
+            $"Pull a book on {book}.\n    State cast {book}'s {call}.\nDone.\n");
+
+    private bool Installed(string name) =>
+        File.Exists(Path.Combine(Project, "books", name + ".cufe"));
+
     [Fact]
     public void APinnedBook_IsFetchedAndCanThenBePulled()
     {
-        var sha = PublishBook("canvas", Canvas);
-        PinBlueprint("canvas", sha);
+        var sha = Publish("canvas", Canvas);
+        PinsInProject(Pin("canvas", sha));
 
         var (exit, stdout, stderr) = Install();
         Assert.True(exit == 0, $"install failed: {stderr}");
@@ -142,18 +190,143 @@ public class InstallCommandTests : IDisposable
 
         // ★ It landed where a pull looks — flat in `books/`, one file per name, which mirrors the
         // language's own rule that a program holds one book per NAME.
-        var installed = Path.Combine(Project, "books", "canvas.cufe");
-        Assert.True(File.Exists(installed), "books/canvas.cufe was not written");
+        Assert.True(Installed("canvas"), "books/canvas.cufe was not written");
 
         // ★★ And the point of the whole exercise: a program can now pull it.
-        File.WriteAllText(Path.Combine(Project, "main.cufe"), """
-            Pull a book on canvas.
-                State cast canvas's draw.
-            Done.
-            """);
+        ProgramPulling("canvas", "draw");
         var used = Run(CufetExe, Project, "main.cufe");
         Assert.Equal(0, used.Exit);
         Assert.Contains("drawn by the fetched canvas", used.Out);
+    }
+
+    /// <remarks>
+    /// ★★ THE POINT OF TRANSITIVE PINS. The project names `canvas` and nothing else; `deep` is
+    /// canvas's business and the project never learns it exists. Without this, a library's private
+    /// dependencies become part of every consumer's spelling — the exact thing module privacy
+    /// removed at the language level, reappearing in the package manager.
+    /// </remarks>
+    [Fact]
+    public void ABookTheProjectNeverPinned_IsFetchedBecauseItsBookPinsIt()
+    {
+        var deep   = Publish("deep", Deep);
+        var canvas = Publish("canvas", CanvasOverDeep, Pin("deep", deep));
+        PinsInProject(Pin("canvas", canvas));
+
+        var (exit, stdout, stderr) = Install();
+        Assert.True(exit == 0, $"install failed: {stderr}");
+
+        Assert.True(Installed("canvas"), "books/canvas.cufe was not written");
+        Assert.True(Installed("deep"), "books/deep.cufe was not written — the pin was not followed");
+
+        // ⚠ SAID OUT LOUD. Running a fetched repository's build description is the one place this
+        // tool executes code it did not get from the person running it, so it names each one first.
+        Assert.Contains("running canvas's blueprint", stdout);
+
+        ProgramPulling("canvas", "draw");
+        var used = Run(CufetExe, Project, "main.cufe");
+        Assert.Equal(0, used.Exit);
+        Assert.Contains("canvas says: hello from deep", used.Out);
+    }
+
+    /// <remarks>★ The case the whole design is FOR: two books wanting the same book at the same
+    /// commit is agreement, not conflict, and it costs one fetch.</remarks>
+    [Fact]
+    public void ADiamond_AtTheSameCommit_IsFetchedOnce()
+    {
+        var deep  = Publish("deep", Deep);
+        var left  = Publish("canvas", Canvas, Pin("deep", deep));
+        var right = Publish("palette", Palette, Pin("deep", deep));
+        PinsInProject(Pin("canvas", left), Pin("palette", right));
+
+        var (exit, stdout, stderr) = Install();
+        Assert.True(exit == 0, $"install failed: {stderr}");
+        Assert.True(Installed("deep"));
+
+        // ⚠⚠ COUNTED ON THE INSTALL LINE, not on "fetching". MEASURED: with the seen-set sabotaged
+        // away, `deep` is processed TWICE and "fetching deep" still appears once — because the
+        // second pass finds the clone already there and says nothing. The test went green over the
+        // defect it was written for. What only the seen-set prevents is the second INSTALL.
+        Assert.Equal(1, stdout.Split("deep at " + deep).Length - 1);
+        Assert.Equal(1, stdout.Split("fetching deep").Length - 1);
+    }
+
+    private const string Palette = """
+        Define object palette with () and book:
+            Bind text to shade: Return "a shade". Done.
+        Done.
+        """;
+
+    /// <remarks>
+    /// ⚠⚠ NAMING BOTH, because neither pin alone is the mistake. A program holds one book per NAME,
+    /// so exact pins force a SELECTION — and there is nobody but the author to make it. Picking
+    /// "the newer" would need an ordering that commits do not have.
+    /// </remarks>
+    [Fact]
+    public void ADiamond_AtDifferentCommits_IsRefusedNamingBoth()
+    {
+        var first  = Publish("deep", Deep);
+        var second = Publish("deep", Deep.Replace("hello from deep", "hello again"));
+        Assert.NotEqual(first, second);
+
+        var left  = Publish("canvas", Canvas, Pin("deep", first));
+        var right = Publish("palette", Palette, Pin("deep", second));
+        PinsInProject(Pin("canvas", left), Pin("palette", right));
+
+        var (exit, _, stderr) = Install();
+
+        Assert.NotEqual(0, exit);
+        Assert.Contains("'deep' is pinned twice", stderr);
+        Assert.Contains(first, stderr);
+        Assert.Contains(second, stderr);
+    }
+
+    /// <remarks>★ A fetched book with a blueprint that pins nothing is the ordinary library: it has
+    /// a build description because it is a project when you develop it, and no dependencies.</remarks>
+    [Fact]
+    public void AFetchedBlueprintThatPinsNothing_StillInstallsItsBook()
+    {
+        string repo = RepoOf("canvas");
+        Directory.CreateDirectory(repo);
+        File.WriteAllText(Path.Combine(repo, "blueprint.cufe"), StepsOnly);
+        var sha = Publish("canvas", Canvas);
+        PinsInProject(Pin("canvas", sha));
+
+        var (exit, _, stderr) = Install();
+
+        Assert.True(exit == 0, $"install failed: {stderr}");
+        Assert.True(Installed("canvas"));
+    }
+
+    private const string StepsOnly = """
+        Pull a book on blueprints.
+            Bind series of step to blueprint:
+                Return a series of step with (
+                    a record with (
+                        the name "thing",
+                        the needs a series of text with ("a.cufe"),
+                        the makes a series of text with ("a.exe"),
+                        the runs a series of text with ("cufet", "build", "a.cufe"))).
+            Done.
+        Done.
+        """;
+
+    /// <remarks>
+    /// ⚠ A pin that names a commit the source does not have must SAY so. Silently installing
+    /// whatever the clone happened to have is the failure mode a pin exists to prevent.
+    /// </remarks>
+    [Fact]
+    public void ACommitThatDoesNotExist_IsRefusedRatherThanApproximated()
+    {
+        Publish("canvas", Canvas);
+        PinsInProject(new Pinned("canvas", RepoOf("canvas"),
+                                 "0123456789abcdef0123456789abcdef01234567"));
+
+        var (exit, _, stderr) = Install();
+
+        Assert.NotEqual(0, exit);
+        Assert.Contains("canvas", stderr);
+        Assert.False(Installed("canvas"),
+                     "nothing should be installed when the pinned commit is missing");
     }
 
     /// <remarks>★ The clone is a CACHE, so a second install does not fetch again. That is the whole
@@ -161,8 +334,8 @@ public class InstallCommandTests : IDisposable
     [Fact]
     public void ASecondInstall_ReusesTheCloneInsteadOfFetchingAgain()
     {
-        var sha = PublishBook("canvas", Canvas);
-        PinBlueprint("canvas", sha);
+        var sha = Publish("canvas", Canvas);
+        PinsInProject(Pin("canvas", sha));
 
         var first = Install();
         Assert.Equal(0, first.Exit);
@@ -175,24 +348,6 @@ public class InstallCommandTests : IDisposable
     }
 
     /// <remarks>
-    /// ⚠ A pin that names a commit the source does not have must SAY so. Silently installing
-    /// whatever the clone happened to have is the failure mode a pin exists to prevent.
-    /// </remarks>
-    [Fact]
-    public void ACommitThatDoesNotExist_IsRefusedRatherThanApproximated()
-    {
-        PublishBook("canvas", Canvas);
-        PinBlueprint("canvas", "0123456789abcdef0123456789abcdef01234567");
-
-        var (exit, stdout, _) = Install();
-
-        Assert.NotEqual(0, exit);
-        Assert.Contains("canvas", stdout);
-        Assert.False(File.Exists(Path.Combine(Project, "books", "canvas.cufe")),
-                     "nothing should be installed when the pinned commit is missing");
-    }
-
-    /// <remarks>
     /// ⚠⚠ THE ORDINARY CASE, and it must not read as a mistake. Most projects depend on no books,
     /// so a blueprint with steps and no pins has no `books` binding — and casting one that does not
     /// exist would refuse with *"'books' isn't defined"*, a message about the language for something
@@ -201,18 +356,7 @@ public class InstallCommandTests : IDisposable
     [Fact]
     public void ABlueprintThatPinsNothing_SaysSoAndSucceeds()
     {
-        File.WriteAllText(Path.Combine(Project, "blueprint.cufe"), """
-            Pull a book on blueprints.
-                Bind series of step to blueprint:
-                    Return a series of step with (
-                        a record with (
-                            the name "thing",
-                            the needs a series of text with ("a.cufe"),
-                            the makes a series of text with ("a.exe"),
-                            the runs a series of text with ("cufet", "build", "a.cufe"))).
-                Done.
-            Done.
-            """);
+        File.WriteAllText(Path.Combine(Project, "blueprint.cufe"), StepsOnly);
 
         var (exit, stdout, _) = Install();
 
