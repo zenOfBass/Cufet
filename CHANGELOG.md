@@ -10,6 +10,22 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+- **`cufet install` — the books a project pins, read from its blueprint.** One
+  `<name> <- <source> at <commit>` line per pin, in the order the blueprint lists them. A blueprint
+  that pins nothing says so and succeeds; a directory with no blueprint is refused with where it
+  looked.
+
+  ★★ **It reports and does not yet fetch**, which is the order `cufet pulls` established. A
+  dependency list you can read before anything is downloaded is the half that can be checked.
+
+  ★ Same shape as `cufet build`: read the blueprint, append a call to a walker WRITTEN IN
+  CUFET (`bp-pins`), run it. The CLI holds no policy about what a pin means — that lives in
+  `blueprints`, where a reader can find it.
+
+  ⚠ Whether a project pins anything is asked of the PARSED file, not of the run. A blueprint
+  with no pins has no `books` binding at all, so casting it would refuse with *"'books' isn't
+  defined"* — a message about the language for something that is simply the ordinary case.
+
 - **`blueprints` introduces `pin`** — one book a project depends on, held at one commit:
   `the name`, `the source`, `the commit`. A name for a SHAPE, the same treatment `step` gets, so a
   blueprint does not spell three fields out for every dependency.

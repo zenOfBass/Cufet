@@ -174,6 +174,11 @@ they are large, not because they are waiting — the order among them means noth
    language's one-book-per-name rule, but it is still a limit. ★ This is the one thing that
    could argue for per-book directories or a real namespace, against the flat shape above.
 
+   ▶ **BUILT SO FAR:** `blueprints` introduces `pin`, and `cufet install` reads a blueprint's
+   pins and reports them — report-before-act, the order `cufet pulls` established. What is NOT
+   built is the fetch: shelling out to `git` at the pinned commit, placing `<name>.cufe` into
+   `books/`, and recursing into a fetched book's own blueprint for its pins.
+
    **Open, and nothing above depends on either:**
 
    - **Who writes the transitive list.** With exact pins, the project's full flat pin list IS the
