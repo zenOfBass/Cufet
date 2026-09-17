@@ -157,15 +157,22 @@ they are large, not because they are waiting — the order among them means noth
      fetched, because a book you wrote lives beside the file that pulls it, where *nearest wins*
      already puts it first.
 
-   ⚠⚠ **A THIRD GAP, found 2026-09-16 and bigger than the two written down: a book cannot
-   have PRIVATE PARTS.** Book names are one flat global namespace, loaded once however many books
-   pull them, and MEASURED: `Resolve` accepts exactly `<name>.cufe` — a book is precisely one
-   file. So a book that outgrows one file must split into OTHER books, each taking a global name,
-   and two unrelated libraries with an internal `utils` collide. ★ Note this is a different
-   privacy from the one shipped 2026-09-15: a book's DEPENDENCY is private (a program pulling
-   `canvas` never names `palette`), but the NAME is not. ⚠ This is the one thing that could
-   still argue for per-book directories, against the flat shape above — they are answers to
-   different problems, and only this one is unsolved.
+   ⚠ **A THIRD GAP, and it is NARROWER than it first looked: a book's parts are private
+   until a name collides.** MEASURED 2026-09-16, and the first framing here EM *"a book cannot have
+   private parts"* EM was too strong. A library keeps its OWN helper even when the program has a
+   different book of that name sitting beside it; the "resolve beside THAT book" rule genuinely
+   isolates it. ★ Privacy held right up to the point where the program pulls the name too.
+
+   ✅ **That collision used to be a silent, order-dependent wrong answer and is now a
+   refusal** (see CHANGELOG): the loaded set was keyed by NAME when what must be unique is the
+   FILE. So the sharp edge is gone.
+
+   ⚠ **What REMAINS is the honest limitation underneath it:** `Resolve` accepts exactly
+   `<name>.cufe`, so a book is precisely one file, and a book outgrowing one file must split into
+   OTHER books that take global names. Two libraries that each need a different `utils` still cannot
+   coexist — they are now refused rather than silently merged, which is the right answer to the
+   language's one-book-per-name rule, but it is still a limit. ★ This is the one thing that
+   could argue for per-book directories or a real namespace, against the flat shape above.
 
    **Open, and nothing above depends on either:**
 
