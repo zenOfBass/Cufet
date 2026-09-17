@@ -246,16 +246,22 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   backends: an object declared in an `If` or a loop fires its unmaker; the same object declared
   directly in a function body, or at the program's top level, fires nothing.
 
-  ⚠⚠ **The gap is real and now has an entry of its own.** A function that opens a resource and
-  lets it fall out of scope leaks it — the case destructors exist for. ★ It is deliberate rather
-  than accidental (one rule, implemented twice: unmakers fire for bindings declared in a BLOCK, and
-  a frame is not a block) and it has a MEASURED prerequisite: a value being returned is not exempt
-  from its scope's unmakers, so firing them at a frame's exit today would destroy what a function
-  hands back.
+  ★★ **The behaviour is SETTLED DESIGN, not a defect** — decided 2026-07 after ~19 probes, as
+  MATCH-EXACTLY: replicate the interpreter's block-scope LIFO firing precisely, including the
+  double-fires and both gaps, and don't "fix" any of it. ⚠ Nothing leaks: unmaking is not
+  deallocation, the arena owns the memory and exposes no `free`, so what does not happen is a HOOK.
+  The frame gap is load-bearing — firing at frames would unmake a returned local while it is being
+  returned, which needs escape analysis.
 
-  ⚠ `PushBodyScope`'s comment pointed at a roadmap entry that had been deleted, so the defect sat
-  recorded in the code with nothing in the roadmap to surface it. Nothing about the language
-  changed here — only what the documentation claims about it.
+  ★ **The same pass added the idempotency caveat**, which that decision called for and which had
+  never reached the docs either: an unmaker may run more than once per logical object, so it is
+  safe for hooks that repeat (logging, flushing, marking) and unsafe for release that cannot
+  (closing a file by name, releasing a lock).
+
+  ⚠ `PushBodyScope`'s comment pointed at a roadmap entry that had been deleted, so the decision
+  sat in the code and in memory with nothing in the roadmap to surface it — and it was re-derived
+  from scratch before being rediscovered. The entry is back, with the four reasons. Nothing about
+  the language changed here; only what the documentation says about it.
 
 - **A book's type used bare no longer claims you never pulled the book.** Inside `Pull a book on
   collections.`, `Define out as a matrix.` refused with *"'matrix' is a type, and this program has

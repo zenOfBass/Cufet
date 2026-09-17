@@ -2379,6 +2379,15 @@ Rules:
   object, so two names exist and the unmaker fires **twice**. An object reached without a
   `Define` — a temporary, an element of a series, a field of another object — has no declaring
   block, so its unmaker **never** fires. Cufet does not track who owns a resource; you do.
+- ⚠⚠ **An unmaker may run MORE THAN ONCE per logical object, so write it to be ID—POTENT.**
+  A copy fires it twice; a value returned out of the block it was declared in is unmade on the way
+  out and handed over anyway. ★ **Safe** for hooks that can repeat — logging, flushing, marking,
+  setting a flag. ⚠ **Unsafe** for release that cannot — closing a file by name, releasing a
+  lock, decrementing a count. For those, expose a method and call it where you can see it happen.
+  ★ This follows from what an unmaker IS: a per-binding scope-exit hook, not an ownership
+  destructor. Cufet objects are value types with no identity, so there is no unique owner to give
+  the release to, and unmaking is not deallocation — the arena owns the memory and exposes no
+  `free`, which is why a repeat is observable but never a double-free.
 
 ---
 

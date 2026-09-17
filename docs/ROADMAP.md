@@ -268,40 +268,37 @@ they are large, not because they are waiting — the order among them means noth
    ⚠ Whatever is written must be pinned like the doc fences are: a lesson whose code stops working
    is worse than no lesson, and this project has the machinery to catch that already.
 
-5. **Unmakers do not run for a function's own bindings.** ⚠⚠ A live correctness gap, and the
-   documentation promised more than the language delivered until 2026-09-16.
+5. **Unmaker fire-timing — SETTLED 2026-07, and do not re-derive it.** ⚠⚠ An unmaker does not
+   fire for a binding declared directly in a function or method FRAME, nor at the program's top
+   level. MEASURED in both backends. It looks like a bug every time somebody meets it, and it is
+   not one.
 
-   MEASURED, in BOTH backends: an object declared in an `If` or a loop body has its unmaker fire at
-   that `Done.`; the same object declared DIRECTLY in a function or method body, or at the program's
-   top level, fires nothing. A block NESTED inside the function does fire. So a function that opens
-   a resource and lets it fall out of scope leaks it — the case destructors exist for.
+   ★★ **Settled MATCH-EXACTLY after ~19 probes:** replicate the interpreter's block-scope LIFO
+   firing precisely, *including* the value-copy and escape double-fires and both gaps — don't
+   "fix" any of it. The four recorded reasons, each of which kills the obvious repair:
 
-   ★ **It is deliberate and coherent, not an accident.** One rule, implemented twice: *unmakers
-   fire for bindings declared in a BLOCK, and a frame is not a block.* `PushBodyScope` says so, and
-   the compiler's UNMK note mirrors it deliberately, listing the task body as the one exception.
-   ⚠ What was wrong was REFERENCE, which described RAII without saying a frame body is excluded.
+   1. **Deterministic, so sound and oracle-able as it stands.** Block-exit LIFO is the same shape
+      the open-files cleanup stack already uses.
+   2. **The double-fire IS the language.** Cufet objects are value types with NO IDENTITY, so an
+      unmaker is a per-binding HOOK and N copies mean N unmakings. ⚠ Exempting "the returned
+      binding" — the obvious narrow fix — requires exactly the identity the language declines.
+   3. **The frame gap is LOAD-BEARING.** Firing at frames would unmake a returned local WHILE IT IS
+      BEING RETURNED. Closing it properly needs escape analysis, which is the deferred arena arc.
+   4. **Unmaking is NOT deallocation.** The arena owns all memory and exposes no `free`, so an
+      unmaker body is ordinary user code. That is why a repeat is observable but SAFE.
 
-   **Three steps, and only the last is hard:**
+   ✅ **What was genuinely overdue was the DOCUMENTATION the decision called for, and it is done
+   now (2026-09-16).** REFERENCE described RAII without saying a frame body is excluded, and never
+   carried the idempotency caveat at all. Both are in it.
 
-   1. Register frame-level `Define`s — the interpreter arms the release bookkeeping
-      `PushBodyScope` currently skips; the compiler lets a `_scopeDepth == 0` Define register.
-   2. Run them at frame exit. The machinery already exists on both sides
-      (`RunScopeUnmakers`, `cufet_run_unmakers_to`, `_frameUnmakerBase`).
-   3. ⚠⚠ **Exempt the value being RETURNED.** MEASURED as necessary: a function returning an
-      object declared in a block prints its unmaker's output and hands the object over anyway. Do
-      step 1 without this and every `Bind <type> to make-thing:` destroys what it returns, which is
-      worse than the leak.
+   ⚠ **FFI resources are NOT affected the same way**, which is worth knowing before anyone reopens
+   this: foreign releases are a FLAT list with a per-block base, so one acquired inside a function
+   body still runs at the nearest enclosing block — late, not never. Unmaker bindings live in
+   per-scope dictionaries and are simply dropped.
 
-   ★ **Step 3 may not need the full concept.** The obvious blocker is *"this binding is spent"* —
-   the same one **Move semantics at channel send** names in Deferred, which makes this its second
-   and more urgent witness. But a NARROW rule may do: *the binding named directly in a `Return` is
-   exempt from its scope's unmakers.* It is syntactic and checkable, and `Define copy as original.`
-   already COPIES an object, so there is far less aliasing to reason about than in a language with
-   references. ▶ Measure the narrow rule before assuming this is blocked on the arc.
-
-   ⚠ **Recorded because it went invisible once.** `PushBodyScope`'s comment says *"see the roadmap
-   entry"* and there was none — the defect stayed in the code while its entry was deleted, and it
-   took somebody's instinct rather than this file to resurface it.
+   ▶ **To reopen it is to take the escape-analysis arc**, not to write a narrow rule. The blocker
+   it shares with **Move semantics at channel send** is the same missing concept: a way to say
+   *"this binding is spent."*
 
 ## Ongoing, no fixed slot
 
