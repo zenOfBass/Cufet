@@ -578,7 +578,7 @@ static void BuildProject()
 static void InstallProject()
 {
     const string blueprintFile = BookLoading.BlueprintFile;
-    const string walker = "bp-pins in blueprints";
+    const string walker = "bp-fetch in blueprints";
     const string entry  = "books";
 
     if (!File.Exists(blueprintFile))
