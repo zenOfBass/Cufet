@@ -155,10 +155,17 @@ they are large, not because they are waiting — the order among them means noth
    claims a book provides still exists. ⚠ MEASURED public surface: sixteen — 13 Cufet-layer
    members, `math`'s `pi` and `e`, and `blueprints`' native `checksum`.
 
+   ✅ **Hosting is NOT a fork — that was settled 2026-08-24 and both halves have landed.**
+   `playground.yml` publishes Pages from an UPLOADED ARTIFACT (`configure-pages` →
+   `upload-pages-artifact` → `deploy-pages`), not from a folder on main, so `docs/` is a plain
+   directory with nothing to conflict over, and the `docs/` move itself shipped. ⚠ This entry
+   deferred to that question for three weeks after it was answered.
+
    **One fork left:**
 
-   - **Output format**, which lands on the deferred `docs/`-folder and GitHub-Pages question — if
-     Pages ever publishes from `docs/`, that folder IS the site and generated pages belong to it.
+   - **What a page IS, and where it is published.** The shape of the generated page, and whether it
+     joins the playground in the Pages artifact or is a file in the repo. ★ Neither is blocked —
+     both are now ordinary decisions about output rather than a wait on hosting.
 
    ⚠ **Whatever is generated must be pinned and tested**, the way the doc-block fence tags and
    `examples/expected/` already are — generated output that nothing checks is the same staleness
@@ -175,9 +182,11 @@ they are large, not because they are waiting — the order among them means noth
 
    **One decision, still open:**
 
-   - **What the site IS.** Generated pages, hand-written lessons, or REFERENCE reorganised — and
-     where it lives, which lands on the same deferred `docs/`-folder and GitHub-Pages question
-     item 2 above already carries. Both should be answered once.
+   - **What the site IS.** Generated pages, hand-written lessons, or REFERENCE reorganised.
+     ✅ **Where it LIVES is already answered** — Pages publishes an uploaded artifact, which is
+     how the playground ships, so a site has somewhere to go without anyone deciding anything.
+     ⚠ This bullet used to defer to a "`docs/`-folder and GitHub-Pages question" settled on
+     2026-08-24, and pointed at the wrong item while doing it.
 
    ✅ **THE CURRICULUM IS SETTLED, 2026-09-16**, and lesson 1 is written — `docs/TUTORIAL.md`,
    with every program and every message in it run by the suite.
