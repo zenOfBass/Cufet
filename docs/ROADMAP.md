@@ -174,10 +174,20 @@ they are large, not because they are waiting — the order among them means noth
    language's one-book-per-name rule, but it is still a limit. ★ This is the one thing that
    could argue for per-book directories or a real namespace, against the flat shape above.
 
-   ▶ **BUILT SO FAR:** `blueprints` introduces `pin`, and `cufet install` reads a blueprint's
-   pins and reports them — report-before-act, the order `cufet pulls` established. What is NOT
-   built is the fetch: shelling out to `git` at the pinned commit, placing `<name>.cufe` into
-   `books/`, and recursing into a fetched book's own blueprint for its pins.
+   ▶ **BUILT:** `blueprints` introduces `pin`; `cufet install` clones each pinned source once
+   into `books/.cufet-cache/<name>` and writes the pinned file to `books/<name>.cufe`. MEASURED end
+   to end against a real git repository: install, then a program pulls the fetched book and runs.
+
+   ⚠ **NOT built: the transitive half.** A fetched book's own blueprint is not read, so its
+   pins are not followed — a project must currently pin every book it needs, including the ones
+   its books need. That is the next slice, and it is where the *who writes the transitive list*
+   fork below stops being hypothetical.
+
+   ★ **A LANGUAGE GAP, found by building this and worth the campaign's attention:** Cufet can
+   read a file, write a file and list a directory, and can neither CREATE nor DELETE one. The
+   installer routed around it — `git clone` makes the directory and the clone is kept rather
+   than removed — and a cache is a legitimate design rather than a contortion. But the next
+   program that needs a directory may not be so lucky.
 
    **Open, and nothing above depends on either:**
 

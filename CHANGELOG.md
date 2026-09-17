@@ -10,17 +10,27 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
-- **`cufet install` — the books a project pins, read from its blueprint.** One
-  `<name> <- <source> at <commit>` line per pin, in the order the blueprint lists them. A blueprint
-  that pins nothing says so and succeeds; a directory with no blueprint is refused with where it
-  looked.
+- **`cufet install` — fetches the books a project pins, at the commits it pins them to.** Each
+  source is cloned once into `books/.cufet-cache/<name>` and the pinned file is written to
+  `books/<name>.cufe`, where a pull already looks. A blueprint that pins nothing says so and
+  succeeds; a directory with no blueprint is refused with where it looked.
 
-  ★★ **It reports and does not yet fetch**, which is the order `cufet pulls` established. A
-  dependency list you can read before anything is downloaded is the half that can be checked.
+  ★★ **A source is a git repo and a COMMIT**, fetched by shelling out to `git`. No registry
+  and no network capability of Cufet's own — publishing a book is `git push` and nothing else.
+  A commit rather than a version string (which would be a second name for the same thing) or a
+  content checksum (which cannot survive a checkout that rewrites line endings).
+
+  ★ `--no-checkout`, then `git show <commit>:<file>`, so the bytes come straight out of the
+  object store and no `core.autocrlf` setting can touch them. There is no working tree at all.
+
+  ⚠ **The clone is KEPT as a cache**, and its location is measured rather than chosen:
+  `Write` does not create parent directories and Cufet cannot make one, so `books/` has to be
+  created by something — and `git clone` creates its target including parents. Deleting
+  `books/` therefore removes everything the installer made, the same escape hatch `.cufet-build`
+  offers the build.
 
   ★ Same shape as `cufet build`: read the blueprint, append a call to a walker WRITTEN IN
-  CUFET (`bp-pins`), run it. The CLI holds no policy about what a pin means — that lives in
-  `blueprints`, where a reader can find it.
+  CUFET (`bp-fetch`), run it. The CLI holds no policy about what a pin means.
 
   ⚠ Whether a project pins anything is asked of the PARSED file, not of the run. A blueprint
   with no pins has no `books` binding at all, so casting it would refuse with *"'books' isn't
