@@ -545,6 +545,34 @@ against the flat shape above.
 
 What the toolchain is, and what it declines to become.
 
+- **GENERATED PAGES — BUILT, 2026-09-18.** `cufet page` writes a reader's page for a book. What it
+  does is in the changelog; the decisions are here.
+
+  ★★ **The generator is small because the language did the work.** A Cufet signature is English, so
+  a page's declaration line is the declaration copied out and there is no rendering of types into
+  prose — which is most of what a documentation generator normally is. A book is an object, so the
+  member list is one the checker already holds.
+
+  ★ **It prints to stdout and decides nothing about where a page lives.** *Where is it published*
+  sat as an open fork for weeks alongside a hosting question that had already been answered. It was
+  never a question the tool should have an opinion about: `check`, `tokens` and `pulls` all report
+  and let you redirect, and doing the same dissolves the fork rather than answering it.
+
+  ✅ **Pages are for books, not for the bundled ones — and the premise that made this a fork was
+  wrong.** It was claimed that `BOOKS.md` and the `///` comments *"say the same things"*. MEASURED:
+  they do not. `BOOKS.md` is an INVENTORY plus book-level behaviour (*"Each yields void for an empty
+  series"*); the `///` carries per-member semantics (*"`-2.5` floors to `-3`, not `-2`"*) that appear
+  nowhere in `BOOKS.md`. They are complementary, so there was nothing to generate away. ★ The only
+  real staleness was the inventory, and `BookDocumentationTests` pins it in both directions.
+
+  ⚠ **A book whose surface is SYNTAX or a native member has no page**, and says why rather than
+  claiming not to be a book — `blueprints` carries no `Define object` on purpose, because a Cufet
+  layer would put its native `checksum` out of reach. ⚠ This is not a policy about bundled books:
+  `math` is bundled and pages perfectly well. What is missing is a declaration to read.
+
+  ⚠ **Parameters cannot be documented individually**, because the language has no syntax for it. A
+  page lists a signature and cannot annotate its arguments. Stated so nobody reads it as a bug.
+
 - **A LANGUAGE SERVER — DECLINED, 2026-09-17.** Not deferred. It sat under *Deferred* for months
   waiting on a trigger, and the last candidate has now been ruled out too.
 

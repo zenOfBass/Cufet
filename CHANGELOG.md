@@ -294,6 +294,28 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   ⚠⚠ Six collisions across two sessions of writing Cufet prompted this — `a`, `one`, `channel`,
   `key`, `arguments`, `from` — every one an everyday noun somebody would reach for.
 
+- **`cufet page <file.cufe>` — a reader's page for the book in it, as Markdown on stdout.** The
+  book's name, how to pull it, its own documentation, then one section per member: the declaration
+  exactly as written, and whatever the `///` above it says. Methods and getters both, because
+  `the label of till` is as much of the surface as a method is.
+
+  ★★ **Cheap because the language already did the work.** A Cufet signature is ENGLISH, so a page's
+  declaration line is the declaration COPIED OUT — there is no rendering of types into prose, which
+  is most of what a documentation generator usually is. And a book is an object, so *what is in it*
+  is a member list the checker already holds.
+
+  ★ **It prints and decides nothing else**, the way `check`, `tokens` and `pulls` already do. *Where
+  a page is published* had been an open fork for weeks; printing dissolves the question rather than
+  answering it — the tool generates, you redirect.
+
+  ⚠ **Structure from the AST, documentation from the semantic walk.** Neither answers both
+  questions: the AST knows which declarations are MEMBERS rather than helpers beside them in the
+  same file, and the semantic walk knows what each name is documented as, having resolved
+  owner-qualified doc comments for hover already.
+
+  ⚠ A book whose surface is SYNTAX or a native member — `blueprints`, `regex`, the language books —
+  has no Cufet declaration to read, and is told that rather than being told it is not a book.
+
 - **`cufet install` records what it installed, in `.cufet-pins`.** One tab-separated line per book
   — name, source, commit — for the whole closure, sorted by name, including books the project never
   named. The next install reads it back and refuses a name that now resolves somewhere else, naming

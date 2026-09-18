@@ -125,52 +125,7 @@ they are large, not because they are waiting — the order among them means noth
    - Restart policy: how many attempts, and what giving up does.
    - The mailbox itself.
 
-2. **Generated pages for a book.** What a reader gets when they pull a book somebody else wrote.
-   Doc comments and hover are built; pages are the half that is not.
-
-   ★ Cheap here for two reasons. A signature is **already English**, so a page's declaration line
-   IS the declaration, with no rendering of types into prose. And a book is an object, so "what is
-   in it" is a member list the checker already has.
-
-   ✅ **ITS REASON TO WAIT EXPIRED, 2026-09-17.** This said pages were worth most once there were
-   books by other people to read, *"and the loader and the package manager are both still below"*.
-   Both have shipped: a pull resolves across files, and `cufet install` fetches a book from a git
-   repository at a pinned commit, transitively. So a person can now hold a book somebody else wrote
-   — and has **no way to find out what is in it** short of opening the file. That is the gap this
-   item closes, and it did not exist a week ago.
-
-   ★ A good way in is to install a real book and try to use it knowing nothing, because what you
-   cannot find out is the specification for the page. Designing the shape first is guessing.
-
-   ✅ **The bundled-book fork is SETTLED, 2026-09-16: pages are for USER books only**, and the
-   premise it rested on was wrong. The entry claimed BOOKS.md and the `///` comments "say the same
-   things". MEASURED: they do not. BOOKS.md is an INVENTORY plus book-level behaviour (*"Each
-   yields void for an empty series"*); the `///` carries per-member semantics (*"`-2.5` floors to
-   `-3`, not `-2`"*) that appear nowhere in BOOKS.md. They are complementary, so there was nothing
-   to generate away.
-
-   ★ **The only real staleness was the inventory, and it is now pinned** by
-   `BookDocumentationTests`: every public member is named in BOOKS.md, and every member BOOKS.md
-   claims a book provides still exists. ⚠ MEASURED public surface: sixteen — 13 Cufet-layer
-   members, `math`'s `pi` and `e`, and `blueprints`' native `checksum`.
-
-   ✅ **Hosting is NOT a fork — that was settled 2026-08-24 and both halves have landed.**
-   `playground.yml` publishes Pages from an UPLOADED ARTIFACT (`configure-pages` →
-   `upload-pages-artifact` → `deploy-pages`), not from a folder on main, so `docs/` is a plain
-   directory with nothing to conflict over, and the `docs/` move itself shipped. ⚠ This entry
-   deferred to that question for three weeks after it was answered.
-
-   **One fork left:**
-
-   - **What a page IS, and where it is published.** The shape of the generated page, and whether it
-     joins the playground in the Pages artifact or is a file in the repo. ★ Neither is blocked —
-     both are now ordinary decisions about output rather than a wait on hosting.
-
-   ⚠ **Whatever is generated must be pinned and tested**, the way the doc-block fence tags and
-   `examples/expected/` already are — generated output that nothing checks is the same staleness
-   in a new place, and a hand-edited "generated" page is the second lying copy immediately.
-
-3. **Teaching the language: a documentation site, and an interactive tutorial.** The playground
+2. **Teaching the language: a documentation site, and an interactive tutorial.** The playground
    runs the real interpreter in the browser, loads the corpus, shows squiggles and survives a
    runaway program. What it does not do is teach anybody anything — the only way in is
    `REFERENCE.md`, which is over four thousand lines and is a reference rather than a way in.
@@ -283,7 +238,7 @@ they are large, not because they are waiting — the order among them means noth
    ⚠ Whatever is written must be pinned like the doc fences are: a lesson whose code stops working
    is worse than no lesson, and this project has the machinery to catch that already.
 
-4. **Unmaker fire-timing — SETTLED 2026-07, and do not re-derive it.** ⚠⚠ An unmaker does not
+3. **Unmaker fire-timing — SETTLED 2026-07, and do not re-derive it.** ⚠⚠ An unmaker does not
    fire for a binding declared directly in a function or method FRAME, nor at the program's top
    level. MEASURED in both backends. It looks like a bug every time somebody meets it, and it is
    not one.
@@ -315,7 +270,7 @@ they are large, not because they are waiting — the order among them means noth
    it shares with **Move semantics at channel send** is the same missing concept: a way to say
    *"this binding is spent."*
 
-5. **A module a person can write that owns a lifetime.** ✅ The DISTINCTION is settled
+4. **A module a person can write that owns a lifetime.** ✅ The DISTINCTION is settled
    (2026-09-17, see DESIGN under *What Cufet is for*): **a module may own a lifetime, a book may
    not.** What is unbuilt is both halves of making that true.
 
@@ -338,6 +293,13 @@ they are large, not because they are waiting — the order among them means noth
 
 A formal soundness proof or a fresh-eyes red-team · a periodic error-message audit for internal
 vocabulary
+
+**Doc comments on the books people will actually read.** `cufet page` can only report what a `///`
+says, and MEASURED 2026-09-18 the corpus is uneven: `math` (45), `collections` (34), `rabbit` (11)
+and `terminals` (9) are well covered, `pennies` documents its two members but not the BOOK (its
+header is a `/* */` comment, which a page cannot see), and `bookkeeping` has none at all. ★ Nothing
+is broken — the generator works, its input is thin in places. ⚠ The trap to avoid is writing a `///`
+that restates the signature: the signature is already English and already on the page.
 
 **Composition modes for rabbits** — `sequential` / `parallel` / `automatic`, an optional adjective
 in the type-annotation slot: `Pull an automatic rabbit as dispatcher.` The mode governs how a

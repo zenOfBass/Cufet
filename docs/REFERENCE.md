@@ -4483,6 +4483,7 @@ cufet build                         build the PROJECT, from its blueprint.cufe
 cufet install                       fetch the books that blueprint PINS
 cufet emit-c program.cufe out.c     emit the C, without invoking gcc
 cufet pulls program.cufe            list the FILES it brings in
+cufet page book.cufe                write a reader's page for the book in it
 ```
 
 ★ **`pulls` exists so a blueprint need not list dependencies by hand.** It prints one
