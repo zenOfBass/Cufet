@@ -294,13 +294,6 @@ they are large, not because they are waiting — the order among them means noth
 A formal soundness proof or a fresh-eyes red-team · a periodic error-message audit for internal
 vocabulary
 
-**Doc comments on the books people will actually read.** `cufet page` can only report what a `///`
-says, and MEASURED 2026-09-18 the corpus is uneven: `math` (45), `collections` (34), `rabbit` (11)
-and `terminals` (9) are well covered, `pennies` documents its two members but not the BOOK (its
-header is a `/* */` comment, which a page cannot see), and `bookkeeping` has none at all. ★ Nothing
-is broken — the generator works, its input is thin in places. ⚠ The trap to avoid is writing a `///`
-that restates the signature: the signature is already English and already on the page.
-
 **Composition modes for rabbits** — `sequential` / `parallel` / `automatic`, an optional adjective
 in the type-annotation slot: `Pull an automatic rabbit as dispatcher.` The mode governs how a
 rabbit's TASKS compose, never its ordinary statements, which stay sequential imperative code.

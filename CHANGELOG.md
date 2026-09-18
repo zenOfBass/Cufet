@@ -294,6 +294,20 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   ⚠⚠ Six collisions across two sessions of writing Cufet prompted this — `a`, `one`, `channel`,
   `key`, `arguments`, `from` — every one an everyday noun somebody would reach for.
 
+- **Every book that can have a page now has a complete one.** MEASURED with `cufet page`: all
+  seven pageable books document their book and every member — `terminals` went from 0 of 11 members
+  to 11, `bookkeeping` from 0 of 2, and `pennies` and `terminals` gained the book-level doc they
+  never had.
+
+  ★★ **Mostly a CONVERSION, not new prose.** These files already explained themselves in `/* */`;
+  the work was finding where each comment stops being for a reader and starts being for a
+  maintainer, and moving the first half to `///`. `terminals`'s key-code table was pure reader
+  material sitting in a block comment where no page could reach it.
+
+  ⚠ **Counting `///` occurrences is the wrong measure**, which is how `terminals` was called "well
+  covered" at nine of them: all nine were on the `prompter` interface and not one of its eleven
+  members had a page entry. The page is the only honest measure, which is the point of having it.
+
 - **`cufet page <file.cufe>` — a reader's page for the book in it, as Markdown on stdout.** The
   book's name, how to pull it, its own documentation, then one section per member: the declaration
   exactly as written, and whatever the `///` above it says. Methods and getters both, because
