@@ -18,7 +18,7 @@ Define log-ten as 2.3025850929940456840179914547 permanently.
 ///
 /// ⚠ The fallible ones hand back **void** rather than raising: a root of a negative, a log of
 /// zero, an `exp` too large to hold. `but void is` is how you supply a fallback.
-Define object math with () and module:
+Define object math with () and book:
     /// π to **28 fractional digits**, correctly rounded.
     ///
     /// More precise than a `double` can hold, which is the point: it is a decimal constant, not a

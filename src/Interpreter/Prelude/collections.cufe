@@ -11,7 +11,7 @@
 ///
 /// ★ Everything here hands back a NEW value. Nothing in this book changes what you gave it, so a
 /// series can be passed to any of these and still be the series you had.
-Define object collections with () and module:
+Define object collections with () and book:
     /// The smallest value, or **void for an empty series**.
     ///
     /// An empty series has no smallest — there is no number to return and no sensible stand-in, so

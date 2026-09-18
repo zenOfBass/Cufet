@@ -14,4 +14,4 @@
 /// Its surface is syntax the language parses directly, and pulling the book is what licenses
 /// those forms: `a random number from 1 to 6`, `randomly shuffled`, `a random guess`, and
 /// `Seed the chance with 42.` for a run you can repeat.
-Define object chance with () and module.
+Define object chance with () and book.

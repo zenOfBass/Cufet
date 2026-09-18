@@ -1,6 +1,12 @@
 // The rabbit, written in Cufet.
 //
-// A rabbit is a module like any other — it says so here, in the language, rather than by the
+// ★★ THE ONE MODULE THAT IS NOT A BOOK, and since 2026-09-17 that is what the distinction MEANS:
+// a module may own a LIFETIME and a book may not. Everything else pullable — `math`, `collections`,
+// `chance`, a writer's own — owns none, and says `and book`. This file says `and module` because a
+// rabbit is a region, and it is the only thing in the language that is. ⚠ That also makes it the
+// single member of its category today; letting a person WRITE one is a design mountain, not a gap.
+//
+// A rabbit says so here, in the language, rather than by the
 // checker knowing a special name. That is the whole of the definition, and deliberately so:
 // a rabbit has no fields (`Pull` has nowhere to put values, as for every module), and its verbs
 // are the language's floor rather than methods with Cufet bodies. `bury` suspends the function
