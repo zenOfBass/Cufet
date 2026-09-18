@@ -52,6 +52,19 @@ The decision the rest of them answer to.
   than the near one. `book` is-a `module` is buildable now; `rabbit` is-a `module` is a
   direction.
 
+  ✅ **DECIDED 2026-09-17: that direction is taken, and it is what the book/module distinction
+  MEANS.** A **module may own a lifetime; a book may not** — and a person must be able to write
+  a lifetime-owning module, not only pull the one the compiler provides. ★★ Every other candidate
+  line collapsed under measurement, and they collapsed the same way: they were already true of
+  BOTH. Statelessness is the floor for anything pullable (a book with fields and a module with
+  fields draw the identical refusal). Instantiation is not it either — a bundled book with a Cufet
+  layer is instantiated too. **Lifetime is the only asymmetry the language has**, and today exactly
+  one object holds it, through a statement of its own rather than through being a module.
+
+  ⚠ The cost is the one already named above: a user-definable lifetime means user-definable
+  continuations, and the *"which restriction?"* question in the rabbit control-flow arc is what
+  sizes it. This entry records WHICH LINE, not how to build it.
+
 ---
 
 ## Surface syntax
@@ -233,9 +246,13 @@ Which capabilities are spelled into the language and which are pulled from a boo
   *module-loading operation*, not object construction. The `module` interface
   is the contract program code depends on; the loader produces
   `module`-conforming values. `book` is-a `module` (same pattern as
-  `vehicle`/`car`). Singleton and statelessness are loader-enforced
-  conventions, not interface-level constraints — the interface stays minimal
-  and general; the loader enforces book-specific behavior. The `module`
+  `vehicle`/`car`). ⚠⚠ **This used to read "singleton and statelessness are
+  loader-enforced conventions", and both halves were wrong.** MEASURED
+  2026-09-17: nothing enforces either one, and neither distinguishes a book from
+  a module in any case — a book with fields and a module with fields draw the
+  same refusal, *"a pull has nowhere to put their values"*. Statelessness is the
+  FLOOR for everything pullable, not a line between the two. The line is
+  LIFETIME, and it is recorded under *What Cufet is for*. The `module`
   interface can be built early as the stable seam; the real external-code
   loader comes later without touching program code.
 

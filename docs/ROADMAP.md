@@ -431,6 +431,25 @@ they are large, not because they are waiting — the order among them means noth
    it shares with **Move semantics at channel send** is the same missing concept: a way to say
    *"this binding is spent."*
 
+6. **A module a person can write that owns a lifetime.** ✅ The DISTINCTION is settled
+   (2026-09-17, see DESIGN under *What Cufet is for*): **a module may own a lifetime, a book may
+   not.** What is unbuilt is both halves of making that true.
+
+   - **Nobody can write one.** `rabbit` is the only object in the language that owns a region, and
+     it does not get that by being a module — `Pull a rabbit` is its own AST node emitting
+     `cufet_arena_push()`, while a book or module pull is *"no arena push, no runtime book value,
+     no linking"*. So the power exists and the door to it does not.
+   - **Nothing stops a book from owning one either**, because nothing owns one. The restriction
+     has no teeth until there is something to restrain.
+
+   ⚠⚠ **This is the ambitious end, and DESIGN already prices it:** a user-definable lifetime
+   means user-definable continuations, and it lands on the unanswered *"which restriction?"*
+   question in the rabbit control-flow arc. Settling THAT is the first move, not writing syntax.
+
+   ★ What is already paid for: the region model's outward-only invariant was tested adversarially
+   and its three holes closed (see DESIGN, *Memory and concurrency*). The soundness story a
+   user-written region would need is the one rabbits already run on.
+
 ## Ongoing, no fixed slot
 
 A formal soundness proof or a fresh-eyes red-team · a periodic error-message audit for internal
