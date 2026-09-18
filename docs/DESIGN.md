@@ -472,6 +472,33 @@ not know, and an under-declared `need` is a silently stale build.
 
 ---
 
+## Tooling
+
+What the toolchain is, and what it declines to become.
+
+- **A LANGUAGE SERVER — DECLINED, 2026-09-17.** Not deferred. It sat under *Deferred* for months
+  waiting on a trigger, and the last candidate has now been ruled out too.
+
+  ★ **The front end reports at most ONE error.** A run stops at the first one, so a report is that
+  error plus whatever warnings were collected on the way — each already carrying a line, a column
+  and a prose explanation. A language server exists so that incremental, resident analysis pays for
+  itself across many diagnostics. There is nothing here for it to earn back.
+
+  ★★ **And the editor already has both halves of what it would provide.** `cufet check --json`
+  writes one diagnostic per line, so the squiggles are the front end's OWN answers rather than a
+  second implementation that could disagree with it; `cufet tokens --json` writes the semantic kind
+  of every name it can place, which is the other thing an editor normally gets from a server. A
+  grammar cannot tell a type from a parameter in Cufet, so that half had to exist regardless.
+
+  ⚠ **The last candidate trigger is gone.** Building a blueprint's steps ALGORITHMICALLY looked
+  like the one thing that might want a resident index, and it does not: a blueprint is an ordinary
+  Cufet program, so it gets the same one-error report as everything else.
+
+  ▶ **What would reopen it:** wanting go-to-definition, completion or rename. Those genuinely need
+  a resident index and nothing else here does — and nobody has asked for them.
+
+---
+
 ## Memory and concurrency
 
 The two arcs where soundness was the whole problem.

@@ -613,12 +613,6 @@ indistinguishable from having forgotten.
   **The trigger:** builds getting slow enough to notice. Not before — buying incremental rebuilds
   with three invariants is a bad trade at any corpus size that fits on one screen.
 
-- **An LSP.** A run stops at its first error, so the front end reports at most one — plus any
-  warnings it collected on the way, each with a line, a column and a long prose explanation. LSP's
-  incremental machinery has nothing to earn back on a report that small.
-  *Blocker:* wanting go-to-definition, completion or rename — the features that genuinely need a
-  resident index, and that nobody has asked for yet.
-
 ### Memory and concurrency
 
 - **Move semantics at channel send.** A send deep-copies across the thread boundary. That is
