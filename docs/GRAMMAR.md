@@ -521,9 +521,11 @@ and an identifier must start lowercase. Capitalised contextual statement words r
 obstacle, and the word is one the code most likely to pull this book will want.
 
 **`terminal`** — contextual on the same terms, recognised only in the modifier slot of a `run`
-expression: `run <prog> with the terminal`. `Define terminal as 5.` stays legal everywhere, and
-the bundled `terminal` module keeps its name — a module is reached through `Pull`, a different
-slot, so the device naming the modifier and the module named after the same device do not clash.
+expression: `run <prog> with the terminal`. `Define terminal as 5.` stays legal everywhere, and a
+book named for the same device is reached through `Pull`, a different slot, so the two do not
+clash. ★ `tools/terminals.cufe` is named in the PLURAL for a separate reason — a book's name has to
+complete *"Pull a book on ___"*, which wants a mass noun or a plural, and `terminal` is a count
+noun. It read as something you have one of, and the name was saying so before anyone noticed.
 Reserving the word would have taken an ordinary noun from every program in the language to save
 one lexeme check in one position.
 
@@ -1495,7 +1497,7 @@ Pull books on math, and collections.
 ⚠ **A module carries OBJECT TYPES only.** A union of them works and narrows with `Judge`, because
 a union is built from object types. An interface does not — a module body takes `Define object` and
 nothing else. Axioms need no home here: a module’s METHODS hold them, which is how
-`tools/terminal.cufe` reaches `termios`.
+`tools/terminals.cufe` reaches `termios`.
 
 ### ★ `book` is a subtype of `module`
 

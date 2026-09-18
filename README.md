@@ -299,7 +299,7 @@ examples/                             — runnable programs, by category
   expected/                           — pinned outputs, flat and keyed on the program's file name
 tools/                                — programs written IN Cufet, and the scripts that maintain the repo
   repl.cufe                           — a read-eval-print loop; hands each line to `cufet`
-  terminal.cufe                       — the terminal book: raw mode, keys, a line editor
+  terminals.cufe                      — the terminal book: raw mode, keys, a line editor
   shell.cufe                          — a working command shell in ~60 lines
 docs/                                 — REFERENCE, BOOKS, GRAMMAR, DESIGN, ROADMAP
 ```

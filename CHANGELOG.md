@@ -294,6 +294,26 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   ⚠⚠ Six collisions across two sessions of writing Cufet prompted this — `a`, `one`, `channel`,
   `key`, `arguments`, `from` — every one an everyday noun somebody would reach for.
 
+- **⚠ BREAKING: `tools/terminal.cufe` is now `tools/terminals.cufe`, and it is a book.**
+  `Pull a terminal.` becomes `Pull a book on terminals.`, and `cast terminal's put` becomes
+  `cast terminals's put`. It owns no lifetime, so under the rule above it was never a module.
+
+  ★★ **The NAME was saying so before anyone noticed.** A book's name has to complete *"Pull a book
+  on ___"*, which wants a mass noun, a plural or a proper noun — and `terminal` is a count noun.
+  It read as something you have one of because that is what the word means. ★ It also removes a
+  near-collision the grammar had to explain away: `terminal` is contextual in the modifier slot of
+  `run <prog> with the terminal`, and the book no longer shares the spelling.
+
+- **The book/module distinction no longer explains itself with the rule it retired.** Three refusal
+  messages, the `BookInterface` definition, `REFERENCE.md` and `GRAMMAR.md` all gave *"a book is one
+  you consult, a module is one you have one of"* as the RULE. It is not the rule — it is how the two
+  SPELLINGS read, which is worth saying and is kept. Each site now gives lifetime as the reason and
+  the reading as the help.
+
+  ⚠ **Nothing went red when those messages changed**, and that is a finding: the refusal pins cover
+  a message's TITLE and its suggested fix, and nothing pins the explanation line in between — which
+  is the half that teaches, and the half that was wrong.
+
 - **The bundled books declare `and book` instead of `and module`.** `math`, `collections` and
   `chance` said `and module` and were books anyway, because a lookup table in the checker said so.
   Nothing about how they are pulled changes; their declarations just stop contradicting what they

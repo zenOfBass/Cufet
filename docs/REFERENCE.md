@@ -4352,8 +4352,9 @@ independently.
 
 #### Books and modules
 
-**A book is a module you CONSULT rather than one you have one of** — what another language would
-have made a header file. It says so with `and book`, and every book is a module:
+**A book is a module that owns no LIFETIME** — what another language would have made a header
+file. It says so with `and book`, and every book is a module. ★ The surface then reads the
+difference: you consult a book, and you have one of a module.
 
 ```cufet
 Pull a book on math.
@@ -4414,8 +4415,8 @@ cufet pulls program.cufe            list the FILES it brings in
 
 ```
 $ cufet pulls tools/shell.cufe tools/repl.cufe
-tools/shell.cufe: tools/terminal.cufe
-tools/repl.cufe: tools/terminal.cufe
+tools/shell.cufe: tools/terminals.cufe
+tools/repl.cufe: tools/terminals.cufe
 ```
 
 It reports what the **loader resolved**, not a re-reading of your source, so it cannot disagree
@@ -4451,8 +4452,8 @@ statements are the program — so a file whose top level is only declarations wo
 having done nothing:
 
 ```
-$ cufet build terminal.cufe
-build: 'terminal.cufe' declares things but never does anything — there is nothing to run.
+$ cufet build terminals.cufe
+build: 'terminals.cufe' declares things but never does anything — there is nothing to run.
   Every item at its top level is a declaration, so the program would start and finish
   having done nothing. A file like this is a library: pull it from the program you are
   building, and build that.                                              ← exit 2

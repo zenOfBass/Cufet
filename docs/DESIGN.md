@@ -420,7 +420,7 @@ re-derived:
 
 - **Inferring `makes` from `runs`.** Derivable for a `cufet build` step and nothing else, so it
   would make the build book know one program's behaviour, and go silently wrong if that behaviour
-  changed. ⚠ `needs` cannot be inferred that way at all — `terminal.cufe` is a dependency only
+  changed. ⚠ `needs` cannot be inferred that way at all — `terminals.cufe` is a dependency only
   because `shell.cufe` PULLS it, which is what `cufet pulls` exists to answer.
 - **A step-constructor in the book.** The first item of exactly the build vocabulary this design
   declined to spend. ★ A helper written in the blueprint ITSELF needs no language change and is
