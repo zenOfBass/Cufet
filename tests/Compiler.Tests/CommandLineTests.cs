@@ -378,7 +378,7 @@ public class CommandLineTests
     //
     // ★★ Cufet has no `main`, so the top-level statements ARE the program. A file that only
     // declares would start and finish having done nothing, and `cufet build` used to answer that
-    // with a do-nothing binary — measured on `tools/terminal.cufe`, a book, which built happily.
+    // with a do-nothing binary — measured on `tools/terminals.cufe`, a book, which built happily.
 
     /// <summary>A declaration and nothing else: a top-level function, no statements.</summary>
     private const string NothingToRun =

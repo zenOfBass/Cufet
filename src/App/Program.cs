@@ -315,7 +315,7 @@ static void Check(string[] rest)
 //
 // ★★ It exists so a BLUEPRINT need not list them. A build step's `needs` is what staleness hashes,
 // and a blueprint that enumerates its own directory can find the files but not what they PULL — a
-// directory listing cannot see that `shell.cufe` needs `terminal.cufe`. MEASURED 2026-09-15: the
+// directory listing cannot see that `shell.cufe` needs `terminals.cufe`. MEASURED 2026-09-15: the
 // enumeration half already works in ordinary Cufet; this is the half that was missing.
 //
 // ⚠⚠ It reports what the LOADER RESOLVED, never a re-reading of the source. Matching `Pull ` by

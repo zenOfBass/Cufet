@@ -150,7 +150,7 @@ public class ModulePullTests
     // ── `book` is a subtype of `module`, and the spelling must match ───────
 
     /// <summary>
-    /// A book is a module you CONSULT; a module is one you have one of. Both are pulled, and the
+    /// A book is a module that owns no lifetime; a module may own one. Both are pulled, and the
     /// words say which.
     /// </summary>
     /// <remarks>

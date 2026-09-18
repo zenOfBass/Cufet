@@ -11,7 +11,7 @@ namespace Cufet.Compiler.Tests;
 /// <para>
 /// ★★ It exists so a BLUEPRINT need not list them. A blueprint can already enumerate its own
 /// directory in ordinary Cufet — measured 2026-09-15, including a new file being picked up with no
-/// edit — but a directory listing cannot see that `shell.cufe` PULLS `terminal.cufe`, so a
+/// edit — but a directory listing cannot see that `shell.cufe` PULLS `terminals.cufe`, so a
 /// generated step's `needs` held only its own file and editing a book rebuilt nothing.
 /// </para>
 /// <para>

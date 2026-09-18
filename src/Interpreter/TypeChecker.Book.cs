@@ -242,7 +242,8 @@ public sealed partial class TypeChecker
             if (!ps.ViaBookForm)
                 throw TypeError(
                     $"'{name}' is a book, so it is pulled as one",
-                    "The plain form is for a module you hold one of; a book is one you consult",
+                    "The plain form is for a module you have one of; a book owns no lifetime, "
+                    + "so it is consulted rather than held",
                     ps.Line, ps.Column,
                     $"pull '{name}' with the plain form",
                     $"Write 'Pull a book on {name}.' — or 'Pull books on {name}, and <other>.' "
@@ -280,27 +281,34 @@ public sealed partial class TypeChecker
                     $"Add 'and {ModuleInterface}' to its definition: "
                     + $"'Define object {name} with (...) and {ModuleInterface}:'.");
 
-            // ★ The spelling has to match what the thing IS. A book is something you consult and a
-            // module is something you hold, and that difference is the whole of what `book` adds —
-            // so a pull that reads the wrong way is refused rather than quietly accepted, which is
-            // what "the surface says which KIND of thing you are pulling" was always claiming and
-            // could not enforce while the two forms took anything.
+            // ★ The spelling has to match what the thing IS, so a pull that reads the wrong way is
+            // refused rather than quietly accepted — which is what "the surface says which KIND of
+            // thing you are pulling" was always claiming and could not enforce while the two forms
+            // took anything.
+            //
+            // ★★ WHAT the thing is, is decided by LIFETIME (settled 2026-09-17): a module may own a
+            // region and a book may not. ⚠ This comment used to give the rule as "a book is something
+            // you consult and a module is something you hold". That is how the two SPELLINGS read and
+            // it is worth saying in the message, but it cannot be the rule — `collections` and
+            // `blueprints` are books that hand out types you make values of and hold.
             bool isBook = IsBookConformer(moduleType.ConformedInterfaces);
             if (isBook && !ps.ViaBookForm)
                 throw TypeError(
                     $"'{name}' is a book, so it is pulled as one",
-                    $"A book is consulted rather than held — '{name}' says so with 'and {BookInterface}'",
+                    $"'{name}' says 'and {BookInterface}', so it owns no lifetime of its own — "
+                    + "which is why it is consulted rather than held",
                     ps.Line, ps.Column,
                     $"pull '{name}' as though you had one of it",
                     $"Write 'Pull a book on {name}.' instead.");
             if (!isBook && ps.ViaBookForm)
                 throw TypeError(
                     $"'{name}' is not a book",
-                    $"'{name}' is a module you have one of, not one you consult",
+                    $"'{name}' is a module: it may own a lifetime of its own, so you have one "
+                    + "of it rather than consulting it",
                     ps.Line, ps.Column,
                     $"pull '{name}' as a book",
                     $"Write 'Pull a {name}.' instead — or add 'and {BookInterface}' to its "
-                    + $"definition if it is meant to be consulted.");
+                    + $"definition if it owns no lifetime.");
             return moduleType;
         }
 

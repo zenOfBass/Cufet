@@ -637,14 +637,26 @@ public sealed partial class TypeChecker
     public const string ModuleInterface = "module";
 
     /// <summary>
-    /// A module you CONSULT rather than one you hold — what another language would have made a
-    /// header file. A subtype of <see cref="ModuleInterface"/>: every book is a module, and the
-    /// spelling at the pull is what the difference buys.
+    /// A module that owns NO LIFETIME — what another language would have made a header file.
+    /// A subtype of <see cref="ModuleInterface"/>: every book is a module.
     /// </summary>
     /// <remarks>
+    /// <para>
+    /// ★★ **Lifetime is the whole of the difference, settled 2026-09-17.** A module may own a
+    /// region; a book may not. A `rabbit` is the only thing that owns one today, and it is the only
+    /// bundled thing still marked `and module`; letting a writer declare one is a design mountain.
+    /// </para>
+    /// <para>
+    /// ⚠ This used to read *"a module you CONSULT rather than one you hold"*, and that is how the
+    /// two SPELLINGS read — it is not the rule that decides which one a thing is. It cannot be:
+    /// `collections` and `blueprints` are books that hand out types you make values of and hold.
+    /// Every other candidate was measured and collapsed by being already true of both.
+    /// </para>
+    /// <para>
     /// ★ Not a second mechanism. Headers and modules are one thing here, and `book` is the narrower
     /// job rather than a separate kind — which is why `IsModuleConformer` accepts either marker and
     /// nothing downstream of a pull has to know which it got.
+    /// </para>
     /// </remarks>
     public const string BookInterface = "book";
 
@@ -659,7 +671,7 @@ public sealed partial class TypeChecker
         conformed.Contains(ModuleInterface, StringComparer.OrdinalIgnoreCase)
         || conformed.Contains(BookInterface, StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>Whether an object claims to be the kind you consult.</summary>
+    /// <summary>Whether an object claims to be the kind that owns no lifetime.</summary>
     public static bool IsBookConformer(IReadOnlyList<string> conformed) =>
         conformed.Contains(BookInterface, StringComparer.OrdinalIgnoreCase);
 
