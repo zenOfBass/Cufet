@@ -331,6 +331,26 @@ public sealed partial class TypeChecker
     // object must implement every method with a matching signature (return type + param types).
     private void ValidateObjectConformance(ObjectDefinition od, ObjectType objType)
     {
+        // ★★ `and book and module` says nothing `and book` does not, and it READS as a claim to be
+        // both kinds at once — which is the one thing an object cannot be. `book` is-a `module`, so
+        // the pair is refused rather than quietly resolved in `book`'s favour, which is what used
+        // to happen: the `module` was ignored and the object pulled as a book.
+        //
+        // ⚠ Refused at the DECLARATION rather than at the pull. The pull already knows what to do;
+        // it is the author's sentence that is wrong, and a refusal at the use site would point at
+        // whoever pulled it instead of whoever wrote it.
+        if (od.ConformedInterfaces.Contains(BookInterface, StringComparer.OrdinalIgnoreCase)
+         && od.ConformedInterfaces.Contains(ModuleInterface, StringComparer.OrdinalIgnoreCase))
+            throw TypeError(
+                $"'{od.Name}' says both '{BookInterface}' and '{ModuleInterface}', "
+              + "and a book is already a module",
+                $"'{BookInterface}' is the narrower kind: a module may own a lifetime and a book "
+              + "may not, so saying both adds nothing and claims two answers to one question",
+                od.Line, od.Column,
+                $"declare '{od.Name}' as a book and a module at once",
+                $"Say 'and {BookInterface}' on its own if '{od.Name}' owns no lifetime, "
+              + $"or 'and {ModuleInterface}' on its own if it owns one.");
+
         foreach (var ifaceName in od.ConformedInterfaces)
         {
             if (!_interfaceDefs.TryGetValue(ifaceName, out var iface))

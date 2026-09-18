@@ -434,6 +434,42 @@ public class ModulePullTests
             """));
     }
 
+    /// <summary>`and book and module` is refused — a book is already a module.</summary>
+    /// <remarks>
+    /// <para>
+    /// ★★ It says nothing `and book` does not, and it READS as a claim to be both kinds at once,
+    /// which is the one thing an object cannot be: `book` is-a `module`, and the difference is that
+    /// a module may own a lifetime and a book may not. ⚠ MEASURED before the fix: both orders were
+    /// accepted and the `module` was simply ignored — the object pulled as a book.
+    /// </para>
+    /// <para>
+    /// ⚠ Refused at the DECLARATION, not the pull. The pull knows perfectly well what to do; it is
+    /// the author's sentence that is wrong, and refusing at the use site would blame whoever pulled
+    /// it rather than whoever wrote it.
+    /// </para>
+    /// </remarks>
+    [Theory]
+    [InlineData("and book and module")]
+    [InlineData("and module and book")]
+    public void DeclaringBothBookAndModule_IsRefused(string conformance)
+    {
+        var ex = Assert.Throws<TypeException>(() => Run($$"""
+            Define object almanac with () {{conformance}}:
+                Bind text to motto: Return "steady". Done.
+            Done.
+
+            Pull a book on almanac.
+                State cast almanac's motto.
+            Done.
+            """));
+
+        Assert.Contains("a book is already a module", ex.Message);
+        // ★ The advice has to name a way OUT, and which one depends on something only the author
+        // knows — so it offers both and says what decides between them.
+        Assert.Contains("owns no lifetime", ex.Message);
+        Assert.Contains("owns one", ex.Message);
+    }
+
     /// <summary>A book a WRITER declared satisfies a `module` parameter, because `book` is-a `module`.</summary>
     /// <remarks>
     /// <para>

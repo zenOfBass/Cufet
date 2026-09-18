@@ -1499,13 +1499,23 @@ nothing else. Axioms need no home here: a module’s METHODS hold them, which is
 
 ### ★ `book` is a subtype of `module`
 
-A **book** is a module you CONSULT rather than one you have one of — what another language would
-have made a header file. It is declared with `and book`, and every book is a module:
+A **book** is a module that owns no LIFETIME — what another language would have made a header
+file. It is declared with `and book`, and every book is a module:
 
 ```cufet-fragment
-Define object shapes with () and module:      ← you have one of these
-Define object trigonometry with () and book:  ← you consult this one
+Define object shapes with () and module:      ← this one may own a region
+Define object trigonometry with () and book:  ← this one may not
 ```
+
+★★ **Lifetime is the whole of the difference, settled 2026-09-17.** A `rabbit` is the only thing
+in the language that owns a region today, and it is the only bundled thing that says `and module`;
+letting a writer declare one is a design mountain rather than a gap. ⚠ Every other candidate line
+was measured and collapsed by being already true of BOTH — statelessness is the floor for anything
+pullable, and *consult vs hold* is crossed by `collections` and `blueprints`, books that hand out
+types you make values of.
+
+⚠ **`and book and module` is refused**, in either order. A book is already a module, so the pair
+says nothing extra and reads as a claim to be both kinds at once. Say one or the other.
 
 ★ **There is one mechanism, not two.** Headers and modules are the same thing here; `book` is the
 narrower job rather than a separate kind. Everything downstream of a pull — members, scope,
@@ -1552,6 +1562,11 @@ is no `Define object` to carry `and module`". **That stopped being true in 0.16.
 no native part left at all and `collections`'s only native piece is the `matrix` type. Both are
 written in Cufet now, behind a Cufet layer. What makes something a book is that it says `and
 book`, not how it happens to be implemented — and nothing about the bundled ones is privileged.
+✅ That became true of `math`, `collections` and `chance` on 2026-09-17; until then they said `and
+module` and were books only because the checker held a list of names. ⚠ It is still not true of
+`blueprints`, `regex` and the language books, which have no Cufet layer to carry a marker — for
+those the list is what says so, and `blueprints` cannot grow a layer without hiding its native
+`checksum`.
 
 `module` is a **marker interface**: it requires no methods, only the claim. An object that
 does not conform is refused at the pull site. Pulling **instantiates**, so a module with

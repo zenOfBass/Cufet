@@ -307,6 +307,14 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   bundled books too, and *consult vs hold* is crossed by `collections` and `blueprints`, which are
   books handing out types you make values of.
 
+  ⚠ **`and book and module` is now refused**, in either order. A book is already a module, so the
+  pair says nothing `and book` does not and reads as a claim to be both kinds at once — which is
+  the one thing an object cannot be. MEASURED before the fix: both orders were accepted and the
+  `module` was silently ignored. Refused at the DECLARATION rather than the pull, because it is the
+  author's sentence that is wrong and a refusal at the use site would blame whoever pulled it.
+  ⚠ A repeated marker (`and book and book`) is still accepted; that is a wider rule about duplicate
+  interfaces and is not part of this.
+
 - **Parse errors no longer name token types at people.** `expected Dot` is `expected '.'`,
   `expected Colon` is `expected ':'`, `expected Identifier` is `expected a name`. ★ Only the seven
   types that are jargon were translated — a keyword's internal name is the keyword, so `expected
