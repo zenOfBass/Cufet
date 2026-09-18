@@ -88,6 +88,14 @@ OPPOSITE: `blueprints's checksum` is a native member of the book, so no program 
 axiom to hash a file. ★ That is this campaign working rather than failing — the prediction was that
 a capability would be missing, and the answer was to supply it.
 
+★★ **THE SECOND REAL WITNESS, and it came from building the package manager: Cufet can read a
+file, write a file and list a directory, and can neither CREATE nor DELETE one.** MEASURED — `Write`
+fails on a missing parent. ⚠ It produced no axiom, because there is no axiom to write: creating a
+directory is not something the FFI reaches for here, it is something the language simply lacks. The
+installer routed around it honestly — `git clone` makes the directory and the clone is KEPT as a
+cache rather than removed — and a cache is a real design rather than a contortion. But the next
+program that needs a directory may not be so lucky, and that is the witness.
+
 ## The design mountains
 
 All need a design session before they can be ordered against anything. They are here because
@@ -117,147 +125,22 @@ they are large, not because they are waiting — the order among them means noth
    - Restart policy: how many attempts, and what giving up does.
    - The mailbox itself.
 
-2. **A package manager for books.**
-
-   ✅ **The first slice — WHERE A BOOK LIVES — is DONE, 2026-09-13.** A pull resolves beside the
-   file that pulls it, then in `books/` at the project root, where a project is a directory holding
-   `blueprint.cufe`. Local wins. Only the blueprint's LOCATION is read, so no tool has to execute a
-   build description to import a book. The refusal now names the places it looked, which it never
-   did — that message, more than the rule, is why this read as a language with no file resolution.
-
-   ✅ **The SHAPE is settled, 2026-09-16 — designed, not built.**
-
-   ★★ **One constraint decides nearly all of it:** *one book per NAME in a program, whichever
-   place it came from*, because `MakePrivate` renames what a book declares to `<name> in <book>` and
-   the name IS the namespace. So two versions of one book cannot coexist, by construction. Cufet
-   needs version SELECTION, never isolation — npm's nested private copies are structurally
-   unavailable. ★ Python is the precedent, not npm: `site-packages` is flat with one version
-   per name, and virtualenvs exist because of it. Cufet already has the virtualenv — `books/`
-   is per-project by construction.
-
-   - **Exact pins, so there is no resolver.** No constraint sublanguage, no negotiation. ★ A
-     diamond therefore becomes a REFUSAL naming both pins, which is the answer this language gives
-     everywhere else, rather than npm nesting two copies or pip taking whichever landed last.
-   - **`books/` stays FLAT** — one file per name on disk, mirroring one book per name in the
-     program. ⚠ The old complaint here, *"two books cannot carry different versions of a
-     third"*, DISSOLVES: it is not a folder problem and no folder shape can fix it.
-   - **Dependencies are DERIVED, not declared.** `Pull a book on canvas.` IS the declaration and
-     `cufet pulls` already reports what the loader resolved — the same move `blueprints` made.
-     A manifest listing dependencies would be a second copy of something derivable. What cannot be
-     derived is ORIGIN: which source, which version.
-   - **Pins live in `blueprint.cufe`**, read by an installer that RUNS it, exactly as `cufet build`
-     does today. ★ *"Only its LOCATION is read"* constrains the LOADER — `check`, `run`,
-     the editor — so that importing never executes a build description. An installer is a
-     build-time tool, and by the time the loader runs, `books/` is already populated.
-   - **A book is a PROJECT when you develop it and a FILE when you consume it.** Its own
-     `blueprint.cufe` carries its pins and travels only as far as the installer; only the `.cufe`
-     lands in `books/`. ⚠ That is forced rather than chosen: a blueprint inside `books/`
-     would mark that directory a project root.
-   - ★ **Fetched versus written is then answered for free** — anything in `books/` was
-     fetched, because a book you wrote lives beside the file that pulls it, where *nearest wins*
-     already puts it first.
-
-   ⚠ **A THIRD GAP, and it is NARROWER than it first looked: a book's parts are private
-   until a name collides.** MEASURED 2026-09-16, and the first framing here EM *"a book cannot have
-   private parts"* EM was too strong. A library keeps its OWN helper even when the program has a
-   different book of that name sitting beside it; the "resolve beside THAT book" rule genuinely
-   isolates it. ★ Privacy held right up to the point where the program pulls the name too.
-
-   ✅ **That collision used to be a silent, order-dependent wrong answer and is now a
-   refusal** (see CHANGELOG): the loaded set was keyed by NAME when what must be unique is the
-   FILE. So the sharp edge is gone.
-
-   ⚠ **What REMAINS is the honest limitation underneath it:** `Resolve` accepts exactly
-   `<name>.cufe`, so a book is precisely one file, and a book outgrowing one file must split into
-   OTHER books that take global names. Two libraries that each need a different `utils` still cannot
-   coexist — they are now refused rather than silently merged, which is the right answer to the
-   language's one-book-per-name rule, but it is still a limit. ★ This is the one thing that
-   could argue for per-book directories or a real namespace, against the flat shape above.
-
-   ✅ **BUILT, INCLUDING THE TRANSITIVE HALF, 2026-09-17.** `blueprints` introduces `pin`;
-   `cufet install` clones each pinned source once into `books/.cufet-cache/<name>`, writes the
-   pinned file to `books/<name>.cufe`, and then follows that book's OWN blueprint for its pins.
-   MEASURED end to end against real git repositories: a project pinning only `canvas` installs
-   `deep` as well, and a program pulling `canvas` runs. A name pinned twice to different commits is
-   refused naming both pins; twice to the same commit is one fetch.
-
-   ★ **Pins cannot form a cycle**, so there is no cycle test and that is a finding rather than a
-   gap: a commit cannot contain its own sha, so B cannot be committed pinning an A that does not
-   exist until B does. Exact pins are acyclic by construction, for the same reason a git history
-   is. The worklist's seen-set still guards the loop, and the same-commit diamond exercises it.
-
-   ★★ **What a pin MEANS stayed in Cufet; how a pin is FETCHED moved to C#.** `bp-pins` prints
-   one tab-separated line per pin and that is the whole seam — a blueprint is asked what it pins by
-   RUNNING it and reading what it prints, because `Interpreter` hands back no values, only a
-   TextWriter. ⚠ The Cufet `bp-fetch` of the previous slice was right for one flat list and stopped
-   being right the moment it had to recurse: a closure over a graph cannot live half in each
-   language.
-
-   ⚠⚠ **A fetched blueprint is EXECUTED**, which is the npm/pip postinstall hazard and was chosen
-   deliberately so a blueprint may COMPUTE its pins. The installer names each one before running it
-   and `docs/BOOKS.md` states the hazard. ⚠ It is a deliberate exception to `blueprint.cufe`'s own
-   rule that only its LOCATION is read — a rule about the LOADER, which still holds there.
-
-   ★ **A vacuous test, caught only by sabotaging after green.** The same-commit diamond first
-   asserted that `fetching deep` appeared once — and with the seen-set sabotaged away it STILL
-   appeared once, because the second pass found the clone already cached and said nothing. The test
-   was measuring the cache, not the thing it was written for. It counts the INSTALL line now.
-
-   ★ **A LANGUAGE GAP, found by building this and worth the campaign's attention:** Cufet can
-   read a file, write a file and list a directory, and can neither CREATE nor DELETE one. The
-   installer routed around it — `git clone` makes the directory and the clone is kept rather
-   than removed — and a cache is a legitimate design rather than a contortion. But the next
-   program that needs a directory may not be so lucky.
-
-   **Open, and nothing above depends on either:**
-
-   - **Who writes the transitive list.** With exact pins, the project's full flat pin list IS the
-     lockfile, and now that transitive pins are followed this is LIVE rather than hypothetical:
-     today the closure is recomputed from the fetched blueprints on every install, so what a
-     project actually installs is not written down anywhere. ⚠ Having `cufet install` write it
-     back into `blueprint.cufe` is `go mod tidy` — and it is a tool editing your source, which
-     this project may not want. **Not built, and not to be built without asking.**
-   ✅ **What a SOURCE is — SETTLED 2026-09-17: a git repo and a COMMIT SHA, fetched by
-   shelling out to `git`.** No registry, and no network capability of Cufet's own — MEASURED,
-   there is none anywhere in the toolchain today. Publishing a book is `git push` and nothing else,
-   which is the whole reason to start here: the barrier for a publisher is zero and there is no
-   account, no upload, and no name authority to squat.
-
-   ★★ **The pin format and the transport are COUPLED, which is what decided it.** A pin that
-   recorded a CONTENT CHECKSUM could not be fetched by git: MEASURED in this very repo,
-   `core.autocrlf=true` with no `.gitattributes`, so a clone rewrites LF to CRLF on checkout and a
-   fetched book's bytes differ from the publisher's. Hashing after normalising "fixes" that by
-   discarding what a checksum is for. A COMMIT SHA has no such problem — it names the commit,
-   not the working tree, and git guarantees it.
-
-   ★ **And a sha stays true whoever fetched it**, so the transport can change later without
-   invalidating a single pin already published. That is the precedent in both ecosystems: `go get`
-   shelled out to `git` for years before `GOPROXY`, and pip STILL shells out to git for
-   `pip install git+https://...` while owning HTTP for the registry it has.
-
-   ⚠ **What this costs, recorded so nobody rediscovers it as a surprise:** a consumer needs
-   `git` on PATH; a fetch failure arrives in git's vocabulary rather than Cufet's four-part voice;
-   and two machines with different autocrlf settings end up with different BYTES in `books/`, so
-   `blueprints` sees a changed input and rebuilds when nothing changed. ★ That last one is
-   wasted work rather than a wrong answer, but this project has a line about exactly it —
-   *"a build that rebuilds too often looks exactly like one that works"* — so it is the first
-   thing to watch once books are real.
-
-   ⚠ **Still open:** what a pin LOOKS LIKE in a blueprint. `blueprints` introduces `step` as
-   a name for a shape; a pin wants the same treatment, and that is language surface rather than a
-   detail.
-
-3. **Generated pages for a book.** What a reader gets when they pull a book somebody else wrote.
+2. **Generated pages for a book.** What a reader gets when they pull a book somebody else wrote.
    Doc comments and hover are built; pages are the half that is not.
 
    ★ Cheap here for two reasons. A signature is **already English**, so a page's declaration line
    IS the declaration, with no rendering of types into prose. And a book is an object, so "what is
    in it" is a member list the checker already has.
 
-   ⚠ **Ordered by value, not blocked** — say it precisely, per the warning at the top of this file.
-   Nothing stops generating a page for one `.cufe` today. But pages are worth most when there are
-   books by other people to read, and the loader and the package manager are both still below
-   ("Shipping a book").
+   ✅ **ITS REASON TO WAIT EXPIRED, 2026-09-17.** This said pages were worth most once there were
+   books by other people to read, *"and the loader and the package manager are both still below"*.
+   Both have shipped: a pull resolves across files, and `cufet install` fetches a book from a git
+   repository at a pinned commit, transitively. So a person can now hold a book somebody else wrote
+   — and has **no way to find out what is in it** short of opening the file. That is the gap this
+   item closes, and it did not exist a week ago.
+
+   ★ A good way in is to install a real book and try to use it knowing nothing, because what you
+   cannot find out is the specification for the page. Designing the shape first is guessing.
 
    ✅ **The bundled-book fork is SETTLED, 2026-09-16: pages are for USER books only**, and the
    premise it rested on was wrong. The entry claimed BOOKS.md and the `///` comments "say the same
@@ -287,7 +170,7 @@ they are large, not because they are waiting — the order among them means noth
    `examples/expected/` already are — generated output that nothing checks is the same staleness
    in a new place, and a hand-edited "generated" page is the second lying copy immediately.
 
-4. **Teaching the language: a documentation site, and an interactive tutorial.** The playground
+3. **Teaching the language: a documentation site, and an interactive tutorial.** The playground
    runs the real interpreter in the browser, loads the corpus, shows squiggles and survives a
    runaway program. What it does not do is teach anybody anything — the only way in is
    `REFERENCE.md`, which is over four thousand lines and is a reference rather than a way in.
@@ -334,9 +217,10 @@ they are large, not because they are waiting — the order among them means noth
    and the idempotency caveat, which is what a reader needs, rather than waiting on a change that is
    not coming.
 
-   ⚠ **Lessons 11 and 12 depend on item 2**, and that is the real ordering constraint here:
-   they teach what `books/` holds, what a `blueprint.cufe` carries, and whether a book is one file
-   — exactly the surface a package manager would move. Lessons 2 to 10 depend on none of it.
+   ✅ **Lessons 11 and 12 used to depend on the package manager, and no longer do** — it shipped.
+   They teach what `books/` holds, what a `blueprint.cufe` carries and whether a book is one file,
+   and all three are now settled: flat, pins as well as steps, and yes. Lessons 2 to 10 never
+   depended on any of it.
 
    ★ **Deliberately outside the string**, to stop it becoming a second reference: concurrency
    (tasks and channels, a follow-on after 9) and the type system proper (interfaces, generics,
@@ -399,7 +283,7 @@ they are large, not because they are waiting — the order among them means noth
    ⚠ Whatever is written must be pinned like the doc fences are: a lesson whose code stops working
    is worse than no lesson, and this project has the machinery to catch that already.
 
-5. **Unmaker fire-timing — SETTLED 2026-07, and do not re-derive it.** ⚠⚠ An unmaker does not
+4. **Unmaker fire-timing — SETTLED 2026-07, and do not re-derive it.** ⚠⚠ An unmaker does not
    fire for a binding declared directly in a function or method FRAME, nor at the program's top
    level. MEASURED in both backends. It looks like a bug every time somebody meets it, and it is
    not one.
@@ -431,7 +315,7 @@ they are large, not because they are waiting — the order among them means noth
    it shares with **Move semantics at channel send** is the same missing concept: a way to say
    *"this binding is spent."*
 
-6. **A module a person can write that owns a lifetime.** ✅ The DISTINCTION is settled
+5. **A module a person can write that owns a lifetime.** ✅ The DISTINCTION is settled
    (2026-09-17, see DESIGN under *What Cufet is for*): **a module may own a lifetime, a book may
    not.** What is unbuilt is both halves of making that true.
 
@@ -593,7 +477,8 @@ indistinguishable from having forgotten.
   `required` and `init` to retrofit onto defaults-everywhere. *Blocker:* no use case until a type
   crosses a **version boundary**. Adding a field is a breaking change for every construction
   site, which is nobody's problem while one person owns them all and everybody's the moment
-  books are user-authored and depended on — so this arrives with the package manager, not before.
+  books are user-authored and depended on. ⚠ The package manager has now SHIPPED, so the condition
+  is met and this is waiting on real third-party books rather than on a tool.
   Until then, named makers (`making a <type>`) already cover "I do not want to write six
   fields", and `voidable` already covers "may be absent" while keeping the absence visible where
   the object is built.

@@ -470,6 +470,75 @@ wall: it is a way to call C, and C still cannot parse Cufet. A Cufet-side heuris
 `Pull ` works and proves no language surface was needed, but it under-declares on any form it does
 not know, and an under-declared `need` is a silently stale build.
 
+### Where a book comes from, and what a pin is
+
+The package manager, settled across 2026-09-13 to 09-18 and shipped. Recorded here because the
+reasoning is what nobody should have to re-derive; what it DOES is in the changelog and in
+[BOOKS.md](BOOKS.md#pinned-books-cufet-install).
+
+★★ **One constraint decides nearly all of it: ONE BOOK PER NAME in a program, wherever it came
+from.** `MakePrivate` renames what a book declares to `<name> in <book>`, so the name IS the
+namespace, and two versions of one book cannot coexist by construction. Cufet therefore needs
+version SELECTION and never isolation — npm's nested private copies are structurally unavailable.
+★ Python is the precedent rather than npm: `site-packages` is flat with one version per name, and
+virtualenvs exist because of it. Cufet already has the virtualenv — `books/` is per-project by
+construction.
+
+What follows from that constraint alone:
+
+- **Exact pins, so there is no resolver.** No constraint sublanguage and no negotiation. A diamond
+  at two commits is a REFUSAL naming both, which is the answer this language gives everywhere else,
+  rather than npm nesting two copies or pip taking whichever landed last.
+- **`books/` stays FLAT**, one file per name on disk, mirroring one book per name in the program.
+  ⚠ The old complaint that *"two books cannot carry different versions of a third"* DISSOLVES here:
+  it is not a folder problem and no folder shape fixes it.
+- **Dependencies are DERIVED, not declared.** `Pull a book on canvas.` IS the declaration, and
+  `cufet pulls` reports what the loader resolved. A manifest listing dependencies would be a second
+  copy of something derivable. What cannot be derived is ORIGIN — which source, which commit — and
+  that is exactly what a pin carries and nothing else.
+- **A book is a PROJECT when you develop it and a FILE when you consume it.** Its own
+  `blueprint.cufe` carries its pins and travels only as far as the installer; only the `.cufe` lands
+  in `books/`. ⚠ Forced rather than chosen: a blueprint inside `books/` would mark that directory a
+  project root.
+- ★ **Fetched versus written is then free** — anything in `books/` was fetched, because a book you
+  wrote lives beside the file that pulls it, where *nearest wins* already puts it first.
+
+★★ **A SOURCE IS A GIT REPOSITORY AND A COMMIT SHA, and the pin format and the transport are
+COUPLED — which is what decided it.** A pin recording a CONTENT CHECKSUM cannot be fetched by git:
+MEASURED in this repository, `core.autocrlf=true` with no `.gitattributes`, so a clone rewrites LF
+to CRLF and a fetched book's bytes differ from the publisher's. Hashing after normalising "fixes"
+that by discarding what a checksum is for. A commit sha names the commit rather than the working
+tree, git guarantees it, and it stays true whoever fetched it — so the transport can change later
+without invalidating a pin already published. ★ Both ecosystems set that precedent: `go get` shelled
+out to `git` for years before `GOPROXY`, and pip still does for `pip install git+https://…`.
+
+⚠ **What that costs, recorded so nobody rediscovers it as a surprise:** a consumer needs `git` on
+PATH; a fetch failure arrives in git's vocabulary rather than Cufet's four-part voice; and two
+machines with different autocrlf settings end up with different BYTES in `books/`, so `blueprints`
+sees a changed input and rebuilds when nothing changed. That last is wasted work rather than a wrong
+answer, but this project has a line about exactly it — *"a build that rebuilds too often looks
+exactly like one that works"*.
+
+⚠⚠ **The installer RUNS a fetched blueprint, and the loader never does.** *"Only its LOCATION is
+read"* constrains the LOADER — `check`, `run`, the editor — so importing a book can never execute a
+build description. An installer is a build-time tool and by the time the loader runs, `books/` is
+already populated. The exception is deliberate, so that a blueprint may COMPUTE its pins, and the
+installer names each blueprint before running it.
+
+★★ **Which is precisely why there is a record.** Because pins can be computed, the closure is not a
+function of the files at all — MEASURED: one blueprint, unchanged and at one commit, pinned a
+different book depending on whether it ran inside a git repository. `.cufet-pins` is the tool's own
+file and never `blueprint.cufe`: writing a closure back into the source you wrote is `go mod tidy`,
+and every ecosystem keeping a lock splits the two for that reason. Deleting it is the escape hatch,
+with no flag, exactly as `.cufet-build` offers the build.
+
+⚠ **The honest limitation underneath all of it.** `Resolve` accepts exactly `<name>.cufe`, so a
+book is precisely one file, and a book outgrowing one file must split into OTHER books that take
+global names. Two libraries each needing a different `utils` cannot coexist — they are refused
+rather than silently merged, which is the right answer to one-book-per-name, and it is still a
+limit. ★ This is the one thing that could argue for per-book directories or a real namespace,
+against the flat shape above.
+
 ---
 
 ## Tooling

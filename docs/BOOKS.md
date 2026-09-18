@@ -1395,6 +1395,22 @@ same book at the same commit is agreement rather than conflict, and costs one fe
 that same A, B would have to be committed knowing a sha that does not exist until B does. Exact
 pins are acyclic by construction, for the same reason a git history is.
 
+**What you installed is written down, in `.cufet-pins`.** One line per book — name, source and
+commit, tab-separated, sorted by name — covering the whole closure, including books you never named
+yourself. The next install reads it back, and a name that now resolves somewhere else is **refused,
+naming both**.
+
+★★ **That is not the usual lockfile argument, and it is sharper here.** Because a blueprint may
+COMPUTE its pins, the closure is not a function of the files at all. MEASURED: one blueprint,
+unchanged and at a single commit, pinned a different book depending on whether it happened to run
+inside a git repository. Nothing else anywhere records what a project actually got.
+
+★ **It is the tool's file, not yours.** Writing the closure back into `blueprint.cufe` would be a
+tool editing the source you wrote; every ecosystem that keeps a lock splits the two for that reason.
+Deleting `.cufet-pins` is the escape hatch and there is no flag, exactly as with `.cufet-build`. A
+failed install writes nothing — a partial record is one the next install would compare against
+something that never happened.
+
 ⚠ **A project must still pin what it uses directly.** Reaching a book because something else
 happened to pin it works, and it is not a dependency you declared — the next version of that
 library may drop it.

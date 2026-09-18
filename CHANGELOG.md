@@ -294,6 +294,21 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   ⚠⚠ Six collisions across two sessions of writing Cufet prompted this — `a`, `one`, `channel`,
   `key`, `arguments`, `from` — every one an everyday noun somebody would reach for.
 
+- **`cufet install` records what it installed, in `.cufet-pins`.** One tab-separated line per book
+  — name, source, commit — for the whole closure, sorted by name, including books the project never
+  named. The next install reads it back and refuses a name that now resolves somewhere else, naming
+  both, BEFORE fetching anything.
+
+  ★★ **Not the usual lockfile argument.** A blueprint may COMPUTE its pins, so the closure is not
+  a function of the files at all. MEASURED: one blueprint, unchanged and at one commit, pinned a
+  different book depending on whether it ran inside a git repository. Nothing anywhere recorded what
+  a project actually got.
+
+  ★ **The tool's file, never `blueprint.cufe`.** Writing the closure back into the source you wrote
+  is `go mod tidy`, and every ecosystem that keeps a lock splits the two for exactly that reason.
+  Deleting it is the escape hatch, with no flag — the deal `.cufet-build` already offers the build.
+  ⚠ A failed install writes nothing.
+
 - **⚠ BREAKING: `examples/language/bookkeeping.cufe` is a book.** It owns no lifetime, so under the
   rule below it never was a module; `ledger.cufe` now says `Pull a book on bookkeeping.` Its name
   already completed *"Pull a book on ___"*, so nothing was renamed.
@@ -332,7 +347,7 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   ★★ **That is the book/module line, settled 2026-09-17: a module may own a LIFETIME, a book may
   not** — and a person should be able to WRITE a lifetime-owning module, not only pull the one the
   compiler provides. Recorded in DESIGN under *What Cufet is for*; the unbuilt half is design
-  mountain 6. ⚠ Every other candidate line was measured and collapsed the same way, by being
+  mountain *a module a person can write that owns a lifetime*. ⚠ Every other candidate line was measured and collapsed the same way, by being
   already true of BOTH: statelessness is the floor for anything pullable, instantiation happens to
   bundled books too, and *consult vs hold* is crossed by `collections` and `blueprints`, which are
   books handing out types you make values of.
@@ -351,6 +366,17 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   Done` and `expected As` already read correctly and are untouched.
 
 ### Fixed
+
+- **Repinning a book to a different repository reused the old repository's clone.** The clone cache
+  is keyed by book NAME, so a changed source left the wrong repository sitting under that name and
+  `git show` then reported the pinned commit as one that *"does not exist"* — true of that clone, and
+  nothing to do with what was actually wrong. The cached clone's own origin is checked against the
+  pin now, and a mismatch throws the clone away and fetches again.
+
+  ★ **Found by taking the escape hatch the same slice had just documented:** delete `.cufet-pins`,
+  install again, and the next fetch was a lie. ⚠ Loud when the stale clone cannot be removed, unlike
+  the record's own write — a record that cannot be kept costs the next install its comparison, but a
+  stale clone that survives installs the WRONG BOOK and says nothing.
 
 - **Nothing pinned the EXPLANATION line of a refusal, so three of them carried a retired rule.**
   A Cufet message is four parts — what went wrong, why, what you were trying to do, and the fix —
