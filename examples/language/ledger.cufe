@@ -1,20 +1,25 @@
 /*  A program written across two files, holding a type that belongs to the other one.
 
-    `charge` is declared inside the `bookkeeping` module in bookkeeping.cufe. Pulling the module
+    `charge` is declared inside the `bookkeeping` book in bookkeeping.cufe. Pulling the book
     brings the type into scope BY ITS SHORT NAME, for the length of the block — the same way
     `matrix` arrives with `Pull a book on collections.` Outside the block the name is gone.
 
-    ★ Two pulls, nested, because they are different kinds of thing. `math` is a book: you consult
-    it, and it says `and book`. `bookkeeping` is a module you have one of. One statement cannot
-    pull both — `Pull books on …` is the book spelling and applies to every name in it — so they
-    nest, outermost first.
+    ★★ THE POINT OF THE PAIR IS WHO OWES THE DEPENDENCY, and it is worth reading beside
+    basket.cufe. `bookkeeping`'s `rounded-total` names `math` WITHOUT pulling it, so the debt falls
+    to whoever pulls `bookkeeping` — which is why this file has to open `Pull a book on math.`
+    around it. `pennies` does the opposite: it is written inside the pull it needs, so it keeps it,
+    and basket.cufe names `pennies` and nothing else. Both spellings are right, and the choice is
+    about whether the dependency is the caller's business or an implementation detail.
 
-    ★ The nesting is not ceremony here: `bookkeeping`'s `rounded-total` names `math` without
-    pulling it, and this block is what supplies it. Take the outer pull away and the program is
-    refused AT THE PULL, naming what is missing, rather than dying part way through.  */
+    ★ The nesting is not ceremony: take the outer pull away and the program is refused AT THE
+    PULL, naming what is missing, rather than dying part way through.
+
+    ⚠ Both of these are BOOKS. Neither owns a lifetime, and that is the whole of what separates a
+    book from a module — so there is no example here of the other kind, because a rabbit is the only
+    thing that owns one and nobody can write another yet.  */
 
 Pull a book on math.
-    Pull a bookkeeping.
+    Pull a book on bookkeeping.
         Define spending as a series of charge with (
             a new charge { the note "coffee", the amount 3.5 },
             a new charge { the note "notebook", the amount 24.99 },

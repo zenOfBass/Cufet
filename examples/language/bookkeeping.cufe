@@ -12,7 +12,7 @@
     the block that pulled the module, so they inherit what THAT block pulled — the debt is recorded
     here and settled at the pull. Run ledger.cufe, which is where it gets paid.  */
 
-Define object bookkeeping with () and module:
+Define object bookkeeping with () and book:
     Define object charge with (the text note, the number amount):
         Bind text to line:
             Return "{one's note}: {one's amount}".
