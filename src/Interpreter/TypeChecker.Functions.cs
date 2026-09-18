@@ -1,4 +1,4 @@
-namespace Cufet.Interpreter;
+﻿namespace Cufet.Interpreter;
 
 public sealed partial class TypeChecker
 {
@@ -598,9 +598,23 @@ public sealed partial class TypeChecker
             if (formalType is InterfaceType ifaceT)
             {
                 // Conformance check: argument must be an object type that conforms to the interface.
-                if (argType is not ObjectType actualOt ||
-                    !_objectDefs.TryGetValue(actualOt.Name, out var actualObjDef) ||
-                    !actualObjDef.ConformedInterfaces.Contains(ifaceT.Name))
+                //
+                // ★★ `book` IS-A `module`, so a BOOK satisfies a `module` parameter — the one
+                // interface relationship the language has, and it was not honoured here. MEASURED
+                // 2026-09-17: an object declaring `and book` was refused at a `module` parameter,
+                // with a hint telling the author to "Add 'and module'" to something that already IS
+                // one. ⚠ It stayed invisible because `pennies` was the only `and book` in the repo
+                // and nothing passed it anywhere; making the bundled books declare `and book` is
+                // what walked into it. Asked through `IsModuleConformer`, which owns that rule, so
+                // the subtype is not restated here and cannot drift from the pull's own check.
+                bool conforms =
+                    argType is ObjectType actualOt
+                 && _objectDefs.TryGetValue(actualOt.Name, out var actualObjDef)
+                 && (actualObjDef.ConformedInterfaces.Contains(ifaceT.Name)
+                  || (ifaceT.Name.Equals(ModuleInterface, StringComparison.OrdinalIgnoreCase)
+                      && IsModuleConformer(actualObjDef.ConformedInterfaces)));
+
+                if (!conforms)
                 {
                     var hint = argType is ObjectType nonConforming
                         ? $"'{nonConforming.Name}' does not declare conformance to '{ifaceT.Name}'. Add 'and {ifaceT.Name}' to its definition."

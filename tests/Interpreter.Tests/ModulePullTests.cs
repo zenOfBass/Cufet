@@ -434,6 +434,38 @@ public class ModulePullTests
             """));
     }
 
+    /// <summary>A book a WRITER declared satisfies a `module` parameter, because `book` is-a `module`.</summary>
+    /// <remarks>
+    /// <para>
+    /// ⚠⚠ THIS WAS BROKEN, and silently. The conformance check asked whether the object's declared
+    /// interfaces literally contained `module`, which an object saying `and book` does not — so the
+    /// one interface relationship the language has was honoured at a PULL and not at a PARAMETER.
+    /// The hint made it worse by advising *"Add 'and module' to its definition"* about something
+    /// that already is one.
+    /// </para>
+    /// <para>
+    /// ★ It hid because `examples/language/pennies.cufe` was the only `and book` in the repo and
+    /// nothing passed it anywhere — the test above uses `math`, which reached the check through its
+    /// Cufet layer's `and module`. Making the bundled books declare what they are is what walked
+    /// into it, 2026-09-17.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void ABookAWriterDeclared_SatisfiesAModuleParameter()
+    {
+        Assert.Equal("a writer's book", Run("""
+            Define object almanac with () and book:
+                Bind text to motto: Return "steady". Done.
+            Done.
+
+            Bind text to which, given (the module m, the text label): Return label. Done.
+
+            Pull a book on almanac.
+                State cast which on (almanac, "a writer's book").
+            Done.
+            """));
+    }
+
     /// <summary>
     /// `rabbit` is a module's NAME, not a reserved word — so a writer may use it for their own.
     /// </summary>
