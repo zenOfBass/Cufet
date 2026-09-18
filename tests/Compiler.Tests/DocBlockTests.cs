@@ -1,4 +1,4 @@
-using System.Text.RegularExpressions;
+﻿using System.Text.RegularExpressions;
 using Cufet.Interpreter;
 using Xunit;
 using CufetLexer = Cufet.Lexer.Lexer;
@@ -327,6 +327,7 @@ public class DocBlockTests
     {
         var blocks = TaggedBlocks().ToList();
         var wrong  = new List<string>();
+        int pinned = 0;
 
         for (int i = 1; i < blocks.Count; i++)
         {
@@ -350,11 +351,26 @@ public class DocBlockTests
             }
 
             var expected = blocks[i].Source;
+            pinned++;
             if (Words(said) != Words(expected))
                 wrong.Add($"  {blocks[i].File}:{blocks[i].Line}\n" +
                           $"      documented: {Show(Words(expected))}\n" +
                           $"      said:       {Show(Words(said))}");
         }
+
+        // ★★ A FLOOR, added 2026-09-17 — and the note above explaining why there wasn't one is now
+        // out of date rather than wrong. It said a floor "would either be 1, which guards nothing,
+        // or a number that fails today", and with a single pair that was true. MEASURED: there are six,
+        // five in REFERENCE.md and one in TUTORIAL.md.
+        //
+        // ⚠⚠ What it guards is a test that can VANISH. Every pair here is DERIVED from the docs, so
+        // deleting a documented refusal does not fail this test — it removes one, silently, and the
+        // suite stays green with less in it. MEASURED that exact shape in the playground the same
+        // day: a derivation shrank, two tests ceased to exist, and nothing went red.
+        Assert.True(pinned >= 6,
+            $"only {pinned} documented refusal(s) were checked — there were six. A `cufet-refused` "
+            + "block lost its `output` twin, or an `output` block stopped being ADJACENT to it, "
+            + "which silently retires the pin rather than failing it.");
 
         Assert.True(wrong.Count == 0,
             $"{wrong.Count} documented refusal(s) are not what the language says:\n\n" +
