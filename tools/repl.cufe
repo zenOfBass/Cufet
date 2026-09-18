@@ -78,9 +78,10 @@ Bind text to beyond, given (the text whole, the text already):
     Return "".
 Done.
 
-/* A terminal is something you have one of, not something you consult — so it is pulled as the
-   module it is. It lives in its own file because the shell needs the same one. */
-Pull a terminal.
+/* `terminals` owns no lifetime — no region, nothing to reclaim — so it is a book, and a book is
+   pulled as one. ★ The NAME says so too: a book's name completes "Pull a book on ___", which wants
+   a mass noun or a plural. It lives in its own file because the shell needs the same one. */
+Pull a book on terminals.
     /* Which compiler is going to answer. A REPL that evaluated with a different `cufet` than the
        one on the PATH would be lying about the language, so it uses that one and says which — and
        says it up front, because an install two releases behind refuses today's language line by
@@ -97,13 +98,13 @@ Pull a terminal.
 
 
     /* Prompts are for somebody typing. Piped or redirected, they would land in the output. */
-    Define asking as cast terminal's interactive.
+    Define asking as cast terminals's interactive.
 
     /* Raw mode is asked for, never assumed. A pipe, a redirect, or a machine without termios all
        say no, and the answer is believed — the reader falls back to letting the terminal collect
        the line, which is exactly what it did before any of this. */
     Define editing as false.
-    If asking, editing becomes cast terminal's raw-on.
+    If asking, editing becomes cast terminals's raw-on.
 
     /* Everything typed, in order. It is only ever read by the editor above, so a session that
        never reaches a terminal keeps an empty one and pays nothing for it. */
@@ -122,11 +123,11 @@ Pull a terminal.
         /* A different prompt while a construct is open, so it is never a mystery why Enter is
            not running anything. */
         If asking:
-            If building, cast terminal's put on ("... ").
-            If building is false, cast terminal's put on ("> ").
+            If building, cast terminals's put on ("... ").
+            If building is false, cast terminals's put on ("> ").
         Done.
 
-        Define raw as cast terminal's typed on (editing, past).
+        Define raw as cast terminals's typed on (editing, past).
 
         /* Void is end of input — the stream closed instead of anyone saying Exit. */
         If raw is void, running becomes false.
@@ -233,5 +234,5 @@ Pull a terminal.
     Done.
 
     /* The terminal is not ours to keep. */
-    If editing, cast terminal's raw-off.
+    If editing, cast terminals's raw-off.
 Done.

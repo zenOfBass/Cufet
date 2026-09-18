@@ -7,7 +7,7 @@
     them in: a child process cannot change its parent's directory, and it cannot reach its parent's
     job table either.
 
-    Arrows, Home/End, Ctrl-U and a history of what you typed all come from `tools/terminal.cufe`,
+    Arrows, Home/End, Ctrl-U and a history of what you typed all come from `tools/terminals.cufe`,
     which the REPL uses too. Not one line of editing is written here — that is the whole reason
     the terminal is a book and not a part of the REPL.
 
@@ -207,7 +207,7 @@ Pull a book on the c-language.
         taking it back are both writes to the terminal's foreground group, and a process that is not
         already in the foreground gets SIGTTOU for doing that — which stops the shell, at the exact
         moment it was trying to take control back. Ignoring it is what every shell does and why. */
-    /*  ⚠⚠ THE PLATFORM SPLIT LIVES IN ONE PLACE, and this is the shape `tools/terminal.cufe`
+    /*  ⚠⚠ THE PLATFORM SPLIT LIVES IN ONE PLACE, and this is the shape `tools/terminals.cufe`
         already uses: a resultless `-support` axiom carrying the C, with the callable axioms as
         one-liners into it. Job control is POSIX — process groups and SIGTSTP have no Windows
         equivalent — but LAUNCHING is not, and writing the POSIX calls straight into the axioms
@@ -356,15 +356,15 @@ Pull a book on the c-language.
     Cast ignore-terminal-stops.
 
 
-    Pull a terminal.
+    Pull a book on terminals.
         /* Prompts are for somebody typing. Piped or redirected, they would land in the output. */
-        Define asking as cast terminal's interactive.
+        Define asking as cast terminals's interactive.
 
         /* Raw mode is asked for, never assumed. A pipe, a redirect, or a machine without termios all
            say no, and the answer is believed — the reader falls back to letting the terminal collect
            the line, which is what this shell did before it had an editor at all. */
         Define editing as false.
-        If asking, editing becomes cast terminal's raw-on.
+        If asking, editing becomes cast terminals's raw-on.
 
         /* Everything typed, in order, for the up arrow to walk back through. */
         Define past as a series of text.
@@ -398,9 +398,9 @@ Pull a book on the c-language.
             Done.
             The jobs becomes surviving.
 
-            If asking, cast terminal's put on ("cufetsh$ ").
+            If asking, cast terminals's put on ("cufetsh$ ").
 
-            Define raw as cast terminal's typed on (editing, past).
+            Define raw as cast terminals's typed on (editing, past).
 
             /* Void means end of input — the user closed the stream instead of saying Exit. */
             If raw is void, the running becomes false.
@@ -488,7 +488,7 @@ Pull a book on the c-language.
                                         ISIG, so a job resumed while it is on gets a terminal that sends no signals and
                                         cannot be stopped again. Both places that hand the terminal over must do this —
                                         fixing only the launch left `fg` un-suspendable, which is how it was found. */
-                                    If editing, cast terminal's raw-off.
+                                    If editing, cast terminals's raw-off.
 
                                     Cast give-terminal-to on (the pid of chosen).
                                     Cast signal-job on (the pid of chosen, cast continue-signal).
@@ -500,7 +500,7 @@ Pull a book on the c-language.
 
                                     Define settled as cast wait-for-foreground on (the pid of chosen).
                                     Cast take-terminal-back.
-                                    If editing, editing becomes cast terminal's raw-on.
+                                    If editing, editing becomes cast terminals's raw-on.
                                     If settled is 1:
                                         State "".
                                         State "[stopped] {the name of chosen}".
@@ -594,7 +594,7 @@ Pull a book on the c-language.
                                                 ⚠ Deleted once, by the rewrite that added job control, and the symptom was Ctrl-Z doing
                                                 nothing: with ISIG cleared the terminal never sent SIGTSTP, so there was no stop for
                                                 `wait-for-foreground` to see. */
-                                            If editing, cast terminal's raw-off.
+                                            If editing, cast terminals's raw-off.
 
                                             Pull a rabbit.
                                                 Define words as cast words-new.
@@ -641,7 +641,7 @@ Pull a book on the c-language.
 
                                             /*  Asked for again rather than assumed: a child that changed the terminal and did not
                                                 change it back is why this re-reads the answer. */
-                                            If editing, editing becomes cast terminal's raw-on.
+                                            If editing, editing becomes cast terminals's raw-on.
                                         Done.
                                     Done.
 
@@ -686,7 +686,7 @@ Pull a book on the c-language.
                                                                 line, so the honest v1 is to say there is nothing rather than steal it. */
                                                             Define step as run head with arguments rest with input carried.
                                                             The carried becomes the output of step.
-                                                            Cast terminal's put on (the errors of step).
+                                                            Cast terminals's put on (the errors of step).
                                                         Done.
                                                         In case of failure:
                                                             State "cufetsh: {the message of the failure}".
@@ -700,7 +700,7 @@ Pull a book on the c-language.
 
                                         /*  `put`, not `State` — the captured output already ends in whatever newline the program
                                             wrote, and State would add a second. */
-                                        If broken is false, cast terminal's put on (carried).
+                                        If broken is false, cast terminals's put on (carried).
                                     Done.
 
                                     /*  A redirect with no pipe still needs running, and the loop above never fires for it. */
@@ -718,8 +718,8 @@ Pull a book on the c-language.
                                             Done.
                                             Try to:
                                                 Define step as run head with arguments rest with input carried.
-                                                Cast terminal's put on (the output of step).
-                                                Cast terminal's put on (the errors of step).
+                                                Cast terminals's put on (the output of step).
+                                                Cast terminals's put on (the errors of step).
                                             Done.
                                             In case of failure:
                                                 State "cufetsh: {the message of the failure}".
@@ -736,6 +736,6 @@ Pull a book on the c-language.
 
         /* However the loop ended — Exit., end of input, or Ctrl-D — the terminal is handed back the
            way a program that never touched it would leave one. */
-        If editing, cast terminal's raw-off.
+        If editing, cast terminals's raw-off.
     Done.
 Done.

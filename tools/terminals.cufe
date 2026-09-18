@@ -1,4 +1,4 @@
-/*  The terminal, as a module.
+/*  Terminals, as a book.
 
     It is a separate file because the shell needs the same things — a prompt that leaves the cursor
     where it is, and later raw mode, keys and history. Written once here, pulled there.
@@ -12,7 +12,7 @@
 /// whether anybody is there at all. `raw-on` and `raw-off` bracket the stretch where the keys
 /// arrive one at a time instead of a line at a time.
 ///
-/// ⚠ **This is the whole of what `terminal` hands out.** Everything else in it — key decoding,
+/// ⚠ **This is the whole of what `terminals` hands out.** Everything else in it — key decoding,
 /// redrawing the line, measuring a shared prefix — is how the line editor works, not something to
 /// call from outside.
 Define prompter as an interface for {
@@ -23,7 +23,7 @@ Define prompter as an interface for {
     The voidable text function typed, given (the fact editing, the series of text past)
 }.
 
-Define object terminal with () and prompter and module:
+Define object terminals with () and prompter and book:
     /*  Write without a newline. `State` always ends a line, which is right for a program saying
         something and wrong for a prompt — a prompt has to leave the cursor sitting after it.
 
@@ -331,7 +331,7 @@ Define object terminal with () and prompter and module:
         If gone-caret is less than from-here, from-here becomes gone-caret.
 
         Define to-the-start as gone-caret - from-here.
-        Cast terminal's back-up on (to-the-start).
+        Cast terminals's back-up on (to-the-start).
 
         Define fresh as the characters from from-here to the end of drawn.
         If the length of fresh is greater than 0, cast one's put on (fresh).
@@ -340,12 +340,12 @@ Define object terminal with () and prompter and module:
            back across the paint. */
         Define over as (the length of gone) - (the length of drawn).
         If over is greater than 0:
-            Cast terminal's put on (cast one's blanks on (over)).
-            Cast terminal's back-up on (over).
+            Cast terminals's put on (cast one's blanks on (over)).
+            Cast terminals's back-up on (over).
         Done.
 
         Define to-the-caret as (the length of drawn) + 1 - drawn-caret.
-        Cast terminal's back-up on (to-the-caret).
+        Cast terminals's back-up on (to-the-caret).
     Done.
 
     /*  One line, typed. Raw mode — the TERMINAL kind, nothing to do with Cufet’s raw text — means
@@ -382,8 +382,8 @@ Define object terminal with () and prompter and module:
                tail of what was typed above the cursor rather than behind it. */
             If tapped is 10:
                 Define after-caret as the characters from caret to the end of built.
-                Cast terminal's put on (after-caret).
-                Cast terminal's put on ("\n").
+                Cast terminals's put on (after-caret).
+                Cast terminals's put on ("\n").
                 Return built.
             Done.
 
@@ -391,8 +391,8 @@ Define object terminal with () and prompter and module:
                line is nothing to do, so the loop below prints a fresh prompt and waits. */
             If tapped is 3:
                 Define abandoned as the characters from caret to the end of built.
-                Cast terminal's put on (abandoned).
-                Cast terminal's put on ("^C\n").
+                Cast terminals's put on (abandoned).
+                Cast terminals's put on ("^C\n").
                 Return "".
             Done.
 
