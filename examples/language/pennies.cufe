@@ -14,6 +14,10 @@
     fallback, it is the same rule read the other way: a name is satisfied where it is found.  */
 
 Pull a book on math.
+    /// Money, rounded to whole pennies.
+    ///
+    /// ★ It pulls `math` in its own file, so a program that wants pennies asks for pennies and
+    /// nothing else. Compare bookkeeping.cufe, which leaves that dependency to its caller.
     Define object pennies with () and book:
 
         /// Rounds an amount to whole pennies, away from the halfway point.

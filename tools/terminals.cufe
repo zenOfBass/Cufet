@@ -23,11 +23,22 @@ Define prompter as an interface for {
     The voidable text function typed, given (the fact editing, the series of text past)
 }.
 
+/// Talking to whoever is at the keyboard: a prompt that leaves the cursor where it is, and a
+/// line editor with arrows, Home/End, Ctrl-U and a history.
+///
+/// ★ Cue them with `put`, hear the answer with `typed`, and ask `interactive` first if it matters
+/// whether anybody is there at all. `raw-on` and `raw-off` bracket the stretch where keys arrive
+/// one at a time instead of a line at a time.
+///
+/// ⚠ Everything below `typed` — key decoding, redrawing the line, measuring a shared prefix — is
+/// how the line editor works rather than something to call from outside. It is listed because it
+/// is reachable, not because it is meant for you.
 Define object terminals with () and prompter and book:
-    /*  Write without a newline. `State` always ends a line, which is right for a program saying
-        something and wrong for a prompt — a prompt has to leave the cursor sitting after it.
-
-        ⚠ Flushed on the spot, and that is not fussiness. The interpreter prints through .NET and
+    /// Write without a newline, and flush it.
+    ///
+    /// `State` always ends a line, which is right for a program saying something and wrong for a
+    /// prompt — a prompt has to leave the cursor sitting after it.
+    /*  ⚠ Flushed on the spot, and that is not fussiness. The interpreter prints through .NET and
         the compiler through C stdio: two buffers over one file descriptor. Whichever of them holds
         output back is the one whose text arrives in the wrong place, and it would arrive in a
         DIFFERENT wrong place on each backend — an oracle divergence rather than a cosmetic bug. */
@@ -47,11 +58,11 @@ Define object terminals with () and prompter and book:
         Done.
         Done.
 
-    /*  Whether standard input is a person at a terminal, rather than a file or a pipe. A prompt
-        is for somebody who is about to type; printed into a redirect it is just noise in the
-        output, and every REPL that gets this right asks the same question.
-
-        ⚠ The first axiom here that has to know what machine it is on. POSIX spells it `isatty`
+    /// Whether standard input is a person at a terminal, rather than a file or a pipe.
+    ///
+    /// A prompt is for somebody who is about to type; printed into a redirect it is just noise in
+    /// the output, and every REPL that gets this right asks the same question.
+    /*  ⚠ The first axiom here that has to know what machine it is on. POSIX spells it `isatty`
         in <unistd.h> and Windows spells it `_isatty` in <io.h> — one call, two names, and a
         header that does not exist on the other side. Guarding inside the C is what keeps the
         Cufet above it from having a platform in it at all. */
@@ -69,20 +80,22 @@ Define object terminals with () and prompter and book:
         Done.
         Done.
 
-    /*  Put the terminal into raw mode: keys arrive one at a time, nothing is echoed, and Ctrl-C
-        comes through as a byte instead of killing the program. Gives back whether it worked, and
-        a caller is expected to believe the answer — a pipe, a redirect, a Windows console with no
-        handle, and a machine with no termios all say no, and all mean the same thing: read lines
-        the ordinary way instead.
-
-        ⚠ It does NOT save the old settings to put back. `raw-off` rebuilds a sane cooked
+    /// Put the terminal into raw mode: keys arrive one at a time, nothing is echoed, and Ctrl-C
+    /// comes through as a byte instead of killing the program.
+    ///
+    /// ★ It answers whether it WORKED, and a caller is expected to believe the answer. A pipe, a
+    /// redirect, a Windows console with no handle and a machine with no termios all say no, and
+    /// all mean the same thing: read lines the ordinary way instead.
+    ///
+    /// ⚠⚠ An abnormal exit leaves the terminal raw, because nothing runs `raw-off` on the way
+    /// out. `reset` fixes it. Every line editor that disables ISIG has this.
+    /*  ⚠ It does NOT save the old settings to put back. `raw-off` rebuilds a sane cooked
         terminal rather than restoring a remembered one, which is worse for somebody who had
         deliberately turned echo off and better for everyone else — and it is what lets these two
         be separate axioms. Each method gets its own C block, because an object body takes only
         methods, so nothing can be shared between them but the shape of the terminal itself.
 
-        ⚠⚠ An abnormal exit leaves the terminal raw, because nothing runs `raw-off` on the way
-        out. `reset` fixes it. Every line editor that disables ISIG has this. */
+        be separate axioms. */
     Bind fact to raw-on:
         Pull a book on the c-language.
             Define c-language raw-on-support as [#if defined(_WIN32)
@@ -111,7 +124,10 @@ Define object terminals with () and prompter and book:
         Done.
     Done.
 
-    /* Hand the terminal back the way a program that never touched it would leave one. */
+    /// Hand the terminal back the way a program that never touched it would leave one.
+    ///
+    /// ⚠ It REBUILDS a sane cooked terminal rather than restoring what was there before, which is
+    /// worse for somebody who had deliberately turned echo off and better for everyone else.
     Bind void to raw-off:
         Pull a book on the c-language.
             Define c-language raw-off-support as [#if defined(_WIN32)
@@ -155,33 +171,37 @@ Define object terminals with () and prompter and book:
         byte (`H` and `F`) and two put it in the first parameter with `~` at the end — which is why
         the first byte of the sequence is kept as well as the last. An arrow needs only the last.
 
-            -1          end of input
-             0          a key with nothing to do: a function key, anything unhandled
-             1          the start of the line: Ctrl-A, or Home
-             3          Ctrl-C
-             4          Ctrl-D, and Ctrl-Z, which is the Windows spelling of it
-             5          the end of the line: Ctrl-E, or End
-             8          Backspace
-            10          Enter
-            11          Up
-            12          Down
-            13          Left
-            14          Right
-            21          Ctrl-U, throw the line away
-            32 to 126   that printable character
-
-        ⚠ The numbers above 10 are this book’s own, not ASCII — 11 is a vertical tab and 13 is a
-        carriage return to anybody else. Nothing here ever gives back a byte as itself except a
-        printable one and the three control keys that already sit where they belong, so there is no
-        byte left over to be confused with.
-
-        ⚠ ASCII only. A byte at or above 128 is part of a UTF-8 character arriving in pieces, and
-        appending the pieces one at a time would build text that is not any character at all — so
-        they are ignored rather than mangled. Typing an accent is a gap, not a silent corruption.
-
         ⚠ Reads with `read` rather than `getchar` deliberately. The interpreter calls this from
         .NET, which has its own view of standard input; two buffers taking turns on one descriptor
         is how bytes go missing. Unbuffered, there is nothing for either side to hold on to. */
+    /// One keypress, as a number. Raw mode has to be on, or the terminal collects a whole line
+    /// before anything arrives here.
+    ///
+    /// | | |
+    /// | --- | --- |
+    /// | `-1` | end of input |
+    /// | `0` | a key with nothing to do: a function key, anything unhandled |
+    /// | `1` | the start of the line: Ctrl-A, or Home |
+    /// | `3` | Ctrl-C |
+    /// | `4` | Ctrl-D, and Ctrl-Z, which is the Windows spelling of it |
+    /// | `5` | the end of the line: Ctrl-E, or End |
+    /// | `8` | Backspace |
+    /// | `10` | Enter |
+    /// | `11` | Up |
+    /// | `12` | Down |
+    /// | `13` | Left |
+    /// | `14` | Right |
+    /// | `21` | Ctrl-U, throw the line away |
+    /// | `32` to `126` | that printable character |
+    ///
+    /// ⚠ **The numbers above 10 are this book's own, not ASCII** — 11 is a vertical tab and 13 a
+    /// carriage return to anybody else. Nothing here gives back a byte as itself except a printable
+    /// one and the three control keys that already sit where they belong, so no byte is left over
+    /// to be confused with.
+    ///
+    /// ⚠ **ASCII only.** A byte at or above 128 is part of a UTF-8 character arriving in pieces,
+    /// and appending the pieces one at a time would build text that is not any character at all —
+    /// so they are ignored rather than mangled. Typing an accent is a gap, not a corruption.
     Bind number to read-key:
         Pull a book on the c-language.
             Define c-language key-support as [#if defined(_WIN32)
@@ -246,8 +266,9 @@ Define object terminals with () and prompter and book:
         Done.
     Done.
 
-    /*  The one-character text for a character code, which is what turns a key back into something
-        that can be added to a line. Crossing back as `voidable text` means it is COPIED out of the
+    /// The one-character text for a character code — what turns a key back into something that can
+    /// be added to a line.
+    /*  Crossing back as `voidable text` means it is COPIED out of the
         static buffer at the boundary, so the next call reusing that buffer cannot reach it. */
     Bind text to letter-for, given (the number code):
         Pull a book on the c-language.
@@ -262,11 +283,11 @@ Define object terminals with () and prompter and book:
         Done.
     Done.
 
-    /*  Walk the cursor back, without disturbing what it walks over. A backspace MOVES; it is not
-        a delete, and that is the whole reason a line editor can put the cursor in the middle of a
-        line and still redraw the line around it.
-
-        Built as one string and written once. The obvious loop of single writes would be the same
+    /// Walk the cursor back, without disturbing what it walks over.
+    ///
+    /// ★ A backspace MOVES; it is not a delete, and that is the whole reason a line editor can put
+    /// the cursor in the middle of a line and still redraw the line around it.
+    /*  Built as one string and written once. The obvious loop of single writes would be the same
         bytes and a flush between every one of them, which is what makes a redraw visibly crawl. */
     Bind void to back-up, given (the number many):
         Define stick as "".
@@ -278,7 +299,7 @@ Define object terminals with () and prompter and book:
         If the length of stick is greater than 0, cast one's put on (stick).
     Done.
 
-    /* A run of spaces, for painting over what a line used to be. */
+    /// A run of spaces, for painting over what a line used to be.
     Bind text to blanks, given (the number many):
         Define room as "".
         Define left as many.
@@ -289,8 +310,8 @@ Define object terminals with () and prompter and book:
         Return room.
     Done.
 
-    /* How many characters two lines share from the left, which is how much of the screen does
-       NOT need repainting. */
+    /// How many characters two lines share from the left — which is how much of the screen does
+    /// NOT need repainting.
     Bind number to shared-start, given (the text earlier, the text later):
         Define reach as the length of earlier.
         If the length of later is less than reach, reach becomes the length of later.
@@ -322,6 +343,11 @@ Define object terminals with () and prompter and book:
 
         ★ Typing at the end of a line now costs nothing at all: the shared prefix is everything
         before the caret, so there is no movement to make and one character to print. */
+    /// Turn the line on screen into another line, moving the cursor as little as possible.
+    ///
+    /// ★ It repaints only from the first column that DIFFERS, so typing at the end of a line costs
+    /// one character printed and no movement at all. Repainting the whole line instead is visible
+    /// at a terminal: the cursor slides to column one and back before each keystroke appears.
     Bind void to redraw, given (the text gone, the number gone-caret, the text drawn, the number drawn-caret):
         /*  Back to the first column that has to change — or to the caret, if the caret is already
             left of it. Printing from the caret is safe either way, because everything between the
@@ -348,12 +374,13 @@ Define object terminals with () and prompter and book:
         Cast terminals's back-up on (to-the-caret).
     Done.
 
-    /*  One line, typed. Raw mode — the TERMINAL kind, nothing to do with Cufet’s raw text — means
-        every key arrives here one at a time and the echo is ours to do; without it the terminal
-        does its own editing and hands over a line already finished. Both give back `voidable text`
-        and both give back void at end of input, so the loop below cannot tell which one it got —
-        which is the point. The editor is an improvement to how a line is collected, not a second
-        way for the REPL to behave. */
+    /// One line, typed — with `past` as the history the arrows walk back through.
+    ///
+    /// ★★ `editing` says whether to do the editing ourselves. Raw mode (the TERMINAL kind, nothing
+    /// to do with Cufet's raw text) means every key arrives one at a time and the echo is ours;
+    /// without it the terminal does its own editing and hands over a line already finished.
+    /// **Both give back void at end of input, so a caller cannot tell which it got** — which is the
+    /// point. The editor is an improvement to how a line is collected, not a second way to behave.
     Bind voidable text to typed, given (the fact editing, the series of text past):
         If editing is false, return read a line from the input.
 
