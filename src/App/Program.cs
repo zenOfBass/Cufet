@@ -619,6 +619,7 @@ static void InstallProject()
         queue.Enqueue((pin, "this project"));
 
     var seen = new Dictionary<string, (Pin Pin, string From)>(StringComparer.OrdinalIgnoreCase);
+    var installed = ReadPinRecord();
 
     while (queue.Count > 0)
     {
@@ -648,6 +649,29 @@ static void InstallProject()
             return;
         }
 
+        // ⚠⚠ AND AGAINST WHAT WAS INSTALLED LAST TIME, which is the case a record exists for at
+        // all. A blueprint may COMPUTE its pins, so the closure is not a function of the files
+        // alone — MEASURED: one blueprint, unchanged and at one commit, pinned a different book
+        // depending on whether it ran inside a git repository. Without this, that drift is silent
+        // and nothing anywhere says what a project actually installed.
+        //
+        // ★ Same refusal as the diamond above, because it is the same fact arriving from a
+        // different direction: one name, two answers, and nobody but the author to choose.
+        if (installed.TryGetValue(pin.Name, out var before)
+         && !(string.Equals(before.Source, pin.Source, StringComparison.Ordinal)
+           && string.Equals(before.Commit, pin.Commit, StringComparison.Ordinal)))
+        {
+            Console.Error.WriteLine(
+                $"install: '{pin.Name}' is not what the last install got:");
+            Console.Error.WriteLine($"  {InstallFiles.Pins} has {before.Source} at {before.Commit}");
+            Console.Error.WriteLine($"  {from} now asks for {pin.Source} at {pin.Commit}");
+            Console.Error.WriteLine(
+                $"A blueprint may compute its pins, so this can change without any file changing. "
+                + $"If the new one is what you want, delete {InstallFiles.Pins} and install again.");
+            Environment.Exit(1);
+            return;
+        }
+
         seen[pin.Name] = (pin, from);
 
         string? nested = Fetch(pin);
@@ -656,12 +680,47 @@ static void InstallProject()
         // ⚠ Said out loud, every time. Running a fetched repository's build description is the one
         // place this tool executes code it did not get from the person running it.
         Console.WriteLine($"cufet install: running {pin.Name}'s blueprint to read its pins");
-        string where = Path.Combine(BookLoading.SharedFolder, Cache.Folder, pin.Name);
+        string where = Path.Combine(BookLoading.SharedFolder, InstallFiles.Cache, pin.Name);
         foreach (var onward in PinsOf(nested, Path.Combine(where, blueprintFile), pin.Name))
             queue.Enqueue((onward, $"{pin.Name}'s blueprint"));
     }
 
     if (seen.Count == 0) Console.WriteLine("This project pins no books.");
+    WritePinRecord(seen.Values.Select(v => v.Pin));
+}
+
+/// What the last install got, by name. Empty when there is no record, which is the ordinary state
+/// of a project nobody has installed yet — the first install must not be the one that complains.
+static Dictionary<string, Pin> ReadPinRecord()
+{
+    var record = new Dictionary<string, Pin>(StringComparer.OrdinalIgnoreCase);
+    try
+    {
+        foreach (var line in File.ReadAllLines(InstallFiles.Pins))
+        {
+            var fields = line.Split('\t');
+            if (fields.Length == 3) record[fields[0]] = new Pin(fields[0], fields[1], fields[2]);
+        }
+    }
+    catch (IOException) { /* no record yet, or unreadable — both mean "nothing to compare against" */ }
+    return record;
+}
+
+/// ⚠ SORTED BY NAME, so the file is the same whatever order the graph happened to be walked. A
+/// record that reshuffles itself is one a reader cannot diff and a build cannot hash.
+///
+/// ⚠ A record that cannot be written is a MESSAGE, not a failure — the same call `bp-remember`
+/// makes about `.cufet-build`. Losing it costs the next install its comparison; refusing to install
+/// because the note could not be kept costs the install.
+static void WritePinRecord(IEnumerable<Pin> pins)
+{
+    var lines = pins.OrderBy(p => p.Name, StringComparer.Ordinal)
+                    .Select(p => $"{p.Name}\t{p.Source}\t{p.Commit}");
+    try { File.WriteAllLines(InstallFiles.Pins, lines); }
+    catch (IOException e)
+    {
+        Console.Error.WriteLine($"install: could not record what was installed: {e.Message}");
+    }
 }
 
 /// What a blueprint pins, asked by running it. Null is never returned — a blueprint that cannot be
@@ -747,8 +806,19 @@ static List<Pin> PinsOf(string source, string forFile, string whose)
 /// Puts one pinned book in `books/`, and hands back its OWN blueprint if it has one.
 static string? Fetch(Pin pin)
 {
-    string where = Path.Combine(BookLoading.SharedFolder, Cache.Folder, pin.Name);
+    string where = Path.Combine(BookLoading.SharedFolder, InstallFiles.Cache, pin.Name);
     string into  = Path.Combine(BookLoading.SharedFolder, pin.Name + ".cufe");
+
+    // ⚠⚠ THE CACHE IS KEYED BY NAME, AND A NAME CAN CHANGE SOURCE. Repinning a book to a
+    // different repository left the old repository's clone sitting under the new name, and `git
+    // show` then reported the pinned commit as one that "does not exist" — true of that clone, and
+    // nothing to do with what was actually wrong. MEASURED 2026-09-18, by taking the escape hatch
+    // this slice documents: delete the pin record, install again, and the next fetch is a lie.
+    //
+    // ★ Compared against the clone's own origin rather than remembered somewhere, so there is no
+    // second record to fall out of step with the first.
+    if (Directory.Exists(where) && !CloneCameFrom(where, pin.Source))
+        DiscardClone(where, pin);
 
     // ★ Asked of the DIRECTORY rather than by letting a clone fail: a clone can fail for a dozen
     // reasons, and reading "already there" out of any of them would turn a bad source into a
@@ -785,6 +855,48 @@ static string? Fetch(Pin pin)
     static void FetchFailed(Pin pin, string why)
     {
         Console.Error.WriteLine($"install: {pin.Name}: {why.TrimEnd()}");
+        Environment.Exit(1);
+    }
+}
+
+/// Whether the clone kept under this name was taken from this source.
+///
+/// ⚠ Case-insensitive, and that is the safer way round here. Two Windows paths differing only in
+/// case are the same directory, and a host that cares about case in an owner or repository name is
+/// not a host anybody publishes to — whereas treating one spelling as a different repository would
+/// re-clone on every install.
+static bool CloneCameFrom(string where, string source)
+{
+    var origin = Git(where, "remote", "get-url", "origin");
+    return origin.Exit == 0
+        && string.Equals(origin.Out.Trim().TrimEnd('/'), source.Trim().TrimEnd('/'),
+                         StringComparison.OrdinalIgnoreCase);
+}
+
+/// Throws the cached clone away so the right source can be fetched under that name.
+///
+/// ⚠⚠ LOUD WHEN IT FAILS, unlike the pin record's write. A record that cannot be kept costs the
+/// next install its comparison; a stale clone that cannot be removed would install the WRONG BOOK
+/// and say nothing, so there is nothing to carry on with.
+///
+/// ⚠ git marks its object files READ-ONLY, so a plain recursive delete throws
+/// <see cref="UnauthorizedAccessException"/> — which is NOT an <see cref="IOException"/>, so the
+/// usual catch misses it. Measured first in the install tests' teardown, where it reported as a
+/// failing test while every test had passed.
+static void DiscardClone(string where, Pin pin)
+{
+    try
+    {
+        foreach (var file in Directory.EnumerateFiles(where, "*", SearchOption.AllDirectories))
+            File.SetAttributes(file, FileAttributes.Normal);
+        Directory.Delete(where, recursive: true);
+    }
+    catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+    {
+        Console.Error.WriteLine(
+            $"install: {pin.Name} now comes from {pin.Source}, but the clone kept for it is from "
+            + $"somewhere else and could not be removed: {e.Message}");
+        Console.Error.WriteLine($"  Delete {where} and install again.");
         Environment.Exit(1);
     }
 }
@@ -975,8 +1087,18 @@ static void RunOnLargeStack(Action action)
 /// One book, named and fixed to an exact commit of an exact source.
 readonly record struct Pin(string Name, string Source, string Commit);
 
-file static class Cache
+file static class InstallFiles
 {
+    /// Where `cufet install` records what it actually installed.
+    ///
+    /// ★★ THE TOOL'S FILE, NOT YOURS. Writing the closure back into `blueprint.cufe` would be
+    /// `go mod tidy` — a tool editing the source you wrote. Every ecosystem that does this splits the
+    /// two for that reason: `go.mod` and `go.sum`, `Cargo.toml` and `Cargo.lock`. ★ The precedent is
+    /// already here: `.cufet-build` is a record the BUILD keeps beside the blueprint, and deleting it
+    /// is the escape hatch. This is its sibling, and deleting it works the same way — there is no
+    /// flag, for the same reason `blueprints` has no `--fresh`.
+    public const string Pins = ".cufet-pins";
+
     /// Where a pinned source's clone is kept.
     ///
     /// ★★ THE CLONE IS THE CACHE, and this location is measured rather than tidy: `Write` does not
@@ -986,5 +1108,5 @@ file static class Cache
     ///
     /// ★ Deleting `books/` therefore removes everything the installer made, which is the same
     /// escape hatch deleting `.cufet-build` offers the build.
-    public const string Folder = ".cufet-cache";
+    public const string Cache = ".cufet-cache";
 }

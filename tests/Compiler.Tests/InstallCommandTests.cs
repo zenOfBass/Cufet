@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Xunit;
 
@@ -105,14 +105,19 @@ public class InstallCommandTests : IDisposable
     /// <summary>Where a published book's own repository lives.</summary>
     private string RepoOf(string name) => Path.Combine(_root, "source-" + name);
 
+    /// <summary>A second, separate repository that happens to hold a book of the same name.</summary>
+    private string OtherRepoOf(string name) => Path.Combine(_root, "other-" + name);
+
     /// <summary>
     /// Publishes a book as a real git repo, with its own blueprint if it pins anything, and hands
     /// back the commit sha. Publishing the same name twice commits again to the same repo, which is
     /// how a source comes to have two commits worth pinning.
     /// </summary>
-    private string Publish(string name, string body, params Pinned[] pins)
+    private string Publish(string name, string body, params Pinned[] pins) =>
+        PublishInto(RepoOf(name), name, body, pins);
+
+    private string PublishInto(string repo, string name, string body, params Pinned[] pins)
     {
-        string repo = RepoOf(name);
         Directory.CreateDirectory(repo);
         File.WriteAllText(Path.Combine(repo, name + ".cufe"), body);
         if (pins.Length > 0)
@@ -363,6 +368,124 @@ public class InstallCommandTests : IDisposable
         Assert.Equal(0, exit);
         Assert.Contains("pins no books", stdout);
         Assert.DoesNotContain("isn't defined", stdout);
+    }
+
+
+    // ── The record of what was installed ─────────────────────────────────────────
+
+    private string RecordPath => Path.Combine(Project, ".cufet-pins");
+
+    /// <remarks>
+    /// ★★ **WHY A RECORD EXISTS AT ALL**, and it is not the usual lockfile argument. A blueprint may
+    /// COMPUTE its pins — that was chosen deliberately — so the closure is not a function of the
+    /// files alone. MEASURED: one blueprint, unchanged and at one commit, pinned a different book
+    /// depending on whether it ran inside a git repository. Without this file nothing anywhere says
+    /// what a project actually installed.
+    ///
+    /// ⚠ It is the TOOL's file, never `blueprint.cufe`. Writing the closure back into the source
+    /// you wrote is `go mod tidy`; every ecosystem that does this splits the two for that reason.
+    /// </remarks>
+    [Fact]
+    public void TheRecord_NamesEveryBookThatWasInstalled()
+    {
+        var deep   = Publish("deep", Deep);
+        var canvas = Publish("canvas", CanvasOverDeep, Pin("deep", deep));
+        PinsInProject(Pin("canvas", canvas));
+
+        Assert.Equal(0, Install().Exit);
+
+        var lines = File.ReadAllLines(RecordPath);
+        // ⚠ SORTED BY NAME, so the file does not reshuffle with the order the graph was walked —
+        // a record that cannot be diffed is one nobody will read.
+        Assert.Equal(2, lines.Length);
+        Assert.StartsWith("canvas\t", lines[0]);
+        Assert.StartsWith("deep\t", lines[1]);
+        Assert.Contains(canvas, lines[0]);
+        // ★ The transitive one is in it too — the project never named `deep` anywhere.
+        Assert.Contains(deep, lines[1]);
+    }
+
+    /// <remarks>★ The first install must not be the one that complains: having no record is the
+    /// ordinary state of a project nobody has installed yet.</remarks>
+    [Fact]
+    public void WithNoRecordYet_TheFirstInstallJustInstalls()
+    {
+        var sha = Publish("canvas", Canvas);
+        PinsInProject(Pin("canvas", sha));
+
+        Assert.False(File.Exists(RecordPath));
+        Assert.Equal(0, Install().Exit);
+        Assert.True(File.Exists(RecordPath));
+    }
+
+    /// <remarks>
+    /// ⚠⚠ The whole point: a name that resolves somewhere else than last time is REFUSED, naming
+    /// both — the same shape as a diamond pinned twice, because it is the same fact arriving from a
+    /// different direction. ★ And it refuses BEFORE fetching, so nothing is downloaded on the way to
+    /// the complaint.
+    /// </remarks>
+    [Fact]
+    public void APinThatChanged_IsRefusedAgainstTheRecord()
+    {
+        var first = Publish("canvas", Canvas);
+        PinsInProject(Pin("canvas", first));
+        Assert.Equal(0, Install().Exit);
+
+        var second = PublishInto(OtherRepoOf("canvas"), "canvas", Canvas);
+        PinsInProject(new Pinned("canvas", OtherRepoOf("canvas"), second));
+
+        var (exit, stdout, stderr) = Install();
+
+        Assert.NotEqual(0, exit);
+        Assert.Contains("is not what the last install got", stderr);
+        Assert.Contains(".cufet-pins", stderr);
+        Assert.DoesNotContain("fetching canvas", stdout);
+    }
+
+    /// <remarks>
+    /// ★ Deleting the record is the escape hatch, and there is no flag — the same deal
+    /// `blueprints` gives `.cufet-build`.
+    ///
+    /// ⚠⚠ AND THE CLONE HAS TO FOLLOW. The cache is keyed by NAME, so repinning a book to another
+    /// repository used to leave the OLD repository's clone under the new name, and `git show` then
+    /// reported the pinned commit as one that "does not exist" — true of that clone and nothing to
+    /// do with what was wrong. MEASURED 2026-09-18 by taking this very escape hatch.
+    /// </remarks>
+    [Fact]
+    public void DeletingTheRecord_LetsTheNewPinIn_AndReClonesFromIt()
+    {
+        var first = Publish("canvas", Canvas);
+        PinsInProject(Pin("canvas", first));
+        Assert.Equal(0, Install().Exit);
+
+        const string Elsewhere = """
+            Define object canvas with () and book:
+                Bind text to draw: Return "drawn by the OTHER canvas". Done.
+            Done.
+            """;
+        var second = PublishInto(OtherRepoOf("canvas"), "canvas", Elsewhere);
+        PinsInProject(new Pinned("canvas", OtherRepoOf("canvas"), second));
+
+        File.Delete(RecordPath);
+        var (exit, _, stderr) = Install();
+
+        Assert.True(exit == 0, $"install failed after the record was deleted: {stderr}");
+        Assert.Contains("drawn by the OTHER canvas",
+                        File.ReadAllText(Path.Combine(Project, "books", "canvas.cufe")));
+        Assert.Contains(second, File.ReadAllText(RecordPath));
+    }
+
+    /// <remarks>⚠ A failed install records nothing — there is no closure to record, and writing a
+    /// partial one would make the next install compare against something that never happened.</remarks>
+    [Fact]
+    public void AFailedInstall_WritesNoRecord()
+    {
+        Publish("canvas", Canvas);
+        PinsInProject(new Pinned("canvas", RepoOf("canvas"),
+                                 "0123456789abcdef0123456789abcdef01234567"));
+
+        Assert.NotEqual(0, Install().Exit);
+        Assert.False(File.Exists(RecordPath), ".cufet-pins was written by an install that failed");
     }
 
     /// <remarks>★ The same refusal shape `cufet build` gives, naming what to do rather than only
