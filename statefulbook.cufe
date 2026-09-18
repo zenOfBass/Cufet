@@ -1,0 +1,11 @@
+Define object counter with (the number tally) and book:
+    Bind void to bump:
+        Increment one's tally by 1.
+        State "tally is {one's tally}".
+    Done.
+Done.
+
+Pull a book on counter.
+    Cast counter's bump.
+    Cast counter's bump.
+Done.
