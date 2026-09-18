@@ -294,12 +294,37 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   ⚠⚠ Six collisions across two sessions of writing Cufet prompted this — `a`, `one`, `channel`,
   `key`, `arguments`, `from` — every one an everyday noun somebody would reach for.
 
+- **The bundled books declare `and book` instead of `and module`.** `math`, `collections` and
+  `chance` said `and module` and were books anyway, because a lookup table in the checker said so.
+  Nothing about how they are pulled changes; their declarations just stop contradicting what they
+  are. `rabbit` keeps `and module`, and is now the only thing in the language that does.
+
+  ★★ **That is the book/module line, settled 2026-09-17: a module may own a LIFETIME, a book may
+  not** — and a person should be able to WRITE a lifetime-owning module, not only pull the one the
+  compiler provides. Recorded in DESIGN under *What Cufet is for*; the unbuilt half is design
+  mountain 6. ⚠ Every other candidate line was measured and collapsed the same way, by being
+  already true of BOTH: statelessness is the floor for anything pullable, instantiation happens to
+  bundled books too, and *consult vs hold* is crossed by `collections` and `blueprints`, which are
+  books handing out types you make values of.
+
 - **Parse errors no longer name token types at people.** `expected Dot` is `expected '.'`,
   `expected Colon` is `expected ':'`, `expected Identifier` is `expected a name`. ★ Only the seven
   types that are jargon were translated — a keyword's internal name is the keyword, so `expected
   Done` and `expected As` already read correctly and are untouched.
 
 ### Fixed
+
+- **A book a writer declared did not satisfy a `module` parameter.** `book` is-a `module` — the
+  one interface relationship the language has — and it was honoured at a PULL but not at a
+  PARAMETER: the conformance check asked whether the declared interfaces literally contained
+  `module`, which an object saying `and book` does not. ⚠ The hint made it worse, advising *"Add
+  'and module' to its definition"* about something that already is one.
+
+  ★ **It hid because there was nothing to catch it with.** `examples/language/pennies.cufe` was
+  the only `and book` in the repository and nothing passed it anywhere; the test that covers this
+  used `math`, which reached the check through its Cufet layer's `and module`. Making the bundled
+  books declare what they are is what walked into it. Both the rule and the hint now come from
+  `IsModuleConformer`, which already owned the subtype.
 
 - **`cufet --help` listed neither `cufet install` nor bare `cufet build`.** Both shipped
   undiscoverable — and bare `build`, the project build, was the headline of 0.23.0. `--help` is the
