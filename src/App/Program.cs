@@ -57,6 +57,11 @@ else if (args.Length >= 2 && args[0].Equals("tokens", StringComparison.OrdinalIg
     Tokens(args[1..]);
 else if (args.Length >= 2 && args[0].Equals("pulls", StringComparison.OrdinalIgnoreCase))
     Pulls(args[1..]);
+else if (args.Length >= 2 && args[0].Equals("page", StringComparison.OrdinalIgnoreCase))
+{
+    RefuseExtraArguments("page", args[2..], "cufet page <file.cufe>");
+    Page(args[1]);
+}
 else if (args.Length >= 1 && args[0].Equals("install", StringComparison.OrdinalIgnoreCase))
 {
     RefuseExtraArguments("install", args[1..], "cufet install");
@@ -134,6 +139,7 @@ static void Help()
                                                report problems without running it
           cufet tokens --json <file.cufe>      report what each name in the file IS
           cufet pulls <file.cufe> [more…]      report which FILES a file brings in
+          cufet page <file.cufe>               write a reader's page for the book in it
           cufet build <file.cufe>              compile to a native binary (needs gcc)
           cufet build                          build the PROJECT its blueprint.cufe describes
           cufet install                        fetch the books that blueprint pins (needs git)
@@ -153,6 +159,11 @@ static void Help()
         cannot tell those apart in Cufet, so an editor layers this over its own colouring.
         Exit: 0 when the file was classified, 1 when it does not lex, parse or type-check
         (an unchecked file cannot be classified reliably), 2 when it cannot be read.
+
+        page writes Markdown to stdout and decides nothing about where it goes — redirect it
+        wherever you keep pages. It reports the book's own documentation and then one entry per
+        member: the declaration exactly as written, because a Cufet signature is already English,
+        and whatever the /// comment above it says.
 
         build is overloaded by arity: with a file it compiles that one file, with nothing
         it reads blueprint.cufe and does what the build description says. A project is a
@@ -935,6 +946,102 @@ static (int Exit, string Out, string Err) Git(string? at, params string[] args)
         return (127, "", "git is not installed, or is not on PATH. "
                        + "A pin is fetched with git, so 'cufet install' needs it.");
     }
+}
+
+// ── A reader's page for a book ─────────────────────────────────────────────────────
+//
+// ★★ CHEAP BECAUSE THE LANGUAGE ALREADY DID THE WORK. A Cufet signature is ENGLISH, so a page's
+// declaration line is the declaration copied out — there is no rendering of types into prose, which
+// is most of what a documentation generator normally is. And a book is an OBJECT, so "what is in
+// it" is a member list the checker already holds.
+//
+// ★ IT WRITES TO STDOUT AND DECIDES NOTHING ELSE, which is how `check`, `tokens` and `pulls`
+// already behave. The roadmap carried "where is it published" as an open fork for weeks; printing
+// dissolves it rather than answering it — the tool generates, and you redirect.
+//
+// ⚠ STRUCTURE FROM THE AST, DOCS FROM THE SEMANTIC WALK. The two answer different questions and
+// neither answers both: the AST knows which declarations are MEMBERS of the book rather than
+// private helpers sitting beside it in the same file, and the semantic walk knows what each name is
+// documented as, having already resolved owner-qualified doc comments for hover.
+static void Page(string sourcePath)
+{
+    string full = Path.GetFullPath(sourcePath);
+    string source;
+    try { source = File.ReadAllText(full); }
+    catch (IOException e) { Console.Error.WriteLine(e.Message); Environment.Exit(2); return; }
+
+    var lines = source.Replace("\r\n", "\n").Split('\n');
+    Cufet.Interpreter.Program program;
+    IReadOnlyList<SemanticToken> semantic;
+    try
+    {
+        var tokens  = new Lexer(source).Tokenize();
+        program     = new Parser(tokens).Parse();
+        var checker = MakeChecker(full);
+        checker.Check(program);
+        semantic = SemanticTokenizer.Collect(program, tokens, checker);
+    }
+    catch (Exception e) when (e is LexerException or ParseException or TypeException)
+    {
+        Console.Error.WriteLine(e.Message);
+        Environment.Exit(1);
+        return;
+    }
+
+    // ⚠ The book, not every object in the file. A file may define helpers beside its book, and a
+    // page is what a READER gets — an object they cannot pull is not theirs to read about.
+    var book = TypeChecker.FlattenHoistable(program.Statements)
+        .OfType<ObjectDefinition>()
+        .FirstOrDefault(o => TypeChecker.IsModuleConformer(o.ConformedInterfaces));
+
+    if (book is null)
+    {
+        Console.Error.WriteLine($"page: there is no book in {sourcePath}.");
+        Console.Error.WriteLine(
+            "A page is what a reader gets when they pull a book somebody else wrote, so this "
+            + "needs a file that declares one: 'Define object <name> with (...) and book:'.");
+        Environment.Exit(1);
+        return;
+    }
+
+    // ⚠ BY LINE, NOT BY COLUMN, and that is not laziness. An AST node's position is where its
+    // KEYWORD starts — `Define`, `Bind`, `Get` — while the semantic token is on the NAME, fourteen
+    // characters along in `Define object math`. Joining on both matched nothing at all, and the
+    // failure was silent: every page came out as a correct member list with no prose on it.
+    string? DocAt(int line) => semantic
+        .FirstOrDefault(t => t.Line == line && t.Modifiers.HasFlag(SemanticTokenModifier.Declaration)
+                                            && t.Doc is not null)?.Doc;
+
+    string DeclarationAt(int line) =>
+        line >= 1 && line <= lines.Length ? lines[line - 1].Trim() : "";
+
+    var page = new StringBuilder();
+    page.Append("# ").Append(book.Name).Append("\n\n");
+    page.Append("Pull it with `Pull a book on ").Append(book.Name).Append(".`\n");
+
+    if (DocAt(book.Line) is { } bookDoc)
+        page.Append('\n').Append(bookDoc).Append('\n');
+
+    // ★ GETTERS COUNT. `the total of till` is reached the same way a method is and is just as much
+    // of the surface; leaving them out would make a page that is quietly incomplete, which is worse
+    // than no page. ⚠ Setters do not: a page is for reading, and a setter is reached by writing to
+    // the name its getter already documents.
+    var members = book.Methods.Select(m => (m.Name, m.Line, m.Column))
+        .Concat(book.Getters.Select(g => (g.Name, g.Line, g.Column)))
+        .OrderBy(m => m.Line)
+        .ToList();
+
+    if (members.Count == 0)
+        page.Append("\nIt has no members. Pulling it is the whole of what it offers.\n");
+
+    foreach (var (name, line, _) in members)
+    {
+        page.Append("\n## ").Append(name).Append("\n\n");
+        page.Append("```cufet-fragment\n").Append(DeclarationAt(line)).Append("\n```\n");
+        if (DocAt(line) is { } doc) page.Append('\n').Append(doc).Append('\n');
+    }
+
+    Console.Out.Write(page.ToString());
 }
 
 static void Build(string sourcePath)
