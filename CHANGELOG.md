@@ -294,6 +294,16 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   ⚠⚠ Six collisions across two sessions of writing Cufet prompted this — `a`, `one`, `channel`,
   `key`, `arguments`, `from` — every one an everyday noun somebody would reach for.
 
+- **⚠ BREAKING: `examples/language/bookkeeping.cufe` is a book.** It owns no lifetime, so under the
+  rule below it never was a module; `ledger.cufe` now says `Pull a book on bookkeeping.` Its name
+  already completed *"Pull a book on ___"*, so nothing was renamed.
+
+  ★★ **`examples/` now contains no `and module` at all, and that is the truth rather than an
+  oversight** — a `rabbit` is the only thing in the language that owns a lifetime, and nobody can
+  write another one yet. `ledger.cufe`'s comment says so, and teaches what the pair actually
+  demonstrates instead: WHO OWES THE DEPENDENCY. `bookkeeping` names `math` without pulling it and
+  leaves the debt to its caller; `pennies` is written inside the pull it needs and keeps it.
+
 - **⚠ BREAKING: `tools/terminal.cufe` is now `tools/terminals.cufe`, and it is a book.**
   `Pull a terminal.` becomes `Pull a book on terminals.`, and `cast terminal's put` becomes
   `cast terminals's put`. It owns no lifetime, so under the rule above it was never a module.
@@ -341,6 +351,23 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   Done` and `expected As` already read correctly and are untouched.
 
 ### Fixed
+
+- **Nothing pinned the EXPLANATION line of a refusal, so three of them carried a retired rule.**
+  A Cufet message is four parts — what went wrong, why, what you were trying to do, and the fix —
+  and the pins asserted on the first and last. The middle is the half that teaches, and it said
+  *"a book is one you consult, a module is one you have one of"* long after that stopped being the
+  rule. MEASURED: all three were rewritten and the suite stayed green.
+
+  ★★ **The guard already existed and was almost unused.** A ` ```cufet-refused ` block followed
+  IMMEDIATELY by ` ```output ` compares the whole message, explanation included — built for the
+  tutorial, with two pairs in the whole repository. The book/module refusals are documented in
+  `REFERENCE.md` now, so a reader sees the real text and the text cannot drift from it.
+
+  ⚠ **And the pin count has a floor**, because every pair is DERIVED from the docs: deleting a
+  documented refusal, or putting one blank line between the two fences, does not fail the test — it
+  silently removes a pin and the suite passes with less in it. MEASURED, twice: the same shape cost
+  a CI-red morning in the playground, and the first floor written here was one too low because the
+  number was assumed rather than counted, so breaking a pin still passed.
 
 - **A book a writer declared did not satisfy a `module` parameter.** `book` is-a `module` — the
   one interface relationship the language has — and it was honoured at a PULL but not at a

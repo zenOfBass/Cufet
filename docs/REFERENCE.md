@@ -4373,6 +4373,81 @@ and anybody's module can say the same.
 A book and a module you hold one of are pulled by different words, so they nest rather than
 sharing a statement.
 
+**The spelling must match, and the refusal says which way round it went.** A bundled book pulled
+with the plain form:
+
+```cufet-refused
+Pull math.
+    State math's pi.
+Done.
+```
+```output
+That doesn't work: 'math' is a book, so it is pulled as one.
+The plain form is for a module you have one of; a book owns no lifetime, so it is consulted rather than held.
+Here on line 1, you're trying to pull 'math' with the plain form.
+
+Write 'Pull a book on math.' — or 'Pull books on math, and <other>.' for several at once.
+```
+
+A book you declared yourself, the same way round:
+
+```cufet-refused
+Define object trigonometry with () and book:
+    Bind number to answer: Return 1. Done.
+Done.
+
+Pull a trigonometry.
+    State trigonometry's answer.
+Done.
+```
+```output
+That doesn't work: 'trigonometry' is a book, so it is pulled as one.
+'trigonometry' says 'and book', so it owns no lifetime of its own — which is why it is consulted rather than held.
+Here on line 5, you're trying to pull 'trigonometry' as though you had one of it.
+
+Write 'Pull a book on trigonometry.' instead.
+```
+
+And a module pulled as a book, which is the other direction — note that the fix offers both ways
+out, because only the author knows which one is meant:
+
+```cufet-refused
+Define object ledger-kit with () and module:
+    Bind number to answer: Return 1. Done.
+Done.
+
+Pull a book on ledger-kit.
+    State ledger-kit's answer.
+Done.
+```
+```output
+That doesn't work: 'ledger-kit' is not a book.
+'ledger-kit' is a module: it may own a lifetime of its own, so you have one of it rather than consulting it.
+Here on line 5, you're trying to pull 'ledger-kit' as a book.
+
+Write 'Pull a ledger-kit.' instead — or add 'and book' to its definition if it owns no lifetime.
+```
+
+⚠ **Saying both is refused**, in either order. A book is already a module, so the pair adds nothing
+and reads as a claim to be both kinds at once:
+
+```cufet-refused
+Define object almanac with () and book and module:
+    Bind text to motto: Return "steady". Done.
+Done.
+
+Pull a book on almanac.
+    State almanac's motto.
+Done.
+```
+```output
+That doesn't work: 'almanac' says both 'book' and 'module', and a book is already a module.
+'book' is the narrower kind: a module may own a lifetime and a book may not, so saying both adds nothing and claims two answers to one question.
+Here on line 1, you're trying to declare 'almanac' as a book and a module at once.
+
+Say 'and book' on its own if 'almanac' owns no lifetime, or 'and module' on its own if it owns one.
+```
+
 **Pulling instantiates.** `Pull a rabbit as hopper.` makes a region rather than naming a shared
 one, and a module is the same — so a module with fields is refused, because a pull site has
 nowhere to put their values. Build one of those with `a new <type> { … }` instead.
