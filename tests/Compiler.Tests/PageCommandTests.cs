@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Xunit;
 
@@ -158,6 +158,32 @@ public class PageCommandTests : IDisposable
         Assert.NotEqual(0, exit);
         Assert.Contains("no book in", err);
         Assert.Contains("and book:", err);
+    }
+
+    /// <remarks>
+    /// ⚠⚠ A BUNDLED BOOK IS NOT "A FILE WITH NO BOOK IN IT", and saying so was a lie about the one
+    /// file that most obviously is one. `blueprints` and `regex` carry no `Define object` at all —
+    /// blueprints deliberately, because a Cufet layer would put its native `checksum` out of reach —
+    /// so the search finds nothing and the generic refusal read as nonsense.
+    ///
+    /// ★ The message gives the TRUE reason rather than a policy. An earlier wording said pages were
+    /// for books somebody wrote and published, which `cufet page math.cufe` immediately contradicts:
+    /// math is bundled and pages perfectly well. What is actually missing here is a Cufet
+    /// declaration to read.
+    /// </remarks>
+    [Fact]
+    public void ABundledBookWithNoCufetLayer_SaysWhyRatherThanDenyingItIsABook()
+    {
+        string blueprints = Path.Combine(
+            RepoRoot, "src", "Interpreter", "Prelude", "blueprints.cufe");
+        var (exit, _, err) = Page(blueprints);
+
+        Assert.NotEqual(0, exit);
+        Assert.Contains("blueprints", err);
+        Assert.Contains("declares no members in Cufet", err);
+        Assert.Contains("BOOKS.md", err);
+        // ⚠ The thing it must NOT say about the blueprints book.
+        Assert.DoesNotContain("there is no book in", err);
     }
 
     /// <remarks>

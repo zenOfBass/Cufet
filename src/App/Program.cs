@@ -996,10 +996,34 @@ static void Page(string sourcePath)
 
     if (book is null)
     {
-        Console.Error.WriteLine($"page: there is no book in {sourcePath}.");
-        Console.Error.WriteLine(
-            "A page is what a reader gets when they pull a book somebody else wrote, so this "
-            + "needs a file that declares one: 'Define object <name> with (...) and book:'.");
+        // ⚠⚠ A BUNDLED BOOK IS NOT A FILE WITH NO BOOK IN IT, and saying so was a lie about the
+        // one file that most obviously IS one. `blueprints` and `regex` carry no `Define object` at
+        // all — blueprints deliberately, because a Cufet layer would put its native `checksum` out
+        // of reach — so the search above finds nothing and the generic refusal read as nonsense.
+        //
+        // ★ Told apart by DIRECTORY rather than by a list of names, which is the same test
+        // `MakeChecker` already uses to decide that a file IS the prelude. It also says the right
+        // thing: a page is for a book you or somebody else WROTE, and a prelude file is neither.
+        bool bundled = string.Equals(
+            Path.GetFileName(Path.GetDirectoryName(full) ?? ""), "Prelude",
+            StringComparison.OrdinalIgnoreCase);
+
+        if (bundled)
+        {
+            Console.Error.WriteLine(
+                $"page: '{Path.GetFileNameWithoutExtension(full)}' declares no members in Cufet, "
+                + "so there is nothing for a page to list.");
+            Console.Error.WriteLine(
+                "What it offers is syntax you may write, or a native member — neither of which is a "
+                + "declaration a page can read. See docs/BOOKS.md, which documents it by hand.");
+        }
+        else
+        {
+            Console.Error.WriteLine($"page: there is no book in {sourcePath}.");
+            Console.Error.WriteLine(
+                "A page is what a reader gets when they pull a book somebody else wrote, so this "
+                + "needs a file that declares one: 'Define object <name> with (...) and book:'.");
+        }
         Environment.Exit(1);
         return;
     }
