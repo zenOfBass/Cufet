@@ -697,31 +697,9 @@ Pull a rabbit as hopper.
 Done.
 ```
 
-★★ **A bury needs no rabbit.** `Bury <value>.` on its own is the whole thing —
-there is not a rabbit anywhere below:
-
-```cufet
-Bind number to counting-up, given (the number first-value):
-    Define next as first-value.
-    Repeat:
-        Bury next.
-        The next becomes next + 1.
-    Until false.
-Done.
-
-Define counter as cast counting-up on (3).
-State unbury counter.       // 3
-State unbury counter.       // 4
-State unbury counter.       // 5
-```
-
-`Have <rabbit> bury <value>.` is the **same statement with an agent named**, and
-the two produce the same program. Reach for it where a rabbit is already in hand
-and naming it reads better; reach for the bare form everywhere else.
-
-★ **Suspending is the language's floor, not a power one built-in type was
-given.** A module a person writes suspends by writing `Bury`, exactly as a
-rabbit-using function does — which is what keeps a rabbit unprivileged.
+⚠ There is no bare `Bury x.` A rabbit is always the one doing it, which is what
+puts the ownership of the buried state somewhere you can see rather than leaving
+it ambient.
 
 **Nothing marks the declaration.** A function is stash-producing because its body
 *contains* a `bury` — the same way a body containing `return a failure` makes a

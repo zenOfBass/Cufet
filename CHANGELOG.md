@@ -26,24 +26,6 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   A declared blank may not shadow a real type, and has to appear in the signature. Both are
   refused with the reason.
 
-- **`Bury <value>.` needs no rabbit.** A function could already stop in the middle, hand a value
-  out and carry on — but only by commanding one: `Have <rabbit> bury <value>.` So a person writing
-  their own module could not reach the one construct a rabbit does, and the bare form is back.
-
-  `Have <rabbit> bury <value>.` is the same statement with an agent named, and the two produce the
-  same program on both backends.
-
-  ★★ **The measurement that reopened it**: the named rabbit was already decorative. Nothing
-  downstream read it — `cd_rabbit` compiles to an EMPTY STRUCT, threaded into the closure and never
-  loaded, and swapping which rabbit a bury names changed exactly one line of emitted C that no line
-  ever reads. The buried state lives in the region open at the CALL SITE. The bare form had been
-  removed on the reasoning that a rabbit owns that state; it does not.
-
-  ★ **No new word.** Suspension is spelled `bury`, as it always was.
-
-  ⚠ Not yet: a person still cannot write a type that OWNS a region — `Pull a rabbit` remains its
-  own AST node. This makes suspension reachable, not regions.
-
 - **`Make the directory <path>.`, `Remove the file <path>.`, `Remove the directory <path>.`** — the
   three things the language could not do. It could read a file, write a file and list a directory,
   and could neither create nor remove one.
