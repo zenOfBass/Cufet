@@ -10,8 +10,13 @@ namespace Cufet.Interpreter.Tests;
 /// <remarks>
 /// <para>
 /// ⚠⚠ MEASURED 2026-09-14, by writing broken programs to pick a first tutorial lesson. Cufet's
-/// TYPE refusals have four parts — the rule, what you did, the fix, a worked example — and its
-/// PARSE refusals had one: <c>expected Done, got Eof ""</c>. That lands where it does the most
+/// TYPE refusals carry the rule, what you did and the fix, plus — sometimes — why the rule exists
+/// and a worked example; its PARSE refusals had one part: <c>expected Done, got Eof ""</c>.
+/// ⚠ This note used to say "four parts", flatly. It was measured on a handful of broken programs
+/// and written as though it were universal, and the claim then PROPAGATED: into lesson one of the
+/// tutorial as a table a learner was told to expect, and into two other comments. MEASURED across
+/// all 340 refusal sites on 2026-09-19: the explanation is absent in 248 of them and the example
+/// in 269. Three parts are always there; two are not. That lands where it does the most
 /// harm, because a beginner leaves a block open long before they mismatch a type, so the first
 /// refusal anybody meets was the worst one the language produced.
 /// </para>

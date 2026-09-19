@@ -298,8 +298,9 @@ public class DocBlockTests
     /// <para>
     /// ★ Exact, not a substring. A message that gained a sentence, lost a hint, or renamed a type
     /// is a doc that now misquotes the language, and "contains" would sail past all three.
-    /// `TypeChecker.TypeError` builds the whole four-part text into the exception, so there is a
-    /// complete answer to compare against.
+    /// `TypeChecker.TypeError` builds the WHOLE message into the exception — every part it has,
+    /// including the ones that only some refusals carry — so there is a complete answer to compare
+    /// against.
     /// </para>
     /// <para>
     /// ⚠ Same adjacency rule as the pairing above, and for the same reason: an `output` block
