@@ -10,6 +10,22 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+- **A function can DECLARE its blanks** — `Bind void to swallow of thing, given (the thing value)`
+  — the same slot, and the same spelling, that `Define object stack of element` has always had.
+
+  ★★ **It makes a shape that had no spelling writable**: one value of any type, giving nothing
+  back. A function's blanks were inferred by the twice rule — an unknown type name used at least
+  twice — and that shape cannot mention its blank twice. `State` prints anything and is a
+  statement; nothing a person wrote could be.
+
+  ⚠ **The twice rule is not relaxed**, and must not be: with one use you cannot tell a blank from a
+  misspelling, and quietly turning `the nubmer n` into a generic is the error class this language
+  refuses everywhere. Declaring turns the inference off for that signature only; every function
+  written so far means exactly what it did.
+
+  A declared blank may not shadow a real type, and has to appear in the signature. Both are
+  refused with the reason.
+
 - **`Bring <value>.` — the suspension primitive, and a rabbit stops being privileged.** A function
   could already stop in the middle, hand a value out and carry on — but only by commanding a
   rabbit: `Have <rabbit> bury <value>.` A person writing their own module had no way to reach the

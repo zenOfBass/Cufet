@@ -1977,8 +1977,10 @@ Define p as a new pair of number of text { the one-side 7, the other-side "seven
 A definition with a blank is not itself a type — `a stack` on its own is refused, because it does
 not say what it holds.
 
-**A function can leave a blank too.** There is no slot to name it in, so the signature introduces
-it: a type name that names nothing, used at least **twice**. The call works out what fills it:
+**A function can leave a blank too**, and there are two ways to say so.
+
+**Inferred** — a type name that names nothing, used at least **twice**. The call works out what
+fills it:
 
 ```cufet
 Bind series of element to first-two, given (the series of element xs):
@@ -1996,8 +1998,30 @@ State the first of (cast first-two on (words)).      → "a"
 ```
 
 Used **once**, a name is a spelling mistake rather than a blank — `given (the nubmer n)` is an
-unknown type, as it should be. A blank must also appear in something you pass in, since that is
-where its filling is read from; and it has to mean the same type everywhere it appears in one call.
+unknown type, as it should be.
+
+**Declared** — `of <name>` straight after the function's name: the same slot, and the same
+spelling, that `Define object stack of element` has always used.
+
+```cufet
+Bind void to swallow of thing, given (the thing value):
+    State "swallowed one".
+Done.
+
+Cast swallow on (5).
+Cast swallow on ("text").
+```
+
+★★ **Declaring is what makes a blank used once writable** — one value of any type, giving nothing
+back. That shape cannot mention its blank twice, so the inference could never see it: `State`
+prints anything and is a statement, and until this there was no way for a function to do the same.
+
+Declaring turns the inference off for that one signature. The names after `of` are the blanks, and
+an unknown name that is not listed stays the error it always was — so a typo is still a typo. A
+declared blank may not be the name of a real type, and it has to appear somewhere in the signature.
+
+A blank must also appear in something you pass in, since that is where its filling is read from;
+and it has to mean the same type everywhere it appears in one call.
 
 **Function-valued fields** — a field may hold a function, written the way a function-typed
 parameter is: the return type, `function`, the field name, then an optional `given (…)`:

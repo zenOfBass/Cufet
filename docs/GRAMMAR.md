@@ -526,6 +526,14 @@ function or field called `make`. ★ The word is decidable without being reserve
 statement begins with a bare name and that word — the same trick `output` and `Seed` use, and it is
 why `make` appears in `CapitalisableStatementWords` rather than in the keyword table.
 
+**`of` after a function's name** — `Bind void to swallow of thing, given (the thing value)`
+DECLARES a blank, exactly as `Define object stack of element` does. It sits between the name and
+`unto`, so `Bind text to describe of thing unto shape:` reads as the blanks belonging to the method
+and the `unto` saying whose method it is. ★ It costs no keyword: `of` is already spent, and nothing
+else could follow a bind name there. ⚠ Declaring SUPPRESSES the twice-rule inference for that
+signature — the listed names are the blanks and an unlisted unknown name is still an error, which
+is what keeps a typo a typo.
+
 **`bring`** — contextual, recognised only where it OPENS a statement: `Bring <value>.` is the
 suspension primitive. `Define bring as 5.` stays legal, and so does a function or field called
 `bring`; the word is excluded from the statement reading when `becomes`, `'s`, `=` or `|` follows,
