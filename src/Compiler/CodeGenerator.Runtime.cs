@@ -54,6 +54,9 @@ public sealed partial class CodeGenerator
 #if defined(_WIN32)
 #include <io.h>
 #include <fcntl.h>
+/* _wmkdir / _wrmdir. ⚠ The WIDE forms, because every path call in this runtime crosses
+   the boundary through cufet_wide - see the note beside cufet_fopen. */
+#include <direct.h>
 /* ⚠ Both #defines must precede <windows.h>: LEAN_AND_MEAN drops the RPC/OLE/socket headers
    nothing here uses, and NOMINMAX suppresses the min/max MACROS, which would rewrite those words
    anywhere they appear later as identifiers. */
@@ -1230,11 +1233,18 @@ static const char* cufet_arena_msg(const char* fmt, const char* arg) {
 }
 /* errno -> Cufet failure (category + templated message), matching the interpreter's FileIoFailure:
    ENOENT -> not-found; EACCES/EPERM -> permission-denied; else -> deterministic disk-error. */
-static CufetFailure cufet_file_failure(const char* path, int e) {
+/* ⚠⚠ `writing` exists because a WRITE CANNOT FAIL BECAUSE THE FILE IS MISSING - it creates one.
+   So ENOENT on a write can only mean the DIRECTORY is not there, and "the file was not found"
+   answered a question nobody asked. The interpreter tells the two apart the same way, by the
+   OPERATION rather than by inspecting the path, so there is no parent-path computation for the
+   two backends to disagree about. */
+static CufetFailure cufet_file_failure_op(const char* path, int e, int writing) {
     CufetFailure f;
     if (e == ENOENT) {
         f.category = "not-found";
-        f.message  = cufet_arena_msg("the file '%s' was not found", path);
+        f.message  = writing
+            ? cufet_arena_msg("the directory for '%s' does not exist", path)
+            : cufet_arena_msg("the file '%s' was not found", path);
     } else if (e == EACCES || e == EPERM) {
         f.category = "permission-denied";
         f.message  = cufet_arena_msg("permission denied accessing '%s'", path);
@@ -1243,6 +1253,9 @@ static CufetFailure cufet_file_failure(const char* path, int e) {
         f.message  = cufet_arena_msg("accessing the file '%s' failed", path);
     }
     return f;
+}
+static CufetFailure cufet_file_failure(const char* path, int e) {
+    return cufet_file_failure_op(path, e, 0);
 }
 /* Reads the whole file into an arena buffer (binary — no newline translation, matching .NET
    ReadAllText's byte fidelity). NUL-terminates and reports the true byte length via *len. */
@@ -1296,11 +1309,87 @@ static int cufet_file_read_lines(const char* path, const char*** out, int* count
 }
 static int cufet_file_write(const char* path, const char* text, int append, CufetFailure* err) {
     FILE* f = cufet_fopen(path, append ? "ab" : "wb");
-    if (!f) { *err = cufet_file_failure(path, errno); return 0; }
+    if (!f) { *err = cufet_file_failure_op(path, errno, 1); return 0; }
     size_t len = strlen(text);
     size_t wr = fwrite(text, 1, len, f);
-    if (wr != len || fclose(f) != 0) { *err = cufet_file_failure(path, errno); return 0; }
+    if (wr != len || fclose(f) != 0) { *err = cufet_file_failure_op(path, errno, 1); return 0; }
     return 1;
+}
+
+/* Making and removing.
+   ★★ The REFUSALS are what these are, not the calls. mkdir already declines a missing parent and
+   an existing target, and rmdir already declines a non-empty directory - so each maps an errno to
+   the message the interpreter produces from an explicit check. The two arrive by different routes
+   on purpose: .NET's CreateDirectory makes the whole chain and succeeds on one already there, so
+   it cannot be asked the question this way round. The oracle is what holds them together. */
+static int cufet_make_directory(const char* path, CufetFailure* err) {
+    unsigned int mode;
+    if (cufet_stat_mode(path, &mode)) {
+        err->category = "already-there";
+        err->message  = cufet_arena_msg("'%s' is already there", path);
+        return 0;
+    }
+#if defined(_WIN32)
+    /* ⚠⚠ WIDE, like every other path call here. A narrow _mkdir would take the path through the
+       process ANSI code page while the rest of the runtime is UTF-8 - the one cause behind nine
+       earlier compiled divergences, and invisible to any test whose paths are all ASCII. */
+    wchar_t* wp = cufet_wide(path);
+    if (!wp) { errno = ENOENT; }
+    else { int r = _wmkdir(wp); int saved = errno; free(wp); errno = saved; if (r == 0) return 1; }
+#else
+    if (mkdir(path, 0777) == 0) return 1;
+#endif
+    if (errno == ENOENT) {
+        err->category = "not-found";
+        err->message  = cufet_arena_msg("the directory for '%s' does not exist", path);
+    } else if (errno == EEXIST) {
+        err->category = "already-there";
+        err->message  = cufet_arena_msg("'%s' is already there", path);
+    } else {
+        *err = cufet_file_failure(path, errno);
+    }
+    return 0;
+}
+static int cufet_remove_file(const char* path, CufetFailure* err) {
+    unsigned int mode;
+    if (!cufet_stat_mode(path, &mode) || !S_ISREG(mode)) {
+        err->category = "not-found";
+        err->message  = cufet_arena_msg("the file '%s' was not found", path);
+        return 0;
+    }
+#if defined(_WIN32)
+    wchar_t* wp = cufet_wide(path);
+    if (!wp) { errno = ENOENT; }
+    else { int r = _wremove(wp); int saved = errno; free(wp); errno = saved; if (r == 0) return 1; }
+#else
+    if (remove(path) == 0) return 1;
+#endif
+    *err = cufet_file_failure(path, errno);
+    return 0;
+}
+static int cufet_remove_directory(const char* path, CufetFailure* err) {
+    unsigned int mode;
+    if (!cufet_stat_mode(path, &mode) || !S_ISDIR(mode)) {
+        err->category = "not-found";
+        err->message  = cufet_arena_msg("the directory '%s' was not found", path);
+        return 0;
+    }
+#if defined(_WIN32)
+    wchar_t* wp = cufet_wide(path);
+    if (!wp) { errno = ENOENT; }
+    else { int r = _wrmdir(wp); int saved = errno; free(wp); errno = saved; if (r == 0) return 1; }
+#else
+    if (rmdir(path) == 0) return 1;
+#endif
+    /* ENOTEMPTY on POSIX; Windows reports EACCES for a directory that still has things in it,
+       which is why the kind is checked above before any errno is trusted. */
+    if (errno == ENOTEMPTY || errno == EEXIST || errno == EACCES) {
+        err->category = "not-empty";
+        err->message  = cufet_arena_msg("the directory '%s' still has things in it", path);
+        return 0;
+    }
+    *err = cufet_file_failure(path, errno);
+    return 0;
 }
 /* Path predicates via stat, matching File.Exists / Directory.Exists (exists = either kind).
    ⚠ These ANSWER rather than fail, so a path the OS could not be asked about is indistinguishable

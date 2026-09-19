@@ -449,6 +449,9 @@ public sealed partial class CodeGenerator
             case FileWriteStatement fw:
                 EmitFileWrite(sb, fw, indent);
                 break;
+            case PathActionStatement pa:
+                EmitPathAction(sb, pa, indent);
+                break;
 
             case WithOpenStatement wos:
                 EmitWithOpen(sb, wos, indent);

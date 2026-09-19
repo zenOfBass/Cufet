@@ -85,7 +85,8 @@ public sealed class Parser
     {
         var tok = Peek();
         bool keywordLed = tok.Type != TokenType.Identifier
-                          || IsOutputStatement() || IsSeedStatement() || IsCurrentDirectorySet();
+                          || IsOutputStatement() || IsSeedStatement() || IsCurrentDirectorySet()
+                          || IsMakeDirectoryStatement();
         _statementStarts.Add((tok.Line, tok.Column, keywordLed));
         return tok.Type switch
         {
@@ -93,6 +94,8 @@ public sealed class Parser
             TokenType.Define     => ParseDefineStatement(),
             // 'output <value>.' — contextual producer statement; 'output' is NOT reserved
             TokenType.Identifier when IsOutputStatement() => ParseOutputStatement(),
+            // 'Make the directory <path>.' — contextual, so `make` stays an ordinary name.
+            TokenType.Identifier when IsMakeDirectoryStatement() => ParseMakeDirectoryStatement(),
             // 'Seed the chance with <n>.' — contextual, like the rest of the chance vocabulary.
             TokenType.Identifier when IsSeedStatement() => ParseSeedChanceStatement(),
             // 'name | name.' — pipe statement starting with a variable reference
@@ -2028,6 +2031,33 @@ public sealed class Parser
 
     // True when the statement starting here is 'current directory becomes ...'. Checked by lexeme
     // rather than token type because 'current' is an ordinary identifier everywhere else.
+    // 'Make the directory <path>.'
+    //
+    // ★★ CONTEXTUAL, so `make` is NOT reserved — `Define make as "Toyota".` still works, and a
+    // word this ordinary would have been a poor one to spend. It is decidable without reserving it
+    // because `directory` follows: no other statement begins with a bare name and that word.
+    // The same trick `output`, `Seed` and `The current directory` already use.
+    private bool IsMakeDirectoryStatement()
+    {
+        if (!Peek().Lexeme.Equals("make", StringComparison.OrdinalIgnoreCase)) return false;
+        int i = _pos + 1;
+        while (i < _tokens.Count && _tokens[i].IsNoise) i++;
+        return i < _tokens.Count && _tokens[i].Type == TokenType.DirectoryKw;
+    }
+
+    private PathActionStatement ParseMakeDirectoryStatement()
+    {
+        var lineTok = Advance();          // consume 'make'
+        SkipNoise();                      // eats the article before 'directory'
+        Consume(TokenType.DirectoryKw);
+        SkipNoise();
+        var path = ParseExprOr();
+        SkipNoise();
+        Consume(TokenType.Dot);
+        return new PathActionStatement(
+            PathActionKind.MakeDirectory, path, lineTok.Line, lineTok.Column);
+    }
+
     private bool IsCurrentDirectorySet()
     {
         if (!Peek().Lexeme.Equals("current", StringComparison.OrdinalIgnoreCase)) return false;
@@ -2168,6 +2198,21 @@ public sealed class Parser
         int line = removeTok.Line;
         int col = removeTok.Column;
         SkipNoise();
+
+        // ★★ `Remove` WAS ALREADY SPENT on series mutation, so removing a file costs no new word.
+        // That is the naming rule's own first question — whether a keyword is needed at all — and
+        // here the answer was no: `file` and `directory` are what make the two readings decidable.
+        if (Peek().Type is TokenType.File or TokenType.DirectoryKw)
+        {
+            var kind = Advance().Type == TokenType.File
+                ? PathActionKind.RemoveFile
+                : PathActionKind.RemoveDirectory;
+            SkipNoise();
+            var target = ParseExprOr();
+            SkipNoise();
+            Consume(TokenType.Dot);
+            return new PathActionStatement(kind, target, line, col);
+        }
 
         if (IsOrdinalIdentifier(Peek()))
         {

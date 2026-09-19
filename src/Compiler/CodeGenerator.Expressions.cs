@@ -542,6 +542,29 @@ public sealed partial class CodeGenerator
             sb.AppendLine($"{indent}  if (!{ok}) {{ fprintf(stderr, \"%s\\n\", {err}.message); exit(1); }} }}");
     }
 
+    // Make the directory <p>. / Remove the file <p>. / Remove the directory <p>.
+    // Same failure plumbing as a file write: a helper answers 0 with a CufetFailure filled in, and
+    // an uncaught one ends the program the way every other unhandled failure does.
+    private void EmitPathAction(StringBuilder sb, PathActionStatement pa, string indent)
+    {
+        string pathExpr = EmitExpr(pa.Path);
+        FlushPreEmits(sb, indent);
+        string call = pa.Kind switch
+        {
+            PathActionKind.MakeDirectory   => "cufet_make_directory",
+            PathActionKind.RemoveFile      => "cufet_remove_file",
+            PathActionKind.RemoveDirectory => "cufet_remove_directory",
+            _ => throw new CompilerException($"unknown path action {pa.Kind}"),
+        };
+        int id = _freshId++;
+        string ok = $"cf_pa{id}", err = $"cf_pae{id}";
+        sb.AppendLine($"{indent}{{ CufetFailure {err}; int {ok} = {call}({pathExpr}, &{err});");
+        if (_currentTryHandler is { } h)
+            sb.AppendLine($"{indent}  if (!{ok}) {{ {FailureGotoBody(h, $"{err}.message", $"{err}.category")} }} }}");
+        else
+            sb.AppendLine($"{indent}  if (!{ok}) {{ fprintf(stderr, \"%s\\n\", {err}.message); exit(1); }} }}");
+    }
+
     private void EmitFileWrite(StringBuilder sb, FileWriteStatement fw, string indent)
     {
         string valExpr = EmitExpr(fw.Value);

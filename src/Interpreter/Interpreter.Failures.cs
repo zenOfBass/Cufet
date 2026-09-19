@@ -74,13 +74,15 @@ public sealed partial class Interpreter
 
     // Maps .NET IO exceptions to Cufet failure values at the I/O boundary.
     // Host exceptions must not surface as Cufet exceptions — file-not-found is recoverable.
-    private static FailureUnwind FileIoFailure(string path, Exception ex)
+    private static FailureUnwind FileIoFailure(string path, Exception ex, bool writing = false)
     {
         string category, message;
         if (ex is FileNotFoundException or DirectoryNotFoundException)
         {
             category = "not-found";
-            message  = $"the file '{path}' was not found";
+            message  = writing
+                ? $"the directory for '{path}' does not exist"
+                : $"the file '{path}' was not found";
         }
         else if (ex is UnauthorizedAccessException)
         {
@@ -158,6 +160,58 @@ public sealed partial class Interpreter
         }
     }
 
+    // ★★ THE THREE THINGS THE LANGUAGE COULD NOT DO. `Write` creates a file, so making one was
+    // never the gap — making a DIRECTORY was, and removing either.
+    //
+    // ⚠ MakeDirectory refuses when the parent is missing, rather than creating the chain. Cufet
+    // declines quiet resolutions everywhere else, and three directories appearing because one was
+    // asked for is exactly that. ⚠ RemoveDirectory refuses a directory with anything in it: a
+    // recursive delete is the one operation here that can destroy work nobody asked to lose.
+    private void ExecutePathActionStatement(PathActionStatement pa)
+    {
+        var path = (string)Evaluate(pa.Path);
+        try
+        {
+            switch (pa.Kind)
+            {
+                case PathActionKind.MakeDirectory:
+                    // ⚠ Directory.CreateDirectory makes the whole chain AND succeeds on one that is
+                    // already there, so neither refusal comes free — both are asked for here.
+                    if (Directory.Exists(path) || File.Exists(path))
+                        throw PathActionFailure("already-there", $"'{path}' is already there");
+                    var parent = Path.GetDirectoryName(Path.GetFullPath(path));
+                    if (parent is not null && !Directory.Exists(parent))
+                        throw PathActionFailure("not-found",
+                            $"the directory for '{path}' does not exist");
+                    Directory.CreateDirectory(path);
+                    break;
+
+                case PathActionKind.RemoveFile:
+                    if (!File.Exists(path))
+                        throw PathActionFailure("not-found", $"the file '{path}' was not found");
+                    File.Delete(path);
+                    break;
+
+                case PathActionKind.RemoveDirectory:
+                    if (!Directory.Exists(path))
+                        throw PathActionFailure("not-found",
+                            $"the directory '{path}' was not found");
+                    if (Directory.GetFileSystemEntries(path).Length > 0)
+                        throw PathActionFailure("not-empty",
+                            $"the directory '{path}' still has things in it");
+                    Directory.Delete(path);
+                    break;
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            throw FileIoFailure(path, ex);
+        }
+    }
+
+    private static FailureUnwind PathActionFailure(string category, string message) =>
+        new(new FailureValue(message, category));
+
     private void ExecuteFileWriteStatement(FileWriteStatement fw)
     {
         var value = (string)Evaluate(fw.Value);
@@ -171,7 +225,12 @@ public sealed partial class Interpreter
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            throw FileIoFailure(path, ex);
+            // ⚠⚠ A WRITE CANNOT FAIL BECAUSE THE FILE IS MISSING — it creates one. So a not-found
+            // here can only mean the DIRECTORY is not there, and saying "the file was not found"
+            // while writing answered a question nobody asked. Told apart by the OPERATION rather
+            // than by inspecting the path, which is what keeps the compiled backend identical:
+            // there is no parent-path computation for the two to disagree about.
+            throw FileIoFailure(path, ex, writing: true);
         }
     }
 

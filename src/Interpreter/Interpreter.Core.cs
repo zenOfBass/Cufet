@@ -1360,6 +1360,9 @@ public sealed partial class Interpreter
             case FileWriteStatement fw:
                 ExecuteFileWriteStatement(fw);
                 break;
+            case PathActionStatement pa:
+                ExecutePathActionStatement(pa);
+                break;
 
             case WithOpenStatement wos:
                 ExecuteWithOpen(wos);

@@ -226,6 +226,18 @@ public sealed partial class TypeChecker
                 "The path must be a text expression (a string literal or a text variable).");
     }
 
+    // Make the directory <path>. / Remove the file <path>. / Remove the directory <path>.
+    private void CheckPathAction(PathActionStatement pa)
+    {
+        var pathType = InferType(pa.Path);
+        if (pathType != null && pathType != CufetType.Text)
+            throw TypeError(
+                "a path must be text",
+                null, pa.Line, pa.Column,
+                $"use a {FormatType(pathType)} as a path",
+                "Write the path as a text literal like \"books\", or use a text variable.");
+    }
+
     private void CheckFileWrite(FileWriteStatement fw)
     {
         var valueType = InferType(fw.Value);

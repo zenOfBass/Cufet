@@ -945,6 +945,18 @@ public sealed record DirectoryContentsExpression(IExpression Path, int Line, int
 // the path <path> exists         →  boolean (infallible; uncertainty resolves to false)
 // the path <path> is a directory →  boolean (infallible)
 // the path <path> is a file      →  boolean (infallible)
+// Make the directory <path>. / Remove the file <path>. / Remove the directory <path>.
+//
+// ★★ ONE NODE WITH A KIND, mirroring PathCheckExpression — these are the same operation asked
+// three ways, and splitting them would make three of every case below for no gain.
+//
+// ⚠ MakeDirectory does NOT create missing parents, and RemoveDirectory refuses a directory with
+// anything in it. Both are the language's own rule applied to the filesystem: a step that could
+// mean two things refuses rather than guessing, and a recursive delete is the one operation here
+// that can destroy somebody's work.
+public enum PathActionKind { MakeDirectory, RemoveFile, RemoveDirectory }
+public sealed record PathActionStatement(PathActionKind Kind, IExpression Path, int Line, int Column) : IStatement;
+
 public enum PathCheckKind { Exists, IsDirectory, IsFile }
 public sealed record PathCheckExpression(IExpression Path, PathCheckKind Kind, int Line, int Column) : IExpression;
 

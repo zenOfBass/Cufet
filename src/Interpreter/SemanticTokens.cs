@@ -684,6 +684,10 @@ public sealed class SemanticTokenizer
                 Walk(fw.Value); Walk(fw.Path);
                 break;
 
+            case PathActionStatement pa:
+                Walk(pa.Path);
+                break;
+
             case WithOpenStatement wo:
                 Walk(wo.Path);
                 EnterScope();

@@ -2821,6 +2821,9 @@ public sealed partial class TypeChecker
             case FileWriteStatement fw:
                 CheckFileWrite(fw);
                 break;
+            case PathActionStatement pa:
+                CheckPathAction(pa);
+                break;
             case WithOpenStatement wos:
                 CheckWithOpen(wos);
                 break;
