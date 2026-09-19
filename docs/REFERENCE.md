@@ -802,6 +802,7 @@ same programs.
 | `Bury` inside `Try to` or a rabbit block | A handler and a region are context a resumption cannot restore. |
 | `Bury` inside `For each` over a map | Resuming means counting back to where the loop was, and a map's entries have no position to count to. Loop over a series. |
 | `Define a shadow` anywhere in the body | The body is flattened into one set of state, so a shadow would land on the name it was written to hide. |
+| A suspension inside a **lambda** | A named body becomes a factory handing back a closure; a lambda already IS one, so suspending it is a different lowering rather than a wider walk. Give the body a name — the stash it hands back goes wherever the lambda was going. |
 | One name at two types in the body | Sibling blocks become one place to store it, and one place holds one type. |
 
 #### A stash is a value
