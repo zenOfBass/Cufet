@@ -534,13 +534,6 @@ else could follow a bind name there. ⚠ Declaring SUPPRESSES the twice-rule inf
 signature — the listed names are the blanks and an unlisted unknown name is still an error, which
 is what keeps a typo a typo.
 
-**`bring`** — contextual, recognised only where it OPENS a statement: `Bring <value>.` is the
-suspension primitive. `Define bring as 5.` stays legal, and so does a function or field called
-`bring`; the word is excluded from the statement reading when `becomes`, `'s`, `=` or `|` follows,
-which is the same test `output` uses. ★ It cost no reserved word, and `bury`/`unbury` are on their
-way OUT of the keyword table as a rabbit's own vocabulary — so the feature makes the language
-smaller.
-
 ⚠ **`Remove` is overloaded by what follows it**, not by a second keyword: `Remove <x> from
 <series>` mutates a series, `Remove the file <path>.` and `Remove the directory <path>.` act on the
 filesystem. The noun decides, so removing a file cost no name at all.

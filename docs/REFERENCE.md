@@ -33,7 +33,7 @@ deliberate differences are marked where they arise and summarised under
     - [`Judge` — handling every case](#judge--handling-every-case)
     - [Loops](#loops)
       - [For-each loops](#for-each-loops)
-    - [Stashes (`Bring`, `bury` and `unbury`)](#stashes-bring-bury-and-unbury)
+    - [Stashes (`Bury` and `unbury`)](#stashes-bury-and-unbury)
       - [What a burying body cannot do yet](#what-a-burying-body-cannot-do-yet)
       - [A stash is a value](#a-stash-is-a-value)
       - [Where a stash is buried](#where-a-stash-is-buried)
@@ -670,7 +670,7 @@ if you need to change the series as you go.
 
 ---
 
-### Stashes (`Bring`, `bury` and `unbury`)
+### Stashes (`Bury` and `unbury`)
 
 A function can stop in the middle of what it is doing, hand one value out, and
 carry on from that exact line when someone asks for the next one.
@@ -697,14 +697,14 @@ Pull a rabbit as hopper.
 Done.
 ```
 
-★★ **`Bring` is the primitive; `bury` is a rabbit's name for it.** Any function
-may suspend, and nothing about it needs a rabbit — there is not one anywhere below:
+★★ **A bury needs no rabbit.** `Bury <value>.` on its own is the whole thing —
+there is not a rabbit anywhere below:
 
 ```cufet
 Bind number to counting-up, given (the number first-value):
     Define next as first-value.
     Repeat:
-        Bring next.
+        Bury next.
         The next becomes next + 1.
     Until false.
 Done.
@@ -715,17 +715,13 @@ State unbury counter.       // 4
 State unbury counter.       // 5
 ```
 
-The two spellings produce the same program. Prefer `Have <rabbit> bury <value>.`
-when a rabbit is already in hand — it names the agent where the work is handed
-over, which puts the ownership of the buried state somewhere you can see. Reach
-for `Bring` everywhere else.
+`Have <rabbit> bury <value>.` is the **same statement with an agent named**, and
+the two produce the same program. Reach for it where a rabbit is already in hand
+and naming it reads better; reach for the bare form everywhere else.
 
-★ **This is what keeps a rabbit unprivileged.** Suspending is the language's
-floor, not a power one built-in type was given: a module a person writes reaches
-it by the same spelling, and `bury` is a name for it rather than a way in.
-
-⚠ `bring` is **not reserved** — `Define bring as 5.` still works. It is
-recognised only where it opens a statement.
+★ **Suspending is the language's floor, not a power one built-in type was
+given.** A module a person writes suspends by writing `Bury`, exactly as a
+rabbit-using function does — which is what keeps a rabbit unprivileged.
 
 **Nothing marks the declaration.** A function is stash-producing because its body
 *contains* a `bury` — the same way a body containing `return a failure` makes a

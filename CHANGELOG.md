@@ -26,25 +26,23 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   A declared blank may not shadow a real type, and has to appear in the signature. Both are
   refused with the reason.
 
-- **`Bring <value>.` — the suspension primitive, and a rabbit stops being privileged.** A function
-  could already stop in the middle, hand a value out and carry on — but only by commanding a
-  rabbit: `Have <rabbit> bury <value>.` A person writing their own module had no way to reach the
-  same thing, so the one construct the language could not let you write was the one a rabbit does.
+- **`Bury <value>.` needs no rabbit.** A function could already stop in the middle, hand a value
+  out and carry on — but only by commanding one: `Have <rabbit> bury <value>.` So a person writing
+  their own module could not reach the one construct a rabbit does, and the bare form is back.
 
-  `Bring` is that construct, belonging to no type. `bury` is now a rabbit's NAME for it, and the
-  two spellings produce the same program on both backends.
+  `Have <rabbit> bury <value>.` is the same statement with an agent named, and the two produce the
+  same program on both backends.
 
-  ★★ **The measurement that started it**: the named rabbit was already decorative. Nothing
+  ★★ **The measurement that reopened it**: the named rabbit was already decorative. Nothing
   downstream read it — `cd_rabbit` compiles to an EMPTY STRUCT, threaded into the closure and never
   loaded, and swapping which rabbit a bury names changed exactly one line of emitted C that no line
-  ever reads. The ceremony was real; the ownership it claimed was not.
+  ever reads. The buried state lives in the region open at the CALL SITE. The bare form had been
+  removed on the reasoning that a rabbit owns that state; it does not.
 
-  ★ **It cost no reserved word and frees two.** `bring` is contextual, like `make`, `output` and
-  `Seed`; `bury` and `unbury` become a rabbit's own vocabulary rather than keywords. The language
-  gets SMALLER by gaining this.
+  ★ **No new word.** Suspension is spelled `bury`, as it always was.
 
   ⚠ Not yet: a person still cannot write a type that OWNS a region — `Pull a rabbit` remains its
-  own AST node. This slice makes suspension reachable, not regions.
+  own AST node. This makes suspension reachable, not regions.
 
 - **`Make the directory <path>.`, `Remove the file <path>.`, `Remove the directory <path>.`** — the
   three things the language could not do. It could read a file, write a file and list a directory,
@@ -78,13 +76,11 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   — so a suspension inside one was correctly not attributed to the enclosing function, and then
   nothing asked the lambda itself. Two correct rules with a gap between them.
 
-  ⚠ **It predates `Bring`**: the same program written `Have <rabbit> bury <value>.` behaved
-  identically, measured on both backends. No test in the suite put a suspension inside a lambda, so
-  the oracle could not see it.
+  ⚠ **Both spellings did it**, measured on both backends. No test in the suite put a suspension
+  inside a lambda, so the oracle could not see it.
 
-  ★ The refusal names the spelling the writer actually used and points at the suspension rather
-  than at the lambda — telling someone who typed `bury` that they used `Bring` sends them hunting
-  for a word they never wrote.
+  ★ The refusal points at the suspension rather than at the lambda — that is the line a reader
+  goes and changes.
 
 - **Lesson one of the tutorial taught a refusal shape the language does not have.** It said *"that
   message has four parts, and every refusal in Cufet has the same four"*, and named the fourth as
