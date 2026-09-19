@@ -573,11 +573,7 @@ public sealed record CiteStatement(string Name, int Line, int Column) : IStateme
 // the stash is allocated in whatever region is open at the CALL SITE, and swapping which rabbit is
 // named changes one line of emitted C (the argument) that no line ever reads. It survives because
 // the spelling is settled, not because the lowering needs it.
-// ViaBurySurface tells the two spellings apart, and only the refusals need it: a bare `Bury` has
-// no receiver because it never wanted one, while `Have rabbit bury x.` has none because the writer
-// used the bare keyword where a name belongs. Without the flag those two look identical here.
-public sealed record BuryStatement(
-    IExpression Value, int Line, int Column, string? Receiver = null, bool ViaBurySurface = false) : IStatement;
+public sealed record BuryStatement(IExpression Value, int Line, int Column, string? Receiver = null) : IStatement;
 
 // unbury <stash>  — resume a stash to its next `Bury` and take the value, or void once spent.
 // An expression, so the result is handled like any other voidable rather than through hidden state:

@@ -5614,30 +5614,28 @@ public sealed class Parser
         return new ReturnStatement(value, line, col);
     }
 
-    // `Bury <value>.` — THE SUSPENSION PRIMITIVE. Hand one value out to whoever resumed this
-    // function, and pause here. Always takes a value, unlike `Return`, which has a bare form: a
-    // stash's whole contract is that a resumption yields a value or reports it is spent, and there
-    // is no third answer for a caller to narrow.
+    // Bury <value>.  — always takes a value, unlike `Return`, which has a bare form. A bare bury
+    // would mean "suspend and hand out nothing", and a stash's whole contract is that a resumption
+    // yields a value or reports it is spent; there is no third answer for a caller to narrow.
     //
-    // ★★ It belongs to NO TYPE, and that is the point. `Have <rabbit> bury <value>.` is the same
-    // statement with an agent named, kept because it reads well where a rabbit is already in hand
-    // — but the rabbit was never load-bearing. MEASURED 2026-09-19: `cd_rabbit` compiles to an empty
-    // struct, threaded into the closure and never read, and swapping which rabbit a bury names
-    // changes one line of emitted C that nothing loads. The buried state lives in the region open
-    // at the CALL SITE. So the bare form is not a new power — it is the one that was always there,
-    // with the ceremony dropped, and it is what lets a module a person writes suspend at all.
+    // ★★ A BARE `Bury x.` DOES NOT EXIST, and that is a design decision rather than a gap. A
+    // rabbit is an agent you summon and give work to, burying is memory work, so it is always
+    // commanded: `Have <rabbit> bury <value>.` This arm survives only to say so — "expected
+    // statement keyword" would send the reader hunting for a typo.
+    //
+    // ⚠ Re-opened and re-closed 2026-09-19. The bare form was allowed for a day on the measurement
+    // that the named rabbit is INERT in the lowering (`cd_rabbit` is an empty struct nothing reads;
+    // the buried state lives in the region open at the call site). That measurement is true and is
+    // not the point: the rabbit is load-bearing in the LANGUAGE, as the agent a suspension is
+    // commanded to, and the lowering catching up to that is the work — not the surface giving way
+    // to it. Do not re-derive this from the emitted C a third time.
     private BuryStatement ParseBuryStatement()
     {
         var lineTok = Consume(TokenType.Bury);
-        if (_functionDepth == 0)
-            throw new ParseException(lineTok.Line, lineTok.Column,
-                "'bury' is only meaningful inside a function — it is what makes that function hand "
-                + "back a stash. At the top level there is nothing to suspend.");
-        SkipNoise();
-        var value = ParseExpression();
-        SkipNoise();
-        Consume(TokenType.Dot);
-        return new BuryStatement(value, lineTok.Line, lineTok.Column);
+        throw new ParseException(lineTok.Line, lineTok.Column,
+            "a bury needs a rabbit to do it — write 'Have <rabbit> bury <value>.' A rabbit is the "
+          + "agent that does memory work, and burying is memory work; inside a burying function the "
+          + "rabbit is normally a parameter: 'given (the rabbit helper, ...)'.");
     }
 
     // `Have <rabbit> bury <value>.` — the agent is named where the work is handed over.
@@ -5652,7 +5650,7 @@ public sealed class Parser
         var value = ParseExpression();
         SkipNoise();
         Consume(TokenType.Dot);
-        return new BuryStatement(value, line, col, Receiver: rabbitName, ViaBurySurface: true);
+        return new BuryStatement(value, line, col, Receiver: rabbitName);
     }
 
     // Lambda body: same as ParseFunctionBody but does NOT consume the trailing '.'

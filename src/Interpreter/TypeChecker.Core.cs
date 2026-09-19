@@ -2814,11 +2814,6 @@ public sealed partial class TypeChecker
             {
                 _ = InferType(bring.Value);
 
-                // ★★ A bare `Bury` names nobody, and needs nobody. It is the language's floor,
-                // reachable from any function a person writes — which is the whole reason `rabbit`
-                // is not privileged. Only the `bury` SPELLING owes an agent.
-                if (!bring.ViaBurySurface) break;
-
                 if (bring.Receiver is not { } agent)
                     throw TypeError(
                         "a bury has to name the rabbit doing it",
