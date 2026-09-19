@@ -1227,6 +1227,41 @@ public sealed partial class TypeChecker
         foreach (var (type, _) in bind.Parameters) Count(type);
         Count(bind.ReturnType);
 
+        // ★★ A DECLARED blank needs no counting — `Bind void to bury of thing` said so. The twice
+        // rule is an inference standing in for the slot objects have always had, and a signature
+        // that uses the slot has nothing left to infer. This is what makes `given (the thing value)`
+        // with no second mention writable at all: one value of any type, nothing given back.
+        if (bind.TypeParameters is { Count: > 0 } declared)
+        {
+            foreach (var blank in declared)
+            {
+                // ⚠ A blank may not shadow a real type. Allowing it would make `of number` quietly
+                // turn every `number` in the signature into a blank — the signature would still
+                // check, and every call site would infer something the writer never meant.
+                if (IsKnownTypeName(blank))
+                    throw TypeError(
+                        $"'{blank}' is already a type, so it cannot be left blank here",
+                        "A blank is a name waiting for a type, and this name is one",
+                        bind.Line, bind.Column,
+                        $"leave '{blank}' blank in '{bind.Name}'",
+                        $"Choose a name that is not a type — '{bind.Name} of thing' — or drop the "
+                      + $"'of {blank}' if you meant the actual {blank} type.");
+
+                // ⚠ And it has to be USED. A declared blank nothing mentions is either a typo in
+                // the signature or a leftover, and both read as "this is generic" to anyone
+                // skimming the declaration.
+                if (!counts.ContainsKey(blank))
+                    throw TypeError(
+                        $"'{bind.Name}' leaves '{blank}' blank but never uses it",
+                        "A blank is filled from where it appears, so one that appears nowhere can never be filled",
+                        bind.Line, bind.Column,
+                        $"declare a blank '{bind.Name}' does not mention",
+                        $"Use '{blank}' as the type of a parameter or of what '{bind.Name}' gives "
+                      + $"back, or remove 'of {blank}'.");
+            }
+            return [.. declared.OrderBy(n => n, StringComparer.Ordinal)];
+        }
+
         return counts.Where(c => c.Value >= 2).Select(c => c.Key).OrderBy(n => n, StringComparer.Ordinal).ToList();
     }
 
