@@ -49,7 +49,7 @@ The ordering is not ceremonial: this tier's real blocker is stated below as **er
     block holds, and a block that says what it gives back is lowered to an ordinary function. What is
     NOT built is the expander this entry means: syntax parameters, and generating AST from them.
 
-    ⚠ **Its blocker is item 2 above.** An expander generates Cufet AST, so building one in C# now means building it again in Cufet later. Macro errors are the worst part of every language that has them, and clear errors are this language's distinguishing feature — that tax is still paid deliberately,not early.
+    ⚠ **Its blocker is item 2 above.** An expander generates Cufet AST, so building one in C# now means building it again in Cufet later. Macro errors are the worst part of every language that has them, and clear errors are this language's distinguishing feature — that tax is still paid deliberately, not early.
 
     ★ Fexprs stay out, but the recorded reason was the weaker one. Wand's result (no two expressions
     ever equivalent, taking out `check` and monomorphization) is true; the **decisive** reason is that a compiled Cufet binary is standalone C, so running a Cufet block at run time needs a Cufet
