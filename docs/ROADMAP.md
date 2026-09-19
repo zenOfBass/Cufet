@@ -386,12 +386,11 @@ indistinguishable from having forgotten.
   the remaining cases; a no-op is the `catch {}` of case dispatch. Revisit if writing real
   statements in ignore-this arms becomes a genuine irritation rather than a hypothetical one.
 
-- **Ordering by an explicit basis.** Ordering works on numbers and bits. Extending it to text
-  and beyond should use a stated basis rather than new operators or a silent default:
-  `is less than X by length`, `is greater than X by character code`, a series sorted `by size`.
-  Naming the basis is what avoids undefined-collation problems — case, locale and Unicode
-  become named bases instead of hidden assumptions. *Blocker:* intended shape only, undesigned
-  in detail.
+- **`sorted by <function>` — ordering by a computed key.** `sorted by the <field>` reaches named
+  fields only, so a series of text cannot be sorted by length: there is no field to name. MEASURED
+  — refused with *"'sorted by' requires a series of records or objects."* ⚠ Not a collation
+  question; text already orders ordinally and `<` on text is refused deliberately (DESIGN).
+  *Blocker:* none known — it extends a shape that already exists.
 
 - **Text refinements.** The everyday toolkit is complete (join, measure, convert both ways,
   split, search, find, slice, replace, case, trim). What remains is fancier: locale-aware

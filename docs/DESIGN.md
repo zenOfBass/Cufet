@@ -256,6 +256,21 @@ Which capabilities are spelled into the language and which are pulled from a boo
   interface can be built early as the stable seam; the real external-code
   loader comes later without touching program code.
 
+- **Text orders ordinally, and `<` on text stays refused.** `sorted` on a series of text gives
+  code-point order — `(Apple, apple, banana, pear, Ápple)` — while `"a" is less than "b"` is
+  refused outright: *"ordering works on numbers and on bits."*
+
+  ★ **Ordinal is the order that costs nothing to agree on.** It is locale-free, so both backends
+  produce it by construction rather than by sharing a table — the same class of problem the shared
+  case table solves the hard way, avoided here by never having it. A locale-aware order would make
+  the answer depend on the machine, and the oracle is structurally blind to that: every machine
+  that runs the suite is en-US, so a per-machine difference would ship unseen.
+
+  ⚠ **The refusal on `<` is the other half, and it is a teaching decision.** `"apple" is less
+  than "Banana"` is false in code-point order and true in every dictionary a learner has met.
+  Offering the operator would teach the wrong rule silently. `sorted` is where ordering is the
+  stated point, so ordering lives there and nowhere else.
+
 - **`sum` is not a series aggregate and will not become one.** Addition is already
   expressed with `+`; a `sum` function would duplicate it and violate the
   one-canonical-way rule. Collections aggregates may exist in future arcs, but `sum`
