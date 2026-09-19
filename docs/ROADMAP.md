@@ -88,13 +88,13 @@ OPPOSITE: `blueprints's checksum` is a native member of the book, so no program 
 axiom to hash a file. ★ That is this campaign working rather than failing — the prediction was that
 a capability would be missing, and the answer was to supply it.
 
-★★ **THE SECOND REAL WITNESS, and it came from building the package manager: Cufet can read a
-file, write a file and list a directory, and can neither CREATE nor DELETE one.** MEASURED — `Write`
-fails on a missing parent. ⚠ It produced no axiom, because there is no axiom to write: creating a
-directory is not something the FFI reaches for here, it is something the language simply lacks. The
-installer routed around it honestly — `git clone` makes the directory and the clone is KEPT as a
-cache rather than removed — and a cache is a real design rather than a contortion. But the next
-program that needs a directory may not be so lucky, and that is the witness.
+✅ **THE SECOND REAL WITNESS, FOUND AND CLOSED 2026-09-18.** Cufet could read a file, write a file
+and list a directory, and could neither create nor remove one — found by building the package
+manager, which routed around it by keeping the git clone as a cache. `Make the directory` and
+`Remove the file` / `Remove the directory` ship now. ★★ **It produced no axiom, and that is the
+finding**: there was none to write, because creating a directory is not something the FFI reaches
+for — it is something the language simply lacked. A witness need not be an axiom; the installer's
+workaround was the witness, and it read as a design decision right up until the gap had a name.
 
 ## The design mountains
 

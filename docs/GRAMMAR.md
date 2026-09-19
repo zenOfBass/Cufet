@@ -520,6 +520,16 @@ instead, so `Define rows as 5.` works even though the collections book uses the 
 and an identifier must start lowercase. Capitalised contextual statement words removed that
 obstacle, and the word is one the code most likely to pull this book will want.
 
+**`make`** — contextual, recognised only at a STATEMENT HEAD with `directory` following:
+`Make the directory <path>.` `Define make as "Toyota".` stays legal everywhere, and so does a
+function or field called `make`. ★ The word is decidable without being reserved because no other
+statement begins with a bare name and that word — the same trick `output` and `Seed` use, and it is
+why `make` appears in `CapitalisableStatementWords` rather than in the keyword table.
+
+⚠ **`Remove` is overloaded by what follows it**, not by a second keyword: `Remove <x> from
+<series>` mutates a series, `Remove the file <path>.` and `Remove the directory <path>.` act on the
+filesystem. The noun decides, so removing a file cost no name at all.
+
 **`terminal`** — contextual on the same terms, recognised only in the modifier slot of a `run`
 expression: `run <prog> with the terminal`. `Define terminal as 5.` stays legal everywhere, and a
 book named for the same device is reached through `Pull`, a different slot, so the two do not

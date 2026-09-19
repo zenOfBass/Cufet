@@ -3319,6 +3319,36 @@ Append "more\n" to the file "out.txt".      ← append to end
 Write and append complete silently on success; on failure they raise a Cufet
 failure caught by the enclosing `Try` handler.
 
+⚠ **A write creates the FILE, never the directory.** Writing into a directory that is not there
+fails with *"the directory for 'notes/today.txt' does not exist"* — nothing was being looked for,
+so it names the thing you can go and make.
+
+**Making and removing:**
+```cufet
+Make the directory "notes".
+Remove the file "notes/today.txt".
+Remove the directory "notes".
+```
+
+All three are fallible, like every other filesystem operation, and complete silently on success.
+Failure categories: `"not-found"`, `"already-there"`, `"not-empty"`, `"permission-denied"`,
+`"disk-error"`.
+
+★★ **The refusals are most of what these are**, and both are the language's ordinary character
+applied to the filesystem:
+
+- **`Make the directory` does not create missing parents.** `Make the directory "a/b/c".` when `a`
+  is not there fails rather than making three directories because one was asked for. A step that
+  could mean two things refuses instead of guessing.
+- **`Remove the directory` does not take the contents with it.** A directory with anything in it
+  fails with *"still has things in it"*. A recursive delete is the one operation here that can
+  destroy work nobody asked to lose, so emptying a directory is a loop you write on purpose.
+- Making one that is **already there** fails too, rather than quietly doing nothing — so a program
+  that means *"make sure this exists"* asks `the path … exists` and says so.
+
+★ `Remove` is the same word series mutation uses (`Remove <x> from <series>`); `file` and
+`directory` are what make the two readings decidable, so neither cost a new keyword.
+
 **Scoped file streams — `With the file ... open for reading/writing as`:**
 
 For reading line-by-line, or writing incrementally, open the file as a stream

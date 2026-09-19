@@ -6,6 +6,41 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- **`Make the directory <path>.`, `Remove the file <path>.`, `Remove the directory <path>.`** — the
+  three things the language could not do. It could read a file, write a file and list a directory,
+  and could neither create nor remove one.
+
+  ★★ **The axiom campaign's second real witness, and it produced no axiom** — there was none to
+  write. Creating a directory is not something the FFI reaches for; it is something the language
+  simply lacked. It was found by building the package manager, which routed around it by keeping
+  the git clone as a cache. That is a real design, and it was also a constraint wearing a
+  decision's clothes.
+
+  ★★ **The refusals are most of what this is.** Making does NOT create missing parents — three
+  directories appearing because one was asked for is exactly the quiet resolution this language
+  declines everywhere else. Removing a directory does NOT take its contents — a recursive delete is
+  the one operation here that can destroy work nobody asked to lose. Making one already there
+  fails rather than quietly doing nothing.
+
+  ★ **Neither spelling cost a reserved word.** `make` is contextual, recognised only at a statement
+  head with `directory` following, so `Define make as "Toyota".` still works. `Remove` was already
+  spent on series mutation, and `file` / `directory` make the two readings decidable.
+
+### Fixed
+
+- **Writing into a directory that does not exist said the FILE was not found.** Nothing was being
+  looked for — you were writing — and the thing that was missing was never named. It now says *"the
+  directory for '‹path›' does not exist"*.
+
+  ★ A write cannot fail because the file is missing; it creates one. So a not-found on a write can
+  only mean the directory, and both backends tell the two apart by the OPERATION rather than by
+  inspecting the path — which is what keeps them identical with no parent-path computation to
+  diverge on.
+
 ## [0.24.0] — 2026-09-18
 
 ### Added
