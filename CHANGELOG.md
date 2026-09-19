@@ -10,6 +10,26 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+- **`Bring <value>.` — the suspension primitive, and a rabbit stops being privileged.** A function
+  could already stop in the middle, hand a value out and carry on — but only by commanding a
+  rabbit: `Have <rabbit> bury <value>.` A person writing their own module had no way to reach the
+  same thing, so the one construct the language could not let you write was the one a rabbit does.
+
+  `Bring` is that construct, belonging to no type. `bury` is now a rabbit's NAME for it, and the
+  two spellings produce the same program on both backends.
+
+  ★★ **The measurement that started it**: the named rabbit was already decorative. Nothing
+  downstream read it — `cd_rabbit` compiles to an EMPTY STRUCT, threaded into the closure and never
+  loaded, and swapping which rabbit a bury names changed exactly one line of emitted C that no line
+  ever reads. The ceremony was real; the ownership it claimed was not.
+
+  ★ **It cost no reserved word and frees two.** `bring` is contextual, like `make`, `output` and
+  `Seed`; `bury` and `unbury` become a rabbit's own vocabulary rather than keywords. The language
+  gets SMALLER by gaining this.
+
+  ⚠ Not yet: a person still cannot write a type that OWNS a region — `Pull a rabbit` remains its
+  own AST node. This slice makes suspension reachable, not regions.
+
 - **`Make the directory <path>.`, `Remove the file <path>.`, `Remove the directory <path>.`** — the
   three things the language could not do. It could read a file, write a file and list a directory,
   and could neither create nor remove one.

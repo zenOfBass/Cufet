@@ -33,7 +33,7 @@ deliberate differences are marked where they arise and summarised under
     - [`Judge` — handling every case](#judge--handling-every-case)
     - [Loops](#loops)
       - [For-each loops](#for-each-loops)
-    - [Stashes (`Bury` and `unbury`)](#stashes-bury-and-unbury)
+    - [Stashes (`Bring`, `bury` and `unbury`)](#stashes-bring-bury-and-unbury)
       - [What a burying body cannot do yet](#what-a-burying-body-cannot-do-yet)
       - [A stash is a value](#a-stash-is-a-value)
       - [Where a stash is buried](#where-a-stash-is-buried)
@@ -670,7 +670,7 @@ if you need to change the series as you go.
 
 ---
 
-### Stashes (`Bury` and `unbury`)
+### Stashes (`Bring`, `bury` and `unbury`)
 
 A function can stop in the middle of what it is doing, hand one value out, and
 carry on from that exact line when someone asks for the next one.
@@ -697,9 +697,35 @@ Pull a rabbit as hopper.
 Done.
 ```
 
-⚠ There is no bare `Bury x.` A rabbit is always the one doing it, which is what
-puts the ownership of the buried state somewhere you can see rather than leaving
-it ambient.
+★★ **`Bring` is the primitive; `bury` is a rabbit's name for it.** Any function
+may suspend, and nothing about it needs a rabbit — there is not one anywhere below:
+
+```cufet
+Bind number to counting-up, given (the number first-value):
+    Define next as first-value.
+    Repeat:
+        Bring next.
+        The next becomes next + 1.
+    Until false.
+Done.
+
+Define counter as cast counting-up on (3).
+State unbury counter.       // 3
+State unbury counter.       // 4
+State unbury counter.       // 5
+```
+
+The two spellings produce the same program. Prefer `Have <rabbit> bury <value>.`
+when a rabbit is already in hand — it names the agent where the work is handed
+over, which puts the ownership of the buried state somewhere you can see. Reach
+for `Bring` everywhere else.
+
+★ **This is what keeps a rabbit unprivileged.** Suspending is the language's
+floor, not a power one built-in type was given: a module a person writes reaches
+it by the same spelling, and `bury` is a name for it rather than a way in.
+
+⚠ `bring` is **not reserved** — `Define bring as 5.` still works. It is
+recognised only where it opens a statement.
 
 **Nothing marks the declaration.** A function is stash-producing because its body
 *contains* a `bury` — the same way a body containing `return a failure` makes a
