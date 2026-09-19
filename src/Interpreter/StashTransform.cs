@@ -805,6 +805,19 @@ public static class StashTransform
     internal static bool ContainsBring(object? node) =>
         Search(node, n => n is BringStatement, Nested);
 
+    /// <summary>The first suspension in this body, or null — for a refusal that can point at it.</summary>
+    /// <remarks>
+    /// ★ Reuses <see cref="Search"/> rather than walking again. A second walk keyed on the
+    /// interfaces instead of the NAMESPACE would read past every `If` and judgement arm, which is
+    /// the standing trap in this codebase; sharing the one walk makes that impossible here.
+    /// </remarks>
+    internal static BringStatement? FindBring(object? node)
+    {
+        BringStatement? found = null;
+        Search(node, n => n is BringStatement b && (found = b) != null, Nested);
+        return found;
+    }
+
     private static bool ContainsReturn(object? node) =>
         Search(node, n => n is ReturnStatement, Nested);
 

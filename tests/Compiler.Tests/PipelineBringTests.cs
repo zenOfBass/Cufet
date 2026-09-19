@@ -193,6 +193,67 @@ public class PipelineBringTests : PipelineTestBase
 
     // ── Refusals ─────────────────────────────────────────────────────────────────────────────
 
+    // ★★ These three close a LIVE DIVERGENCE, not a hypothetical. Before the refusal existed a
+    // suspension inside a lambda passed `check`, ran with the suspension silently inert on the
+    // interpreter, and killed the compiler on its own internal safety valve. It predates `Bring`:
+    // the same program spelled `Have <rabbit> bury <x>.` behaved identically, which is why the
+    // second test is here rather than assumed.
+
+    [Fact]
+    public void Bring_InsideALambda_IsRefused()
+    {
+        var ex = Assert.Throws<StashUnsupportedException>(() => InterpretRaw("""
+            Bind void to go, given ():
+                Define f as a function given (the number x): Bring x. Done.
+                State "made it".
+            Done.
+            Cast go on ().
+            """));
+        Assert.Contains("cannot hand a value out and pause", ex.Message);
+        Assert.Contains("'Bring'", ex.Message);
+    }
+
+    [Fact]
+    public void BuryInsideALambda_IsRefused_AndTheMessageSaysBury()
+    {
+        // ⚠ The message must name the spelling the WRITER used. Telling someone who typed `bury`
+        // that they used `Bring` sends them looking for a word they never wrote.
+        var ex = Assert.Throws<StashUnsupportedException>(() => InterpretRaw("""
+            Bind void to go, given (the rabbit helper):
+                Define f as a function given (the number x): Have helper bury x. Done.
+                State "made it".
+            Done.
+            Pull a rabbit as hopper.
+                Cast go on (hopper).
+            Done.
+            """));
+        Assert.Contains("'bury'", ex.Message);
+        Assert.DoesNotContain("'Bring'", ex.Message);
+    }
+
+    [Fact]
+    public void AnOrdinaryLambda_InsideASuspendingFunction_StillWorks()
+    {
+        // ★ THE GUARD AGAINST OVER-REFUSING, and the reason the refusal probes the lambda's OWN
+        // body. A lambda that does not suspend is ordinary wherever it sits — including inside a
+        // function that does suspend, which is exactly where a too-wide check would bite.
+        const string src = """
+            Bind number to counting-up, given (the number first-value):
+                Define double-it as a function given (the number x): Return x * 2. Done.
+                Define next as first-value.
+                Repeat:
+                    Bring cast double-it on (next).
+                    The next becomes next + 1.
+                Until false.
+            Done.
+
+            Define counter as cast counting-up on (3).
+            State (unbury counter) but void is -1.
+            State (unbury counter) but void is -1.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
     [Fact]
     public void Bring_AtTopLevel_IsRefused()
     {
