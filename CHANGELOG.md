@@ -30,26 +30,6 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   ⚠ Not yet: a person still cannot write a type that OWNS a region — `Pull a rabbit` remains its
   own AST node. This slice makes suspension reachable, not regions.
 
-### Fixed
-
-- **A suspension inside a lambda was a live divergence.** `check` said the program was clean, the
-  interpreter ran it with the suspension silently inert, and the compiler died on its own internal
-  safety valve — *"reached the code generator untransformed"*. It is now refused when the program
-  is checked, so both backends refuse the same program and say the same thing.
-
-  ★★ **It fell through every net, and the net was right.** The detection walk treats a lambda as
-  OPAQUE on purpose — a nested function's statements belong to it, not to the body being rewritten
-  — so a suspension inside one was correctly not attributed to the enclosing function, and then
-  nothing asked the lambda itself. Two correct rules with a gap between them.
-
-  ⚠ **It predates `Bring`**: the same program written `Have <rabbit> bury <value>.` behaved
-  identically, measured on both backends. No test in the suite put a suspension inside a lambda, so
-  the oracle could not see it.
-
-  ★ The refusal names the spelling the writer actually used and points at the suspension rather
-  than at the lambda — telling someone who typed `bury` that they used `Bring` sends them hunting
-  for a word they never wrote.
-
 - **`Make the directory <path>.`, `Remove the file <path>.`, `Remove the directory <path>.`** — the
   three things the language could not do. It could read a file, write a file and list a directory,
   and could neither create nor remove one.
@@ -71,6 +51,24 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   spent on series mutation, and `file` / `directory` make the two readings decidable.
 
 ### Fixed
+
+- **A suspension inside a lambda was a live divergence.** `check` said the program was clean, the
+  interpreter ran it with the suspension silently inert, and the compiler died on its own internal
+  safety valve — *"reached the code generator untransformed"*. It is now refused when the program
+  is checked, so both backends refuse the same program and say the same thing.
+
+  ★★ **It fell through every net, and the net was right.** The detection walk treats a lambda as
+  OPAQUE on purpose — a nested function's statements belong to it, not to the body being rewritten
+  — so a suspension inside one was correctly not attributed to the enclosing function, and then
+  nothing asked the lambda itself. Two correct rules with a gap between them.
+
+  ⚠ **It predates `Bring`**: the same program written `Have <rabbit> bury <value>.` behaved
+  identically, measured on both backends. No test in the suite put a suspension inside a lambda, so
+  the oracle could not see it.
+
+  ★ The refusal names the spelling the writer actually used and points at the suspension rather
+  than at the lambda — telling someone who typed `bury` that they used `Bring` sends them hunting
+  for a word they never wrote.
 
 - **Lesson one of the tutorial taught a refusal shape the language does not have.** It said *"that
   message has four parts, and every refusal in Cufet has the same four"*, and named the fourth as
