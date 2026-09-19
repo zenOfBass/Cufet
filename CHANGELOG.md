@@ -32,6 +32,22 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **Lesson one of the tutorial taught a refusal shape the language does not have.** It said *"that
+  message has four parts, and every refusal in Cufet has the same four"*, and named the fourth as
+  an example. MEASURED across all 340 refusal sites: 18 say *"For example"* and 71 show a concrete
+  shape at all — so the claim held for about one refusal in five, in the lesson whose whole subject
+  is reading refusals.
+
+  ★ The real shape is FIVE parts, three always present and two optional: the rule, *sometimes* why
+  that is the rule, what you did, what to do, and *sometimes* an example. The explanation is absent
+  in 248 of 340 and the example in 269. The lesson says so now, and says why a shorter message is
+  not a worse one.
+
+  ⚠⚠ **The claim had PROPAGATED from a comment that said MEASURED.** It was measured on a handful
+  of broken programs written to choose a first lesson, then stated flatly, and from there reached
+  the tutorial and two more comments. All four corrected; the origin now records what its sample
+  actually was.
+
 - **Writing into a directory that does not exist said the FILE was not found.** Nothing was being
   looked for — you were writing — and the thing that was missing was never named. It now says *"the
   directory for '‹path›' does not exist"*.

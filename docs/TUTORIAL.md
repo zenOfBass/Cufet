@@ -34,16 +34,27 @@ For example: "score: " joined to n converted to text.
 
 ### Read the refusal
 
-That message has four parts, and every refusal in Cufet has the same four:
+Every refusal is built the same way. Three parts are always there, and two more turn up when they
+have something to add:
 
-| Part | What it says |
-| --- | --- |
-| **The rule** | You can only join text to text. |
-| **What you did** | You joined text to a number. |
-| **What to do** | Use `converted to text`. |
-| **An example** | The shape it should be, written out. |
+| Part | What it says here | Always? |
+| --- | --- | --- |
+| **The rule** | You can only join text to text. | always |
+| **Why that is the rule** | — | sometimes |
+| **What you did** | You joined text to a number. | always |
+| **What to do** | Use `converted to text`. | always |
+| **An example** | The shape it should be, written out. | sometimes |
 
-Most of learning Cufet is learning to read those four parts. They are not an apology for a failure
+The message above has four of the five. It does not explain *why* text and numbers refuse to join,
+because the rule already says it — and a sentence repeating the rule in other words would be one
+more thing to read and nothing more to learn. Most refusals are like that.
+
+The two that come and go are worth knowing about, so that a shorter message does not read as a
+worse one. **Why that is the rule** appears where the rule would otherwise look arbitrary, and
+**an example** where the fix is a shape rather than a word. A refusal with neither has not given
+up on you; it had nothing to add.
+
+Most of learning Cufet is learning to read those parts. They are not an apology for a failure
 — they are the language telling you the rule you have just met.
 
 ### Why it refused

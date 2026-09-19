@@ -513,7 +513,7 @@ without invalidating a pin already published. ★ Both ecosystems set that prece
 out to `git` for years before `GOPROXY`, and pip still does for `pip install git+https://…`.
 
 ⚠ **What that costs, recorded so nobody rediscovers it as a surprise:** a consumer needs `git` on
-PATH; a fetch failure arrives in git's vocabulary rather than Cufet's four-part voice; and two
+PATH; a fetch failure arrives in git's vocabulary rather than Cufet's own voice; and two
 machines with different autocrlf settings end up with different BYTES in `books/`, so `blueprints`
 sees a changed input and rebuilds when nothing changed. That last is wasted work rather than a wrong
 answer, but this project has a line about exactly it — *"a build that rebuilds too often looks
