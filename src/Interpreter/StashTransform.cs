@@ -324,7 +324,7 @@ public static class StashTransform
                 // ⚠ A `Stop` left verbatim inside a block would break the DISPATCH loop, not the
                 // loop the writer meant — so anything holding one that belongs to a flattened loop
                 // has to be flattened too, bury or no bury.
-                bool mustSplit = ContainsBring(stmt)
+                bool mustSplit = ContainsBury(stmt)
                             || stmt is StopStatement or SkipStatement
                             || (loop != null && HasFreeLoopExit(stmt));
                 if (mustSplit) cur = EmitControl(stmt, cur, loop);
@@ -355,7 +355,7 @@ public static class StashTransform
         {
             switch (stmt)
             {
-                case BringStatement bury:
+                case BuryStatement bury:
                 {
                     int next = NewBlock();
                     SetExit(cur, [SetStep(next), new ReturnStatement(bury.Value, bury.Line, bury.Column)]);
@@ -802,8 +802,8 @@ public static class StashTransform
     // ── AST search ─────────────────────────────────────────────────────────────────────────────
 
     /// <summary>Does this function's own body bury? The boundary the type checker uses too.</summary>
-    internal static bool ContainsBring(object? node) =>
-        Search(node, n => n is BringStatement, Nested);
+    internal static bool ContainsBury(object? node) =>
+        Search(node, n => n is BuryStatement, Nested);
 
     /// <summary>The first suspension in this body, or null — for a refusal that can point at it.</summary>
     /// <remarks>
@@ -811,10 +811,10 @@ public static class StashTransform
     /// interfaces instead of the NAMESPACE would read past every `If` and judgement arm, which is
     /// the standing trap in this codebase; sharing the one walk makes that impossible here.
     /// </remarks>
-    internal static BringStatement? FindBring(object? node)
+    internal static BuryStatement? FindBury(object? node)
     {
-        BringStatement? found = null;
-        Search(node, n => n is BringStatement b && (found = b) != null, Nested);
+        BuryStatement? found = null;
+        Search(node, n => n is BuryStatement b && (found = b) != null, Nested);
         return found;
     }
 

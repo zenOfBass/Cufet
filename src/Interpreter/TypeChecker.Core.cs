@@ -709,7 +709,7 @@ public sealed partial class TypeChecker
     {
         var paramTypes = method.Parameters.Select(p => p.Type).ToList();
         var paramNames = method.Parameters.Select(p => p.Name).ToList();
-        if (!BringsValues(method))
+        if (!BuriesValues(method))
             return new FunctionType(paramTypes, method.ReturnType) { ParameterNames = paramNames };
 
         if (method.ReturnType == null)
@@ -822,7 +822,7 @@ public sealed partial class TypeChecker
     /// The walk itself lives in StashTransform, which needs the identical boundary when it decides
     /// whether a statement has to be linearised. One rule, stated once.
     /// </remarks>
-    private static bool BringsValues(BindStatement bind) => StashTransform.ContainsBring(bind.Body);
+    private static bool BuriesValues(BindStatement bind) => StashTransform.ContainsBury(bind.Body);
 
     /// <summary>
     /// Notes a local's type for the state machine, and refuses a name that means two things.
@@ -2241,7 +2241,7 @@ public sealed partial class TypeChecker
             // special-casing the cast site means `cast f on (…)` infers a stash with no change to
             // call inference at all — the difference lives entirely in the signature, which is where
             // the difference actually is.
-            if (BringsValues(bind))
+            if (BuriesValues(bind))
             {
                 _buryingFunctions.Add(bind.Name);
                 if (bind.ReturnType == null)
@@ -2715,7 +2715,7 @@ public sealed partial class TypeChecker
                     // Pass1Hoist, which does this for free functions. Registering it only there left
                     // an inner generator unrecognised, so its missing terminal `Return` was reported
                     // as an error in a function that was never going to return.
-                    if (BringsValues(bind)) _buryingFunctions.Add(bind.Name);
+                    if (BuriesValues(bind)) _buryingFunctions.Add(bind.Name);
                     Scope[bind.Name] = new TypeInfo(
                         new FunctionType(paramTypes,
                             _buryingFunctions.Contains(bind.Name) && bind.ReturnType != null
@@ -2810,11 +2810,11 @@ public sealed partial class TypeChecker
             // rabbit depth), so there is no enclosing rabbit for the keyword to mean — which is
             // exactly right: the agent doing the burying is handed IN, normally as a parameter, and
             // that is what puts the ownership at the call site rather than leaving it ambient.
-            case BringStatement bring:
+            case BuryStatement bring:
             {
                 _ = InferType(bring.Value);
 
-                // ★★ A bare `Bring` names nobody, and needs nobody. It is the language's floor,
+                // ★★ A bare `Bury` names nobody, and needs nobody. It is the language's floor,
                 // reachable from any function a person writes — which is the whole reason `rabbit`
                 // is not privileged. Only the `bury` SPELLING owes an agent.
                 if (!bring.ViaBurySurface) break;

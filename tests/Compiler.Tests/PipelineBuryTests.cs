@@ -5,32 +5,35 @@ using CufetLexer = Cufet.Lexer.Lexer;
 namespace Cufet.Compiler.Tests;
 
 /// <summary>
-/// `Bring <value>.` — the suspension primitive, and the proof that a rabbit is not privileged.
+/// `Bury &lt;value&gt;.` — the suspension primitive, reachable from any function.
 /// </summary>
 /// <remarks>
 /// <para>
 /// ★★ THE POINT OF THIS FILE IS WHAT IS ABSENT. Every program below suspends and resumes without
-/// pulling, naming or passing a rabbit anywhere. Before this slice the only way to suspend was
-/// `Have &lt;rabbit&gt; bury &lt;value&gt;.`, which meant the one thing a person could not write was
-/// the thing a rabbit does — so `bury` is now a rabbit's NAME for `Bring`, not a power only a
-/// rabbit has.
+/// pulling, naming or passing a rabbit anywhere. The bare form had been removed on the reasoning
+/// that *"a rabbit is the agent that does memory work"* — but MEASURED 2026-09-19, the named rabbit
+/// is inert: `cd_rabbit` compiles to an empty struct, threaded into the closure and never read, and
+/// swapping which rabbit a bury names changes one line of emitted C that nothing loads. The buried
+/// state lives in the region open at the CALL SITE. So the bare form is not a new power; it is the
+/// one that was always there with the ceremony dropped, and it is what lets a module a person
+/// writes suspend at all.
 /// </para>
 /// <para>
 /// ⚠ A test here that starts needing a rabbit has lost the plot: grep these sources for "rabbit"
-/// and the answer must stay zero.
+/// and the answer must stay zero outside the equivalence test, which needs one by construction.
 /// </para>
 /// </remarks>
-public class PipelineBringTests : PipelineTestBase
+public class PipelineBuryTests : PipelineTestBase
 {
     [Fact]
-    public void Bring_GeneratorWithNoRabbitAnywhere_BothBackendsAgree()
+    public void Bury_GeneratorWithNoRabbitAnywhere_BothBackendsAgree()
     {
-        // Not one mention of a rabbit — the whole reason this slice exists.
+        // Not one mention of a rabbit — the whole reason the bare form is back.
         const string src = """
             Bind number to counting-up, given (the number first-value):
                 Define next as first-value.
                 Repeat:
-                    Bring next.
+                    Bury next.
                     The next becomes next + 1.
                 Until false.
             Done.
@@ -45,14 +48,14 @@ public class PipelineBringTests : PipelineTestBase
     }
 
     [Fact]
-    public void Bring_RunsOut_AndTheStashReportsSpent()
+    public void Bury_RunsOut_AndTheStashReportsSpent()
     {
         // A finite generator: two values, then void forever. `unbury` narrowing is what a caller
         // sees, and it must read the same on both backends once the body falls off its end.
         const string src = """
             Bind text to two-names, given ():
-                Bring "ada".
-                Bring "grace".
+                Bury "ada".
+                Bury "grace".
             Done.
 
             Define names as cast two-names on ().
@@ -64,7 +67,7 @@ public class PipelineBringTests : PipelineTestBase
     }
 
     [Fact]
-    public void Bring_TwoStashesFromOneFunction_KeepSeparateState()
+    public void Bury_TwoStashesFromOneFunction_KeepSeparateState()
     {
         // Each cast makes its own machine. Interleaving them is what catches state that leaked
         // into something shared — and with no rabbit around, there is nothing shared to blame.
@@ -72,7 +75,7 @@ public class PipelineBringTests : PipelineTestBase
             Bind number to ticks, given (the number from-here):
                 Define n as from-here.
                 Repeat:
-                    Bring n.
+                    Bury n.
                     The n becomes n + 10.
                 Until false.
             Done.
@@ -88,16 +91,16 @@ public class PipelineBringTests : PipelineTestBase
     }
 
     [Fact]
-    public void Bring_InsideAnIfArm_StillSuspends()
+    public void Bury_InsideAnIfArm_StillSuspends()
     {
         // The detection walk reads arm bodies through the NAMESPACE, not through IStatement —
-        // see StashDetectionTests for why that is load-bearing. Same trap, new spelling.
+        // see StashDetectionTests for why that is load-bearing.
         const string src = """
             Bind number to picky, given (the fact go):
                 If go:
-                    Bring 1.
+                    Bury 1.
                 Done.
-                Bring 2.
+                Bury 2.
             Done.
 
             Define s as cast picky on (true).
@@ -108,16 +111,18 @@ public class PipelineBringTests : PipelineTestBase
     }
 
     [Fact]
-    public void Bring_AndBury_ProduceTheSameProgram()
+    public void BareBury_AndHaveRabbitBury_ProduceTheSameProgram()
     {
-        // ★★ The equivalence this whole slice rests on: `bury` is a NAME for `Bring`. Two sources
-        // differing only in the spelling must run identically on both backends. If these ever
-        // diverge, the rabbit has quietly grown a privilege back.
-        const string withBring = """
+        // ★★ The equivalence the whole slice rests on. `Have <rabbit> bury <x>.` is the SAME
+        // statement with an agent named — kept because it reads well where a rabbit is in hand,
+        // not because the rabbit does anything. Two sources differing only in the ceremony must
+        // run identically on both backends; if these ever diverge, the rabbit has grown a
+        // privilege back.
+        const string bare = """
             Bind number to counter, given (the number begin-at):
                 Define n as begin-at.
                 Repeat:
-                    Bring n.
+                    Bury n.
                     The n becomes n + 1.
                 Until false.
             Done.
@@ -127,7 +132,7 @@ public class PipelineBringTests : PipelineTestBase
                 State (unbury s) but void is -1.
             Done.
             """;
-        const string withBury = """
+        const string commanded = """
             Bind number to counter, given (the rabbit helper, the number begin-at):
                 Define n as begin-at.
                 Repeat:
@@ -141,24 +146,22 @@ public class PipelineBringTests : PipelineTestBase
                 State (unbury s) but void is -1.
             Done.
             """;
-        Assert.Equal(InterpretRaw(withBring), InterpretRaw(withBury));
-        Assert.Equal(InterpretRaw(withBring), CompileRaw(withBring));
-        Assert.Equal(InterpretRaw(withBury), CompileRaw(withBury));
+        Assert.Equal(InterpretRaw(bare), InterpretRaw(commanded));
+        Assert.Equal(InterpretRaw(bare), CompileRaw(bare));
+        Assert.Equal(InterpretRaw(commanded), CompileRaw(commanded));
     }
 
     [Fact]
-    public void Bring_InsideAMethod_SuspendsTheMethod()
+    public void Bury_InsideAMethod_SuspendsTheMethod()
     {
         // ★ A METHOD reaches the primitive through a different door — MethodSignature, and the
         // (owner, name) pair in _buryingMethods — so the free-function tests above do not cover it.
-        // Still no rabbit: an ordinary object suspends, which is the shape a person's own
-        // region-owning type will need once it can own one.
         const string src = """
             Define object clock with (the number at):
                 Bind number to ticks, given ():
                     Define n as one's at.
                     Repeat:
-                        Bring n.
+                        Bury n.
                         The n becomes n + 1.
                     Until false.
                 Done.
@@ -173,51 +176,31 @@ public class PipelineBringTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
-    // ── `bring` is CONTEXTUAL, so it is still a name anyone may use ──────────────────────────
-
-    [Fact]
-    public void Bring_IsNotReserved_StillUsableAsAnOrdinaryName()
-    {
-        // ★ The whole reason the word was affordable. A reserved word is taken from every program
-        // forever, including the ones that never suspend anything.
-        const string src = """
-            Define bring as 5.
-            The bring becomes bring + 1.
-            State bring.
-            Bind number to bring-back, given (the number x): Return x * 2. Done.
-            State cast bring-back on (bring).
-            """;
-        Assert.Equal("6\n12\n".ReplaceLineEndings(), InterpretRaw(src).ReplaceLineEndings());
-        Assert.Equal(InterpretRaw(src), CompileRaw(src));
-    }
-
     // ── Refusals ─────────────────────────────────────────────────────────────────────────────
 
-    // ★★ These three close a LIVE DIVERGENCE, not a hypothetical. Before the refusal existed a
-    // suspension inside a lambda passed `check`, ran with the suspension silently inert on the
-    // interpreter, and killed the compiler on its own internal safety valve. It predates `Bring`:
-    // the same program spelled `Have <rabbit> bury <x>.` behaved identically, which is why the
-    // second test is here rather than assumed.
+    // ★★ These three close a LIVE DIVERGENCE, not a hypothetical. A suspension inside a lambda
+    // passed `check`, ran with the suspension silently inert on the interpreter, and killed the
+    // compiler on its own internal safety valve. Both spellings did it, which is why both are here.
 
     [Fact]
-    public void Bring_InsideALambda_IsRefused()
+    public void BareBury_InsideALambda_IsRefused()
     {
         var ex = Assert.Throws<StashUnsupportedException>(() => InterpretRaw("""
             Bind void to go, given ():
-                Define f as a function given (the number x): Bring x. Done.
+                Define f as a function given (the number x): Bury x. Done.
                 State "made it".
             Done.
             Cast go on ().
             """));
         Assert.Contains("cannot hand a value out and pause", ex.Message);
-        Assert.Contains("'Bring'", ex.Message);
+        Assert.Contains("'bury'", ex.Message);
     }
 
     [Fact]
-    public void BuryInsideALambda_IsRefused_AndTheMessageSaysBury()
+    public void CommandedBury_InsideALambda_IsRefused()
     {
-        // ⚠ The message must name the spelling the WRITER used. Telling someone who typed `bury`
-        // that they used `Bring` sends them looking for a word they never wrote.
+        // ⚠ A separate PARSE PATH from the bare form, so it needs its own test rather than an
+        // assumption that one covers the other.
         var ex = Assert.Throws<StashUnsupportedException>(() => InterpretRaw("""
             Bind void to go, given (the rabbit helper):
                 Define f as a function given (the number x): Have helper bury x. Done.
@@ -227,8 +210,7 @@ public class PipelineBringTests : PipelineTestBase
                 Cast go on (hopper).
             Done.
             """));
-        Assert.Contains("'bury'", ex.Message);
-        Assert.DoesNotContain("'Bring'", ex.Message);
+        Assert.Contains("cannot hand a value out and pause", ex.Message);
     }
 
     [Fact]
@@ -242,7 +224,7 @@ public class PipelineBringTests : PipelineTestBase
                 Define double-it as a function given (the number x): Return x * 2. Done.
                 Define next as first-value.
                 Repeat:
-                    Bring cast double-it on (next).
+                    Bury cast double-it on (next).
                     The next becomes next + 1.
                 Until false.
             Done.
@@ -255,11 +237,11 @@ public class PipelineBringTests : PipelineTestBase
     }
 
     [Fact]
-    public void Bring_AtTopLevel_IsRefused()
+    public void Bury_AtTopLevel_IsRefused()
     {
         // There is no caller to hand a value to and nothing to resume.
         var ex = Assert.Throws<ParseException>(() =>
-            new Parser(new CufetLexer("Bring 1.").Tokenize()).Parse());
+            new Parser(new CufetLexer("Bury 1.").Tokenize()).Parse());
         Assert.Contains("only meaningful inside a function", ex.Message);
     }
 }

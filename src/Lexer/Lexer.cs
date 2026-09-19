@@ -123,7 +123,7 @@ public sealed class Lexer
     // use them as ordinary names. Only these may be written with a capital and still lex — see
     // the note in ReadWord for why that is free rather than a concession.
     private static readonly HashSet<string> CapitalisableStatementWords =
-        new(StringComparer.OrdinalIgnoreCase) { "output", "seed", "make", "bring" };
+        new(StringComparer.OrdinalIgnoreCase) { "output", "seed", "make" };
 
     // Reads exactly one logical token from the current position and appends it (or its
     // sequence, in the case of an interpolated string) to `tokens`.

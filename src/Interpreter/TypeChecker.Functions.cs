@@ -359,29 +359,26 @@ public sealed partial class TypeChecker
     private FunctionType InferLambdaLiteral(LambdaLiteral lambda)
     {
         // ★★ A lambda that suspends is REFUSED, and before this it was a live divergence rather
-        // than a decision. `ContainsBring` treats a LambdaLiteral as opaque (see Nested), which is
+        // than a decision. `ContainsBury` treats a LambdaLiteral as opaque (see Nested), which is
         // right — a nested function's statements belong to IT — but nothing then asked the lambda
         // itself, so it fell through every net: `check` said clean, the interpreter ran the program
         // with the suspension silently inert, and the compiler died on its own safety valve with
-        // "reached the code generator untransformed". MEASURED on both backends, and it predates
-        // `Bring` — the same program written `Have <rabbit> bury <x>.` behaved identically.
+        // "reached the code generator untransformed". MEASURED on both backends, in BOTH
+        // spellings — bare `Bury x.` and `Have <rabbit> bury <x>.` behave identically.
         //
         // ★ Refused rather than built. A named body becomes a factory returning a closure; a lambda
         // IS already a closure expression, so making one stash-producing is a different lowering,
         // not a wider walk. Saying so is a slice; pretending it works was the bug.
-        // ⚠ Named by the spelling the writer actually used. `bury` and `Bring` are one statement
-        // now, so a message that always says "Bring" tells half of them about a word they never
-        // typed — and points at the lambda rather than at the line they would go and change.
-        if (StashTransform.FindBring(lambda.Body) is { } suspension)
-        {
-            string spelling = suspension.ViaBurySurface ? "bury" : "Bring";
+        // ⚠ Points at the SUSPENSION, not at the lambda — that is the line a reader goes and
+        // changes. One word covers both spellings, so the message needs no branch on which was
+        // written.
+        if (StashTransform.FindBury(lambda.Body) is { } suspension)
             throw new StashUnsupportedException(
                 "a function with no name cannot hand a value out and pause",
-                $"use '{spelling}' inside a lambda",
-                $"Give the body a name. A 'Bind' whose body contains a '{spelling}' hands back a "
-              + "stash, and a stash is an ordinary value — pass it wherever the lambda was going.",
+                "use 'bury' inside a lambda",
+                "Give the body a name. A 'Bind' whose body contains a 'bury' hands back a stash, "
+              + "and a stash is an ordinary value — pass it wherever the lambda was going.",
                 suspension.Line, suspension.Column);
-        }
 
         var saved = SaveScopes();
 

@@ -949,7 +949,7 @@ public sealed partial class Interpreter
             // backend has (or needs) suspension machinery. Reaching here means a caller ran the
             // interpreter on the PRE-transform program, which would otherwise fail silently and
             // strangely. `Check` returns the rewritten program; use its return value.
-            case BringStatement bury:
+            case BuryStatement bury:
                 throw new RuntimeException(
                     $"Internal: a 'bury' on line {bury.Line} reached the interpreter untransformed. "
                     + "Run the program returned by TypeChecker.Check, not the one handed to it.");
@@ -1715,7 +1715,7 @@ public sealed partial class Interpreter
         InterruptRequestedExpression      => (object)_interruptRequested,
         // ★ `unbury s` IS `cast s on ()`. A stash lowers to a closure, so resuming one is calling
         // it — which means this needs no machinery of its own, just the call path every function
-        // value already uses. (Unlike BringStatement above, an unbury legitimately survives the
+        // value already uses. (Unlike BuryStatement above, an unbury legitimately survives the
         // transform: only the burying FUNCTION is rewritten, never its call sites.)
         UnburyExpression ub               => EvaluateCastExpr(new CastExpression(ub.Stash, [], ub.Line, ub.Column)),
         RandomNumber  rn                  => EvaluateRandomNumber(rn),
