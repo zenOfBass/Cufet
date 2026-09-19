@@ -542,17 +542,27 @@ public sealed record CufetAxiomDefinition(
 // spelling it `cast` would have promised both.
 public sealed record CiteStatement(string Name, int Line, int Column) : IStatement;
 
-// Bury <value>.  — hand one value out of a stash body and suspend there.
+// Bring <value>.  — hand one value out to whoever resumed this function, and pause here.
+//
+// ★★ THE SUSPENSION PRIMITIVE, and it belongs to no type. Any function may contain one, which is
+// what keeps `rabbit` unprivileged: a rabbit's `bury` is a NAME for this, not a power only a rabbit
+// has. A module a person writes reaches the same floor by the same spelling.
 //
 // ★ Its PRESENCE is what makes the enclosing function stash-producing; nothing marks the
 // declaration. That is the rule the language already uses for fallibility (a body containing
 // `return a failure` makes a function fallible — see BindStatement above), so requiring a marker
 // here would have been a second convention for one idea.
-// Have <rabbit> bury <value>.
-// RabbitName is the agent doing the burying, and is always present: burying is memory work, and a
-// rabbit is who does memory work. Inside a burying function it is normally a parameter — the agent
-// is handed IN, which is what puts the ownership at the call site instead of leaving it ambient.
-public sealed record BuryStatement(IExpression Value, int Line, int Column, string? RabbitName = null) : IStatement;
+//
+// Receiver is the agent named by the `Have <rabbit> bury <value>.` spelling, and is null for a bare
+// `Bring`. ⚠ It is checked and then DISCARDED — measured 2026-09-19: nothing downstream reads it,
+// the stash is allocated in whatever region is open at the CALL SITE, and swapping which rabbit is
+// named changes one line of emitted C (the argument) that no line ever reads. It survives because
+// the spelling is settled, not because the lowering needs it.
+// ViaBurySurface tells the two spellings apart, and only the refusals need it: a bare `Bring` has
+// no receiver because it never wanted one, while `Have rabbit bury x.` has none because the writer
+// used the bare keyword where a name belongs. Without the flag those two look identical here.
+public sealed record BringStatement(
+    IExpression Value, int Line, int Column, string? Receiver = null, bool ViaBurySurface = false) : IStatement;
 
 // unbury <stash>  — resume a stash to its next `Bury` and take the value, or void once spent.
 // An expression, so the result is handled like any other voidable rather than through hidden state:

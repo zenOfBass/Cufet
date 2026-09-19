@@ -324,7 +324,7 @@ public static class StashTransform
                 // ⚠ A `Stop` left verbatim inside a block would break the DISPATCH loop, not the
                 // loop the writer meant — so anything holding one that belongs to a flattened loop
                 // has to be flattened too, bury or no bury.
-                bool mustSplit = ContainsBury(stmt)
+                bool mustSplit = ContainsBring(stmt)
                             || stmt is StopStatement or SkipStatement
                             || (loop != null && HasFreeLoopExit(stmt));
                 if (mustSplit) cur = EmitControl(stmt, cur, loop);
@@ -355,7 +355,7 @@ public static class StashTransform
         {
             switch (stmt)
             {
-                case BuryStatement bury:
+                case BringStatement bury:
                 {
                     int next = NewBlock();
                     SetExit(cur, [SetStep(next), new ReturnStatement(bury.Value, bury.Line, bury.Column)]);
@@ -802,8 +802,8 @@ public static class StashTransform
     // ── AST search ─────────────────────────────────────────────────────────────────────────────
 
     /// <summary>Does this function's own body bury? The boundary the type checker uses too.</summary>
-    internal static bool ContainsBury(object? node) =>
-        Search(node, n => n is BuryStatement, Nested);
+    internal static bool ContainsBring(object? node) =>
+        Search(node, n => n is BringStatement, Nested);
 
     private static bool ContainsReturn(object? node) =>
         Search(node, n => n is ReturnStatement, Nested);

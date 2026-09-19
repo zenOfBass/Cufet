@@ -204,7 +204,7 @@ public sealed partial class CodeGenerator
         // ordinary object with a `next` method before either backend sees it, so there is nothing
         // here to lower. Reaching this means a caller generated from the PRE-transform program —
         // `Check` returns the rewritten one; use its return value.
-        if (stmt is BuryStatement buried)
+        if (stmt is BringStatement buried)
             throw new CompilerException(
                 $"Internal: a 'bury' on line {buried.Line} reached the code generator untransformed. "
                 + "Generate from the program returned by TypeChecker.Check.");

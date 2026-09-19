@@ -86,7 +86,7 @@ public sealed class Parser
         var tok = Peek();
         bool keywordLed = tok.Type != TokenType.Identifier
                           || IsOutputStatement() || IsSeedStatement() || IsCurrentDirectorySet()
-                          || IsMakeDirectoryStatement();
+                          || IsMakeDirectoryStatement() || IsBringStatement();
         _statementStarts.Add((tok.Line, tok.Column, keywordLed));
         return tok.Type switch
         {
@@ -96,6 +96,8 @@ public sealed class Parser
             TokenType.Identifier when IsOutputStatement() => ParseOutputStatement(),
             // 'Make the directory <path>.' — contextual, so `make` stays an ordinary name.
             TokenType.Identifier when IsMakeDirectoryStatement() => ParseMakeDirectoryStatement(),
+            // 'Bring <value>.' — the suspension primitive; contextual, so `bring` stays a name.
+            TokenType.Identifier when IsBringStatement() => ParseBringStatement(),
             // 'Seed the chance with <n>.' — contextual, like the rest of the chance vocabulary.
             TokenType.Identifier when IsSeedStatement() => ParseSeedChanceStatement(),
             // 'name | name.' — pipe statement starting with a variable reference
@@ -129,7 +131,7 @@ public sealed class Parser
                                        : ParseBindStatement(),
             TokenType.Cast       => ParseCastStatementWrapper(),
             TokenType.Return     => ParseReturnStatement(),
-            TokenType.Bury       => ParseBuryStatement(),
+            TokenType.Bury       => ParseBareBuryRefusal(),
             TokenType.Try        => ParseTryStatement(),
             TokenType.Suppress   => ParseSuppressStatement(),
             TokenType.In         => ParseMapSetStatement(),
@@ -5599,13 +5601,44 @@ public sealed class Parser
         return new ReturnStatement(value, line, col);
     }
 
+    // `Bring <value>.` — THE SUSPENSION PRIMITIVE. Hand one value out to whoever resumed this
+    // function, and pause here.
+    //
+    // ★★ It belongs to no type, and that is the point: a rabbit's `bury` is a NAME for this, not a
+    // power only a rabbit has, so a module a person writes reaches the same floor by the same
+    // spelling. ★ CONTEXTUAL — `bring` is NOT reserved, so `Define bring as 5.` still works. The
+    // capitalised spelling could never have been an identifier, and the exclusions below keep the
+    // lowercase one usable as a name; the same trick `output`, `Seed` and `Make` already use.
+    private BringStatement ParseBringStatement()
+    {
+        var lineTok = Advance();          // consume 'bring'
+        if (_functionDepth == 0)
+            throw new ParseException(lineTok.Line, lineTok.Column,
+                "'Bring' is only meaningful inside a function — it is what makes that function hand "
+                + "back a stash. At the top level there is nothing to suspend.");
+        SkipNoise();
+        var value = ParseExpression();
+        SkipNoise();
+        Consume(TokenType.Dot);
+        return new BringStatement(value, lineTok.Line, lineTok.Column);
+    }
+
+    // `Bring` leads a statement only where it could not be a name being read or written. Mirrors
+    // IsOutputStatement — a bare `bring` stays available as an ordinary variable.
+    private bool IsBringStatement() =>
+        Peek().Lexeme.Equals("bring", StringComparison.OrdinalIgnoreCase) &&
+        PeekAfterCurrent() != TokenType.Becomes &&
+        PeekAfterCurrent() != TokenType.Possessive &&
+        PeekAfterCurrent() != TokenType.Equal &&
+        PeekAfterCurrent() != TokenType.Pipe;
+
     // Bury <value>.  — always takes a value, unlike `Return`, which has a bare form. A bare bury
     // would mean "suspend and hand out nothing", and a stash's whole contract is that a resumption
     // yields a value or reports it is spent; there is no third answer for a caller to narrow.
     // ★ A bare `Bury x.` no longer exists. Burying is memory work and a rabbit is who does memory
     // work, so it is always commanded: `Have <rabbit> bury <value>.` This arm survives only to say
     // so — "expected statement keyword" would send the reader hunting for a typo.
-    private BuryStatement ParseBuryStatement()
+    private BringStatement ParseBareBuryRefusal()
     {
         var lineTok = Consume(TokenType.Bury);
         throw new ParseException(lineTok.Line, lineTok.Column,
@@ -5615,7 +5648,7 @@ public sealed class Parser
     }
 
     // `Have <rabbit> bury <value>.` — the agent is named where the work is handed over.
-    private BuryStatement ParseHaveBuryStatement(string? rabbitName, int line, int col)
+    private BringStatement ParseHaveBuryStatement(string? rabbitName, int line, int col)
     {
         if (_functionDepth == 0)
             throw new ParseException(line, col,
@@ -5626,7 +5659,7 @@ public sealed class Parser
         var value = ParseExpression();
         SkipNoise();
         Consume(TokenType.Dot);
-        return new BuryStatement(value, line, col, rabbitName);
+        return new BringStatement(value, line, col, Receiver: rabbitName, ViaBurySurface: true);
     }
 
     // Lambda body: same as ParseFunctionBody but does NOT consume the trailing '.'
