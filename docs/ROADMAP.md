@@ -270,24 +270,31 @@ they are large, not because they are waiting — the order among them means noth
    it shares with **Move semantics at channel send** is the same missing concept: a way to say
    *"this binding is spent."*
 
-4. **A module a person can write that owns a lifetime.** ✅ The DISTINCTION is settled
-   (2026-09-17, see DESIGN under *What Cufet is for*): **a module may own a lifetime, a book may
-   not.** What is unbuilt is both halves of making that true.
+4. **A module a person can write that owns a lifetime.** ✅ **SHIPPED 2026-09-19** — `and region`.
+   `Define object workspace with () and region.` opens an arena scope on `Pull`, can be told to
+   bury, and enforces the outward-only invariant on the type you wrote. `Prelude/rabbit.cufe` says
+   `and region` too, so a rabbit is the first instance of the rule rather than an exception to it.
 
-   - **Nobody can write one.** `rabbit` is the only object in the language that owns a region, and
-     it does not get that by being a module — `Pull a rabbit` is its own AST node emitting
-     `cufet_arena_push()`, while a book or module pull is *"no arena push, no runtime book value,
-     no linking"*. So the power exists and the door to it does not.
-   - **Nothing stops a book from owning one either**, because nothing owns one. The restriction
-     has no teeth until there is something to restrain.
+   ★★ **The premise in this entry was wrong, and measuring it is what made the work small.** It
+   said a user-definable lifetime means user-definable continuations, and that it landed on the
+   unanswered *"which restriction?"* question. MEASURED: nothing in `bury`/`unbury` depends on the
+   region being a rabbit — `cd_rabbit` compiles to an EMPTY STRUCT nothing reads. The two halves
+   were separable, the region half had no open question, and it came to five small changes plus
+   one predicate. ★ The soundness story was genuinely already paid for, exactly as this entry's
+   last line said: one `_rabbitDepth++` at a region pull buys the whole invariant.
 
-   ⚠⚠ **This is the ambitious end, and DESIGN already prices it:** a user-definable lifetime
-   means user-definable continuations, and it lands on the unanswered *"which restriction?"*
-   question in the rabbit control-flow arc. Settling THAT is the first move, not writing syntax.
+   **Still open — the suspension half, which is a different question:**
 
-   ★ What is already paid for: the region model's outward-only invariant was tested adversarially
-   and its three holes closed (see DESIGN, *Memory and concurrency*). The soundness story a
-   user-written region would need is the one rabbits already run on.
+   - **`bury` and `unbury` are not written in Cufet.** They are the language's floor, provided by
+     the compiler the way `If` is, and `rabbit.cufe` already commits to that: *"when the compiler
+     itself is written in Cufet, that provision moves with it."* Nothing is PRIVILEGED — any
+     region gets them — but a person cannot implement one.
+   - ⚠ Writing one down needs a way to say *"calling this suspends my caller"* as distinct from
+     *"this function is a generator"*, which is what a body containing `bury` already means.
+     MEASURED, and three spellings were tried and rejected. Do not reach for a fourth without
+     settling what the two meanings ARE.
+   - **Tasks stay rabbit-only.** `Have <rabbit> start a task` requires a rabbit: a region owns
+     memory, not threads, and widening it has a structured-join guarantee to preserve.
 
 ## Ongoing, no fixed slot
 

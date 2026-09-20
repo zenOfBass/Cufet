@@ -526,6 +526,12 @@ function or field called `make`. ★ The word is decidable without being reserve
 statement begins with a bare name and that word — the same trick `output` and `Seed` use, and it is
 why `make` appears in `CapitalisableStatementWords` rather than in the keyword table.
 
+**`region`** — contextual, a name in a conformance list: `Define object workspace with () and
+region.` Pulling one opens an arena scope its `Done.` closes. ★ It costs no reserved word, exactly
+as `module` and `book` do not — all three are ordinary names the checker recognises in that slot,
+so `Define region as 5.` stays legal. ⚠ `and book and region` is REFUSED (opposite claims); `and
+module and region` is allowed but redundant.
+
 ⚠ **`Remove` is overloaded by what follows it**, not by a second keyword: `Remove <x> from
 <series>` mutates a series, `Remove the file <path>.` and `Remove the directory <path>.` act on the
 filesystem. The noun decides, so removing a file cost no name at all.

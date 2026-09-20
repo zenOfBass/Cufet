@@ -10,6 +10,26 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+- **`and region` — a lifetime a person can write.** `Define object workspace with () and region.`
+  Pulling one opens an arena scope closed by its `Done.`, and it can be told to bury.
+
+  ★★ **`rabbit` is now an instance of the rule rather than an exception to it.** It was the only
+  object in the language that owned a region, and it did not get that by being a module — `Pull a
+  rabbit` was its own AST node emitting `cufet_arena_push()`. So the settled line *a module may own
+  a lifetime, a book may not* had no teeth: nothing else owned one. `Prelude/rabbit.cufe` says
+  `and region` now, so its regionhood is a line in Cufet instead of a branch in the compiler.
+
+  ★ **The soundness story cost nothing.** Every rule that keeps a rabbit sound is depth
+  arithmetic, so one increment at a region pull buys the whole outward-only invariant — storing a
+  region-scoped value where it would outlive its region is refused on a type you wrote exactly as
+  it is on a rabbit.
+
+  ★ **A bury asks whether its agent OWNS a region**, not whether it is the rabbit. That was one
+  sentence while the rabbit was the only region; it is two now.
+
+  ⚠ Not included: tasks. `Have <rabbit> start a task` still requires a rabbit — a region owns
+  memory, not threads, and widening it has a structured-join guarantee to preserve.
+
 - **`Make the directory <path>.`, `Remove the file <path>.`, `Remove the directory <path>.`** — the
   three things the language could not do. It could read a file, write a file and list a directory,
   and could neither create nor remove one.

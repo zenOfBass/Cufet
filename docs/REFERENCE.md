@@ -4400,6 +4400,41 @@ pulling. The noun is what reads: *a book on math* is English, *a math* is not.
 ★ Nothing about the bundled books is privileged here — `math` is a book because it says it is one,
 and anybody's module can say the same.
 
+**A region is a module that OWNS one.** It says so with `and region`, and pulling it opens a
+lifetime that its `Done.` closes — values made inside live in that region and are gone after:
+
+```cufet
+Define object workspace with () and region.
+
+Pull workspace as bench.
+    Define scratch as a series of number with (1, 2, 3).
+    State the number of scratch.
+Done.
+```
+
+★★ **A rabbit is one of these, not an exception to them.** `Prelude/rabbit.cufe` says
+`and region` like any other, so the thing a rabbit does is a thing the language offers rather than
+a power one built-in type was given. A region you wrote can be told to bury, and the stash it
+hands back is an ordinary `stash of T`:
+
+```cufet-fragment
+Bind number to counting-up, given (the workspace bench, the number first-value):
+    Define next as first-value.
+    Repeat:
+        Have bench bury next.
+        The next becomes next + 1.
+    Until false.
+Done.
+```
+
+⚠ **The region rules are the rabbit's rules, because they are one set of rules.** A value made
+inside a region may not be stored where it would outlive it — *"this value lives in a
+shorter-lived region than its destination"* — and that is enforced for your region exactly as it
+is for a rabbit.
+
+⚠ **`and book and region` is refused.** A book owns no lifetime and a region is nothing but one,
+so they are opposite claims. `and module and region` is allowed but says one thing twice.
+
 ⚠ `Pull books on ‹a›, and ‹b›.` applies one spelling to every name, so all of them must be books.
 A book and a module you hold one of are pulled by different words, so they nest rather than
 sharing a statement.
