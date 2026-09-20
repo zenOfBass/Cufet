@@ -190,12 +190,13 @@ Define object terminals with () and prompter and book:
                     return select(1, &watched, NULL, NULL, &no_wait) > 0 ? 1 : 0;
                 }
                 #endif].
-            /* ⚠ `key-ready`, not `ready`, and the reason is a BUG rather than a style: an axiom
-               value's name declared inside a book's method LEAKS into every program that pulls
-               the book, compiled only, and silently captures a local of that name. MEASURED
-               2026-09-20 — `ready` collided with `Define ready as ""` in `tools/repl.cufe` and
-               broke its build within an hour of this method being written. Until that leak is
-               fixed, every axiom value name here is part of the book's public hazard surface. */
+            /* ★ `key-ready` rather than `ready`, and the history is worth keeping even though the
+               reason has gone: an axiom value's name used to LEAK out of the book into every
+               program that pulled it, compiled only, silently capturing a local of the same name.
+               `ready` collided with `Define ready as ""` in `tools/repl.cufe` and broke its build
+               within an hour of this method being written. ✅ FIXED the same day — the code
+               generator now keeps an axiom's name only while the binding still IS that axiom — so
+               the name here is an ordinary choice again, not a hazard being dodged. */
             Define c-language number key-ready as [cufet_terminal_key_waiting()].
             Return cast key-ready is 1.
         Done.
