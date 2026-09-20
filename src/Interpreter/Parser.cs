@@ -4868,21 +4868,6 @@ public sealed class Parser
         var name = Consume(TokenType.Identifier).Lexeme;
         SkipNoise();
 
-        // `Bind void to bury of thing, given (the thing value)` — the slot after `of` NAMES a
-        // blank this signature leaves to be filled. Exactly the spelling and exactly the reasoning
-        // `Define object stack of element` already uses, and it sits here for the same reason: the
-        // slot right after the name is a declaration by position, so nothing is inferred.
-        //
-        // ★ Before `unto`, because `Bind text to describe of thing unto shape:` reads as the blanks
-        // belonging to the method and the `unto` saying whose method it is — which is what they mean.
-        var typeParameters = new List<string>();
-        while (Peek().Type == TokenType.Of)
-        {
-            Advance(); SkipNoise();
-            typeParameters.Add(Consume(TokenType.Identifier).Lexeme);
-            SkipNoise();
-        }
-
         // 'unto <type>' — declares this Bind as a method of <type>, defined outside its
         // body. Comes right after the name, before the optional ', given (...)' clause.
         // Treated exactly like a nested method below: blocks nested Binds inside its body,
@@ -4927,7 +4912,7 @@ public sealed class Parser
         _inFreeFunction = savedInFreeFunction;
 
         return new BindStatement(name, returnType, parameters, body, untoType, constructsTypeName, bindTok.Line, bindTok.Column)
-               { When = whenClause, TypeParameters = typeParameters.Count > 0 ? typeParameters : null };
+               { When = whenClause };
     }
 
     // null return → void (this function returns nothing)

@@ -303,21 +303,6 @@ public sealed record BindStatement(
     /// it three.
     /// </remarks>
     public string? FromAxiomLanguage { get; init; }
-
-    /// <summary>The blanks this signature DECLARES — `Bind void to bury of thing` names one.</summary>
-    /// <remarks>
-    /// ★★ The slot an object has always had, given to functions. `Define object stack of element`
-    /// declares by POSITION, which is why a mistyped type name there stays an error; a function had
-    /// no such slot, so its blanks were INFERRED by the twice rule — an unknown name used at least
-    /// twice. That heuristic stood in for the missing slot, and it has a hole exactly the shape of
-    /// a function taking one value of any type and giving nothing back, which cannot use its blank
-    /// twice. `State` does that and is a statement; nothing a person writes could.
-    ///
-    /// ★ The twice rule still applies when nothing is declared, so every function written so far
-    /// means what it did. Declaring blanks turns the inference OFF for that signature: the names
-    /// listed here are blanks, and an unknown name that is not listed is the error it always was.
-    /// </remarks>
-    public IReadOnlyList<string>? TypeParameters { get; init; }
 }
 
 // Bind overloading <Op>, given (the <LeftName> is a <OperandTypeName>, the <RightName> is a <OperandTypeName>): ... Done.

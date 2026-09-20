@@ -68,15 +68,6 @@ internal static class GenericInstantiation
                 ? filling
                 : leaf);
 
-        // ⚠ TypeParameters is CLEARED, and it has to be. A filling has no blanks left — they are
-        // what was just substituted away — so carrying the template's declaration forward would
-        // hand the checker a signature claiming to leave `thing` blank while mentioning only
-        // `number`, which is exactly the shape the "declared but never used" refusal catches.
-        // Measured: it fired on the filling of a correct function before this line existed.
-        return AstRebuilder.Rebuild(template, Substitute) with
-        {
-            Name = filledName,
-            TypeParameters = null,
-        };
+        return AstRebuilder.Rebuild(template, Substitute) with { Name = filledName };
     }
 }
