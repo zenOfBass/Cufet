@@ -547,6 +547,87 @@ public class ExhaustivenessTests
             + "those unpainted.");
     }
 
+    /// <summary>The other direction: a word the editor paints must still MEAN something.</summary>
+    /// <remarks>
+    /// <para>
+    /// ★★ The test above is ONE-DIRECTIONAL, and that gap was measured rather than guessed:
+    /// un-reserving `descend` on 2026-09-19 removed it from the lexer, and the editor grammar kept
+    /// painting it. Nothing failed. A word the lexer no longer reserves but the grammar still
+    /// colours makes an ORDINARY NAME look like a keyword — the same class of silent wrongness the
+    /// test above exists to prevent, arrived at from the other side.
+    /// </para>
+    /// <para>
+    /// ⚠ "Painted ⇒ reserved" would be WRONG, and that is the whole subtlety. The grammar
+    /// deliberately paints CONTEXTUAL words the lexer does not reserve — MEASURED: `text`, `fact`,
+    /// `bits`, `rabbit`, `book` and `shuffled` are every one of them usable as a variable name
+    /// today, and that is a feature. Those words were not spent, and painting them is still right.
+    /// </para>
+    /// <para>
+    /// ★ So the rule is "reserved OR recognised contextually", and a contextual word is
+    /// recognisable without an allow-list: the parser compares it BY LEXEME, so it appears as a
+    /// string literal in src/. `descend` appeared zero times; the six above appear 2–15 times.
+    /// No hand-kept exception list, for the same reason the test above declines one.
+    /// </para>
+    /// <para>
+    /// ⚠ Words are taken only from ALTERNATION GROUPS, never from the raw pattern: a naive scan
+    /// pulls `w-` out of a `[\w-]` boundary and `eed` out of `[Ss]eed` and reports them as dead.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void EveryWordTheEditorPaints_StillMeansSomething()
+    {
+        var root  = FindRepoRoot();
+        var lexer = File.ReadAllText(Path.Combine(root, "src", "Lexer", "Lexer.cs"));
+        var reserved = new Regex(@"""([a-z][a-z-]*)""\s*=>\s*TokenType\.")
+            .Matches(lexer).Select(m => m.Groups[1].Value).ToHashSet(StringComparer.Ordinal);
+
+        var src = string.Concat(Directory
+            .EnumerateFiles(Path.Combine(root, "src"), "*.cs", SearchOption.AllDirectories)
+            .Select(File.ReadAllText));
+
+        var grammarPath = Path.Combine(
+            root, "editors", "vscode", "syntaxes", "cufet.tmLanguage.json");
+        var painted = new List<(string Word, string Scope)>();
+        void Collect(JsonElement node, string? scope)
+        {
+            if (node.ValueKind == JsonValueKind.Object)
+            {
+                var here = node.TryGetProperty("name", out var nm) && nm.ValueKind == JsonValueKind.String
+                    ? nm.GetString() : scope;
+                if (here is not null && (here.StartsWith("keyword.") || here.StartsWith("storage.")
+                        || here.StartsWith("support.type") || here.StartsWith("constant.language")
+                        || here.StartsWith("variable.language")))
+                    foreach (var key in new[] { "match", "begin" })
+                        if (node.TryGetProperty(key, out var p) && p.ValueKind == JsonValueKind.String)
+                            foreach (Match grp in Regex.Matches(p.GetString()!, @"\(\?i:([^)]*)\)"))
+                                foreach (var w in grp.Groups[1].Value.Split('|'))
+                                    if (Regex.IsMatch(w, "^[a-z][a-z-]*$")) painted.Add((w, here));
+                foreach (var child in node.EnumerateObject()) Collect(child.Value, here);
+            }
+            else if (node.ValueKind == JsonValueKind.Array)
+                foreach (var child in node.EnumerateArray()) Collect(child, scope);
+        }
+        using var grammar = JsonDocument.Parse(File.ReadAllText(grammarPath));
+        Collect(grammar.RootElement, null);
+
+        Assert.True(painted.Count > 80,
+            $"only {painted.Count} painted words were extracted — the grammar's rules have been "
+            + "respelled and this test is now checking almost nothing.");
+
+        var dead = painted
+            .Where(p => !reserved.Contains(p.Word) && !src.Contains("\"" + p.Word + "\"", StringComparison.Ordinal))
+            .Select(p => $"{p.Word} ({p.Scope})")
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        Assert.True(dead.Count == 0,
+            $"{dead.Count} word(s) the editor paints that the language no longer knows: "
+            + string.Join(", ", dead)
+            + "\n\nThe lexer does not reserve it and nothing in src/ compares it by lexeme, so it is "
+            + "an ORDINARY NAME the editor colours as a keyword. Remove it from the rule it sits in "
+            + "in editors/vscode/syntaxes/cufet.tmLanguage.json.");
+    }
+
     // ★★ A platform gate written as an early return is INVISIBLE: xUnit records it as a PASS, so
     // the test reports green without executing and the total gives no hint. 83 tests did exactly
     // that — a Windows run said 861 green with 83 never run, and one of them had never executed

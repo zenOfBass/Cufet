@@ -272,6 +272,7 @@ rabbit's TASKS compose, never its ordinary statements, which stay sequential imp
   as a message-passing substrate. A gate COMBINES all its inputs; a select takes ONE and ignores
   the rest — opposite operations. And a mailbox is a QUEUE while a wire is a LEVEL, so a wire has
   neither the ordering nor the buffering a mailbox exists to provide.
+
 - **`parallel` is the default**, which is what a task-spawning rabbit already does. All three stay
   sayable: a default is a voiceable choice, not an inferred silence. A rabbit that spawns no tasks
   has no mode at all.
