@@ -889,6 +889,34 @@ The two arcs where soundness was the whole problem.
   and compelling, not between telling and silence. A deliberate `return a failure` is unaffected:
   that rides in the type as it always has, and the await must still handle it.
 
+- **A repeating task form — BUILT AND REMOVED THE SAME DAY, 2026-09-20.**
+  `Have rabbit start a task, repeat: … Done.` made a task's body a loop: `Stop` ended it, `Skip`
+  took the next turn, and an undeclared fault ended the turn rather than the program. It worked on
+  both backends and was removed anyway. **Do not rebuild it without answering what follows.**
+
+  ★★ **The justification was "let it crash", and the analogy does not survive contact.** That
+  pattern is valuable because a crashing process **loses corrupted state and restarts clean**. A
+  repeating task has no state to lose: each turn is a scope, so a body-local resets, and the place
+  a loop normally keeps a total — *above* the loop — does not exist, because the body **is** the
+  loop. Nothing to corrupt and nothing to restore, so the argument was borrowed rather than earned.
+
+  ★★ **MEASURED: a `While` loop with a `Try` inside an ordinary task already does more.** It
+  survives the faulting job, keeps a tally, *and counts what it dropped* — verified identical on
+  both backends. The repeating form could not produce that last line at all. Its one distinctive
+  behaviour was swallowing a fault **silently, with no way to observe it happened**, which is a
+  misfeature rather than a feature.
+
+  ⚠ **And the obvious fix converges on what exists.** The cure for the tally gap is a preamble
+  before the loop — at which point the construct *is* a loop inside an ordinary task.
+
+  ★ What it did buy was real but small: the receive written once instead of twice, since a
+  `While`-shaped worker must prime the pump and advance at the bottom. Not worth its price, which
+  was a **narrowed grammar** — `Have rabbit start a task, Repeat: … Until x.` was legal before —
+  plus a new form in two documents and a capture rule existing only to serve it.
+
+  ★ **It was not wasted.** Building it surfaced a live divergence reaching back to 0.23.0: a rabbit
+  ran its own scope's unmakers *before* joining its tasks, destroying rabbit-local objects while
+  the tasks that could still read them ran. That fix stayed. See the CHANGELOG entry.
 
 ---
 
@@ -1023,8 +1051,8 @@ against a buffering interpreter is a divergence that HANGS rather than one that 
 thing. ★ Contrast the FUNCTION pipe, where the two legitimately differ (buffered interpreted,
 one thread per stage compiled) because each channel is FIFO and the observable order is therefore
 the same. The subprocess form has no such guarantee, so it buffers on both sides until it can
-stream on both.
-
+stream on both.
+
 ⚠ **Headers and LINK FLAGS are one feature, not two.** The bundled header set covers what links
 by default, so binding a library of your own is the gap — and shipping headers alone would be
 worse than shipping nothing: `#include <sqlite3.h>` gets the declarations and then fails at

@@ -1720,31 +1720,12 @@ Pull a rabbit.
     Have rabbit start a task as <name>:
         ... task body ...
     Done.
-    Have rabbit start a task[ as <name>], repeat:
-        ... task body, run again and again ...
-    Done.
     ... more statements ...
 Done.   ← all tasks spawned in this rabbit JOIN here
 ```
 
 - **Requires an active rabbit** — `Have rabbit start a task` must appear inside a
   `Pull a rabbit. ... Done.` block. Using it outside any rabbit is a parse error.
-- **`, repeat:` makes the body a loop** — the same comma-then-`repeat` that `While` and
-  `For each` use, so the word costs nothing new. `Stop` ends the repetition and `Skip` starts
-  the next turn; both are legal in a repeating task body and remain parse errors
-  (`'Stop' used outside a loop`) in an ordinary one.
-  - ⚠ **This narrowed the inline comma form.** `Have rabbit start a task, Repeat: … Until x.`
-    once parsed as a one-statement body that happened to be a `Repeat`-`Until` loop. The two
-    readings differ **only in what closes the body** (`Done.` vs `Until`), which no bounded
-    lookahead separates, so the spelling belongs to the repeating task and the old reading is
-    written as a block: `Have rabbit start a task: Repeat: … Until x. Done.` The parser refuses
-    the old shape with exactly that rewrite.
-  - ⚠ **The exit is in the BODY.** There is no "repeat until the rabbit closes" — see
-    *Interpreted versus compiled*: the count would be thread timing compiled and a hang
-    interpreted. The rabbit still bounds the task's lifetime.
-  - An **undeclared fault** (a division by zero, an index past the end) ends the **turn** and the
-    next turn begins. A **deliberate** `return a failure` is unaffected and still travels to the
-    await site.
 - **Optional name** (`as <name>`) — binds an identity so the task's result can be awaited
   with `the awaited result of <name>`. Both backends support this; an anonymous task is
   fire-and-forget and its `return` value is dropped.
