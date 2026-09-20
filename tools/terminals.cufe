@@ -12,15 +12,22 @@
 /// whether anybody is there at all. `raw-on` and `raw-off` bracket the stretch where the keys
 /// arrive one at a time instead of a line at a time.
 ///
-/// ⚠ **This is the whole of what `terminals` hands out.** Everything else in it — key decoding,
-/// redrawing the line, measuring a shared prefix — is how the line editor works, not something to
-/// call from outside.
+/// ⚠ **This is the whole of what `terminals` hands out.** Everything else in it — redrawing the
+/// line, measuring a shared prefix — is how the line editor works, not something to call from
+/// outside.
+///
+/// ★ `key-waiting` and `read-key` are handed out as well, for a program that has its own clock
+/// and cannot sit and wait: ask whether a key is there, act either way, and read it only when
+/// there is one. `typed` remains the answer whenever a whole LINE is what you want — it is the
+/// line editor, and reading keys yourself gets you none of it.
 Define prompter as an interface for {
     The void function put, given (the text letters),
     The fact function interactive,
     The fact function raw-on,
     The void function raw-off,
-    The voidable text function typed, given (the fact editing, the series of text past)
+    The voidable text function typed, given (the fact editing, the series of text past),
+    The fact function key-waiting,
+    The number function read-key
 }.
 
 /// Talking to whoever is at the keyboard: a prompt that leaves the cursor where it is, and a
@@ -153,6 +160,46 @@ Define object terminals with () and prompter and book:
             Cast restored.
         Done.
     Done.
+
+    /// Whether a keypress is already waiting, so that reading one will not block.
+    ///
+    /// ★ `read-key` WAITS. Raw mode is set with `VMIN = 1`, which means "return as soon as one
+    /// byte arrives, and not before" — right for a line editor, which has nothing to do until
+    /// somebody types. A program with its own clock has the opposite need: it must act on every
+    /// tick whether a key came or not, and ask about the keyboard without stopping for it.
+    ///
+    /// ⚠ It answers about ONE BYTE, not one keypress. An arrow arrives as an escape sequence on
+    /// POSIX and a two-byte code on Windows, so a true answer means `read-key` will not block on
+    /// its FIRST byte — the remaining bytes of a sequence are already on their way and `read-key`
+    /// consumes them itself. That is the same assumption the line editor has always made.
+    Bind fact to key-waiting:
+        Pull a book on the c-language.
+            Define c-language waiting-support as [#if defined(_WIN32)
+                #include <conio.h>
+                static int cufet_terminal_key_waiting(void) { return _kbhit() ? 1 : 0; }
+                #else
+                #include <sys/select.h>
+                #include <unistd.h>
+                static int cufet_terminal_key_waiting(void) {
+                    fd_set watched;
+                    struct timeval no_wait;
+                    FD_ZERO(&watched);
+                    FD_SET(0, &watched);
+                    no_wait.tv_sec = 0;
+                    no_wait.tv_usec = 0;
+                    return select(1, &watched, NULL, NULL, &no_wait) > 0 ? 1 : 0;
+                }
+                #endif].
+            /* ⚠ `key-ready`, not `ready`, and the reason is a BUG rather than a style: an axiom
+               value's name declared inside a book's method LEAKS into every program that pulls
+               the book, compiled only, and silently captures a local of that name. MEASURED
+               2026-09-20 — `ready` collided with `Define ready as ""` in `tools/repl.cufe` and
+               broke its build within an hour of this method being written. Until that leak is
+               fixed, every axiom value name here is part of the book's public hazard surface. */
+            Define c-language number key-ready as [cufet_terminal_key_waiting()].
+            Return cast key-ready is 1.
+        Done.
+        Done.
 
     /*  One keypress, as a number the Cufet above can read without knowing what machine it is on.
         The normalising is the whole point of doing it here: POSIX sends an arrow key as an escape
