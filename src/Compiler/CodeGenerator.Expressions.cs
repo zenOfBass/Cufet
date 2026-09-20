@@ -80,55 +80,6 @@ public sealed partial class CodeGenerator
         return found;
     }
 
-    private bool CaptureWriteIsObservable(IReadOnlyList<IStatement> taskBody, string name)
-    {
-        bool found = false;
-
-        void Walk(object? node)
-        {
-            if (found || node is null) return;
-
-            switch (node)
-            {
-                // The task's own body is not "elsewhere" — skip the whole subtree it hangs from.
-                case LaunchTaskStatement lts when ReferenceEquals(lts.Body, taskBody):
-                    return;
-
-                // Reading it.
-                case VariableReference v:
-                    if (v.Name == name) found = true;
-                    return;
-
-                // Writing it. The target is a bare string, invisible to the reflection walk below,
-                // and a sibling that only WRITES the name can still tell the two backends apart.
-                case BecomesStatement b:
-                    if (b.Name == name) { found = true; return; }
-                    Walk(b.Value);
-                    return;
-
-                case string: return;
-
-                case System.Runtime.CompilerServices.ITuple tup:
-                    for (int i = 0; i < tup.Length && !found; i++) Walk(tup[i]);
-                    return;
-
-                case System.Collections.IEnumerable en:
-                    foreach (var item in en) { Walk(item); if (found) return; }
-                    return;
-            }
-
-            // Same reflection descend CollectRefsDefs uses, so a new AST node is traversed without
-            // needing an arm here.
-            foreach (var prop in node.GetType().GetProperties())
-            {
-                Walk(prop.GetValue(node));
-                if (found) return;
-            }
-        }
-
-        Walk(_program?.Statements);
-        return found;
-    }
 
     // Infers a named task's result type from its returns — mirrors the checker's inference so the
     // heap-bridge C type matches. Scans nested control flow (but not nested tasks). A `return void`
@@ -245,115 +196,6 @@ public sealed partial class CodeGenerator
     // missed (closures capture arbitrary values; an undiscovered ref would be an undeclared C var).
     // Binding forms (Define/ForEach/lambda/nested-Bind params) contribute defs so their bodies' refs
     // to them aren't counted as free. Free vars = refs − defs (computed by the caller).
-    private void CollectRefsDefs(object? node, HashSet<string> refs, HashSet<string> defs)
-    {
-        // A nested BINDING FORM (lambda / nested Bind / for-each) binds its params/iterator to its OWN
-        // body only. Walking it with the shared `defs` set would let those inner names mask an OUTER
-        // variable of the same name for the WHOLE enclosing body — the variable would then look
-        // "defined" and never be captured, emitting an undeclared `cv_<name>` (the same symptom as a
-        // missed ref). So recurse with a private scope and merge back only what is still free.
-        void Nested(IEnumerable<string> bound, IEnumerable<IStatement> body)
-        {
-            var innerDefs = new HashSet<string>(defs);
-            foreach (var b in bound) innerDefs.Add(b);
-            var innerRefs = new HashSet<string>();
-            foreach (var s in body) CollectRefsDefs(s, innerRefs, innerDefs);
-            foreach (var r in innerRefs) if (!innerDefs.Contains(r)) refs.Add(r);
-        }
-
-        switch (node)
-        {
-            case null: return;
-            case VariableReference v: refs.Add(v.Name); return;
-            // An assignment TARGET is a REFERENCE to an existing binding, but the name is a bare
-            // string — invisible to the generic reflection walk below (`case string: break`). Without
-            // this, a closure/task that only WRITES a captured variable never captures it and emits an
-            // undeclared `cv_<name>`. (A body that also reads it was rescued by the read, which is why
-            // this survived: `x becomes x + 1` works, `x becomes 5` did not.)
-            case BecomesStatement b: refs.Add(b.Name); CollectRefsDefs(b.Value, refs, defs); return;
-            case DefineStatement d: defs.Add(d.Name); CollectRefsDefs(d.Value, refs, defs); return;
-            // A return that RUNS an axiom names it, but does not read it: the checker resolved the
-            // name to the source and this backend pastes that source in. There is no value to
-            // capture, so a body that only reaches for an axiom is not a closure.
-            case ReturnStatement { RunsAxiom: not null }: return;
-            // ★ The same for one called as a statement — but its ARGUMENTS are still read, so
-            // unlike the return above this recurses into them rather than stopping.
-            case CastStatement { RunsAxiom: not null } effectCall:
-                foreach (var arg in effectCall.Args) CollectRefsDefs(arg, refs, defs);
-                return;
-            // ⚠ And NOT the same for one reached through a value. That call READS its callee — the
-            // name holds the thing being called — so it falls through to the ordinary walk below
-            // and is captured like any other free variable. Stopping here instead would build a
-            // closure with no slot for the axiom it calls.
-            case ForEachStatement fe:
-                CollectRefsDefs(fe.Series, refs, defs);   // the series expression is in the OUTER scope
-                Nested(fe.IteratorName != null ? [fe.IteratorName] : [], fe.Body);
-                return;
-            case ForEachFromInputStatement fi:
-                Nested([fi.IteratorName], fi.Body);
-                return;
-            case LambdaLiteral lam:
-                Nested(lam.Parameters.Select(p => p.Name), lam.Body);
-                return;
-            case BindStatement nb:
-                defs.Add(nb.Name);                        // the local function's NAME binds in the enclosing scope
-                Nested(nb.Parameters.Select(p => p.Name), nb.Body);
-                return;
-            // ⭐⭐ An object definition sits INSIDE a body without being part of it. Its methods,
-            // getters and setters are emitted as C functions of their own, off the program's type
-            // table, and the receiver they read fields through is `one` — bound by the member, not
-            // by anything in the body the definition was written in.
-            //
-            // ⚠ Walking them without binding `one` reported it as a capture of the ENCLOSING
-            // function, so `Define object …` inside a function inside a `Pull` block was refused
-            // with "captures 'one' from the pull scope" — a program the interpreter runs and the
-            // compiler would not, on a name no writer ever declared. A DIVERGENCE, and the oracle
-            // could not have found it: no test had put those three things together.
-            //
-            // ★ The bodies are still walked. A method genuinely reaching for a local of the
-            // enclosing body is still the deferred closure gap, and still has to be caught — only
-            // the receiver and each member's own parameters are bound first.
-            case ObjectDefinition od:
-                foreach (var method in od.Methods)
-                    Nested(["one", .. method.Parameters.Select(p => p.Name)], method.Body);
-                foreach (var getter in od.Getters) Nested(["one"], getter.Body);
-                foreach (var setter in od.Setters) Nested(["one", setter.ParamName], setter.Body);
-                return;
-        }
-        // Generic: visit every AST child, including tuple-wrapped ones (record/object/map literal
-        // fields) and lists thereof.
-        //
-        // ★ Keyed on the NAMESPACE, not on IExpression/IStatement — the same correction AstSearch
-        // carries, and for the same reason. `ConditionArm` and `JudgeArm` are plain records that
-        // HOLD statements without implementing either interface, so matching the interfaces walked
-        // straight past the condition AND the body of every `If` arm and every judgement.
-        //
-        // The symptom was a task or closure that referenced an enclosing variable ONLY inside an
-        // `If` arm: the name never reached `refs`, so it was never captured, and the emitted C said
-        // `cv_<name> undeclared`. It hid for so long because a body that also touches the variable
-        // anywhere else is rescued by that other mention — the work-queue collector broke only
-        // because `If count is n, Stop.` was its sole use of `n`. `Otherwise` bodies were fine
-        // throughout, since ElseBody is an ordinary property rather than an arm.
-        void Visit(object? val)
-        {
-            switch (val)
-            {
-                case null or string or CufetType: break;
-                case System.Runtime.CompilerServices.ITuple tup:
-                    for (int i = 0; i < tup.Length; i++) Visit(tup[i]);
-                    break;
-                case System.Collections.IEnumerable en:
-                    foreach (var item in en) Visit(item);
-                    break;
-                default:
-                    if (val.GetType().Namespace == typeof(IStatement).Namespace)
-                        CollectRefsDefs(val, refs, defs);
-                    break;
-            }
-        }
-        foreach (var prop in node!.GetType().GetProperties())
-            Visit(prop.GetValue(node));
-    }
 
     // <fallible> or pass the failure off — on failure, return it from the enclosing (fallible)
     // function immediately; on success, the plain value.
@@ -1036,7 +878,7 @@ public sealed partial class CodeGenerator
                                         IReadOnlyList<IStatement> body, out bool capturesFailure)
     {
         var refs = new HashSet<string>(); var defs = new HashSet<string>();
-        foreach (var s in body) CollectRefsDefs(s, refs, defs);
+        foreach (var s in body) TaskCaptures.CollectRefsDefs(s, refs, defs);
         var pnames = parameters.Select(p => p.Name).ToHashSet();
         capturesFailure = refs.Contains("the failure") && !defs.Contains("the failure") && _currentFailVar != null;
         return refs.Where(r => !defs.Contains(r) && !pnames.Contains(r)

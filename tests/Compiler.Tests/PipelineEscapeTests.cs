@@ -120,7 +120,7 @@ public class PipelineEscapeTests : PipelineTestBase
             Done.
             State data.
             """;
-        var ex = Assert.Throws<CompilerException>(() => Compile(src));
+        var ex = Assert.Throws<TypeException>(() => Compile(src));
         Assert.Contains("captured from outside the task", ex.Message);
     }
 
@@ -130,6 +130,38 @@ public class PipelineEscapeTests : PipelineTestBase
     // The parent never touches `tally` after the spawn and the rabbit's join is a happens-before
     // edge, so this is not a race — it is one program with two well-defined, differing answers.
     // Nothing about a value being small or trivially copyable makes the write meaningful.
+    /// <summary>The refusal is the CHECKER'S, so all three tools give one answer.</summary>
+    /// <remarks>
+    /// ★★ MEASURED as a three-way disagreement on 2026-09-19, before the rule moved out of the
+    /// code generator: `cufet check` passed this program, the interpreter RAN it and printed 5
+    /// (it hands a task body the live enclosing binding), and `cufet build` refused it. One
+    /// program, three answers — and the suite noticed none of it, because every test went through
+    /// the compiler.
+    ///
+    /// ⚠ This is the guard that would have caught that, and it is deliberately NOT a
+    /// Compile()-only assertion: it drives the CHECKER directly, which is the tool the other two
+    /// share. A refusal that only one backend performs is the shape this codebase keeps meeting.
+    /// </remarks>
+    [Fact]
+    public void TaskCapture_TheRefusalIsTheCheckers_NotTheCompilers()
+    {
+        const string src = """
+            Define tally as 0.
+            Pull a rabbit as hopper.
+                Have hopper start a task as bump:
+                    Tally becomes tally + 5.
+                    Return 1.
+                Done.
+                State the awaited result of bump.
+            Done.
+            State tally.
+            """;
+        var tokens  = new CufetLexer(src).Tokenize();
+        var program = new Parser(tokens).Parse();
+        var ex = Assert.Throws<TypeException>(() => new TypeChecker().Check(program));
+        Assert.Contains("captured from outside the task", ex.Message);
+    }
+
     [Fact]
     public void TaskCapture_MutatingACapturedNumber_IsRefused()
     {
@@ -144,7 +176,7 @@ public class PipelineEscapeTests : PipelineTestBase
             Done.
             State tally.
             """;
-        var ex = Assert.Throws<CompilerException>(() => Compile(src));
+        var ex = Assert.Throws<TypeException>(() => Compile(src));
         Assert.Contains("captured from outside the task", ex.Message);
     }
 
@@ -175,7 +207,7 @@ public class PipelineEscapeTests : PipelineTestBase
             Done.
             State tally.
             """;
-        var ex = Assert.Throws<CompilerException>(() => Compile(src));
+        var ex = Assert.Throws<TypeException>(() => Compile(src));
         Assert.Contains("captured from outside the task", ex.Message);
     }
 
@@ -198,7 +230,7 @@ public class PipelineEscapeTests : PipelineTestBase
             Done.
             State tally.
             """;
-        var ex = Assert.Throws<CompilerException>(() => Compile(src));
+        var ex = Assert.Throws<TypeException>(() => Compile(src));
         Assert.Contains("captured from outside the task", ex.Message);
     }
 
@@ -265,7 +297,7 @@ public class PipelineEscapeTests : PipelineTestBase
                 Done.
             Done.
             """;
-        var ex = Assert.Throws<CompilerException>(() => Compile(src));
+        var ex = Assert.Throws<TypeException>(() => Compile(src));
         Assert.Contains("captured from outside the task", ex.Message);
     }
 
@@ -281,7 +313,7 @@ public class PipelineEscapeTests : PipelineTestBase
             Done.
             State tally.
             """;
-        var ex = Assert.Throws<CompilerException>(() => Compile(src));
+        var ex = Assert.Throws<TypeException>(() => Compile(src));
         Assert.Contains("captured from outside the task", ex.Message);
     }
 
@@ -326,7 +358,7 @@ public class PipelineEscapeTests : PipelineTestBase
             Done.
             State data.
             """;
-        var ex = Assert.Throws<CompilerException>(() => Compile(src));
+        var ex = Assert.Throws<TypeException>(() => Compile(src));
         Assert.Contains("captured from outside the task", ex.Message);
     }
 

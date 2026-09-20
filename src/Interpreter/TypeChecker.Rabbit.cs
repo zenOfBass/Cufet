@@ -85,6 +85,29 @@ public sealed partial class TypeChecker
                   + $"'{named}' was pulled.");
         }
 
+        // ★★ A task may not CHANGE what it captured, and the refusal lives HERE so that `check`,
+        // the interpreter and the compiler all give one answer. It was the code generator's alone
+        // until 2026-09-19, and the three tools disagreed: MEASURED on `tally becomes tally + 5`
+        // inside a task, `check` passed, the interpreter printed 5 (it hands a task body the LIVE
+        // enclosing binding), and `build` refused. One program, three answers.
+        //
+        // ⚠ Only an OBSERVABLE write is refused — something outside the task reads the name
+        // afterwards — because that is the case where the backends genuinely differ. A write
+        // nothing reads still only warns, from the compiler, where saying so costs nothing:
+        // refusing it would be a rule wider than its reason.
+        foreach (var captured in TaskCaptures.Of(lts.Body, n => TryLookup(n, out _)))
+            if (TaskCaptures.MayMutate(lts.Body, captured)
+             && TaskCaptures.WriteIsObservable(_wholeProgram, lts.Body, captured))
+                throw TypeError(
+                    $"this task changes '{captured}', which it captured from outside the task",
+                    "A task gets its own copy of everything it captures, because captures cross a "
+                  + "thread boundary — so the change would not be visible outside, and two tasks "
+                  + "changing it at once would race",
+                    lts.Line, lts.Column,
+                    $"change '{captured}' from inside a task",
+                    $"Send the result back through a channel, or return it from a named task and "
+                  + $"await it.");
+
         bool bodyIsFallible = HasDirectFailureReturn(lts.Body);
 
         var prevInFunction       = _inFunction;

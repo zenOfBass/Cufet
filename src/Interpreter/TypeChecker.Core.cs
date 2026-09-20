@@ -612,6 +612,9 @@ public sealed partial class TypeChecker
     private readonly List<Dictionary<string, CufetType>>     _typeScopes    = [new()];
     private readonly Dictionary<string, ObjectType>          _objectDefs    = new();
 
+    /// <summary>The program being checked, for the one rule that is not local to a statement.</summary>
+    private Program? _wholeProgram;
+
     /// <summary>Per type, the fields it gives a default for — `the number age with default 0`.</summary>
     /// <remarks>
     /// ★ A side table rather than a property on ObjectType, which is rebuilt in several places
@@ -1088,6 +1091,10 @@ public sealed partial class TypeChecker
     {
         _scopes[0]["input"] = BuiltinInput;
         program = WithPrelude(program);
+        // Held for the whole-program question TaskCaptures.WriteIsObservable asks: does anything
+        // OUTSIDE a task read a name the task writes? Set after the prelude so the program it
+        // walks is the one that runs.
+        _wholeProgram = program;
 
         // ⭐⭐ BEFORE the hoist, and that ordering is the feature. A cited object has to be an
         // ordinary statement of the program by the time types are gathered, or it is a type nobody

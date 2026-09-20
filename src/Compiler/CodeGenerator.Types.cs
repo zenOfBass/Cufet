@@ -495,7 +495,7 @@ static const char* cufet_str_lower(const char* s) {
                 // (params + its own defines + functions + book aliases are fine — anything else is
                 // a closure capture, the deferred gap).
                 var refs = new HashSet<string>(); var defs = new HashSet<string>();
-                foreach (var s in bind.Body) CollectRefsDefs(s, refs, defs);
+                foreach (var s in bind.Body) TaskCaptures.CollectRefsDefs(s, refs, defs);
                 // ⭐⭐ Object MEMBERS count as known, the same way free functions on the line above
                 // do. `cast sum on (the here)` — the free-cast form README teaches — writes the
                 // member's name in callee position, where the walk sees an ordinary variable being

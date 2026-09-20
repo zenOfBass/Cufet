@@ -10,7 +10,7 @@ public sealed partial class CodeGenerator
     // thrown; this is only ever added to. Read it after Generate returns.
     public DiagnosticBag Diagnostics { get; } = new();
 
-    // The program being generated, for the whole-program questions (see CaptureWriteIsObservable).
+    // The program being generated, for the whole-program questions (see TaskCaptures.WriteIsObservable).
     private Program? _program;
 
     private int _forCounter;
@@ -1510,11 +1510,11 @@ public sealed partial class CodeGenerator
 
         // Captured free variables = referenced enclosing locals not defined inside the task body.
         var refs = new HashSet<string>(); var defs = new HashSet<string>();
-        foreach (var s in lts.Body) CollectRefsDefs(s, refs, defs);
+        foreach (var s in lts.Body) TaskCaptures.CollectRefsDefs(s, refs, defs);
         var caps = refs.Where(r => !defs.Contains(r) && _varTypes.ContainsKey(r)).OrderBy(x => x).ToList();
         // TCAP — a capture of ANY type is allowed, but the task must not MUTATE one. Every capture
         // crosses a thread boundary and so is the task's OWN copy; writing to it changes only that
-        // copy. See TaskBodyMayMutate for why this is a refusal rather than a silent copy.
+        // copy. See TaskCaptures for why this is a refusal rather than a silent copy.
         // A captured TASK HANDLE means this body awaits another task. It rides as the awaited task's
         // result-box pointer — shared, never copied, because a box is a synchronisation object like
         // a channel rather than arena memory.
@@ -1525,9 +1525,9 @@ public sealed partial class CodeGenerator
         foreach (var c in caps) if (_varTypes[c] is TaskHandleType) _usesConcurrency = true;
 
         foreach (var c in caps)
-            if (TaskBodyMayMutate(lts.Body, c))
+            if (TaskCaptures.MayMutate(lts.Body, c))
             {
-                if (CaptureWriteIsObservable(lts.Body, c))
+                if (TaskCaptures.WriteIsObservable(_program, lts.Body, c))
                     throw new CompilerException(
                         $"this task changes '{c}', which it captured from outside the task. A task gets its own copy of " +
                         $"everything it captures — captures cross a thread boundary — so the change would not be visible " +
@@ -1713,73 +1713,5 @@ public sealed partial class CodeGenerator
     // carrying a write target). A CALL is treated as a possible mutation because argument binding
     // shares series and maps with the callee, so a callee can mutate through its parameter. Target
     // expressions are matched by "mentions the name anywhere", which over-approximates safely.
-    private bool TaskBodyMayMutate(object? node, string name)
-    {
-        bool Touches(IExpression? e)
-        {
-            if (e == null) return false;
-            var refs = new HashSet<string>();
-            CollectRefsDefs(e, refs, new HashSet<string>());
-            return refs.Contains(name);
-        }
-
-        switch (node)
-        {
-            case null: return false;
-            // Rebinding the capture: the interpreter would rebind the ENCLOSING binding.
-            case BecomesStatement b when b.Name == name: return true;
-            case SeriesInsertStatement s          when Touches(s.Series):  return true;
-            case SeriesRemoveAtStatement s     when Touches(s.Series):  return true;
-            case SeriesRemoveValueStatement s  when Touches(s.Series):  return true;
-            case SeriesSetStatement s          when Touches(s.Series):  return true;
-            case MatrixSetStatement s          when Touches(s.Matrix):  return true;
-            case RecordNamedSetStatement s     when Touches(s.Record):  return true;
-            case PossessiveSetStatement s      when Touches(s.Target):  return true;
-            case MapSetStatement s             when Touches(s.Map):     return true;
-            // Handing the value to a function — the callee may mutate through its parameter.
-            case CastExpression ce when ce.Args.Any(a => Touches(a)):   return true;
-            case CastStatement cs when cs.Args.Any(a => Touches(a)):    return true;
-        }
-
-        // Otherwise descend into every child statement/expression (same reflection walk as
-        // CollectRefsDefs, so a new AST node is traversed without needing an arm here).
-        bool found = false;
-        void Visit(object? val)
-        {
-            if (found) return;
-            switch (val)
-            {
-                case null or string or CufetType: break;
-                case System.Runtime.CompilerServices.ITuple tup:
-                    for (int i = 0; i < tup.Length && !found; i++) Visit(tup[i]);
-                    break;
-                case System.Collections.IEnumerable en:
-                    foreach (var item in en) { Visit(item); if (found) break; }
-                    break;
-                default:
-                    // ★ Keyed on the NAMESPACE, not on IExpression/IStatement. `ConditionArm` and
-                    // `JudgeArm` implement neither, so matching the interfaces walked past the body
-                    // of every `If` arm — and THIS walk decides whether a task's capture-write is
-                    // refused. A write hidden one `If` deep was not seen, the refusal never fired,
-                    // and the program compiled to something the interpreter disagrees with.
-                    // Measured: `If 1 is 1: tally becomes tally + 5. Done.` inside a task printed
-                    // 5 interpreted and 0 compiled, with `check --native` reporting no problems.
-                    //
-                    // This walk must OVER-approximate: missing a write ships a divergence, while an
-                    // extra refusal only costs a clean error. Descending into everything in the AST
-                    // namespace is the safe direction.
-                    if (val.GetType().Namespace == typeof(IStatement).Namespace
-                        && TaskBodyMayMutate(val, name)) found = true;
-                    break;
-            }
-        }
-        if (node is System.Collections.IEnumerable seq and not string) { Visit(seq); return found; }
-        foreach (var prop in node.GetType().GetProperties())
-        {
-            Visit(prop.GetValue(node));
-            if (found) return true;
-        }
-        return found;
-    }
 
 }
