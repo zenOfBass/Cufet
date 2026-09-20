@@ -248,17 +248,6 @@ rather than the operators `bits` already shipped.
 
 ## Deferred — blocked on something that is not itself on the list
 
-These are **not** numbered above, and that is the point rather than an oversight. Everything in
-*What's next* is ordered because its blocker is either nothing or another numbered item. Each
-entry here is blocked on an arc that has not been designed, or on a use case that has not
-arrived — so giving it a position would be fiction, and the ordering above is only worth
-anything if it means something.
-
-Nothing here has been argued down. Each states its blocker, because a deferral without one is
-indistinguishable from having forgotten.
-
-**Promote an item the moment its blocker becomes a numbered item.**
-
 ### Language
 
 - **`sorted by <function>` — ordering by a computed key.** `sorted by the <field>` reaches named
