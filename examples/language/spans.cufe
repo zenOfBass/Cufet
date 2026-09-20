@@ -1,0 +1,41 @@
+/*  A module that carries a TYPE, not just members.
+
+    This is the half of the module system that `pennies.cufe` does not show. A book exports
+    members — things you reach with `'s`. A module may also carry DECLARATIONS, and that is the
+    only way a type crosses a file boundary: a file's top level is private, and an object body
+    otherwise takes only `Bind`, `Get` and `Set`.
+
+    ★ **Members are what an object HAS; declarations are what a module CARRIES.** A type is not a
+    member — nothing reaches it with `'s`, and no interface can require one — so only a module may
+    hold one. An ordinary object that tries is refused, and the message names the fix.
+
+    ★ `between` returns a `span`, so the carried type is in this module's own signatures as well
+    as in the caller's. See booking.cufe for the other side: pulling this brings `span` into scope
+    by its SHORT name, for the length of the block, and it is gone after the `Done.`
+
+    ⚠ Two modules may each carry a `span` without colliding — the file is what separates them,
+    the same way it hides a book's working material.
+*/
+
+Define object spans with () and module:
+
+    /// A closed interval on the number line: both edges count as inside.
+    Define object span with (the number low, the number high):
+
+        /// How far it reaches.
+        Bind number to width:
+            Return one's high - one's low.
+        Done.
+
+        /// Whether a value falls inside, edges included.
+        Bind fact to covers, given (the number value):
+            Return value is not less than one's low and value is not greater than one's high.
+        Done.
+    Done.
+
+    /// Makes a span, putting the edges in order whichever way round they arrive.
+    Bind span to between, given (the number one-edge, the number other-edge):
+        If one-edge is greater than other-edge, return a new span { the low other-edge, the high one-edge }.
+        Return a new span { the low one-edge, the high other-edge }.
+    Done.
+Done.

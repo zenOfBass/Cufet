@@ -1,0 +1,56 @@
+/*  A lifetime you wrote yourself, and fields you did not have to fill in.
+
+    ★★ `and region` says this object OWNS A LIFETIME. Pulling it opens a scope that its `Done.`
+    closes, exactly as a rabbit's does — and it can be told to `bury`. That is the whole claim:
+    the thing a rabbit does is a thing the language offers, not a power one built-in type was
+    given. `Prelude/rabbit.cufe` says `and region` like this file does, so a rabbit is the first
+    instance of the rule rather than an exception to it.
+
+    Compare `stashes.cufe`, which buries from `the rabbit helper`. This buries from
+    `the workshop bench` — a type a stranger could write and publish — and nothing else changes.
+
+    ★ A book is a module that owns NO lifetime; a region is a module that owns one. Same
+    mechanism, and the surface says which: you consult a book, and you open a workshop.
+
+    ★★ FIELD DEFAULTS are the other half. `with default` lets a construction site name only what
+    differs, which is what makes a type with many settings bearable. The default is filled in AT
+    EACH SITE, not computed once at the definition — so a defaulted series would give every
+    object its own, and the mutable-default trap is answered by construction rather than by a
+    rule. `memo` below names one field of three.
+
+    ⚠ Values made inside a region may not be stored where they would outlive it. The rule is the
+    rabbit's rule because it is one set of rules.
+*/
+
+Define object workshop with () and region.
+
+Define object job with (the text title,
+                        the number copies with default 1,
+                        the text finish with default "plain").
+
+/// Hands out ticket numbers for as long as anyone keeps asking.
+///
+/// ★ Nothing in the declaration says "stash" — a body that buries anywhere hands back a
+/// `stash of <what it buries>`, the same way `return a failure` decides fallibility. What it
+/// does need is something that owns a lifetime to do the burying, so it takes one.
+Bind number to tickets-from, given (the workshop bench, the number first-ticket):
+    Define next as first-ticket.
+    Repeat:
+        Have bench bury next.
+        The next becomes next + 1.
+    Until false.
+Done.
+
+State "the shop opens".
+
+Pull workshop as floor.
+    Define tickets as cast tickets-from on (floor, 100).
+
+    Define memo as a new job { the title "memo" }.
+    Define poster as a new job { the title "poster", the copies 25, the finish "gloss" }.
+
+    State "ticket {unbury tickets but void is 0}: {memo's title}, {memo's copies}, {memo's finish}".
+    State "ticket {unbury tickets but void is 0}: {poster's title}, {poster's copies}, {poster's finish}".
+Done.
+
+State "the shop closes, and everything made on the floor goes with it".

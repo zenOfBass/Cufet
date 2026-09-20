@@ -1,0 +1,5 @@
+morning runs 3 hours
+evening runs 4 hours, and its edges were given backwards
+morning covers 10: true
+morning covers 15: false
+booked 2 spans covering 7 hours

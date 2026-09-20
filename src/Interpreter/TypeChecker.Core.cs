@@ -1105,8 +1105,31 @@ public sealed partial class TypeChecker
         // assume every declaration is already here.
         if (SourceDirectory is not null)
         {
+            // ★★ A MODULE DECLARED HERE WINS OVER A FILE OF THE SAME NAME. REFERENCE states that
+            // order — "a bundled book, then a module defined here, then `‹name›.cufe` beside the
+            // file that pulls it" — but `IsKnownPullName` reads `_objectDefs`, which this early
+            // holds only the PRELUDE: the program's own declarations are gathered by the hoist,
+            // further down. So the loader has to be told separately, or "defined here" is a step
+            // that never happens.
+            //
+            // ⚠⚠ MEASURED 2026-09-20: without this a file that declares a module and pulls it
+            // LOADS ITSELF. `selfpull.cufe` declaring `and module` object `selfpull` resolved the
+            // pull to its own path and was refused with "'selfpull' does something at its top
+            // level, so it cannot be pulled" — pointing at the file when the writer meant the
+            // declaration three lines up. A file can never usefully pull itself, and the ring
+            // check does not catch it because the entry file is not yet in the chain.
+            //
+            // ⚠ Only a MODULE-conforming declaration counts. An ordinary object that happens to
+            // share a name with a neighbouring book must not hide it — the pull would then fail
+            // on a type that was never pullable, instead of loading the file that was.
+            var declaredHere = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var s in AstSearch.EveryStatement(program.Statements))
+                if (s is ObjectDefinition od && IsModuleConformer(od.ConformedInterfaces))
+                    declaredHere.Add(od.Name);
+
             var withBooks = BookLoading.Expand(
-                program.Statements, SourceDirectory, Sources, IsKnownPullName);
+                program.Statements, SourceDirectory, Sources,
+                name => IsKnownPullName(name) || declaredHere.Contains(name));
             if (!ReferenceEquals(withBooks, program.Statements)) program = new Program(withBooks);
         }
 

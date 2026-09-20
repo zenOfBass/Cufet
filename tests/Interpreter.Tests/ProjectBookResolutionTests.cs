@@ -290,4 +290,95 @@ public class ProjectBookResolutionTests : IDisposable
             Done.
             """));
     }
+
+    // ── A module DECLARED HERE comes before any file ─────────────────────────────────────────
+
+    /// <remarks>
+    /// ⚠⚠ THE BUG THIS PINS, measured 2026-09-20: a file that declares a module and pulls it
+    /// LOADED ITSELF. The loader asks the checker whether a name is already known, and that
+    /// question reads `_objectDefs` — which at load time holds only the PRELUDE, because the
+    /// program's own declarations are gathered later by the hoist. So "a module defined here",
+    /// which REFERENCE lists BEFORE the file lookup, was a step that never happened, and the
+    /// pull went to disk and found the very file doing the pulling. It was then refused with
+    /// *"'workshop' does something at its top level, so it cannot be pulled"* — pointing at the
+    /// file when the writer meant the declaration a few lines up.
+    /// </remarks>
+    /// <remarks>
+    /// ★ It surfaced from writing an ordinary program: an example about a `workshop` wants to
+    /// live in `workshop.cufe`, which is the one name that could not work.
+    /// </remarks>
+    [Fact]
+    public void AFileDeclaringAModule_PullsItsOwnRatherThanLoadingItself()
+    {
+        MarkProject();
+        const string body = """
+            Define object workshop with () and module:
+                Bind text to greet: Return "the one declared here". Done.
+            Done.
+
+            Pull workshop.
+                State cast workshop's greet.
+            Done.
+            """;
+        // The file must EXIST under that name for the resolver to find it — the checker is told
+        // the directory, not the file, so this is what makes the collision real.
+        Write("paint", "workshop", body);
+
+        Assert.Equal("the one declared here", RunIn("paint", body));
+    }
+
+    /// <remarks>
+    /// ★★ The general rule the fix restores, and the reason it is narrow: a module declared in
+    /// the pulling file wins over a same-named file BESIDE it, which REFERENCE states as
+    /// "a bundled book, then a module defined here, then `‹name›.cufe` beside the file".
+    /// </remarks>
+    [Fact]
+    public void AModuleDeclaredHere_BeatsAFileOfTheSameName()
+    {
+        MarkProject();
+        Write("paint", "gadget", """
+            Define object gadget with () and module:
+                Bind text to greet: Return "from the FILE". Done.
+            Done.
+            """);
+
+        Assert.Equal("from HERE", RunIn("paint", """
+            Define object gadget with () and module:
+                Bind text to greet: Return "from HERE". Done.
+            Done.
+
+            Pull gadget.
+                State cast gadget's greet.
+            Done.
+            """));
+    }
+
+    /// <remarks>
+    /// ⚠ A PLAIN object of the same name SHADOWS a pullable file, and the pull is refused.
+    /// MEASURED 2026-09-20 both with and without the "declared here" fix, and identical either
+    /// way — so this is long-standing behaviour that the fix neither introduced nor changed.
+    /// Pinned because the fix is deliberately narrow: it admits only MODULE-conforming
+    /// declarations, and this is the case that narrowness is about.
+    /// </remarks>
+    /// <remarks>
+    /// ★ It was written first as an assertion that the FILE wins, which is what I expected; the
+    /// language disagreed and the message is the better answer, since one name cannot mean a
+    /// local type and a pulled book at once. The refusal names the fix.
+    /// </remarks>
+    [Fact]
+    public void APlainObjectOfTheSameName_ShadowsAPullableFile_AndTheRefusalSaysSo()
+    {
+        MarkProject();
+        Write("paint", "canvas", SharedCanvas);
+
+        var error = Assert.Throws<TypeException>(() => RunIn("paint", """
+            Define object canvas with (the number width).
+
+            Pull a book on canvas.
+                State cast canvas's draw.
+            Done.
+            """));
+        Assert.Contains("'canvas' is not a module", error.Message);
+        Assert.Contains("Add 'and module'", error.Message);
+    }
 }

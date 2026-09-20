@@ -1,0 +1,32 @@
+/*  The other side of spans.cufe: a type used in a file that does not declare it.
+
+    `Pull spans.` brings the module's carried type into scope by its SHORT name — `span`, not
+    `spans's span` — for the length of the block, the same way `matrix` arrives with
+    `collections`. Outside the block the name is gone, and `a new span { … }` down here would be
+    refused as not in scope. That is the whole feature: a type crossing a file boundary, and
+    doing it with a lifetime rather than forever.
+
+    ⚠ The two files are resolved and compiled TOGETHER, as one program. Cufet has no separate
+    compilation — multi-file is about writing one program across files, not about building them
+    independently.
+
+    ★ `spans` is found beside this file, with no project, no configuration and no path.
+*/
+
+Pull spans.
+    Define morning as cast spans's between on (9, 12).
+    Define evening as cast spans's between on (17, 13).
+
+    State "morning runs {cast morning's width} hours".
+    State "evening runs {cast evening's width} hours, and its edges were given backwards".
+
+    State "morning covers 10: {cast morning's covers on (10)}".
+    State "morning covers 15: {cast morning's covers on (15)}".
+
+    Define booked as a series of span with (morning, evening).
+    Define hours as 0.
+    For each slot in booked, repeat:
+        Increment hours by cast slot's width.
+    Done.
+    State "booked {the number of booked} spans covering {hours} hours".
+Done.
