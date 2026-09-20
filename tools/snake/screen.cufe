@@ -1,0 +1,49 @@
+/*  The view: what the field looks like.
+
+    It takes squares and gives back lines. It does not print them and it does not know what a key
+    means — the main program prints, and the controller decides what moves. A view that printed
+    would be a view you could not check by comparing its answer to an expected one.
+
+    ★ It PULLS the model, so `spot` is in scope here by its short name — including in the
+    SIGNATURE below, which is the whole reason this file can exist. A declaration inside a pull
+    could not name a pulled type until 2026-09-20: the hoist gathers every signature before any
+    pull scope exists, so `given (the series of spot body)` was refused while a body two lines
+    down could use `spot` freely. Writing this file is what found it.
+
+    ★ Written inside the pull, this book KEEPS that dependency rather than charging its caller: a
+    program that wants a picture asks `screen` and never mentions `board`.
+
+    ⚠ It returns a series of lines rather than one block of text. Joining them is one line at the
+    call site and splitting a block back apart is not, so the caller keeps the choice of how to
+    space, indent or frame them.
+*/
+
+Pull a book on board.
+    Define object screen with () and book:
+
+        /// The field as one line of text per row, with an `O` wherever the body lies.
+        Bind series of text to frame-of, given (the series of spot body):
+            Define picture as a series of text.
+
+            For each row in range 1 to cast board's height, repeat:
+                Define line as "".
+
+                For each column in range 1 to cast board's width, repeat:
+                    Define here as cast board's at on (row, column).
+                    Define filled as false.
+
+                    For each piece in body, repeat:
+                        If cast piece's same-as on (here), the filled becomes true.
+                    Done.
+
+                    If filled, the line becomes line joined to "O".
+                    Otherwise, the line becomes line joined to ".".
+                Done.
+
+                Insert line into picture.
+            Done.
+
+            Return picture.
+        Done.
+    Done.
+Done.
