@@ -797,4 +797,66 @@ public class PipelineTaskTests : PipelineTestBase
             """;
         AssertSameLinesInAnyOrder(Interpret(src), CompileSanitized(src));
     }
+
+    // ── The rabbit's scope closes AFTER its tasks are joined ──────────────────
+
+    // ⚠⚠ A LIVE DIVERGENCE, found 2026-09-20 and reaching back at least to 0.23.0. The rabbit
+    // body's `cufet_run_unmakers_to` was emitted INSIDE the body's block, and the structured join
+    // came after it — so the emitted order was
+    //
+    //     pthread_create(...);
+    //     cufet_run_unmakers_to(cf_um2);   /* the rabbit's objects destroyed HERE */
+    //     for (...) pthread_join(...);     /* while its tasks were still running */
+    //
+    // The interpreter does the opposite, and is right: ExecutePullRabbit joins, THEN ExitScope.
+    // So a rabbit-local object with an unmaker was destroyed while the tasks that could still be
+    // reading it ran, and its destructor's output came out ahead of theirs.
+    //
+    // ★ It is an ORDERING bug in what it prints and an OWNERSHIP bug in what it permits, and the
+    // print is the only half a test can see — which is why this pins the print. Deterministic, not
+    // a race: six runs gave `closed 7 / saw 7` every time, because thread start-up reliably loses
+    // to the handful of instructions between the create and the run.
+    [Fact]
+    public void ARabbitsOwnObjects_AreUnmadeAfterItsTasksAreJoined()
+    {
+        const string src = """
+            Define object gate with (the number id).
+            Bind unmaking a gate to close-gate, State "closed {one's id}".
+
+            Pull a rabbit.
+                Define shared as a new gate { the id 7 }.
+                Have rabbit start a task:
+                    State "saw {shared's id}".
+                Done.
+            Done.
+            State "after".
+            """;
+        Assert.Equal("saw 7\nclosed 7\nafter\n".ReplaceLineEndings(), InterpretRaw(src).ReplaceLineEndings());
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    // ★ THE SIBLING BRANCH. Deferring the run above splits the rabbit's scope-close into two
+    // paths — one after the join, one for a program with no tasks anywhere — and only the first
+    // had a test. MEASURED by deleting the no-task path: every task and cleanup test stayed GREEN,
+    // which is the whole argument for this one existing. A rabbit with no task in sight must still
+    // unmake what it made.
+    //
+    // ⚠ `_usesConcurrency` is PROGRAM-wide, not per-rabbit, so this program must contain no task
+    // at all to reach that branch — adding one anywhere routes it through the join path instead.
+    [Fact]
+    public void ARabbitWithNoTasksAtAll_StillUnmakesWhatItMade()
+    {
+        const string src = """
+            Define object gate with (the number id).
+            Bind unmaking a gate to close-gate, State "closed {one's id}".
+
+            Pull a rabbit.
+                Define shared as a new gate { the id 7 }.
+                State "inside {shared's id}".
+            Done.
+            State "after".
+            """;
+        Assert.Equal("inside 7\nclosed 7\nafter\n".ReplaceLineEndings(), InterpretRaw(src).ReplaceLineEndings());
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
 }

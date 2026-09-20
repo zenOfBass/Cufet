@@ -94,8 +94,14 @@ public sealed partial class CodeGenerator
     // <paramref name="withSnap"/> is handed this block's unmaker snapshot once it exists and before
     // the body is emitted, for a nonlocal exit inside the body that has to run back to it —
     // `Suppress`, which jumps to the handler's end and so past the normal run below.
+    /// <param name="deferUnmakerRun">
+    /// Emit the block but NOT its closing `cufet_run_unmakers_to`, leaving the caller to place it.
+    /// ⚠ Passed only by a RABBIT, whose scope must not close until its tasks have been joined —
+    /// the caller is then responsible for emitting the run on every path that reaches the end of
+    /// the block. See the PullRabbitStatement case.
+    /// </param>
     private void EmitScopedBlock(StringBuilder sb, IReadOnlyList<IStatement> body, string indent,
-                                 Action<string?>? withSnap = null)
+                                 Action<string?>? withSnap = null, bool deferUnmakerRun = false)
     {
         if (!UsesUnmakers) { withSnap?.Invoke(null); EmitBlock(sb, body, indent); return; }
         _scopeDepth++;
@@ -104,7 +110,8 @@ public sealed partial class CodeGenerator
         withSnap?.Invoke(snap);
         EmitBlock(sb, body, indent);
         // If the block always returns, the return path already ran these — skip the (unreachable) run.
-        if (!BlockAlwaysExits(body)) sb.AppendLine($"{indent}cufet_run_unmakers_to({snap});");
+        if (!deferUnmakerRun && !BlockAlwaysExits(body))
+            sb.AppendLine($"{indent}cufet_run_unmakers_to({snap});");
         _scopeDepth--;
     }
 
@@ -591,9 +598,22 @@ public sealed partial class CodeGenerator
                     _varTypes[rabbitName] = rabbitType;
                 }
 
+                // ⚠⚠ The rabbit's scope must not close until its tasks are JOINED. Emitted inline,
+                // the body's `cufet_run_unmakers_to` landed BEFORE the join below — so a rabbit-local
+                // object was unmade while the tasks that could still be reading it were running, and
+                // its destructor's output came out ahead of theirs. MEASURED 2026-09-20: a task
+                // capturing an object with an unmaker printed `saw 7 / closed 7` interpreted and
+                // `closed 7 / saw 7` compiled, deterministically, back to 0.23.0. So the run is
+                // DEFERRED here and re-emitted after the join, which is where the interpreter does
+                // it — JoinTasks first, ExitScope second.
+                string? rabbitSnap = null;
                 _rabbitDepth++;   // this rabbit pops its arena at Done. (independent of concurrency) —
-                EmitScopedBlock(sb, prs.Body, inner);   // so a region-capturing closure created here can dangle
+                EmitScopedBlock(sb, prs.Body, inner,                    // so a region-capturing closure
+                                s => rabbitSnap = s, deferUnmakerRun: true);  // created here can dangle
                 _rabbitDepth--;
+                // The caller now owes the run on every path reaching the end of the block — except
+                // when the body always exits, where EmitScopedBlock would have skipped it too.
+                bool owesUnmakerRun = rabbitSnap != null && !BlockAlwaysExits(prs.Body);
 
                 if (prs.Name is { } boundRabbit)
                 {
@@ -614,6 +634,11 @@ public sealed partial class CodeGenerator
                     // supervisor, and this is the point where it has the whole picture and nothing is
                     // still running. Raising here is what makes the body's output complete first.
                     sb.AppendLine($"{inner}cufet_raise_task_faults(cf_fault{n}, cf_rbox{n}, cf_nthr{n});");
+                    // ★ HERE is where the rabbit's own scope closes — after every task is reaped,
+                    // matching the interpreter's JoinTasks-then-ExitScope. A fault raised on the
+                    // line above never reaches this, and does not need to: cufet_raise runs the
+                    // pending unmakers itself on the way out.
+                    if (owesUnmakerRun) sb.AppendLine($"{inner}cufet_run_unmakers_to({rabbitSnap});");
                     sb.AppendLine($"{inner}for (int cf_bi = 0; cf_bi < cf_nthr{n}; cf_bi++) cufet_rbox_free(cf_rbox{n}[cf_bi]);");
                     sb.AppendLine($"{inner}for (int cf_ci = 0; cf_ci < cf_nchan{n}; cf_ci++) cufet_chan_free_if_live(cf_chan{n}[cf_ci]);");
                     // INT.1 — the join above is the one place this thread parks for an unbounded
@@ -622,6 +647,12 @@ public sealed partial class CodeGenerator
                     // on with the flag still set and never tear down. Check as soon as the join
                     // releases, so Ctrl-C during a task actually ends the program.
                     sb.AppendLine($"{inner}cufet_checkpoint();");
+                }
+                else if (owesUnmakerRun)
+                {
+                    // No tasks anywhere in this program, so there is nothing to join and the scope
+                    // closes exactly where EmitScopedBlock would have closed it.
+                    sb.AppendLine($"{inner}cufet_run_unmakers_to({rabbitSnap});");
                 }
                 sb.AppendLine($"{indent}}}");
                 sb.AppendLine($"{indent}cufet_arena_pop();");

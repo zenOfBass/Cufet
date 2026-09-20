@@ -310,13 +310,11 @@ public class PipelineRepeatingTaskTests : PipelineTestBase
         // ordinary task capturing the same object is untouched, and if this ever goes red the
         // refusal has escaped the case that justifies it.
         //
-        // ⚠⚠ ACCEPTANCE ONLY, and deliberately not an oracle assertion. Writing this as
-        // `Assert.Equal(InterpretRaw(src), CompileRaw(src))` FAILS, on a divergence that has
-        // nothing to do with repeating tasks: an ordinary task capturing an object that has an
-        // unmaker prints `saw 7 / closed 7` interpreted and `closed 7 / saw 7` compiled. MEASURED
-        // 2026-09-20 — deterministic over six runs, so not an interleaving, and reproduced on the
-        // installed 0.23.0 build, so it predates this work. Asserting only acceptance here keeps
-        // that bug from being silently absorbed into this file; it wants its own fix.
+        // ★ This program is what FOUND the rabbit-scope/join ordering divergence — the compiled
+        // side printed `closed 7` before `saw 7`, because the rabbit unmade its own objects before
+        // joining its tasks. Fixed the same day; pinned in PipelineTaskTests by
+        // `ARabbitsOwnObjects_AreUnmadeAfterItsTasksAreJoined`, which is where it belongs since it
+        // was never about repeating tasks. Kept as a full oracle assertion here too.
         const string src = """
             Define object gate with (the number id).
             Bind unmaking a gate to close-gate, State "closed {one's id}".
@@ -330,6 +328,6 @@ public class PipelineRepeatingTaskTests : PipelineTestBase
             State "after".
             """;
         Assert.Contains("saw 7", InterpretRaw(src));
-        Assert.Contains("saw 7", CompileRaw(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 }
