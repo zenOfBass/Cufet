@@ -5,8 +5,25 @@
     output is correct rather than a bug — which is also what lets this file sit in the corpus and
     be run on both backends like every other program here.
 
-    ⚠ The graph is never written down. `play` runs after `build-it` because it NEEDS a path that
-    step MAKES. Declaring edges as well would state one fact twice.
+    ★★ **`needs` is GENERATED, not hand-kept.** `cufet pulls tools/snake/snake.cufe` prints what
+    the loader actually resolved, and that is where the list below came from — the tool exists so
+    a blueprint need not track dependencies by hand, and it reports what a build really loads
+    rather than a re-reading of the source, so it cannot drift from the truth. Re-run it after
+    adding or removing a pull.
+
+    ★ Pulls and `needs` answer DIFFERENT questions, which is why both exist. A `Pull` says what
+    code is part of the program — it is the only linking mechanism, since there is no separate
+    compilation. `needs` says what files, if they change, mean this step must run again; staleness
+    is decided by hashing them, so the list has to be declared whatever the pulls say. They
+    happen to be the same list, which is exactly what lets one generate the other.
+
+    ⚠ Paths are relative to the PROJECT ROOT — the directory holding this file — not to wherever
+    `cufet build` was invoked from. Writing them repo-relative produced
+    `tools/snake/tools/snake/snake.cufe`, which is how this was learned.
+
+    ⚠ The graph is never written down. A step runs after another when it NEEDS a path that one
+    MAKES; declaring edges as well would state one fact twice. There is only one step here, so
+    nothing yet depends on that.
 */
 
 Pull a book on blueprints.

@@ -13,7 +13,7 @@
     fast the game moves, and calling it the other thing would promise a reading it cannot give.
 */
 
-Define object pacing with () and module:
+Define object pacing with () and book:
 
     /// Stop for a while, so the next frame does not arrive immediately.
     ///

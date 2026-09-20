@@ -1,15 +1,20 @@
 /*  The model: what a playing field is made of.
 
-    ★ It is a MODULE rather than a book because it carries a TYPE. A book hands out members; only
-    a module may hold a declaration, and a declaration is the only way a type crosses a file
-    boundary. `spot` is the whole reason this file exists as a module.
+    ★ It is a BOOK, and the reason is the only thing the two words separate: **a book owns no
+    lifetime, a module may.** This owns none, so `and book` is the exact claim and `and module`
+    would leave a settled question open. ⚠ MEASURED 2026-09-20, because the tempting reason is
+    wrong: carrying a TYPE is not what makes something a module. A book carries one perfectly
+    well, and `spot` crossing into `snake.cufe` below is that working.
+
+    ★ The surface then reads the difference — you consult a book, and you have one of a module.
+    `Pull a book on board.` is English; `Pull board.` would be claiming the other thing.
 
     ⚠ Nothing here draws anything or reads a key. The model knows where things are and what
     counts as the same square; the view knows how that looks and the controller knows what a
     keypress means. Keeping them apart is the point of the exercise as much as the game is.
 */
 
-Define object board with () and module:
+Define object board with () and book:
 
     /// One square of the playing field, counted from 1 at the top left.
     Define object spot with (the number row, the number column):
