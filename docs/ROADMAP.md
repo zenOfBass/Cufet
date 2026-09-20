@@ -71,31 +71,7 @@ The ordering is not ceremonial: this tier's real blocker is stated below as **er
 All need a design session before they can be ordered against anything. They are here because
 they are large, not because they are waiting — the order among them means nothing yet.
 
-1. **Rabbits as actors.** A rabbit already owns an isolated arena, owns and joins the tasks it
-   spawns, shares nothing mutable across threads, and has escape rules the compiler enforces —
-   that is the actor invariant, and the expensive part of it is shipping. Failure is settled and
-   built — see DESIGN. What is left is supervision: restart, and the mailbox.
-
-   **Settled:**
-
-   - **Lexical supervision only** — restart in place, within the block. Dynamic supervisors park
-     with the region-lifetime arc, and a toggle between the two lifetimes is rejected: two rules
-     means every escape question gets asked twice.
-   - **Identity is the rabbit's name, and the send surface is `Have <rabbit> …`** — a shape that
-     already exists for other reasons. The mailbox mechanism is later.
-   - **A restartable body must acquire its own resources**, so a re-run re-acquires into a fresh
-     region. Parallel to the unmaker ownership rule.
-
-   **Open:**
-
-   - ⚠ **How narrow the restart check is.** The capture set is already computed and typed — the
-     compiler builds it to pass values across the thread boundary — so the rule is a filter over a
-     list that exists: refuse a captured RESOURCE (a type with an unmaker, an address, an open
-     file), never a captured `number` or `text`. Anything wider is a rule wider than its reason.
-   - Restart policy: how many attempts, and what giving up does.
-   - The mailbox itself.
-
-2. **Teaching the language: a documentation site, and an interactive tutorial.** The playground
+1. **Teaching the language: a documentation site, and an interactive tutorial.** The playground
    runs the real interpreter in the browser, loads the corpus, shows squiggles and survives a
    runaway program. What it does not do is teach anybody anything — the only way in is
    `REFERENCE.md`, which is over four thousand lines and is a reference rather than a way in.
@@ -220,7 +196,13 @@ rabbit's TASKS compose, never its ordinary statements, which stay sequential imp
 
 - ★ **`automatic` is the only new capability, and the gap is real:** `the delivery from <channel>`
   blocks on ONE channel, so nothing today can wait on several and take whichever arrives first.
-  Occam's ALT, Go's select — and how an actor-rabbit would read a mailbox.
+  Occam's ALT, Go's select.
+
+  ⚠⚠ **It is NOT what an actor needs — measured 2026-09-20, and this entry used to say it was.**
+  Those languages need a select because a channel there carries ONE type. Cufet puts the
+  alternation in the TYPE: one channel of a union, dispatched by a `Judge` whose coverage the
+  checker proves. `examples/concurrency/actor-mailbox.cufe` is a full actor on both backends with
+  no new feature. So `automatic` has lost half its justification and rests on circuits alone.
 
   ★★ **Its witness is most likely the logic-gates book**, which is why these two should be
   weighed together rather than separately. A circuit simulator pushes signals through a network
@@ -241,8 +223,8 @@ rabbit's TASKS compose, never its ordinary statements, which stay sequential imp
   threads compiled, no interleaving promised.
 
 Open: whether `sequential` and `parallel` are thin labels over the join behaviour that exists, or
-need machinery of their own. `automatic` is the real build — a guarded multi-input wait. The
-mailbox and message-send surface are separate, later work.
+need machinery of their own. `automatic` is the real build — a guarded multi-input wait, now
+waiting on a witness rather than on a design.
 
 **Exponent literals** — `6.022e23` on `number`. A lexer feature; today `1.5e3` fails with
 `expected Dot, got Identifier "e3"`.

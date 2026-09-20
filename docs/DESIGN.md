@@ -889,6 +889,34 @@ The two arcs where soundness was the whole problem.
   and compelling, not between telling and silence. A deliberate `return a failure` is unaffected:
   that rides in the type as it always has, and the await must still handle it.
 
+- **Rabbits as actors — SETTLED 2026-09-20: the language already had it.**
+  An actor needs five things, and Cufet had all five before anyone set out to build one:
+  an identity (`Pull a rabbit as hopper`), a mailbox (a channel), more than one kind of message
+  (**a channel of a union**), a guarantee every kind is handled (`Judge`, coverage proved by the
+  checker), and a way to be told to stop (`Close` makes the next delivery void). Worked example,
+  run on both backends by the corpus suite: `examples/concurrency/actor-mailbox.cufe`.
+
+  ★★ **The recorded blocker was wrong, and it is worth knowing why it was believed.** The ROADMAP
+  held that the mailbox waited on `automatic` — a guarded multi-input wait — reasoning from Go's
+  `select` and Occam's `ALT`, *"and how an actor-rabbit would read a mailbox"*. **That reasoning
+  does not transfer.** Those languages need a select because a channel there carries ONE type, so
+  an actor must listen on several at once and take whichever speaks first. Cufet puts the
+  alternation in the TYPE instead: one channel of `(number or text)`, dispatched by a `Judge`
+  whose exhaustiveness is checked. Same expressive power, and the coverage is proved rather than
+  hoped for.
+
+  ⚠ The entry contradicted itself and the wrong half was load-bearing: a later line already said
+  *"the mailbox and message-send surface are separate, later work."* MEASURED before deleting the
+  item — a full actor with state, multi-kind dispatch and replies, byte-identical on both
+  backends, on the already-shipped 0.23.0 with no new feature.
+
+  ★ **What this leaves `automatic`:** only the logic-gates witness the entry itself named. Its
+  actor justification is gone, so it stands or falls on circuits alone.
+
+  ★ **What was declined:** a `Have hopper …` message-send sugar, making the mailbox implicit.
+  It would trade capability for a shorter line — an explicit channel gives an inbox AND an
+  outbox, separately typed and separately closed, where one implicit mailbox gives neither.
+
 - **A repeating task form — BUILT AND REMOVED THE SAME DAY, 2026-09-20.**
   `Have rabbit start a task, repeat: … Done.` made a task's body a loop: `Stop` ended it, `Skip`
   took the next turn, and an undeclared fault ended the turn rather than the program. It worked on

@@ -1,0 +1,60 @@
+/*  An actor: a named rabbit, one mailbox, several kinds of message, and a reply.
+
+    An actor needs five things — an identity, a mailbox, more than one kind of message, a
+    guarantee that every kind is handled, and a way to be told to stop. Cufet has all five
+    already, and this program is the whole of it. Nothing here is an actor feature; it is the
+    channel, the union and `Judge` doing what they each already do.
+
+    ★★ THE ONE THAT SURPRISES PEOPLE: **a channel can carry a union**, so one mailbox takes
+    several kinds of message. `Judge` then dispatches on what arrived, and its coverage is
+    PROVED — leave a kind unhandled and the program is refused before it runs. That is the pair
+    that removes the need for a select.
+
+    ⚠ Go and Occam need a guarded multi-input wait (`select`, `ALT`) for exactly this job,
+    because their channels carry ONE type: an actor there listens on several channels at once
+    and takes whichever speaks first. The reasoning does not transfer. Cufet puts the alternation
+    in the TYPE rather than in the wait, and a union channel with a total `Judge` is the same
+    expressive power with the exhaustiveness checked. See DESIGN, *Memory and concurrency*.
+
+    ★ A worker like this KEEPS STATE across messages — `total` lives above the loop and survives
+    every turn. That is why the loop is written inside an ordinary task rather than the task
+    itself being made to repeat.
+
+    ★ Shutdown needs no message kind of its own: `Close inbox` makes the next delivery void, and
+    the `While` ends. The worker then closes `replies`, which is how the reader below learns that
+    no more answers are coming. A closed channel is the end-of-stream signal in both directions.
+*/
+
+Pull a rabbit as hopper.
+    Define inbox as a channel of (number or text).
+    Define replies as a channel of number.
+
+    Have hopper start a task as ledger:
+        Define total as 0.
+        Define message as the delivery from inbox.
+        While message is not void, repeat:
+            Define current as message but void is 0.
+            Judge current, where it is:
+                A number, increment total by it.
+                A text, send total through replies.
+            Done.
+            The message becomes the delivery from inbox.
+        Done.
+        Close replies.
+    Done.
+
+    Send 5 through inbox.
+    Send 7 through inbox.
+    Send "total" through inbox.
+    Send 100 through inbox.
+    Send "total" through inbox.
+    Close inbox.
+
+    Define answer as the delivery from replies.
+    While answer is not void, repeat:
+        State "total: {answer but void is 0}".
+        The answer becomes the delivery from replies.
+    Done.
+Done.
+
+State "the ledger is closed".
