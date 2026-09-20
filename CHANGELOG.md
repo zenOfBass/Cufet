@@ -10,6 +10,22 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+- **Fields with a default** — `the number age with default 0`, in the same trailing place
+  `permanently` goes. A construction site may leave the field out.
+
+  ★★ **The invariant is kept, not loosened.** Every field is still set on every object — an
+  object has no unset state. What changed is only who wrote the value down. Defaults are per-field
+  and opt-in; a field without one is exactly as mandatory as it was.
+
+  ⚠ **The default is filled in at each construction site, not computed once at the definition**,
+  so `with default a series of number` gives every object its OWN series. That is the
+  mutable-default trap answered by construction rather than by a rule, and the doc example
+  asserting `1 / 0` is checked by the doc suite.
+
+  ★ Neither backend learns that defaults exist: the checker fills them onto the literal and each
+  backend appends one list. A mismatched default is refused where the TYPE is defined rather than
+  where an object is built — that is the sentence that is wrong. `default` costs no reserved word.
+
 - **`and region` — a lifetime a person can write.** `Define object workspace with () and region.`
   Pulling one opens an arena scope closed by its `Done.`, and it can be told to bury.
 

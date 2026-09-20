@@ -526,6 +526,12 @@ function or field called `make`. ★ The word is decidable without being reserve
 statement begins with a bare name and that word — the same trick `output` and `Seed` use, and it is
 why `make` appears in `CapitalisableStatementWords` rather than in the keyword table.
 
+**`default`** — contextual, recognised only in `with default <value>` trailing a FIELD name:
+`the number age with default 0`. ★ It costs no reserved word — a field list admits only `,` or
+`)` after a name, so the word is decidable in that one position and `Define default as 5.` stays
+legal. It sits in the same trailing slot as `permanently`, so the rule stays one rule: a modifier
+follows the thing it modifies.
+
 **`region`** — contextual, a name in a conformance list: `Define object workspace with () and
 region.` Pulling one opens an arena scope its `Done.` closes. ★ It costs no reserved word, exactly
 as `module` and `book` do not — all three are ordinary names the checker recognises in that slot,

@@ -2007,6 +2007,50 @@ transform-only, so one guarding an id could only ignore a bad write rather than 
 same refusal applies inside the object's own methods (`one's id becomes …`) and to a field
 inherited through an embed.
 
+**Fields with a default** — `with default <value>` after the field name, the same trailing place
+`permanently` goes. A construction site may then leave the field out:
+
+```cufet
+Define object person with (
+    the text name,
+    the number age with default 0,
+    the text city with default "nowhere").
+
+Define ada as a new person { the name "Ada", the age 36, the city "London" }.
+Define bo  as a new person { the name "Bo" }.
+State "{ada's name}, {ada's age}, {ada's city}".
+State "{bo's name}, {bo's age}, {bo's city}".
+```
+```output
+Ada, 36, London
+Bo, 0, nowhere
+```
+
+★★ **An object still has no unset state.** Every field is set on every object — what changed is
+only who wrote the value down. Defaults are per-field and opt-in: a field without one is exactly
+as mandatory as it was, and leaving it out is the same refusal it always was.
+
+⚠ **The default is filled in at each construction site, not computed once.** So a default that
+builds something gives every object its own:
+
+```cufet
+Define object basket with (
+    the text label,
+    the series of number items with default a series of number).
+
+Define one-basket as a new basket { the label "a" }.
+Define two-basket as a new basket { the label "b" }.
+Insert 7 into one-basket's items.
+State "{the number of one-basket's items} / {the number of two-basket's items}".
+```
+```output
+1 / 0
+```
+
+The default may be any expression of the field's type, and a mismatched one is refused **where
+the type is defined** rather than where an object is built — that is the sentence that is wrong.
+`default` is not a reserved word; nothing else can follow a field's name, so it costs no name.
+
 Pairs with `when` for the value:
 ```cufet-fragment
 Define account-fee as a new account { the fee 0 when member is true, otherwise 25 }.
@@ -2369,7 +2413,8 @@ Rules:
   ★ The workaround is a block: wrap the binding in `If`, a loop, or a rabbit, and it fires at that
   `Done.` ⚠ This is a known limitation with a prerequisite of its own — a value being RETURNED is
   not exempt from its scope's unmakers today, so simply firing them here would destroy what a
-  function hands back. See the ROADMAP entry.
+  function hands back. See DESIGN, *Objects: lifetime and accessors*, for the four reasons this
+  is the behaviour rather than a bug.
 - **`one` is the object being destroyed** — its fields and methods are accessible
   via `one's <field>` and `Cast <method> on one`.
 - **Ownership rule** — destroy what you opened, not what you borrowed. A resource

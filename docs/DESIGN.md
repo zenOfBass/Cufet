@@ -242,6 +242,55 @@ What an object owns, and what a property may do.
   it *borrowed*. A resource injected from outside is owned by the caller — closing it
   in the unmaker is a double-close bug.
 
+- **Unmaker FIRE-TIMING — settled 2026-07 after ~19 probes. Do not re-derive it.** An unmaker
+  does not fire for a binding declared directly in a function or method FRAME, nor at the
+  program's top level, and it may fire more than once for one logical object. MEASURED in both
+  backends. It looks like a bug every time somebody meets it; REFERENCE documents the behaviour,
+  and this is why it is the behaviour.
+
+  The decision was MATCH-EXACTLY: replicate the interpreter's block-scope LIFO firing precisely,
+  *including* the value-copy and escape double-fires and both gaps. ★★ Four reasons, and each one
+  kills the obvious repair:
+
+  1. **Deterministic, so sound and oracle-able as it stands.** Block-exit LIFO is the same shape
+     the open-files cleanup stack already uses.
+  2. **The double-fire IS the language.** Cufet objects are value types with NO IDENTITY, so an
+     unmaker is a per-binding HOOK and N copies mean N unmakings. ⚠ Exempting "the returned
+     binding" — the obvious narrow fix — requires exactly the identity the language declines.
+  3. **The frame gap is LOAD-BEARING.** Firing at frames would unmake a returned local WHILE IT IS
+     BEING RETURNED. Closing it properly needs escape analysis.
+  4. **Unmaking is NOT deallocation.** The arena owns all memory and exposes no `free`, so an
+     unmaker body is ordinary user code — which is why a repeat is observable but SAFE.
+
+  ⚠ **FFI resources are not affected the same way**, which is worth knowing before anyone
+  reopens this: foreign releases are a FLAT list with a per-block base, so one acquired inside a
+  function body still runs at the nearest enclosing block — late, not never. Unmaker bindings live
+  in per-scope dictionaries and are simply dropped.
+
+  ▶ **To reopen it is to take the escape-analysis arc**, not to write a narrow rule. It shares a
+  blocker with move-semantics-at-channel-send: a way to say *"this binding is spent."*
+
+- **Fields may have a DEFAULT; parameters may not — and the asymmetry is the point.**
+  `the number age with default 0` lets a construction site leave the field out.
+
+  ★★ **The invariant is kept rather than loosened.** Every field is still set on every object;
+  an object has no unset state. What changed is only who wrote the value down. That matters
+  because the pressure here is the opposite of C#'s, which added `required` and `init` to retrofit
+  mandatory fields onto defaults-everywhere — starting from "everything must be supplied" and
+  making individual fields optional keeps the property that made it worth having.
+
+  ★ **The default is an EXPRESSION filled in at each construction site**, never a value computed
+  once at the definition, so `with default a series of number` gives every object its own. The
+  mutable-default trap is answered by construction rather than by a rule forbidding it. The
+  checker fills them onto the literal, so neither backend learns that defaults exist.
+
+  ⚠ **Parameters did NOT get the same spelling, and it is not an oversight.** A parameter's arity
+  is read by OVERLOAD DISPATCH — several versions of one name told apart by argument types, plus
+  `when` clauses — so an optional parameter changes what "the same signature" means, and two
+  versions that differ only in an optional tail may or may not be distinguishable. A field has no
+  such entanglement: it is named at construction and nothing dispatches on how many were given.
+  That interaction wants deciding before the syntax is copied across.
+
 - **Setters are infallible and transform-only (Option A — settled).** A setter may
   clamp, convert, normalize, or derive — but it cannot reject. Validation-that-rejects
   belongs to the caller, before the assignment. This keeps `becomes` infallible

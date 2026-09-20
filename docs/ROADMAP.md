@@ -248,38 +248,6 @@ they are large, not because they are waiting — the order among them means noth
    ⚠ Whatever is written must be pinned like the doc fences are: a lesson whose code stops working
    is worse than no lesson, and this project has the machinery to catch that already.
 
-3. **Unmaker fire-timing — SETTLED 2026-07, and do not re-derive it.** ⚠⚠ An unmaker does not
-   fire for a binding declared directly in a function or method FRAME, nor at the program's top
-   level. MEASURED in both backends. It looks like a bug every time somebody meets it, and it is
-   not one.
-
-   ★★ **Settled MATCH-EXACTLY after ~19 probes:** replicate the interpreter's block-scope LIFO
-   firing precisely, *including* the value-copy and escape double-fires and both gaps — don't
-   "fix" any of it. The four recorded reasons, each of which kills the obvious repair:
-
-   1. **Deterministic, so sound and oracle-able as it stands.** Block-exit LIFO is the same shape
-      the open-files cleanup stack already uses.
-   2. **The double-fire IS the language.** Cufet objects are value types with NO IDENTITY, so an
-      unmaker is a per-binding HOOK and N copies mean N unmakings. ⚠ Exempting "the returned
-      binding" — the obvious narrow fix — requires exactly the identity the language declines.
-   3. **The frame gap is LOAD-BEARING.** Firing at frames would unmake a returned local WHILE IT IS
-      BEING RETURNED. Closing it properly needs escape analysis, which is the deferred arena arc.
-   4. **Unmaking is NOT deallocation.** The arena owns all memory and exposes no `free`, so an
-      unmaker body is ordinary user code. That is why a repeat is observable but SAFE.
-
-   ✅ **What was genuinely overdue was the DOCUMENTATION the decision called for, and it is done
-   now (2026-09-16).** REFERENCE described RAII without saying a frame body is excluded, and never
-   carried the idempotency caveat at all. Both are in it.
-
-   ⚠ **FFI resources are NOT affected the same way**, which is worth knowing before anyone reopens
-   this: foreign releases are a FLAT list with a per-block base, so one acquired inside a function
-   body still runs at the nearest enclosing block — late, not never. Unmaker bindings live in
-   per-scope dictionaries and are simply dropped.
-
-   ▶ **To reopen it is to take the escape-analysis arc**, not to write a narrow rule. The blocker
-   it shares with **Move semantics at channel send** is the same missing concept: a way to say
-   *"this binding is spent."*
-
 
 ## Ongoing, no fixed slot
 
@@ -386,18 +354,6 @@ indistinguishable from having forgotten.
   the current rule keeps `becomes` infallible *everywhere*. *Blocker:* an effect-tracking arc —
   a fallible setter would require effect annotations on every assignment expression. Not
   designed, not near-term.
-
-- **Optional fields with a default.** Every field must be supplied at construction — including
-  `voidable` ones, where omitting the field is still an error — so an object has no unset state
-  at all. That invariant is worth keeping, and it is the opposite pressure to C#, which added
-  `required` and `init` to retrofit onto defaults-everywhere. *Blocker:* no use case until a type
-  crosses a **version boundary**. Adding a field is a breaking change for every construction
-  site, which is nobody's problem while one person owns them all and everybody's the moment
-  books are user-authored and depended on. ⚠ The package manager has now SHIPPED, so the condition
-  is met and this is waiting on real third-party books rather than on a tool.
-  Until then, named makers (`making a <type>`) already cover "I do not want to write six
-  fields", and `voidable` already covers "may be absent" while keeping the absence visible where
-  the object is built.
 
 ### Tooling
 
