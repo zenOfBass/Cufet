@@ -1552,7 +1552,10 @@ public sealed class Parser
             cases.Add(ParseTypeAnnotation());
             SkipNoise();
             // `A num-node or a mul-node` — grouping, which is what C-style fall-through is
-            // overwhelmingly used for and the reason `Descend.` is not needed for it.
+            // overwhelmingly used for, and the reason no fall-through keyword is needed for it.
+            // ★ `descend` WAS reserved for one, and was given back 2026-09-19: it had no consumer
+            // anywhere, so it was a name taken from every program forever for a feature whose own
+            // entry argued the need was already covered by this line.
             while (Peek().Type == TokenType.Or)
             {
                 Advance();

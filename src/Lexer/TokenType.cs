@@ -50,7 +50,6 @@ public enum TokenType
     // `it` for the block and narrowed inside each arm; `Otherwise` is the default arm.
     Judge,     // "Judge" — opens the construct
     Where,     // "where" — the header connective, as in "Judge node, where it is:"
-    Descend,   // "Descend" — explicit fall-through into the next arm
 
     // ── Arithmetic ────────────────────────────────────────────────────────
     Plus, Minus, Star, Slash, Percent,

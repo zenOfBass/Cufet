@@ -201,7 +201,6 @@ public sealed class Lexer
             "when"      => TokenType.When,
             "judge"     => TokenType.Judge,
             "where"     => TokenType.Where,
-            "descend"   => TokenType.Descend,
             "done"      => TokenType.Done,
             "is"        => TokenType.Is,
             "not"       => TokenType.Not,
