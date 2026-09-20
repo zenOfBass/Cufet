@@ -1,0 +1,49 @@
+/*  A job that can be stopped cleanly, and the three words that make it one.
+
+    `an interrupt is requested` asks whether a Ctrl-C has arrived. `Acknowledge the interrupt.`
+    clears the flag. `Yield.` gives the scheduler a turn and acts as an interrupt CHECKPOINT —
+    the place a pending interrupt is allowed to take effect.
+
+    ★★ **A poll anywhere puts you in charge everywhere.** A program that never mentions
+    interrupts is stopped for you: Ctrl-C ends it and exits 130. The moment one mentions them —
+    as this file does — Ctrl-C only sets the flag, and nothing happens until the program looks.
+    That is decided from the WHOLE program, not statement by statement, which is why adding a
+    single poll changes how the rest of the file behaves.
+
+    ⚠ The consequence, and the reason `Yield.` is in the loop: a tight loop with no poll, no
+    blocking call and no `Yield.` cannot be interrupted at all in a program that handles its own.
+    A second Ctrl-C always terminates, so such a program is never unkillable — but it is rude.
+
+    ⚠⚠ **WHAT THIS FILE DOES AND DOES NOT PROVE.** The suite runs it to completion and never
+    sends a signal, so the branch inside the `If` NEVER EXECUTES here — the assertion is the
+    uninterrupted path. The interrupted path is covered where it can be: `YieldTests.cs` drives
+    it interpreted, and the compiled side is driven by a real `SIGINT` through the
+    `CompileAndInterrupt` harness in `PipelineChannelTests.cs`. This example is here to show the
+    IDIOM assembled, which those tests do not.
+
+    ★ Note what is NOT asserted: any particular interleaving. Interpreted, tasks interleave only
+    at `Yield.` and at blocking channel operations; compiled, they are real OS threads. No
+    ordering is specified, so a program is written to depend on the aggregate result and never on
+    the order — the discipline every concurrent example here follows.
+*/
+
+Define readings as a series of number with (12, 7, 30, 4, 19, 25).
+Define total as 0.
+Define seen as 0.
+
+For each reading in readings, repeat:
+    If an interrupt is requested:
+        State "stopped after {seen} of {the number of readings}".
+        Acknowledge the interrupt.
+        Stop.
+    Done.
+
+    Increment total by reading.
+    Increment seen by 1.
+
+    // The checkpoint. Without it this loop could not be interrupted mid-run, because the poll
+    // above only runs once per reading and the work between polls is where a long job lives.
+    Yield.
+Done.
+
+State "read {seen} readings, total {total}".
