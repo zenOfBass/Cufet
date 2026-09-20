@@ -10,6 +10,18 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+- **`terminals` hands out `key-waiting` and `read-key`** — ask whether a keypress is already
+  there, and read one when it is. `_kbhit()` on Windows, `select()` with a zero timeout on POSIX.
+
+  ★ **`read-key` already existed**, decoding arrows, Ctrl-C and printables to numbers a program
+  can read without knowing what machine it is on; it was simply private, because the book's only
+  consumer was a line editor. What is new is the non-blocking question beside it.
+
+  ⚠ **Why it was needed at all:** `raw-on` sets `VMIN = 1`, so `read-key` WAITS. That is right for
+  a line editor, which has nothing to do until somebody types, and wrong for a program with its
+  own clock, which must act on every tick whether a key came or not. `typed` is still the answer
+  whenever a whole LINE is what you want — reading keys yourself gets you none of the line editor.
+
 - **Fields with a default** — `the number age with default 0`, in the same trailing place
   `permanently` goes. A construction site may leave the field out.
 
