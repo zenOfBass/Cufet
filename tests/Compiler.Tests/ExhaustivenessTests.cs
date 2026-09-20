@@ -348,10 +348,13 @@ public class ExhaustivenessTests
         // repoint it — not to loosen the key, which is what makes a walk impossible to lose.
         "Ast.cs: Contains",
         "CodeGenerator.cs: ProgramUsesOpenUnion",
-        "CodeGenerator.cs: TaskBodyMayMutate",
         "CodeGenerator.Expressions.cs: IsBoundSomewhere",
-        "CodeGenerator.Expressions.cs: CaptureWriteIsObservable",
-        "CodeGenerator.Expressions.cs: CollectRefsDefs",
+        // ★ The three task-capture walks MOVED to the shared project 2026-09-19, verbatim, so
+        // the checker could own the refusal they back — see TaskCaptures. This guard caught the
+        // move and is repointed rather than loosened, exactly as the note above prescribes.
+        "TaskCaptures.cs: CollectRefsDefs",
+        "TaskCaptures.cs: MayMutate",
+        "TaskCaptures.cs: WriteIsObservable",
         // The one walk behind every question StashTransform asks — does this bury, does it return,
         // does a `Stop` escape it, is this name mentioned — and the type checker's burying-function
         // detection calls the same one. Proof it sees inside ConditionArm and JudgeArm:

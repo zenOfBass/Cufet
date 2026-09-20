@@ -149,7 +149,7 @@ public class PipelineEscapeTests : PipelineTestBase
             Define tally as 0.
             Pull a rabbit as hopper.
                 Have hopper start a task as bump:
-                    Tally becomes tally + 5.
+                    The tally becomes tally + 5.
                     Return 1.
                 Done.
                 State the awaited result of bump.
