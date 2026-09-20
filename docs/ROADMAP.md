@@ -66,52 +66,6 @@ The ordering is not ceremonial: this tier's real blocker is stated below as **er
     interpreter *written in C* — a third implementation, or a divergence. Note also that an explicit
     `eval` is not a fexpr and would cost neither `check` nor monomorphization; the C-interpreter bill is what rules it out.
 
-## No ordinary capability should require an axiom
-
-A campaign rather than an item. Every `axiom` a program reaches for to do something **ordinary** is
-a capability the language should have had, and the axiom is the gap's own witness — written into
-the source by somebody who needed it.
-
-⚠ **Strictly about capabilities the language itself should have.** Binding somebody else's C
-library — sqlite, zlib, a vendor SDK — is NOT in scope and never becomes so: the FFI is the door to
-other people's code and stays. This campaign is about axioms used to reach the operating system or
-to fill a hole in the language.
-
-⚠ It is also not about the compiler emitting C or the runtime being written in it. That target is
-settled (DESIGN), and "the implementation is Cufet" is the tier above's promise, not this one's.
-The claim here is narrower and checkable: point at a program and ask whether it needed C.
-
-✅ **Open, with a witness: NOTHING, as of 2026-09-19** — and that is the campaign working rather
-than stalling. See the rate-limit note below: a capability nobody has reached for is not yet known
-to be missing.
-
-⚠ **Job control was listed here and should not have been. MEASURED when it came up for building:**
-the entry said `tools/shell.cufe` reaches into its `jobs-support` axiom for *"`&`, `jobs`, `fg`,
-pipes and `<`"*, and the shell does **pipes and `<` in pure Cufet** — `read all from the file` for
-the redirect, `run … with input carried` for the pipe. The list came from misreading the shell's
-WINDOWS-AVAILABILITY sentence (*"… pipes and `<` all are"*) as a list of C dependencies.
-★ What the axiom is really for is `setpgid`/`tcsetpgrp` — a child in its own process group and the
-terminal handed between groups. The shell's own source calls that *"correct layering rather than a
-gap in the language"*, and that is right: it is shell-specific machinery, not an ordinary
-capability, and it has no Windows equivalent at all.
-
-★ **The list is rate-limited by how many real programs exist**, and that is the point rather than a
-complaint: a capability nobody has reached for is not yet known to be missing. Measured 2026-09-11,
-six corpus programs use an axiom and five are demonstrations of the FFI itself — the shell is the
-only true witness. ✅ The `blueprints` book was expected to produce the next one, since deciding
-whether a file is stale is exactly a reach-for-C problem. It is written now, and it produced the
-OPPOSITE: `blueprints's checksum` is a native member of the book, so no program reaches for an
-axiom to hash a file. ★ That is this campaign working rather than failing — the prediction was that
-a capability would be missing, and the answer was to supply it.
-
-✅ **THE SECOND REAL WITNESS, FOUND AND CLOSED 2026-09-18.** Cufet could read a file, write a file
-and list a directory, and could neither create nor remove one — found by building the package
-manager, which routed around it by keeping the git clone as a cache. `Make the directory` and
-`Remove the file` / `Remove the directory` ship now. ★★ **It produced no axiom, and that is the
-finding**: there was none to write, because creating a directory is not something the FFI reaches
-for — it is something the language simply lacked. A witness need not be an axiom; the installer's
-workaround was the witness, and it read as a design decision right up until the gap had a name.
-
 ## The design mountains
 
 All need a design session before they can be ordered against anything. They are here because
