@@ -1,0 +1,43 @@
+/*  The game's clock — such as it is.
+
+    ★ It only PAUSES. Cufet has no way to ask what time it is, and that is not an oversight: a
+    clock reading is nondeterministic, and this project holds the two backends to byte-for-byte
+    agreement. A pause changes only WHEN output appears, never what it says, so it costs the
+    oracle nothing — which is why a game can have this and cannot have a stopwatch.
+
+    ★ It lives with the game rather than in `terminals`, because pausing is not a conversation
+    with whoever is at the keyboard. If something else ever wants it, that is when it earns a
+    home of its own and a name to go with it.
+
+    ⚠ Named `pacing` rather than `clock` on purpose. A clock tells you the time; this decides how
+    fast the game moves, and calling it the other thing would promise a reading it cannot give.
+*/
+
+Define object pacing with () and module:
+
+    /// Stop for a while, so the next frame does not arrive immediately.
+    ///
+    /// ⚠ Milliseconds, and approximate: the operating system decides when to wake a sleeper, so
+    /// a request for 50 is a floor rather than a promise. MEASURED 2026-09-20 at 642ms against a
+    /// 600ms request, the difference being process overhead rather than drift.
+    Bind void to nap, given (the number milliseconds):
+        Pull a book on the c-language.
+            Define c-language nap-support as [#if defined(_WIN32)
+                #include <windows.h>
+                static int cufet_pacing_nap(int ms) { if (ms > 0) Sleep((DWORD)ms); return 0; }
+                #else
+                #include <time.h>
+                static int cufet_pacing_nap(int ms) {
+                    struct timespec how_long;
+                    if (ms <= 0) return 0;
+                    how_long.tv_sec = ms / 1000;
+                    how_long.tv_nsec = (long)(ms % 1000) * 1000000L;
+                    nanosleep(&how_long, NULL);
+                    return 0;
+                }
+                #endif].
+            Define c-language number napped, given (the number wait), as [cufet_pacing_nap(the wait)].
+            Cast napped on (milliseconds).
+        Done.
+    Done.
+Done.

@@ -15,7 +15,7 @@ Pull a book on blueprints.
 
         Insert a record with (
             the name "snake",
-            the needs a series of text with ("snake.cufe", "board.cufe"),
+            the needs a series of text with ("snake.cufe", "board.cufe", "pacing.cufe"),
             the makes a series of text with ("snake.exe"),
             the runs a series of text with ("cufet", "build", "snake.cufe")) into work.
 

@@ -1,35 +1,42 @@
-/*  The snake game — the vertical slice: a model in its own file, and a main that draws it.
+/*  The snake game — the vertical slice: a model in its own file, a clock in another, and a main
+    that draws two frames with a pause between them.
 
-    ⚠ Not a game yet. It draws one frame of a body that never moves, which is the smallest thing
-    that proves the structure: a type crossing a file boundary, and a blueprint that builds them
-    together.
+    ⚠ Not a game yet. Nothing reads a key and nothing decides anything; the body moves because
+    the frame number says so. What it proves is the structure — a type crossing a file boundary,
+    a clock the game owns, and a blueprint that builds the three of them together.
 
     ⚠⚠ THE VIEW IS NOT ITS OWN FILE YET, and that is a language limitation rather than a choice.
     A module written inside a pull cannot name the pulled module's carried type in its own
-    SIGNATURE — `Bind series of text to frame-of, given (the series of spot body)` is refused with
-    "'spot' is not a defined type", though the same type resolves fine inside a method BODY.
-    MEASURED 2026-09-20. Until that is fixed the drawing lives here, where `spot` is in scope.
+    SIGNATURE — `given (the series of spot body)` is refused with "'spot' is not a defined type",
+    though the same type resolves fine inside a method BODY. MEASURED 2026-09-20; see the ROADMAP.
+    Until that is fixed the drawing lives here, where `spot` is in scope.
 */
 
 Pull board.
-    Define body as a series of spot.
-    Insert cast board's at on (4, 8) into body.
-    Insert cast board's at on (4, 9) into body.
-    Insert cast board's at on (4, 10) into body.
+    Pull pacing.
+        For each frame in range 0 to 1, repeat:
+            Define body as a series of spot.
+            Insert cast board's at on (4, 8 + frame) into body.
+            Insert cast board's at on (4, 9 + frame) into body.
+            Insert cast board's at on (4, 10 + frame) into body.
 
-    State "a {cast board's height} by {cast board's width} field:".
-
-    For each row in range 1 to cast board's height, repeat:
-        Define line as "".
-        For each column in range 1 to cast board's width, repeat:
-            Define here as cast board's at on (row, column).
-            Define filled as false.
-            For each piece in body, repeat:
-                If cast piece's same-as on (here), the filled becomes true.
+            State "frame {frame + 1}:".
+            For each row in range 1 to cast board's height, repeat:
+                Define line as "".
+                For each column in range 1 to cast board's width, repeat:
+                    Define here as cast board's at on (row, column).
+                    Define filled as false.
+                    For each piece in body, repeat:
+                        If cast piece's same-as on (here), the filled becomes true.
+                    Done.
+                    If filled, the line becomes line joined to "O".
+                    Otherwise, the line becomes line joined to ".".
+                Done.
+                State line.
             Done.
-            If filled, the line becomes line joined to "O".
-            Otherwise, the line becomes line joined to ".".
+
+            /* The clock earning its place: without this the two frames arrive together. */
+            Cast pacing's nap on (40).
         Done.
-        State line.
     Done.
 Done.
