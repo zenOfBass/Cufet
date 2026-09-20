@@ -1,0 +1,57 @@
+/*  Functions as values: a price built by applying a list of adjustments in order.
+
+    A lambda is a function written where a value goes — no name, the return type inferred from
+    the body, and always carrying the variables it captured. Everything here is a function being
+    treated as data: made, captured, stored in a series, passed, and returned.
+
+    ★★ THE ONE THAT MATTERS: `surcharge-of` is a function that RETURNS a function, and the lambda
+    it hands back captures `rate` — the factory's own parameter, which is gone by the time anyone
+    calls the result. Two closures made from the same factory must keep DIFFERENT captured rates,
+    which is what the `service only` and `handling only` lines below prove: same code, same input,
+    two answers. A closure implementation that shared one environment would print the same number
+    twice and still look like it worked.
+
+    ★ `add-fee` captures a top-level binding instead of a parameter — the other half of the
+    capture rule, and the cheaper one to get right.
+
+    ★ A series whose element type is a FUNCTION type is spelled with the element type written out
+    in full: `a series of number function given (the number)`. ⚠ Where the name sits is what
+    separates "a series of functions" from "a function taking a series" — see REFERENCE, which
+    records that sharp edge.
+
+    ⚠ A suspension may not appear inside a lambda: a named body becomes a factory handing back a
+    closure, and a lambda already IS one. Give the body a name if it needs to `bury`.
+*/
+
+Bind number function given (the number) to surcharge-of, given (the number rate):
+    Return a function given (the number amount):
+        Return amount + (amount * rate / 100).
+    Done.
+Done.
+
+Bind number to apply-all, given (the series of number function given (the number) steps,
+                                 the number opening):
+    Define running as opening.
+    For each step in steps, repeat:
+        The running becomes cast step on (running).
+    Done.
+    Return running.
+Done.
+
+Bind number to apply-to, given (the number amount, the number function step given (the number)):
+    Return cast step on (amount).
+Done.
+
+Define flat-fee as 9.
+Define add-fee as a function given (the number amount): Return amount + flat-fee. Done.
+
+Define service as cast surcharge-of on (10).
+Define handling as cast surcharge-of on (5).
+
+State "service only: {cast service on (200)}".
+State "handling only: {cast handling on (200)}".
+
+Define pricing as a series of number function given (the number) with (service, handling, add-fee).
+State "all three in order: {cast apply-all on (pricing, 200)}".
+
+State "then a flat discount: {cast apply-to on (240, a function given (the number charge): Return charge - 40. Done)}".
