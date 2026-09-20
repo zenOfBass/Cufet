@@ -51,8 +51,7 @@ The ordering is not ceremonial: this tier's real blocker is stated below as **er
 2. **Compile-time macros — the `cufet` tag's expander.** Not a third program. It is here 
     rather than in *Deferred* because its blocker is now a numbered item above, which is the one rule that section states about itself.
 
-    Hygienic, expanding to Cufet AST before the checker runs — *not* fexprs, which are first-class and
-    runtime. It is one tag of the BLOCKS type rather than a feature of its own: quoted Cufet and
+    Hygienic, expanding to Cufet AST before the checker runs — *not* fexprs, which are first-class and runtime. It is one tag of the BLOCKS type rather than a feature of its own: quoted Cufet and
     embedded foreign source live under one type name, and a macro is what consumes the `cufet` tag. See [DESIGN.md](DESIGN.md#foreign-interoperability) — including why hygiene and SQL injection turn out to be the same problem, which is what makes the unification real rather than cosmetic.
 
     ★ **The type shipped in 0.17.0, and a deliberately small consumer with it.** `Cite` places what a
@@ -183,7 +182,6 @@ they are large, not because they are waiting — the order among them means noth
 
    ⚠ Whatever is written must be pinned like the doc fences are: a lesson whose code stops working
    is worse than no lesson, and this project has the machinery to catch that already.
-
 
 ## Ongoing, no fixed slot
 
