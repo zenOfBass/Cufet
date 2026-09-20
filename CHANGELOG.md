@@ -68,6 +68,25 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **An axiom's name captured every later binding of that name, compiled only.** `Define c-language
+  number pressed as […]` put `pressed` in a table keyed on the bare name that nothing ever cleared,
+  so a later `Define pressed as 5.` emitted the axiom's thunk in place of the local. Interpreted the
+  program was correct; compiled, gcc refused the generated C and the message blamed the compiler.
+
+  ★★ **The declaration could be inside a book the program merely PULLED.** `tools/terminals.cufe`
+  declares six axiom values inside its own method bodies, so `Pull a book on terminals.` silently
+  poisoned `written`, `attached`, `engaged`, `restored`, `key-ready` and `pressed` for the pulling
+  program — names absent from its interface, and exactly what the loader's *"the file is what
+  hides"* rule promises cannot happen. Plain locals in the same book never leaked; only axiom names.
+
+  ★ **The fix is the guard its neighbours already had.** The named-function branch beside it and the
+  deferred-module branch below it both ask whether the name still means what their map thinks. This
+  arm did not, so it now keeps the axiom only while the binding is still an axiom.
+
+  ⚠ Found by writing a program, and it bit for real within the hour: adding `key-waiting` to
+  `terminals` introduced an axiom value named `ready`, and `tools/repl.cufe` has
+  `Define ready as ""` — the REPL stopped compiling.
+
 - **A file that declared a module and pulled it loaded ITSELF.** `workshop.cufe` declaring
   `Define object workshop with () and region.` and then `Pull workshop.` was refused with
   *"'workshop' does something at its top level, so it cannot be pulled"* — the pull had resolved
