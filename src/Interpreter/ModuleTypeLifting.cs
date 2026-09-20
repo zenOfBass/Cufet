@@ -110,6 +110,87 @@ public static class ModuleTypeLifting
         }
 
         carried = found;
+        if (found.Count > 0)
+        {
+            var inPulls = RewriteInsidePulls(rewritten, found, out bool touched);
+            if (touched) return new Program(inPulls);
+        }
         return any ? new Program(rewritten) : program;
+    }
+
+    /// <summary>
+    /// Inside `Pull board. … Done.`, rewrites the pulled module's carried short names to their
+    /// lifted ones — so a DECLARATION written in that block can name the type in its signature.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ⚠⚠ WHY THIS IS A SYNTACTIC REWRITE AND NOT A SCOPE LOOKUP. A pull already puts the short
+    /// name in scope for the length of its block, and ordinary statements in that block resolve
+    /// it that way. DECLARATIONS do not: `Pass1Hoist` walks the whole program with
+    /// `AstSearch.EveryStatement`, descending into pull bodies, and gathers every signature
+    /// before any pull scope exists. So `Bind text to draw, given (the spot which):` inside a
+    /// pull was refused with *"'spot' is not a defined type"* while a body two lines below could
+    /// use `spot` freely. MEASURED 2026-09-20.
+    /// </para>
+    /// <para>
+    /// ★ Rewriting before the hoist means the hoist meets `spot in board`, which IS an ordinary
+    /// top-level declaration by then — so nothing downstream learns that a pull can introduce a
+    /// type, exactly as the lifting of a module's own types already arranges.
+    /// </para>
+    /// <para>
+    /// ⚠ A name the block DECLARES ITSELF is left alone. `Pull board.` around a block that
+    /// defines its own `spot` means the writer's `spot`, and substituting there would capture it
+    /// — the same trap the class note warns about for a global rewrite, one scope down.
+    /// </para>
+    /// </remarks>
+    private static IReadOnlyList<IStatement> RewriteInsidePulls(
+        IReadOnlyList<IStatement> statements,
+        IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> carried,
+        out bool touched)
+    {
+        bool any = false;
+        var result = new List<IStatement>(statements.Count);
+
+        foreach (var stmt in statements)
+        {
+            if (stmt is not PullStatement pull) { result.Add(stmt); continue; }
+
+            var names = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var (bookName, _) in pull.Books)
+                if (carried.TryGetValue(bookName, out var mine))
+                    foreach (var (shortName, lifted) in mine)
+                        names[shortName] = lifted;
+
+            // A type the body declares for itself wins over the pulled one.
+            foreach (var inner in AstSearch.EveryStatement(pull.Body))
+                if (inner is ObjectDefinition own) names.Remove(own.Name);
+
+            var body = pull.Body;
+            if (names.Count > 0)
+            {
+                any = true;
+                body = AstRebuilder.Apply(body,
+                    t => AstRebuilder.SubstituteDeep(t, leaf =>
+                        leaf is ObjectType o && names.TryGetValue(o.Name, out var to)
+                            ? new ObjectType(to, o.PositionalTypes, o.NamedFields, o.Methods)
+                            : leaf));
+
+                AstSearch.Visit(body, node =>
+                {
+                    if (node is ObjectLiteral lit && names.TryGetValue(lit.TypeName, out var to))
+                        lit.TypeName = to;
+                });
+            }
+
+            // Nested pulls inside this one get their own turn — the outer substitution has
+            // already passed through them, so the two compose rather than race.
+            body = RewriteInsidePulls(body, carried, out bool deeper);
+            if (deeper) any = true;
+
+            result.Add(pull with { Body = body });
+        }
+
+        touched = any;
+        return result;
     }
 }

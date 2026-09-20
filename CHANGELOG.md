@@ -80,6 +80,24 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **A declaration inside a pull could not name the pulled module's carried type in its
+  SIGNATURE.** `Pull a book on board.` around `Bind text to draw, given (the spot which):` was
+  refused with *"'spot' is not a defined type"* — while a body two lines below could use `spot`
+  freely. That split is what named the cause: `Pass1Hoist` walks the whole program and gathers
+  every signature before any pull scope exists, so the short name a pull introduces was not
+  there yet. Carried names are now rewritten to their lifted form inside a pull's body, before
+  the hoist, so the hoist meets an ordinary top-level declaration.
+
+  ★★ **It is what layering IS.** A view or a controller takes the model's type as a parameter,
+  so without this a program could split into FILES but not into LAYERS. `tools/snake` had to keep
+  its drawing in the main program and say so in a comment; the view is now its own file.
+
+  ⚠ **A type the block declares ITSELF is left alone**, or the rewrite would silently retype it.
+
+  ⚠ **Deferring the resolution is not the fix, and was tried first.** Leaving the name for a later
+  pass — the way a builtin book's type is left alone — made the checker accept it and the code
+  generator crash on the unlifted name, turning a clear refusal into an internal error.
+
 - **An axiom's name captured every later binding of that name, compiled only.** `Define c-language
   number pressed as […]` put `pressed` in a table keyed on the bare name that nothing ever cleared,
   so a later `Define pressed as 5.` emitted the axiom's thunk in place of the local. Interpreted the

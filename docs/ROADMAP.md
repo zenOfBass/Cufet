@@ -188,22 +188,6 @@ they are large, not because they are waiting — the order among them means noth
 A formal soundness proof or a fresh-eyes red-team · a periodic error-message audit for internal
 vocabulary
 
-**A carried type cannot be named in a nested module's SIGNATURE.** A module written inside a pull
-may use the pulled module's carried type in a method BODY, but naming it in a parameter list is
-refused with *"'spot' is not a defined type"*. MEASURED 2026-09-20.
-
-- ★ **The body case working is what says this is an ORDER problem, not a missing capability.**
-  `ModuleTypeLifting.Expand` walks only top-level statements and substitutes only each module's
-  OWN carried names, so a module nested in `Pull board.` never has board's substitution applied
-  to it; the signature is then resolved before the pull that scopes the short name is entered.
-- ⚠ **It blocks layering, which is the point of modules.** A view or controller taking a model's
-  type as a parameter is the ordinary shape, and `tools/snake` cannot split its view out because
-  of it — the drawing sits in the main program with a comment saying why.
-- ⚠ **Deferring the resolution is NOT the fix, and was tried.** Leaving the name alone the way a
-  builtin book's type is left alone makes the checker accept it and the CODE GENERATOR crash on
-  the unlifted name — a clear refusal turned into an internal error. The lifting pass has to do
-  the substitution; the resolver cannot paper over it.
-
 **A blueprint's missing input reports in .NET's voice.** A `needs` path that is not there answers
 *"Could not find a part of the path 'C:\…'"* rather than naming the step, the path and the fix.
 ★ Found by writing the repo's first blueprint; the same exercise showed `needs`/`makes`/`runs`

@@ -341,4 +341,97 @@ public class ModuleCarriedTypeTests : IDisposable
             """);
         Assert.Contains("tally", ex.Message);
     }
+
+    // ── A DECLARATION inside the pull may name the carried type ──────────────
+
+    /// <remarks>
+    /// <para>
+    /// ⚠⚠ REFUSED until 2026-09-20, and the shape of the failure is what named the cause: a
+    /// carried type resolved perfectly well inside a method BODY and only a SIGNATURE was
+    /// refused, with *"'point' is not a defined type"*. `Pass1Hoist` walks the whole program with
+    /// `AstSearch.EveryStatement`, descending into pull bodies, and gathers every signature
+    /// before any pull scope exists — so the short name the pull introduces was not there yet.
+    /// </para>
+    /// <para>
+    /// ★ It matters because it is what layering IS. A view or a controller takes the model's type
+    /// as a parameter, and without this a program could split into files but not into layers:
+    /// `tools/snake` had to keep its drawing in the main program and say so in a comment.
+    /// </para>
+    /// <para>
+    /// ⚠ The fix is a rewrite before the hoist, NOT a looser resolver. Leaving the name alone for
+    /// a later pass — the way a builtin book's type is left alone — was tried first and made the
+    /// checker accept it while the CODE GENERATOR crashed on the unlifted name, turning a clear
+    /// refusal into an internal error. See ModuleTypeLifting.RewriteInsidePulls.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void ADeclarationInsideThePull_MayNameTheCarriedTypeInItsSignature()
+    {
+        Assert.Equal("7", Run(Shapes + """
+            Pull a shapes.
+                Bind number to add-up, given (the point which):
+                    Return cast which's sum.
+                Done.
+
+                State cast add-up on (a new point { the across 3, the up 4 }).
+            Done.
+            """));
+    }
+
+    /// <remarks>
+    /// ★★ The case the snake project actually needed, and the one worth having as a FILE: a book
+    /// in its own file, written inside a pull of the model, whose published member takes the
+    /// model's carried type. That is a view taking model values — the difference between
+    /// splitting a program into files and splitting it into layers.
+    /// </remarks>
+    /// <remarks>
+    /// ★ It keeps its own dependency: the program below pulls `viewer` and never mentions
+    /// `shapes`, yet hands `viewer` a `point` it made from its own pull of the model.
+    /// </remarks>
+    [Fact]
+    public void ABookInItsOwnFile_MayTakeAPulledModulesCarriedTypeAsAParameter()
+    {
+        Write("shapes", Shapes);
+        Write("viewer", """
+            Pull a shapes.
+                Define object viewer with () and book:
+                    Bind number to describe, given (the point which):
+                        Return cast which's sum.
+                    Done.
+                Done.
+            Done.
+            """);
+
+        Assert.Equal("7", Run("""
+            Pull a shapes.
+                Pull a book on viewer.
+                    State cast viewer's describe on (a new point { the across 3, the up 4 }).
+                Done.
+            Done.
+            """));
+    }
+
+    /// <remarks>
+    /// ⚠ The capture the rewrite must NOT make. A block that declares its own `point` means its
+    /// own, and substituting the pulled module's lifted name there would silently retype it.
+    /// </remarks>
+    [Fact]
+    public void ATypeTheBlockDeclaresItself_IsNotCapturedByThePulledOne()
+    {
+        Assert.Equal("100", Run(Shapes + """
+            Pull a shapes.
+                Define object point with (the number score):
+                    Bind number to worth:
+                        Return one's score.
+                    Done.
+                Done.
+
+                Bind number to value-of, given (the point which):
+                    Return cast which's worth.
+                Done.
+
+                State cast value-of on (a new point { the score 100 }).
+            Done.
+            """));
+    }
 }
