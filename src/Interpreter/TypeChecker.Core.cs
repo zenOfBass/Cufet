@@ -660,20 +660,46 @@ public sealed partial class TypeChecker
     /// </remarks>
     public const string BookInterface = "book";
 
+    /// <summary>
+    /// A module that OWNS A REGION — `Pull` one and its block is an arena scope.
+    /// A subtype of <see cref="ModuleInterface"/>: every region is a module.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ★★ **This is the other side of the 2026-09-17 line.** A module MAY own a lifetime and a
+    /// book may not — but "may" is permission, not fact, and until this marker existed nothing
+    /// said which modules DO. `rabbit` was the only region in the language and got there by being
+    /// a special AST node, so the power existed and the door to it did not.
+    /// </para>
+    /// <para>
+    /// ★ The word is the one the project already uses. DESIGN and REFERENCE say "region" 26 times
+    /// between them for exactly this concept, and it is free — not a keyword, and not an
+    /// identifier anywhere in the corpus. Contextual like `module` and `book`: it is a name in a
+    /// conformance list, so it costs no reserved word.
+    /// </para>
+    /// </remarks>
+    public const string RegionInterface = "region";
+
     private readonly Dictionary<string, InterfaceDefinition> _interfaceDefs = new()
     {
         [ModuleInterface] = new InterfaceDefinition(ModuleInterface, [], 0, 0),
         [BookInterface]   = new InterfaceDefinition(BookInterface, [], 0, 0),
+        [RegionInterface] = new InterfaceDefinition(RegionInterface, [], 0, 0),
     };
 
-    /// <summary>Whether an object claims to be pullable at all — as a module, or as a book.</summary>
+    /// <summary>Whether an object claims to be pullable at all — as a module, a book, or a region.</summary>
     public static bool IsModuleConformer(IReadOnlyList<string> conformed) =>
         conformed.Contains(ModuleInterface, StringComparer.OrdinalIgnoreCase)
-        || conformed.Contains(BookInterface, StringComparer.OrdinalIgnoreCase);
+        || conformed.Contains(BookInterface, StringComparer.OrdinalIgnoreCase)
+        || conformed.Contains(RegionInterface, StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Whether an object claims to be the kind that owns no lifetime.</summary>
     public static bool IsBookConformer(IReadOnlyList<string> conformed) =>
         conformed.Contains(BookInterface, StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Whether pulling this object opens a region — an arena scope closed by its `Done.`</summary>
+    public static bool IsRegionConformer(IReadOnlyList<string> conformed) =>
+        conformed.Contains(RegionInterface, StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Free functions whose bodies contain a `bury`, so calling one yields a stash.</summary>
     private readonly HashSet<string> _buryingFunctions = new(StringComparer.Ordinal);
@@ -2788,14 +2814,20 @@ public sealed partial class TypeChecker
                         "Take a rabbit as a parameter and name it: "
                         + "'given (the rabbit helper, ...)' then 'Have helper bury <value>.'");
 
-                if (!TryLookup(agent, out var agentInfo) || !IsRabbitType(agentInfo!.Type))
+                // ★★ OWNS A REGION, not IS A RABBIT. That was one sentence while the rabbit was the
+                // only region in the language; it is two now, and this is the one the rule was
+                // always about. A region a person wrote and published is commanded exactly as a
+                // rabbit is — which is what stops `rabbit` being privileged, without `bury` having
+                // to become a member anything declares.
+                if (!TryLookup(agent, out var agentInfo) || !OwnsRegion(agentInfo!.Type))
                     throw TypeError(
-                        $"'{agent}' is not a rabbit",
-                        "Only a rabbit can be told to bury something",
+                        $"'{agent}' does not own a region, so it cannot be told to bury",
+                        "Burying suspends the work in a region, so the thing told to do it has to own one",
                         bring.Line, bring.Column,
                         $"have '{agent}' bury a value",
-                        $"Declare it as one — 'given (the rabbit {agent}, ...)' — or pull one with "
-                        + $"'Pull a rabbit as {agent}.'");
+                        $"Take a rabbit as a parameter — 'given (the rabbit {agent}, ...)' — pull one "
+                        + $"with 'Pull a rabbit as {agent}.', or say 'and region' on the type "
+                        + $"'{agent}' has.");
                 break;
             }
 
@@ -3038,7 +3070,7 @@ public sealed partial class TypeChecker
 
         // Region invariant: don't let a shorter-lived reference escape into longer-lived storage.
         CheckRegionStore(becomes.Value, rhsType, existing.RabbitDepth, becomes.Line, becomes.Column,
-            $"reassign '{becomes.Name}' to a value from a shorter-lived rabbit region");
+            $"reassign '{becomes.Name}' to a value from a shorter-lived region");
         // ESC.1 — annotate (never reject) so the compiler can copy an escaping value outward.
         becomes.EscapeToDepth = EscapeDepthFor(becomes.Value, rhsType, existing.RabbitDepth);
     }

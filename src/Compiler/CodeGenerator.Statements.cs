@@ -47,7 +47,7 @@ public sealed partial class CodeGenerator
         // the escaping store; refuse the indirect form loudly rather than dangle.
         if (valueType is FunctionType)
             throw new CompilerException(
-                "a closure that captures a rabbit-scoped value can only escape its rabbit when it is " +
+                "a closure that captures a region-scoped value can only escape its region when it is " +
                 "created directly in the escaping store (e.g. `outer becomes a function: … Done.`), not " +
                 "stored via an intermediate variable first. Inline the closure at the point it escapes.");
         int idx;
@@ -688,7 +688,21 @@ public sealed partial class CodeGenerator
                 // is purely a scope: register each alias (localName → book) for member-dispatch routing,
                 // emit the body in a C block (scopes body-locals like the interpreter's EnterScope), then
                 // unregister. No arena push (books allocate nothing), no runtime book value, no linking.
+                // ★★ A REGION pull is the one that allocates. `and region` says this module owns a
+                // lifetime, so its block is an arena scope exactly as a rabbit's is — the same
+                // push/pop, because it is the same thing. Everything else here is unchanged: the
+                // alias registration and the C block are what a module pull already was.
+                //
+                // ⚠ No concurrency bookkeeping, unlike PullRabbitStatement above. Tasks are spawned
+                // with `Have <rabbit> start a task`, which still names a rabbit; a user's region
+                // owns memory, not threads. Widening that is a separate decision with its own
+                // structured-join guarantee to preserve.
+                bool opensRegion = ps.Books.Any(b =>
+                    _objectDefs.TryGetValue(b.BookName, out var d)
+                    && TypeChecker.IsRegionConformer(d.ConformedInterfaces));
+
                 var added = new List<string>();
+                if (opensRegion) sb.AppendLine($"{indent}cufet_arena_push();");
                 sb.AppendLine($"{indent}{{");
                 foreach (var (bookName, localName) in ps.Books)
                 {
@@ -714,6 +728,7 @@ public sealed partial class CodeGenerator
                 // Binds in the body were HOISTED to free functions at Generate time — skip them here.
                 EmitScopedBlock(sb, ps.Body.Where(s => s is not BindStatement).ToList(), indent + "    ");
                 sb.AppendLine($"{indent}}}");
+                if (opensRegion) sb.AppendLine($"{indent}cufet_arena_pop();");
                 foreach (var l in added) _bookAliases.Remove(l);
                 break;
             }

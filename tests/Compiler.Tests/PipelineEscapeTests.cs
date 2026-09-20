@@ -853,6 +853,6 @@ public class PipelineEscapeTests : PipelineTestBase
             State unbury (item 1 of keeper).
             """;
         var ex = Assert.Throws<CompilerException>(() => Compile(src));
-        Assert.Contains("escape its rabbit", ex.Message);
+        Assert.Contains("escape its region", ex.Message);
     }
 }

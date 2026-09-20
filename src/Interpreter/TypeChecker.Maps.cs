@@ -145,9 +145,9 @@ public sealed partial class TypeChecker
                 $"store a {FormatType(valType)} in it",
                 $"Values in this map must be {FormatTypePlural(mt.ValueType)}.");
 
-        // Region invariant: don't store a rabbit-scoped value in a longer-lived map.
+        // Region invariant: don't store a region-scoped value in a longer-lived map.
         CheckRegionStore(mapSet.Value, valType, ContainerDepthOf(mapSet.Map), mapSet.Line, mapSet.Column,
-            "store a rabbit-scoped value in a map that lives in a longer-lived region");
+            "store a region-scoped value in a map that lives in a longer-lived region");
         mapSet.EscapeToDepth = EscapeDepthFor(mapSet.Value, valType, ContainerDepthOf(mapSet.Map));
         // The key is stored too, so it escapes on the same terms as the value (a text key built
         // inside a rabbit and put into a longer-lived map would be freed at that rabbit's Done.

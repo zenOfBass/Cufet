@@ -692,7 +692,7 @@ public class PipelineForeignTests : PipelineTestBase
                 Done.
             Done.
             """;
-        Assert.Contains("shorter-lived rabbit region",
+        Assert.Contains("shorter-lived region",
                         Assert.ThrowsAny<Exception>(() => Interpret(src)).Message);
     }
 

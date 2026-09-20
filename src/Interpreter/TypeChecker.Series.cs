@@ -225,7 +225,7 @@ public sealed partial class TypeChecker
                 $"Change the value to a {FormatType(seriesType.ElementType)}, or define a separate series that holds {FormatTypePlural(valueType)}.");
 
         CheckRegionStore(add.Value, valueType, ContainerDepthOf(add.Series), add.Line, add.Column,
-            $"add a rabbit-scoped value to a series in a longer-lived region");
+            $"add a region-scoped value to a series in a longer-lived region");
         add.EscapeToDepth = EscapeDepthFor(add.Value, valueType, ContainerDepthOf(add.Series));
     }
 
@@ -360,7 +360,7 @@ public sealed partial class TypeChecker
                     $"set an item to a {FormatType(valueType)} value",
                     $"Change the new value to a {FormatType(seriesType.ElementType)}.");
             CheckRegionStore(seriesSet.Value, valueType, ContainerDepthOf(seriesSet.Series), seriesSet.Line, seriesSet.Column,
-                $"set an item in a series to a rabbit-scoped value from a shorter-lived region");
+                $"set an item in a series to a region-scoped value from a shorter-lived region");
             return;
         }
 

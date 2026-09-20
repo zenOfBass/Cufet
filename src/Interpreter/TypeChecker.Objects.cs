@@ -43,7 +43,7 @@ public sealed partial class TypeChecker
                     $"set '{stmt.Member}' to a {FormatType(valueType)}",
                     $"The setter for '{stmt.Member}' accepts a {FormatType(setterSig.Value.ParamType)}.");
             CheckRegionStore(stmt.Value, InferType(stmt.Value), ContainerDepthOf(stmt.Target), stmt.Line, stmt.Column,
-                $"set '{stmt.Member}' to a value from a shorter-lived rabbit region than the object");
+                $"set '{stmt.Member}' to a value from a shorter-lived region than the object");
             stmt.EscapeToDepth = EscapeDepthFor(stmt.Value, InferType(stmt.Value), ContainerDepthOf(stmt.Target));
             return;
         }
@@ -53,7 +53,7 @@ public sealed partial class TypeChecker
         // Region invariant: the value being stored cannot outlive the object's rabbit region.
         var valType = InferType(stmt.Value);
         CheckRegionStore(stmt.Value, valType, ContainerDepthOf(stmt.Target), stmt.Line, stmt.Column,
-            $"set '{stmt.Member}' to a value from a shorter-lived rabbit region than the object");
+            $"set '{stmt.Member}' to a value from a shorter-lived region than the object");
         stmt.EscapeToDepth = EscapeDepthFor(stmt.Value, valType, ContainerDepthOf(stmt.Target));
     }
 
@@ -350,6 +350,26 @@ public sealed partial class TypeChecker
                 $"declare '{od.Name}' as a book and a module at once",
                 $"Say 'and {BookInterface}' on its own if '{od.Name}' owns no lifetime, "
               + $"or 'and {ModuleInterface}' on its own if it owns one.");
+
+        // ★★ The same contradiction, and the sharper one: a book owns NO lifetime by definition,
+        // and a region is nothing but a lifetime. Refused here rather than at the pull for the
+        // same reason as above — the sentence is wrong where it was written.
+        if (od.ConformedInterfaces.Contains(BookInterface, StringComparer.OrdinalIgnoreCase)
+         && od.ConformedInterfaces.Contains(RegionInterface, StringComparer.OrdinalIgnoreCase))
+            throw TypeError(
+                $"'{od.Name}' says both '{BookInterface}' and '{RegionInterface}', "
+              + "and a book owns no lifetime",
+                $"A region IS a lifetime — pulling one opens a scope that its 'Done.' closes — so "
+              + $"'and {BookInterface}' and 'and {RegionInterface}' are opposite claims",
+                od.Line, od.Column,
+                $"declare '{od.Name}' as a book and a region at once",
+                $"Say 'and {RegionInterface}' on its own if pulling '{od.Name}' should open a "
+              + $"region, or 'and {BookInterface}' on its own if it is only exported code.");
+
+        // ⚠ `and module and region` is NOT refused, unlike the two above. It is redundant rather
+        // than contradictory — a region IS a module, and saying so twice claims one answer twice
+        // instead of two answers once. Left alone deliberately; if it becomes noise, refuse it
+        // then, with a reason of its own rather than by analogy to these.
 
         foreach (var ifaceName in od.ConformedInterfaces)
         {

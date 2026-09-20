@@ -363,6 +363,22 @@ public sealed partial class TypeChecker
         type is ObjectType ot
         && string.Equals(ot.Name, RabbitModuleName, StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>Does this type OWN A REGION — a rabbit, or a region a person wrote?</summary>
+    /// <remarks>
+    /// ★★ This is what stops `rabbit` being privileged. A bury is commanded to an agent that owns
+    /// a region, and until now "owns a region" and "is the rabbit" were the same sentence because
+    /// the rabbit was the only one. `rabbit.cufe` now says `and region` like any other region, so
+    /// this asks the question the rule was always about.
+    ///
+    /// ⚠ Instance-based, so it reads `_objectDefs` rather than the captured ObjectType — the
+    /// registered definition is REPLACED as the checker fills things in, which is the same trap
+    /// RabbitObjectType() documents.
+    /// </remarks>
+    private bool OwnsRegion(CufetType? type) =>
+        type is ObjectType ot
+        && _objectDefs.TryGetValue(ot.Name, out var def)
+        && IsRegionConformer(def.ConformedInterfaces);
+
     /// <summary>
     /// The type whose members a possessive target actually offers: an object directly, or — for a
     /// bundled book — its Cufet layer, the prelude-defined module object sharing the book's name.
@@ -426,7 +442,22 @@ public sealed partial class TypeChecker
             foreach (var (moduleName, _) in ps.Books)
                 _pendingPullChecks.Add((moduleName, ps, visibleHere));
 
-            CheckBlock(ps.Body);
+            // ★★ A REGION pull raises the depth, exactly as `Pull a rabbit` does — and it has to,
+            // or the escape machinery cannot see the region at all. Every rule that keeps a rabbit
+            // sound is depth arithmetic (outward-only stores, the capture-escape annotation, the
+            // downward-only guard), so a region that did not raise the depth would look like
+            // ordinary straight-line code and let its values be stored anywhere.
+            //
+            // ★ Nothing else changes. The soundness story a user's region needs is the one rabbits
+            // already run on — the adversarially-tested outward-only invariant — and it is bought
+            // entirely by this increment.
+            bool opensRegion = ps.Books.Any(b =>
+                _objectDefs.TryGetValue(b.BookName, out var d)
+                && IsRegionConformer(d.ConformedInterfaces));
+
+            if (opensRegion) _rabbitDepth++;
+            try { CheckBlock(ps.Body); }
+            finally { if (opensRegion) _rabbitDepth--; }
         }
         finally { ExitScope(); }
     }

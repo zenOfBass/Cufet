@@ -268,7 +268,7 @@ public sealed partial class TypeChecker
         var valueDepth = ValueDepthOf(valueExpr, valueType);
         if (valueDepth <= targetDepth) return;
         throw TypeError(
-            "this value lives in a shorter-lived rabbit region than its destination — it will be gone when the rabbit ends",
+            "this value lives in a shorter-lived region than its destination — it will be gone when that region ends",
             null, line, col,
             action,
             "Move the container inside the rabbit block, or restructure so this value does not outlive its rabbit.");
