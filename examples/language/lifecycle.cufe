@@ -1,0 +1,49 @@
+/*  An object with a whole life: a computed property, an intercepted write, and a destructor.
+
+    A stored field, a getter and a setter are indistinguishable at the call site — `reservoir's
+    fullness` is computed and `reservoir's litres` is stored, and nothing at the point of use
+    says which. That is the point of uniform access: a field can BECOME a property later without
+    any caller changing.
+
+    ★ A setter is transform-only and cannot reject. This one clamps an overfill to the tank's
+    capacity, which is the honest use — validation that needs to REFUSE belongs to the caller,
+    before the assignment, because a setter has nowhere to put a failure.
+
+    ★★ THE INTERACTION THIS EXISTS FOR. The object is made inside a rabbit and read by a task,
+    and its unmaker runs at the rabbit's `Done.` — AFTER the task has been joined. That ordering
+    is load-bearing and was wrong in the compiler until 2026-09-20: the rabbit ran its own
+    unmakers BEFORE joining, so it destroyed objects its tasks could still be reading, and the
+    destructor's output came out ahead of theirs. Nothing in the corpus covered an unmaker at
+    all, which is why it survived. The last three lines of the output below are that fix.
+*/
+
+Define object tank with (the number litres, the number capacity):
+    Get fullness as number:
+        Return one's litres * 100 / one's capacity.
+    Done.
+
+    Set litres given (the number wanted):
+        If wanted is greater than one's capacity, one's litres becomes one's capacity.
+        Otherwise, one's litres becomes wanted.
+    Done.
+Done.
+
+Bind unmaking a tank to drain-tank:
+    State "drained a tank holding {one's litres}".
+Done.
+
+Pull a rabbit as hopper.
+    Define reservoir as a new tank { the litres 0, the capacity 200 }.
+
+    The litres of reservoir becomes 50.
+    State "filled to 50: {reservoir's fullness} percent".
+
+    The litres of reservoir becomes 500.
+    State "asked for 500: {reservoir's fullness} percent".
+
+    Have hopper start a task as gauge:
+        State "the gauge reads {reservoir's fullness} percent".
+    Done.
+Done.
+
+State "the yard is closed".
