@@ -1,0 +1,24 @@
+/*  The build description for the snake game.
+
+    ★★ Running this performs NOTHING. It defines `blueprint` and calls nothing, so what comes out
+    is a plan; the build happens afterwards, to that plan. `cufet blueprint.cufe` printing no
+    output is correct rather than a bug — which is also what lets this file sit in the corpus and
+    be run on both backends like every other program here.
+
+    ⚠ The graph is never written down. `play` runs after `build-it` because it NEEDS a path that
+    step MAKES. Declaring edges as well would state one fact twice.
+*/
+
+Pull a book on blueprints.
+    Bind series of step to blueprint:
+        Define work as a series of step.
+
+        Insert a record with (
+            the name "snake",
+            the needs a series of text with ("snake.cufe", "board.cufe"),
+            the makes a series of text with ("snake.exe"),
+            the runs a series of text with ("cufet", "build", "snake.cufe")) into work.
+
+        Return work.
+    Done.
+Done.

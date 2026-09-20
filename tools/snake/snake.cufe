@@ -1,0 +1,35 @@
+/*  The snake game — the vertical slice: a model in its own file, and a main that draws it.
+
+    ⚠ Not a game yet. It draws one frame of a body that never moves, which is the smallest thing
+    that proves the structure: a type crossing a file boundary, and a blueprint that builds them
+    together.
+
+    ⚠⚠ THE VIEW IS NOT ITS OWN FILE YET, and that is a language limitation rather than a choice.
+    A module written inside a pull cannot name the pulled module's carried type in its own
+    SIGNATURE — `Bind series of text to frame-of, given (the series of spot body)` is refused with
+    "'spot' is not a defined type", though the same type resolves fine inside a method BODY.
+    MEASURED 2026-09-20. Until that is fixed the drawing lives here, where `spot` is in scope.
+*/
+
+Pull board.
+    Define body as a series of spot.
+    Insert cast board's at on (4, 8) into body.
+    Insert cast board's at on (4, 9) into body.
+    Insert cast board's at on (4, 10) into body.
+
+    State "a {cast board's height} by {cast board's width} field:".
+
+    For each row in range 1 to cast board's height, repeat:
+        Define line as "".
+        For each column in range 1 to cast board's width, repeat:
+            Define here as cast board's at on (row, column).
+            Define filled as false.
+            For each piece in body, repeat:
+                If cast piece's same-as on (here), the filled becomes true.
+            Done.
+            If filled, the line becomes line joined to "O".
+            Otherwise, the line becomes line joined to ".".
+        Done.
+        State line.
+    Done.
+Done.

@@ -1,0 +1,45 @@
+/*  The model: what a playing field is made of.
+
+    ★ It is a MODULE rather than a book because it carries a TYPE. A book hands out members; only
+    a module may hold a declaration, and a declaration is the only way a type crosses a file
+    boundary. `spot` is the whole reason this file exists as a module.
+
+    ⚠ Nothing here draws anything or reads a key. The model knows where things are and what
+    counts as the same square; the view knows how that looks and the controller knows what a
+    keypress means. Keeping them apart is the point of the exercise as much as the game is.
+*/
+
+Define object board with () and module:
+
+    /// One square of the playing field, counted from 1 at the top left.
+    Define object spot with (the number row, the number column):
+
+        /// Whether two squares are the same square.
+        Bind fact to same-as, given (the spot other):
+            Return one's row is other's row and one's column is other's column.
+        Done.
+    Done.
+
+    /// How many rows the field has.
+    Bind number to height:
+        Return 8.
+    Done.
+
+    /// How many columns the field has.
+    Bind number to width:
+        Return 20.
+    Done.
+
+    /// A square, from its coordinates.
+    Bind spot to at, given (the number row, the number column):
+        Return a new spot { the row row, the column column }.
+    Done.
+
+    /// Whether a square is still on the field.
+    Bind fact to holds, given (the spot which):
+        Return which's row is not less than 1
+           and which's row is not greater than cast one's height
+           and which's column is not less than 1
+           and which's column is not greater than cast one's width.
+    Done.
+Done.
