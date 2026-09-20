@@ -57,6 +57,25 @@ public sealed partial class TypeChecker
         stmt.EscapeToDepth = EscapeDepthFor(stmt.Value, valType, ContainerDepthOf(stmt.Target));
     }
 
+    /// <summary>The defaults declared for a type, following the embed chain as construction does.</summary>
+    /// <remarks>
+    /// ★ Flat construction sets own AND embedded fields in one literal (see GetAllNamedFields), so
+    /// a default declared on an embedded type has to be reachable from the outer literal or the
+    /// two halves would disagree about what is required.
+    /// </remarks>
+    private IReadOnlyList<(string Name, IExpression Value)> DefaultsFor(string typeName)
+    {
+        var found = new List<(string Name, IExpression Value)>();
+        for (var name = typeName; name is not null; )
+        {
+            if (_fieldDefaults.TryGetValue(name, out var own))
+                foreach (var d in own)
+                    if (!found.Any(f => f.Name == d.Name)) found.Add(d);
+            name = _objectDefs.TryGetValue(name, out var ot) ? ot.EmbeddedTypeName : null;
+        }
+        return found;
+    }
+
     private void CheckObjectNamedSet(ObjectType ot, string fieldName, IExpression value, int line, int col)
     {
         // Also guarded here, not only in CheckPossessiveSet: this is the shared field-write check
@@ -414,6 +433,27 @@ public sealed partial class TypeChecker
         // well defined, allowed, and worth saying out loud because the reader cannot see it.
         if (_winningDefinition.TryGetValue(od.Name, out var winner) && !ReferenceEquals(winner, od))
             return;
+
+        // ★★ A DEFAULT is checked against its field HERE, at the definition, and not at each
+        // construction site. The sentence that is wrong is the one that declared it, and a refusal
+        // at the literal would point at whoever left the field out — the same reasoning the
+        // `and book and module` refusal above is placed by.
+        //
+        // ⚠ MEASURED as a live hole before this existed: `the number age with default "old"`
+        // passed `check` outright, because filling the value in only INFERRED its type and never
+        // compared it to the field's.
+        foreach (var (fieldName, value) in od.FieldDefaults ?? [])
+        {
+            var declared = FindFieldInOtOrPromoted(objType, fieldName);
+            if (declared == null) continue;   // an unknown field is already refused elsewhere
+            var given = InferType(value);
+            if (given != null && !IsAssignable(declared, given))
+                throw TypeError(
+                    $"the default for '{fieldName}' is a {FormatType(given)}, but the field holds a {FormatType(declared)}",
+                    null, od.Line, od.Column,
+                    $"give '{fieldName}' a {FormatType(given)} default",
+                    $"Change the default to a {FormatType(declared)}, or change the field's type.");
+        }
 
         // ★ A book's Cufet layer checks with the book's own INTRODUCED TYPES in scope —
         // `transpose`'s body constructs a matrix, and `matrix` is otherwise only in scope inside
@@ -848,15 +888,40 @@ public sealed partial class TypeChecker
         // Flat construction: named fields = own + embedded (all levels).
         var allNamedFields = GetAllNamedFields(objType);
 
-        // Check all required named fields are present.
+        // Check all required named fields are present — a field with a DEFAULT is not required.
+        //
+        // ★★ The default is filled in HERE, onto the literal, so neither backend learns that
+        // defaults exist: each appends FilledDefaults to NamedValues and constructs exactly as it
+        // did before. The invariant the ROADMAP entry wanted kept survives intact — an object
+        // still has no unset state; what changed is only who wrote the value down.
+        //
+        // ⚠ The default EXPRESSION is filled, not a value computed once at the definition. So
+        // `with default a series of number` gives every object its own series rather than sharing
+        // one — the mutable-default-argument trap, answered by construction rather than by a rule.
+        var defaultsForType = DefaultsFor(objType.Name);
+        List<(string Name, IExpression Value)>? filled = null;
         foreach (var (requiredName, _) in allNamedFields)
         {
-            if (!lit.NamedValues.Any(nv => nv.Name == requiredName))
-                throw TypeError(
-                    $"field '{requiredName}' of '{lit.TypeName}' is missing",
-                    null, lit.Line, lit.Column,
-                    $"create a {lit.TypeName} without field '{requiredName}'",
-                    $"Add 'the {requiredName} <value>' to the object literal.");
+            if (lit.NamedValues.Any(nv => nv.Name == requiredName)) continue;
+
+            var supplied = defaultsForType.FirstOrDefault(d => d.Name == requiredName);
+            if (supplied.Name is not null)
+            {
+                (filled ??= []).Add(supplied);
+                continue;
+            }
+
+            throw TypeError(
+                $"field '{requiredName}' of '{lit.TypeName}' is missing",
+                null, lit.Line, lit.Column,
+                $"create a {lit.TypeName} without field '{requiredName}'",
+                $"Add 'the {requiredName} <value>' to the object literal, or give the field a "
+              + $"default where '{lit.TypeName}' is defined: 'the ... {requiredName} with default <value>'.");
+        }
+        if (filled is { Count: > 0 })
+        {
+            foreach (var (name, value) in filled) _ = InferType(value);
+            lit.FilledDefaults = filled;
         }
 
         // Check provided fields are valid (exist somewhere in the chain) and correctly typed.

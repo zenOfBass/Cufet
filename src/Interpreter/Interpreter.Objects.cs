@@ -233,7 +233,13 @@ public sealed partial class Interpreter
         if (!_objectDefs.TryGetValue(wanted, out var def))
             throw new RuntimeException(
                 $"'{wanted}' is not a defined object type (line {ol.Line}).");
-        return BuildObjectValue(def, ol.PositionalValues, ol.NamedValues, ol.Line);
+        // ★ FilledDefaults is what the checker worked out was left out. Appending it is the
+        // whole of this feature on this side — the builder below cannot tell a defaulted field
+        // from a written one, which is the point.
+        var named = ol.FilledDefaults is { Count: > 0 } d
+            ? [.. ol.NamedValues, .. d]
+            : ol.NamedValues;
+        return BuildObjectValue(def, ol.PositionalValues, named, ol.Line);
     }
 
     private object EvaluatePossessiveAccess(PossessiveAccess pa)

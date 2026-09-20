@@ -636,7 +636,14 @@ public sealed record ObjectDefinition(
     // ★ Carried, not owned. `ModuleTypeLifting` moves each one to the top level under a name with
     // a space in it, and the pull registers the short name as a scoped alias — so both backends
     // see an ordinary top-level object type and neither learns that modules can hold types.
-    IReadOnlyList<ObjectDefinition>? Carried = null
+    IReadOnlyList<ObjectDefinition>? Carried = null,
+    // The fields this definition gives a DEFAULT — `the number age with default 0` names one.
+    // Omitting such a field at construction is not an error; the default's expression is used.
+    //
+    // ★ A name-keyed list BESIDE NamedFields, for the reason PermanentFields records above: that
+    // tuple is read in 98 places across 14 files, and a parallel positional list can fall out of
+    // step with it while a name-keyed one cannot.
+    IReadOnlyList<(string Name, IExpression Value)>? FieldDefaults = null
 ) : IStatement;
 
 // a new <TypeName> [of <type> ...] {<fields>}
@@ -657,6 +664,20 @@ public sealed record ObjectLiteral(
     // IsTypeCheck.StaticTargetType is, because both backends look the definition up BY NAME and the
     // template's own name names no type. Null for an ordinary object, which is nearly all of them.
     public string? ResolvedTypeName { get; set; }
+
+    /// <summary>Fields this literal left out that the definition gives a default for.</summary>
+    /// <remarks>
+    /// ★ A side channel written by the checker, exactly as <see cref="ResolvedTypeName"/> is, and
+    /// for the same reason: the defaults live on the DEFINITION and both backends build from the
+    /// LITERAL. Filling them here means neither backend learns that defaults exist — each appends
+    /// this list to NamedValues and constructs as it always did.
+    ///
+    /// ⚠ Evaluated at the CONSTRUCTION SITE, not once at the definition. A default is an
+    /// expression, so `with default a series of number` has to give each object its own series
+    /// rather than sharing one — the mutable-default-argument bug every language with this
+    /// feature has had to answer for.
+    /// </remarks>
+    public IReadOnlyList<(string Name, IExpression Value)>? FilledDefaults { get; set; }
 
     /// <inheritdoc cref="VariableReference.Name"/>
     public string TypeName { get; set; } = TypeName;

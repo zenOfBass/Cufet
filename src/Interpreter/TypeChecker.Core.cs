@@ -612,6 +612,16 @@ public sealed partial class TypeChecker
     private readonly List<Dictionary<string, CufetType>>     _typeScopes    = [new()];
     private readonly Dictionary<string, ObjectType>          _objectDefs    = new();
 
+    /// <summary>Per type, the fields it gives a default for — `the number age with default 0`.</summary>
+    /// <remarks>
+    /// ★ A side table rather than a property on ObjectType, which is rebuilt in several places
+    /// (WithMethods, the generic fillings) — each of those would have to remember to carry it, and
+    /// the one that forgot would silently lose every default on that type. Keyed by type NAME,
+    /// which is what survives a rebuild.
+    /// </remarks>
+    private readonly Dictionary<string, IReadOnlyList<(string Name, IExpression Value)>> _fieldDefaults
+        = new(StringComparer.Ordinal);
+
     /// <summary>
     /// What each module carries, as <c>module → (short name → lifted name)</c>. Filled by
     /// <see cref="ModuleTypeLifting"/> before the hoist; read at a pull, to put the short names back
@@ -2147,6 +2157,8 @@ public sealed partial class TypeChecker
         {
             if (stmt is not ObjectDefinition od || od.TypeParameters is { Count: > 0 }) continue;
             if (!_objectDefs.TryGetValue(od.Name, out var ot)) continue;
+
+            if (od.FieldDefaults is { Count: > 0 } defaults) _fieldDefaults[od.Name] = defaults;
 
             foreach (var method in od.Methods)
             {

@@ -483,14 +483,17 @@ public sealed class Parser
         // already has the stronger mechanism; it just made the cheap shape expensive to write.
         RecordType shape;
         List<string> permanentFields;
+        List<(string Name, IExpression Value)> fieldDefaults;
         if (Peek().Type == TokenType.With)
         {
-            shape = ParseRecordShapeAnnotation(out permanentFields); // consumes "with (...)"
+            // consumes "with (...)"
+            shape = ParseRecordShapeAnnotation(out permanentFields, out fieldDefaults);
         }
         else
         {
             shape = new RecordType([], []);
             permanentFields = [];
+            fieldDefaults   = [];
         }
         SkipNoise();
 
@@ -569,7 +572,7 @@ public sealed class Parser
             Consume(TokenType.Dot);
         }
 
-        return new ObjectDefinition(name, shape.PositionalTypes, shape.NamedFields, methods, getters, setters, embeddedTypeName, conformedInterfaces, line, col, permanentFields, typeParameters, carried);
+        return new ObjectDefinition(name, shape.PositionalTypes, shape.NamedFields, methods, getters, setters, embeddedTypeName, conformedInterfaces, line, col, permanentFields, typeParameters, carried, fieldDefaults);
     }
 
     /// <summary>
@@ -1045,20 +1048,25 @@ public sealed class Parser
     // Positionals must come before named fields — parser error otherwise.
     private RecordType ParseRecordShapeAnnotation() => ParseRecordShapeAnnotation(out _);
 
-    private RecordType ParseRecordShapeAnnotation(out List<string> permanentFields)
+    private RecordType ParseRecordShapeAnnotation(out List<string> permanentFields) =>
+        ParseRecordShapeAnnotation(out permanentFields, out _);
+
+    private RecordType ParseRecordShapeAnnotation(
+        out List<string> permanentFields, out List<(string Name, IExpression Value)> fieldDefaults)
     {
         Consume(TokenType.With); SkipNoise();
-        return ParseRecordShapeBody(out permanentFields);
+        return ParseRecordShapeBody(out permanentFields, out fieldDefaults);
     }
 
     // Parses: (<positional-types>, the <type> <field-name>, ...)
     // Called by both ParseRecordShapeAnnotation (after 'with') and the 'series of records like (...)' path.
-    private RecordType ParseRecordShapeBody() => ParseRecordShapeBody(out _);
+    private RecordType ParseRecordShapeBody() => ParseRecordShapeBody(out _, out _);
 
     // `permanentFields` collects the names declared `the permanently <type> <name>`. It is an out
     // parameter rather than part of RecordType because permanence is a property of the DECLARATION,
     // not of the type: two objects with the same field types differ only in what may be written.
-    private RecordType ParseRecordShapeBody(out List<string> permanentFields)
+    private RecordType ParseRecordShapeBody(
+        out List<string> permanentFields, out List<(string Name, IExpression Value)> fieldDefaults)
     {
         Consume(TokenType.LParen);
         // No SkipNoise here — preserve leading 'the' that signals a named field.
@@ -1066,17 +1074,18 @@ public sealed class Parser
         var positionalTypes = new List<CufetType>();
         var namedFields     = new List<(string Name, CufetType Type)>();
         permanentFields     = [];
+        fieldDefaults       = [];
         bool seenNamed      = false;
 
         if (Peek().Type != TokenType.RParen)
         {
-            ParseOneRecordShapeField(positionalTypes, namedFields, permanentFields, ref seenNamed);
+            ParseOneRecordShapeField(positionalTypes, namedFields, permanentFields, fieldDefaults, ref seenNamed);
             SkipNoise(); // safe: after a field, next is comma or RParen
             while (Peek().Type == TokenType.Comma)
             {
                 Advance();
                 // No SkipNoise — preserve leading 'the' for named field detection.
-                ParseOneRecordShapeField(positionalTypes, namedFields, permanentFields, ref seenNamed);
+                ParseOneRecordShapeField(positionalTypes, namedFields, permanentFields, fieldDefaults, ref seenNamed);
                 SkipNoise(); // safe: after a field, next is comma or RParen
             }
         }
@@ -1088,6 +1097,7 @@ public sealed class Parser
         List<CufetType> positionalTypes,
         List<(string Name, CufetType Type)> namedFields,
         List<string> permanentFields,
+        List<(string Name, IExpression Value)> fieldDefaults,
         ref bool seenNamed)
     {
         if (Peek().Type == TokenType.Article) // named: the <type> <name> [permanently]
@@ -1131,6 +1141,23 @@ public sealed class Parser
             {
                 Advance();
                 permanentFields.Add(fieldName);
+            }
+
+            // `the number age with default 0` — TRAILING, the same position `permanently` uses, so
+            // the rule stays one rule: a modifier follows the thing it modifies.
+            //
+            // ★ CONTEXTUAL — `default` is not reserved. Nothing else can follow a field's name here
+            // (a field list admits only `,` or `)` after it), so the word is decidable without
+            // being spent; `Define default as 5.` stays legal everywhere.
+            if (Peek().Type == TokenType.With)
+            {
+                Advance(); SkipNoise();
+                if (!Peek().Lexeme.Equals("default", StringComparison.OrdinalIgnoreCase))
+                    throw new ParseException(Peek(),
+                        $"field '{fieldName}' — 'with' here introduces a default, so write "
+                      + $"'the ... {fieldName} with default <value>'");
+                Advance(); SkipNoise();
+                fieldDefaults.Add((fieldName, ParseExpression()));
             }
         }
         else

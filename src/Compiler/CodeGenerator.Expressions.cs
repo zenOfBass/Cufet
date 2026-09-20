@@ -716,7 +716,10 @@ public sealed partial class CodeGenerator
     // ResolvedTypeName is set when the literal filled a template's blanks — the definition that
     // exists is `stack of number`, and `stack` alone names nothing.
     private string EmitObjectLiteral(ObjectLiteral ol) =>
-        BuildObjectValue(ol.ResolvedTypeName ?? ol.TypeName, ol.PositionalValues, ol.NamedValues);
+        BuildObjectValue(ol.ResolvedTypeName ?? ol.TypeName, ol.PositionalValues,
+            // ★ The same one line the interpreter has, for the same reason — the checker decided
+            // which fields were left out, so the builder never learns that defaults exist.
+            ol.FilledDefaults is { Count: > 0 } d ? [.. ol.NamedValues, .. d] : ol.NamedValues);
 
     private string BuildObjectValue(string objName, IReadOnlyList<IExpression> positionals,
                                     IReadOnlyList<(string Name, IExpression Value)> named)
