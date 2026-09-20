@@ -108,39 +108,6 @@ public sealed partial class TypeChecker
                     $"Send the result back through a channel, or return it from a named task and "
                   + $"await it.");
 
-        // ★★ A REPEATING task must acquire its own resources. A capture is materialised ONCE,
-        // before the first turn, so a captured resource is shared by every turn — and a turn that
-        // faults is abandoned mid-use, leaving the next turn to carry on with whatever state it
-        // was left in. That is the opposite of what "let it crash" is for, so the resource is
-        // refused at the capture rather than repaired afterwards.
-        //
-        // ⚠ NARROW ON PURPOSE: a RESOURCE is a type with an unmaker, an address, or an open file.
-        // A captured `number` or `text` is fine, and so is a CHANNEL — which matters, because a
-        // channel is how a repeating task gets its work and its stopping signal in the first
-        // place. Anything wider would be a rule wider than its reason.
-        if (lts.Repeating)
-            foreach (var captured in TaskCaptures.Of(lts.Body, n => TryLookup(n, out _)))
-            {
-                if (!TryLookup(captured, out var capturedInfo)) continue;
-                string? kind = capturedInfo.Type switch
-                {
-                    ObjectType ot when ot.Unmaker is not null => "is unmade when it goes out of scope",
-                    AddressType                               => "is an address",
-                    ReadableStreamType or WritableStreamType  => "is an open file",
-                    _                                         => null,
-                };
-                if (kind is null) continue;
-                throw TypeError(
-                    $"this repeating task captures '{captured}', which {kind}",
-                    "a repeating task runs its body again and again, and a capture is made once "
-                  + "before the first turn — so every turn would share the one resource, and a "
-                  + "turn that fails would hand the next one whatever state it left behind",
-                    lts.Line, lts.Column,
-                    $"capture '{captured}' in a repeating task",
-                    "Make the resource inside the body, so each turn acquires its own, or send "
-                  + "what the turn needs through a channel.");
-            }
-
         bool bodyIsFallible = HasDirectFailureReturn(lts.Body);
 
         var prevInFunction       = _inFunction;
