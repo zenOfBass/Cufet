@@ -1885,6 +1885,57 @@ public class PipelineForeignTests : PipelineTestBase
             emittedC, "^static .*" + ForeignC.FunctionPrefix,
             System.Text.RegularExpressions.RegexOptions.Multiline).Count;
 
+    // ── An axiom's name belongs to where it was declared ─────────────────────
+
+    /// <remarks>
+    /// <para>
+    /// ⚠⚠ A LIVE DIVERGENCE, found 2026-09-20 by writing a program. `_axiomLiterals` is keyed on
+    /// the bare name and nothing ever removed an entry, so once a name had been declared as an
+    /// axiom ANYWHERE it captured every later binding of that name: the use site emitted the
+    /// axiom's thunk in place of the local. Interpreted the program was correct; compiled, gcc
+    /// refused the generated C and the message blamed the compiler.
+    /// </para>
+    /// <para>
+    /// ★★ WHAT MADE IT SERIOUS was that the declaration could be inside a BOOK the program merely
+    /// pulled. `tools/terminals.cufe` declares six axiom values inside its own method bodies, so
+    /// `Pull a book on terminals.` silently poisoned `written`, `attached`, `engaged`, `restored`,
+    /// `key-ready` and `pressed` for the pulling program — names invisible in its interface, and
+    /// exactly what the loader's "the file is what hides" rule promises it will not do. Plain
+    /// locals in the same book never leaked; only axiom names did.
+    /// </para>
+    /// <para>
+    /// ★ It bit for real within the hour: adding `key-waiting` to that book introduced an axiom
+    /// value named `ready`, and `tools/repl.cufe` has `Define ready as ""`. The REPL stopped
+    /// compiling. That is the whole argument for this test — the corpus caught it only because
+    /// the REPL happens to live here, and a name clash in somebody else's program would get no
+    /// warning at all.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void AnAxiomsName_DoesNotCaptureALaterBindingOfThatName()
+    {
+        // The axiom `pressed` is declared inside the book's own method, where nothing outside can
+        // reach it. The program then uses `pressed` as an ordinary local, which must stay its own.
+        const string src = """
+            Define object gadget with () and book:
+                Bind number to probe:
+                    Pull a book on the c-language.
+                        Define c-language number pressed as [42].
+                        Return cast pressed.
+                    Done.
+                Done.
+            Done.
+
+            Pull a book on gadget.
+                Define pressed as 5.
+                State "pressed is {pressed}, probe says {cast gadget's probe}".
+            Done.
+            """;
+        Assert.Equal("pressed is 5, probe says 42\n".ReplaceLineEndings(),
+                     InterpretRaw(src).ReplaceLineEndings());
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
     private static Program Checked(string source) =>
         new TypeChecker().Check(new Parser(new CufetLexer(source).Tokenize()).Parse());
 }

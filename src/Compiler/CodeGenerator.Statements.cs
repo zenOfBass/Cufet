@@ -2878,7 +2878,28 @@ public sealed partial class CodeGenerator
                                // binding itself still emits nothing; the value is built here, where
                                // it is used. An axiom that arrived through a parameter is not in
                                // this map — it is an ordinary local already holding the struct.
-                                : _axiomLiterals.TryGetValue(v.Name, out var axiomSource) ? EmitAxiomValue(axiomSource, v.Line)
+                               //
+                               // ⚠⚠ ONLY WHILE THE NAME STILL MEANS THAT AXIOM. `_axiomLiterals` is
+                               // keyed on the bare name and nothing ever removes an entry, so a
+                               // name declared as an axiom ANYWHERE — including deep inside a book
+                               // the program merely pulled — used to capture every later binding of
+                               // that name. MEASURED 2026-09-20: `Pull a book on terminals.` then
+                               // `Define pressed as 5.` emitted the book's read-key thunk in place
+                               // of the local, because `pressed` is the name of an axiom value
+                               // inside that book's own method. Interpreted it printed 5; compiled
+                               // gcc refused the generated C, blaming the compiler. Six names in
+                               // `terminals` alone did this, and it broke `tools/repl.cufe` the
+                               // same day a seventh was added.
+                               //
+                               // ★ The guard is the one its NEIGHBOURS already use — the named
+                               // function branch above and the deferred module branch below both
+                               // ask `_varTypes` whether the name still means what their map
+                               // thinks. This arm was the one that did not.
+                                : _axiomLiterals.TryGetValue(v.Name, out var axiomSource)
+                                  && (!_varTypes.TryGetValue(v.Name, out var axiomBinding)
+                                      || axiomBinding is AxiomType)
+                                      ? EmitAxiomValue(axiomSource, v.Line)
+
                                // A deferred module name as a VALUE. A module carries no state — the
                                // pull emits a zero-initialised struct for exactly this reason — so the
                                // receiver can be built here rather than threaded in from the caller.
