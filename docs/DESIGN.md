@@ -367,6 +367,11 @@ backtracking's worst case on a slow host is not "slow", it is "never finishes".
 along with lookahead and lookbehind, which are precisely the features that make a "regular
 expression" not regular. All three need the backtracking this book declined at the start.
 
+⚠ **CAPTURES are the one exception, and are refused as NOT YET rather than CANNOT.** The three
+above need backtracking and so can never arrive; an automaton can carry captures, at real cost in
+complexity. Nothing has asked for them — but do not read the list above as covering them, because
+the reason that kills the others does not apply.
+
 ★ **A book on a LANGUAGE does not choose its own contents.** `[a-z]` and `{2,5}` mean what they mean
 in regex everywhere, and a book that cannot spell them is a Cufet-flavoured subset wearing regex's
 name on the cover. **Trigger discipline governs what Cufet INVENTS; FIDELITY governs a book.**
@@ -939,7 +944,12 @@ call, so only the *interpreter* dispatches dynamically. What is shared is the pa
 silently disagree.
 
 ★ Because the dynamic dispatch lives in C, the interpreter's P/Invoke surface is a handful
-of fixed `DllImport`s — no `DynamicMethod`, no `calli`.
+of fixed `DllImport`s — no `DynamicMethod`, no `calli`.
+
+⚠ **Headers and LINK FLAGS are one feature, not two.** The bundled header set covers what links
+by default, so binding a library of your own is the gap — and shipping headers alone would be
+worse than shipping nothing: `#include <sqlite3.h>` gets the declarations and then fails at
+"undefined reference", i.e. a feature that cannot work for the case that motivates it.
 
 **FFI does not ship until both backends run it.** The interpreter is the oracle; FFI is the
 one area where being wrong means memory corruption rather than a wrong number, and it is the

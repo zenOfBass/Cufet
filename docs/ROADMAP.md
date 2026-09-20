@@ -339,28 +339,6 @@ indistinguishable from having forgotten.
 
 ### Language
 
-- **A fractional value handed INTO foreign source.** *Blocker: no use case has arrived.* A `double`
-  comes BACK as a `voidable number`, and that direction ships. Going the other way is refused: a
-  `number` argument arrives as a range-checked `long long`, and nothing spells "this one goes in as
-  a double". Whole arguments already work by casting on the C side —
-  `[pow((double)the base, (double)the exponent)]` — so what is actually missing is passing `0.5`,
-  and nothing has wanted to yet.
-
-  ⚠ **It is also the genuinely lossy direction**, which is why it should not be guessed at: `0.1`
-  has no exact `double`, so the conversion has to decide a rounding, and the spelling has to make
-  the writer say they meant a double at all. Both of those want a real caller to argue from.
-
-- **A library of your own — headers AND link flags together.** *Blocker: nobody has wanted to bind
-  a non-system library.* The bundled header set covers everything that links by default, so the gap
-  only shows up as "this needs library X": `#include <sqlite3.h>` gets the declarations and then
-  fails with "undefined reference", which is why headers alone would ship a feature that cannot
-  work for the case that motivates it. ★ The trigger is checkable, which is what keeps this honest.
-
-- **Named captures for `regex`.** *Blocker: no witness has asked.* The only part of the pattern
-  book refused as *not yet* rather than *cannot* — an automaton can carry them, at real cost in
-  complexity. ⚠ Everything else still refused is refused PERMANENTLY and for a stated reason; see
-  DESIGN, *The pattern engine is an automaton, and is written in Cufet*.
-
 - **`is any of (…)` — membership as a comparison.** `If x is any of (1, 2, 3)` over
   `If x is 1 or x is 2 or x is 3`. *Blocker: small win.* ⚠ If built, it must be a **comparison,
   never a value** — `Define maybe as any of (1,2,3).` would import Raku-style junctions, whose
