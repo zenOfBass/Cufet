@@ -261,6 +261,17 @@ rabbit's TASKS compose, never its ordinary statements, which stay sequential imp
 - ★ **`automatic` is the only new capability, and the gap is real:** `the delivery from <channel>`
   blocks on ONE channel, so nothing today can wait on several and take whichever arrives first.
   Occam's ALT, Go's select — and how an actor-rabbit would read a mailbox.
+
+  ★★ **Its witness is most likely the logic-gates book**, which is why these two should be
+  weighed together rather than separately. A circuit simulator pushes signals through a network
+  and reacts to whichever input settles — the guarded multi-input wait, exercised once per GATE
+  rather than once per program. Nothing else on this list demands it, so on its own `automatic`
+  reads as a capability without a caller; with circuits it has one.
+
+  ⚠ The reverse does NOT hold, and it is worth saying so: circuits cannot be built ON `automatic`
+  as a message-passing substrate. A gate COMBINES all its inputs; a select takes ONE and ignores
+  the rest — opposite operations. And a mailbox is a QUEUE while a wire is a LEVEL, so a wire has
+  neither the ordering nor the buffering a mailbox exists to provide.
 - **`parallel` is the default**, which is what a task-spawning rabbit already does. All three stay
   sayable: a default is a voiceable choice, not an inferred silence. A rabbit that spawns no tasks
   has no mode at all.
