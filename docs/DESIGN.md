@@ -61,9 +61,29 @@ The decision the rest of them answer to.
   layer is instantiated too. **Lifetime is the only asymmetry the language has**, and today exactly
   one object holds it, through a statement of its own rather than through being a module.
 
-  ⚠ The cost is the one already named above: a user-definable lifetime means user-definable
-  continuations, and the *"which restriction?"* question in the rabbit control-flow arc is what
-  sizes it. This entry records WHICH LINE, not how to build it.
+  ✅ **BUILT 2026-09-19 — `and region`.** `Define object workspace with () and region.` opens an
+  arena scope on `Pull`, can be told to bury, and enforces the outward-only invariant on the type
+  you wrote. `Prelude/rabbit.cufe` says `and region` too, so a rabbit is the FIRST INSTANCE of the
+  rule rather than an exception to it — its regionhood is a line in Cufet instead of a branch in
+  the compiler.
+
+  ★★ **The cost named above was WRONG, and measuring it is what made the work small.** *"A
+  user-definable lifetime means user-definable continuations"* was asserted twice in this entry and
+  never checked. MEASURED: nothing in `bury`/`unbury` depends on the region being a rabbit —
+  `cd_rabbit` compiles to an EMPTY STRUCT that is threaded into the closure and never read, and
+  swapping which rabbit a bury names changes one line of emitted C that nothing loads. The two
+  halves were separable all along. The region half came to five small changes plus one predicate,
+  and the *"which restriction?"* question never entered into it.
+
+  ★ **What actually paid for it** was the thing this document already claimed: every rule keeping
+  a rabbit sound is depth arithmetic, so one increment at a region pull buys the whole
+  adversarially-tested outward-only invariant. Nothing new had to be proved.
+
+  ⚠ **What is NOT here, and never was:** `bury` and `unbury` written in Cufet. They are the
+  language's floor, compiler-provided the way `If` is. Nothing is privileged — any region gets
+  them — but a person cannot implement one, and that promise belongs to *the compiler, written in
+  Cufet*, which names `bury`'s state-machine transform by name. This line was about WHICH
+  ASYMMETRY the distinction means; it never borrowed that promise.
 
 ---
 

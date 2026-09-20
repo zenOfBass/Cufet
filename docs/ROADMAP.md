@@ -38,6 +38,16 @@ The ordering is not ceremonial: this tier's real blocker is stated below as **er
     compiler becoming Cufet is what makes every last part of the language Cufet-written. The
     arc above deliberately did not borrow this promise; this item owns it.
 
+    ⚠⚠ **Do not try to discharge `bury` early by giving a type a suspension VERB — measured and
+    abandoned 2026-09-19.** Writing one down needs a way to say *"calling this suspends my
+    caller"* as distinct from *"this function is a generator"*, and the second is what a body
+    containing `bury` already means (the checker says so: *"'x' buries values, so it has to say
+    what kind"*). Three spellings were tried and all failed the same way — each matched a
+    precedent on the SURFACE and not in the slot: a new primitive word needed a second marker on
+    top of it; `Define` declares TYPES, not members; `of` means CONTAINMENT, not genericity.
+    ★ Nothing is privileged in the meantime — `and region` gives every region the same `bury` the
+    rabbit gets — so this is a self-hosting debt, not an asymmetry.
+
 2. **Compile-time macros — the `cufet` tag's expander.** Not a third program. It is here 
     rather than in *Deferred* because its blocker is now a numbered item above, which is the one rule that section states about itself.
 
@@ -270,31 +280,6 @@ they are large, not because they are waiting — the order among them means noth
    it shares with **Move semantics at channel send** is the same missing concept: a way to say
    *"this binding is spent."*
 
-4. **A module a person can write that owns a lifetime.** ✅ **SHIPPED 2026-09-19** — `and region`.
-   `Define object workspace with () and region.` opens an arena scope on `Pull`, can be told to
-   bury, and enforces the outward-only invariant on the type you wrote. `Prelude/rabbit.cufe` says
-   `and region` too, so a rabbit is the first instance of the rule rather than an exception to it.
-
-   ★★ **The premise in this entry was wrong, and measuring it is what made the work small.** It
-   said a user-definable lifetime means user-definable continuations, and that it landed on the
-   unanswered *"which restriction?"* question. MEASURED: nothing in `bury`/`unbury` depends on the
-   region being a rabbit — `cd_rabbit` compiles to an EMPTY STRUCT nothing reads. The two halves
-   were separable, the region half had no open question, and it came to five small changes plus
-   one predicate. ★ The soundness story was genuinely already paid for, exactly as this entry's
-   last line said: one `_rabbitDepth++` at a region pull buys the whole invariant.
-
-   **Still open — the suspension half, which is a different question:**
-
-   - **`bury` and `unbury` are not written in Cufet.** They are the language's floor, provided by
-     the compiler the way `If` is, and `rabbit.cufe` already commits to that: *"when the compiler
-     itself is written in Cufet, that provision moves with it."* Nothing is PRIVILEGED — any
-     region gets them — but a person cannot implement one.
-   - ⚠ Writing one down needs a way to say *"calling this suspends my caller"* as distinct from
-     *"this function is a generator"*, which is what a body containing `bury` already means.
-     MEASURED, and three spellings were tried and rejected. Do not reach for a fourth without
-     settling what the two meanings ARE.
-   - **Tasks stay rabbit-only.** `Have <rabbit> start a task` requires a rabbit: a region owns
-     memory, not threads, and widening it has a structured-join guarantee to preserve.
 
 ## Ongoing, no fixed slot
 
