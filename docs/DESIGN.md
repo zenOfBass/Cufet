@@ -1013,7 +1013,17 @@ call, so only the *interpreter* dispatches dynamically. What is shared is the pa
 silently disagree.
 
 ★ Because the dynamic dispatch lives in C, the interpreter's P/Invoke surface is a handful
-of fixed `DllImport`s — no `DynamicMethod`, no `calli`.
+of fixed `DllImport`s — no `DynamicMethod`, no `calli`.
+
+⚠ **A subprocess pipeline BUFFERS, and that is what keeps the two backends agreeing.** `run A |
+run B` runs each stage to completion and hands its whole output to the next, in both backends
+identically. Streaming would be faster and would let `yes | head -1` finish — but streaming is
+observable through TERMINATION rather than merely through output order, so a streaming compiler
+against a buffering interpreter is a divergence that HANGS rather than one that prints the wrong
+thing. ★ Contrast the FUNCTION pipe, where the two legitimately differ (buffered interpreted,
+one thread per stage compiled) because each channel is FIFO and the observable order is therefore
+the same. The subprocess form has no such guarantee, so it buffers on both sides until it can
+stream on both.
 
 ⚠ **Headers and LINK FLAGS are one feature, not two.** The bundled header set covers what links
 by default, so binding a library of your own is the gap — and shipping headers alone would be

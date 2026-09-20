@@ -81,13 +81,19 @@ to fill a hole in the language.
 settled (DESIGN), and "the implementation is Cufet" is the tier above's promise, not this one's.
 The claim here is narrower and checkable: point at a program and ask whether it needed C.
 
-**Open, with a witness:**
+✅ **Open, with a witness: NOTHING, as of 2026-09-19** — and that is the campaign working rather
+than stalling. See the rate-limit note below: a capability nobody has reached for is not yet known
+to be missing.
 
-- **Job control.** `tools/shell.cufe` reaches into a `jobs-support` axiom for `&`, `jobs`, `fg`,
-  pipes and `<`. The tool bends around the FFI's own limits to do it — a series cannot cross into
-  an axiom, so it asks about ONE job at a time because only one number crosses back. That
-  contortion is recorded in the shell's own comments, which is what makes this the clearest gap
-  on the list.
+⚠ **Job control was listed here and should not have been. MEASURED when it came up for building:**
+the entry said `tools/shell.cufe` reaches into its `jobs-support` axiom for *"`&`, `jobs`, `fg`,
+pipes and `<`"*, and the shell does **pipes and `<` in pure Cufet** — `read all from the file` for
+the redirect, `run … with input carried` for the pipe. The list came from misreading the shell's
+WINDOWS-AVAILABILITY sentence (*"… pipes and `<` all are"*) as a list of C dependencies.
+★ What the axiom is really for is `setpgid`/`tcsetpgrp` — a child in its own process group and the
+terminal handed between groups. The shell's own source calls that *"correct layering rather than a
+gap in the language"*, and that is right: it is shell-specific machinery, not an ordinary
+capability, and it has no Windows equivalent at all.
 
 ★ **The list is rate-limited by how many real programs exist**, and that is the point rather than a
 complaint: a capability nobody has reached for is not yet known to be missing. Measured 2026-09-11,
@@ -359,6 +365,21 @@ indistinguishable from having forgotten.
   with three invariants is a bad trade at any corpus size that fits on one screen.
 
 ### Memory and concurrency
+
+- **Streaming subprocess pipes.** `run A | run B` is BUFFERED: each stage runs to completion and
+  its whole output is handed to the next. MEASURED in both backends and identically —
+  `Interpreter.Pipes.cs` says *"Buffered v1"*, and the compiled emitter threads one `cf_cur`
+  through a loop of `cufet_run_capture`. Two consequences: `yes | head -1` never finishes, and a
+  long pipeline holds every intermediate in memory.
+
+  ⚠ **The buffering is what makes the two backends AGREE**, so this is not laziness to be tidied
+  away. Streaming is observable through TERMINATION, not just order, so a streaming compiler
+  against a buffering interpreter would be a divergence of the worst kind — one that hangs. Either
+  both stream or neither does, and the interpreter is .NET while the compiled side has real
+  `pipe()`/`dup2`. *Blocker:* that, and no program has wanted it — `tools/shell.cufe` documents the
+  limit and lives with it.
+
+  ★ Not an axiom-campaign item: nothing reaches for C to do this. The language does it, buffered.
 
 - **Move semantics at channel send.** A send deep-copies across the thread boundary. That is
   sound, and it is what keeps the two threads' arenas disentangled, but it is not free. A move
