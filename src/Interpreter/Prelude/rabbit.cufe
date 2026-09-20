@@ -30,4 +30,4 @@
 ///
 /// ⚠ **An address cannot outlive its rabbit.** Anything reaching into the region dies with it, so
 /// what you carry out has to be a value rather than a pointer into what was just reclaimed.
-Define object rabbit with () and module.
+Define object rabbit with () and region.
