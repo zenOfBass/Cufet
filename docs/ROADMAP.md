@@ -307,35 +307,11 @@ indistinguishable from having forgotten.
 
 ### Language
 
-- **`is any of (…)` — membership as a comparison.** `If x is any of (1, 2, 3)` over
-  `If x is 1 or x is 2 or x is 3`. *Blocker: small win.* ⚠ If built, it must be a **comparison,
-  never a value** — `Define maybe as any of (1,2,3).` would import Raku-style junctions, whose
-  threading order is explicitly undefined and therefore incompatible with no-divergence.
-
-- **`Descend.` — explicit fall-through in a `Judge`.** The keyword is reserved and the typing rule
-  is settled: *a fall-through target is checked under the union of every path that can reach it*.
-  *Blocker:* no use case has demanded it. Grouping with `or` covers what C-style fall-through is
-  overwhelmingly used for, and the shell — the program that finally wanted to judge a value —
-  wanted a default, not a fall-through.
-
-- **A no-op statement.** An `Otherwise` arm meaning "ignore the rest" has to say something real,
-  because Cufet has none — `pass` exists only in `or pass the failure off`. *Blocker:* it may not
-  want fixing. Requiring the arm to say something is what makes coverage mean *you thought about*
-  the remaining cases; a no-op is the `catch {}` of case dispatch. Revisit if writing real
-  statements in ignore-this arms becomes a genuine irritation rather than a hypothetical one.
-
 - **`sorted by <function>` — ordering by a computed key.** `sorted by the <field>` reaches named
   fields only, so a series of text cannot be sorted by length: there is no field to name. MEASURED
   — refused with *"'sorted by' requires a series of records or objects."* ⚠ Not a collation
   question; text already orders ordinally and `<` on text is refused deliberately (DESIGN).
   *Blocker:* none known — it extends a shape that already exists.
-
-- **Text refinements.** The everyday toolkit is complete (join, measure, convert both ways,
-  split, search, find, slice, replace, case, trim). What remains is fancier: locale-aware
-  casing and *full* case mapping (`in uppercase`/`in lowercase` are invariant and simple today,
-  so `ß` stays `ß` rather than becoming `SS`), title-case, leading-only or
-  trailing-only trim, and a character-sequence type — `text` stays opaque, with no
-  character-level indexing. *Blocker:* waiting on a real use case, deliberately.
 
 - **Expression-level flow-narrowing.** Narrowing works on *variables* today
   (`If maybe-x is not void: … maybe-x`). Narrowing a value produced by an *expression* — say

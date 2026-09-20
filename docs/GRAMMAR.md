@@ -125,7 +125,6 @@ every value of every type, with `x is not the phrase` answering true.
 | `suppress` | Suppress |
 | `judge` | Judge |
 | `where` | Where |
-| `descend` | Descend |
 
 ### ★ A bits width is data — readable and statable
 

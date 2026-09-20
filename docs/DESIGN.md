@@ -340,6 +340,26 @@ Which capabilities are spelled into the language and which are pulled from a boo
   Offering the operator would teach the wrong rule silently. `sorted` is where ordering is the
   stated point, so ordering lives there and nowhere else.
 
+- **An `Otherwise` arm must say something real — there is no no-op statement.** Cufet has none:
+  `pass` exists only in `or pass the failure off`. ★ Requiring the arm to say something is what
+  makes coverage mean *you thought about the remaining cases*; a no-op is the `catch {}` of case
+  dispatch. Revisit only if writing real statements in ignore-this arms becomes a genuine
+  irritation rather than a hypothetical one.
+
+- **No membership comparison (`is any of`), and if one ever arrives it must be a COMPARISON.**
+  `If x is 1 or x is 2` says it today. ⚠ The constraint that matters is on the shape, not the
+  need: `Define maybe as any of (1, 2, 3).` would import Raku-style junctions as VALUES, whose
+  threading order is explicitly undefined and therefore incompatible with the no-divergence rule.
+  A comparison is expressible; a junction value is not.
+
+- **`text` is OPAQUE — no character-level indexing, and casing is invariant.** The everyday
+  toolkit is complete (join, measure, convert both ways, split, search, find, slice, replace,
+  case, trim). What is absent is absent by decision rather than by omission: `in uppercase` is
+  invariant and simple, so `ß` stays `ß` rather than becoming `SS`, and there is no way to index a
+  character out of a text. ★ Locale-aware casing is the same per-machine hazard the shared case
+  table exists to neutralise — see *Two backends, one language*. A character sequence you can
+  index is `chase`, which the `collections` book hands out, and that separation is the point.
+
 - **`sum` is not a series aggregate and will not become one.** Addition is already
   expressed with `+`; a `sum` function would duplicate it and violate the
   one-canonical-way rule. Collections aggregates may exist in future arcs, but `sum`
