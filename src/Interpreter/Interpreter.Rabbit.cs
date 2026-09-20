@@ -77,9 +77,11 @@ public sealed partial class Interpreter
         var body   = lts.Body; // capture for closure — do not close over lts
         TaskHandle? handle = lts.Name != null ? new TaskHandle() : null;
 
+        bool repeating = lts.Repeating; // capture for closure — do not close over lts
+
         var task = _scheduler!.Enqueue(() =>
         {
-            RunTaskBody(body, handle);
+            RunTaskBody(body, handle, repeating);
             return Task.CompletedTask;
         });
 
@@ -97,8 +99,15 @@ public sealed partial class Interpreter
     // open (this runs during JoinTasks before ExitScope), so task bodies have full read
     // access to rabbit-local variables. If a handle is provided, ReturnException is caught
     // and the returned value is stored on the handle (rather than propagating as a fault).
-    private void RunTaskBody(IReadOnlyList<IStatement> body, TaskHandle? handle = null)
+    private void RunTaskBody(IReadOnlyList<IStatement> body, TaskHandle? handle = null,
+                             bool repeating = false)
     {
+        if (repeating)
+        {
+            RunRepeatingTaskBody(body, handle);
+            return;
+        }
+
         EnterScope();
         try
         {
@@ -117,6 +126,51 @@ public sealed partial class Interpreter
         finally
         {
             ExitScope();
+        }
+    }
+
+    // "Have rabbit start a task, repeat: ... Done." — the body is a LOOP the task owns.
+    //
+    // ★ The reason the form exists: a RuntimeException ends the TURN, not the program. That is
+    // "let it crash" — a fault the task did not choose (division by zero, an index past the end)
+    // costs one turn and the next turn begins, where an ordinary task's uncaught fault reaches
+    // the rabbit's join and takes the program down with it.
+    //
+    // ★ It mirrors the split REFERENCE.md already draws. A DELIBERATE failure rides in the type
+    // and is the await site's business, so FailureUnwind is deliberately NOT caught here and
+    // still travels to whoever awaits. Only the undeclared fault is a "crash" to be let happen.
+    //
+    // ⚠ The exit is `Stop`, and it lives in the BODY. The rabbit bounds this task's LIFETIME as
+    // it always did, but it cannot decide the iteration count — see LaunchTaskStatement.Repeating
+    // for why "loop until the rabbit closes" cannot be made to agree across the two backends.
+    private void RunRepeatingTaskBody(IReadOnlyList<IStatement> body, TaskHandle? handle)
+    {
+        while (true)
+        {
+            EnterScope();
+            try
+            {
+                foreach (var s in body)
+                    Execute(s);
+            }
+            catch (StopException)    { return; }              // `Stop` ends the repetition
+            catch (SkipException)    { /* this turn ends; the next begins */ }
+            catch (RuntimeException) { /* let it crash: one turn lost, not the program */ }
+            catch (ReturnException re)
+            {
+                // A `Return` ends the task outright — a repeating task hands back at most one
+                // result, so the turn that returns is the last one.
+                if (handle != null)
+                {
+                    handle.Result    = re.Value;
+                    handle.HasResult = true;
+                }
+                return;
+            }
+            finally
+            {
+                ExitScope();
+            }
         }
     }
 }

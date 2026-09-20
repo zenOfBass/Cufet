@@ -1113,7 +1113,26 @@ public sealed record LaunchTaskStatement(
     int Line,
     int Column,
     string? RabbitName = null
-) : IStatement;
+) : IStatement
+{
+    /// <summary>`Have rabbit start a task, repeat:` — the body runs again and again.</summary>
+    /// <remarks>
+    /// <para>
+    /// False on every ordinary task. True means the body is a LOOP the task owns: `Stop` ends it,
+    /// `Skip` starts the next turn, and — the reason the form exists — an exception in one turn
+    /// ends THAT TURN rather than the program, and the next turn begins. "Let it crash."
+    /// </para>
+    /// <para>
+    /// ⚠ The rabbit bounds the task's LIFETIME, as it always did, but it does NOT decide the
+    /// iteration count: "loop until the rabbit closes" cannot be made to agree across the two
+    /// backends. The compiler's tasks are real pthreads, so the count would be whatever the
+    /// threads reached before `Done.`; the interpreter is cooperative, so a loop with no yield
+    /// point never returns control and the rabbit's `Done.` is never reached at all. The exit
+    /// therefore lives in the BODY, which the language already spells `Stop`.
+    /// </para>
+    /// </remarks>
+    public bool Repeating { get; init; }
+}
 
 // a matrix with ((r1e1, r1e2, ...), (r2e1, r2e2, ...), ...)
 // 2D numeric grid; dimensions inferred from literal; rectangularity enforced.

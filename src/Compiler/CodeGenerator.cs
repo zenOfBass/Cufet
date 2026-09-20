@@ -1604,7 +1604,26 @@ public sealed partial class CodeGenerator
         // pad, and it is assigned before the sigsetjmp and never reassigned, so C11's
         // indeterminate-locals rule is satisfied (the same argument the pipe stage relies on).
         bool pad = _usesSignals || _usesConcurrency;
+        bool repeating = lts.Repeating;
         string bodyIndent = "    ";
+        if (repeating)
+        {
+            // `, repeat:` — the body is a LOOP this thread owns. `Stop` compiles to `break` and
+            // `Skip` to `continue` (EmitLoopBody pushes the matching cleanup point), so both bind
+            // to this `while` exactly as they would to any other loop.
+            //
+            // The marks are the ones a Try's catch takes, for the same reason: a turn that faults
+            // longjmps past every emit-time close/pop, so the registries are what put the thread
+            // back where it started. Assigned before the setjmp and never modified afterwards,
+            // which is what makes them safe to read after the jump (C11 7.13.2.1) — the same
+            // argument EmitTryStatement relies on.
+            _taskFns.AppendLine($"    int cf_rf{tid} = cufet_nfiles;");
+            _taskFns.AppendLine($"    int cf_rc{tid} = cufet_nlive;");
+            _taskFns.AppendLine($"    int cf_ra{tid} = cufet_arena_top;");
+            _taskFns.AppendLine($"    while (1) {{");
+            bodyIndent = "        ";
+        }
+        string padIndent = bodyIndent;
         if (pad)
         {
             // ⚠ NO #if. The pad used to be POSIX-only, on the reasoning that only a signal
@@ -1612,8 +1631,8 @@ public sealed partial class CodeGenerator
             // is a thing mingw does exactly as POSIX does. The runtime defines
             // CUFET_SETJMP/CUFET_LONGJMP on both platforms for this reason, and its own note
             // says the mingw pad was written ready for "the day something does jump to it".
-            _taskFns.AppendLine($"    if (CUFET_SETJMP(cufet_thread_top) == 0) {{ cufet_pad_set = 1;");
-            bodyIndent = "        ";
+            _taskFns.AppendLine($"{padIndent}if (CUFET_SETJMP(cufet_thread_top) == 0) {{ cufet_pad_set = 1;");
+            bodyIndent = padIndent + "    ";
         }
         var savedTF = EnterFrame(_taskFns, bodyIndent);
         // ★ A task body IS a block scope, unlike every other frame — which is why this is
@@ -1625,7 +1644,18 @@ public sealed partial class CodeGenerator
         // both ways: a task that faults and a task that completes normally each printed `closed`
         // interpreted and nothing compiled. It stays a frame for everything else (rabbit depth,
         // arena base, escape arithmetic); only the block scope is added back.
-        EmitScopedBlock(_taskFns, lts.Body, bodyIndent);
+        // ★ A repeating task's body is a LOOP body, so it takes the loop emitter.
+        //
+        // ⚠ MEASURED what that is actually worth, because the obvious answer is wrong: on the
+        // FALL-THROUGH path EmitScopedBlock unmakes per turn just as well, since the block is
+        // inside the `while` either way. What EmitLoopBody buys is the JUMP path — it pushes the
+        // loop-exit mark that `Stop` and `Skip` unwind to, and with no mark pushed
+        // UnmakerRunStmt(null) emits the empty string, so a `Skip` would leave the turn's objects
+        // unmade while the interpreter's ExitScope unmakes them. Swapping the two calls leaves
+        // every other repeating-task test green; SkipMidTurn_StillUnmakesWhatTheTurnHadMade is
+        // the one that goes red.
+        if (repeating) EmitLoopBody(_taskFns, lts.Body, bodyIndent);
+        else           EmitScopedBlock(_taskFns, lts.Body, bodyIndent);
         ExitFrame(savedTF);
         _currentReturnType = savedRet;
         _excOpen = savedExcOpen;
@@ -1633,8 +1663,30 @@ public sealed partial class CodeGenerator
         _inTaskBody        = savedInTask;
         if (pad)
         {
-            _taskFns.AppendLine($"    }}");
+            if (repeating)
+            {
+                // Landed at the pad. TWO things arrive here and they part company for a repeating
+                // task: an unhandled FAULT costs this turn only, and an INTERRUPT still abandons
+                // the task as it does for any other. The fault slot tells them apart — the
+                // interrupt path jumps without ever writing it.
+                _taskFns.AppendLine($"{padIndent}}} else {{");
+                _taskFns.AppendLine($"{padIndent}    if (!*cf_a->cf_faultslot) break;   /* interrupt: abandon */");
+                // ⚠ malloc'd by cufet_worker_fault, and the rabbit's join frees only the one it
+                // finds — so a turn that swallows its fault frees it here or leaks one per turn.
+                _taskFns.AppendLine($"{padIndent}    free(*cf_a->cf_faultslot);");
+                _taskFns.AppendLine($"{padIndent}    *cf_a->cf_faultslot = NULL;");
+                // Unmakers already ran: cufet_raise runs them to 0 BEFORE handing the fault over.
+                _taskFns.AppendLine($"{padIndent}    cufet_close_files_from(cf_rf{tid});");
+                _taskFns.AppendLine($"{padIndent}    cufet_free_chans_from(cf_rc{tid});");
+                _taskFns.AppendLine($"{padIndent}    while (cufet_arena_top > cf_ra{tid}) cufet_arena_pop();");
+                _taskFns.AppendLine($"{padIndent}}}");
+            }
+            else
+            {
+                _taskFns.AppendLine($"    }}");
+            }
         }
+        if (repeating) _taskFns.AppendLine($"    }}");
         // Fall-through epilogue — reached by a fire-and-forget/void task finishing normally, and by
         // an INTERRUPTED task of any kind unwinding to the pad above. A value-returning task is
         // required to return on every path (CheckLaunchTask), so for it this is the interrupt path

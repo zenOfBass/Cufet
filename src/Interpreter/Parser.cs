@@ -1695,9 +1695,15 @@ public sealed class Parser
     /// an ordinary mistake, and reporting the loop as unclosed would be a confident wrong answer —
     /// the same trap `IsStatementOpener` warns about.
     /// </param>
+    /// <param name="untilRefusal">
+    /// A message for meeting `Until` inside this body. ⚠ Passed only by the repeating task, which
+    /// TOOK the `, repeat:` spelling from an older reading that closed with `Until` — so there the
+    /// word is a specific, rewritable mistake rather than an ordinary one, and the default
+    /// "expected statement keyword, got Until" cannot say how to fix it.
+    /// </param>
     private IReadOnlyList<IStatement> ParseLoopBody(
         Token? opener = null, string? inlineExample = null, string? construct = null,
-        TokenType? armContinuation = null)
+        TokenType? armContinuation = null, string? untilRefusal = null)
     {
         var stmts = new List<IStatement>();
         while (true)
@@ -1706,6 +1712,8 @@ public sealed class Parser
             if (Peek().Type is TokenType.Done or TokenType.Eof) break;
             if (armContinuation is { } arm && Peek().Type == arm && opener != null)
                 throw UnclosedBeforeArm(opener, Peek(), construct);
+            if (untilRefusal != null && Peek().Type == TokenType.Until)
+                throw new ParseException(Peek().Line, Peek().Column, untilRefusal);
             stmts.Add(ParseStatement());
         }
         if (stmts.Count == 0)
@@ -2605,7 +2613,39 @@ public sealed class Parser
         // is exactly what the comma form takes.
         _functionDepth++;
         IReadOnlyList<IStatement> body;
-        if (Peek().Type == TokenType.Comma)
+        bool repeating = false;
+        if (Peek().Type == TokenType.Comma && PeekAfterCurrent() == TokenType.Repeat)
+        {
+            // `, repeat:` — the same comma-then-`repeat` shape `While …, repeat:` and
+            // `For each …, repeat:` already use, so a task that loops reads like every other
+            // loop in the language and costs no new word.
+            //
+            // ⚠ This NARROWS the inline comma form. `Have rabbit start a task, Repeat: … Until x.`
+            // used to parse as a one-statement body that happened to be a Repeat-Until loop, and
+            // the two readings differ ONLY in what closes the body (`Done.` vs `Until`) — which no
+            // bounded lookahead can tell apart. So the spelling goes to the repeating task, and the
+            // old reading is written as a block: `Have rabbit start a task: Repeat: … Until x. Done.`
+            // MEASURED 2026-09-20: zero uses of `start a task,` in any .cufe in the repo.
+            Advance();                    // ','
+            SkipNoise();
+            var repeatTok = Advance();    // 'repeat'
+            SkipNoise();
+            Consume(TokenType.Colon);
+            repeating = true;
+            // A repeating task IS a loop, so `Stop` ends the repetition and `Skip` starts the next
+            // turn — both fall out of the depth counters rather than needing their own rule.
+            _loopDepth++;
+            _nestDepth++;
+            body = ParseLoopBody(repeatTok, "Have rabbit start a task, repeat: State \"tick\". Done.",
+                untilRefusal:
+                    "'Have rabbit start a task, repeat:' is a repeating task, and its body closes "
+                  + "with 'Done.' rather than 'Until'. To run a Repeat-Until loop inside an "
+                  + "ordinary task, open the task with a colon and write the loop inside it: "
+                  + "'Have rabbit start a task: Repeat: ... Until x. Done.'");
+            _nestDepth--;
+            _loopDepth--;
+        }
+        else if (Peek().Type == TokenType.Comma)
         {
             Advance();
             SkipNoise();
@@ -2617,7 +2657,7 @@ public sealed class Parser
             body = ParsePullBody(); // consumes Done.
         }
         _functionDepth--;
-        return new LaunchTaskStatement(name, body, line, col, rabbitName);
+        return new LaunchTaskStatement(name, body, line, col, rabbitName) { Repeating = repeating };
     }
 
     // Body parser for Pull...Done. scopes. Allows zero statements (unlike ParseLoopBody).
