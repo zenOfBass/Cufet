@@ -68,6 +68,25 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **A file that declared a module and pulled it loaded ITSELF.** `workshop.cufe` declaring
+  `Define object workshop with () and region.` and then `Pull workshop.` was refused with
+  *"'workshop' does something at its top level, so it cannot be pulled"* — the pull had resolved
+  to the file doing the pulling, and the message pointed at the file when the writer meant the
+  declaration a few lines up.
+
+  ★ **The documented order was right; a step in it never ran.** REFERENCE lists *"a bundled book,
+  then a module defined here, then `‹name›.cufe` beside the file that pulls it"*. The loader asks
+  the checker whether a name is already known, and that question reads the object table — which at
+  load time holds only the prelude, because the program's own declarations are gathered later by
+  the hoist. So "defined here" never matched anything and every pull went to disk.
+
+  ⚠ Narrow by design: only a **module-conforming** declaration counts. A plain object sharing a
+  name with a book still shadows it and the pull is still refused, which is long-standing
+  behaviour and measured unchanged.
+
+  ★ Found by writing an ordinary program — an example about a `workshop` wants to live in
+  `workshop.cufe`, which was the one name that could not work.
+
 - **A rabbit unmade its own objects before joining its tasks.** The rabbit body's
   `cufet_run_unmakers_to` was emitted inside the body's block and the structured join came after
   it, so the compiled order was `pthread_create` → destroy the rabbit's objects → `pthread_join`.
