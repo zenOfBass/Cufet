@@ -4126,6 +4126,80 @@ Done.
 > binding, and runs one task at a time, so the mutation appears to work. Write to the
 > rule and both backends agree.
 
+#### Repeating tasks
+
+`Have <rabbit> start a task, repeat: … Done.` gives the task a body that runs **again and
+again** — the same `, repeat:` that `While …, repeat:` and `For each …, repeat:` use, because
+it is the same thing. `Stop` ends the repetition and `Skip` starts the next turn, exactly as
+they do in any other loop.
+
+**A repeating task takes its work as messages.** A task may not change anything it captured, so
+a repeating one cannot keep a counter outside itself: what it does next, and when it is finished,
+both arrive through a channel. A closed channel delivers void, which is how a turn knows to stop.
+
+```cufet
+Pull a rabbit.
+    Define jobs as a channel of number.
+    Have rabbit start a task, repeat:
+        Define arrival as the delivery from jobs.
+        If arrival is void, stop.
+        State "got {arrival but void is 0}".
+    Done.
+    Send 1 through jobs.
+    Send 2 through jobs.
+    Close jobs.
+Done.
+State "after".
+```
+```output
+got 1
+got 2
+after
+```
+
+**An exception costs the turn, not the program.** This is the one thing a repeating task can do
+that a loop written inside an ordinary task cannot. A fault the task did not choose ends the turn
+it happened in, and the next turn begins:
+
+```cufet
+Pull a rabbit.
+    Define jobs as a channel of number.
+    Have rabbit start a task, repeat:
+        Define arrival as the delivery from jobs.
+        If arrival is void, stop.
+        State "before {arrival but void is 0}".
+        Define bad as 1 / 0.
+        State "unreachable".
+    Done.
+    Send 1 through jobs.
+    Send 2 through jobs.
+    Close jobs.
+Done.
+State "after".
+```
+```output
+before 1
+before 2
+after
+```
+
+Written without `, repeat:` that same division by zero is a fault nobody claimed: it surfaces at
+the rabbit's `Done.` and ends the program.
+
+⚠ **A deliberate failure is still the await site's business.** Only the undeclared fault is
+swallowed by a turn — `return a failure` rides in the type and travels to whoever awaits, exactly
+as it does from any other task.
+
+⚠ **The rabbit bounds the task's lifetime, but it does not decide how many turns it takes.** There
+is no "keep going until the rabbit closes": compiled tasks are real threads, so the count would be
+whatever they reached before `Done.`, and the interpreter is cooperative, so a loop that never
+yields would never give the rabbit's `Done.` a chance to run at all. The exit lives in the body,
+and it is spelled `Stop`.
+
+> ⚠ `Have rabbit start a task, Repeat: … Until x.` is **not** this form and is refused. The comma
+> now introduces the repeating task, so a `Repeat`-`Until` loop inside an ordinary task is written
+> in the block form: `Have rabbit start a task: Repeat: … Until x. Done.`
+
 #### Interpreted versus compiled
 
 This is the one part of the language where the two backends deliberately differ.

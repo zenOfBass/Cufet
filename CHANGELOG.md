@@ -10,6 +10,29 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+- **Repeating tasks** — `Have rabbit start a task, repeat: … Done.` The body runs again and again;
+  `Stop` ends the repetition and `Skip` starts the next turn.
+
+  ★★ **An undeclared fault costs the turn, not the program.** A task that raised with nobody
+  awaiting it used to reach the rabbit's join and end the process, so statements after the rabbit
+  never ran. In a repeating task the fault ends the turn it happened in and the next turn begins —
+  "let it crash", and the inversion of exactly that behaviour. A **deliberate** `return a failure`
+  is untouched: it still rides in the type and travels to the await site.
+
+  ★ **The spelling costs no new word.** `repeat` was already spent on `While …, repeat:` and
+  `For each …, repeat:`, and a repeating task is a loop, so it reads like every other loop.
+  ⚠ It was not free: `Have rabbit start a task, Repeat: … Until x.` previously parsed as the
+  inline one-statement body form, and the two readings differ only in what closes the body
+  (`Done.` vs `Until`) — no bounded lookahead separates them. The spelling goes to the repeating
+  task; the old reading is written `Have rabbit start a task: Repeat: … Until x. Done.`, and the
+  parser refuses the old shape with that rewrite in the message.
+
+  ⚠ **The exit lives in the body, not in the rabbit.** "Repeat until the rabbit closes" cannot
+  cross the two backends — compiled tasks are real threads, so the count would be whatever they
+  reached before `Done.`, while the cooperative interpreter would never reach that `Done.` at all.
+  The rabbit still bounds the task's lifetime. Since a task may not change what it captured, a
+  repeating task takes both its work and its stopping signal as messages.
+
 - **Fields with a default** — `the number age with default 0`, in the same trailing place
   `permanently` goes. A construction site may leave the field out.
 

@@ -71,29 +71,20 @@ The ordering is not ceremonial: this tier's real blocker is stated below as **er
 All need a design session before they can be ordered against anything. They are here because
 they are large, not because they are waiting — the order among them means nothing yet.
 
-1. **Rabbits as actors.** A rabbit already owns an isolated arena, owns and joins the tasks it
-   spawns, shares nothing mutable across threads, and has escape rules the compiler enforces —
-   that is the actor invariant, and the expensive part of it is shipping. Failure is settled and
-   built — see DESIGN. What is left is supervision: restart, and the mailbox.
+1. **Rabbits as actors — the mailbox.** A rabbit already owns an isolated arena, owns and joins
+   the tasks it spawns, shares nothing mutable across threads, and has escape rules the compiler
+   enforces. Failure is settled and built, and **supervision shipped as `, repeat:`** — a task
+   whose body is a loop, whose undeclared fault costs the turn rather than the program, and which
+   takes its work and its stopping signal as messages. See CHANGELOG and REFERENCE.
 
-   **Settled:**
+   What is left is the mailbox itself, and it is **blocked on `automatic`** — a guarded
+   multi-input wait, which still has no witness. A repeating task reading one channel is the
+   one-input case and works today; the mailbox is what several inputs need.
 
-   - **Lexical supervision only** — restart in place, within the block. Dynamic supervisors park
-     with the region-lifetime arc, and a toggle between the two lifetimes is rejected: two rules
-     means every escape question gets asked twice.
-   - **Identity is the rabbit's name, and the send surface is `Have <rabbit> …`** — a shape that
-     already exists for other reasons. The mailbox mechanism is later.
-   - **A restartable body must acquire its own resources**, so a re-run re-acquires into a fresh
-     region. Parallel to the unmaker ownership rule.
-
-   **Open:**
-
-   - ⚠ **How narrow the restart check is.** The capture set is already computed and typed — the
-     compiler builds it to pass values across the thread boundary — so the rule is a filter over a
-     list that exists: refuse a captured RESOURCE (a type with an unmaker, an address, an open
-     file), never a captured `number` or `text`. Anything wider is a rule wider than its reason.
-   - Restart policy: how many attempts, and what giving up does.
-   - The mailbox itself.
+   ⚠ **Restart policy needs no answer.** There is no attempt count and nothing to "give up" on:
+   a turn ends and the next begins, and the body says `Stop`. The exit could not live in the
+   rabbit — compiled tasks are real threads, so the count would be thread timing, and the
+   cooperative interpreter would never reach the rabbit's `Done.` to end it.
 
 2. **Teaching the language: a documentation site, and an interactive tutorial.** The playground
    runs the real interpreter in the browser, loads the corpus, shows squiggles and survives a
