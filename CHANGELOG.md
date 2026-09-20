@@ -91,6 +91,23 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **A rabbit unmade its own objects before joining its tasks.** The rabbit body's
+  `cufet_run_unmakers_to` was emitted inside the body's block and the structured join came after
+  it, so the compiled order was `pthread_create` → destroy the rabbit's objects → `pthread_join`.
+  The interpreter does the opposite and is right: join first, close the scope second. The run is
+  now deferred to after the join.
+
+  ★ **An ordering bug in what it prints, an ownership bug in what it permits.** A rabbit-local
+  object with an unmaker was destroyed while the tasks that could still read it were running.
+  Only the printing half is visible to a test: a task capturing such an object printed
+  `saw 7 / closed 7` interpreted and `closed 7 / saw 7` compiled. Deterministic rather than racy —
+  thread start-up reliably loses to the few instructions between the create and the run — and it
+  reproduces back to 0.23.0.
+
+  ⚠ **Found by a test written for something else.** It surfaced while pinning that the new
+  repeating-task capture rule does not over-reach, which is why the witness program has nothing
+  to do with repeating tasks.
+
 - **A suspension inside a lambda was a live divergence.** `check` said the program was clean, the
   interpreter ran it with the suspension silently inert, and the compiler died on its own internal
   safety valve — *"reached the code generator untransformed"*. It is now refused when the program
