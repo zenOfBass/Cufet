@@ -648,7 +648,7 @@ rather than silently merged, which is the right answer to one-book-per-name, and
 limit. ★ This is the one thing that could argue for per-book directories or a real namespace,
 against the flat shape above.
 
-### A directory is a namespace — SETTLED 2026-09-20, not yet built
+### A directory is a namespace — BUILT 2026-09-20
 
 That argument was made, and it won. The note above anticipated the shape; what follows is the
 decision, reached by trying to write a multi-file program (`tools/snake`) and meeting the wall
@@ -683,6 +683,54 @@ matching locals inside function bodies; the number that matters is top-level onl
 ⚠ **What it does NOT solve.** Crossing into `books/` is unchanged, and so is the question of
 where a shared book lives: a program in a subfolder reaches `beside itself` and `<project>/books/`,
 never the project root. That is a separate gap and it stays open.
+
+#### What building it settled
+
+- **A local book or module is LEGAL, just pointless.** The user's rule, 2026-09-20: *"they are
+  only for external code."* Nothing refuses one inside a project and nothing should — the
+  directory simply does the grouping a marker used to, so there is no longer a job for the marker.
+  ⚠ An earlier plan had a slice that refused pulling a project's own directory; it was cancelled
+  by this, and `Pull` is unchanged.
+
+- ★★ **A plain `Define` is not a name a directory offers**, and `permanently` is exactly the word
+  that says otherwise. ⚠⚠ MEASURED, and it is what the rule costs if you get it wrong:
+  `tools/shell.cufe` and `tools/repl.cufe` each open their body with
+  `Define asking as cast terminals's interactive.` Counting those made two programs' WORKING
+  VARIABLES a name clash between two libraries — and splicing one into the other would have
+  ASKED THE TERMINAL whether anybody was there, at the top of an unrelated program. The
+  distinction was already written down in `AstSearch.EveryStatement`: *a TYPE declaration is
+  program-scope wherever it is written, and a VALUE binding is not.*
+
+- **Only the file you RUN runs.** A neighbour contributes its declarations and nothing else. This
+  is NOT the decision `RefuseAProgram` makes about a pulled file, and deliberately: a pulled file
+  is a library and may not be a program, but two programs sharing a directory is the ordinary
+  case — `shell.cufe` and `repl.cufe` both start something on their last line.
+
+- **The blueprint is in no namespace, in either direction.** It is never brought in as a
+  neighbour, and checking it brings in nobody. It describes the project rather than belonging to
+  it, and the alternative would have `cufet build` parse every file in the root to read a plan.
+
+- **A directory cannot qualify itself.** Its own names are already flat, so `terminals's put`
+  written INSIDE `tools/terminals/` is refused. Measured against the real file, which referred to
+  itself fifteen times — eight through `one's` and seven through `terminals's`.
+
+- ★★ **How it is implemented, and why there is no third answer to disagree with.**
+  `terminals's read-key` is rewritten BEFORE THE HOIST into the single unwritable name
+  `read-key in terminals`, and that directory's files are spliced under those names. It is the
+  third pass to use that trick, after the loader's file privacy and `ModuleTypeLifting` — so the
+  checker, the interpreter and the compiler each meet an ordinary top-level declaration, and none
+  of the three learns that directories exist.
+
+⚠ **The gap that leaves.** The rewrite runs before any scope exists, so it cannot tell a directory
+from a name spelled the same. A DECLARATION or a `Define` taking a directory's name is refused,
+which removes the half anyone is likely to write; a PARAMETER or a loop variable is not, and would
+need a member name to collide as well before anything went wrong. Recorded rather than met with a
+walk over every name-introducing form in the language.
+
+⚠ **A project cannot build itself through its own blueprint until the new compiler is installed.**
+A blueprint step shells out to the `cufet` on the PATH, so `cufet build` in `tools/` failed with
+*"'spot' is not a defined type"* against 0.24.0 while the local build compiled the same files. An
+ordinary bootstrap gap, recorded so nobody reads it as a defect.
 
 ---
 

@@ -4382,7 +4382,54 @@ State cast helper on (10).             ← refused: kit.cufe’s own helper
 ```
 
 So a book author keeps working material without marking anything private, and two books may
-each have a `helper` without colliding. There is no `private` keyword — the file is what hides.
+each have a `helper` without colliding. There is no `private` keyword — for a PULLED book, the
+file is what hides. Inside a project it is the directory; see below.
+
+#### A project, and its directories
+
+**A project is a directory tree with `blueprint.cufe` at its root**, and inside one **each
+directory is a namespace named after itself**. The files of a directory share a single top-level
+scope, and nothing is pulled between them:
+
+```cufet-fragment
+Bind number to width:                  ← tools/snake/board.cufe
+    Return 20.
+Done.
+```
+```cufet-fragment
+State "the field is {cast width} across".   ← tools/snake/snake.cufe, no pull
+```
+
+Another directory of the same project is reached by **qualifying** it — the directory's own name,
+and the member you want:
+
+```cufet-fragment
+State cast terminals's read-key.       ← tools/snake/snake.cufe reaching tools/terminals/
+```
+
+★★ **A folder's files already are a group of declarations under one name.** `and book` said that a
+second time, and a `Pull` between two files of one folder said it a third. Books, modules and
+`Pull` all still work inside a project and nothing refuses them — there is simply nothing left for
+one to do. What they are FOR is a book in `books/`, which is somebody else's code, and a region's
+lifetime: both are boundaries a qualification cannot cross.
+
+**What a directory offers is what its files DECLARE** — functions, object types and interfaces,
+plus any `permanently` constant. ⚠ A plain `Define` at a file's top level is a value binding in
+that file's own body, not a name the directory hands out; two programs in one directory may each
+have their own `Define asking as …` and neither sees the other's.
+
+⚠ **Only the file you RUN runs.** A neighbour contributes its declarations and nothing else, which
+is why two programs may share a directory — each of them starts something on its last line.
+
+⚠ **A repeated top-level name within one directory is refused**, naming both files. There is
+nothing between them to keep two apart, so the second would silently replace the first.
+
+⚠ **A name that is also a directory of the project is refused**, because `terminals's read-key`
+would then have two readings. ⚠ A directory cannot qualify ITSELF: inside `tools/terminals/`, its
+own names are already in scope, so write `put` rather than `terminals's put`.
+
+⚠ **No blueprint above a file means no project**, and everything above is then exactly as it was:
+a loose `.cufe` has no neighbours and pulls its books beside itself.
 
 #### What a module carries
 
@@ -4601,10 +4648,16 @@ cufet page book.cufe                write a reader's page for the book in it
 `<file>: <pulled>` line per pair, always prefixed, however many files you ask about:
 
 ```
-$ cufet pulls tools/shell.cufe tools/repl.cufe
-tools/shell.cufe: tools/terminals.cufe
-tools/repl.cufe: tools/terminals.cufe
+$ cufet pulls shell.cufe repl.cufe
+shell.cufe: repl.cufe
+shell.cufe: terminals/terminals.cufe
+repl.cufe: shell.cufe
+repl.cufe: terminals/terminals.cufe
 ```
+
+⚠ **A NEIGHBOUR is a dependency too**, which is why each of those two names the other: they share
+a directory, so each is part of the other's program and a change to one really does make the
+other's build stale. Nothing in either file says so — that is the point of generating the list.
 
 It reports what the **loader resolved**, not a re-reading of your source, so it cannot disagree
 with what a build actually loads. ★ Bundled books never appear — `math` and `the c-language` are

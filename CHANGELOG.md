@@ -10,6 +10,31 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+- **A directory is a namespace.** Inside a project — a tree with `blueprint.cufe` at its root —
+  the files of one directory share a single top-level scope with nothing pulled between them, and
+  another directory is reached by qualifying it: `terminals's read-key`. A repeated top-level name
+  within one directory is refused, naming both files.
+
+  ★★ **It removes a whole layer, rather than adding one.** A folder's files already are a group of
+  declarations under one name; `and book` said that a second time, and a `Pull` between two files
+  of one folder said it a third. The `tools/` tree migrated to this with **no pull left between
+  any two files in the project** — and the nineteen `terminals's put` call sites in the shell and
+  the REPL are spelled exactly as they were, because the pull line was the only thing that went.
+
+  ★★ **`Pull`, books and modules are unchanged and still legal inside a project** — there is
+  simply nothing left for one to do there. What they are FOR is a book in `books/`, which is
+  someone else's code, and a region's lifetime. Both are boundaries a qualification cannot cross.
+
+  ⚠ **Gated on a blueprint above the file**, so a `.cufe` with no project over it behaves exactly
+  as it did. That gate is what let this land without touching `examples/`, where top-level name
+  collisions between files in one directory are everywhere and no directory is a project.
+
+  ⚠ **A plain `Define` is a value binding, not a name the directory offers**; `permanently` is the
+  word that makes a constant shared. Two programs in one directory may each have their own
+  `asking` — and neither runs the other's.
+
+  ⚠ **Only the file you run runs.** A neighbour contributes its declarations and nothing else.
+
 - **`terminals` hands out `key-waiting` and `read-key`** — ask whether a keypress is already
   there, and read one when it is. `_kbhit()` on Windows, `select()` with a zero timeout on POSIX.
 

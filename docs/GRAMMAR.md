@@ -544,7 +544,7 @@ filesystem. The noun decides, so removing a file cost no name at all.
 **`terminal`** — contextual on the same terms, recognised only in the modifier slot of a `run`
 expression: `run <prog> with the terminal`. `Define terminal as 5.` stays legal everywhere, and a
 book named for the same device is reached through `Pull`, a different slot, so the two do not
-clash. ★ `tools/terminals.cufe` is named in the PLURAL for a separate reason — a book's name has to
+clash. ★ `tools/terminals/` is named in the PLURAL for a separate reason — a book's name has to
 complete *"Pull a book on ___"*, which wants a mass noun or a plural, and `terminal` is a count
 noun. It read as something you have one of, and the name was saying so before anyone noticed.
 Reserving the word would have taken an ordinary noun from every program in the language to save
@@ -1518,7 +1518,7 @@ Pull books on math, and collections.
 ⚠ **A module carries OBJECT TYPES only.** A union of them works and narrows with `Judge`, because
 a union is built from object types. An interface does not — a module body takes `Define object` and
 nothing else. Axioms need no home here: a module’s METHODS hold them, which is how
-`tools/terminals.cufe` reaches `termios`.
+`tools/terminals/terminals.cufe` reaches `termios`.
 
 ### ★ `book` is a subtype of `module`
 
@@ -3174,6 +3174,45 @@ libraries and printed different answers.
 unobservable today, since a book is always found in one of the two search places and the shared
 folder is a fallback at every level — it becomes visible only once a book can live somewhere that
 is not itself a search place.
+
+### Directory namespaces
+
+⚠⚠ **Inside a project none of the above is how files find each other.** A project is a tree with
+`blueprint.cufe` at its root; each directory in one is a namespace named after itself, its files
+share a single top-level scope, and another directory is reached by qualifying — `terminals's
+read-key` — with nothing pulled. Everything on pulls above still WORKS inside a project and
+nothing refuses it; it simply has no job left there beyond a book in `books/` and a region.
+
+★★ **Gathered ahead of the pull pass, in the same front-end slot.** The file's neighbours are
+spliced first, so a pull naming one of them resolves to the declaration that is now present rather
+than loading the file a second time under a private rename.
+
+★★ **A qualification is a REWRITE, before the hoist.** `terminals's read-key` becomes the single
+name `read-key in terminals`, and that directory's files are spliced under those names by the same
+rename the book loader uses. So the checker and both backends meet an ordinary top-level
+declaration, and none of the three learns that directories exist — the third pass to use this
+trick, after file privacy and a module's carried types.
+
+⚠ **It fires only where the directory really declares that member**, because the rewrite runs
+before any scope exists and cannot tell a directory from a name spelled the same. A DECLARATION or
+a `Define` taking a directory's name is refused for the same reason. A parameter or a loop
+variable is not, and is a known gap.
+
+⚠ **What a directory offers is what its files DECLARE.** A plain `Define` at a file's top level is
+a value binding in that file's own body — not a name, and not spliced into a neighbour. A
+`permanently` constant is. The distinction is the one `AstSearch.EveryStatement` already states: a
+type declaration is program-scope wherever it is written, and a value binding is not.
+
+⚠ **Only the file you run runs.** A neighbour contributes declarations and nothing else, which is
+NOT the rule for a pulled file — a pulled file may not be a program at all, and two programs
+sharing a directory is ordinary.
+
+⚠ **`blueprint.cufe` is in no namespace**, in either direction: never a neighbour, and checking it
+brings in nobody.
+
+⚠ **Refusals:** a repeated top-level name within one directory (naming both files); a member the
+directory does not declare (listing what it does); a declaration taking a directory's name; two
+directories of one name, refused at the qualification rather than where they were found.
 
 **Loaded in a front-end pass, ahead of `Cite` and the hoist.** After it the loaded file does not
 exist: its statements are the program’s, and the checker and both backends meet one longer
