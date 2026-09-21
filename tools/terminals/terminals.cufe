@@ -143,6 +143,70 @@ Bind void to raw-off:
     Done.
 Done.
 
+/// Make the terminal act on cursor sequences, and take the cursor out of the picture.
+///
+/// ★★ THE FIRST PLACE THIS PROJECT USES ANSI, and the line is worth seeing. `back-up` and
+/// `redraw` below move the cursor with BACKSPACES, deliberately, because a backspace is
+/// understood by every terminal that has ever existed. A backspace cannot move UP, so a display
+/// of more than one line — a board, a grid, a game — is the first thing that cannot be drawn
+/// that way, and escape sequences are how it is done instead.
+///
+/// ⚠⚠ It reports whether the terminal will ACT on them, and a program is free not to care.
+/// On anything POSIX the answer is yes and there is nothing to do. On Windows the console must
+/// be told — same `SetConsoleMode` dance `raw-on` does one handle over — and an old console host
+/// may refuse, in which case the sequences arrive as visible rubbish rather than as movement.
+/// ★ Redirected output is NOT a failure: a pipe has no mode to set, and the bytes travel down it
+/// unchanged, which is exactly what a test comparing two backends wants.
+///
+/// ⚠ It also HIDES the cursor, because a cursor parked in the middle of a drawing blinks there.
+/// `screen-off` puts it back, and a program that forgets leaves the terminal without one.
+Bind fact to screen-on:
+    Pull a book on the c-language.
+        Define c-language screen-on-support as [#if defined(_WIN32)
+            #include <windows.h>
+            #ifndef ENABLE_VIRTUAL_TERMINAL_PROCESSING
+            #define ENABLE_VIRTUAL_TERMINAL_PROCESSING 0x0004
+            #endif
+            static int cufet_terminal_screen_on(void) {
+                HANDLE out = GetStdHandle(STD_OUTPUT_HANDLE);
+                DWORD mode;
+                if (out == INVALID_HANDLE_VALUE || !GetConsoleMode(out, &mode)) return 0;
+                return SetConsoleMode(out, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING) ? 1 : 0;
+            }
+            #else
+            static int cufet_terminal_screen_on(void) { return 1; }
+            #endif].
+        Define c-language number enabled as [cufet_terminal_screen_on()].
+        Define answered as cast enabled is 1.
+        Cast put on ("{cast letter-for on (27)}[?25l").
+        Return answered.
+    Done.
+Done.
+
+/// Give the cursor back, for when the drawing is over.
+Bind void to screen-off:
+    Cast put on ("{cast letter-for on (27)}[?25h").
+Done.
+
+/// Put the cursor back at the top left, without erasing anything.
+///
+/// ★ The one a moving picture wants. Drawing the next frame from here writes OVER the last one,
+/// so nothing scrolls and nothing has to be erased first — as long as every frame is the same
+/// shape. ⚠ A frame that is SHORTER than the one before leaves the difference on screen, which
+/// is the caller's business: pad the lines, or `clear` and pay the flicker.
+Bind void to home:
+    Cast put on ("{cast letter-for on (27)}[H").
+Done.
+
+/// Erase everything and start again at the top left.
+///
+/// ⚠ Once, at the start. Doing it per frame is what makes a terminal game FLICKER — the screen
+/// is briefly empty between the erase and the redraw, and the eye catches it. `home` is the one
+/// to call in a loop.
+Bind void to clear:
+    Cast put on ("{cast letter-for on (27)}[2J{cast letter-for on (27)}[H").
+Done.
+
 /// Whether a keypress is already waiting, so that reading one will not block.
 ///
 /// ★ `read-key` WAITS. Raw mode is set with `VMIN = 1`, which means "return as soon as one

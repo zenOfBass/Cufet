@@ -17,9 +17,15 @@
     the clock. Nothing is pulled and nothing is a book — they share a directory, and a directory
     is one namespace.
 
-    ▶ What it is NOT yet: the frames scroll rather than redrawing in place, so this is watchable
-    rather than comfortable. Drawing over the last frame needs a cursor-home sequence that
-    `terminals` does not hand out yet.
+    ★★ IT DRAWS OVER ITSELF. `terminals's home` puts the cursor back at the top left and the next
+    frame is written on top of the last one — which works only because every frame is the SAME
+    SHAPE, so the score line is padded to the width of the field rather than left to shrink from
+    `score 10` to `score 9` and leave the `0` behind. That is the whole trick, and the one rule
+    that comes with it.
+
+    ⚠ The escape sequences land in the corpus output too, which is deliberate: they are the same
+    bytes on both backends, so the oracle still means something, and the alternative was a second
+    output path that nobody would ever look at.
 */
 
 Define snake as cast starting.
@@ -32,33 +38,66 @@ Define apple as cast apple-for on (snake, eaten).
 Define raw as false.
 If cast terminals's interactive, the raw becomes cast terminals's raw-on.
 
+/*  Cursor sequences on, cursor out of the way, and one erase before the first frame. The erase
+    happens ONCE: doing it per frame is what makes a terminal game flicker, because the screen is
+    briefly empty between the wipe and the redraw. */
+Cast terminals's screen-on.
+Cast terminals's clear.
+
 /* Whether there is any point asking for a key. It goes false at end-of-input and stays there. */
 Define listening as true.
 Define gave-up as false.
 
 Repeat:
-    State "score {eaten}".
+    Cast terminals's home.
+
+    /*  Padded to the width of the field, so a shorter score cannot leave the last one's digits
+        sitting behind it. Every line of the frame is exactly as wide as every other, which is
+        what lets `home` replace an erase. */
+    Define shown as "score {eaten}".
+    While the length of shown is less than cast width, repeat:
+        The shown becomes shown joined to " ".
+    Done.
+    State shown.
+
     For each line in cast frame-of on (snake's body, apple), repeat:
         State line.
     Done.
 
-    Cast nap on (90).
-
-    /*  Everything typed since the last frame, not just the first of it. A player who taps twice
-        while the snake is mid-square means both taps; reading one per frame would swallow the
-        second and steer somewhere they did not ask for.
+    /*  The tick, in SLICES, with a look at the keyboard between each one. Waiting the whole tick
+        and then reading would notice a keypress up to a tick late, which at this speed is the
+        difference between a game that answers and one that argues.
 
         ⚠ `key-waiting` first, always. `read-key` WAITS — raw mode sets VMIN to 1 — so asking it
         without checking would stop the game until somebody pressed something, which is exactly
         the gap this pair of members was added to close. */
-    While listening and cast terminals's key-waiting, repeat:
-        Define tapped as cast terminals's read-key.
-        If tapped is input-ended, the listening becomes false.
-        Otherwise, if cast quits on (tapped), the gave-up becomes true.
-        Otherwise, the snake becomes cast steered on (snake, tapped).
+    Define pending as 0.
+    Define waited as 0.
+    While waited is less than 9, repeat:
+        Cast nap on (10).
+
+        While listening and cast terminals's key-waiting, repeat:
+            Define tapped as cast terminals's read-key.
+            If tapped is input-ended, the listening becomes false.
+            Otherwise, if cast quits on (tapped), the gave-up becomes true.
+            Otherwise, the pending becomes tapped.
+        Done.
+
+        Increment waited by 1.
     Done.
 
     If gave-up, stop.
+
+    /*  ★★ ONE TURN PER TICK, decided against the direction the snake is STILL heading — and this
+        is correctness, not tidiness. `turned` refuses to reverse onto the neck, but it can only
+        judge the turn in front of it: heading right, an `up` and then a `left` inside one tick
+        are each perfectly legal, and together they point the snake straight back down its own
+        body. Keeping only the LAST arrow and judging it against the pre-move direction makes
+        that pair a reversal again, which is what `turned` already knows how to refuse.
+
+        ⚠ It only became reachable when the keyboard started being read nine times a tick instead
+        of once. The faster you look, the more pairs fit between two moves. */
+    The snake becomes cast steered on (snake, pending).
 
     /*  Eating is decided BEFORE the move, against the square the head is about to enter — the
         snake grows into the apple rather than onto it. Asking afterwards would have the tail
@@ -73,6 +112,7 @@ Repeat:
 Until not cast alive on (snake).
 
 If raw, cast terminals's raw-off.
+Cast terminals's screen-off.
 
 If gave-up, state "You gave up on {eaten}.".
 Otherwise, state "Game over. You ate {eaten}.".
