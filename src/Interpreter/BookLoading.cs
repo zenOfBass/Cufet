@@ -625,8 +625,21 @@ public static class BookLoading
             {
                 case ObjectDefinition o:            yield return (o.Name, o.Line, o.Column); break;
                 case InterfaceDefinition i:         yield return (i.Name, i.Line, i.Column); break;
-                case DefineStatement d:             yield return (d.Name, d.Line, d.Column); break;
                 case BindStatement { UntoType: null } b: yield return (b.Name, b.Line, b.Column); break;
+
+                // ⚠⚠ A PLAIN `Define` IS NOT A NAME A DIRECTORY OFFERS, and `permanently` is
+                // exactly the word that says otherwise. `AstSearch.EveryStatement` states the
+                // distinction this rests on: a TYPE declaration is program-scope wherever it is
+                // written, and a VALUE binding is not.
+                //
+                // ⚠⚠ MEASURED 2026-09-20, and it is what the rule costs if you get it wrong:
+                // `tools/shell.cufe` and `tools/repl.cufe` each open their body with
+                // `Define asking as cast terminals's interactive.` Counting those made two
+                // programs' WORKING VARIABLES a name clash between two libraries — and splicing
+                // them would have asked the terminal whether anybody was there at the top of an
+                // unrelated program. A program's body is not the directory's vocabulary.
+                case DefineStatement { Permanent: true } shared:
+                    yield return (shared.Name, shared.Line, shared.Column); break;
             }
     }
 
@@ -663,9 +676,16 @@ public static class BookLoading
                 case PullRabbitStatement rabbit:
                     kept.Add(rabbit with { Body = DeclarationsOnly(rabbit.Body) });
                     break;
+
+                // ⚠⚠ The same line as in TopLevelNames, and for a sharper reason here: keeping
+                // a plain `Define` would EXECUTE it. A `permanently` constant is a declaration
+                // and is kept; everything else is the file's own working material.
+                case DefineStatement { Permanent: true }:
+                    kept.Add(statement);
+                    break;
+
                 case BindStatement or ObjectDefinition or InterfaceDefinition or GetterDeclaration
-                  or SetterDeclaration or UnmakerDeclaration or OperatorOverloadDeclaration
-                  or DefineStatement:
+                  or SetterDeclaration or UnmakerDeclaration or OperatorOverloadDeclaration:
                     kept.Add(statement);
                     break;
             }
