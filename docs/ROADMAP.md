@@ -188,6 +188,27 @@ they are large, not because they are waiting — the order among them means noth
 A formal soundness proof or a fresh-eyes red-team · a periodic error-message audit for internal
 vocabulary
 
+**⚠⚠ THE ORACLE CANNOT SEE WHAT AN AXIOM PRINTS.** The interpreter loads an axiom with
+`NativeLibrary.Load` and calls it IN-PROCESS, so a `fputs(text, stdout)` inside one writes to the
+host process's real stdout — while the test harness captures a `StringWriter`. The compiled
+program writes the same bytes to its own stdout, which IS captured. So anything printed through an
+axiom appears on one side of the comparison and not the other.
+
+★ **Everything `terminals` prints is in that hole**: every prompt, the whole line editor, in
+`tools/shell.cufe` and `tools/repl.cufe`. Those two have been in the corpus since 2026-09-13 and
+the bytes they write have never once been compared between backends. The skip-list note says they
+"start, see EOF and leave" — true, and it hid this, because what they print on the way out was
+never in the comparison to begin with.
+
+⚠ MEASURED 2026-09-21 by `tools/snake/snake.cufe`, the first corpus program to print enough
+through `put` for the difference to show. Worked around THERE by sending its escape sequences on
+`State` lines instead, which the interpreter does capture; the hole itself is untouched.
+
+▶ **The root is that the language cannot write without ending a line.** `State` always ends one,
+which is the only reason `put` is an axiom at all — its own comment says so. A newline-free output
+form would put those bytes through the ordinary writer and close this for every program at once.
+That is a language decision and nobody has asked for it yet.
+
 **A blueprint's missing input reports in .NET's voice.** A `needs` path that is not there answers
 *"Could not find a part of the path 'C:\…'"* rather than naming the step, the path and the fix.
 ★ Found by writing the repo's first blueprint; the same exercise showed `needs`/`makes`/`runs`
