@@ -648,6 +648,42 @@ rather than silently merged, which is the right answer to one-book-per-name, and
 limit. ★ This is the one thing that could argue for per-book directories or a real namespace,
 against the flat shape above.
 
+### A directory is a namespace — SETTLED 2026-09-20, not yet built
+
+That argument was made, and it won. The note above anticipated the shape; what follows is the
+decision, reached by trying to write a multi-file program (`tools/snake`) and meeting the wall
+three times in one session.
+
+**The rule.** A **project** is a directory tree with `blueprint.cufe` at its root. Inside one,
+**each directory is a namespace named after itself**, and the files in it contribute their
+top-level declarations to it. Another namespace in the same project is reached by qualifying —
+`terminals's read-key` — and **nothing is pulled**. A repeated top-level name within one
+directory is a **refusal**.
+
+- **`Pull` survives for exactly two things**: opening a REGION's lifetime, and a book fetched
+  into `books/`. Both are boundaries a qualification cannot cross — one is a lifetime, the other
+  is another project's code.
+- **The directory becomes what `and book` declares.** A folder's files already are a group of
+  declarations under one name; saying so a second time in a marker is the duplication this
+  document rejects elsewhere. The marker survives only where a book arrives as a single file.
+- **A book that outgrows one file gets a directory**, which is the limitation above, dissolved.
+
+★★ **MEASURED: the file list CANNOT live in the blueprint**, which is what decided directory over
+manifest. Resolution must not execute a build description — the editor resolves names as you
+type, and `check` and `run` resolve without running anything. A walk up the tree costs nothing;
+reading a plan costs running it. The first sketch put the tree in the blueprint and had to be
+withdrawn for this reason.
+
+★★ **MEASURED: the directory rule breaks nothing in this repository.** Top-level name collisions
+between files in one directory are everywhere — `play` appears in five files in `examples/parsing`
+alone — and **every one of those directories has no blueprint above it**, so none is a project and
+none is affected. The only project in the tree has zero. ⚠ The first scan of this over-counted by
+matching locals inside function bodies; the number that matters is top-level only.
+
+⚠ **What it does NOT solve.** Crossing into `books/` is unchanged, and so is the question of
+where a shared book lives: a program in a subfolder reaches `beside itself` and `<project>/books/`,
+never the project root. That is a separate gap and it stays open.
+
 ---
 
 ## Tooling

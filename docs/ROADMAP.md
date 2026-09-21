@@ -70,7 +70,39 @@ The ordering is not ceremonial: this tier's real blocker is stated below as **er
 All need a design session before they can be ordered against anything. They are here because
 they are large, not because they are waiting — the order among them means nothing yet.
 
-1. **Teaching the language: a documentation site, and an interactive tutorial.** The playground
+1. **A directory is a namespace — DESIGNED 2026-09-20, not built.** The rule and the reasoning
+   are settled and written down in [DESIGN.md](DESIGN.md#the-build-description-and-what-a-project-is);
+   this entry is only what remains to DO. Inside a project, each directory is a namespace named
+   after itself, files in it share one top-level scope, a repeated top-level name is refused, and
+   another namespace is reached by qualifying rather than by pulling.
+
+   ★ **Why it is a mountain rather than a slice:** it moves the privacy boundary from the FILE to
+   the DIRECTORY, and the file boundary is load-bearing today — `MakePrivate` renames a loaded
+   file's top-level helpers precisely so two books may each have a `helper`. Every part of that
+   has to be re-aimed at directories rather than removed.
+
+   **What has to change:**
+
+   - **The loader.** Today pulls drive what is loaded. A project's own directories have to be
+     gathered without a pull, and `MakePrivate` has to key on the directory it came from.
+   - **A new refusal** for a repeated top-level name within one directory, naming both files.
+   - **Qualification without a pull** — `terminals's read-key` where nothing brought `terminals`
+     into scope, which is a resolution path that does not exist.
+   - **`Pull` narrows to two jobs** — a region's lifetime, and a book in `books/`. Pulling a
+     project's own directory should then be refused, and the refusal should say to qualify instead.
+   - **`cufet pulls`, blueprints and the corpus.** `needs` is generated from what the loader
+     resolved, and the loader is what changes.
+   - **The docs.** REFERENCE Part VIII, GRAMMAR's pull section, BOOKS.md, and the tutorial's
+     lesson 11, which teaches the file-is-what-hides rule.
+
+   ⚠ **A migration exists and is not free.** `tools/terminals.cufe` keeps its name only by becoming
+   `tools/terminals/`, because the namespace is the directory. Files left directly in `tools/`
+   become the `tools` namespace.
+
+   ⚠ **It does not touch `books/`**, which stays flat and single-file for the reason recorded in
+   DESIGN: a blueprint inside `books/` would mark that directory a project root.
+
+2. **Teaching the language: a documentation site, and an interactive tutorial.** The playground
    runs the real interpreter in the browser, loads the corpus, shows squiggles and survives a
    runaway program. What it does not do is teach anybody anything — the only way in is
    `REFERENCE.md`, which is over four thousand lines and is a reference rather than a way in.
