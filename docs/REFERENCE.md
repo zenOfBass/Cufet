@@ -4659,6 +4659,12 @@ repl.cufe: terminals/terminals.cufe
 a directory, so each is part of the other's program and a change to one really does make the
 other's build stale. Nothing in either file says so — that is the point of generating the list.
 
+★ **`check` and `tokens` also take `--as=<path>`** — check this text as though it were that
+file. An editor checking UNSAVED text has to write it somewhere, and a program's neighbours, its
+namespaces and its `books/` folder are found from the directory the file is IN — so a scratch copy
+elsewhere is a different program. The text comes from the file given; `--as` only says where it
+belongs and what to name the report after.
+
 It reports what the **loader resolved**, not a re-reading of your source, so it cannot disagree
 with what a build actually loads. ★ Bundled books never appear — `math` and `the c-language` are
 spliced in without being paths, and a build `need` has to be something that can be hashed. It is

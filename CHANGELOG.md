@@ -10,6 +10,23 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+- **`cufet check --as=<path>` and `cufet tokens --as=<path>`** — check this text as though it were
+  that file. The text still comes from the file given; what `--as` changes is where the program is
+  RESOLVED and what the report is named after.
+
+  ★★ **The file being read and the file it stands for are two questions**, and until directory
+  namespaces they had one answer. An editor checking UNSAVED text writes it to a scratch file, and
+  a program's neighbours, its namespaces and its `books/` folder are all found from the directory
+  the file is in — so a scratch copy in the temp directory is a different program, checked with no
+  project at all. MEASURED: `tools/snake/serpent.cufe` copied out of its directory answers
+  *"'spot' is not a defined type"*; with `--as` it answers *"No problems found"*.
+
+  ⚠ The first value-taking flag in the CLI, written `--as=<path>` so the rule "exactly one
+  argument is not a flag, and it is the file" survives. `--as` with no value is refused.
+
+  ★ The VS Code extension passes it for `check`, semantic tokens and hover. An UNTITLED document
+  gets no `--as` — there is no project it belongs to yet, and that is the truth about it.
+
 - **A directory is a namespace.** Inside a project — a tree with `blueprint.cufe` at its root —
   the files of one directory share a single top-level scope with nothing pulled between them, and
   another directory is reached by qualifying it: `terminals's read-key`. A repeated top-level name
@@ -2172,7 +2189,7 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
   ★ **`rabbit` is a book like any other and now reads as one.** `Pull a rabbit as hopper.` emitted no
   token for `rabbit` at all, so it was the one pulled book that could be neither coloured nor asked
-  about. It is a namespace like `math`, because that is what it is.
+  about. It is a region like `math`, because that is what it is.
 
   ⚠ **An alias still answers nothing.** `Pull greeting-kit as kit.` — the table is keyed by the name
   declared and an alias is a different word, so hovering it is a miss rather than a wrong answer.
@@ -2811,7 +2828,7 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
   ★★ **Not a new mechanism.** `Pull` already resolved a bundled book and a module defined in the
   same file — and a module is an object claiming the `module` interface, while a book is a module
-  the language ships with. This adds a third place to look for the same object. The namespace, the
+  the language ships with. This adds a third place to look for the same object. The region, the
   member access and the scope ending at `Done.` were all decided when modules were.
 
   ★ **Resolved and compiled TOGETHER**, as one program. That keeps whole-program visibility, which
