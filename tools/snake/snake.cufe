@@ -25,7 +25,10 @@
 
     ⚠ The escape sequences land in the corpus output too, which is deliberate: they are the same
     bytes on both backends, so the oracle still means something, and the alternative was a second
-    output path that nobody would ever look at.
+    output path that nobody would ever look at. ⚠⚠ They travel on `State` lines rather than
+    through `terminals's put` — an axiom's writes go straight to the process's stdout and never
+    reach the interpreter's own output, so a frame drawn with `put` is invisible to half the
+    oracle. Measured the hard way, by this file failing the corpus.
 */
 
 Define snake as cast starting.
@@ -41,16 +44,17 @@ If cast terminals's interactive, the raw becomes cast terminals's raw-on.
 /*  Cursor sequences on, cursor out of the way, and one erase before the first frame. The erase
     happens ONCE: doing it per frame is what makes a terminal game flicker, because the screen is
     briefly empty between the wipe and the redraw. */
+/*  The console is told to act on sequences; nothing is printed here. The erase and the hidden
+    cursor ride on the FIRST frame's first line instead — one write, and no half-drawn screen
+    between wiping and drawing. */
 Cast terminals's screen-on.
-Cast terminals's clear.
+Define opening as "{cast terminals's cursor-hidden}{cast terminals's cleared}".
 
 /* Whether there is any point asking for a key. It goes false at end-of-input and stays there. */
 Define listening as true.
 Define gave-up as false.
 
 Repeat:
-    Cast terminals's home.
-
     /*  Padded to the width of the field, so a shorter score cannot leave the last one's digits
         sitting behind it. Every line of the frame is exactly as wide as every other, which is
         what lets `home` replace an erase. */
@@ -58,7 +62,13 @@ Repeat:
     While the length of shown is less than cast width, repeat:
         The shown becomes shown joined to " ".
     Done.
-    State shown.
+
+    /*  ★ The cursor is sent home on the FRONT of the score line rather than by a write of its
+        own — one write per line, and `State` is what carries it. That matters beyond flicker:
+        `State` goes through the interpreter's own output, and `terminals's put` does not, so a
+        frame drawn with `put` would be invisible to the oracle on the interpreted side. */
+    State "{opening}{cast terminals's home}{shown}".
+    The opening becomes "".
 
     For each line in cast frame-of on (snake's body, apple), repeat:
         State line.
@@ -112,7 +122,7 @@ Repeat:
 Until not cast alive on (snake).
 
 If raw, cast terminals's raw-off.
-Cast terminals's screen-off.
 
-If gave-up, state "You gave up on {eaten}.".
-Otherwise, state "Game over. You ate {eaten}.".
+Define parting as cast terminals's cursor-shown.
+If gave-up, state "{parting}You gave up on {eaten}.".
+Otherwise, state "{parting}Game over. You ate {eaten}.".
