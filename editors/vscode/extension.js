@@ -156,12 +156,42 @@ function checkDocument(document) {
                 return;
             }
 
-            diagnostics.set(document.uri, parseDiagnostics(stdout, document));
+            publishDiagnostics(document, parseDiagnostics(stdout, document));
         });
 }
 
+// Which files the last check OF a given file put diagnostics on, so the next one can take them
+// back. Keyed by the checked document; the values are the files its report actually named.
+//
+// ⚠ Without this a fixed error is immortal: the re-check reports nothing about the neighbour,
+// so nothing overwrites the entry, and the squiggle stays on a file that is now correct.
+const wroteDiagnosticsFor = new Map();
+
+function publishDiagnostics(document, byFile) {
+    const key      = document.uri.toString();
+    const previous = wroteDiagnosticsFor.get(key) || [];
+
+    for (const uriString of previous)
+        if (!byFile.has(uriString)) diagnostics.delete(vscode.Uri.parse(uriString));
+
+    for (const [uriString, items] of byFile)
+        diagnostics.set(vscode.Uri.parse(uriString), items);
+
+    wroteDiagnosticsFor.set(key, [...byFile.keys()]);
+}
+
+// ★★ THE REPORT SAYS WHICH FILE, AND IT IS NOT ALWAYS THE ONE BEING CHECKED. `check --json`
+// has always emitted a `file` field, and this used to parse it and throw it away — pinning every
+// diagnostic to the document in front of the reader, at the reported LINE NUMBER. So an error in
+// a neighbour landed on whatever happened to be open, on a line with nothing wrong with it.
+//
+// ⚠⚠ Rare while only a PULLED book could do that; constant the day a directory became a
+// namespace and every neighbour was part of the program. MEASURED 2026-09-21: a reserved word
+// used as a name in `steering.cufe:18` was shown on line 18 of `snake.cufe`, which is a sentence
+// in a comment. The user reported it twice before it was believed, because a MISPLACED squiggle
+// reads exactly like a STALE one.
 function parseDiagnostics(stdout, document) {
-    const results = [];
+    const byFile = new Map();
 
     for (const rawLine of stdout.split(/\r?\n/)) {
         const line = rawLine.trim();
@@ -170,17 +200,28 @@ function parseDiagnostics(stdout, document) {
         let reported;
         try { reported = JSON.parse(line); } catch { continue; }
 
+        const uri  = reported.file ? vscode.Uri.file(reported.file) : document.uri;
+        const here = uri.toString() === document.uri.toString();
+        const at   = Math.max((reported.line || 1) - 1, 0);
+
         const diagnostic = new vscode.Diagnostic(
-            rangeForLine(document, reported.line),
+            // ★ The open document gets the careful range — the code on the line, never its
+            // indentation. Another file is one we may not have open and cannot measure, so the
+            // whole line is claimed and VS Code clamps it when it renders.
+            here ? rangeForLine(document, reported.line)
+                 : new vscode.Range(at, 0, at, Number.MAX_SAFE_INTEGER),
             reported.message,
             reported.severity === 'warning'
                 ? vscode.DiagnosticSeverity.Warning
                 : vscode.DiagnosticSeverity.Error);
         diagnostic.source = 'cufet';
-        results.push(diagnostic);
+
+        const key = uri.toString();
+        if (!byFile.has(key)) byFile.set(key, []);
+        byFile.get(key).push(diagnostic);
     }
 
-    return results;
+    return byFile;
 }
 
 // Underline the code on the line rather than its leading indentation, and never produce a
@@ -387,7 +428,16 @@ function activate(context) {
             clearTimeout(debounce);
             debounce = setTimeout(() => checkDocument(event.document), TYPE_DEBOUNCE_MS);
         }),
-        vscode.workspace.onDidCloseTextDocument(document => diagnostics.delete(document.uri)),
+        vscode.workspace.onDidCloseTextDocument(document => {
+            // ⚠ And whatever ITS report put on other files. A diagnostic this document's
+            // check placed on a neighbour has nobody left to take it back once this one is
+            // closed, so it would outlive the only thing that knew about it.
+            const key = document.uri.toString();
+            for (const uriString of wroteDiagnosticsFor.get(key) || [])
+                if (uriString !== key) diagnostics.delete(vscode.Uri.parse(uriString));
+            wroteDiagnosticsFor.delete(key);
+            diagnostics.delete(document.uri);
+        }),
 
         vscode.commands.registerCommand('cufet.check', () => {
             const editor = vscode.window.activeTextEditor;
