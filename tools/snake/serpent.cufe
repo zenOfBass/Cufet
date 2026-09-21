@@ -7,98 +7,96 @@
     ★ A direction is two numbers, `row-step` and `column-step`, rather than a named set of four.
     Moving is then addition, and turning is choosing a pair — no dispatch anywhere, and the wall
     check is arithmetic the model already does.
+
+    ★★ `spot`, `at` and `holds` come from `board.cufe` with nothing said: they are in this
+    directory, and a directory is one namespace.
 */
 
-Pull a book on board.
-    Define object serpent with () and book:
+/// A snake: where its squares are, head first, and which way it is going.
+Define object worm with (the series of spot body,
+                        the number row-step,
+                        the number column-step):
 
-        /// A snake: where its squares are, head first, and which way it is going.
-        Define object worm with (the series of spot body,
-                                 the number row-step,
-                                 the number column-step):
-
-            /// The square the snake will move out of.
-            Bind spot to head:
-                Return the first of one's body.
-            Done.
-
-            /// How many squares long it is.
-            Bind number to length-of:
-                Return the number of one's body.
-            Done.
-
-            /// Whether the snake lies on a square.
-            Bind fact to covers, given (the spot which):
-                For each piece in one's body, repeat:
-                    If cast piece's same-as on (which), return true.
-                Done.
-                Return false.
-            Done.
-
-            /// The square ahead, whether or not it is on the field.
-            Bind spot to ahead:
-                Define front as cast one's head.
-                Return cast board's at on (front's row + one's row-step,
-                                           front's column + one's column-step).
-            Done.
-        Done.
-
-        /// A snake three long, lying across the middle and heading right.
-        Bind worm to starting:
-            Define body as a series of spot.
-            Insert cast board's at on (4, 10) into body.
-            Insert cast board's at on (4, 9) into body.
-            Insert cast board's at on (4, 8) into body.
-            Return a new worm { the body body, the row-step 0, the column-step 1 }.
-        Done.
-
-        /// The same snake, pointed somewhere else.
-        ///
-        /// ⚠ A snake may not turn back into itself — reversing onto its own neck is a death the
-        /// player did not ask for, so the turn is refused and the snake carries on. Every game
-        /// does this; it is worth saying WHY rather than letting it look like a bug.
-        Bind worm to turned, given (the worm which, the number row-step, the number column-step):
-            If row-step is 0 - which's row-step and column-step is 0 - which's column-step,
-                return which.
-            Return a new worm { the body which's body,
-                                the row-step row-step,
-                                the column-step column-step }.
-        Done.
-
-        /// The snake one step on. It keeps its tail when it is growing, and drops it otherwise —
-        /// which is the whole of why eating makes a snake longer.
-        Bind worm to moved, given (the worm which, the fact growing):
-            Define next as a series of spot.
-            Insert cast which's ahead into next.
-
-            Define keeping as the number of which's body.
-            If not growing, the keeping becomes keeping - 1.
-
-            Define taken as 0.
-            For each piece in which's body, repeat:
-                If taken is less than keeping, insert piece into next.
-                Increment taken by 1.
-            Done.
-
-            Return a new worm { the body next,
-                                the row-step which's row-step,
-                                the column-step which's column-step }.
-        Done.
-
-        /// Whether the snake is still alive: on the field, and not lying across itself.
-        ///
-        /// ⚠ Asked of the snake AFTER it has moved, so the head is already where it is going.
-        /// A snake whose head is on its own body has bitten itself — except that the head is
-        /// itself in the body, so what is counted is the head appearing TWICE.
-        Bind fact to alive, given (the worm which):
-            Define front as cast which's head.
-            If not cast board's holds on (front), return false.
-
-            Define seen as 0.
-            For each piece in which's body, repeat:
-                If cast piece's same-as on (front), increment seen by 1.
-            Done.
-            Return seen is 1.
-        Done.
+    /// The square the snake will move out of.
+    Bind spot to head:
+        Return the first of one's body.
     Done.
+
+    /// How many squares long it is.
+    Bind number to length-of:
+        Return the number of one's body.
+    Done.
+
+    /// Whether the snake lies on a square.
+    Bind fact to covers, given (the spot which):
+        For each piece in one's body, repeat:
+            If cast piece's same-as on (which), return true.
+        Done.
+        Return false.
+    Done.
+
+    /// The square ahead, whether or not it is on the field.
+    Bind spot to ahead:
+        Define front as cast one's head.
+        Return cast at on (front's row + one's row-step,
+                           front's column + one's column-step).
+    Done.
+Done.
+
+/// A snake three long, lying across the middle and heading right.
+Bind worm to starting:
+    Define body as a series of spot.
+    Insert cast at on (4, 10) into body.
+    Insert cast at on (4, 9) into body.
+    Insert cast at on (4, 8) into body.
+    Return a new worm { the body body, the row-step 0, the column-step 1 }.
+Done.
+
+/// The same snake, pointed somewhere else.
+///
+/// ⚠ A snake may not turn back into itself — reversing onto its own neck is a death the
+/// player did not ask for, so the turn is refused and the snake carries on. Every game
+/// does this; it is worth saying WHY rather than letting it look like a bug.
+Bind worm to turned, given (the worm which, the number row-step, the number column-step):
+    If row-step is 0 - which's row-step and column-step is 0 - which's column-step,
+        return which.
+    Return a new worm { the body which's body,
+                        the row-step row-step,
+                        the column-step column-step }.
+Done.
+
+/// The snake one step on. It keeps its tail when it is growing, and drops it otherwise —
+/// which is the whole of why eating makes a snake longer.
+Bind worm to moved, given (the worm which, the fact growing):
+    Define next as a series of spot.
+    Insert cast which's ahead into next.
+
+    Define keeping as the number of which's body.
+    If not growing, the keeping becomes keeping - 1.
+
+    Define taken as 0.
+    For each piece in which's body, repeat:
+        If taken is less than keeping, insert piece into next.
+        Increment taken by 1.
+    Done.
+
+    Return a new worm { the body next,
+                        the row-step which's row-step,
+                        the column-step which's column-step }.
+Done.
+
+/// Whether the snake is still alive: on the field, and not lying across itself.
+///
+/// ⚠ Asked of the snake AFTER it has moved, so the head is already where it is going.
+/// A snake whose head is on its own body has bitten itself — except that the head is
+/// itself in the body, so what is counted is the head appearing TWICE.
+Bind fact to alive, given (the worm which):
+    Define front as cast which's head.
+    If not cast holds on (front), return false.
+
+    Define seen as 0.
+    For each piece in which's body, repeat:
+        If cast piece's same-as on (front), increment seen by 1.
+    Done.
+    Return seen is 1.
 Done.

@@ -1,50 +1,43 @@
 /*  The model: what a playing field is made of.
 
-    ★ It is a BOOK, and the reason is the only thing the two words separate: **a book owns no
-    lifetime, a module may.** This owns none, so `and book` is the exact claim and `and module`
-    would leave a settled question open. ⚠ MEASURED 2026-09-20, because the tempting reason is
-    wrong: carrying a TYPE is not what makes something a module. A book carries one perfectly
-    well, and `spot` crossing into `snake.cufe` below is that working.
+    ★★ No wrapper, no marker, no pull. This file is in `tools/snake/`, so what it declares belongs
+    to the namespace `snake` along with everything its neighbours declare — the directory says
+    what an `and book` used to have to say a second time. A book or a module inside a project is
+    still perfectly legal; there is just nothing left for one to do here.
 
-    ★ The surface then reads the difference — you consult a book, and you have one of a module.
-    `Pull a book on board.` is English; `Pull board.` would be claiming the other thing.
-
-    ⚠ Nothing here draws anything or reads a key. The model knows where things are and what
-    counts as the same square; the view knows how that looks and the controller knows what a
-    keypress means. Keeping them apart is the point of the exercise as much as the game is.
+    ⚠ Nothing here draws anything or reads a key. The model knows where things are and what counts
+    as the same square; the view knows how that looks and the controller knows what a keypress
+    means. Keeping them apart is the point of the exercise as much as the game is.
 */
 
-Define object board with () and book:
+/// One square of the playing field, counted from 1 at the top left.
+Define object spot with (the number row, the number column):
 
-    /// One square of the playing field, counted from 1 at the top left.
-    Define object spot with (the number row, the number column):
-
-        /// Whether two squares are the same square.
-        Bind fact to same-as, given (the spot other):
-            Return one's row is other's row and one's column is other's column.
-        Done.
+    /// Whether two squares are the same square.
+    Bind fact to same-as, given (the spot other):
+        Return one's row is other's row and one's column is other's column.
     Done.
+Done.
 
-    /// How many rows the field has.
-    Bind number to height:
-        Return 8.
-    Done.
+/// How many rows the field has.
+Bind number to height:
+    Return 8.
+Done.
 
-    /// How many columns the field has.
-    Bind number to width:
-        Return 20.
-    Done.
+/// How many columns the field has.
+Bind number to width:
+    Return 20.
+Done.
 
-    /// A square, from its coordinates.
-    Bind spot to at, given (the number row, the number column):
-        Return a new spot { the row row, the column column }.
-    Done.
+/// A square, from its coordinates.
+Bind spot to at, given (the number row, the number column):
+    Return a new spot { the row row, the column column }.
+Done.
 
-    /// Whether a square is still on the field.
-    Bind fact to holds, given (the spot which):
-        Return which's row is not less than 1
-           and which's row is not greater than cast one's height
-           and which's column is not less than 1
-           and which's column is not greater than cast one's width.
-    Done.
+/// Whether a square is still on the field.
+Bind fact to holds, given (the spot which):
+    Return which's row is not less than 1
+       and which's row is not greater than cast height
+       and which's column is not less than 1
+       and which's column is not greater than cast width.
 Done.

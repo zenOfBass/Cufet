@@ -1,0 +1,59 @@
+/*  The build description for the Cufet tools — and the file that makes `tools/` a PROJECT.
+
+    ★★ Its LOCATION is the load-bearing part. A blueprint at the root of a tree is what says
+    "everything under here is one project", and inside a project each directory is a NAMESPACE:
+    `tools/` holds the shell, the REPL and the terminal, which see each other flatly; `tools/snake/`
+    is a namespace of its own, and reaches out of itself by qualifying. Nothing here is pulled and
+    nothing here is a book. Moving this file up from `tools/snake/` on 2026-09-20 is what turned
+    four `and book` wrappers into four ordinary files.
+
+    ★★ Running this performs NOTHING. It defines `blueprint` and calls nothing, so what comes out
+    is a plan; the build happens afterwards, to that plan. `cufet blueprint.cufe` printing no
+    output is correct rather than a bug — which is also what lets this file sit in the corpus and
+    be run on both backends like every other program here.
+
+    ★★ **`needs` is GENERATED, not hand-kept.** `cufet pulls snake/snake.cufe` prints what the
+    loader actually resolved, and that is where the lists below came from — the tool exists so a
+    blueprint need not track dependencies by hand, and it reports what a build really loads rather
+    than a re-reading of the source, so it cannot drift from the truth. Re-run it after adding a
+    file to a directory: a neighbour is a dependency now, with nothing written down to say so.
+
+    ⚠ `shell` needing `repl.cufe` and `repl` needing `shell.cufe` is not a mistake and not a ring.
+    They share a directory, so each is part of the other's program — change one and the other's
+    build really is stale. A ring would be two STEPS waiting on each other; these two steps wait on
+    nothing, they only read the same files.
+
+    ⚠ Paths are relative to the PROJECT ROOT — the directory holding this file — not to wherever
+    `cufet build` was invoked from.
+
+    ⚠ The graph is never written down. A step runs after another when it NEEDS a path that one
+    MAKES; declaring edges as well would state one fact twice.
+*/
+
+Pull a book on blueprints.
+    Bind series of step to blueprint:
+        Define work as a series of step.
+
+        Insert a record with (
+            the name "snake",
+            the needs a series of text with ("snake/snake.cufe", "snake/board.cufe",
+                                             "snake/pacing.cufe", "snake/screen.cufe",
+                                             "snake/serpent.cufe"),
+            the makes a series of text with ("snake/snake.exe"),
+            the runs a series of text with ("cufet", "build", "snake/snake.cufe")) into work.
+
+        Insert a record with (
+            the name "shell",
+            the needs a series of text with ("shell.cufe", "repl.cufe", "terminals/terminals.cufe"),
+            the makes a series of text with ("shell.exe"),
+            the runs a series of text with ("cufet", "build", "shell.cufe")) into work.
+
+        Insert a record with (
+            the name "repl",
+            the needs a series of text with ("repl.cufe", "shell.cufe", "terminals/terminals.cufe"),
+            the makes a series of text with ("repl.exe"),
+            the runs a series of text with ("cufet", "build", "repl.cufe")) into work.
+
+        Return work.
+    Done.
+Done.
