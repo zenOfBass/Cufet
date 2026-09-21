@@ -188,6 +188,15 @@ they are large, not because they are waiting — the order among them means noth
 A formal soundness proof or a fresh-eyes red-team · a periodic error-message audit for internal
 vocabulary
 
+**An unsaved buffer is checked outside its project.** The editor extension copies a dirty
+document to the OS temp directory, because the front end only reads files. Its comment says the
+copy "behaves identically to the original" — that is now false: `check` resolves neighbours and
+namespaces against the file's own directory, so a project file reports nonsense while unsaved.
+⚠ Narrow today, because the default `checkOn: "save"` only ever checks a CLEAN document; it bites
+`checkOn: "type"` and untitled files. ★ The fix wants the scratch copy written beside the original
+plus a way to tell `check` which path it stands for — a flag, not a workaround. Found 2026-09-20
+while chasing a stale squiggle that turned out to be a leftover.
+
 **A blueprint's missing input reports in .NET's voice.** A `needs` path that is not there answers
 *"Could not find a part of the path 'C:\…'"* rather than naming the step, the path and the fix.
 ★ Found by writing the repo's first blueprint; the same exercise showed `needs`/`makes`/`runs`

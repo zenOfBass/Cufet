@@ -100,6 +100,20 @@ function materialize(document, prefix) {
     }
 }
 
+// Re-checks the other Cufet files open in the editor, after one of them is saved.
+//
+// ⚠ Only ones already on disk. An unsaved buffer would be checked from a scratch copy in the
+// temp directory, where the project it belongs to does not exist — so it would be handed a fresh
+// set of wrong answers rather than a refreshed set of right ones. Its own squiggles stay as they
+// were until it is saved, which is the same promise `checkOn: "save"` already makes about it.
+function recheckOtherOpenFiles(saved) {
+    for (const document of vscode.workspace.textDocuments) {
+        if (document === saved || document.languageId !== LANGUAGE) continue;
+        if (document.isDirty || document.isUntitled) continue;
+        checkDocument(document);
+    }
+}
+
 function checkDocument(document) {
     if (document.languageId !== LANGUAGE) return;
 
@@ -328,7 +342,19 @@ function activate(context) {
             if (checkOn() !== 'never') checkDocument(document);
         }),
         vscode.workspace.onDidSaveTextDocument(document => {
-            if (checkOn() !== 'never') checkDocument(document);
+            if (checkOn() === 'never') return;
+            checkDocument(document);
+            // ★★ AND EVERY OTHER OPEN CUFET FILE, because a file's diagnostics no longer depend
+            // only on itself. Inside a project a directory is one namespace, so saving
+            // `board.cufe` can fix — or break — `snake.cufe` without `snake.cufe` changing at all.
+            // Before directory namespaces this was true only of a file you PULLED, which was rare
+            // enough to live with; now it is true of every neighbour, and a squiggle that survives
+            // the edit that fixed it is worse than no squiggle.
+            //
+            // ⚠ Every open one, not a computed set: working out which files a project reaches
+            // means re-implementing the loader's walk in JavaScript, where it could disagree with
+            // the real one. There are only ever a handful of open editors, and a check is fast.
+            recheckOtherOpenFiles(document);
         }),
         vscode.workspace.onDidChangeTextDocument(event => {
             // ★ A change that leaves the buffer CLEAN did not come from typing — typing makes a
