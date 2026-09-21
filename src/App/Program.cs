@@ -105,6 +105,46 @@ static IEnumerable<string> UnknownFlags(IEnumerable<string> rest, params string[
     rest.Where(a => a.StartsWith('-')
                  && !known.Contains(a, StringComparer.OrdinalIgnoreCase));
 
+/// <summary>Pulls `--as=&lt;path&gt;` out of the arguments, leaving the rest untouched.</summary>
+/// <remarks>
+/// <para>
+/// ★★ **The file being READ and the file it STANDS FOR are two questions**, and until directory
+/// namespaces they had one answer. An editor checking unsaved text writes it to a scratch file,
+/// and the front end resolves a program's neighbours, its namespaces and its `books/` folder
+/// against the directory the file is IN — so a scratch copy in the temp directory is not the same
+/// program. It is checked with no project at all and answers about a file nobody wrote.
+/// </para>
+/// <para>
+/// ⚠ It changes where the program is RESOLVED and what the report is NAMED AFTER, and nothing
+/// else. The text still comes from the file given; `--as` does not read anything.
+/// </para>
+/// <para>
+/// ⚠ The only value-taking flag in the CLI, and written `--as=&lt;path&gt;` so that the rule
+/// "exactly one argument is not a flag, and it is the file" survives. Taken out of the array
+/// here, so every verb's own flag checking is unchanged — and `--as` written without a value
+/// falls through to it and is refused with the usage line.
+/// </para>
+/// </remarks>
+static string[] TakeStandsFor(string[] rest, string verb, string usage, out string? standsFor)
+{
+    const string flag = "--as=";
+    string? found = null;
+    var kept = new List<string>(rest.Length);
+
+    foreach (var argument in rest)
+        if (argument.StartsWith(flag, StringComparison.OrdinalIgnoreCase)) found = argument[flag.Length..];
+        else kept.Add(argument);
+
+    if (found is { Length: 0 })
+    {
+        Console.Error.WriteLine($"{verb}: '--as=' needs a path — '{usage}'.");
+        Environment.Exit(2);
+    }
+
+    standsFor = found;
+    return [.. kept];
+}
+
 // A verb typed wrong lands here as a filename, so the usage text has to be worth reading.
 // A file inside a `Prelude` directory IS (a draft of) the bundled prelude — check it as such,
 // or the guards protecting bundled-book names would refuse the prelude's own source, and the
@@ -142,6 +182,8 @@ static void Help()
           cufet check [--json] [--native] [--strict] <f>
                                                report problems without running it
           cufet tokens --json <file.cufe>      report what each name in the file IS
+            … both also take --as=<path>       check this text as if it were that file,
+                                               so a scratch copy resolves where the real one does
           cufet pulls <file.cufe> [more…]      report which FILES a file brings in
           cufet page <file.cufe>               write a reader's page for the book in it
           cufet build <file.cufe>              compile to a native binary (needs gcc)
@@ -220,7 +262,7 @@ static void EmitC(string sourcePath, string outPath)
 // same errors, but finding them by running the program is not an option when the program
 // reads input, writes files, or takes a minute.
 //
-//   cufet check [--json] [--native] [--strict] <file>
+//   cufet check [--json] [--native] [--strict] [--as=<path>] <file>
 //
 // Two output shapes. The default is one human line per diagnostic,
 // "<path>:<line>:<column>: <severity>: <first line>", with the rest of a multi-line message indented
@@ -234,7 +276,8 @@ static void EmitC(string sourcePath, string outPath)
 // good enough for what they are doing.
 static void Check(string[] rest)
 {
-    const string usage = "cufet check [--json] [--native] [--strict] <file>";
+    const string usage = "cufet check [--json] [--native] [--strict] [--as=<path>] <file>";
+    rest = TakeStandsFor(rest, "check", usage, out var standsFor);
     RefuseExtraArguments("check", UnknownFlags(rest, "--json", "--native", "--strict"), usage);
     // A second FILE is a mistake too — only the first was ever read, and silently.
     RefuseExtraArguments("check", rest.Where(a => !a.StartsWith('-')).Skip(1), usage);
@@ -246,14 +289,16 @@ static void Check(string[] rest)
 
     if (path is null)
     {
-        Console.Error.WriteLine("check: expected a source file — 'cufet check [--json] [--native] [--strict] <file>'.");
+        Console.Error.WriteLine($"check: expected a source file — '{usage}'.");
         Environment.Exit(2);
         return;
     }
 
-    string full = Path.GetFullPath(path);
+    string read = Path.GetFullPath(path);
+    // What the program IS, which is not always the file we are reading. See TakeStandsFor.
+    string full = standsFor is null ? read : Path.GetFullPath(standsFor);
     string source;
-    try { source = File.ReadAllText(full); }
+    try { source = File.ReadAllText(read); }
     catch (IOException e) { Console.Error.WriteLine(e.Message); Environment.Exit(2); return; }
 
     var checker = MakeChecker(full);
@@ -303,7 +348,10 @@ static void Check(string[] rest)
     foreach (var w in warnings)
         Report(json, full, (w.Line, w.Column), w.SeverityName, w.Message);
 
-    if (warnings.Count == 0 && !json) Console.WriteLine($"No problems found in {path}.");
+    // ⚠ Named after what the program IS, not the scratch file it was read from — the same answer
+    // `Report` gives for an error, so the two lines cannot disagree about which file this was.
+    if (warnings.Count == 0 && !json)
+        Console.WriteLine($"No problems found in {standsFor ?? path}.");
 
     // A warning means the program runs, so the default is success. --strict is for the caller who
     // wants the build to stop on one anyway — a CI gate, or a native-compatibility check.
@@ -396,21 +444,23 @@ static string Relative(string full)
 
 static void Tokens(string[] rest)
 {
-    const string tokensUsage = "cufet tokens [--json] <file>";
+    const string tokensUsage = "cufet tokens [--json] [--as=<path>] <file>";
+    rest = TakeStandsFor(rest, "tokens", tokensUsage, out var standsFor);
     RefuseExtraArguments("tokens", UnknownFlags(rest, "--json"), tokensUsage);
     RefuseExtraArguments("tokens", rest.Where(a => !a.StartsWith('-')).Skip(1), tokensUsage);
 
     var path = rest.FirstOrDefault(a => !a.StartsWith("--", StringComparison.Ordinal));
     if (path is null)
     {
-        Console.Error.WriteLine("tokens: expected a source file — 'cufet tokens [--json] <file>'.");
+        Console.Error.WriteLine($"tokens: expected a source file — '{tokensUsage}'.");
         Environment.Exit(2);
         return;
     }
 
-    string full = Path.GetFullPath(path);
+    string read = Path.GetFullPath(path);
+    string full = standsFor is null ? read : Path.GetFullPath(standsFor);
     string source;
-    try { source = File.ReadAllText(full); }
+    try { source = File.ReadAllText(read); }
     catch (IOException e) { Console.Error.WriteLine(e.Message); Environment.Exit(2); return; }
 
     IReadOnlyList<SemanticToken> semantic;

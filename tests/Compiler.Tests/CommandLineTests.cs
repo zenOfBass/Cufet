@@ -526,4 +526,111 @@ public class CommandLineTests
         // column the descriptions line up in.
         Assert.Matches(@"(?m)^\s*cufet build\s{2,}\S", help.Replace("\r\n", "\n"));
     }
+
+    // ── `--as=<path>`: checking text that is not where it belongs ────────────────────
+    //
+    // ★★ An editor checking UNSAVED text writes it to a scratch file, because the front end only
+    // reads files. That was harmless until a program's neighbours, its directory namespaces and
+    // its `books/` folder all started being found from the directory the file is IN — at which
+    // point a copy in the temp directory became a DIFFERENT program, checked with no project at
+    // all. `--as` says which file the copy stands for.
+    //
+    // ⚠ The real corpus is the fixture on purpose: `tools/snake/serpent.cufe` is meaningless on
+    // its own (`spot` and `at` live in `board.cufe` beside it) and correct where it sits, so the
+    // two answers below cannot both be right by accident.
+
+    private static string TheRealFile =>
+        Path.Combine(RepoRoot, "tools", "snake", "serpent.cufe");
+
+    /// <summary>The same text, somewhere it does not belong — what a dirty buffer becomes.</summary>
+    private static string WriteScratchCopyOf(string original) =>
+        WriteProgram(File.ReadAllText(original));
+
+    /// <remarks>
+    /// ⚠⚠ THE BUG THIS PINS, not merely the fix. Without it, a passing `--as` test proves nothing:
+    /// the scratch copy might check clean for reasons of its own, and the flag could be doing
+    /// nothing at all. This is the half that must stay RED-able.
+    /// </remarks>
+    [Fact]
+    public void AScratchCopyOutsideItsProject_IsCheckedWithoutItsNeighbours()
+    {
+        string scratch = WriteScratchCopyOf(TheRealFile);
+        try
+        {
+            var (exit, _, error) = Run("check", scratch);
+            Assert.Equal(1, exit);
+            Assert.Contains("'spot' is not a defined type", error);
+        }
+        finally { File.Delete(scratch); }
+    }
+
+    [Fact]
+    public void WithAs_AScratchCopyIsCheckedWhereItBelongs()
+    {
+        string scratch = WriteScratchCopyOf(TheRealFile);
+        try
+        {
+            var (exit, output, error) = Run("check", $"--as={TheRealFile}", scratch);
+            Assert.Equal(0, exit);
+            Assert.Contains("No problems found", output);
+            Assert.Equal("", error.Trim());
+        }
+        finally { File.Delete(scratch); }
+    }
+
+    /// <remarks>
+    /// ★ The editor anchors a squiggle on the path the report names, so naming the scratch file
+    /// would put every diagnostic in a file the reader does not have open.
+    /// </remarks>
+    [Fact]
+    public void WithAs_TheReportNamesTheFileItStandsFor_NotTheOneItRead()
+    {
+        string scratch = WriteScratchCopyOf(TheRealFile);
+        File.AppendAllText(scratch, "\nState cast nonesuch.\n");
+        try
+        {
+            var (exit, report, _) = Run("check", "--json", $"--as={TheRealFile}", scratch);
+            Assert.Equal(1, exit);
+            Assert.Contains("serpent.cufe", report);
+            Assert.DoesNotContain(Path.GetFileName(scratch), report);
+        }
+        finally { File.Delete(scratch); }
+    }
+
+    /// <remarks>⚠ The success line and the error report must not disagree about which file this was.</remarks>
+    [Fact]
+    public void WithAs_TheSuccessLineNamesTheFileItStandsFor()
+    {
+        string scratch = WriteScratchCopyOf(TheRealFile);
+        try
+        {
+            Assert.Contains("serpent.cufe", Run("check", $"--as={TheRealFile}", scratch).Out);
+        }
+        finally { File.Delete(scratch); }
+    }
+
+    [Fact]
+    public void As_WithNoPath_IsRefusedWithTheUsageLine()
+    {
+        string scratch = WriteScratchCopyOf(TheRealFile);
+        try
+        {
+            var (exit, _, error) = Run("check", "--as=", scratch);
+            Assert.Equal(2, exit);
+            Assert.Contains("'--as=' needs a path", error);
+        }
+        finally { File.Delete(scratch); }
+    }
+
+    /// <remarks>★ `tokens` takes it too — highlighting and hover run on the same scratch copy.</remarks>
+    [Fact]
+    public void Tokens_TakesAsAsWell()
+    {
+        string scratch = WriteScratchCopyOf(TheRealFile);
+        try
+        {
+            Assert.Equal(0, Run("tokens", "--json", $"--as={TheRealFile}", scratch).Exit);
+        }
+        finally { File.Delete(scratch); }
+    }
 }

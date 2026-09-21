@@ -82,21 +82,36 @@ function reportMissingExecutable(attempted) {
 
 // ── Checking ──────────────────────────────────────────────────────────────
 
-// Unsaved edits have to reach the front end somehow, and it only reads files. Working from a
-// copy is safe precisely because neither `check` nor `tokens` runs the program: nothing in either
-// resolves a path relative to the source file, so the copy behaves identically to the original.
-// The prefix keeps two kinds of request from writing the same scratch file at the same moment.
+// Unsaved edits have to reach the front end somehow, and it only reads files — so they go to a
+// scratch copy, and `--as` tells the front end which file that copy STANDS FOR.
+//
+// ⚠⚠ The `--as` is not a nicety. This used to say a copy "behaves identically to the original"
+// because nothing resolved a path relative to the source file. That stopped being true: a
+// program's neighbours, its directory namespaces and its `books/` folder are all found from the
+// directory the file is IN, so a copy in the temp directory is a DIFFERENT program — one with no
+// project at all, reporting names as undefined that are perfectly well defined next door.
+//
+// ★ The prefix keeps two kinds of request from writing the same scratch file at the same moment.
+//
+// ⚠ An UNTITLED document has no path to stand for, so it gets no `--as` and is checked where it
+// lands. There is no project it belongs to yet; that is not a gap, it is the truth about it.
 function materialize(document, prefix) {
     if (!document.isDirty && !document.isUntitled)
-        return { target: document.uri.fsPath, cleanup: () => { } };
+        return { target: document.uri.fsPath, flags: [], cleanup: () => { } };
 
+    const onDisk  = !document.isUntitled && document.uri.scheme === 'file';
     const scratch = path.join(os.tmpdir(),
         `cufet-${prefix}-${process.pid}-${fingerprint(document.uri.toString())}.cufe`);
     try {
         fs.writeFileSync(scratch, document.getText(), 'utf8');
-        return { target: scratch, cleanup: () => { try { fs.unlinkSync(scratch); } catch { } } };
+        return {
+            target: scratch,
+            flags: onDisk ? [`--as=${document.uri.fsPath}`] : [],
+            cleanup: () => { try { fs.unlinkSync(scratch); } catch { } },
+        };
     } catch {
-        return { target: document.uri.fsPath, cleanup: () => { } };   // fall back to what is on disk
+        // Fall back to what is on disk — stale text, but resolved in the right place.
+        return { target: document.uri.fsPath, flags: [], cleanup: () => { } };
     }
 }
 
@@ -122,8 +137,8 @@ function checkDocument(document) {
     const args     = ['check', '--json'];
     if (settings.get('checkNativeCompatibility', true)) args.push('--native');
 
-    const { target, cleanup } = materialize(document, 'check');
-    args.push(target);
+    const { target, flags, cleanup } = materialize(document, 'check');
+    args.push(...flags, target);
 
     cp.execFile(command, args, { timeout: CHECK_TIMEOUT_MS, maxBuffer: 4 * 1024 * 1024 },
         (error, stdout, stderr) => {
@@ -212,10 +227,10 @@ const SEMANTIC_LEGEND = new vscode.SemanticTokensLegend(
 const semanticTokensProvider = {
     provideDocumentSemanticTokens(document) {
         const command = resolveExecutable();
-        const { target, cleanup } = materialize(document, 'tokens');
+        const { target, flags, cleanup } = materialize(document, 'tokens');
 
         return new Promise(resolve => {
-            cp.execFile(command, ['tokens', '--json', target],
+            cp.execFile(command, ['tokens', '--json', ...flags, target],
                 { timeout: CHECK_TIMEOUT_MS, maxBuffer: 4 * 1024 * 1024 },
                 (error, stdout) => {
                     cleanup();
@@ -268,10 +283,10 @@ function encodeModifiers(names) {
 const hoverProvider = {
     provideHover(document, position) {
         const command = resolveExecutable();
-        const { target, cleanup } = materialize(document, 'hover');
+        const { target, flags, cleanup } = materialize(document, 'hover');
 
         return new Promise(resolve => {
-            cp.execFile(command, ['tokens', '--json', target],
+            cp.execFile(command, ['tokens', '--json', ...flags, target],
                 { timeout: CHECK_TIMEOUT_MS, maxBuffer: 4 * 1024 * 1024 },
                 (error, stdout) => {
                     cleanup();
