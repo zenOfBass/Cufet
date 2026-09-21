@@ -10,6 +10,24 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+- **Snake, in `tools/snake/`** — seven files, arrow keys, apples, and a wall that ends it. Not a
+  language change: it is the first program written to the directory-namespace rule, and finding
+  out what that rule costs to USE was the point of writing it.
+
+  ★★ **One code path, playable and deterministic at once.** There is no demo mode and no
+  `if anybody is watching`: steering is read only when a key is ALREADY waiting, so an unattended
+  run is a game nobody steers — it goes right, eats what is in its way, hits the wall. Both
+  backends print the identical frames, so it sits in the corpus with no skip-list entry.
+
+  ⚠⚠ MEASURED, and it is what makes that work: with input closed, POSIX `select` reports stdin
+  READABLE and `read-key` answers -1 at once, while Windows `_kbhit` answers 0. The two platforms
+  disagree about whether a key is waiting and agree about what was typed — nothing — so the loop
+  treats -1 as "stop listening" rather than as a keypress.
+
+  ★ Apples follow a FIXED course rather than `chance`, which would put the game beside
+  `markov.cufe` where the only thing left to check is that it builds. A snake game is hard because
+  the snake is in the way, not because the apple is a surprise.
+
 - **`cufet check --as=<path>` and `cufet tokens --as=<path>`** — check this text as though it were
   that file. The text still comes from the file given; what `--as` changes is where the program is
   RESOLVED and what the report is named after.
@@ -121,6 +139,18 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   spent on series mutation, and `file` / `directory` make the two readings decidable.
 
 ### Fixed
+
+- **The editor put a diagnostic on the wrong file.** `cufet check --json` has always reported
+  which file an error is in; the extension parsed that field and threw it away, pinning every
+  diagnostic to the document in front of the reader at the reported LINE NUMBER.
+
+  ⚠⚠ MEASURED: an error in `tools/snake/steering.cufe:18` was shown on line 18 of `snake.cufe`,
+  which is a sentence in a comment. Rare while only a PULLED book's error could travel that way;
+  constant once a directory became a namespace and every neighbour was part of the program.
+
+  ★ A check now also takes back the entries its previous run put on OTHER files — without that a
+  fixed error is immortal, because nothing ever overwrites it — and saving one file re-checks the
+  other open ones, since a neighbour's diagnostics can be fixed or broken by an edit elsewhere.
 
 - **A declaration inside a pull could not name the pulled module's carried type in its
   SIGNATURE.** `Pull a book on board.` around `Bind text to draw, given (the spot which):` was
