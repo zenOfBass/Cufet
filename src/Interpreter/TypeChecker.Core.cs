@@ -1074,6 +1074,19 @@ public sealed partial class TypeChecker
     /// </remarks>
     public string? SourceDirectory { get; init; }
 
+    /// <summary>The file being checked, when it came from disk — WHICH one, not just where.</summary>
+    /// <remarks>
+    /// ⚠ <see cref="SourceDirectory"/> cannot answer this and the directory-namespace rule needs
+    /// it: a file's neighbours are its directory MINUS itself, and without the name the file would
+    /// bring itself in a second time and collide with every declaration it has.
+    /// <para>
+    /// ★ Null means no neighbours, ever — a pasted program, a program built from a string, or any
+    /// caller that has only told us a directory. Nothing else is gated on it, so an old caller
+    /// keeps exactly its old behaviour.
+    /// </para>
+    /// </remarks>
+    public string? SourceFile { get; init; }
+
     /// <summary>Which file each loaded line came from, for the reporter.</summary>
     public SourceMap Sources { get; } = new();
 
@@ -1105,6 +1118,15 @@ public sealed partial class TypeChecker
         // assume every declaration is already here.
         if (SourceDirectory is not null)
         {
+            // ⭐⭐ NEIGHBOURS BEFORE PULLS, and that ordering is the whole of how the two meet. A
+            // file's directory-mates are part of the program before `Expand` looks at a single
+            // pull, so `declaredHere` below counts what they declare — and a pull naming a
+            // neighbour resolves to the declaration that is now here rather than loading the file
+            // a second time, privately renamed, under a name the program already holds.
+            var withNeighbours = BookLoading.Neighbours(program.Statements, SourceFile, Sources);
+            if (!ReferenceEquals(withNeighbours, program.Statements))
+                program = new Program(withNeighbours);
+
             // ★★ A MODULE DECLARED HERE WINS OVER A FILE OF THE SAME NAME. REFERENCE states that
             // order — "a bundled book, then a module defined here, then `‹name›.cufe` beside the
             // file that pulls it" — but `IsKnownPullName` reads `_objectDefs`, which this early

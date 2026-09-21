@@ -155,15 +155,15 @@ public static class BookLoading
     /// </remarks>
     public const string SharedFolder = "books";
 
-    /// <summary>
-    /// The project's shared book folder, or null when there is no project or no such folder.
-    /// </summary>
+    /// <summary>The nearest directory at or above this one holding a blueprint, or null.</summary>
     /// <remarks>
-    /// ⚠ No blueprint above the file means no project, and resolution is then exactly what it was
-    /// before any of this existed: the pulling file's own directory and nowhere else. A loose
-    /// `.cufe` in a downloads folder keeps working and keeps meaning the same thing.
+    /// ⚠ No blueprint above the file means NO PROJECT, and everything gated on this is then
+    /// exactly what it was before any of it existed: the pulling file's own directory and nowhere
+    /// else, and no neighbours. A loose `.cufe` in a downloads folder keeps working and keeps
+    /// meaning the same thing — and so does every file under `examples/`, which is why the
+    /// directory-namespace rule could land without touching the corpus.
     /// </remarks>
-    public static string? SharedBooks(string? directory)
+    public static string? ProjectRoot(string? directory)
     {
         if (directory is null) return null;
         DirectoryInfo? dir;
@@ -172,12 +172,22 @@ public static class BookLoading
         { return null; }
 
         for (; dir is not null; dir = dir.Parent)
-        {
-            if (!File.Exists(Path.Combine(dir.FullName, BlueprintFile))) continue;
-            var books = Path.Combine(dir.FullName, SharedFolder);
-            return Directory.Exists(books) ? books : null;
-        }
+            if (File.Exists(Path.Combine(dir.FullName, BlueprintFile))) return dir.FullName;
         return null;
+    }
+
+    /// <summary>
+    /// The project's shared book folder, or null when there is no project or no such folder.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ The NEAREST blueprint ancestor wins and is the only one asked — a project inside a
+    /// project consults its own `books/` and never the outer one's.
+    /// </remarks>
+    public static string? SharedBooks(string? directory)
+    {
+        if (ProjectRoot(directory) is not { } root) return null;
+        var books = Path.Combine(root, SharedFolder);
+        return Directory.Exists(books) ? books : null;
     }
 
     /// <summary>The file a pull names, looked for beside the puller and then in the project's.</summary>
@@ -192,6 +202,474 @@ public static class BookLoading
         if (shared is null) return null;
         var atRoot = Path.Combine(shared, bookName + ".cufe");
         return File.Exists(atRoot) ? atRoot : null;
+    }
+
+    /// <summary>
+    /// Brings in the other files of this file's DIRECTORY, when the directory is inside a project.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ⭐⭐ **A directory is a namespace, and its files share one set of names.** SETTLED
+    /// 2026-09-20 in `docs/DESIGN.md` after `tools/snake` met the module system three times in a
+    /// session. A folder's files already ARE a group of declarations under one name; a `Pull`
+    /// between two of them says that a second time, and saying it twice is what this removes.
+    /// Nothing is renamed and nothing is hidden — neighbours are one scope by definition, which is
+    /// the whole difference between this and <see cref="MakePrivate"/>.
+    /// </para>
+    /// <para>
+    /// ⚠⚠ GATED ON A BLUEPRINT ABOVE, and that gate is what makes the rule safe to land. A file
+    /// with no project over it has no neighbours, so every `.cufe` under `examples/` behaves
+    /// exactly as it did — which matters, because top-level name collisions between files in one
+    /// directory are everywhere there (`play` in five files of `examples/parsing` alone) and not
+    /// one of those directories is a project.
+    /// </para>
+    /// <para>
+    /// ★★ ONLY THE FILE YOU RUN RUNS. A neighbour contributes its top-level DECLARATIONS and
+    /// nothing else — see <see cref="DeclarationsOnly"/>. That is not the same decision as
+    /// <see cref="RefuseAProgram"/>, and deliberately: a pulled file is a LIBRARY and may not be a
+    /// program, but two programs sharing a directory is the ordinary case — `tools/shell.cufe` and
+    /// `tools/repl.cufe` both start something on their last line, and refusing that would make the
+    /// namespace unusable for the very tree it was designed for.
+    /// </para>
+    /// <para>
+    /// ⚠ `blueprint.cufe` is in the directory and is NOT in the namespace, in either direction: it
+    /// is never brought in as a neighbour, and checking it brings in nobody. It describes the
+    /// project rather than belonging to it, and letting it join would mean `cufet build` parsed
+    /// every file in the root to read a plan.
+    /// </para>
+    /// <para>
+    /// ★ Neighbours are taken in FILENAME ORDER, ordinal. The order cannot change what a program
+    /// means — declarations are hoisted — but it decides which file a collision refusal calls the
+    /// first one, and two backends must agree about that.
+    /// </para>
+    /// </remarks>
+    public static IReadOnlyList<IStatement> Neighbours(
+        IReadOnlyList<IStatement> statements, string? sourceFile, SourceMap map)
+    {
+        if (sourceFile is null) return statements;
+
+        string self;
+        try { self = Path.GetFullPath(sourceFile); }
+        catch (Exception e) when (e is ArgumentException or NotSupportedException or PathTooLongException)
+        { return statements; }
+
+        if (string.Equals(Path.GetFileName(self), BlueprintFile, StringComparison.OrdinalIgnoreCase))
+            return statements;
+
+        var directory = Path.GetDirectoryName(self);
+        if (directory is null || ProjectRoot(directory) is not { } root) return statements;
+
+        // ── Its own directory: one flat scope, nothing renamed ───────────────
+        //
+        // The file being checked claims its own names first, so a collision is always reported
+        // against the file a person is actually looking at.
+        var claimed = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (name, _, _) in TopLevelNames(statements)) claimed[name] = self;
+
+        var here = Gathered(directory, map, self, claimed);
+
+        // ── The directories this program QUALIFIES, and the ones they do ─────
+        //
+        // ★ Loaded ON DEMAND rather than wholesale, the same way a pull is: a project may hold a
+        // hundred directories, and a program naming none of them must pay for none of them. The
+        // loop runs to a fixpoint because a loaded namespace may qualify a third.
+        var everyNamespace = Namespaces(root);
+        var loaded = new Dictionary<string, IReadOnlyList<IStatement>>(StringComparer.OrdinalIgnoreCase);
+        var ownName = Path.GetFileName(directory);
+
+        var frontier = new List<IReadOnlyList<IStatement>> { statements, here };
+        while (frontier.Count > 0)
+        {
+            var wanted = new SortedDictionary<string, (int Line, int Column)>(StringComparer.Ordinal);
+            foreach (var group in frontier)
+                foreach (var (name, line, column) in Qualifiers(group))
+                    if (!loaded.ContainsKey(name)
+                        && !name.Equals(ownName, StringComparison.OrdinalIgnoreCase)
+                        && everyNamespace.ContainsKey(name)
+                        && !wanted.ContainsKey(name))
+                        wanted[name] = (line, column);
+
+            frontier = [];
+            foreach (var (name, at) in wanted)
+            {
+                var directories = everyNamespace[name];
+
+                // ⚠ Refused HERE rather than where the duplicate was found, so an unused clash
+                // breaks nobody and the message has a line to point at.
+                if (directories.Count > 1)
+                    throw TypeChecker.TypeError(
+                        $"two directories of this project are both named '{name}'",
+                        $"They are {string.Join(" and ", directories.Select(d => $"'{d}'"))}, and "
+                      + "a directory is a namespace named after itself — so this qualification "
+                      + "would have two meanings",
+                        at.Line, at.Column,
+                        $"qualify with '{name}'",
+                        "Rename one of them. A qualifier reaches one directory, and which one has "
+                      + "to be decidable from the name alone.");
+
+                var gathered = Gathered(
+                    directories[0], map, skipFile: null,
+                    claimed: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
+                loaded[name] = gathered;
+                frontier.Add(gathered);
+            }
+        }
+
+        if (loaded.Count == 0)
+        {
+            if (here.Count == 0) return statements;
+            var only = new List<IStatement>(here);
+            only.AddRange(statements);
+            return only;
+        }
+
+        // ── The rename, and the qualifications that now point at it ──────────
+        //
+        // ⚠⚠ ONE MAP FOR ALL OF THEM, built before anything is rewritten. Two namespaces may
+        // qualify each other, and rewriting one at a time would leave whichever went first
+        // pointing at short names the second had already renamed away.
+        var reach = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (name, gathered) in loaded)
+        {
+            var members = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var (member, _, _) in TopLevelNames(gathered))
+                members[member] = ModuleTypeLifting.LiftedName(name, member);
+            reach[name] = members;
+        }
+
+        foreach (var group in loaded.Values.Append(here).Append(statements))
+        {
+            RefuseAShadowedNamespace(group, everyNamespace, ownName);
+            RefuseAMemberTheDirectoryHasNot(group, reach);
+        }
+
+        var brought = new List<IStatement>();
+        foreach (var (name, gathered) in loaded.OrderBy(entry => entry.Key, StringComparer.Ordinal))
+            brought.AddRange(MakePrivate(Qualify(gathered, reach), name, exemptModules: false));
+
+        brought.AddRange(Qualify(here, reach));
+        brought.AddRange(Qualify(statements, reach));
+        return brought;
+    }
+
+    /// <summary>Refuses a declaration that takes a name a directory of this project already has.</summary>
+    /// <remarks>
+    /// <para>
+    /// ⚠⚠ THIS IS WHAT MAKES <see cref="Qualify"/> SOUND, and it is not tidiness. That rewrite runs
+    /// before any scope exists, so it cannot tell the directory `terminals` from a name that
+    /// happens to be spelled the same — and if both could exist, `terminals's read-key` would have
+    /// two readings with nothing to choose between them. Removing one of the two readings is
+    /// cheaper and far clearer than teaching a pre-hoist pass about scope.
+    /// </para>
+    /// <para>
+    /// ⚠ A file's OWN directory is exempt, because its name is never a qualifier from inside it —
+    /// there is nothing to be ambiguous with.
+    /// </para>
+    /// <para>
+    /// ⚠ Declarations and `Define`s, not every binding form. A PARAMETER or a loop variable named
+    /// after a directory is still capturable, and is left as a known gap rather than met with a
+    /// walk over every name-introducing node in the language — it needs a member name to collide
+    /// as well before anything goes wrong, and no witness has produced one.
+    /// </para>
+    /// </remarks>
+    private static void RefuseAShadowedNamespace(
+        IReadOnlyList<IStatement> statements,
+        IReadOnlyDictionary<string, IReadOnlyList<string>> everyNamespace, string ownName)
+    {
+        foreach (var statement in AstSearch.EveryStatement(statements))
+        {
+            var (name, line, column) = statement switch
+            {
+                ObjectDefinition o    => (o.Name, o.Line, o.Column),
+                InterfaceDefinition i => (i.Name, i.Line, i.Column),
+                DefineStatement d     => (d.Name, d.Line, d.Column),
+                BindStatement { UntoType: null } b => (b.Name, b.Line, b.Column),
+                _ => (null as string, 0, 0),
+            };
+            if (name is null
+                || name.Equals(ownName, StringComparison.OrdinalIgnoreCase)
+                || !everyNamespace.ContainsKey(name)) continue;
+
+            throw TypeChecker.TypeError(
+                $"'{name}' is a directory of this project, so it cannot also be a name",
+                $"A directory is a namespace named after itself, and '{name}' is how anything "
+              + $"outside it writes '{name}'s ‹something›' — so the two readings would be "
+              + "indistinguishable",
+                line, column,
+                $"declare '{name}'",
+                "Rename this one. The directory's name belongs to the directory.");
+        }
+    }
+
+    /// <summary>Refuses `‹directory›'s ‹member›` where that directory declares no such thing.</summary>
+    /// <remarks>
+    /// ★ Without this the reader gets the ordinary unresolved-name refusal about the DIRECTORY —
+    /// "'terminals' isn't defined" — which is both false and useless, since the directory is
+    /// plainly there. Measured on the first program written against this.
+    /// </remarks>
+    private static void RefuseAMemberTheDirectoryHasNot(
+        IReadOnlyList<IStatement> statements,
+        IReadOnlyDictionary<string, Dictionary<string, string>> reach)
+    {
+        AstSearch.Visit(statements, node =>
+        {
+            if (node is not PossessiveAccess { Target: VariableReference target } access) return;
+            if (!reach.TryGetValue(target.Name, out var members)) return;
+            if (members.ContainsKey(access.Member)) return;
+
+            var offered = members.Keys.Order(StringComparer.Ordinal).ToList();
+            throw TypeChecker.TypeError(
+                $"the directory '{target.Name}' declares nothing called '{access.Member}'",
+                offered.Count == 0
+                    ? $"'{target.Name}' is a directory of this project and its files declare nothing"
+                    : $"What its files declare is {string.Join(", ", offered)}",
+                access.Line, access.Column,
+                $"reach '{target.Name}'s {access.Member}'",
+                "Check the spelling, or declare it in one of that directory's files — everything "
+              + "a directory's files declare at their top level is what the directory offers.");
+        });
+    }
+
+    /// <summary>Every name used as a QUALIFIER in this tree — the `X` of every `X's y`.</summary>
+    /// <remarks>
+    /// ★ Names, not resolutions. Whether an `X` is a directory is decided by the caller against
+    /// the project; this only reports which names were written in the qualifying position, so that
+    /// a namespace is loaded on demand rather than every directory being read for every program.
+    /// </remarks>
+    private static IEnumerable<(string Name, int Line, int Column)> Qualifiers(
+        IReadOnlyList<IStatement> statements)
+    {
+        var found = new List<(string, int, int)>();
+        AstSearch.Visit(statements, node =>
+        {
+            if (node is PossessiveAccess { Target: VariableReference target } access)
+                found.Add((target.Name, access.Line, access.Column));
+        });
+        return found;
+    }
+
+    /// <summary>Turns `terminals's read-key` into the one name that declaration now has.</summary>
+    /// <remarks>
+    /// <para>
+    /// ★★ A REWRITE BEFORE THE HOIST, into a name with a space in it — the third pass to do
+    /// exactly this, after the loader's file privacy and <see cref="ModuleTypeLifting"/>. After it
+    /// nothing downstream learns that directories exist: the checker, the interpreter and the
+    /// compiler each meet an ordinary top-level declaration reached by an ordinary name. That is
+    /// the whole reason this is a rewrite and not three new arms in three places that could
+    /// disagree.
+    /// </para>
+    /// <para>
+    /// ⚠⚠ ONLY WHERE THE NAMESPACE REALLY DECLARES THE MEMBER, and that condition is the safety
+    /// story, not an optimisation. This pass runs before any scope exists, so it cannot tell a
+    /// directory's name from a LOCAL that happens to share it — and a local named `terminals`
+    /// whose object has a `read-key` is the one shape that would be captured wrongly. Requiring
+    /// the member to exist narrows that to a coincidence in both halves at once, and the
+    /// top-level refusal below removes the half anyone is likely to write.
+    /// </para>
+    /// <para>
+    /// ⚠ A member the namespace does NOT declare is left alone on purpose, so the reader gets the
+    /// ordinary "no such member" refusal naming what they wrote, rather than one about a
+    /// synthesized name they have never seen.
+    /// </para>
+    /// </remarks>
+    private static IReadOnlyList<IStatement> Qualify(
+        IReadOnlyList<IStatement> statements,
+        IReadOnlyDictionary<string, Dictionary<string, string>> reach) =>
+        AstRebuilder.Apply(
+            statements, type => type,
+            rewrite: expression =>
+                expression is PossessiveAccess { Target: VariableReference target } access
+                && reach.TryGetValue(target.Name, out var members)
+                && members.TryGetValue(access.Member, out var lifted)
+                    ? new VariableReference(lifted, access.Line, access.Column)
+                    : null);
+
+    /// <summary>Every directory of a project that holds Cufet, keyed by the name you qualify with.</summary>
+    /// <remarks>
+    /// <para>
+    /// ★★ A DIRECTORY IS THE NAMESPACE, named after itself — so the key is the folder name and
+    /// nothing declares it. That is the whole of the rule: a folder's files already are a group of
+    /// declarations under one name, and a `Pull` between two of them says it a second time.
+    /// </para>
+    /// <para>
+    /// ⚠ `books/` is NOT one of them, and neither is anything under it. That folder holds someone
+    /// else's code, which is what `Pull` still exists for — a qualification reaches inside this
+    /// project, and a pull crosses out of it. Keeping the two apart is what makes "no pulls within
+    /// a project" a rule you can state.
+    /// </para>
+    /// <para>
+    /// ⚠ Only directories holding a `.cufe` count. `tools/repl` is a build artifact sharing a name
+    /// with `tools/repl.cufe`, and an empty folder that happens to be named after something would
+    /// otherwise claim a qualifier and answer for nothing.
+    /// </para>
+    /// <para>
+    /// ★ Two directories of one name at different depths would give one qualifier two meanings, so
+    /// the SECOND one found refuses rather than winning. Same shape as the repeated top-level name
+    /// a directory already refuses, one level up.
+    /// </para>
+    /// </remarks>
+    internal static IReadOnlyDictionary<string, IReadOnlyList<string>> Namespaces(string root)
+    {
+        var found = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        var books = Path.Combine(root, SharedFolder);
+        Walk(root);
+        return found.ToDictionary(
+            entry => entry.Key,
+            entry => (IReadOnlyList<string>)entry.Value,
+            StringComparer.OrdinalIgnoreCase);
+
+        void Walk(string directory)
+        {
+            if (string.Equals(directory, books, StringComparison.OrdinalIgnoreCase)) return;
+
+            string[] here, below;
+            try
+            {
+                here  = Directory.GetFiles(directory, "*.cufe");
+                below = Directory.GetDirectories(directory);
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return; }
+
+            if (here.Any(f => !string.Equals(Path.GetFileName(f), BlueprintFile,
+                                             StringComparison.OrdinalIgnoreCase)))
+            {
+                // ⚠ RECORDED, NOT REFUSED. Two directories of one name is only a problem for
+                // somebody who writes that qualifier, and refusing here would break every
+                // unrelated program in the project over a name none of them uses. The refusal
+                // waits for the ambiguous qualification, where it also has a line to point at.
+                var name = Path.GetFileName(directory);
+                if (!found.TryGetValue(name, out var already)) found[name] = already = [];
+                if (!already.Contains(directory, StringComparer.OrdinalIgnoreCase))
+                    already.Add(directory);
+            }
+
+            Array.Sort(below, StringComparer.Ordinal);
+            foreach (var child in below) Walk(child);
+        }
+    }
+
+    /// <summary>The statements a directory contributes, as one group, before they are renamed.</summary>
+    private static IReadOnlyList<IStatement> Gathered(
+        string directory, SourceMap map, string? skipFile, Dictionary<string, string> claimed)
+    {
+        string[] files;
+        try { files = Directory.GetFiles(directory, "*.cufe"); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return []; }
+        Array.Sort(files, StringComparer.Ordinal);
+
+        var gathered = new List<IStatement>();
+        foreach (var path in files)
+        {
+            if (skipFile is not null && string.Equals(path, skipFile, StringComparison.OrdinalIgnoreCase))
+                continue;
+            if (string.Equals(Path.GetFileName(path), BlueprintFile, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            string text;
+            try { text = File.ReadAllText(path); }
+            catch (IOException e) { throw Unreadable(Path.GetFileName(path), e.Message); }
+
+            int offset = map.Add(path);
+            var inner = new Parser(new CufetLexer(text, offset, 0).Tokenize()).Parse();
+
+            foreach (var (name, line, column) in TopLevelNames(inner.Statements))
+            {
+                if (!claimed.TryGetValue(name, out var already))
+                { claimed[name] = path; continue; }
+
+                throw TypeChecker.TypeError(
+                    $"'{name}' is declared in two files of one directory",
+                    $"'{Path.GetFileName(already)}' declares it too, and a directory is one "
+                  + "namespace — its files share a single set of names, with nothing between them "
+                  + "to keep two apart",
+                    line, column,
+                    $"declare '{name}' in '{Path.GetFileName(path)}' as well",
+                    "Rename one of them, or move one of the two files into a directory of its "
+                  + "own — a directory is what separates one set of names from another.");
+            }
+
+            gathered.AddRange(DeclarationsOnly(inner.Statements));
+        }
+        return gathered;
+    }
+
+    private static TypeException Unreadable(string file, string why) =>
+        TypeChecker.TypeError(
+            $"'{file}' is in this directory but could not be read",
+            why, 0, 0,
+            $"read '{file}' as part of its directory",
+            "Check the file's permissions.");
+
+    /// <summary>Every name a file's TOP LEVEL declares, in the sense the hoist means.</summary>
+    /// <remarks>
+    /// ⚠ `FlattenHoistable` is asked rather than walked again, so "top level" here is the same
+    /// answer <see cref="RefuseAProgram"/> and the hoist's own duplicate check already give — it
+    /// descends through `Pull … Done.`, which `examples/language/pennies.cufe` needs and which a
+    /// file keeping its declarations inside a pull (`tools/snake/screen.cufe`) needs too.
+    /// <para>
+    /// ★ An `unto` method is not a name of its own — it is a member of the type it attaches to,
+    /// and two files may legitimately extend two different types with the same member name. Same
+    /// exemption <see cref="MakePrivate"/> makes, for the same reason.
+    /// </para>
+    /// <para>
+    /// ⚠ A type a module CARRIES is not here either. It is nested inside the module's definition
+    /// rather than a statement, and <see cref="ModuleTypeLifting"/> gives it a name with the
+    /// module's in it — so two neighbours may each carry a `spot` without collision.
+    /// </para>
+    /// </remarks>
+    private static IEnumerable<(string Name, int Line, int Column)> TopLevelNames(
+        IReadOnlyList<IStatement> statements)
+    {
+        foreach (var statement in TypeChecker.FlattenHoistable(statements))
+            switch (statement)
+            {
+                case ObjectDefinition o:            yield return (o.Name, o.Line, o.Column); break;
+                case InterfaceDefinition i:         yield return (i.Name, i.Line, i.Column); break;
+                case DefineStatement d:             yield return (d.Name, d.Line, d.Column); break;
+                case BindStatement { UntoType: null } b: yield return (b.Name, b.Line, b.Column); break;
+            }
+    }
+
+    /// <summary>What a neighbour contributes: everything it DECLARES, and nothing it DOES.</summary>
+    /// <remarks>
+    /// <para>
+    /// ★★ The allowlist is <see cref="RefuseAProgram"/>'s, used as a FILTER instead of as a
+    /// refusal — so the two answers to "what is a declaration" stay one answer. What differs is
+    /// only what happens to the rest: a pulled library may not have any, and a neighbour simply
+    /// keeps its own.
+    /// </para>
+    /// <para>
+    /// ⚠ A `Pull … Done.` is KEPT, with its body filtered the same way. It has to be: a file may
+    /// hold its whole declaration inside one — `screen.cufe` declares `screen` inside
+    /// `Pull a book on board.` so that a signature can name a carried type — and dropping the pull
+    /// would drop the declaration with it. What is left is a block that binds a module and runs
+    /// nothing, which is what a pull of a book already costs.
+    /// </para>
+    /// <para>
+    /// ⚠ The hole this leaves is the one `RefuseAProgram` names and leaves too:
+    /// `Define x as ‹something effectful›` still runs. Closing it needs an effect system, and
+    /// nobody has asked for one.
+    /// </para>
+    /// </remarks>
+    private static IReadOnlyList<IStatement> DeclarationsOnly(IReadOnlyList<IStatement> statements)
+    {
+        var kept = new List<IStatement>();
+        foreach (var statement in statements)
+            switch (statement)
+            {
+                case PullStatement pull:
+                    kept.Add(pull with { Body = DeclarationsOnly(pull.Body) });
+                    break;
+                case PullRabbitStatement rabbit:
+                    kept.Add(rabbit with { Body = DeclarationsOnly(rabbit.Body) });
+                    break;
+                case BindStatement or ObjectDefinition or InterfaceDefinition or GetterDeclaration
+                  or SetterDeclaration or UnmakerDeclaration or OperatorOverloadDeclaration
+                  or DefineStatement:
+                    kept.Add(statement);
+                    break;
+            }
+        return kept;
     }
 
     /// <summary>
@@ -423,8 +901,16 @@ public static class BookLoading
     /// fail in, but the reflection walk means it cannot happen at all.
     /// </para>
     /// </remarks>
+    /// <param name="exemptModules">
+    /// Whether a module-conforming object keeps its public name — true for a BOOK, whose modules
+    /// are the face it offers, and false for a DIRECTORY namespace, which offers every name it
+    /// declares and offers all of them the same way. ⚠ A directory reached by qualification has
+    /// no public face to preserve: <c>terminals's read-key</c> names the declaration directly, so
+    /// leaving anything unrenamed would put it in the qualifier's scope under its short name and
+    /// make two directories able to collide.
+    /// </param>
     internal static IReadOnlyList<IStatement> MakePrivate(
-        IReadOnlyList<IStatement> statements, string bookName)
+        IReadOnlyList<IStatement> statements, string bookName, bool exemptModules = true)
     {
         // What the host is meant to see: the modules. Everything else the file declares at its
         // top level is its own.
@@ -433,7 +919,8 @@ public static class BookLoading
         {
             string? name = statement switch
             {
-                ObjectDefinition o when !TypeChecker.IsModuleConformer(o.ConformedInterfaces) => o.Name,
+                ObjectDefinition o when !exemptModules
+                                     || !TypeChecker.IsModuleConformer(o.ConformedInterfaces) => o.Name,
                 BindStatement { UntoType: null } b => b.Name,
                 DefineStatement d => d.Name,
                 // ⚠ An interface was the one declaration kind missing here, so one written beside a

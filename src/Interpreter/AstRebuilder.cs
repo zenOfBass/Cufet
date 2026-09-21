@@ -115,8 +115,9 @@ internal static class AstRebuilder
         IReadOnlyList<IStatement> statements,
         Func<CufetType, CufetType> substitute,
         Func<IStatement, IStatement?>? replace = null,
-        Func<IStatement, IReadOnlyList<IStatement>?>? splice = null) =>
-        TryRebuild(statements, substitute, out var rebuilt, replace, splice)
+        Func<IStatement, IReadOnlyList<IStatement>?>? splice = null,
+        Func<IExpression, IExpression?>? rewrite = null) =>
+        TryRebuild(statements, substitute, out var rebuilt, replace, splice, rewrite)
             ? (IReadOnlyList<IStatement>)rebuilt!
             : statements;
 
@@ -152,9 +153,26 @@ internal static class AstRebuilder
     public static bool TryRebuild(
         object? node, Func<CufetType, CufetType> substitute, out object? result,
         Func<IStatement, IStatement?>? replace = null,
-        Func<IStatement, IReadOnlyList<IStatement>?>? splice = null)
+        Func<IStatement, IReadOnlyList<IStatement>?>? splice = null,
+        Func<IExpression, IExpression?>? rewrite = null)
     {
         result = node;
+
+        // ⚠ Swaps whole EXPRESSIONS, where `replace` swaps statements — and it exists for the one
+        // job a name substitution cannot do: COLLAPSING a node. A directory namespace turns
+        // `terminals's read-key` into the single name `read-key in terminals`, which is a
+        // PossessiveAccess becoming a VariableReference, not a field being edited. Setting
+        // `VariableReference.Name` in place — the trick the book loader's privacy rename uses —
+        // has no equivalent here, because the node that must go is the outer one.
+        //
+        // ★ Terminates for the same reason the statement hook does: a replacement is never itself
+        // replaceable. The pass answers for PossessiveAccess and rewrites it away.
+        if (rewrite != null && node is IExpression expression && rewrite(expression) is { } into
+            && !ReferenceEquals(into, expression))
+        {
+            TryRebuild(into, substitute, out result, replace, splice, rewrite);
+            return true;
+        }
 
         // ⚠ Descend INTO the replacement, not past it: a stash loop nested in a stash loop is
         // replaced outside-in, and the body carried into the new node still holds the inner one.
@@ -163,7 +181,7 @@ internal static class AstRebuilder
         if (replace != null && node is IStatement original && replace(original) is { } expanded
             && !ReferenceEquals(expanded, original))
         {
-            TryRebuild(expanded, substitute, out result, replace, splice);
+            TryRebuild(expanded, substitute, out result, replace, splice, rewrite);
             return true;
         }
 
@@ -197,7 +215,7 @@ internal static class AstRebuilder
                 var items    = new object?[tuple.Length];
                 bool changed = false;
                 for (int i = 0; i < tuple.Length; i++)
-                    changed |= TryRebuild(tuple[i], substitute, out items[i], replace, splice);
+                    changed |= TryRebuild(tuple[i], substitute, out items[i], replace, splice, rewrite);
                 if (!changed) return false;
                 result = Activator.CreateInstance(node.GetType(), items);
                 return true;
@@ -219,13 +237,13 @@ internal static class AstRebuilder
                     {
                         foreach (var piece in pieces)
                         {
-                            TryRebuild(piece, substitute, out var rebuiltPiece, replace, splice);
+                            TryRebuild(piece, substitute, out var rebuiltPiece, replace, splice, rewrite);
                             rebuilt.Add(rebuiltPiece);
                         }
                         changed = true;
                         continue;
                     }
-                    changed |= TryRebuild(item, substitute, out var replacement, replace, splice);
+                    changed |= TryRebuild(item, substitute, out var replacement, replace, splice, rewrite);
                     rebuilt.Add(replacement);
                 }
                 if (!changed) return false;
@@ -254,7 +272,7 @@ internal static class AstRebuilder
                         ?? throw new InvalidOperationException(
                             $"{type.Name}.{parameters[i].Name} has no matching property — "
                             + "AstRebuilder can only rebuild positional records.");
-                    changed |= TryRebuild(property.GetValue(node), substitute, out arguments[i], replace, splice);
+                    changed |= TryRebuild(property.GetValue(node), substitute, out arguments[i], replace, splice, rewrite);
                 }
                 if (!changed) return false;
 

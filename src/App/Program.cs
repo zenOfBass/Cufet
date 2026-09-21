@@ -119,6 +119,10 @@ static TypeChecker MakeChecker(string sourcePath)
 
         // A book in another file is looked for beside the one being run.
         SourceDirectory = Path.GetDirectoryName(Path.GetFullPath(sourcePath)),
+
+        // And, inside a project, the REST of that directory is part of the program — which needs
+        // to know which file is the one being run, so it can leave it out of its own neighbours.
+        SourceFile = Path.GetFullPath(sourcePath),
     };
 
     // ★ The reporter needs this to turn a loaded line back into a file a person can open, and

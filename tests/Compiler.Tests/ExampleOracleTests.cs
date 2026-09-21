@@ -249,8 +249,20 @@ public class ExampleOracleTests
     /// a loaded line back into a file for a person to open, and this suite has no reader — while
     /// xUnit runs these classes in parallel, so writing it here would be a race for no gain.
     /// </remarks>
+    /// <remarks>
+    /// ⚠⚠ <c>SourceFile</c> as well as the directory, and that pairing is load-bearing here of all
+    /// places. Inside a project a file's NEIGHBOURS are part of the program, and the checker can
+    /// only leave a file out of its own neighbours if it knows which file it is. Setting one and
+    /// not the other would give the two backends different programs for the same source — the
+    /// compiled side goes through the CLI, which sets both — and a divergence the oracle would
+    /// report as a compiler bug.
+    /// </remarks>
     private static TypeChecker MakeChecker(string file) =>
-        new() { SourceDirectory = Path.GetDirectoryName(Resolve(file)) };
+        new()
+        {
+            SourceDirectory = Path.GetDirectoryName(Resolve(file)),
+            SourceFile = Resolve(file),
+        };
 
     /// A root as it appears at the front of an ID, forward-slashed and with its separator.
     private static string RootPrefix(string root) =>
