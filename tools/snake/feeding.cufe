@@ -1,0 +1,54 @@
+/*  Where the apples are.
+
+    ★★ A FIXED WALK, NOT A RANDOM ONE, and that is the oracle's doing rather than a simplification.
+    This project holds the two backends to byte-for-byte agreement, and `chance` cannot give it:
+    the interpreter's generator is .NET's xoshiro256** and the compiler emits its own xorshift64*,
+    a documented fork. A random apple would put this game in the skip list beside `markov.cufe`,
+    where the only thing left to check is that it builds.
+
+    ★ It costs the game less than it sounds. A snake game is hard because the SNAKE is in the way,
+    not because the apple is a surprise — and a fixed course is what a speedrun is played on. What
+    is lost is replay variety; what is kept is every other test in the corpus.
+
+    ⚠ The apple may never sit under the snake, so the walk skips whatever the snake covers. With a
+    field of 160 squares and a snake of a few, that search ends immediately; it is written as a
+    loop anyway because the one time it matters is the one time nobody is watching.
+*/
+
+/// The places apples appear, in the order they appear in.
+///
+/// ★ Spread across the field on purpose: an apple near the last one makes a game of small
+/// wiggles, and one on the far side makes a game of crossing your own tail, which is the one
+/// that is worth playing.
+///
+/// ★★ The FIRST one sits straight ahead of the opening snake, which is a decision about the
+/// unattended run as much as about the player. Nobody steers a corpus run, so an apple anywhere
+/// else would have the game print ten frames of a snake walking into a wall and never once show
+/// what eating does — the growth path would be dead code that type-checks.
+Bind series of spot to orchard:
+    Define places as a series of spot.
+    Insert cast at on (4, 14) into places.
+    Insert cast at on (6, 4) into places.
+    Insert cast at on (3, 18) into places.
+    Insert cast at on (7, 11) into places.
+    Insert cast at on (1, 6) into places.
+    Insert cast at on (5, 16) into places.
+    Return places.
+Done.
+
+/// The apple to aim at, given how many have been eaten already.
+Bind spot to apple-for, given (the worm which, the number eaten):
+    Define places as cast orchard.
+    Define how-many as the number of places.
+
+    Define tried as 0.
+    While tried is less than how-many, repeat:
+        Define picked as item (((eaten + tried) % how-many) + 1) of places.
+        If not cast which's covers on (picked), return picked.
+        Increment tried by 1.
+    Done.
+
+    /* Every apple is under the snake, which means the snake is nearly the whole field.
+       Handing back the head is harmless: it is eaten at once, and the next one will be free. */
+    Return cast which's head.
+Done.

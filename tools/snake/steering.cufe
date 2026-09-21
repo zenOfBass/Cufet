@@ -1,0 +1,52 @@
+/*  The controller: what a keypress MEANS.
+
+    ★ It is the whole of the layer. The model knows how to turn and the view knows how to draw;
+    neither knows that a keyboard exists, and this file is the only one that does. Splitting it out
+    is what lets the model be tested by handing it directions rather than by pressing keys.
+
+    ★★ The codes come from `terminals`, one directory up, and are reached by qualifying it —
+    `terminals's read-key` — with nothing pulled. Before 2026-09-20 a program in a subfolder could
+    not reach that file at all, which is the wall this whole arc removed. The game having a
+    keyboard IS the measurement that it worked.
+
+    ⚠ `read-key` reports its own vocabulary, not raw bytes: the four arrows arrive as 11 to 14 on
+    every platform, already decoded from whatever the terminal really sent. That is why this file
+    has no escape-sequence parsing in it and does not need to know what a terminal is.
+*/
+
+/// Up, down, left, right — as `read-key` reports them, whatever the terminal sent.
+Define arrow-up as 11 permanently.
+Define arrow-down as 12 permanently.
+Define arrow-left as 13 permanently.
+Define arrow-right as 14 permanently.
+
+/// `q`, and the Ctrl-C that means the same thing here.
+///
+/// ⚠ `interrupt` is a reserved word, so the constant is `cancel-key`.
+Define give-up as 113 permanently.
+Define cancel-key as 3 permanently.
+
+/// What `read-key` hands back when there is nothing more to read, ever.
+///
+/// ⚠ NOT the same as "no key waiting". This one is end-of-input — the keyboard has gone, which
+/// happens whenever the game is run with its input redirected or closed. Reading again would just
+/// give it back forever, so the loop stops asking rather than spinning.
+Define input-ended as 0 - 1 permanently.
+
+/// The snake, pointed wherever the key says. A key that means nothing here leaves it alone.
+///
+/// ★ It hands back a snake rather than changing one, like everything else in the model — and it
+/// goes through `turned`, so the refusal to reverse onto its own neck is made in ONE place rather
+/// than repeated per arrow.
+Bind worm to steered, given (the worm which, the number tapped):
+    If tapped is arrow-up,    return cast turned on (which, 0 - 1, 0).
+    If tapped is arrow-down,  return cast turned on (which, 1, 0).
+    If tapped is arrow-left,  return cast turned on (which, 0, 0 - 1).
+    If tapped is arrow-right, return cast turned on (which, 0, 1).
+    Return which.
+Done.
+
+/// Whether a key means "I am done".
+Bind fact to quits, given (the number tapped):
+    Return tapped is give-up or tapped is cancel-key.
+Done.

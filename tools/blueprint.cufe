@@ -18,6 +18,10 @@
     than a re-reading of the source, so it cannot drift from the truth. Re-run it after adding a
     file to a directory: a neighbour is a dependency now, with nothing written down to say so.
 
+    ★ `snake` needing `terminals/terminals.cufe` is a QUALIFICATION showing up in the build graph.
+    Nothing in `snake.cufe` names that path — it writes `terminals's read-key` — and the list still
+    knows, because it reports what the loader resolved rather than what the source says.
+
     ⚠ `shell` needing `repl.cufe` and `repl` needing `shell.cufe` is not a mistake and not a ring.
     They share a directory, so each is part of the other's program — change one and the other's
     build really is stale. A ring would be two STEPS waiting on each other; these two steps wait on
@@ -37,8 +41,9 @@ Pull a book on blueprints.
         Insert a record with (
             the name "snake",
             the needs a series of text with ("snake/snake.cufe", "snake/board.cufe",
-                                             "snake/pacing.cufe", "snake/screen.cufe",
-                                             "snake/serpent.cufe"),
+                                             "snake/feeding.cufe", "snake/pacing.cufe",
+                                             "snake/screen.cufe", "snake/serpent.cufe",
+                                             "snake/steering.cufe", "terminals/terminals.cufe"),
             the makes a series of text with ("snake/snake.exe"),
             the runs a series of text with ("cufet", "build", "snake/snake.cufe")) into work.
 

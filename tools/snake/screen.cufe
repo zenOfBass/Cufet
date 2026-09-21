@@ -13,8 +13,12 @@
     space, indent or frame them.
 */
 
-/// The field as one line of text per row, with an `O` wherever the body lies.
-Bind series of text to frame-of, given (the series of spot body):
+/// The field as one line of text per row: `O` where the snake lies, `@` for the apple.
+///
+/// ★ It takes the apple as a PARAMETER rather than asking where the apple is. A view that
+/// fetched its own subject would decide what the frame is OF, which is the caller's business —
+/// and it is what lets a test draw any position at all without arranging for one.
+Bind series of text to frame-of, given (the series of spot body, the spot apple):
     Define picture as a series of text.
 
     For each row in range 1 to cast height, repeat:
@@ -29,6 +33,7 @@ Bind series of text to frame-of, given (the series of spot body):
             Done.
 
             If filled, the line becomes line joined to "O".
+            Otherwise, if cast apple's same-as on (here), the line becomes line joined to "@".
             Otherwise, the line becomes line joined to ".".
         Done.
 
