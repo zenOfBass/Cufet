@@ -17,11 +17,14 @@
     the clock. Nothing is pulled and nothing is a book — they share a directory, and a directory
     is one namespace.
 
-    ★★ IT DRAWS OVER ITSELF. `terminals's home` puts the cursor back at the top left and the next
-    frame is written on top of the last one — which works only because every frame is the SAME
-    SHAPE, so the score line is padded to the width of the field rather than left to shrink from
-    `score 10` to `score 9` and leave the `0` behind. That is the whole trick, and the one rule
-    that comes with it.
+    ★★ IT TAKES A PAGE OF ITS OWN and draws over itself on it. `screen-taken` borrows the
+    alternate screen, `home` puts the cursor back at the top left, and each frame is written on
+    top of the last — which works only because every frame is the SAME SHAPE, so the score line
+    is padded to the width of the field rather than left to shrink from `score 10` to `score 9`
+    and leave the `0` behind. That is the whole trick, and the one rule that comes with it.
+
+    ★ The screen is handed back before the score is said, so the result is still on the terminal
+    after the game has gone and the scrollback is exactly as it was found.
 
     ⚠ The escape sequences land in the corpus output too, which is deliberate: they are the same
     bytes on both backends, so the oracle still means something, and the alternative was a second
@@ -41,14 +44,16 @@ Define apple as cast apple-for on (snake, eaten).
 Define raw as false.
 If cast terminals's interactive, the raw becomes cast terminals's raw-on.
 
-/*  Cursor sequences on, cursor out of the way, and one erase before the first frame. The erase
-    happens ONCE: doing it per frame is what makes a terminal game flicker, because the screen is
-    briefly empty between the wipe and the redraw. */
-/*  The console is told to act on sequences; nothing is printed here. The erase and the hidden
-    cursor ride on the FIRST frame's first line instead — one write, and no half-drawn screen
-    between wiping and drawing. */
+/*  A PAGE OF ITS OWN. The console is told to act on sequences — that call prints nothing — and
+    the screen is taken on the front of the first frame's first line, so the whole opening is one
+    write with no half-drawn state in the middle.
+
+    ★ Taking the alternate screen is what makes this playable rather than merely animated. Drawn
+    into the ordinary screen the game shares space with whatever was already there: the terminal
+    pins its viewport to the BOTTOM, so the top of the board sits above the fold, and scrolling
+    up to look at it is not something anybody can do while playing. */
 Cast terminals's screen-on.
-Define opening as "{cast terminals's cursor-hidden}{cast terminals's cleared}".
+Define opening as "{cast terminals's screen-taken}{cast terminals's cursor-hidden}".
 
 /* Whether there is any point asking for a key. It goes false at end-of-input and stays there. */
 Define listening as true.
@@ -73,6 +78,11 @@ Repeat:
     For each line in cast frame-of on (snake's body, apple), repeat:
         State line.
     Done.
+
+    /*  ★★ TESTED AFTER THE DRAW, so the frame that killed you is the one left on screen. Asking
+        at the bottom of the loop — which is what `Until not alive` did — ended the game on the
+        move BEFORE the crash, and the player never saw what they hit. */
+    If not cast alive on (snake), stop.
 
     /*  The tick, in SLICES, with a look at the keyboard between each one. Waiting the whole tick
         and then reading would notice a keypress up to a tick late, which at this speed is the
@@ -119,10 +129,16 @@ Repeat:
         Increment eaten by 1.
         The apple becomes cast apple-for on (snake, eaten).
     Done.
-Until not cast alive on (snake).
+Until false.
+
+/* Long enough to see where it went wrong, before the screen goes back to what it was. */
+Cast nap on (900).
 
 If raw, cast terminals's raw-off.
 
-Define parting as cast terminals's cursor-shown.
+/*  ★ The screen goes back FIRST and the score is said on the ordinary one, so the result is
+    still there after the game has gone — which is the whole point of borrowing a page rather
+    than writing over somebody's terminal. */
+Define parting as "{cast terminals's cursor-shown}{cast terminals's screen-returned}".
 If gave-up, state "{parting}You gave up on {eaten}.".
 Otherwise, state "{parting}Game over. You ate {eaten}.".

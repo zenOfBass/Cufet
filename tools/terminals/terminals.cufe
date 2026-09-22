@@ -215,6 +215,27 @@ Bind text to cleared:
     Return "{cast letter-for on (27)}[2J{cast letter-for on (27)}[H".
 Done.
 
+/// Text that takes the whole screen for this program, blank, with the cursor at the top left.
+///
+/// ★★ THE ALTERNATE SCREEN — what `vim`, `less` and `htop` all do, and the answer to three
+/// problems at once. Drawing into the ordinary screen means sharing it with whatever was already
+/// there: the terminal keeps its viewport at the BOTTOM, so the top of a tall drawing sits above
+/// the fold, scrolling up to look at it is not something you can do while playing, and the whole
+/// game ends up in the scrollback afterwards. A page of its own has none of those.
+///
+/// ⚠ It must be given back. `screen-returned` restores the screen that was there — prompt,
+/// history and all — and a program that forgets leaves the reader staring at a blank one.
+/// ★ A terminal that does not know the sequence IGNORES it, and the drawing lands on the
+/// ordinary screen as it did before. Nothing has to ask first.
+Bind text to screen-taken:
+    Return "{cast letter-for on (27)}[?1049h{cast letter-for on (27)}[2J{cast letter-for on (27)}[H".
+Done.
+
+/// Text that hands the screen back, with whatever was on it before.
+Bind text to screen-returned:
+    Return "{cast letter-for on (27)}[?1049l".
+Done.
+
 /// Text that takes the cursor out of the picture, for while something is being drawn.
 Bind text to cursor-hidden:
     Return "{cast letter-for on (27)}[?25l".
