@@ -159,6 +159,16 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **An axiom's newline came out CRLF interpreted and LF compiled, on Windows.** The runtime's own
+  rule is that a TERMINATOR is written deliberately and DATA is passed through untouched, and the
+  compiled program keeps it by putting stdout in binary mode. The interpreter's shim is loaded
+  into its process with its OWN C runtime, which starts stdout in TEXT mode — so the bytes an
+  axiom wrote were not the bytes that came out. The shim now sets binary mode too.
+
+  ★ **Found the day the oracle could first see an axiom's output at all.** One program printing
+  three `State` lines and two axiom lines came out 70 bytes interpreted and 68 compiled. The rule
+  was written down; this path simply never honoured it.
+
 - **The editor put a diagnostic on the wrong file.** `cufet check --json` has always reported
   which file an error is in; the extension parsed that field and threw it away, pinning every
   diagnostic to the document in front of the reader at the reported LINE NUMBER.

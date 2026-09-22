@@ -188,26 +188,29 @@ they are large, not because they are waiting — the order among them means noth
 A formal soundness proof or a fresh-eyes red-team · a periodic error-message audit for internal
 vocabulary
 
-**⚠⚠ THE ORACLE CANNOT SEE WHAT AN AXIOM PRINTS.** The interpreter loads an axiom with
+**An axiom's output bypasses the interpreter's writer.** The interpreter loads an axiom with
 `NativeLibrary.Load` and calls it IN-PROCESS, so a `fputs(text, stdout)` inside one writes to the
-host process's real stdout — while the test harness captures a `StringWriter`. The compiled
-program writes the same bytes to its own stdout, which IS captured. So anything printed through an
-axiom appears on one side of the comparison and not the other.
+process's real stdout rather than to the `TextWriter` the interpreter was given. Under `cufet`
+both land in the same stream and nothing is wrong; it matters only where the interpreter is handed
+a CAPTURING writer, which today is `App/Program.cs`'s blueprint run — a blueprint that printed
+through an axiom would have those lines escape the capture.
 
-★ **Everything `terminals` prints is in that hole**: every prompt, the whole line editor, in
-`tools/shell.cufe` and `tools/repl.cufe`. Those two have been in the corpus since 2026-09-13 and
-the bytes they write have never once been compared between backends. The skip-list note says they
-"start, see EOF and leave" — true, and it hid this, because what they print on the way out was
-never in the comparison to begin with.
+✅ The oracle harness no longer depends on that: it runs the interpreted half as a SUBPROCESS,
+exactly like the compiled half, so both are captured by the OS. Fixed 2026-09-22. ⚠ `PipelineTestBase.InterpretRaw`
+still captures in-process, so the ~1000 pipeline tests remain blind to an axiom's output — which
+matters only for the few that would print through one, and those drive `cufet` themselves
+(`Axiom_WritingANewline_SendsTheSameBytesOnBothBackends`). Making every pipeline test pay for a
+process would cost far more than it buys.
 
-⚠ MEASURED 2026-09-21 by `tools/snake/snake.cufe`, the first corpus program to print enough
-through `put` for the difference to show. Worked around THERE by sending its escape sequences on
-`State` lines instead, which the interpreter does capture; the hole itself is untouched.
+⚠ **What this hole had actually cost, measured rather than assumed: nothing yet.** An earlier
+version of this entry claimed `tools/shell.cufe` and `tools/repl.cufe` had been printing
+uncompared bytes for a week. They had not — with stdin closed, `shell.cufe` prints NOTHING and
+`repl.cufe` prints one line through `State`, which was always captured. The only program it ever
+caught was `tools/snake/snake.cufe`, on the day it was written.
 
-▶ **The root is that the language cannot write without ending a line.** `State` always ends one,
-which is the only reason `put` is an axiom at all — its own comment says so. A newline-free output
-form would put those bytes through the ordinary writer and close this for every program at once.
-That is a language decision and nobody has asked for it yet.
+▶ The root is that the language cannot write without ending a line, which is the only reason
+`put` is an axiom at all. A newline-free output form would remove the hole rather than route
+around it. Nobody has asked for one.
 
 **A blueprint's missing input reports in .NET's voice.** A `needs` path that is not there answers
 *"Could not find a part of the path 'C:\…'"* rather than naming the step, the path and the fix.
