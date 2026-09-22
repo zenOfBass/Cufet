@@ -373,9 +373,26 @@ public class ExampleOracleTests
 
         var tokens  = new CufetLexer(source).Tokenize();
         var program = new Parser(tokens).Parse();
-        program = MakeChecker(file).Check(program);
+        var checker = MakeChecker(file);
+        program = checker.Check(program);
 
-        string compiled;
+        //  ★★ A LIBRARY IS NOT A PROGRAM, and the two halves of this suite disagree about that
+        //  for a real reason. `cufet <file>` REFUSES to run a file whose top level only declares
+        //  — by name, with advice — while `CompileAndRun` below reaches past the CLI to the code
+        //  generator and happily builds a binary that does nothing. Comparing those two is
+        //  comparing a refusal with a run.
+        //
+        //  ⚠ Asked with the CLI's OWN function, on the CLI's own program, so the two answers
+        //  cannot drift. What is checked instead is the thing that is actually true of a library:
+        //  it must COMPILE, and `cufet` must decline to run it.
+        if (Runnable.NothingToRun(program, checker.PreludeStatements))
+        {
+            CompileAndRun(program);
+            Assert.Equal(2, Interpret(file).Exit);
+            return;
+        }
+
+        (string Output, int Exit) compiled;
         try
         {
             compiled = CompileAndRun(program);
@@ -397,10 +414,16 @@ public class ExampleOracleTests
         // ★ Byte for byte, deliberately. Both runners return output VERBATIM — see the note on
         // Interpret — because the two backends are meant to agree on every byte, and a comparison
         // that normalises line endings first cannot see a backend that rewrites them.
-        var interpreted = Interpret(program);
+        var interpreted = Interpret(file);
         // ⚠ Before blaming a backend. The two runs happen seconds apart and read real files.
         if (interpreted != compiled) FailIfTheCorpusMoved(file, "the two backends disagreed");
-        Assert.Equal(interpreted, compiled);
+        Assert.Equal(interpreted.Output, compiled.Output);
+
+        // ★ AND THE EXIT STATUS, which the in-process harness could not see at all. It is part of
+        // what a program says: `examples/parsing/logtriage.cufe` exits 1 to report that it found
+        // something, and two backends disagreeing about that would be a divergence in the answer
+        // even when every printed byte matched.
+        Assert.Equal(interpreted.Exit, compiled.Exit);
 
         // ★ Agreement is not correctness. The comparison above proves the two backends say the same
         // thing; it cannot tell whether that thing is right. config.cufe carries a deliberately
@@ -416,19 +439,19 @@ public class ExampleOracleTests
 
         if (Environment.GetEnvironmentVariable("CUFET_EXAMPLE_EXPECTED") == "1")
         {
-            File.WriteAllText(expectedPath, Norm(interpreted) + "\n");
+            File.WriteAllText(expectedPath, Norm(interpreted.Output) + "\n");
             return;
         }
 
         var expected = Norm(File.ReadAllText(expectedPath));
-        if (expected != Norm(interpreted))
+        if (expected != Norm(interpreted.Output))
             FailIfTheCorpusMoved(file, "it no longer produces its recorded output");
-        Assert.True(expected == Norm(interpreted),
+        Assert.True(expected == Norm(interpreted.Output),
             $"{file} no longer produces its recorded output.\n" +
             "Both backends agree, so this is not a divergence — the program's behaviour changed.\n" +
             "If the new output is correct:\n" +
             "  CUFET_EXAMPLE_EXPECTED=1 dotnet test --filter ExampleOracleTests\n\n" +
-            $"--- expected ---\n{expected}\n--- actual ---\n{Norm(interpreted)}");
+            $"--- expected ---\n{expected}\n--- actual ---\n{Norm(interpreted.Output)}");
     }
 
     /// <summary>
@@ -493,51 +516,75 @@ public class ExampleOracleTests
         var program = new Parser(new CufetLexer(source).Tokenize()).Parse();
         program = MakeChecker(file).Check(program);
 
-        Assert.NotEmpty(Interpret(program));
-        Assert.NotEmpty(CompileAndRun(program));
+        Assert.NotEmpty(Interpret(file).Output);
+        Assert.NotEmpty(CompileAndRun(program).Output);
     }
 
-    // ── Running ───────────────────────────────────────────────────────────
+    // ── Running ─────────────────────────────────────────────────────────
 
-    // The interpreter reads files through the PROCESS working directory, so it has to be moved to
-    // the repo root and put back. Serialised on a lock because xUnit runs classes in parallel and
-    // the working directory is global: two tests changing it at once would each see the other's.
-    private static readonly object CurrentDirectoryLock = new();
-
-    // ★ On a 16 MB stack, mirroring the CLI's RunOnLargeStack. A recursive Cufet program — a
-    // backtracking sudoku solver, say — overflows xUnit's default 1 MB thread, and a stack overflow
-    // cannot be caught: it takes the whole test host down with "Test Run Aborted", so the run
-    // reports the tests that finished as passing and exits non-zero with no failure to point at.
-    // The example ran fine under `cufet`, which has always had the big stack; only the harness did
-    // not.
-    //
-    // ★ Returns output VERBATIM. Normalising line endings here would defeat the comparison this
-    // suite exists for — see the note at the assertion.
-    private static string Interpret(Program program)
+    /// <summary>Runs one example under the real `cufet`, and hands back everything it printed.</summary>
+    /// <remarks>
+    /// <para>
+    /// ⭐⭐ **A SUBPROCESS, exactly like the compiled half — and that symmetry is the whole point.**
+    /// This used to run the interpreter IN-PROCESS and capture a <c>StringWriter</c>, which quietly
+    /// measured something no program ever does: an AXIOM writes with C's own
+    /// <c>fputs(text, stdout)</c>, straight to the process's stdout, so its bytes went to the test
+    /// host's console while `State` went to the StringWriter. Half the stream was compared and half
+    /// was thrown on the floor.
+    /// </para>
+    /// <para>
+    /// ⚠⚠ MEASURED 2026-09-21, by `tools/snake/snake.cufe` — the first corpus program to print
+    /// enough through an axiom for the difference to show. ★ What it had been hiding: every byte
+    /// `tools/shell.cufe` and `tools/repl.cufe` print, every prompt and the whole line editor, had
+    /// been in this suite since 2026-09-13 and compared against NOTHING.
+    /// </para>
+    /// <para>
+    /// ★★ The fix is here rather than in the interpreter, and the reason matters. The compiled
+    /// backend has no TextWriter: every byte it writes goes to one stdout. For the interpreter to
+    /// be a faithful oracle its bytes must land in one stream too — and under `cufet` they do.
+    /// Splitting the stream was this harness's doing. ⚠ The other fix, capturing an axiom's output
+    /// INTO the writer, would change a program that works: `put` flushes on purpose so a prompt
+    /// appears before a blocking read, and routing it through .NET's writer puts a buffer in that
+    /// path.
+    /// </para>
+    /// <para>
+    /// ★ Three things fall out for free. The CLI owns the 16 MB stack a deep recursion needs, so
+    /// the harness no longer has to. The working directory is the child's, so the global lock this
+    /// used to serialise on is gone. And what is tested is the SHIPPED command rather than an
+    /// in-process reassembly of it that could drift from it.
+    /// </para>
+    /// <para>★ Returns output VERBATIM — see the note at the assertion.</para>
+    /// </remarks>
+    private static (string Output, int Exit) Interpret(string file)
     {
-        var sb = new StringWriter();
-        lock (CurrentDirectoryLock)
+        var psi = new ProcessStartInfo(CufetBinary.Path)
         {
-            var saved = Directory.GetCurrentDirectory();
-            Directory.SetCurrentDirectory(RepoRoot);
-            try
-            {
-                Exception? caught = null;
-                var thread = new Thread(
-                    // The FFI runner is wired here for the same reason the CLI wires it: an axiom is
-                    // compiled and called, so the interpreter needs a toolchain to run one. Without
-                    // it an example containing foreign source refuses — which is the RIGHT answer
-                    // for a wasm playground and the wrong one for a machine with gcc on it.
-                    () => { try { new CufetInterpreter(sb) { ForeignRunner = new GccForeignRunner() }.Execute(program); } catch (Exception e) { caught = e; } },
-                    16 * 1024 * 1024);
-                thread.Start();
-                thread.Join();
-                if (caught is not null)
-                    System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(caught).Throw();
-            }
-            finally { Directory.SetCurrentDirectory(saved); }
-        }
-        return sb.ToString();
+            RedirectStandardOutput = true,
+            StandardOutputEncoding = System.Text.Encoding.UTF8,
+            WorkingDirectory       = RepoRoot,
+            // ⚠ Closed immediately, exactly as the compiled half does it. An example that reads
+            // input must meet EOF and not the TEST HOST's stdin — and the two backends must meet
+            // the SAME one, or a program that waits for input diverges for a reason neither
+            // backend caused.
+            RedirectStandardInput  = true,
+            RedirectStandardError  = true,
+            UseShellExecute        = false,
+        };
+        psi.ArgumentList.Add(Resolve(file));
+
+        using var proc = Process.Start(psi)!;
+        proc.StandardInput.Close();
+        var output = proc.StandardOutput.ReadToEnd();
+        var stderr = proc.StandardError.ReadToEnd();
+        proc.WaitForExit();
+
+        // ⚠⚠ A NON-ZERO EXIT IS NOT A FAILURE, and assuming it was cost a round trip.
+        // `examples/parsing/logtriage.cufe` exits 1 ON PURPOSE — it is a triage tool, and the
+        // exit status is how it reports that it found something. ★ The status is handed back and
+        // compared against the compiled run instead, which is a STRONGER claim than the old
+        // in-process harness could make: it never saw an exit code at all.
+        _ = stderr;
+        return (output, proc.ExitCode);
     }
 
     // The binary gets its working directory set directly, so no global state is touched.
@@ -573,7 +620,7 @@ public class ExampleOracleTests
     /// became unreachable without being freed — a channel or buffer whose last pointer was dropped.
     /// </para>
     /// </remarks>
-    private static string CompileAndRun(Program program)
+    private static (string Output, int Exit) CompileAndRun(Program program)
     {
         // The SPLIT path, because that is what `cufet build` does — see PipelineTestBase.CompileRaw.
         var (header, runtimeSource, programSource) = new CodeGenerator().GenerateSplit(program);
@@ -643,7 +690,7 @@ public class ExampleOracleTests
                     "This is a real defect in the emitted C or the runtime — it is not a flake, and\n" +
                     "the report below names the file and line.\n\n" + stderr);
 
-            return output;
+            return (output, proc.ExitCode);
         }
         finally { try { File.Delete(binPath); } catch { } }
     }

@@ -375,6 +375,30 @@ public sealed class GccForeignRunner : IForeignRunner
         sb.AppendLine("#define CUFET_SHIM_EXPORT __attribute__((visibility(\"default\")))");
         sb.AppendLine("#endif");
         sb.AppendLine();
+
+        // ★★ STDOUT IN BINARY, exactly as the compiled runtime puts it — and for the same
+        // sentence, which the runtime already states: a TERMINATOR is written deliberately and
+        // DATA is passed through untouched. A shim is loaded into the interpreter's process with
+        // its own C runtime, and on Windows that runtime starts stdout in TEXT mode — so an
+        // axiom writing a newline had it turned into CRLF on this side and left alone on the
+        // other.
+        //
+        // ⚠⚠ MEASURED 2026-09-22, the first thing the oracle saw once it could see an axiom's
+        // output at all: one program, `1 from State\n2 from axiom\n...`, came out 70 bytes
+        // interpreted and 68 compiled. The rule was written down in CodeGenerator.Runtime and
+        // this path simply never honoured it.
+        //
+        // ★ In the ENTRY rather than at load time, because a shim has no initialiser to hang it
+        // on; `_setmode` is idempotent and costs a handful of nanoseconds against a gcc-compiled
+        // call. stderr is left alone, matching the runtime.
+        sb.AppendLine("#if defined(_WIN32)");
+        sb.AppendLine("#include <io.h>");
+        sb.AppendLine("#include <fcntl.h>");
+        sb.AppendLine("#define CUFET_SHIM_STDOUT_BINARY() (void)_setmode(_fileno(stdout), _O_BINARY)");
+        sb.AppendLine("#else");
+        sb.AppendLine("#define CUFET_SHIM_STDOUT_BINARY() ((void)0)");
+        sb.AppendLine("#endif");
+        sb.AppendLine();
         sb.AppendLine(ForeignC.ShimArgumentType);
         sb.AppendLine();
 
@@ -402,6 +426,7 @@ public sealed class GccForeignRunner : IForeignRunner
         sb.AppendLine($"CUFET_SHIM_EXPORT {entryType} {entryPoint}"
                     + "(const CufetShimArg* cufet_args, int cufet_count) {");
         sb.AppendLine("    (void)cufet_args; (void)cufet_count;");
+        sb.AppendLine("    CUFET_SHIM_STDOUT_BINARY();");
         sb.Append(ForeignC.ShimUnpack(parameters));
         var handed = string.Join(", ", Enumerable.Range(0, parameters.Count).Select(ForeignC.ParameterName));
         string call = $"{wrapped}({handed})";

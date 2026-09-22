@@ -34,6 +34,72 @@ public class PipelineForeignTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
+    /// <remarks>
+    /// ★★ THE BYTES AN AXIOM WRITES ARE ITS OWN, on both backends. The runtime already states the
+    /// rule — a TERMINATOR is written deliberately and DATA is passed through untouched — and the
+    /// compiled program keeps it by putting stdout in binary mode in `main`.
+    ///
+    /// ⚠⚠ The interpreter did not. A shim is loaded into its process with its OWN C runtime, and
+    /// on Windows that runtime starts stdout in TEXT mode, so a newline an axiom wrote became CRLF
+    /// on one side and stayed LF on the other. MEASURED 2026-09-22 at 70 bytes against 68.
+    ///
+    /// ★ It went unseen for as long as it did because the oracle harness ran the interpreter
+    /// IN-PROCESS and captured a StringWriter, while an axiom writes to the process's real stdout
+    /// — so an axiom's output was on neither side of the comparison. This test is the pin for the
+    /// defect; the harness change is what made it visible.
+    /// </remarks>
+    [Fact]
+    public void Axiom_WritingANewline_SendsTheSameBytesOnBothBackends()
+    {
+        const string src = """
+            Pull a book on the c-language.
+                Define c-language shout-support as [#include <stdio.h>
+                    static int cufet_shout(const char *what) {
+                        fputs(what, stdout);
+                        fflush(stdout);
+                        return 0;
+                    }].
+                Define c-language number shouted, given (the text what), as [cufet_shout(the what)].
+                State "before".
+                Cast shouted on ("data\nline").
+                State "after".
+            Done.
+            """;
+
+        // ⚠⚠ RUN AS A SUBPROCESS, and it has to be. `InterpretRaw` runs the interpreter IN
+        // THIS PROCESS and captures a StringWriter, while an axiom writes with C's own stdout —
+        // so the base helper cannot see a single byte of what this program prints through one.
+        // MEASURED here: it reported only the two `State` lines, with the axiom's line absent.
+        // ★ The same blindness the corpus harness had until 2026-09-22; it is fixed THERE by
+        // running `cufet`, and this test does the same rather than making every pipeline test pay
+        // for a process it does not need.
+        var file = Path.Combine(TestScratch.Root, "axiom-nl-" + Guid.NewGuid().ToString("N") + ".cufe");
+        File.WriteAllText(file, src);
+        try
+        {
+            var psi = new System.Diagnostics.ProcessStartInfo(CufetBinary.Path)
+            {
+                RedirectStandardOutput = true,
+                StandardOutputEncoding = System.Text.Encoding.UTF8,
+                RedirectStandardInput  = true,
+                UseShellExecute        = false,
+            };
+            psi.ArgumentList.Add(file);
+            using var proc = System.Diagnostics.Process.Start(psi)!;
+            proc.StandardInput.Close();
+            var interpreted = proc.StandardOutput.ReadToEnd();
+            proc.WaitForExit();
+
+            Assert.Equal(interpreted, CompileRaw(src));
+
+            // ★ And the data newline must survive as a BARE one: a TERMINATOR is the backend's to
+            // choose, a byte inside a text is the program's. Agreement alone would pass if both
+            // sides translated it.
+            Assert.Contains("data" + (char)10 + "line", interpreted);
+        }
+        finally { try { File.Delete(file); } catch { } }
+    }
+
     [Fact]
     public void Axiom_ReachesLibc()
     {
