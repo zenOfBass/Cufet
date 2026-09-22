@@ -10,6 +10,25 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+- **`terminals` hands out cursor control** — `screen-on` (make the terminal act on sequences;
+  Windows needs telling, POSIX does not), and `screen-taken` / `screen-returned` / `home` /
+  `cleared` / `cursor-hidden` / `cursor-shown` as TEXT to print.
+
+  ★★ **The first place this project uses ANSI, and the line is worth seeing.** `back-up` and
+  `redraw` move the cursor with BACKSPACES, deliberately, because every terminal that has ever
+  existed understands one. A backspace cannot move UP — so a display of more than one line is the
+  first thing that cannot be drawn that way.
+
+  ★★ **`screen-taken` is the alternate screen**, what `vim` and `less` use. Drawing into the
+  ordinary screen means sharing it: the terminal pins its viewport to the bottom, so the top of a
+  tall picture sits above the fold and scrolling up to look is not something you can do while a
+  game is running. A page of its own has none of that, and hands the terminal back untouched.
+
+  ⚠ **They are TEXT, not actions**, for two reasons. One write per line never shows a half-drawn
+  frame — same reason `back-up` builds a single string. And `put` is an axiom, whose writes the
+  interpreter's own output never sees, so a frame drawn with it would be invisible to half the
+  oracle.
+
 - **Snake, in `tools/snake/`** — seven files, arrow keys, apples, and a wall that ends it. Not a
   language change: it is the first program written to the directory-namespace rule, and finding
   out what that rule costs to USE was the point of writing it.
