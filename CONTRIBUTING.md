@@ -283,6 +283,12 @@ sat at `0.10.0` through seven releases, and every outgoing-version grep from 0.1
 passed clean over it. The two `package.json` files missed on the 0.11.0 pass were caught by the
 narrow grep only because they had been right the release before.
 
+⚠ **And expect a DEPENDENCY to collide with the version you are cutting.** On the 0.25.0 pass
+the playground's `esbuild` was pinned at `0.25.0`, so the lockfile came out with our two root
+entries and thirty of esbuild's reading identically — a replace-all of the OUTGOING version was
+still safe, but one of the INCOMING version would have rewritten every esbuild pin in the file.
+Edit the two root `version` fields, or let `npm version` do it.
+
 ★ Expect hits that are HISTORY and must stay: ROADMAP and code comments say things like *"shipped
 in 0.17.0"* and *"the 0.16.0 arc"*. The grep is a prompt to look, not a list of edits — what it is
 checking for is a version asserted as CURRENT in a place nobody remembered.
