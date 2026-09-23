@@ -27,25 +27,21 @@
 ///
 /// `State` always ends a line, which is right for a program saying something and wrong for a
 /// prompt — a prompt has to leave the cursor sitting after it.
-/*  ⚠ Flushed on the spot, and that is not fussiness. The interpreter prints through .NET and
-    the compiler through C stdio: two buffers over one file descriptor. Whichever of them holds
-    output back is the one whose text arrives in the wrong place, and it would arrive in a
-    DIFFERENT wrong place on each backend — an oracle divergence rather than a cosmetic bug. */
-Bind void to put, given (the text letters):
-    Pull a book on the c-language.
-        Define c-language put-support as [#include <stdio.h>
-            static int cufet_terminal_put(const char *text) {
-                fputs(text, stdout);
-                fflush(stdout);
-                return 0;
-            }].
-        Define c-language number written, given (the text bytes), as [cufet_terminal_put(the bytes)].
+/*  ★★ NO LONGER C. This was an axiom until 2026-09-22, for one reason: `State` always ends a
+    line and nothing else could write to standard output, so a prompt had to go through `fputs`.
+    `the output` closed that gap — a `writable stream of text` bound to stdout, written with the
+    `Write … to …` the language already had for files.
 
-        /* The count is not interesting — `fputs` wrote it all or the stream is broken, and a
-           broken stdout is not something a prompt can do anything about. */
-        Cast written on (letters).
-    Done.
-    Done.
+    ★ Being ordinary Cufet is worth more than the twelve lines it saves. An axiom writes with C's
+    OWN stdout, straight past whatever writer the interpreter was handed — so everything printed
+    through here was invisible to a capturing caller, and to half the oracle. A write to the
+    stream lands where every other byte the program produces lands.
+
+    ⚠ The flush the C did on purpose is still done, by the stream: `the output` flushes on every
+    write, because a prompt has to appear before the read that follows it. */
+Bind void to put, given (the text letters):
+    Write letters to the output.
+Done.
 
 /// Whether standard input is a person at a terminal, rather than a file or a pipe.
 ///
