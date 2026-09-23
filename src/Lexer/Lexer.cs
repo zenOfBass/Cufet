@@ -251,7 +251,6 @@ public sealed class Lexer
             "stash"     => TokenType.Stash,
             "on"        => TokenType.On,
             "function"  => TokenType.FunctionKw,
-            "length"    => TokenType.LengthKw,
             "joined"    => TokenType.Joined,
             "converted" => TokenType.Converted,
             "range"     => TokenType.Range,
@@ -263,13 +262,12 @@ public sealed class Lexer
             "but"       => TokenType.But,
             "map"       => TokenType.Map,
             "has"       => TokenType.Has,
-            "key"       => TokenType.Key,
-            "entry"     => TokenType.Entry,
-            "size"      => TokenType.Size,
+            "length"     => TokenType.LengthKw,
+            "size"       => TokenType.Size,
+            "contents"   => TokenType.ContentsKw,
+            "position"   => TokenType.Position,
             "split"      => TokenType.Split,
             "contains"   => TokenType.Contains,
-            "position"   => TokenType.Position,
-            "characters" => TokenType.Characters,
             "end"        => TokenType.End,
             "replace"    => TokenType.Replace,
             "uppercase"  => TokenType.Uppercase,
@@ -303,7 +301,6 @@ public sealed class Lexer
             "off"        => TokenType.Off,
             "exception"  => TokenType.Exception,
             "suppress"   => TokenType.Suppress,
-            "read"       => TokenType.Read,
             "file"       => TokenType.File,
             "write"      => TokenType.Write,
             "append"     => TokenType.Append,
@@ -316,10 +313,8 @@ public sealed class Lexer
             // that ships in the box. The parser recognises the NAME where it needs to.
             "have"       => TokenType.HaveKw,
             "task"       => TokenType.TaskKw,
-            "channel"    => TokenType.Channel,
             "send"       => TokenType.Send,
             "through"    => TokenType.Through,
-            "delivery"   => TokenType.Delivery,
             "close"      => TokenType.Close,
             "awaited"    => TokenType.Awaited,
             "pull"       => TokenType.Pull,
@@ -343,17 +338,25 @@ public sealed class Lexer
             // already resolves. Reserving them would cost every program two of the names most
             // likely to be wanted for tabular data.
             // 'filled' is contextual — only in 'a matrix with R by C filled with V'.
-            "contents"    => TokenType.ContentsKw,
             "directory"   => TokenType.DirectoryKw,
             "path"        => TokenType.PathKw,
             "exit"        => TokenType.Exit,
             "arguments"   => TokenType.Arguments,
-            "environment" => TokenType.EnvironmentKw,
-            "interrupt"   => TokenType.InterruptKw,
             "acknowledge" => TokenType.AcknowledgeKw,
             "yield"       => TokenType.YieldKw,
             "true"        => TokenType.TrueKw,
             "false"       => TokenType.FalseKw,
+            // ★ Twelve words were given back on 2026-09-23, by the rule `EffectiveType` already
+            // stated: each has a MANDATORY token immediately after it, so a variable of the same
+            // name is never ambiguous with the shape that wanted the word.
+            //
+            //   characters, delivery — 'from'    entry, key — 'for'   channel — 'of'
+            //   interrupt                        — 'is'         environment          — 'variable'
+            //   read                             — 'line'/'all'
+            //
+            // They are recognised in `Parser.EffectiveType` and by lexeme where a frame needs
+            // them. `channel`, `entry`, `key` and `interrupt` had each already cost a rename in
+            // this repository's own code — see the audit that found them.
             _           => TokenType.Identifier,
         };
 

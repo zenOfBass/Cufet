@@ -108,7 +108,8 @@ public enum TokenType
     In,       // "in" — also reserved for future membership test
 
     // ── Collections — operations ──────────────────────────────────────────
-    Ordinal,  // "first".."tenth" and "last" — 1-based positional keywords
+    // ★ `first`..`tenth` and `last` have NO token: they are contextual identifiers, recognised
+    // only in `the <ordinal> of <series>`. See OrdinalIdentifierTests.
     Item,     // "item" — parametric element access
     Of,       // "of" — connects element access / length to series name
     NumberKw, // "number" — in "the number of series"; distinct from Number (numeric literal)
@@ -195,10 +196,6 @@ public enum TokenType
     Exception, // "exception" — in "In case of exception (the exception):" / "the exception" binding
     Suppress,  // "suppress"  — in "Suppress the exception."
 
-    // ── Rabbits (block-scoped memory regions) ────────────────────────────────
-    Rabbit,   // "rabbit" — in "Pull a rabbit [as <name>]." and "given (the rabbit <name>)"
-              //             and "Have rabbit start a task [as <name>]: ... Done."
-
     // ── Concurrency (structured tasks) ───────────────────────────────────────
     HaveKw,   // "Have"   — in "Have rabbit start a task [as <name>]: ... Done."
     TaskKw,   // "task"   — in "Have rabbit start a task"
@@ -215,9 +212,9 @@ public enum TokenType
               // "result" is contextual (parsed by lexeme) — not a reserved keyword
 
     // ── Books (standard-library capability units) ─────────────────────────────
+    // ★ `book`, `books` and `rabbit` have NO token, deliberately — they are matched by lexeme
+    // where the shape needs them, so `For each book in books` stays writable. See Lexer.cs.
     Pull,   // "pull"   — in "Pull a book on <name> [as <local>]." / "Pull books on <n>, <n>, ..."
-    Book,   // "book"   — in "Pull a book on <name>" (singular)
-    Books,  // "books"  — in "Pull books on <n1>, <n2>, and <n3>." (plural)
     CatalogueKw, // "catalogue" — heterogeneous series: element type is a union
     AtlasKw,     // "atlas"     — heterogeneous map:    value  type is a union
 

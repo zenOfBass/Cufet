@@ -928,7 +928,8 @@ public sealed class Parser
         // naming an ordinary object type (defined in `Prelude/rabbit.cufe`), so it falls through
         // to the same path that resolves `person` or `stack of number` — which is the whole point
         // of the rabbit becoming an object.
-        if (tok.Type == TokenType.Channel)
+        if (tok.Type == TokenType.Channel
+            || (IsWord(tok, "channel") && PeekAfterCurrent() == TokenType.Of))
         {
             Advance(); SkipNoise(); // consume 'channel'
             Consume(TokenType.Of); SkipNoise();
@@ -2298,7 +2299,7 @@ public sealed class Parser
         SkipNoise();
         Consume(TokenType.Comma);
         SkipNoise();                       // eats the 'the' before 'entry'
-        Consume(TokenType.Entry);
+        ConsumeFreedWord(TokenType.Entry, "entry");
         SkipNoise();
         Consume(TokenType.For);
         SkipNoise();
@@ -2316,7 +2317,7 @@ public sealed class Parser
         SkipNoise();
         Consume(TokenType.Comma);
         SkipNoise(); // eats 'the' article
-        Consume(TokenType.Entry);
+        ConsumeFreedWord(TokenType.Entry, "entry");
         SkipNoise();
         Consume(TokenType.For);
         SkipNoise();
@@ -3105,8 +3106,8 @@ public sealed class Parser
         var line = lineTok.Line;
         var col = lineTok.Column;
         SkipNoise(); // eats 'a' or 'an' article
-        bool isEntry = Peek().Type == TokenType.Entry;
-        bool isKey   = Peek().Type == TokenType.Key;
+        bool isEntry = EffectiveType(Peek()) == TokenType.Entry;
+        bool isKey   = EffectiveType(Peek()) == TokenType.Key;
 
         // ★ `<set> has <value>` — neither `key` nor `entry` follows, because a set holds things
         // rather than keys. Whether the target really is a set is the checker's question; here it
@@ -3401,7 +3402,7 @@ public sealed class Parser
         // Checked BEFORE SkipNoise so we can still see the leading 'the'.
         // 'the first of s' is not named access: ordinal-word identifiers are excluded from
         // IsFieldNameToken(forAccess:true), so IsNamedAccessPattern returns false for them.
-        // 'the number of s' is also not named access: NumberKw is not Identifier/Category/Key/Characters.
+        // 'the number of s' is also not named access: NumberKw is neither Identifier nor Category.
         // No SkipNoise between 'the' and the field name — 'a'/'an' may be field names.
         if (Peek().Type == TokenType.Article &&
             Peek().Lexeme.Equals("the", StringComparison.OrdinalIgnoreCase) &&
@@ -3480,7 +3481,9 @@ public sealed class Parser
                     {
                         var count = ParseAddition();
                         SkipNoise();
-                        Consume(TokenType.Characters);
+                        // `characters` is not reserved; here the leading ordinal and count have
+                        // already committed the shape, so the bare word is the keyword.
+                        ConsumeFreedWord(TokenType.Characters, "characters");
                         SkipNoise();
                         Consume(TokenType.Of);
                         SkipNoise();
@@ -4814,12 +4817,13 @@ public sealed class Parser
         // keyword can legitimately appear in 'the <keyword> of <expr>'. This kills the
         // keyword-as-field-name mis-fire class completely and covers all future keywords
         // automatically (no per-keyword patches needed when new keywords are added).
-        // Three narrow exceptions: Key, Category, and Characters (see comment on forAccess=true above).
+        // ★ ONE narrow exception now: Category. `Key` and `Characters` were exceptions here until
+        // 2026-09-23, when both words were given back — the lexer no longer produces those tokens
+        // at all, so the carve-outs could never fire again and named access reaches them as the
+        // ordinary identifiers they now are.
         if (forAccess &&
             tok.Type is not TokenType.Identifier
-                      and not TokenType.Category
-                      and not TokenType.Key
-                      and not TokenType.Characters &&
+                      and not TokenType.Category &&
             !(tok.Type == TokenType.Article &&
               !tok.Lexeme.Equals("the", StringComparison.OrdinalIgnoreCase)))
             return false;
@@ -5331,7 +5335,7 @@ public sealed class Parser
         var line = lineTok.Line;
         var col = lineTok.Column;
         SkipNoise();                                       // consumes 'the' (Article)
-        Consume(TokenType.InterruptKw);                    // consume 'interrupt'
+        ConsumeFreedWord(TokenType.InterruptKw, "interrupt"); // consume 'interrupt'
         SkipNoise();
         Consume(TokenType.Dot);
         return new AcknowledgeInterruptStatement(line, col);
@@ -5849,6 +5853,13 @@ public sealed class Parser
         return Advance();
     }
 
+    // Consume a word that is no longer reserved, inside a frame that has already committed to it.
+    // The token form still arrives when `EffectiveType` recognised the shape; the bare identifier
+    // arrives everywhere else. Both are the keyword here, because by this point the surrounding
+    // frame leaves nothing else the word could be.
+    private Token ConsumeFreedWord(TokenType type, string word) =>
+        Peek().Type == type ? Advance() : ConsumeWord(word);
+
     // The base a 'converted to <base>' target names, or null if the word is not one. Contextual
     // by lexeme, so 'hex', 'binary' and 'octal' stay usable as ordinary names.
     private static char? BitsBaseFor(string lexeme) => lexeme.ToLowerInvariant() switch
@@ -6054,6 +6065,20 @@ public sealed class Parser
             "randomly" when NextWordIs("shuffled")                   => TokenType.Randomly,
             "random"   when PeekAfterCurrent() is TokenType.NumberKw or TokenType.Item
                             || NextWordIs("guess")                   => TokenType.Random,
+
+            // ★ Given back 2026-09-23. Each has a MANDATORY adjacent token, so this lookahead is
+            // total: there is no program in which the word is the keyword and the token is absent.
+            // ⚠ `range` and `replace` are NOT here and cannot be — their `to` and `with` come
+            // after an expression, so nothing adjacent tells them from a variable of that name.
+            "channel"     when PeekAfterCurrent() == TokenType.Of   => TokenType.Channel,
+            "characters"  when PeekAfterCurrent() == TokenType.From => TokenType.Characters,
+            "delivery"    when PeekAfterCurrent() == TokenType.From => TokenType.Delivery,
+            "entry"       when PeekAfterCurrent() == TokenType.For  => TokenType.Entry,
+            "key"         when PeekAfterCurrent() == TokenType.For  => TokenType.Key,
+            "interrupt"   when PeekAfterCurrent() == TokenType.Is   => TokenType.InterruptKw,
+            "environment" when NextWordIs("variable")               => TokenType.EnvironmentKw,
+            "read"        when NextWordIs("line") || NextWordIs("all") => TokenType.Read,
+
             _ => tok.Type,
         };
     }

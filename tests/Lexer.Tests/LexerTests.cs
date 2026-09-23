@@ -739,12 +739,27 @@ public class LexerTests
 
     // ── I/O keywords ──────────────────────────────────────────────────────────
 
-    [Fact]
-    public void ReadIsKeyword()
+    // ★ Given back on 2026-09-23 — each has a MANDATORY token after it, so `Parser.EffectiveType`
+    // can recognise the shape without the lexer taking the word from every program. Four of these
+    // had already cost a rename in this repository's own code.
+    //
+    // ⚠ This is the LEXER half of the guarantee: the word must arrive as an `Identifier`. What a
+    // program can then DO with it is pinned in `FreedWordTests`, and both halves are needed —
+    // a word can lex free and still be refused downstream, which is what happened to `output`.
+    [Theory]
+    [InlineData("read")]
+    [InlineData("characters")]
+    [InlineData("delivery")]
+    [InlineData("entry")]
+    [InlineData("key")]
+    [InlineData("interrupt")]
+    [InlineData("environment")]
+    [InlineData("channel")]
+    public void FreedWordsAreIdentifiers(string word)
     {
-        var tokens = LexTokens("read");
+        var tokens = LexTokens(word);
         Assert.Single(tokens);
-        Assert.Equal(TokenType.Read, tokens[0].Type);
+        Assert.Equal(TokenType.Identifier, tokens[0].Type);
     }
 
     [Theory]

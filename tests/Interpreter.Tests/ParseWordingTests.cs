@@ -1,4 +1,4 @@
-using Cufet.Interpreter;
+﻿using Cufet.Interpreter;
 using Xunit;
 using CufetLexer = Cufet.Lexer.Lexer;
 
@@ -76,15 +76,20 @@ public class ParseWordingTests
     /// reach for, and every one costing a parse error and a rename.
     /// </para>
     /// <para>
+    /// ★ `channel`, `key` and `entry` were GIVEN BACK on 2026-09-23 and moved out of these
+    /// theories to <c>FreedWordTests</c>. The words pinned here are the ones still taken, so this
+    /// test keeps checking the MESSAGE rather than the list.
+    /// </para>
+    /// <para>
     /// ★ It needs no keyword table. The lexer turns a bare word into an `Identifier` unless the
     /// language has taken that word, so a WORD arriving as anything else is reserved by
     /// construction.
     /// </para>
     /// </remarks>
     [Theory]
-    [InlineData("key")]
-    [InlineData("channel")]
     [InlineData("arguments")]
+    [InlineData("length")]
+    [InlineData("size")]
     public void AReservedWordAsAName_SaysItIsReserved(string word)
     {
         var ex = ParseFails($"Define {word} as 3.");
@@ -119,12 +124,12 @@ public class ParseWordingTests
     // round: the slot takes EVERY identifier, so a word-shaped token still sitting there is
     // reserved by construction. No keyword table, no list to maintain.
 
-    /// <remarks>⚠ Collisions four, seven and eight — all everyday nouns, all in the one position
-    /// a beginner writes first.</remarks>
+    /// <remarks>⚠ Everyday nouns in the one position a beginner writes first. `entry` and `key`
+    /// stood here until 2026-09-23; both are names again, and `FreedWordTests` pins that.</remarks>
     [Theory]
-    [InlineData("entry")]
-    [InlineData("key")]
     [InlineData("path")]
+    [InlineData("file")]
+    [InlineData("size")]
     public void AReservedWordAsALoopVariable_SaysItIsReserved(string word)
     {
         var ex = ParseFails($"Define xs as a series of number with (1, 2). For each {word} in xs, state {word}.");
