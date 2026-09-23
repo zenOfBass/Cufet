@@ -1,4 +1,4 @@
-# Cufet Grammar & Constraints Reference
+﻿# Cufet Grammar & Constraints Reference
 
 This document is the **operational** reference for writing Cufet correctly upfront.
 It covers the things that would otherwise be discovered by erroring: reserved words
@@ -346,7 +346,6 @@ equality `is` uses. `Descend.` (explicit fall-through) is reserved and not yet a
 | `split` | Split |
 | `contains` | Contains |
 | `position` | Position |
-| `characters` | Characters |
 | `end` | End |
 | `replace` | Replace |
 | `uppercase` | Uppercase |
@@ -395,8 +394,6 @@ therefore a character-wise match.
 | `like` | Like | Record shape annotation |
 | `map` | Map | Map type |
 | `has` | Has | Map-has-key check |
-| `key` | Key | Map iteration: `the key of pair` |
-| `entry` | Entry | Map entry access — **cannot be an identifier** |
 | `size` | Size | Map size |
 
 ### Failures
@@ -415,7 +412,6 @@ therefore a character-wise match.
 
 | Word | Token |
 |---|---|
-| `read` | Read |
 | `file` | File |
 | `write` | Write |
 | `append` | Append |
@@ -426,21 +422,31 @@ therefore a character-wise match.
 | `directory` | DirectoryKw |
 | `path` | PathKw |
 | `arguments` | Arguments |
-| `environment` | EnvironmentKw |
-| `interrupt` | InterruptKw |
 | `acknowledge` | AcknowledgeKw |
 | `catalogue` | CatalogueKw |
 | `atlas` | AtlasKw |
 
+### Concurrency
+
+| Word | Token | Notes |
+|---|---|---|
+| `have` | HaveKw | `Have <rabbit> start a task …` |
+| `task` | TaskKw | |
+| `send` | Send | `Send <value> through <channel>.` |
+| `through` | Through | |
+| `close` | Close | `Close <channel>.` |
+| `awaited` | Awaited | `the awaited result of <task>` |
+| `yield` | YieldKw | |
+| `pull` | Pull | `Pull a book on <name>.` — `book` and `books` are NOT reserved |
+
+⚠ `channel` and `delivery` are **not** here: both take a mandatory `of`/`from`, so they are
+contextual — see [Contextual words](#contextual-words--not-reserved).
+
 ### Matrix
 
-| Word | Token |
-|---|---|
-| `matrix` | Matrix |
-| `at` | At |
-| `rows` | RowsKw |
-| `columns` | ColumnsKw |
-| `filled` | FilledKw |
+**None of it is reserved.** `matrix`, `at`, `rows`, `columns` and `filled` are all contextual —
+see [Contextual words](#contextual-words--not-reserved) below. `Define rows as 5.` works even
+though the collections book uses the word.
 
 ### Bits
 
@@ -496,8 +502,31 @@ These are matched by lexeme or shape in specific positions, not by token type.
 Outside those positions they parse as regular identifiers and can be used as variable
 names, parameter names, field names, and iterator names:
 
-`line`, `lines`, `all`, `input`, `arguments`, `reading`, `writing`, `exists`,
+`line`, `lines`, `all`, `input`, `reading`, `writing`, `exists`,
 `variable`, `requested`, `output`
+
+⚠ `arguments` used to be listed here and is **reserved** — `the arguments` has no
+mandatory tail, so nothing tells it from a variable of that name.
+
+**Given back 2026-09-23** — `characters`, `delivery`, `entry`, `key`, `interrupt`,
+`environment`, `read` and `channel`. Each has a MANDATORY token immediately after it,
+which is the whole test:
+
+| Word | The shape that wanted it | Mandatory token |
+|---|---|---|
+| `characters` | `the characters from <a> to <b> of <t>` | `from` |
+| `delivery` | `the delivery from <channel>` | `from` |
+| `entry` | `the entry for <k> in <m>` | `for` |
+| `key` | `<m> has a key for <k>` | `for` |
+| `channel` | `a channel of <T>` | `of` |
+| `interrupt` | `the interrupt is requested` | `is` |
+| `environment` | `the environment variable <n>` | `variable` |
+| `read` | `read a line from the input` | `line` / `all` |
+
+So `Define key as 5.`, `given (the number entry)` and a record field named `channel` all
+work. ⚠ `length`, `size`, `contents` and `position` are **reserved** despite also taking a
+mandatory `of`: their shape is `the <word> of <x>`, which named field access claims first,
+so freeing them needs the type-directed resolution `rows` and `columns` use.
 
 **Type names** — `text`, `fact` and `bits` are contextual too. The lexer has no token for any
 of them; they are recognised by lexeme in type position, so `Define text as "hi".` is legal.

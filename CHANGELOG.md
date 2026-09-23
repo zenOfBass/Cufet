@@ -1,10 +1,59 @@
-# Changelog
+﻿# Changelog
 
 All notable changes to Cufet are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ---
+
+## [Unreleased]
+
+### Changed
+
+- **Eight reserved words given back** — `characters`, `delivery`, `entry`, `key`, `interrupt`,
+  `environment`, `read` and `channel` are ordinary names again, usable as variables, parameters,
+  record fields and loop iterators.
+
+  ★★ **No new rule was invented.** `Parser.EffectiveType` already stated the test — *only a word
+  whose shape has a MANDATORY distinguishing token can be freed* — and these eight each have one
+  immediately after them: `from` for `characters` and `delivery`, `for` for `entry` and `key`,
+  `of` for `channel`, `is` for `interrupt`, `variable` for `environment`, `line`/`all` for `read`.
+  A variable of the same name never produces that shape, so the lookahead is total.
+
+  ★ **Four of them had already cost a rename in this repository's own code** — `channel`, `key`,
+  `entry` and `interrupt`, the last two while writing `tools/snake/`. A reserved word is taken from
+  every program forever, as a variable AND a field AND a parameter, whether or not any program
+  wants the feature that asked for it.
+
+  ⚠⚠ **`length`, `size`, `contents` and `position` were tried and deliberately left reserved.**
+  They take a mandatory `of` too, but their shape is `the <word> of <x>` — which the NAMED FIELD
+  ACCESS path claims before the expression switch ever runs. The prelude's own `the length of`
+  broke on the first build and said so. Freeing them needs type-directed resolution in the
+  checker, the interpreter and the compiler, the way `rows` and `columns` already resolve; that is
+  a separate piece of work, not an oversight. ⚠ `range` and `replace` cannot be freed by this rule
+  at all: their `to` and `with` come after an expression, so nothing ADJACENT distinguishes them.
+
+### Fixed
+
+- **`GRAMMAR.md` §1 was wrong in both directions, and now has a test.** §1 opens by promising it
+  lists every word that cannot be a variable name. MEASURED: **ten reserved words were missing
+  from it** — the whole concurrency family, `channel` among them — so a reader checking the list
+  before naming a variable `channel` was told it was free. Five words freed on 2026-09-12 (`at`,
+  `rows`, `columns`, `matrix`, `filled`) were still listed as taken, along with four token names
+  that do not exist (`At`, `RowsKw`, `ColumnsKw`, `FilledKw`). `arguments` was listed as BOTH
+  reserved and contextual.
+
+  ★★ `ReservedWordDriftTests` now pins §1 against the lexer in both directions, by RUNNING the
+  lexer rather than trusting a list. ⚠ This document had drifted this way before — see the sweep
+  recorded further down this file — which is why it gets a test and not just a correction.
+
+- **Four dead `TokenType` members removed** — `Book`, `Books`, `Rabbit` and `Ordinal` were declared
+  and referenced nowhere in `src`, `tests` or `editors`. They cost no name, but each carried a doc
+  comment asserting a reservation that had been deliberately removed, directly contradicting the
+  lexer's own comment explaining why those words are free.
+
+  ★ The full audit found **no dead keywords** — every one of the 132 lexer literals is consumed by
+  the parser, so the `descend` case of 2026-09-19 does not repeat.
 
 ## [0.25.0] — 2026-09-22
 
