@@ -188,6 +188,24 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **A book's helpers leaked if the file wrapped them in a `Pull`.** The privacy rename walked the
+  FLAT statement list, so anything declared inside a top-level `Pull … Done.` was never renamed —
+  and a `Bind` there is hoisted to a free function by both backends, so whoever pulled the book
+  could call it by name.
+
+  ⚠⚠ MEASURED on two books differing only in that wrapper: the flat one's helper was refused
+  with "isn't defined", and the wrapped one answered `42` to the host. ★ Not a rare shape — a file
+  keeps its declarations inside a pull precisely so a SIGNATURE can name a type that pull
+  introduces, which is exactly how `tools/snake/screen.cufe` was written.
+
+  ★ Both halves now ask `FlattenHoistable`, the one answer to "which scopes is hoisting
+  transparent to", so the names gathered and the declarations renamed cannot disagree. The rename
+  matches by REFERENCE rather than by name, because a local inside some function body may be
+  spelled like a hidden helper and is none of the loader's business.
+
+  ⚠ A plain `Define` inside a pull is still left alone: it is a value binding in that block, not
+  something the host could name. Same line directory namespaces draw.
+
 - **An axiom's newline came out CRLF interpreted and LF compiled, on Windows.** The runtime's own
   rule is that a TERMINATOR is written deliberately and DATA is passed through untouched, and the
   compiled program keeps it by putting stdout in binary mode. The interpreter's shim is loaded

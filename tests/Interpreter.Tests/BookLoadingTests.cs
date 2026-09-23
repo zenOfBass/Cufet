@@ -227,6 +227,86 @@ public class BookLoadingTests : IDisposable
         Assert.Contains("'node' is not a defined object type", type.Message);
     }
 
+    /// <remarks>
+    /// ★★★ THE WRAPPER USED TO DECIDE PRIVACY, which nobody chose. `MakePrivate` walked the FLAT
+    /// statement list, so a declaration written inside a top-level `Pull … Done.` was never
+    /// renamed — and a `Bind` there is hoisted to a free function by both backends, so whoever
+    /// pulled the book could call it by name.
+    ///
+    /// ⚠⚠ MEASURED 2026-09-22 on two books differing ONLY in that wrapper: the flat one's helper
+    /// was refused, and the wrapped one answered 42 to the host.
+    ///
+    /// ★ It is not a rare shape. A file keeps its declarations inside a pull precisely so a
+    /// SIGNATURE can name a type that pull introduces — `tools/snake/screen.cufe` was written that
+    /// way for exactly that reason, and every book written like it leaked everything beside its
+    /// module.
+    /// </remarks>
+    [Fact]
+    public void AHelperInsideATopLevelPull_IsHiddenToo()
+    {
+        Write("wrapped", """
+            Pull a book on math.
+                Bind number to wrapped-secret: Return 42. Done.
+
+                Define object wrapped with () and book:
+                    Bind number to answer: Return cast wrapped-secret. Done.
+                Done.
+            Done.
+            """);
+
+        // The module still works — the file's own reference was renamed with the declaration.
+        Assert.Equal("42", Run("""
+            Pull a book on wrapped.
+                State cast wrapped's answer.
+            Done.
+            """));
+
+        var refused = Refused("""
+            Pull a book on wrapped.
+                State cast wrapped-secret.
+            Done.
+            """);
+        Assert.Contains("'wrapped-secret' isn't defined", refused.Message);
+    }
+
+    /// <remarks>
+    /// ★ A TYPE declared inside the pull is hidden by the same walk, and the helper that hands one
+    /// back still works — which is the pair that proves the rename reached the type positions as
+    /// well as the value ones.
+    /// </remarks>
+    [Fact]
+    public void ATypeInsideATopLevelPull_IsHiddenAndStillUsable()
+    {
+        Write("boxes", """
+            Pull a book on math.
+                Define object box with (the number side):
+                    Bind number to area: Return one's side * one's side. Done.
+                Done.
+
+                Bind box to boxed, given (the number n): Return a new box { the side n }. Done.
+
+                Define object boxes with () and book:
+                    Bind number to squared, given (the number n):
+                        Return cast (cast boxed on (n))'s area.
+                    Done.
+                Done.
+            Done.
+            """);
+
+        Assert.Equal("25", Run("""
+            Pull a book on boxes.
+                State cast boxes's squared on (5).
+            Done.
+            """));
+
+        var refused = Refused("""
+            Pull a book on boxes.
+                Define mine as a new box { the side 2 }.
+            Done.
+            """);
+        Assert.Contains("'box' is not a defined object type", refused.Message);
+    }
+
     [Fact]
     public void TwoBooksMayEachHaveAHelperOfTheSameName()
     {

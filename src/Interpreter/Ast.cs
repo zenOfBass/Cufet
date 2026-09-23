@@ -1290,6 +1290,25 @@ public static class Runnable
         or BindStatement;
 }
 
+/// <summary>Statement identity by REFERENCE, for a set that must not merge two lookalikes.</summary>
+/// <remarks>
+/// ★★ A statement is a RECORD, so two of them that read alike are equal by value — and a set
+/// built with the default comparer silently merges them. Every caller here is asking "is this the
+/// very statement I picked out", which value equality answers wrongly for a file containing the
+/// same line twice.
+///
+/// ⚠ Shared because it is now asked from two places: `Cite` placement, and the book loader's
+/// privacy rename, which has to rename EXACTLY the declarations it decided to hide. A second copy
+/// would be a second thing to keep in step.
+/// </remarks>
+internal sealed class ByReference : IEqualityComparer<IStatement>
+{
+    public static readonly ByReference Instance = new();
+    public bool Equals(IStatement? left, IStatement? right) => ReferenceEquals(left, right);
+    public int GetHashCode(IStatement statement) =>
+        System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(statement);
+}
+
 // Whole-tree search, shared by both backends.
 //
 // ★ WHY REFLECTION rather than a switch with an arm per node: a hand-written walk over ~95 node

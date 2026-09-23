@@ -131,15 +131,6 @@ public static class CiteExpansion
                   splice: statement => statement is CufetAxiomDefinition ? [] : null)
             : statements;
 
-    /// <summary>Reference identity, because two `Cite` statements that read alike are equal by value.</summary>
-    private sealed class ByReference : IEqualityComparer<IStatement>
-    {
-        public static readonly ByReference Instance = new();
-        public bool Equals(IStatement? left, IStatement? right) => ReferenceEquals(left, right);
-        public int GetHashCode(IStatement statement) =>
-            System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(statement);
-    }
-
     private static IReadOnlyList<IStatement> Held(
         Dictionary<string, CufetAxiomDefinition> blocks,
         HashSet<string> runnable,

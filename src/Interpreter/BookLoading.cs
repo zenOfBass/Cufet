@@ -934,19 +934,42 @@ public static class BookLoading
     {
         // What the host is meant to see: the modules. Everything else the file declares at its
         // top level is its own.
+        //
+        // ⚠⚠ "TOP LEVEL" IS WHAT THE HOIST MEANS BY IT, and asking the wrong question here let a
+        // file's working material escape. This walked the FLAT list, so a declaration written
+        // inside a top-level `Pull … Done.` was never renamed — and a `Bind` there is hoisted to a
+        // free function by both backends, so the host could call it by name.
+        //
+        // MEASURED 2026-09-22 on two books differing only in that wrapper: the flat one's helper
+        // was refused with "isn't defined", and the wrapped one's answered 42 to whoever pulled
+        // the book. ★ It is not a rare shape — a file keeps its declarations inside a pull
+        // precisely so a signature can name a type the pull introduces, which is why
+        // `tools/snake/screen.cufe` was written that way.
+        //
+        // ★ `FlattenHoistable` is the one answer to "which scopes is hoisting transparent to",
+        // already public because both backends need it. Asking it cannot drift from the hoist.
         var hidden = new Dictionary<string, string>(StringComparer.Ordinal);
-        foreach (var statement in statements)
+        var flat   = new HashSet<IStatement>(statements, ByReference.Instance);
+
+        foreach (var statement in TypeChecker.FlattenHoistable(statements))
         {
             string? name = statement switch
             {
                 ObjectDefinition o when !exemptModules
                                      || !TypeChecker.IsModuleConformer(o.ConformedInterfaces) => o.Name,
                 BindStatement { UntoType: null } b => b.Name,
-                DefineStatement d => d.Name,
                 // ⚠ An interface was the one declaration kind missing here, so one written beside a
                 // module escaped the file it belongs to — silently, and against the rule stated just
                 // above. Nobody decided that; the switch simply had no case for it.
                 InterfaceDefinition i => i.Name,
+
+                // ⚠⚠ A `Define` ONLY AT THE FLAT TOP LEVEL, unlike the three above. The others are
+                // program-scope wherever they are written — that is what makes them reachable and
+                // therefore what makes hiding them necessary. A plain `Define` inside a pull is a
+                // VALUE BINDING living in that block, which the host could not name if it tried:
+                // hiding it would rename somebody's local for no reason. Same line the directory
+                // namespaces draw, and `AstSearch.EveryStatement` states it.
+                DefineStatement d when flat.Contains(d) || d.Permanent => d.Name,
                 _ => null,
             };
             // A space keeps it unwritable, and naming the book keeps two books’ helpers apart.
@@ -978,9 +1001,19 @@ public static class BookLoading
         });
 
         // The declarations themselves, renamed to match what now refers to them.
-        var renamed = new List<IStatement>(rebuilt.Count);
-        foreach (var statement in rebuilt)
-            renamed.Add(statement switch
+        //
+        // ⚠⚠ REACHING THE SAME STATEMENTS THE GATHERING DID, which a flat loop did not. The set
+        // is taken from `FlattenHoistable` again and matched by REFERENCE, so the two halves ask
+        // one question and cannot answer it differently — a declaration inside a top-level pull is
+        // renamed exactly when it was hidden.
+        //
+        // ★ By reference rather than by name, because a name is not unique in a file: a local
+        // `Define` inside some function body may be spelled like a hidden helper, and renaming
+        // THAT would rewrite a binding the host was never able to reach.
+        var toRename = new HashSet<IStatement>(TypeChecker.FlattenHoistable(rebuilt), ByReference.Instance);
+
+        return AstRebuilder.Apply(rebuilt, type => type, replace: statement =>
+            !toRename.Contains(statement) ? statement : statement switch
             {
                 // ⚠ ConformedInterfaces is a list of STRINGS, so neither the type substitution nor
                 // the reflective walk reaches it — renaming a private interface without this left the
@@ -996,6 +1029,5 @@ public static class BookLoading
                 InterfaceDefinition i when hidden.TryGetValue(i.Name, out var to) => i with { Name = to },
                 _ => statement,
             });
-        return renamed;
     }
 }
