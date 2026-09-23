@@ -10,6 +10,35 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+- **`the output`** — standard output as a `writable stream of text`, so a program can write part
+  of a line. `Write "name> " to the output.`
+
+  ★★ **The other half of `the input`, and almost entirely already built.** `Write <text> to
+  <stream>.`, the `writable stream of text` type and the static direction check all existed for
+  file streams; what was missing was the name. So reading from `the output` is refused by
+  machinery nobody wrote for it, and `State` keeps its job — ending the line.
+
+  ★ **It flushes on every write**, because a prompt has to appear before the read that follows it.
+  ⚠ MEASURED: on the interpreted side that flush is insurance, since .NET already auto-flushes
+  `Console.Out`; the COMPILED side genuinely needs it, and a test that reads the prompt before
+  answering it fails in twenty seconds without it.
+
+  ★ **`terminals`'s `put` is no longer C.** It was an axiom for one reason — nothing else could
+  write to standard output — and is now a single `Write … to the output.` That also takes it out
+  of the axiom-output hole: an axiom writes with C's own stdout, past whatever writer the
+  interpreter was handed.
+
+  ⚠⚠ **BREAKING: `output` is no longer available as a variable name.** `Define output as 42.` is
+  refused, the way `Define input as …` always has been. That reverses a decision the language had
+  deliberately made and pinned with four tests — one of them warning that if `output` ever came
+  back a keyword, "someone's variable is painted as language syntax". It is a NAME rather than a
+  keyword, so the warning still holds; what changed is that the name is now taken.
+
+  ★ The contextual rule those tests really guarded is untouched: `output becomes …` still parses
+  as a reassignment and `output | …` as the left of a pipe. Both are now refused by the TYPE
+  checker rather than the parser, which is what proves it. ⚠ The word still means "send
+  downstream" inside a pipe stage — `input` has always carried the same pair.
+
 - **`terminals` hands out cursor control** — `screen-on` (make the terminal act on sequences;
   Windows needs telling, POSIX does not), and `screen-taken` / `screen-returned` / `home` /
   `cleared` / `cursor-hidden` / `cursor-shown` as TEXT to print.

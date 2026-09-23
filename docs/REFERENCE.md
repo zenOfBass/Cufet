@@ -3337,6 +3337,50 @@ Until false.
 value (empty input → `""`; never void). `read all lines from the input`
 splits on newlines and returns a `series of text` (empty input → empty series).
 
+#### Writing to standard output
+
+The pre-defined name `output` holds standard output as a `writable stream of text` — the other
+half of `the input`. `State` always ends a line; this is how you write part of one:
+
+```cufet
+Write "Loading" to the output.
+Write "..." to the output.
+State " done".
+```
+```output
+Loading... done
+```
+
+★ **It costs no new anything.** `Write <text> to <stream>.` already existed for file streams, and
+so did the type — so reading from `the output` is refused by the direction check that was already
+there:
+
+```cufet-refused
+Define line as read a line from the output.
+```
+```output
+That doesn't work: read expects a readable stream of text.
+Here on line 1, you're trying to read from a writable stream of text.
+Use a readable stream of text as the source — 'the input' is always available, or use 'With the file ... open for reading as s:' for a file stream.
+```
+
+★ **It flushes on every write**, so a prompt reaches the reader before the program blocks waiting
+for their answer:
+
+```cufet-fragment
+Write "name> " to the output.
+Define who as read a line from the input.
+```
+
+⚠ **A TERMINATOR is not the same as DATA**, and this is where that first shows. `State` ends its
+line the way the platform does — CRLF on Windows — while a newline written INSIDE a text is a byte
+you chose and is passed through untouched. So `Write "a\nb" to the output.` sends a bare line feed on
+every platform, and `State "a"` does not.
+
+⚠ `Define output as …` is refused, exactly as `Define input as …` is: the name is taken. ⚠ The
+word also means "send this value downstream" inside a pipe stage, which `input` has always done
+too — `for each s from input, … output s` — and the two readings are decided by where they appear.
+
 #### File I/O
 
 **Reading an entire file** — returns a failable value; must be handled:

@@ -3175,6 +3175,34 @@ unobservable today, since a book is always found in one of the two search places
 folder is a fallback at every level — it becomes visible only once a book can live somewhere that
 is not itself a search place.
 
+### `the output`
+
+**`output` is a pre-defined NAME, not a keyword** — a `writable stream of text` bound to standard
+output, seeded into the global scope and into every fresh function scope exactly as `input` is. So
+`Define output as …` is refused with "already defined in this scope", which is the price `input`
+already charges.
+
+★ Nothing was added to the grammar. `Write <text> to <stream>.` is the file-stream statement, the
+type existed, and reading from it is refused by the direction check that was already there.
+
+⚠ The word carries two readings, decided by position: `output <v>` inside a pipe stage sends a
+value downstream, and `the output` is a stream. `input` has carried the same pair since pipes
+shipped — `for each s from input, … output s`.
+
+⚠⚠ **This TOOK a name the language had deliberately kept free.** `output` was usable as an
+ordinary variable until 2026-09-22 and was pinned as such. The contextual rule survives and is
+still pinned: `output becomes …` parses as a reassignment, `output | …` as the left of a pipe, and
+both are refused by the TYPE checker rather than the parser — which is the evidence the parser
+still reads them that way.
+
+⚠ **It flushes on every write, and the two backends do it differently.** The interpreter calls
+Flush on the writer it was handed; the compiled program compares the FILE* to `stdout` at run time
+and calls `fflush`. The comparison is at RUN time on purpose: a stream may arrive through a
+parameter, so asking the syntax which stream it is would only answer when the answer was obvious.
+
+⚠ A newline written through it is DATA and stays a bare line feed; `State`'s terminator is
+CUFET_NL and is CRLF on Windows.
+
 ### Directory namespaces
 
 ⚠⚠ **Inside a project none of the above is how files find each other.** A project is a tree with
