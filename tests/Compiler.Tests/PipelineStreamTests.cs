@@ -119,6 +119,149 @@ public class PipelineStreamTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src, "hello\nworld\nthree\n"), CompileRaw(src, "hello\nworld\nthree\n"));
     }
 
+    // ── `the output` — standard output as a writable stream ───────────────────────
+    //
+    // ★★ The other half of `the input`, and the only thing that was missing: `State` always ends
+    // a line, so nothing could write PART of one. Everything it is built from — the statement, the
+    // type, the direction check — already existed for file streams.
+
+    [Fact]
+    public void Output_WritesWithoutEndingTheLine_MatchesInterpreter()
+    {
+        const string src = """
+            Write "one" to the output.
+            Write " two" to the output.
+            State " three".
+            """;
+        // ⚠ RAW. This is a test about which bytes come out, so normalising them first would
+        // remove the thing being measured — one line, not three.
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+        Assert.StartsWith("one two three", InterpretRaw(src));
+    }
+
+    /// <remarks>
+    /// ★★ THE REASON `the output` FLUSHES. A prompt is written, then the program BLOCKS on a read;
+    /// if the write is sitting in a buffer, the reader is staring at nothing while the program
+    /// waits for them. It is why `terminals`'s `put` was an axiom that called `fflush` by hand,
+    /// and the stream now owes the same promise.
+    ///
+    /// ⚠ What this can and cannot see: the harness feeds stdin from a string, so nothing here
+    /// would DEADLOCK if the flush were dropped — what it pins is that the prompt is in the output
+    /// at all and in the right order, on both backends.
+    /// </remarks>
+    [Fact]
+    public void Output_PromptThenRead_KeepsTheOrder_MatchesInterpreter()
+    {
+        const string src = """
+            Write "name> " to the output.
+            Define who as read a line from the input.
+            State (who but void is "nobody").
+            """;
+        Assert.Equal(InterpretRaw(src, "ada" + (char)10), CompileRaw(src, "ada" + (char)10));
+        Assert.StartsWith("name> ada", InterpretRaw(src, "ada" + (char)10));
+    }
+
+    /// <remarks>
+    /// ★★★ THE FLUSH, PINNED BY READING THE PROMPT BEFORE ANSWERING IT. The test above cannot
+    /// see it: a batch capture reads everything after the process exits, and exit flushes the
+    /// buffer anyway — so dropping the flush left all four of those green. MEASURED by sabotage
+    /// 2026-09-22, which is the only reason this test exists.
+    ///
+    /// ★ What a flush actually buys is TIMING, so the only way to test it is to be the person at
+    /// the keyboard: write nothing to the child, and insist the prompt has already arrived. With
+    /// stdout redirected it is block-buffered, so six unflushed bytes will not show up — the
+    /// failing direction is decided, not racy.
+    ///
+    /// ⚠ Both backends, because they flush by different means: the interpreter calls Flush on the
+    /// stream it was handed, the compiled program calls fflush when the FILE* is stdout.
+    /// </remarks>
+    [Fact]
+    public void Output_PromptArrivesBeforeTheAnswerIsTyped_OnBothBackends()
+    {
+        const string src = """
+            Write "name> " to the output.
+            Define who as read a line from the input.
+            State (who but void is "nobody").
+            """;
+
+        var file = Path.Combine(TestScratch.Root, "prompt-" + Guid.NewGuid().ToString("N") + ".cufe");
+        File.WriteAllText(file, src);
+        var binary = CompileToBinary(src);
+        try
+        {
+            AssertPromptComesFirst(CufetBinary.Path, file);
+            AssertPromptComesFirst(binary, null);
+        }
+        finally
+        {
+            try { File.Delete(file); }   catch { }
+            try { File.Delete(binary); } catch { }
+        }
+    }
+
+    /// <summary>Starts a program, insists on the prompt, and only then answers it.</summary>
+    private static void AssertPromptComesFirst(string command, string? argument)
+    {
+        var psi = new System.Diagnostics.ProcessStartInfo(command)
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardInput  = true,
+            UseShellExecute        = false,
+        };
+        if (argument is not null) psi.ArgumentList.Add(argument);
+
+        using var proc = System.Diagnostics.Process.Start(psi)!;
+
+        // ⚠ Exactly the prompt's length. Asking for more would block waiting for the answer this
+        // has not sent yet, which would fail a WORKING program.
+        var buffer  = new char[6];
+        var reading = Task.Run(() => proc.StandardOutput.ReadBlock(buffer, 0, buffer.Length));
+
+        if (!reading.Wait(TimeSpan.FromSeconds(20)))
+        {
+            try { proc.Kill(entireProcessTree: true); } catch { }
+            Assert.Fail($"{Path.GetFileName(command)}: the prompt never arrived — it is sitting in a "
+                      + "buffer while the program waits for input that a person could not know to type.");
+        }
+
+        Assert.Equal("name> ", new string(buffer, 0, reading.Result));
+
+        proc.StandardInput.Write("ada" + (char)10);
+        proc.StandardInput.Close();
+        Assert.Contains("ada", proc.StandardOutput.ReadToEnd());
+        proc.WaitForExit(20_000);
+    }
+
+    /// <remarks>
+    /// ⚠ A TERMINATOR and DATA are different things, and this is where a reader meets that for
+    /// the first time. `State` ends its line the way the platform does — CRLF on Windows — while a
+    /// newline INSIDE a text is a byte the program chose and is passed through untouched. The two
+    /// backends must agree about both, which is the whole of the rule the runtime already states.
+    /// </remarks>
+    [Fact]
+    public void Output_ADataNewline_IsNotATerminator_MatchesInterpreter()
+    {
+        const string src = """
+            Write "a\nb" to the output.
+            State "".
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+        Assert.StartsWith("a" + (char)10 + "b", InterpretRaw(src));
+    }
+
+    /// <remarks>
+    /// ★ The direction check was already there for file streams, so `the output` inherits it — no
+    /// code was written to refuse this. The test exists because inheriting a refusal is exactly
+    /// the kind of thing that is true until somebody adds a special case.
+    /// </remarks>
+    [Fact]
+    public void Output_CannotBeReadFrom()
+    {
+        var refused = Assert.ThrowsAny<Exception>(
+            () => Interpret("Define line as read a line from the output."));
+        Assert.Contains("readable stream of text", refused.Message);
+    }
+
     // ── Slice 9C: subprocess (run) + pipes ──
     // POSIX-only (fork/exec/pipe/waitpid). LINUX-ONLY tests: on Windows the compiled binary can't
     // build (mingw has no fork), so skip — on CI Linux both interpreter (.NET) and binary run in

@@ -968,7 +968,11 @@ public sealed partial class TypeChecker
         var savedV = _scopes.ToList();
         var savedT = _typeScopes.ToList();
 
-        var fresh = new Dictionary<string, TypeInfo> { ["input"] = BuiltinInput };
+        var fresh = new Dictionary<string, TypeInfo>
+        {
+            ["input"]  = BuiltinInput,
+            ["output"] = BuiltinOutput,
+        };
         // Innermost-last so a nearer pull wins, matching ordinary lookup.
         foreach (var scope in savedV)
             foreach (var (name, info) in scope)
@@ -1102,7 +1106,8 @@ public sealed partial class TypeChecker
 
     public Program Check(Program program)
     {
-        _scopes[0]["input"] = BuiltinInput;
+        _scopes[0]["input"]  = BuiltinInput;
+        _scopes[0]["output"] = BuiltinOutput;
         program = WithPrelude(program);
         // Held for the whole-program question TaskCaptures.WriteIsObservable asks: does anything
         // OUTSIDE a task read a name the task writes? Set after the prelude so the program it
@@ -1936,6 +1941,37 @@ public sealed partial class TypeChecker
     // so 'the input' is visible everywhere, including inside function bodies.
     private static readonly TypeInfo BuiltinInput =
         new TypeInfo(new ReadableStreamType(CufetType.Text), new VariableReference("input", 0, 0), 0);
+
+    /// <summary>`the output` — standard output, as the stream you can write a PART of a line to.</summary>
+    /// <remarks>
+    /// <para>
+    /// ⭐⭐ **The symmetry that was missing.** `the input` has been a `readable stream of text`
+    /// since streams existed, and REFERENCE already said "a readable stream of text works anywhere
+    /// `the input` works" — but there was nothing on the other side, so a program could READ
+    /// standard input and could not WRITE standard output. `State` ends a line, always, which is
+    /// right for a program saying something and wrong for a prompt.
+    /// </para>
+    /// <para>
+    /// ★ It cost no keyword, no grammar and no type. `Write &lt;text&gt; to &lt;stream&gt;.` already
+    /// existed for file streams, `writable stream of text` already existed as a type, and the
+    /// direction is already statically enforced — so READING from `the output` is refused by the
+    /// machinery that was already there rather than by anything written for it.
+    /// </para>
+    /// <para>
+    /// ⚠ The word now means two things, exactly as `input` already did: `output &lt;v&gt;` inside a
+    /// pipe stage sends a value downstream, and `the output` is where a program prints.
+    /// `examples/concurrency/parallelsum.cufe` uses `from input` and `output s` in adjacent lines
+    /// and has since pipes shipped, so this is symmetric with a decision already made rather than
+    /// a new compromise.
+    /// </para>
+    /// <para>
+    /// ⚠ Seeded like `input`, into the global scope AND every fresh function scope, so a body
+    /// written anywhere can print. That also means `Define output as …` is refused with "already
+    /// defined in this scope" — the same price `input` charges.
+    /// </para>
+    /// </remarks>
+    private static readonly TypeInfo BuiltinOutput =
+        new TypeInfo(new WritableStreamType(CufetType.Text), new VariableReference("output", 0, 0), 0);
 
     // Flattens statements through Pull...Done scope bodies so that Bind/Object/etc. declarations
     // inside Pull scopes are visible to the hoisting passes (hoisting is transparent to Pull scopes).

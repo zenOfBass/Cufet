@@ -287,7 +287,11 @@ public sealed partial class Interpreter
     {
         var text = (string)Evaluate(wts.Value);
         var sv   = (WritableStreamValue)Evaluate(wts.Stream);
-        try { sv.Writer.Write(text); }
+        try
+        {
+            sv.Writer.Write(text);
+            if (sv.Flushes) sv.Writer.Flush();
+        }
         catch (IOException ex)
         { throw new FailureUnwind(new FailureValue(ex.Message, "disk-error")); }
     }

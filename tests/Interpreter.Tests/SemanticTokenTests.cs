@@ -41,16 +41,18 @@ public class SemanticTokenTests
     }
 
     [Fact]
-    public void AVariableNamedOutput_IsAVariableEverywhere()
+    public void OutputOutsideAPipeStage_IsAVariableNotAKeyword()
     {
         // The other half. If this ever comes back "keyword", the producer has started doing what
-        // the grammar used to do wrong, and someone's variable is painted as language syntax.
-        var shapes = Classify("Define output as 9.\nThe output becomes 10.\nState output.")
-            .Select(Shape).ToList();
+        // the grammar used to do wrong, and a name is painted as language syntax.
+        //
+        // ⚠ It used to DEFINE one — `Define output as 9.` — which stopped being legal on
+        // 2026-09-22, when `the output` became standard output. The question is unchanged and so
+        // is the answer: a builtin name is still a NAME, and only the word sitting in a pipe
+        // stage is syntax.
+        var shapes = Classify("Write \"hi\" to the output.").Select(Shape).ToList();
 
-        Assert.Equal(
-            [(1, 8, 6, "variable", true), (2, 5, 6, "variable", false), (3, 7, 6, "variable", false)],
-            shapes);
+        Assert.Contains((1, 19, 6, "variable", false), shapes);
     }
 
     [Fact]

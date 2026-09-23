@@ -174,49 +174,48 @@ public class PipeTests
         Assert.Equal("done", output);
     }
 
-    // ── Contextual recognition: 'output' as a variable name ──────────────────────
+    // ── Contextual recognition: `output` outside a pipe stage ──────────────────────
+    //
+    // ⚠⚠ THESE THREE USED TO PIN `output` AS A FREE VARIABLE NAME, and that guarantee was given
+    // up on 2026-09-22, when `the output` became standard output — a `writable stream of text`
+    // seeded like `the input`. `Define output as 42.` is refused now, deliberately.
+    //
+    // ★ What they were really guarding survives, and is what they check instead: the parser must
+    // not read `output` as a pipe-output statement merely because the word is there. Each program
+    // below is refused by the TYPE CHECKER, which is only possible if `output becomes …` still
+    // parsed as a reassignment and `output | …` as the left of a pipe. A PARSE error here would
+    // mean the contextual rule had gone.
 
-    // 'output' used as a variable name (not a pipe output keyword) must still work.
     [Fact]
-    public void OutputAsVariableName_NoConflict()
+    public void Output_IsTheStandardOutputStream_AndCannotBeRedefined()
     {
-        Assert.Equal("42", Run("Define output as 42. State output."));
+        var refused = Assert.ThrowsAny<Exception>(() => Run("Define output as 42. State output."));
+        Assert.Contains("'output' is already defined in this scope", refused.Message);
     }
 
-    // 'output becomes' is reassignment, not a pipe output statement.
     [Fact]
-    public void OutputBecomes_IsReassignment()
+    public void OutputBecomes_StillParsesAsReassignment()
     {
-        Assert.Equal("99", Run("Define output as 1. output becomes 99. State output."));
+        var refused = Assert.ThrowsAny<Exception>(() => Run("output becomes 99."));
+        Assert.Contains("'output' holds writable streams of text", refused.Message);
     }
 
-    // 'output' followed by '|' is the left side of a pipe, not an output statement.
     [Fact]
-    public void OutputPipe_VariableNameOnLeftOfPipe()
+    public void OutputBeforeAPipe_StillParsesAsAName()
     {
-        // 'output' here is a variable holding a function, piped into consumer.
-        // This tests that IsOutputStatement() returns false when next token is Pipe.
-        var output = Run("""
-            Bind void to emit:
-              output 7.
-            Done.
-
+        var refused = Assert.ThrowsAny<Exception>(() => Run("""
             Bind void to print:
               for each item from the input:
                 State item.
               Done.
             Done.
 
-            Define output as emit.
             output | print.
-            """);
-        Assert.Equal("7", output);
+            """));
+        Assert.Contains("a pipe stage must be a function", refused.Message);
+        Assert.Contains("writable stream of text", refused.Message);
     }
 
-    // ── output keyword is contextual inside a pipe stage ─────────────────────────
-
-    // 'output' as the first word of a statement inside a producer function IS a
-    // pipe-output statement, even though 'output' is not a reserved keyword globally.
     [Fact]
     public void OutputInsideProducer_SendsToChannel()
     {

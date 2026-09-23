@@ -511,12 +511,27 @@ public sealed partial class CodeGenerator
 
             case WriteToStreamStatement wts:
             {
-                // write <text> to <stream> — incremental, no newline added (fputs); flushed at close.
+                // write <text> to <stream> — incremental, no newline added (fputs).
                 string v = EmitExpr(wts.Value);
                 FlushPreEmits(sb, indent);
                 string strm = EmitExpr(wts.Stream);
                 FlushPreEmits(sb, indent);
-                sb.AppendLine($"{indent}fputs({v}, {strm});");
+
+                // ★★ FLUSHED WHEN IT IS THE STANDARD OUTPUT, and the test is a pointer compare at
+                // RUN time rather than a look at what was written. A stream reaches here as a
+                // FILE*, and it may have arrived through a parameter — `given (the writable stream
+                // of text where)` called with `the output` — so asking the syntax which stream this
+                // is would answer correctly only when the answer was already obvious.
+                //
+                // ⚠ A prompt is why it matters: `Write "Name? " to the output.` then a read has to
+                // SHOW the question before it waits. A file has no reader waiting mid-write, so it
+                // pays nothing.
+                //
+                // ⚠ Bound to a local first: `strm` is an expression, and naming it twice would
+                // evaluate it twice.
+                sb.AppendLine($"{indent}{{ FILE* cufet_ws = {strm};");
+                sb.AppendLine($"{indent}  fputs({v}, cufet_ws);");
+                sb.AppendLine($"{indent}  if (cufet_ws == stdout) fflush(cufet_ws); }}");
                 break;
             }
 
@@ -2157,7 +2172,8 @@ public sealed partial class CodeGenerator
         ChaseLiteral          => ChaseType.Instance,
         MatrixSized           => MatrixType.Instance,
         MatrixAccess          => TNumber,
-        VariableReference vr  => vr.Name == "input" ? new ReadableStreamType(TText)   // `the input` = stdin
+        VariableReference vr  => vr.Name == "output" ? new WritableStreamType(TText)  // `the output` = stdout
+                               : vr.Name == "input" ? new ReadableStreamType(TText)   // `the input` = stdin
                                : _narrowedVars.TryGetValue(vr.Name, out var nt) ? nt.Type
                                : _closureSelf is { } cs && vr.Name == cs.Name ? cs.Type   // recursive self-reference
                                : _varTypes.TryGetValue(vr.Name, out var t) ? t
@@ -2869,6 +2885,7 @@ public sealed partial class CodeGenerator
         VariableReference v   => v.Name == "the failure" && _currentFailVar != null ? _currentFailVar
                                 : v.Name == "one" && _methodReceiverType != null ? "(*cv_one)"
                                 : v.Name == "input" ? "stdin"   // `the input` = the stdin stream
+                                : v.Name == "output" ? "stdout" // `the output` = the stdout stream
                                 : _narrowedVars.TryGetValue(v.Name, out var nacc) ? $"({MangleName(v.Name)}){nacc.Access}"
                                // A recursive nested Bind's own name as a VALUE → its closure over the current env.
                                 : _closureSelf is { } cse && v.Name == cse.Name ? $"({RegisterFuncStruct(cse.Type)}){{ .fn = {cse.ClosFn}, .env = cf_envp }}"

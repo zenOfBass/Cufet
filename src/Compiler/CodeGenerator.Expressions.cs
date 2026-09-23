@@ -882,7 +882,7 @@ public sealed partial class CodeGenerator
         var pnames = parameters.Select(p => p.Name).ToHashSet();
         capturesFailure = refs.Contains("the failure") && !defs.Contains("the failure") && _currentFailVar != null;
         return refs.Where(r => !defs.Contains(r) && !pnames.Contains(r)
-                            && r != "input" && r != "the failure"
+                            && r != "input" && r != "output" && r != "the failure"
                             && _varTypes.ContainsKey(r))
                             .OrderBy(x => x).ToList();
     }

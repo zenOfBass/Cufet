@@ -25,7 +25,25 @@ public sealed class ReadableStreamValue
 public sealed class WritableStreamValue
 {
     public readonly TextWriter Writer;
-    public WritableStreamValue(TextWriter writer) => Writer = writer;
+
+    /// <summary>Whether every write must reach the reader immediately.</summary>
+    /// <remarks>
+    /// ★★ TRUE FOR `the output` AND FALSE FOR A FILE. A prompt is the whole reason this
+    /// distinction exists: `Write "Name? " to the output.` followed by a blocking read has to
+    /// SHOW the question before it waits, and a buffer holding it back leaves somebody staring at
+    /// a blank line. A file stream has no reader waiting on it mid-write, and flushing one per
+    /// write would be a syscall per line for nothing.
+    ///
+    /// ⚠ MEASURED 2026-09-22: on THIS side the flush is insurance rather than the mechanism.
+    /// .NET sets AutoFlush on `Console.Out`, so removing it leaves the prompt test green — the
+    /// sabotage was run and did not go red. It is kept because the stream's promise should not
+    /// depend on a default somebody else chose, and because the COMPILED side genuinely needs its
+    /// own flush, where the same sabotage fails the test in twenty seconds.
+    /// </remarks>
+    public readonly bool Flushes;
+
+    public WritableStreamValue(TextWriter writer, bool flushes = false)
+        => (Writer, Flushes) = (writer, flushes);
 }
 
 public sealed partial class Interpreter
@@ -354,7 +372,11 @@ public sealed partial class Interpreter
     {
         var saved = (_scopes.ToList(), _scopeDefOrder.ToList());
 
-        var fresh = new Dictionary<string, object> { ["input"] = new ReadableStreamValue(_in) };
+        var fresh = new Dictionary<string, object>
+        {
+            ["input"]  = new ReadableStreamValue(_in),
+            ["output"] = new WritableStreamValue(_out, flushes: true),
+        };
         // Outermost-first so a nearer pull's alias wins, matching ordinary lookup.
         //
         // ★ Any PULLED module, not just a book. A pulled module is a lexical capability rather
@@ -689,7 +711,13 @@ public sealed partial class Interpreter
         _err = error  ?? Console.Error;
         _in  = input  ?? Console.In;
         _maxCallDepth = maxCallDepth;
-        _scopes[0]["input"] = new ReadableStreamValue(_in);
+        _scopes[0]["input"]  = new ReadableStreamValue(_in);
+        // ⭐ The interpreter's OWN writer, which is the point. `terminals`'s `put` used to reach
+        // standard output through a C axiom, and an axiom writes with C's stdout — straight past
+        // whatever TextWriter the interpreter was handed. That is what made an axiom's output
+        // invisible to a capturing caller. Writing through the stream puts those bytes back where
+        // every other byte the interpreter produces goes.
+        _scopes[0]["output"] = new WritableStreamValue(_out, flushes: true);
         // e.Cancel = true: convert Ctrl-C from "terminate process" into "set our flag."
         // The handler runs on the signal-dispatch thread; volatile bool handles the cross-thread write.
         //

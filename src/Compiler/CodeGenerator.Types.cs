@@ -525,7 +525,7 @@ static const char* cufet_str_lower(const char* s) {
                         def.Methods.Select(m => m.Name)
                            .Concat(def.Getters.Select(g => g.Name))
                            .Concat(def.Setters.Select(s => s.Name)))));
-                var captured = refs.Where(r => !known.Contains(r) && r != "it" && r != "input" && r != "the failure").ToList();
+                var captured = refs.Where(r => !known.Contains(r) && r != "it" && r != "input" && r != "output" && r != "the failure").ToList();
                 if (captured.Count > 0)
                     throw new CompilerException(
                         $"function '{bind.Name}' (inside a Pull-book block) captures '{captured[0]}' from the pull scope — closures are not yet supported by the compiler.");
