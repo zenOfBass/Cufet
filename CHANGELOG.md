@@ -8,6 +8,38 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ## [Unreleased]
 
+### Added
+
+- **`examples/circuits/` — a four-valued logic simulator, and the first multi-file example.**
+  Five programs sharing a directory with nothing pulled and no book anywhere: inside a project a
+  directory is a namespace whose files see each other flatly, and `blueprint.cufe` is what makes
+  the directory a project. `examples/` had no multi-file program until now, so the arc shipped on
+  2026-09-20 had exactly one witness in the repository.
+
+  ★★ **It settles a ROADMAP question: a circuit is a VALUE, not a pipeline.** The decider is
+  feedback — a latch is two gates wired into each other's inputs, so there is no end to push
+  from, and a pipeline cannot express a cycle. Holding the whole state, recomputing every gate
+  from one snapshot and repeating to a fixed point handles cycles as ordinary circuits that take
+  more rounds, or that never settle at all; a ring oscillator is the honest example of the
+  second, and `x` is the right answer for it rather than a hang.
+
+  ★ **Signals are four-valued because hardware is** — `0`, `1`, `x`, `z`, with Verilog's tables.
+  ⚠ The tables are an EXTERNAL answer key, which most of the corpus lacks: they are in the
+  standard and nobody here invented them. `0 and x` is `0`, not `x` — a grounded input pins an
+  AND gate low whatever the other turns out to be — and that entry is the one a from-scratch
+  derivation gets wrong. `z` earns its place twice over: a tri-state bus needs a driver able to
+  say "not me", and without it two drivers on one wire are always contention.
+
+  ★ **The 4-bit ripple-carry adder is checked against arithmetic over all 256 input pairs**, so
+  the gate-level answer is compared with something that is not the gate-level answer.
+
+  ⚠⚠ **NAND is a primitive here, and finding out why was the sharpest thing the program taught.**
+  An AND feeding a NOT is not the same circuit as a NAND: it has an internal wire between them,
+  and in a latch that wire is a second state node nobody seeds. Started from rest it is floating,
+  and on the first round it overwrites the value the latch was holding — so a latch built that
+  way cannot remember anything. It printed `x` where it should have printed what it was given,
+  directly under prose claiming it would remember.
+
 ### Changed
 
 - **Eight reserved words given back** — `characters`, `delivery`, `entry`, `key`, `interrupt`,

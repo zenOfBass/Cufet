@@ -158,11 +158,18 @@ What it means for a value not to be there, and how types relate.
   same-shaped objects don't.
 
 - **Compound-type assignment semantics (intentional split):** records are
-  value-typed (copy), objects are value-typed (copy), series are reference-typed
-  (share). Records and objects are bounded "things"; series are unbounded
-  "collections," and developers intuit copy-vs-share differently. The split is
-  principled, not a bug — do not "unify" it. (Objects use the "struct model":
-  value-on-assignment, mutable-in-place via `becomes` and via mutating methods.)
+  value-typed (copy), objects are value-typed (copy), series and maps are
+  reference-typed (share). Records and objects are bounded "things"; series and
+  maps are unbounded "collections," and developers intuit copy-vs-share
+  differently. The split is principled, not a bug — do not "unify" it. (Objects
+  use the "struct model": value-on-assignment, mutable-in-place via `becomes` and
+  via mutating methods.)
+
+  ⚠ **Maps were unstated here until 2026-09-23** and a reader had to infer which
+  side they fell on. MEASURED: they SHARE. `Define copy as original.` makes a
+  second name for one map, and handing a map to a function lets that function
+  change the caller's. Found by writing `examples/circuits/`, where a settling
+  loop that wrote into the map it was given silently rewrote its caller's inputs.
 
 - **Objects are flat: no classical inheritance, no subtyping, no variance.**
   Inheritance's central cost is hidden coupling and rigid hierarchy — the exact

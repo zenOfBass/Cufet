@@ -2971,9 +2971,14 @@ fields match order-insensitively; positional fields match by order.
 identical fields but different names are different types.
 
 **Assignment semantics differ by kind:** records and objects are value-typed
-(copy on assignment); series are reference-typed (share). Records and objects are
-bounded "things"; series are unbounded "collections" — and the copy-vs-share
-intuition differs accordingly.
+(copy on assignment); series and maps are reference-typed (share). Records and
+objects are bounded "things"; series and maps are unbounded "collections" — and
+the copy-vs-share intuition differs accordingly.
+
+⚠ A shared map is easy to be caught by, because the sharing crosses a call:
+passing a map to a function lets that function change the caller's map, and
+`Define copy as original.` gives a second name rather than a second map. To get a
+private one, build it and copy the entries across — there is no copying form.
 
 Type errors name the violation, the line, and the fix:
 

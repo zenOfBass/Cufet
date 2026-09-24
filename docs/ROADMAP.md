@@ -231,11 +231,13 @@ rabbit's TASKS compose, never its ordinary statements, which stay sequential imp
   checker proves. `examples/concurrency/actor-mailbox.cufe` is a full actor on both backends with
   no new feature. So `automatic` has lost half its justification and rests on circuits alone.
 
-  ★★ **Its witness is most likely the logic-gates book**, which is why these two should be
-  weighed together rather than separately. A circuit simulator pushes signals through a network
-  and reacts to whichever input settles — the guarded multi-input wait, exercised once per GATE
-  rather than once per program. Nothing else on this list demands it, so on its own `automatic`
-  reads as a capability without a caller; with circuits it has one.
+  ⚠⚠ **ITS LAST CLAIMED WITNESS IS GONE, MEASURED 2026-09-23.** This said the witness was most
+  likely the logic-gates book — a circuit simulator "reacts to whichever input settles", once per
+  GATE. `examples/circuits/` is that simulator, and it uses no concurrency whatever: a gate
+  COMBINES all of its inputs, so there is nothing to select between, and the whole network
+  advances by recomputing from one snapshot. The caveat below predicted exactly this and was
+  right. So `automatic` now has no caller anywhere on this list, and wanting one is the argument
+  against building it rather than a gap to fill.
 
   ⚠ The reverse does NOT hold, and it is worth saying so: circuits cannot be built ON `automatic`
   as a message-passing substrate. A gate COMBINES all its inputs; a select takes ONE and ignores
@@ -268,8 +270,19 @@ rather than the operators `bits` already shipped.
   four-valued logic is rejected in core (a rival spelling of "not exactly true") and right here
   (the state of a wire). ⚠ **Truth tables come from Verilog, not the philosophy:** `0 & X` is `0`,
   which naive four-valued logic gets wrong.
-- **Settle before building:** is a circuit a **value** you construct then evaluate, or a
-  **pipeline** you push signals through? Cufet has both shapes; the answer sets the whole surface.
+- ✅ **SETTLED 2026-09-23 — a circuit is a VALUE.** `examples/circuits/` is a working
+  four-valued simulator, and the thing that decides it is FEEDBACK. A latch is two gates wired
+  into each other's inputs, so there is no "one end" to push from; a pipeline cannot express a
+  cycle. What works is holding the whole state, recomputing every gate from it AT ONCE, and
+  repeating to a fixed point — cycles are then not a special case, just a circuit that takes
+  more rounds, or never settles, and never settling is a real behaviour (a ring oscillator) that
+  has to be reportable rather than a hang.
+- ★ **The four-valued signal earned its place, and `z` earned it twice.** A tri-state bus needs a
+  driver able to say "not me"; with two values, two drivers on one wire are always contention and
+  the ordinary way to build a multiplexer is unwriteable.
+- ⚠ **What the witness did NOT need: any of the book.** The simulator is ordinary Cufet — a closed
+  union of gate kinds, a map of wires, and a loop. So the book's remaining question is what it
+  would ADD over that, which is a different and smaller question than the one above.
 
 ---
 
