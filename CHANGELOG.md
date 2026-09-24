@@ -67,6 +67,23 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **A noun phrase with a connective in it could not be a call argument or a record field.**
+  `cast twice on (the entry for "a" in ages but void is 0)` was refused with *"expected
+  expression, got For"*, and so was `the characters from 1 to 2 of <text>` and `the delivery
+  from <channel>`. The argument list read `the entry` as a NAMED ARGUMENT called `entry` and
+  then tried to parse `for "a" in ages` as its value.
+
+  ★★ **The rule that settles it was already written down and already correct** — a named
+  argument is `the <name> <value>`, so a token that cannot BEGIN a value means what came before
+  was an expression, not a name. It was applied to the symbol operators only; the word-shaped
+  connectives (`for`, `from`, `is`, `joined`, …) cannot begin a value either. Finishing the list
+  is the whole fix — `Parser.CannotBeginAValue`.
+
+  ⚠ MEASURED as PRE-EXISTING against the installed 0.25.0 before anything was changed, so it is
+  not fallout from the reserved words given back above. ★ Found by writing `examples/circuits/`:
+  a map lookup passed to a function is not an exotic thing to write, and it came up within
+  minutes.
+
 - **`GRAMMAR.md` §1 was wrong in both directions, and now has a test.** §1 opens by promising it
   lists every word that cannot be a variable name. MEASURED: **ten reserved words were missing
   from it** — the whole concurrency family, `channel` among them — so a reader checking the list

@@ -2972,6 +2972,18 @@ meeting one straight after the name means what came before it was an expression.
 `-` is the exception, and spacing is what tells the two apart — the same rule, in a
 second place.
 
+★ **The same test covers the word-shaped connectives**, which cannot begin a value
+either. That is what makes a noun phrase with a connective in it writeable here:
+
+```cufet-fragment
+a record with (the entry for "a" in ages but void is 0)   ← the map lookup
+cast size-of on (the characters from 1 to 2 of "hello")   ← the substring
+```
+
+⚠ Until 2026-09-24 the rule was applied to the symbol operators ONLY, so both lines
+above were refused — `the entry` was read as a named field and `for` as the start of
+its value. The rule had always been right; it was the list that was short.
+
 ### Functions and methods see other functions, but not top-level data
 
 `Bind void to f:` at the top level creates a **global procedure**, not a closure.
@@ -3407,7 +3419,9 @@ expression. `(the width)` inside a record literal has no other reading, but `cas
 width)` is an ordinary call passing a variable and always was.
 
 The minus rule comes with the predicate: binary `-` is written with spaces, so `(the offset -1)`
-passes negative one and `(the offset - 1)` is a subtraction.
+passes negative one and `(the offset - 1)` is a subtraction. So does the rule that a token which
+cannot BEGIN a value settles the reading — `for`, `from`, `is`, `joined` and the rest of the
+connectives, not just the symbol operators.
 
 **Positional first, then named.** Once a name has been given, position no longer says which
 parameter is meant, so a positional argument after a named one is a parse error.
