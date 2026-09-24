@@ -1,0 +1,180 @@
+/*  What a wire is carrying — and it is not a bit.
+
+    A two-valued signal cannot model hardware. It has no way to say "nobody has driven this
+    line yet", no way to say "this line is parked so somebody else may drive it", and no way
+    to say "two drivers disagree and the voltage is whatever physics decided". So this
+    simulator uses the four values Verilog uses:
+
+        0   driven low
+        1   driven high
+        x   unknown — uninitialised, or contended
+        z   high impedance — floating, not driven at all
+
+    ⚠⚠ THE TABLES BELOW COME FROM VERILOG, NOT FROM REASONING ABOUT UNCERTAINTY. That
+    distinction is the whole reason they are worth writing down. A plausible-sounding
+    "unknown infects everything" rule gets `0 and x` wrong: the answer is 0, because a
+    grounded input pins an AND gate low no matter what the other input turns out to be.
+    Likewise `1 or x` is 1. Those two entries are the ones a from-scratch derivation misses,
+    and they are exactly the ones that make four-valued simulation useful — without them a
+    single uninitialised wire would turn a whole circuit to x and tell you nothing.
+
+    ★ These tables are an EXTERNAL answer key. Nobody on this project invented them; they
+    are in the Verilog standard, and anyone can check this file against it. Most of the
+    corpus pins whatever the program happened to print, which proves agreement rather than
+    correctness. This proves a little more.
+*/
+
+// ── The four values ───────────────────────────────────────────────────────
+//
+// A closed union of four, so every `Judge` over a signal is checked for coverage by the
+// compiler rather than by a reader. Adding a fifth value would make every table below fail
+// to compile, which is the correct amount of noise for that change.
+//
+// ★ They carry no fields. A signal is which of four things it is, and nothing else — a
+// `level` number as a field would let `a new signal { the level 9 }` exist, and then every
+// table would need a case for a value hardware has no name for.
+
+Define object low with ().
+Define object high with ().
+Define object unknown with ().
+Define object floating with ().
+
+// ── Levels: the tables are data, so a signal needs an index ───────────────
+//
+// 1..4 rather than 0..3 because Cufet series are 1-based, and an index that needs adjusting
+// at every use is an off-by-one waiting to happen.
+
+Bind number to level, given (the (low or high or unknown or floating) wire-value):
+    Judge wire-value, where it is:
+        A low, return 1.
+        A high, return 2.
+        An unknown, return 3.
+        A floating, return 4.
+    Done.
+Done.
+
+Bind (low or high or unknown or floating) to at-level, given (the number index):
+    If index is 1, return a new low { }.
+    If index is 2, return a new high { }.
+    If index is 4, return a new floating { }.
+    Return a new unknown { }.
+Done.
+
+Bind text to shown, given (the (low or high or unknown or floating) wire-value):
+    Judge wire-value, where it is:
+        A low, return "0".
+        A high, return "1".
+        An unknown, return "x".
+        A floating, return "z".
+    Done.
+Done.
+
+// ── The tables ────────────────────────────────────────────────────────────
+//
+// Row-major over (left, right), each in the order 0, 1, x, z — so the entry for a pair is
+// at (left - 1) * 4 + right. Written as four lines of four so the shape on the page is the
+// shape of the table, and a transcription error shows up as a crooked row.
+//
+// ⚠ `permanently` is not decoration. A plain `Define` is a VALUE BINDING, local to its
+// file; only a permanent one is a constant the rest of this directory can see. These are
+// read by `gates.cufe`, so they have to be permanent to exist there at all.
+
+//        0  1  x  z
+Define and-table as a series of number with (
+    1, 1, 1, 1,     // 0 and _  →  0    ★ a grounded input wins outright
+    1, 2, 3, 3,     // 1 and _
+    1, 3, 3, 3,     // x and _
+    1, 3, 3, 3)     // z and _  →  a floating input reads as unknown
+    permanently.
+
+//        0  1  x  z
+Define or-table as a series of number with (
+    1, 2, 3, 3,     // 0 or _
+    2, 2, 2, 2,     // 1 or _   →  2    ★ a driven-high input wins outright
+    3, 2, 3, 3,     // x or _
+    3, 2, 3, 3)     // z or _
+    permanently.
+
+//        0  1  x  z
+Define xor-table as a series of number with (
+    1, 2, 3, 3,     // 0 xor _
+    2, 1, 3, 3,     // 1 xor _
+    3, 3, 3, 3,     // x xor _  →  xor has no dominating input, so x spreads
+    3, 3, 3, 3)     // z xor _
+    permanently.
+
+//        0  1  x  z
+Define not-table as a series of number with (2, 1, 3, 3) permanently.
+
+/*  Wire resolution — what a line carries when SEVERAL gates drive it.
+
+    ★ This is the table that makes `z` earn its place, and it is not one of the logic
+    operations. Two drivers on one wire is a hardware fact, not an expression: a bus works
+    precisely because every driver but one is parked at z, and z loses to everything.
+
+        z with anything  →  the anything      (parked drivers yield)
+        0 with 0         →  0                 (drivers agreeing is fine)
+        0 with 1         →  x                 ⚠ CONTENTION — and in real hardware, smoke
+        z with z         →  z                 (nobody is driving at all)
+*/
+//        0  1  x  z
+Define resolve-table as a series of number with (
+    1, 3, 3, 1,     // 0 with _
+    3, 2, 3, 2,     // 1 with _
+    3, 3, 3, 3,     // x with _
+    1, 2, 3, 4)     // z with _  →  z yields to every real driver
+    permanently.
+
+// ── Reading a table ───────────────────────────────────────────────────────
+
+Bind (low or high or unknown or floating) to paired, given (
+        the series of number table,
+        the (low or high or unknown or floating) left,
+        the (low or high or unknown or floating) right):
+    Define row as cast level on (left).
+    Define column as cast level on (right).
+    Return cast at-level on (item ((row - 1) * 4 + column) of table).
+Done.
+
+Bind (low or high or unknown or floating) to both-of, given (
+        the (low or high or unknown or floating) left,
+        the (low or high or unknown or floating) right):
+    Return cast paired on (and-table, left, right).
+Done.
+
+Bind (low or high or unknown or floating) to either-of, given (
+        the (low or high or unknown or floating) left,
+        the (low or high or unknown or floating) right):
+    Return cast paired on (or-table, left, right).
+Done.
+
+Bind (low or high or unknown or floating) to differing, given (
+        the (low or high or unknown or floating) left,
+        the (low or high or unknown or floating) right):
+    Return cast paired on (xor-table, left, right).
+Done.
+
+Bind (low or high or unknown or floating) to inverted, given (
+        the (low or high or unknown or floating) wire-value):
+    Return cast at-level on (item (cast level on (wire-value)) of not-table).
+Done.
+
+Bind (low or high or unknown or floating) to resolved, given (
+        the (low or high or unknown or floating) left,
+        the (low or high or unknown or floating) right):
+    Return cast paired on (resolve-table, left, right).
+Done.
+
+Bind fact to same-signal, given (
+        the (low or high or unknown or floating) left,
+        the (low or high or unknown or floating) right):
+    Return cast level on (left) is cast level on (right).
+Done.
+
+// ── Reading a signal from a person ────────────────────────────────────────
+
+Bind (low or high or unknown or floating) to from-digit, given (the number digit):
+    If digit is 0, return a new low { }.
+    If digit is 1, return a new high { }.
+    Return a new unknown { }.
+Done.

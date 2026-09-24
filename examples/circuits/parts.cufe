@@ -1,0 +1,142 @@
+/*  Circuits built out of gates — and gates built out of nothing but wire names.
+
+    ★ Every builder here returns a CATALOGUE OF PARTS, never a thing that runs. That is what
+    makes composition free: a ripple-carry adder is four full adders, and a full adder is five
+    gates, and putting them together is putting two catalogues end to end. Nothing is
+    evaluated until `settled` is handed the whole pile at once.
+
+    ⚠ Internal wires need names nobody else uses, so every builder takes a `tag` and spells
+    its private wires with it. Two full adders in one circuit would otherwise share a wire
+    called `carry-part` and quietly compute nonsense — the kind of bug that gives right
+    answers for a while, because one stage's value happens to arrive before the other reads.
+*/
+
+/*  A full adder — two half adders and an OR.
+
+        half        = left xor right
+        sum         = half xor carry-in
+        both        = left and right
+        carried     = half and carry-in
+        carry-out   = both or carried
+
+    ★ The carry-out is high when BOTH inputs were high, or when exactly one was and a carry
+    came in. Those two cases cannot both happen, which is why an OR is enough and no second
+    carry can ever be generated. */
+
+Bind catalogue of (and-gate or or-gate or xor-gate or nand-gate or not-gate or tri-gate) to full-adder,
+        given (the text left, the text right, the text carry-in,
+               the text sum, the text carry-out, the text tag):
+    Define half as "half-{tag}".
+    Define both as "both-{tag}".
+    Define carried as "carried-{tag}".
+    Return a catalogue of (and-gate or or-gate or xor-gate or nand-gate or not-gate or tri-gate) with (
+        a new xor-gate { the left left,  the right right,    the out half },
+        a new xor-gate { the left half,  the right carry-in, the out sum },
+        a new and-gate { the left left,  the right right,    the out both },
+        a new and-gate { the left half,  the right carry-in, the out carried },
+        a new or-gate  { the left both,  the right carried,  the out carry-out }).
+Done.
+
+/*  A ripple-carry adder of any width.
+
+    Bit 1 is the LEAST significant, so the carry ripples from the front of the series to the
+    back — which is the same direction a person adds on paper, and the reason the wire naming
+    reads the way it does.
+
+        a1 b1 ──┐                     wires:  a1..aN   first number
+        a2 b2 ──┤                             b1..bN   second number
+         …      ├─ c0 → c1 → … → cN           s1..sN   the sum
+        aN bN ──┘                             c0..cN   the carries, c0 in and cN out
+
+    ⚠ It is called RIPPLE-carry because the carry really does have to travel: stage 4 cannot
+    settle until stage 3 has, so the circuit needs about as many rounds as it has bits. That
+    is a real property of the hardware, not of this simulator, and it is why wide adders in
+    real designs do something cleverer. */
+
+Bind catalogue of (and-gate or or-gate or xor-gate or nand-gate or not-gate or tri-gate) to ripple-adder,
+        given (the number width):
+    Define work as a catalogue of (and-gate or or-gate or xor-gate or nand-gate or not-gate or tri-gate).
+    Define bit as 1.
+    While bit is less than width or bit is width, repeat:
+        Define stage as cast full-adder on (
+            "a{bit}", "b{bit}", "c{bit - 1}", "s{bit}", "c{bit}", "{bit}").
+        For each part in stage, repeat:
+            Insert part into work.
+        Done.
+        The bit becomes bit + 1.
+    Done.
+    Return work.
+Done.
+
+/*  A two-to-one selector, built the way hardware actually builds one: a BUS.
+
+    Both tri-state buffers drive the same output wire. The selector enables exactly one of
+    them, and the other lets go — drives `z` — so the wire carries whatever the enabled one
+    is passing. Nothing arbitrates; the resolution table does the whole job.
+
+    ★★ This is the part that could not be written at all with a two-valued signal. Without
+    `z` there is no way for a driver to say "not me", so two drivers on one wire would always
+    be contention, and the standard way to build a multiplexer would be a type error. */
+
+Bind catalogue of (and-gate or or-gate or xor-gate or nand-gate or not-gate or tri-gate) to selector,
+        given (the text choose, the text when-low, the text when-high, the text out,
+               the text tag):
+    Define other as "not-{tag}".
+    Return a catalogue of (and-gate or or-gate or xor-gate or nand-gate or not-gate or tri-gate) with (
+        a new not-gate { the source choose,    the out other },
+        a new tri-gate { the source when-high, the enable choose, the out out },
+        a new tri-gate { the source when-low,  the enable other,  the out out }).
+Done.
+
+/*  An SR latch — the smallest circuit that REMEMBERS.
+
+        q     = set-low  nand q-bar
+        q-bar = reset-low nand q
+
+    Both inputs are active LOW, which is what the NAND form gives you:
+
+        set-low  reset-low     what happens
+        ───────────────────────────────────────────────────────
+           0        1          q becomes 1          (set)
+           1        0          q becomes 0          (reset)
+           1        1          q keeps what it had  (hold)
+           0        0          both outputs 1       ⚠ the forbidden state
+
+    ★★★ THE HOLD ROW IS WHY A CIRCUIT IS A VALUE AND NOT A PIPELINE. With both inputs at 1
+    this circuit has TWO stable answers, and which one it settles to depends entirely on
+    what the wires already held. Drive it with `q` seeded 1 and it stays 1; seed it 0 and it
+    stays 0; seed it with nothing and the honest answer is x. A pipeline has no place to put
+    that — the state is not passing through, it IS the circuit. */
+
+Bind catalogue of (and-gate or or-gate or xor-gate or nand-gate or not-gate or tri-gate) to sr-latch,
+        given (the text set-low, the text reset-low, the text out, the text out-bar):
+    // ⚠⚠ TWO gates, not four. Writing each NAND as an AND into a NOT looks equivalent and is
+    // not: it adds an internal wire, and a latch has nowhere to put one. See `nand-gate`.
+    Return a catalogue of (and-gate or or-gate or xor-gate or nand-gate or not-gate or tri-gate) with (
+        a new nand-gate { the left set-low,   the right out-bar, the out out },
+        a new nand-gate { the left reset-low, the right out,     the out out-bar }).
+Done.
+
+/*  A ring of inverters — a circuit with NO stable state.
+
+    An odd number of inverters wired nose to tail can never settle: whatever value you
+    suppose a wire holds, following the ring around contradicts it. Real hardware does not
+    freeze; it oscillates, and a ring oscillator is a genuine building block — it is how you
+    make a clock out of nothing but gates.
+
+    ⚠ A fixed-point simulator has to have an answer for this, and `x` is the right one. It
+    does not mean "the simulator gave up"; it means the wire has no settled level, which is
+    exactly true. */
+
+Bind catalogue of (and-gate or or-gate or xor-gate or nand-gate or not-gate or tri-gate) to ring,
+        given (the number stages):
+    Define work as a catalogue of (and-gate or or-gate or xor-gate or nand-gate or not-gate or tri-gate).
+    Define stage as 1.
+    While stage is less than stages or stage is stages, repeat:
+        Define next-stage as stage + 1.
+        If stage is stages, the next-stage becomes 1.
+        Insert a new not-gate { the source "ring{stage}", the out "ring{next-stage}" } into work.
+        The stage becomes stage + 1.
+    Done.
+    Return work.
+Done.

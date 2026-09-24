@@ -1,0 +1,120 @@
+/*  The parts you wire together.
+
+    A gate is a small record of WIRE NAMES — never of values. That is the whole idea: the
+    gate says "read these two lines, write that one", and it says the same thing whatever is
+    currently on the lines. The values live in one place, the wire map, and a gate is a rule
+    for getting from it to itself.
+
+    ★ Six kinds, as a closed union. `Judge` over it is checked for coverage by the compiler,
+    so adding a seventh gate makes every walk below fail to compile until it is handled —
+    which is what you want from a change that adds a way for a circuit to behave. ★ That is
+    not hypothetical: `nand-gate` WAS added after the rest of this program worked, and the
+    compiler listed precisely the two places that had to learn about it.
+
+    ★★ The arities differ, and that is why the union is the right shape rather than one
+    `gate` object with a `kind` field. A NOT gate has one input and a tri-state buffer has
+    two-with-different-jobs; giving them a shared shape would mean a `right` field that is
+    meaningless for half of them, and every reader wondering what goes in it.
+*/
+
+Define object and-gate with (the text left, the text right, the text out).
+Define object or-gate  with (the text left, the text right, the text out).
+Define object xor-gate with (the text left, the text right, the text out).
+Define object not-gate with (the text source, the text out).
+
+/*  NAND — and the reason it is a PRIMITIVE here rather than an AND wired into a NOT.
+
+    ⚠⚠ Those two are not the same circuit, and finding out why was the sharpest thing this
+    program taught. An AND feeding a NOT has an INTERNAL WIRE between them; a NAND does not.
+    In a latch, that difference is the whole device: the latch's state lives on its outputs,
+    and a decomposed NAND puts a second, hidden state node in the loop that nobody seeds.
+    Started from rest that extra wire is floating, and on the first round it overwrites the
+    very value the latch was supposed to be holding — so a latch built from AND plus NOT
+    cannot remember anything, and prints x where it should print what it was given.
+
+    ★ Real logic families have the same fact the other way round: NAND is the cheap primitive
+    and AND is a NAND followed by an inverter, not the reverse. */
+Define object nand-gate with (the text left, the text right, the text out).
+
+/*  A tri-state buffer — the part that makes `z` mean something.
+
+    When `enable` is high it passes `source` through. When `enable` is low it lets go of the
+    line entirely and drives `z`, so somebody else may drive it instead. That is how a bus
+    works: many drivers, all but one parked.
+
+    ⚠ An enable that is itself x or z gives x, not z. The buffer cannot know whether it is
+    supposed to be driving, so it cannot promise the line is free.
+*/
+Define object tri-gate with (the text source, the text enable, the text out).
+
+// ── Reading a wire ────────────────────────────────────────────────────────
+//
+// ★ A name nobody has written is FLOATING, not unknown, and the difference matters. `z` says
+// "no driver", which is the honest state of a wire that exists only because a gate mentions
+// it. Defaulting to `x` would mean "somebody drove this and we don't know what to", which is
+// a different claim and would make every unconnected input contend with its real driver.
+
+Bind (low or high or unknown or floating) to on-wire, given (
+        the map from text to (low or high or unknown or floating) wires,
+        the text name):
+    Return the entry for name in wires but void is a new floating { }.
+Done.
+
+// ── What a gate drives, and where ─────────────────────────────────────────
+//
+// Two walks rather than one returning a pair: the wire a gate writes is a property of the
+// gate alone, while the value needs the whole circuit's current state. Keeping them apart
+// means the settling loop can ask "which wires does this circuit drive?" without evaluating
+// anything, which is what it needs to tell a driven wire from a primary input.
+
+Bind text to driven-wire, given (
+        the (and-gate or or-gate or xor-gate or nand-gate or not-gate or tri-gate) part):
+    Judge part, where it is:
+        An and-gate, return the out of it.
+        An or-gate,  return the out of it.
+        A xor-gate,  return the out of it.
+        A nand-gate, return the out of it.
+        A not-gate,  return the out of it.
+        A tri-gate,  return the out of it.
+    Done.
+Done.
+
+Bind (low or high or unknown or floating) to driven-value, given (
+        the (and-gate or or-gate or xor-gate or nand-gate or not-gate or tri-gate) part,
+        the map from text to (low or high or unknown or floating) wires):
+    Judge part, where it is:
+        An and-gate:
+            Define left as cast on-wire on (wires, the left of it).
+            Define right as cast on-wire on (wires, the right of it).
+            Return cast both-of on (left, right).
+        Done.
+        An or-gate:
+            Define left as cast on-wire on (wires, the left of it).
+            Define right as cast on-wire on (wires, the right of it).
+            Return cast either-of on (left, right).
+        Done.
+        A xor-gate:
+            Define left as cast on-wire on (wires, the left of it).
+            Define right as cast on-wire on (wires, the right of it).
+            Return cast differing on (left, right).
+        Done.
+        A nand-gate:
+            Define left as cast on-wire on (wires, the left of it).
+            Define right as cast on-wire on (wires, the right of it).
+            Return cast inverted on (cast both-of on (left, right)).
+        Done.
+        A not-gate:
+            Return cast inverted on (cast on-wire on (wires, the source of it)).
+        Done.
+        A tri-gate:
+            Define enabled as cast on-wire on (wires, the enable of it).
+            Define carried as cast on-wire on (wires, the source of it).
+            Judge enabled, where it is:
+                A high, return carried.
+                A low, return a new floating { }.
+                An unknown, return a new unknown { }.
+                A floating, return a new unknown { }.
+            Done.
+        Done.
+    Done.
+Done.

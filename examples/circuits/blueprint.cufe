@@ -1,0 +1,39 @@
+/*  The file that makes `examples/circuits/` a PROJECT — and the first one in `examples/`.
+
+    ★★ Its LOCATION is the load-bearing part, not its contents. A blueprint at the root of a
+    tree says "everything under here is one project", and inside a project each directory is
+    a NAMESPACE whose files see each other flatly. That is what lets `gates.cufe` call
+    `both-of` from `signal.cufe` with nothing pulled, nothing imported and no book anywhere:
+    they share a directory, so they share a scope.
+
+    ⚠ Without this file the five programs beside it are five unrelated files, and every call
+    across them is an undefined name. The rest of `examples/` works that way on purpose —
+    each example there is one self-contained file a reader can open on its own.
+
+    ★★ Running this performs NOTHING. It defines `blueprint` and calls nothing, so what comes
+    out is a plan; the build happens afterwards, to that plan. Printing no output is correct
+    rather than a bug — which is also what lets this file sit in the corpus and be run on
+    both backends like every other program here.
+
+    ⚠ `needs` is GENERATED, not hand-kept: `cufet pulls circuits.cufe` prints what the loader
+    actually resolved. Re-run it after adding a file to this directory — a neighbour is a
+    dependency now, with nothing written down to say so.
+
+    ⚠ Paths are relative to the PROJECT ROOT — the directory holding this file — not to
+    wherever `cufet build` was invoked from.
+*/
+
+Pull a book on blueprints.
+    Bind series of step to blueprint:
+        Define work as a series of step.
+
+        Insert a record with (
+            the name "circuits",
+            the needs a series of text with ("circuits.cufe", "gates.cufe", "netlist.cufe",
+                                             "parts.cufe", "signal.cufe"),
+            the makes a series of text with ("circuits.exe"),
+            the runs a series of text with ("cufet", "build", "circuits.cufe")) into work.
+
+        Return work.
+    Done.
+Done.

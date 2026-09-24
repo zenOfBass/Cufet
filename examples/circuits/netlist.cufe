@@ -1,0 +1,150 @@
+/*  Settling a circuit — and the reason a circuit is a VALUE rather than a PIPELINE.
+
+    ★★★ THIS FILE IS THE ARGUMENT. A circuit looks like a pipeline: signals go in one end and
+    come out the other, and every gate is a little function you could imagine running as its
+    own task with its inputs and outputs as channels. That picture is wrong, and the reason
+    is FEEDBACK.
+
+    A latch is two gates wired into each other's inputs. There is no "one end" — the output
+    is an input. A pipeline cannot express that: pushing a value forward assumes forward
+    exists, and in a circuit with a cycle it does not. Worse, a gate COMBINES all of its
+    inputs, while anything that waits on several channels takes whichever ARRIVES and
+    ignores the rest. Those are opposite operations, so the machinery that looks like it
+    would help here is machinery that cannot.
+
+    What works instead is the oldest idea in simulation: hold the whole state, recompute
+    every gate from it AT ONCE, write the results back, and repeat until nothing changes.
+    A circuit is a value you evaluate to a fixed point. Cycles are then not a special case —
+    they are just a circuit that takes more rounds to settle, or never settles at all, and
+    the second one is a real hardware behaviour this simulator has to be able to report.
+
+    ⚠ Every gate is evaluated from the SAME snapshot before any result is written back. Doing
+    it gate-by-gate would make the answer depend on the order the parts happen to sit in the
+    catalogue, which is a bug that hides for a long time: most circuits give the same answer
+    either way, and the ones that do not are exactly the latches.
+*/
+
+// How many rounds before a circuit is declared to be oscillating. A settling network
+// converges in about as many rounds as its longest chain of gates is deep; a 4-bit ripple
+// adder is around a dozen, so this leaves a wide margin before crying wolf.
+Define settle-limit as 100 permanently.
+
+// ── One round: what every gate is driving, from one snapshot ──────────────
+//
+// ★ Several gates may drive the SAME wire, which is not an error — it is a bus. They are
+// combined with the wire-resolution table, so parked drivers (z) yield and disagreeing
+// drivers (0 against 1) produce contention (x). This is the one place `resolved` is used,
+// and it is why `z` exists at all.
+
+Bind map from text to (low or high or unknown or floating) to driving, given (
+        the catalogue of (and-gate or or-gate or xor-gate or nand-gate or not-gate or tri-gate) parts,
+        the map from text to (low or high or unknown or floating) wires):
+    Define driven as a map from text to (low or high or unknown or floating).
+    For each part in parts, repeat:
+        Define name as cast driven-wire on (part).
+        Define value as cast driven-value on (part, wires).
+        Define already as the entry for name in driven.
+        If already is not void,
+            In driven, the entry for name becomes cast resolved on (already, value).
+        If already is void,
+            In driven, the entry for name becomes value.
+    Done.
+    Return driven.
+Done.
+
+// ── A private copy of the caller's inputs ─────────────────────────────────
+//
+// ⚠⚠ MEASURED, and not what a reader coming from the rest of Cufet will expect: A MAP IS
+// SHARED, NOT COPIED. Handing one to a function lets that function change the caller's, and
+// `Define copy as original.` makes a second name for the same map rather than a second map.
+// Objects and records copy; a map does not.
+//
+// So the settling loop cannot simply write into the map it was given — it would rewrite the
+// caller's inputs as a side effect, and the second call with "the same" inputs would be
+// driving a circuit that had already run. Building a fresh map entry by entry is the fix,
+// and it has to be written out, because there is no copying form that would do it.
+
+Bind map from text to (low or high or unknown or floating) to taken-apart, given (
+        the map from text to (low or high or unknown or floating) wires):
+    Define fresh as a map from text to (low or high or unknown or floating).
+    For each pair in wires, repeat:
+        In fresh, the entry for (the key of pair) becomes the value of pair.
+    Done.
+    Return fresh.
+Done.
+
+// ── The fixed point ───────────────────────────────────────────────────────
+
+Bind map from text to (low or high or unknown or floating) to settled, given (
+        the catalogue of (and-gate or or-gate or xor-gate or nand-gate or not-gate or tri-gate) parts,
+        the map from text to (low or high or unknown or floating) inputs):
+    Define current as cast taken-apart on (inputs).
+    Define rounds as 0.
+    Define moving as true.
+
+    While moving and rounds is less than settle-limit, repeat:
+        Define driven as cast driving on (parts, current).
+        The moving becomes false.
+        For each pair in driven, repeat:
+            Define before as cast on-wire on (current, the key of pair).
+            If not cast same-signal on (before, the value of pair),
+                The moving becomes true.
+            In current, the entry for (the key of pair) becomes the value of pair.
+        Done.
+        The rounds becomes rounds + 1.
+    Done.
+
+    /*  Still moving at the limit means the circuit oscillates. A ring of an odd number of
+        inverters is the honest example: it has no stable state to reach, and real hardware
+        does the same thing — it rings, at a frequency set by how fast the gates are.
+
+        ⚠ NOT the latch with both inputs asserted, which is what this comment said first.
+        That state SETTLES here, with both outputs high, which is also what the hardware
+        does; the famous oscillation happens when both inputs are RELEASED AT ONCE, and a
+        fixed-point model has no transitions, so it cannot show it. Worth stating plainly
+        rather than quietly demonstrating something easier.
+
+        ★ Only the wires STILL CHANGING become x. The rest of the circuit may well have
+        settled perfectly, and turning all of it unknown would throw away the true part of
+        the answer to report the false part. That is the same instinct the truth tables
+        encode — `0 and x` is 0, because a known input is still knowledge. */
+    If moving:
+        Define ringing as cast driving on (parts, current).
+        For each pair in ringing, repeat:
+            Define before as cast on-wire on (current, the key of pair).
+            If not cast same-signal on (before, the value of pair),
+                In current, the entry for (the key of pair) becomes a new unknown { }.
+        Done.
+    Done.
+
+    Return current.
+Done.
+
+// ── Building the inputs, and reading the answer ───────────────────────────
+
+Bind map from text to (low or high or unknown or floating) to wired, given (
+        the series of text names,
+        the series of number digits):
+    Define wires as a map from text to (low or high or unknown or floating).
+    // ⚠ This counter is called `slot` and not `at`, which is the name it wants. `at` is NOT a
+    // reserved word — `Define at as 1.` is perfectly legal — but `item at of digits` is
+    // refused, because `item at (row, column) of m` is how a matrix is indexed and the parser
+    // commits to that reading on the word alone. A contextual word is given back everywhere
+    // except the one position it is contextual in, which is the position you wanted it.
+    Define slot as 1.
+    For each name in names, repeat:
+        In wires, the entry for name becomes cast from-digit on (item slot of digits).
+        The slot becomes slot + 1.
+    Done.
+    Return wires.
+Done.
+
+Bind text to reading, given (
+        the map from text to (low or high or unknown or floating) wires,
+        the series of text names):
+    Define shape as "".
+    For each name in names, repeat:
+        The shape becomes shape joined to cast shown on (cast on-wire on (wires, name)).
+    Done.
+    Return shape.
+Done.

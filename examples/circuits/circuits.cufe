@@ -1,0 +1,300 @@
+/*  A four-valued logic simulator — the program that drives everything beside it.
+
+    Nothing here is pulled and nothing here is a book. `signal.cufe`, `gates.cufe`,
+    `netlist.cufe` and `parts.cufe` share this directory, and inside a project a directory is
+    a namespace whose files see each other flatly. `blueprint.cufe` is what makes this
+    directory a project; without it these would be five unrelated files.
+
+    What it shows, in order:
+
+      1. The Verilog truth tables, printed — the external answer key this program is checked
+         against, visible rather than buried.
+      2. A full adder, exhaustively.
+      3. A 4-bit ripple-carry adder over ALL 256 input pairs, with every gate-level answer
+         checked against ordinary arithmetic. That check is the point: it compares the
+         circuit against something that is not the circuit.
+      4. A tri-state bus — two drivers on one wire, parking and contending.
+      5. An SR latch, which remembers, and therefore settles to different answers from the
+         same inputs.
+      6. A ring oscillator, which never settles at all.
+*/
+
+Define signal-width as 4 permanently.
+
+// ── Printing a truth table ────────────────────────────────────────────────
+
+Bind text to table-row, given (the series of number table, the number row):
+    Define line as "     {cast shown on (cast at-level on (row))}  |".
+    Define column as 1.
+    While column is less than 5, repeat:
+        Define cell as item ((row - 1) * signal-width + column) of table.
+        The line becomes line joined to "  {cast shown on (cast at-level on (cell))}".
+        The column becomes column + 1.
+    Done.
+    Return line.
+Done.
+
+Bind void to show-table, given (the text title, the series of number table):
+    State "  {title}   |  0  1  x  z".
+    State "  ------+------------".
+    Define row as 1.
+    While row is less than 5, repeat:
+        State cast table-row on (table, row).
+        The row becomes row + 1.
+    Done.
+    State "".
+Done.
+
+// ── Driving a circuit once ────────────────────────────────────────────────
+
+Bind text to driven-reading, given (
+        the catalogue of (and-gate or or-gate or xor-gate or nand-gate or not-gate or tri-gate) parts,
+        the map from text to (low or high or unknown or floating) inputs,
+        the series of text watched):
+    Return cast reading on (cast settled on (parts, inputs), watched).
+Done.
+
+// ── The ripple adder, in and out ──────────────────────────────────────────
+
+Bind map from text to (low or high or unknown or floating) to adder-inputs, given (
+        the number left, the number right, the number width):
+    Define wires as a map from text to (low or high or unknown or floating).
+    Define left-rest as left.
+    Define right-rest as right.
+    Define bit as 1.
+    While bit is less than width + 1, repeat:
+        Define low-left as left-rest % 2.
+        Define low-right as right-rest % 2.
+        In wires, the entry for "a{bit}" becomes cast from-digit on (low-left).
+        In wires, the entry for "b{bit}" becomes cast from-digit on (low-right).
+        // ⚠ Exact whole-number division, written the long way: subtracting the remainder
+        // first makes `/ 2` exact, so no rounding is involved and `math` is never reached
+        // for. A decimal that is never fractional cannot drift.
+        The left-rest becomes (left-rest - low-left) / 2.
+        The right-rest becomes (right-rest - low-right) / 2.
+        The bit becomes bit + 1.
+    Done.
+    In wires, the entry for "c0" becomes a new low { }.
+    Return wires.
+Done.
+
+Bind number to adder-answer, given (
+        the map from text to (low or high or unknown or floating) wires,
+        the number width):
+    Define total as 0.
+    Define weight as 1.
+    Define bit as 1.
+    While bit is less than width + 1, repeat:
+        If cast level on (cast on-wire on (wires, "s{bit}")) is 2,
+            The total becomes total + weight.
+        The weight becomes weight * 2.
+        The bit becomes bit + 1.
+    Done.
+    If cast level on (cast on-wire on (wires, "c{width}")) is 2,
+        The total becomes total + weight.
+    Return total.
+Done.
+
+// ══ 1. The tables ═════════════════════════════════════════════════════════
+
+State "FOUR-VALUED LOGIC — the tables, from Verilog".
+State "".
+Cast show-table on ("and", and-table).
+Cast show-table on ("or ", or-table).
+Cast show-table on ("xor", xor-table).
+Cast show-table on ("bus", resolve-table).
+
+State "  not   |  0  1  x  z".
+State "  ------+------------".
+Define inverting-row as "        |".
+Define which as 1.
+While which is less than 5, repeat:
+    The inverting-row becomes inverting-row joined to
+        "  {cast shown on (cast inverted on (cast at-level on (which)))}".
+    The which becomes which + 1.
+Done.
+State inverting-row.
+State "".
+State "  ★ `0 and x` is 0, not x — a grounded input pins the gate low whatever the other".
+State "    turns out to be. That entry is the one a from-scratch derivation gets wrong.".
+State "  ★ In the bus table, z loses to every real driver and 0 against 1 gives x.".
+State "".
+
+// ══ 2. A full adder ═══════════════════════════════════════════════════════
+
+State "A FULL ADDER — all eight inputs".
+State "".
+State "    a b cin  |  sum cout".
+State "    ---------+----------".
+
+Define adder as cast full-adder on ("a", "b", "cin", "sum", "cout", "one").
+Define watched as a series of text with ("sum", "cout").
+
+Define pattern as 0.
+While pattern is less than 8, repeat:
+    Define carry-in as pattern % 2.
+    Define right-bit as ((pattern - carry-in) / 2) % 2.
+    Define left-bit as (pattern - carry-in - right-bit * 2) / 4.
+
+    Define inputs as a map from text to (low or high or unknown or floating).
+    In inputs, the entry for "a" becomes cast from-digit on (left-bit).
+    In inputs, the entry for "b" becomes cast from-digit on (right-bit).
+    In inputs, the entry for "cin" becomes cast from-digit on (carry-in).
+
+    Define answer as cast driven-reading on (adder, inputs, watched).
+    State "    {left-bit} {right-bit}  {carry-in}   |   {the characters from 1 to 1 of answer}    {the characters from 2 to 2 of answer}".
+    The pattern becomes pattern + 1.
+Done.
+State "".
+
+// ══ 3. A 4-bit ripple-carry adder, checked against arithmetic ═════════════
+
+State "A 4-BIT RIPPLE-CARRY ADDER — every input pair, against arithmetic".
+State "".
+
+Define ripple as cast ripple-adder on (signal-width).
+Define agreed as 0.
+Define tried as 0.
+Define first-wrong as "".
+
+Define left-value as 0.
+While left-value is less than 16, repeat:
+    Define right-value as 0.
+    While right-value is less than 16, repeat:
+        Define settled-wires as cast settled on (
+            ripple, cast adder-inputs on (left-value, right-value, signal-width)).
+        Define got as cast adder-answer on (settled-wires, signal-width).
+        The tried becomes tried + 1.
+        If got is left-value + right-value, the agreed becomes agreed + 1.
+        If got is not left-value + right-value and the length of first-wrong is 0,
+            The first-wrong becomes "{left-value} + {right-value} gave {got}".
+        The right-value becomes right-value + 1.
+    Done.
+    The left-value becomes left-value + 1.
+Done.
+
+State "    gate-level sum agreed with arithmetic in {agreed} of {tried} cases".
+If the length of first-wrong is not 0, State "    first disagreement: {first-wrong}".
+State "".
+State "    a few of them, as the wires actually read:".
+Define sample-left as a series of number with (3, 7, 9, 15, 15).
+Define sample-right as a series of number with (5, 8, 9, 1, 15).
+Define slot as 1.
+While slot is less than the number of sample-left + 1, repeat:
+    Define shown-left as item slot of sample-left.
+    Define shown-right as item slot of sample-right.
+    Define wires as cast settled on (
+        ripple, cast adder-inputs on (shown-left, shown-right, signal-width)).
+    Define bits as cast reading on (wires, a series of text with ("c4", "s4", "s3", "s2", "s1")).
+    State "      {shown-left} + {shown-right} = {cast adder-answer on (wires, signal-width)}   (carry and sum bits = {bits})".
+    The slot becomes slot + 1.
+Done.
+State "".
+
+// ══ 4. A tri-state bus ════════════════════════════════════════════════════
+
+State "A TRI-STATE BUS — two drivers, one wire".
+State "".
+
+Define bus as a catalogue of (and-gate or or-gate or xor-gate or nand-gate or not-gate or tri-gate) with (
+    a new tri-gate { the source "left-data",  the enable "left-on",  the out "bus" },
+    a new tri-gate { the source "right-data", the enable "right-on", the out "bus" }).
+Define bus-watch as a series of text with ("bus").
+
+// ⚠ The circuit and the watch list are PARAMETERS, not names reached from the enclosing
+// file. A top-level function cannot see top-level data — only other functions and
+// `permanently` constants — which is deliberate: it keeps the data flow of a program
+// visible in its signatures rather than in what happens to be defined above.
+Bind void to bus-case, given (
+        the catalogue of (and-gate or or-gate or xor-gate or nand-gate or not-gate or tri-gate) parts,
+        the series of text watching,
+        the text note, the number left-on, the number right-on,
+        the number left-data, the number right-data):
+    Define inputs as a map from text to (low or high or unknown or floating).
+    In inputs, the entry for "left-on" becomes cast from-digit on (left-on).
+    In inputs, the entry for "right-on" becomes cast from-digit on (right-on).
+    In inputs, the entry for "left-data" becomes cast from-digit on (left-data).
+    In inputs, the entry for "right-data" becomes cast from-digit on (right-data).
+    State "    {note}  →  bus = {cast driven-reading on (parts, inputs, watching)}".
+Done.
+
+Cast bus-case on (bus, bus-watch, "nobody driving         ", 0, 0, 1, 0).
+Cast bus-case on (bus, bus-watch, "left drives 1          ", 1, 0, 1, 0).
+Cast bus-case on (bus, bus-watch, "right drives 0         ", 0, 1, 1, 0).
+Cast bus-case on (bus, bus-watch, "both drive, agreeing   ", 1, 1, 1, 1).
+Cast bus-case on (bus, bus-watch, "both drive, disagreeing", 1, 1, 1, 0).
+State "".
+State "    ★ Nobody driving is z, not 0. A floating wire is not a low one, and a two-valued".
+State "      signal has no way to say so — which is why this part cannot be built without z.".
+State "".
+State "    the same idea as a part: a two-to-one selector, three gates, one shared wire".
+
+Define mux as cast selector on ("choose", "when-low", "when-high", "picked", "demo").
+Define mux-watch as a series of text with ("picked").
+Define choice as 0.
+While choice is less than 2, repeat:
+    Define mux-inputs as a map from text to (low or high or unknown or floating).
+    In mux-inputs, the entry for "choose" becomes cast from-digit on (choice).
+    In mux-inputs, the entry for "when-low" becomes a new low { }.
+    In mux-inputs, the entry for "when-high" becomes a new high { }.
+    State "      choose = {choice}  →  picked = {cast driven-reading on (mux, mux-inputs, mux-watch)}".
+    The choice becomes choice + 1.
+Done.
+State "".
+
+// ══ 5. An SR latch ════════════════════════════════════════════════════════
+
+State "AN SR LATCH — the same inputs, two different answers".
+State "".
+
+Define latch as cast sr-latch on ("set-low", "reset-low", "q", "q-bar").
+Define latch-watch as a series of text with ("q", "q-bar").
+
+Bind void to latch-case, given (
+        the catalogue of (and-gate or or-gate or xor-gate or nand-gate or not-gate or tri-gate) parts,
+        the series of text watching,
+        the text note, the number set-low, the number reset-low, the text seed):
+    Define inputs as a map from text to (low or high or unknown or floating).
+    In inputs, the entry for "set-low" becomes cast from-digit on (set-low).
+    In inputs, the entry for "reset-low" becomes cast from-digit on (reset-low).
+    If seed is "1":
+        In inputs, the entry for "q" becomes a new high { }.
+        In inputs, the entry for "q-bar" becomes a new low { }.
+    Done.
+    If seed is "0":
+        In inputs, the entry for "q" becomes a new low { }.
+        In inputs, the entry for "q-bar" becomes a new high { }.
+    Done.
+    State "    {note}  →  q q-bar = {cast driven-reading on (parts, inputs, watching)}".
+Done.
+
+Cast latch-case on (latch, latch-watch, "set     (0 1), no prior state ", 0, 1, "none").
+Cast latch-case on (latch, latch-watch, "reset   (1 0), no prior state ", 1, 0, "none").
+Cast latch-case on (latch, latch-watch, "hold    (1 1), no prior state ", 1, 1, "none").
+Cast latch-case on (latch, latch-watch, "hold    (1 1), seeded q = 1   ", 1, 1, "1").
+Cast latch-case on (latch, latch-watch, "hold    (1 1), seeded q = 0   ", 1, 1, "0").
+Cast latch-case on (latch, latch-watch, "both    (0 0), the forbidden  ", 0, 0, "none").
+State "".
+State "    ★★ The three HOLD rows are the whole argument for a circuit being a VALUE. Same".
+State "      circuit, same inputs, three answers — because the answer is what the wires".
+State "      already held. A pipeline has nowhere to keep that; the state is not passing".
+State "      through the circuit, it IS the circuit.".
+State "    ★ With nothing seeded the honest answer is x. A latch that was never set does".
+State "      not hold 0; it holds whatever it powered up as, and that is not knowable.".
+State "".
+
+// ══ 6. A ring oscillator ══════════════════════════════════════════════════
+
+State "A RING OSCILLATOR — a circuit with no stable state".
+State "".
+
+Define oscillator as cast ring on (3).
+Define ring-inputs as a map from text to (low or high or unknown or floating).
+In ring-inputs, the entry for "ring1" becomes a new low { }.
+Define ring-watch as a series of text with ("ring1", "ring2", "ring3").
+
+State "    three inverters nose to tail, started at 0  →  {cast driven-reading on (oscillator, ring-inputs, ring-watch)}".
+State "".
+State "    ★ x here does not mean the simulator gave up. It means the wire has no settled".
+State "      level, which is exactly true — a ring oscillator is how you build a clock out".
+State "      of nothing but gates, and its whole job is never to hold still.".

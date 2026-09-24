@@ -1,0 +1,100 @@
+FOUR-VALUED LOGIC — the tables, from Verilog
+
+  and   |  0  1  x  z
+  ------+------------
+     0  |  0  0  0  0
+     1  |  0  1  x  x
+     x  |  0  x  x  x
+     z  |  0  x  x  x
+
+  or    |  0  1  x  z
+  ------+------------
+     0  |  0  1  x  x
+     1  |  1  1  1  1
+     x  |  x  1  x  x
+     z  |  x  1  x  x
+
+  xor   |  0  1  x  z
+  ------+------------
+     0  |  0  1  x  x
+     1  |  1  0  x  x
+     x  |  x  x  x  x
+     z  |  x  x  x  x
+
+  bus   |  0  1  x  z
+  ------+------------
+     0  |  0  x  x  0
+     1  |  x  1  x  1
+     x  |  x  x  x  x
+     z  |  0  1  x  z
+
+  not   |  0  1  x  z
+  ------+------------
+        |  1  0  x  x
+
+  ★ `0 and x` is 0, not x — a grounded input pins the gate low whatever the other
+    turns out to be. That entry is the one a from-scratch derivation gets wrong.
+  ★ In the bus table, z loses to every real driver and 0 against 1 gives x.
+
+A FULL ADDER — all eight inputs
+
+    a b cin  |  sum cout
+    ---------+----------
+    0 0  0   |   0    0
+    0 0  1   |   1    0
+    0 1  0   |   1    0
+    0 1  1   |   0    1
+    1 0  0   |   1    0
+    1 0  1   |   0    1
+    1 1  0   |   0    1
+    1 1  1   |   1    1
+
+A 4-BIT RIPPLE-CARRY ADDER — every input pair, against arithmetic
+
+    gate-level sum agreed with arithmetic in 256 of 256 cases
+
+    a few of them, as the wires actually read:
+      3 + 5 = 8   (carry and sum bits = 01000)
+      7 + 8 = 15   (carry and sum bits = 01111)
+      9 + 9 = 18   (carry and sum bits = 10010)
+      15 + 1 = 16   (carry and sum bits = 10000)
+      15 + 15 = 30   (carry and sum bits = 11110)
+
+A TRI-STATE BUS — two drivers, one wire
+
+    nobody driving           →  bus = z
+    left drives 1            →  bus = 1
+    right drives 0           →  bus = 0
+    both drive, agreeing     →  bus = 1
+    both drive, disagreeing  →  bus = x
+
+    ★ Nobody driving is z, not 0. A floating wire is not a low one, and a two-valued
+      signal has no way to say so — which is why this part cannot be built without z.
+
+    the same idea as a part: a two-to-one selector, three gates, one shared wire
+      choose = 0  →  picked = 0
+      choose = 1  →  picked = 1
+
+AN SR LATCH — the same inputs, two different answers
+
+    set     (0 1), no prior state   →  q q-bar = 10
+    reset   (1 0), no prior state   →  q q-bar = 01
+    hold    (1 1), no prior state   →  q q-bar = xx
+    hold    (1 1), seeded q = 1     →  q q-bar = 10
+    hold    (1 1), seeded q = 0     →  q q-bar = 01
+    both    (0 0), the forbidden    →  q q-bar = 11
+
+    ★★ The three HOLD rows are the whole argument for a circuit being a VALUE. Same
+      circuit, same inputs, three answers — because the answer is what the wires
+      already held. A pipeline has nowhere to keep that; the state is not passing
+      through the circuit, it IS the circuit.
+    ★ With nothing seeded the honest answer is x. A latch that was never set does
+      not hold 0; it holds whatever it powered up as, and that is not knowable.
+
+A RING OSCILLATOR — a circuit with no stable state
+
+    three inverters nose to tail, started at 0  →  xxx
+
+    ★ x here does not mean the simulator gave up. It means the wire has no settled
+      level, which is exactly true — a ring oscillator is how you build a clock out
+      of nothing but gates, and its whole job is never to hold still.
