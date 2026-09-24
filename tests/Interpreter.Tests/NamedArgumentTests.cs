@@ -1,4 +1,4 @@
-using Cufet.Interpreter;
+﻿using Cufet.Interpreter;
 using Xunit;
 using CufetLexer = Cufet.Lexer.Lexer;
 
@@ -201,4 +201,63 @@ public class NamedArgumentTests
             """);
         Assert.Contains("can't be called with named arguments", e.Message);
     }
+
+    // ── `the <word>` that is an EXPRESSION, not a name ────────────────────
+    //
+    // ⚠⚠ The ambiguity named arguments create, and the bug it produced. `the entry for "a" in m`
+    // opens with `the` and a word, exactly as `the width 3` does — so the argument list read
+    // `entry` as a parameter name and then tried to parse `for "a" in m` as its value. It was
+    // refused with *"expected expression, got For"*, which names the token and not the reading
+    // that went wrong.
+    //
+    // ★ The rule that settles it was already written down here, for symbol operators only:
+    // a value has to be able to START at the token after the name, and `for` cannot. The fix was
+    // to finish the rule rather than add a case — see `Parser.CannotBeginAValue`.
+    //
+    // ★★ These run the two shapes that put a connective straight after a noun, in BOTH places
+    // the ambiguity exists: a call argument and a record literal. A fix in one and not the other
+    // is the failure this pair is here to catch.
+
+    private const string Map =
+        "Define m as a map from text to number. In m, the entry for \"a\" becomes 5. ";
+
+    [Fact]
+    public void AMapLookupIsACallArgument()
+        => Assert.Equal("10", Run(Map +
+            "Bind number to twice, given (the number n): Return n * 2. Done. " +
+            "State cast twice on (the entry for \"a\" in m but void is 0)."));
+
+    // ⚠ NOT parenthesised, deliberately. `(the entry for …)` inside brackets is an ordinary
+    // sub-expression and never reaches the named-field question — the first version of this test
+    // wrapped it and passed with the bug fully present.
+    [Fact]
+    public void AMapLookupIsARecordField()
+        => Assert.Equal("5", Run(Map +
+            "Define r as a record with (the entry for \"a\" in m but void is 0). " +
+            "State the first of r."));
+
+    [Fact]
+    public void ASubstringIsACallArgument()
+        => Assert.Equal("2", Run(
+            "Bind number to size-of, given (the text s): Return the length of s. Done. " +
+            "State cast size-of on (the characters from 1 to 2 of \"hello\")."));
+
+    // ⚠ The parameter is VOIDABLE because a delivery is — a closed channel yields nothing — and
+    // `but void is` cannot be used to dodge that here: it binds to `wire`, not to the delivery.
+    [Fact]
+    public void ADeliveryIsACallArgument()
+        => Assert.Equal("7", Run("""
+            Bind number to taken, given (the voidable number n): Return n but void is 0. Done.
+            Pull a rabbit as hopper.
+                Define wire as a channel of number.
+                Send 7 through wire.
+                State cast taken on (the delivery from wire).
+            Done.
+            """));
+
+    // ⚠ The half that must NOT regress: `the <name> <value>` is still a named argument. A fix
+    // that made every `the` an expression would pass every test above and break the feature.
+    [Fact]
+    public void ANamedArgumentIsStillANamedArgument()
+        => Assert.Equal("12", Run(Area + "State cast area on (the width 3, the height 4)."));
 }

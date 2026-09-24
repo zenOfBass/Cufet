@@ -4702,6 +4702,42 @@ public sealed class Parser
     // Returns true when the current position starts a named field: 'the' <name> <non-of>.
     // No noise-skip between 'the' and the name — 'a'/'an' are valid field names and Article
     // tokens would be wrongly consumed. Any word token (including keywords) is a valid name.
+    /*  Tokens that can never be the FIRST token of a value.
+
+        ★★ This is the rule the operator check below always rested on, written out in full:
+        a named field or argument is `the <name> <value>`, so if what follows the name cannot
+        START a value, then what came before was not a name — it was an expression, and `the`
+        was its article.
+
+        ⚠⚠ It used to list only the SYMBOL operators, and the word-shaped connectives are
+        exactly as incapable of beginning a value. That gap made `the entry for <k> in <m>`
+        unwriteable as a call argument or a record field: `the entry` was taken for a named
+        field and `for` for the start of its value. MEASURED 2026-09-24 — `the characters
+        from <a> to <b> of <t>` was refused the same way, and the two are the most common
+        shapes in the language that put a connective straight after a noun.
+
+        ★ Every word here is infix or frame-only — none appears as a case in
+        `ParseCorePrimary`, which is what "can begin a value" means operationally. `not` and
+        `-` are deliberately ABSENT: both genuinely can begin a value, and `-` has its own
+        spacing rule just below.
+    */
+    private static bool CannotBeginAValue(TokenType type) => type is
+        // symbol operators — the original list
+        TokenType.Plus or TokenType.Star or TokenType.Slash or TokenType.Percent or
+        TokenType.Equal or TokenType.Lt or TokenType.Gt or TokenType.Lte or
+        TokenType.Gte or TokenType.NotEqual or
+        // frame connectives: `the entry FOR k`, `the characters FROM a`, `the delivery FROM c`
+        TokenType.For or TokenType.From or TokenType.To or TokenType.In or
+        TokenType.Into or TokenType.Unto or TokenType.Through or TokenType.On or
+        TokenType.As or TokenType.By or TokenType.Than or
+        // word operators: `the interrupt IS requested`, `the xs JOINED to y`
+        TokenType.Is or TokenType.And or TokenType.Or or TokenType.Xor or
+        TokenType.But or TokenType.Has or TokenType.Contains or TokenType.Joined or
+        TokenType.Converted or TokenType.Split or TokenType.Like or TokenType.Becomes or
+        // postfix modifiers: `the xs SORTED`
+        TokenType.Sorted or TokenType.Trimmed or TokenType.Shifted or
+        TokenType.Reverse or TokenType.Uppercase or TokenType.Lowercase;
+
     private bool IsNamedFieldStart()
     {
         int i = _pos;
@@ -4721,10 +4757,7 @@ public sealed class Parser
         // did not parse at all, and the message pointed at the operator — *"expected expression,
         // got Plus"* — rather than at the reading that went wrong.
         //
-        if (_tokens[i].Type is TokenType.Plus or TokenType.Star or TokenType.Slash
-                            or TokenType.Percent or TokenType.Equal or TokenType.Lt
-                            or TokenType.Gt or TokenType.Lte or TokenType.Gte
-                            or TokenType.NotEqual)
+        if (CannotBeginAValue(_tokens[i].Type))
             return false;
 
         // ★ MINUS is the one operator that can also BEGIN a value, so it needs the rule the
