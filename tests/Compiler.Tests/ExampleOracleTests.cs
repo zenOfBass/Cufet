@@ -308,8 +308,11 @@ public class ExampleOracleTests
         // non-recursive, so moving examples into folders was exactly how that would have happened.
         // A floor far below the count is not a guard. Raise it when you add examples; it only ever
         // fails for a deletion or a broken scan, never for an addition.
+        // ★ 74 at the time of writing (2026-09-23, after `examples/circuits/` landed). Kept just
+        // below so a deliberate deletion does not nag, and far enough up that a scan which stopped
+        // descending into a folder could not slip past.
         var files = ExampleFiles().ToList();
-        Assert.True(files.Count >= 41,
+        Assert.True(files.Count >= 72,
             $"only {files.Count} examples found — the corpus has shrunk or the enumeration broke.");
 
         // ★ Every category folder must contribute. Found by listing directories rather than by
@@ -335,7 +338,20 @@ public class ExampleOracleTests
 
         // ★ Basenames are the key for skips and pins, so two examples sharing one in different
         // folders would silently make a skip or a pinned output apply to whichever was found first.
-        var duplicates = files.GroupBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase)
+        //
+        // ⚠ ONE EXEMPTION, and it is forced by the language rather than chosen here.
+        // `blueprint.cufe` is the file whose PRESENCE makes a directory a project, so the loader
+        // finds it by that exact name — see `BookLoading.BlueprintFile`. A repository with two
+        // projects therefore has two files called `blueprint.cufe`, and neither can be renamed.
+        // It is safe to exempt because the hazard does not apply: a blueprint defines `blueprint`
+        // and calls nothing, so it is never skipped and never pinned, and there is no per-basename
+        // entry for the wrong one to collide with.
+        //
+        // ★ Found by adding `examples/circuits/`, the second project in the repository. Until then
+        // `tools/` was the only one and this check had never been asked the question.
+        var duplicates = files
+            .Where(f => !Path.GetFileName(f).Equals("blueprint.cufe", StringComparison.OrdinalIgnoreCase))
+            .GroupBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase)
             .Where(g => g.Count() > 1)
             .Select(g => $"{g.Key} ({string.Join(" + ", g)})")
             .ToList();
