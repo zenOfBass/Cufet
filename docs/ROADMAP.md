@@ -225,17 +225,6 @@ rabbit's TASKS compose, never its ordinary statements, which stay sequential imp
   blocks on ONE channel, so nothing today can wait on several and take whichever arrives first.
   Occam's ALT, Go's select.
 
-  ⚠⚠ **It is NOT what an actor needs — measured 2026-09-20, and this entry used to say it was.**
-  Those languages need a select because a channel there carries ONE type. Cufet puts the
-  alternation in the TYPE: one channel of a union, dispatched by a `Judge` whose coverage the
-  checker proves. `examples/concurrency/actor-mailbox.cufe` is a full actor on both backends with
-  no new feature. So `automatic` has lost half its justification and rests on circuits alone.
-
-  ⚠ The reverse does NOT hold, and it is worth saying so: circuits cannot be built ON `automatic`
-  as a message-passing substrate. A gate COMBINES all its inputs; a select takes ONE and ignores
-  the rest — opposite operations. And a mailbox is a QUEUE while a wire is a LEVEL, so a wire has
-  neither the ordering nor the buffering a mailbox exists to provide.
-
 - **`parallel` is the default**, which is what a task-spawning rabbit already does. All three stay
   sayable: a default is a voiceable choice, not an inferred silence. A rabbit that spawns no tasks
   has no mode at all.
