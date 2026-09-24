@@ -231,14 +231,6 @@ rabbit's TASKS compose, never its ordinary statements, which stay sequential imp
   checker proves. `examples/concurrency/actor-mailbox.cufe` is a full actor on both backends with
   no new feature. So `automatic` has lost half its justification and rests on circuits alone.
 
-  ⚠⚠ **ITS LAST CLAIMED WITNESS IS GONE, MEASURED 2026-09-23.** This said the witness was most
-  likely the logic-gates book — a circuit simulator "reacts to whichever input settles", once per
-  GATE. `examples/circuits/` is that simulator, and it uses no concurrency whatever: a gate
-  COMBINES all of its inputs, so there is nothing to select between, and the whole network
-  advances by recomputing from one snapshot. The caveat below predicted exactly this and was
-  right. So `automatic` now has no caller anywhere on this list, and wanting one is the argument
-  against building it rather than a gap to fill.
-
   ⚠ The reverse does NOT hold, and it is worth saying so: circuits cannot be built ON `automatic`
   as a message-passing substrate. A gate COMBINES all its inputs; a select takes ONE and ignores
   the rest — opposite operations. And a mailbox is a QUEUE while a wire is a LEVEL, so a wire has
