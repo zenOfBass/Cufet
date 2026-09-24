@@ -1,4 +1,4 @@
-namespace Cufet.Interpreter;
+﻿namespace Cufet.Interpreter;
 
 public sealed partial class TypeChecker
 {
@@ -99,18 +99,6 @@ public sealed partial class TypeChecker
         'x' => "hex", 'o' => "octal", 'b' => "binary", _ => "bits",
     };
 
-    private CufetType InferTextLength(TextLength tl)
-    {
-        var operand = InferType(tl.Target);
-        if (operand == null) return CufetType.Number;
-        if (operand == CufetType.Text) return CufetType.Number;
-        throw TypeError(
-            "'the length of' works on text only",
-            null,
-            tl.Line, tl.Column,
-            $"get the length of a {FormatType(operand)}",
-            "Only text values have a character length. For series, use 'the number of series'.");
-    }
 
     // ── Text operations (Slice 2: split, contains, find, substring) ───────────
 

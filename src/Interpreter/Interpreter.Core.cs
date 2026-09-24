@@ -1695,7 +1695,6 @@ public sealed partial class Interpreter
         BitsConvert bc   => EvaluateBitsConvert(bc),
         // Code points, not .NET's UTF-16 code units — see TextPositions for why the language
         // picks a unit rather than inheriting each backend's storage.
-        TextLength  tl => (object)(decimal)TextPositions.Length((string)Evaluate(tl.Target)),
         // ★ COPIED out of C's memory, never aliased — the bytes belong to C and can be freed or
         // overwritten the moment it likes. A void address reads as void.
         ForeignTextAt fta => Evaluate(fta.Address) switch
@@ -1726,7 +1725,6 @@ public sealed partial class Interpreter
         MapLookup      mlu    => EvaluateMapLookup(mlu),
         MapHasKey      mhk    => EvaluateMapHasKey(mhk),
         MapHasEntry    mhe    => EvaluateMapHasEntry(mhe),
-        MapSize        ms     => EvaluateMapSize(ms),
         LambdaLiteral  lam    => EvaluateLambda(lam),
         ReadExpression re     => EvaluateReadExpr(re),
         FileReadExpression fr => EvaluateFileReadExpr(fr),
@@ -1949,6 +1947,15 @@ public sealed partial class Interpreter
                     $"A mapping only has 'key' and 'value' fields (line {rna.Line}).")
             };
         }
+
+        // `the length of <text>` — code POINTS, not storage units, which is why this goes
+        // through `TextPositions` rather than counting characters. See the chase/code-point work.
+        if (target is string txt && rna.FieldName == "length")
+            return (decimal)TextPositions.Length(txt);
+
+        // `the size of <map>`. The checker has already refused a set here, by name.
+        if (target is Dictionary<object, object> dict && rna.FieldName == "size")
+            return (decimal)dict.Count;
 
         // 'the rows of m' / 'the columns of m' — the same named-access shape a record uses,
         // resolved by the target's type rather than by reserving the two words.

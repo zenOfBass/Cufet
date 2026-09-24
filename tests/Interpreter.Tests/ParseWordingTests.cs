@@ -77,8 +77,10 @@ public class ParseWordingTests
     /// </para>
     /// <para>
     /// ★ `channel`, `key` and `entry` were GIVEN BACK on 2026-09-23 and moved out of these
-    /// theories to <c>FreedWordTests</c>. The words pinned here are the ones still taken, so this
-    /// test keeps checking the MESSAGE rather than the list.
+    /// theories to <c>FreedWordTests</c>; `length` and `size` followed on 2026-09-24 and were
+    /// replaced here in turn. The words pinned here are the ones still taken, so this test keeps
+    /// checking the MESSAGE rather than the list. ⚠ That churn is the point — a theory naming
+    /// freed words would pass while asserting the opposite of what the language does.
     /// </para>
     /// <para>
     /// ★ It needs no keyword table. The lexer turns a bare word into an `Identifier` unless the
@@ -88,8 +90,8 @@ public class ParseWordingTests
     /// </remarks>
     [Theory]
     [InlineData("arguments")]
-    [InlineData("length")]
-    [InlineData("size")]
+    [InlineData("range")]
+    [InlineData("end")]
     public void AReservedWordAsAName_SaysItIsReserved(string word)
     {
         var ex = ParseFails($"Define {word} as 3.");
@@ -129,7 +131,7 @@ public class ParseWordingTests
     [Theory]
     [InlineData("path")]
     [InlineData("file")]
-    [InlineData("size")]
+    [InlineData("start")]
     public void AReservedWordAsALoopVariable_SaysItIsReserved(string word)
     {
         var ex = ParseFails($"Define xs as a series of number with (1, 2). For each {word} in xs, state {word}.");

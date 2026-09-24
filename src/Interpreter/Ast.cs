@@ -698,7 +698,6 @@ public sealed record TextConvert(IExpression Value, int Line, int Column) : IExp
 public sealed record NumberConvert(IExpression Value, int Line, int Column) : IExpression;
 
 // the length of greeting — character count of a text value; result is number
-public sealed record TextLength(IExpression Target, int Line, int Column) : IExpression;
 
 // ── Text operations (Slice 2: split, contains, find, substring) ───────────────
 
@@ -892,7 +891,6 @@ public sealed record SetHasMember(IExpression Set, IExpression Value, int Line, 
 public sealed record MapHasEntry(IExpression Map, IExpression Key, int Line, int Column) : IExpression;
 
 // the size of <map>  →  number (entry count)
-public sealed record MapSize(IExpression Map, int Line, int Column) : IExpression;
 
 // in <map>, the entry for <key> becomes <value>.
 public sealed record MapSetStatement(IExpression Map, IExpression Key, IExpression Value, int Line, int Column) : IStatement

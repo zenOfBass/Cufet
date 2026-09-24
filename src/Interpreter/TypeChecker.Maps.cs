@@ -353,26 +353,4 @@ public sealed partial class TypeChecker
         return CufetType.Fact;
     }
 
-    private CufetType InferMapSize(MapSize size)
-    {
-        var mapType = InferType(size.Map);
-
-        // ⚠ A SET is told what to write instead, by name. It is stored as a map and reads like a
-        // collection, so `the size of` is exactly the wrong guess someone will make — and a
-        // message about maps would send them looking at the wrong thing entirely.
-        if (mapType is SetType)
-            throw TypeError(
-                "'the size of' works on maps, and this is a set",
-                null, size.Line, size.Column,
-                $"get the size of {FormatExpr(size.Map)}",
-                $"Write 'the number of {FormatExpr(size.Map)}' instead.");
-
-        if (mapType != null && mapType is not MapType)
-            throw TypeError(
-                "'the size of' works on maps",
-                null, size.Line, size.Column,
-                $"get the size of a {FormatType(mapType)}",
-                "For series, use 'the number of'. For text, use 'the length of'.");
-        return CufetType.Number;
-    }
 }

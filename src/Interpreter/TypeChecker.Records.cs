@@ -211,6 +211,50 @@ public sealed partial class TypeChecker
     if (recordType is BitsType && rna.FieldName == "width")
             return CufetType.Number;
 
+        /*  `the length of <text>` and `the size of <map>` — resolved here for the same reason
+            and by the same rule as `the width of <bits>` just above, and as `the rows of
+            <matrix>` further up. Both were RESERVED WORDS until 2026-09-24, which cost every
+            program two of the most ordinary nouns in the language as a variable AND as a field
+            name, to buy a property that one built-in type each has.
+
+            ★ They stay legal field names because these arms only fire when the target is a text
+            or a map, and neither could ever have had a field of its own. `the length of <record>`
+            falls straight through to the record lookup below. */
+        if (recordType is TextType && rna.FieldName == "length")
+            return CufetType.Number;
+        if (recordType is SetType && rna.FieldName == "size")
+            // ⚠ Checked BEFORE the map arm and kept word for word from the refusal `the size of`
+            // gave as a keyword. A set is stored as a map and reads like a collection, so this is
+            // exactly the wrong guess someone will make.
+            throw TypeError(
+                "'the size of' works on maps, and this is a set",
+                null, rna.Line, rna.Column,
+                $"get the size of {FormatExpr(rna.Record)}",
+                $"Write 'the number of {FormatExpr(rna.Record)}' instead.");
+        if (recordType is MapType && rna.FieldName == "size")
+            return CufetType.Number;
+
+        /*  ⚠⚠ THE REAL COST OF FREEING A WORD, AND WHAT IT WOULD HAVE COST SILENTLY. As keywords
+            these two owned their refusals — *"'the length of' works on text only … for series,
+            use 'the number of series'"*. Freed and left alone, `the length of scores` would
+            answer *"that isn't a record or object"*: true, and it sends the reader nowhere.
+
+            ★ So the messages move here with the words. A record or object still falls through,
+            because on those the name really might be a field and the lookup below says so
+            better than this could. */
+        if (rna.FieldName == "length" && recordType is not (RecordType or ObjectType))
+            throw TypeError(
+                "'the length of' works on text only",
+                null, rna.Line, rna.Column,
+                $"get the length of a {FormatType(recordType)}",
+                "Only text values have a character length. For series, use 'the number of series'.");
+        if (rna.FieldName == "size" && recordType is not (RecordType or ObjectType))
+            throw TypeError(
+                "'the size of' works on maps",
+                null, rna.Line, rna.Column,
+                $"get the size of a {FormatType(recordType)}",
+                "For series, use 'the number of'. For text, use 'the length of'.");
+
         if (recordType is not RecordType rt)
             throw TypeError(
                 $"you're trying to access field '{rna.FieldName}' on something that isn't a record or object",

@@ -1,4 +1,4 @@
-using Cufet.Lexer;
+﻿using Cufet.Lexer;
 using System.Globalization;
 
 namespace Cufet.Interpreter;
@@ -3479,7 +3479,6 @@ public sealed partial class TypeChecker
         TextConvert tc                                                                                   => InferTextConvert(tc),
         NumberConvert nc                                                                                 => InferNumberConvert(nc),
         BitsConvert bc                                                                                  => InferBitsConvert(bc),
-        TextLength tl                                                                                    => InferTextLength(tl),
         ForeignTextAt fta                                                                                => InferForeignTextAt(fta),
         TextSplit split                                                                                  => InferTextSplit(split),
         TextContains contains                                                                            => InferTextContains(contains),
@@ -3500,7 +3499,6 @@ public sealed partial class TypeChecker
         MapLookup  mlu                                                                                   => InferMapLookup(mlu),
         MapHasKey  mhk                                                                                   => InferMapHasKey(mhk),
         MapHasEntry mhe                                                                                  => InferMapHasEntry(mhe),
-        MapSize    ms                                                                                    => InferMapSize(ms),
         LambdaLiteral lambda                                                                             => InferLambdaLiteral(lambda),
         ReadExpression re                                                                                 => InferReadExpr(re),
         FileReadExpression fre                                                                           => InferFileReadExpr(fre),

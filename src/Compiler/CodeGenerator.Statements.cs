@@ -2195,6 +2195,10 @@ public sealed partial class CodeGenerator
         // shadow a real one. See TypeChecker.Records for why this is not a keyword.
         BitsAtWidth           => TBits,
         RecordNamedAccess { FieldName: "width" } bw when TypeOf(bw.Record) is BitsType => TNumber,
+        // `the length of <text>` / `the size of <map>` — named access resolved by the target's
+        // type, the same way `width` above and `rows` in EmitMemberAccess are.
+        RecordNamedAccess { FieldName: "length" } tl when TypeOf(tl.Record) is TextType => TNumber,
+        RecordNamedAccess { FieldName: "size" } ms when TypeOf(ms.Record) is MapType => TNumber,
         RecordNamedAccess rna => FieldType(TypeOf(rna.Record), rna.FieldName),
         ObjectLiteral ol      => ObjType(ol.ResolvedTypeName ?? ol.TypeName),
         PossessiveAccess pa   => pa.Target is VariableReference bvr && _bookAliases.TryGetValue(bvr.Name, out var bn)
@@ -2211,7 +2215,6 @@ public sealed partial class CodeGenerator
         MapLookup mlk         => MapValueType(mlk.Map) is VoidableType vvt ? vvt : new VoidableType(MapValueType(mlk.Map)),
         MapHasKey             => TFact,
         MapHasEntry           => TFact,
-        MapSize               => TNumber,
         FailureLiteral        => TFailMarker,
         // The operand's raw `T or failure` type comes from FallibleReturnType (TypeOf already
         // unwraps a fallible expr to its inner T, so `TypeOf(...) is FailureType` would never hit).
@@ -2224,7 +2227,6 @@ public sealed partial class CodeGenerator
         // number. From text it may simply not be one, hence the voidable.
         NumberConvert nvc when TypeOf(nvc.Value) is BitsType => TNumber,
         NumberConvert or TextFind => new VoidableType(TNumber),
-        TextLength            => TNumber,
         ForeignTextAt         => new VoidableType(TText),
         TextContains          => TFact,
         // A file read is fallible; its post-check VALUE type is the inner success type (the
@@ -2728,6 +2730,10 @@ public sealed partial class CodeGenerator
             // the rows/columns of m — named access, resolved by the target's type rather than
             // by reserving the two words.
             MatrixType        => $"cufet_dec_from_ll(({EmitExpr(target)})->{(member == "rows" ? "rows" : "cols")})",
+            // the length of <text> — UTF-8 code points, matching the interpreter's TextPositions.
+            TextType          => $"cufet_dec_from_ll((long long)cufet_u8_len({EmitExpr(target)}))",
+            // the size of <map>
+            MapType           => $"cufet_dec_from_ll(({EmitExpr(target)})->len)",
             ObjectType ot     => EmitObjectMemberRead(EmitExpr(target), ot.Name, member),
             // the message of the exception → the saved fault message (arena text).
             ExceptionMarkerType => _currentExcVar ?? throw new CompilerException("'the exception' is only available inside an 'In case of exception' handler."),
@@ -2945,13 +2951,11 @@ public sealed partial class CodeGenerator
         MapLookup mlk         => $"{MapName(mlk.Map)}_get({EmitExpr(mlk.Map)}, {EmitExpr(mlk.Key)})",
         MapHasKey mhk         => $"{MapName(mhk.Map)}_has({EmitExpr(mhk.Map)}, {EmitExpr(mhk.Key)})",
         MapHasEntry mhe       => $"{MapName(mhe.Map)}_has_entry({EmitExpr(mhe.Map)}, {EmitExpr(mhe.Key)})",
-        MapSize ms            => $"cufet_dec_from_ll(({EmitExpr(ms.Map)})->len)",
         FailureFallback ff    => EmitFailureFallback(ff),
         FailurePropagate fp   => EmitFailurePropagate(fp),
         TextJoin tj           => $"cufet_str_concat({EmitExpr(tj.Left)}, {EmitExpr(tj.Right)})",
         TextConvert tc        => EmitTextConvert(tc),
         NumberConvert nc      => EmitNumberConvert(nc),
-        TextLength tl         => $"cufet_dec_from_ll((long long)cufet_u8_len({EmitExpr(tl.Target)}))",
         ForeignTextAt fta     => EmitForeignTextAt(fta),
         TextContains tcn      => $"(strstr({EmitExpr(tcn.Text)}, {EmitExpr(tcn.Substring)}) != NULL)",
         TextFind tf           => EmitTextFind(tf),

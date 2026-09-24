@@ -68,13 +68,6 @@ public sealed partial class Interpreter
         return (object)(dict.TryGetValue(Evaluate(hasEntry.Key), out var val) && val is not VoidValue);
     }
 
-    private object EvaluateMapSize(MapSize size)
-    {
-        var mapVal = Evaluate(size.Map);
-        if (mapVal is not Dictionary<object, object> dict)
-            throw new RuntimeException($"Expected a map for 'the size of' on line {size.Line}.");
-        return (object)(decimal)dict.Count;
-    }
 
     private void ExecuteMapSet(MapSetStatement mapSet)
     {

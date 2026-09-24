@@ -3682,17 +3682,6 @@ public sealed class Parser
                 baseExpr = new SeriesLength(ParseCorePrimary(), numLine, numCol);
                 break;
             }
-            case TokenType.LengthKw:
-            {
-                var lineTok = Advance();
-                var line = lineTok.Line;
-                var col = lineTok.Column;
-                SkipNoise();
-                Consume(TokenType.Of);
-                SkipNoise();
-                baseExpr = new TextLength(ParseCorePrimary(), line, col);
-                break;
-            }
             case TokenType.Position:
             {
                 // 'the position of <substring> in <text>' — mirrors 'the entry for <key> in <map>'.
@@ -4152,18 +4141,6 @@ public sealed class Parser
                 Consume(TokenType.In);
                 SkipNoise();
                 baseExpr = new MapLookup(ParseCorePrimary(), keyExpr, entryLine, entryCol);
-                break;
-            }
-            case TokenType.Size:
-            {
-                // "the size of <map>"
-                var sizeLineTok = Advance(); // consume 'size'
-                var sizeLine = sizeLineTok.Line;
-                var sizeCol = sizeLineTok.Column;
-                SkipNoise();
-                Consume(TokenType.Of);
-                SkipNoise();
-                baseExpr = new MapSize(ParseCorePrimary(), sizeLine, sizeCol);
                 break;
             }
             // 'the rows of <matrix>' and 'the columns of <matrix>' have no case here on purpose.
@@ -4736,7 +4713,11 @@ public sealed class Parser
         TokenType.Converted or TokenType.Split or TokenType.Like or TokenType.Becomes or
         // postfix modifiers: `the xs SORTED`
         TokenType.Sorted or TokenType.Trimmed or TokenType.Shifted or
-        TokenType.Reverse or TokenType.Uppercase or TokenType.Lowercase;
+        TokenType.Reverse or TokenType.Uppercase or TokenType.Lowercase or
+        // ★ `directory` names a KIND in `the contents of the directory <path>`; there is no
+        // expression `the directory <path>` standing on its own, which is what lets a field
+        // access rule this shape out.
+        TokenType.DirectoryKw;
 
     private bool IsNamedFieldStart()
     {
@@ -4816,7 +4797,18 @@ public sealed class Parser
         if (i >= _tokens.Count || !IsFieldNameToken(_tokens[i], forAccess: true)) return false;
         i++;
         while (i < _tokens.Count && _tokens[i].IsNoise) i++;
-        return i < _tokens.Count && _tokens[i].Type == TokenType.Of;
+        if (i >= _tokens.Count || _tokens[i].Type != TokenType.Of) return false;
+
+        // ★ And the TARGET has to be an expression. If what follows `of` cannot begin one, this
+        // was never a field access — the same rule `CannotBeginAValue` states for named fields
+        // and arguments, which is why it is the same predicate.
+        //
+        // ⚠ `the contents of the directory <path>` is the shape that needs it: `directory` is a
+        // keyword, so `the directory <path>` is not an expression and `contents` could never
+        // have been a field name here. Without this the word had to stay reserved.
+        i++;
+        while (i < _tokens.Count && _tokens[i].IsNoise) i++;
+        return i < _tokens.Count && !CannotBeginAValue(_tokens[i].Type);
     }
 
     // Decides whether a token can serve as a record field name.
@@ -6060,6 +6052,17 @@ public sealed class Parser
                 && next.Lexeme.ToLowerInvariant() is "text" or "fact" or "bits");
     }
 
+    // The first non-noise token PAST the next one — for `the contents of the directory <path>`,
+    // where the deciding word sits two positions out rather than one.
+    private TokenType TypeAfterOf()
+    {
+        int i = _pos + 1;
+        while (i < _tokens.Count && _tokens[i].IsNoise) i++;   // the 'of'
+        i++;
+        while (i < _tokens.Count && _tokens[i].IsNoise) i++;   // past the article
+        return i < _tokens.Count ? _tokens[i].Type : TokenType.Eof;
+    }
+
     // True when the first non-noise token after the current one has this lexeme.
     private bool NextWordIs(string word)
     {
@@ -6111,6 +6114,11 @@ public sealed class Parser
             "interrupt"   when PeekAfterCurrent() == TokenType.Is   => TokenType.InterruptKw,
             "environment" when NextWordIs("variable")               => TokenType.EnvironmentKw,
             "read"        when NextWordIs("line") || NextWordIs("all") => TokenType.Read,
+            // ⚠ TWO tokens out, not one — `the contents OF the DIRECTORY <path>`. The reach is
+            // longer than the rest of this switch and the rule is the same: a mandatory token
+            // that a variable of this name could never produce.
+            "contents"    when PeekAfterCurrent() == TokenType.Of
+                            && TypeAfterOf() == TokenType.DirectoryKw => TokenType.ContentsKw,
 
             _ => tok.Type,
         };

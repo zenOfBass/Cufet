@@ -139,4 +139,115 @@ public class FreedWordTests
         => Assert.Equal("3\nell", Run(
             "Define r as a record with (the characters 3). State the characters of r. " +
             "State the characters from 2 to 4 of \"hello\"."));
+
+    // ══ Freed by TYPE, not by a mandatory token — 2026-09-24 ══════════════
+    //
+    // ★★ A SECOND mechanism, and the words above could not use it. `the length of <x>` is the
+    // shape NAMED FIELD ACCESS claims, and it claims it before the expression switch ever runs —
+    // so no lookahead can free these, however mandatory the `of` is. What frees them is the
+    // TARGET'S TYPE, decided in the checker: text has a length, a map has a size, and on anything
+    // else the name is an ordinary field. `the rows of <matrix>` and `the width of <bits>` were
+    // already resolved this way; these two just stopped being the exception.
+    //
+    // ★ `contents` rides along on a THIRD rule: the target of a field access has to be an
+    // expression, and `the contents of the DIRECTORY <path>` puts a keyword there. So the parser
+    // can rule out the field reading without knowing any types — the mandatory-token rule again,
+    // reaching two tokens out rather than one.
+    //
+    // ⚠ `position` is NOT here and cannot be. `the position of <needle> in <haystack>` is
+    // distinguished by an `in` that sits after a whole expression, so nothing adjacent decides it
+    // and the type of the target cannot either — the parse fails before any type is known.
+
+    [Theory]
+    [InlineData("length")]
+    [InlineData("size")]
+    [InlineData("contents")]
+    public void TypeFreedWord_UsableAsAVariableName(string word)
+        => Assert.Equal("5", Run($"Define {word} as 5. State {word}."));
+
+    [Theory]
+    [InlineData("length")]
+    [InlineData("size")]
+    [InlineData("contents")]
+    public void TypeFreedWord_UsableAsAParameterName(string word)
+        => Assert.Equal("7", Run(
+            $"Bind number to echo, given (the number {word}): Return {word}. Done. " +
+            $"State cast echo on (7)."));
+
+    [Theory]
+    [InlineData("length")]
+    [InlineData("size")]
+    [InlineData("contents")]
+    public void TypeFreedWord_UsableAsAFieldName(string word)
+        => Assert.Equal("3", Run(
+            $"Define r as a record with (the {word} 3). State the {word} of r."));
+
+    [Theory]
+    [InlineData("length")]
+    [InlineData("size")]
+    [InlineData("contents")]
+    public void TypeFreedWord_UsableAsAnIteratorName(string word)
+        => Assert.Equal("1\n2", Run(
+            $"Define xs as a series with (1, 2). For each {word} in xs, repeat: State {word}. Done."));
+
+    // ── …and the built-in readings still work ─────────────────────────────
+
+    [Fact]
+    public void TheLengthOfTextIsStillItsLength()
+        => Assert.Equal("5", Run("State the length of \"hello\"."));
+
+    // ⚠ CODE POINTS, not storage units. `e` + a combining acute is two of them and one glyph;
+    // counting UTF-16 units would give the same answer here for the wrong reason, so the pin is
+    // on a character OUTSIDE the basic plane as well.
+    [Fact]
+    public void TheLengthOfTextCountsCodePoints()
+        => Assert.Equal("2\n2", Run("State the length of \"e\u0301\". State the length of \"a\U0001F600\"."));
+
+    [Fact]
+    public void TheContentsOfADirectoryStillLists()
+        => Assert.Equal("true", Run("""
+            Try to:
+                Define contents as the contents of the directory ".".
+                State the number of contents is greater than 0.
+            Done.
+            In case of failure: State "unreadable". Done.
+            """));
+
+    [Fact]
+    public void TheSizeOfAMapIsStillItsSize()
+        => Assert.Equal("2", Run(
+            "Define m as a map from text to number. In m, the entry for \"a\" becomes 1. " +
+            "In m, the entry for \"b\" becomes 2. State the size of m."));
+
+    // ★★ The arm that decides the whole design: a type that HAS the field wins over the built-in
+    // reading. Without this, freeing the word would be a lie — the name would be legal to declare
+    // and impossible to read back.
+    [Fact]
+    public void AnObjectsOwnFieldBeatsTheBuiltinReading()
+        => Assert.Equal("3", Run(
+            "Define object box with (the number length). " +
+            "Define b as a new box { the length 3 }. State the length of b."));
+
+    // ── …and the refusals the keywords owned came with them ───────────────
+    //
+    // ⚠⚠ The real cost of freeing a word, and the one that would have gone unnoticed: as keywords
+    // these two owned their error messages. Freed and left alone, `the length of scores` would
+    // answer *"that isn't a record or object"* — true, and it sends the reader nowhere.
+
+    [Fact]
+    public void TheLengthOfASeriesStillSaysUseTheNumberOf()
+    {
+        var error = Assert.Throws<TypeException>(() => Run(
+            "Define scores as a series with (1, 2, 3). State the length of scores."));
+        Assert.Contains("'the length of' works on text only", error.Message);
+        Assert.Contains("use 'the number of series'", error.Message);
+    }
+
+    [Fact]
+    public void TheSizeOfASetStillSaysItIsASet()
+    {
+        var error = Assert.Throws<TypeException>(() => Run(
+            "Define s as a set of number. State the size of s."));
+        Assert.Contains("works on maps, and this is a set", error.Message);
+    }
 }

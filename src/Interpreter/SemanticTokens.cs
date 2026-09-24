@@ -988,7 +988,6 @@ public sealed class SemanticTokenizer
             case TextJoin tj:            Walk(tj.Left); Walk(tj.Right); break;
             case TextConvert tc:         Walk(tc.Value); break;
             case NumberConvert nc:       Walk(nc.Value); break;
-            case TextLength tl:          Walk(tl.Target); break;
             case TextSplit tsp:          Walk(tsp.Text); Walk(tsp.Delimiter); break;
             case TextContains tct:       Walk(tct.Text); Walk(tct.Substring); break;
             case TextFind tf:            Walk(tf.Substring); Walk(tf.Text); break;
@@ -1017,7 +1016,6 @@ public sealed class SemanticTokenizer
             case MapLookup mlk:   Walk(mlk.Map); Walk(mlk.Key); break;
             case MapHasKey mhk:   Walk(mhk.Map); Walk(mhk.Key); break;
             case MapHasEntry mhe: Walk(mhe.Map); Walk(mhe.Key); break;
-            case MapSize msz:     Walk(msz.Map); break;
 
             case ReadExpression rd:                 Walk(rd.Source); break;
             case FileReadExpression fr:             Walk(fr.Path); break;

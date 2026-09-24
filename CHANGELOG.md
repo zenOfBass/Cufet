@@ -42,6 +42,38 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Changed
 
+- **Three more reserved words given back: `length`, `size` and `contents`** — ordinary names
+  again, as variables, parameters, record fields and loop iterators.
+
+  ★★ **They needed a SECOND mechanism, and the audit's rule could not free them.** Their shape is
+  `the <word> of <x>`, which NAMED FIELD ACCESS claims before the expression switch ever runs — so
+  no lookahead frees them however mandatory the `of` is. What does is the TARGET'S TYPE, decided
+  in the checker: text has a length, a map has a size, and on anything else the name is an
+  ordinary field. `the rows of <matrix>` and `the width of <bits>` were already resolved exactly
+  this way; these two just stopped being the exception. ⚠ An object with its own `length` field
+  wins over the built-in reading, which is what makes giving the name back true rather than
+  nominal.
+
+  ★ **`contents` came a THIRD way**, and it generalised a rule rather than adding a case: the
+  TARGET of a field access has to be an expression, and `the contents of the DIRECTORY <path>`
+  puts a keyword there. `the directory <path>` is not an expression standing alone, so `contents`
+  could never have been a field name in that shape. This is the same predicate the named-argument
+  fix above uses, now asked at the field-access gate too.
+
+  ⚠⚠ **Freeing a word costs its ERROR MESSAGES, and that is the half that would have gone
+  unnoticed.** As keywords these owned their refusals — *"'the length of' works on text only …
+  for series, use 'the number of series'"*. Freed and left alone, `the length of scores` answers
+  *"that isn't a record or object"*: true, and it sends the reader nowhere. The messages moved
+  with the words, word for word, and are pinned.
+
+  ★ `TextLength` and `MapSize` are GONE as AST nodes — nothing could produce them any more, and
+  the corpus had just deleted four dead `TokenType` members for the same reason. One
+  representation, resolved by type, the way `rows` always was.
+
+  ⚠ **`position` stays reserved and cannot be freed by any of the three routes.** Its shape is
+  `the position of <needle> in <haystack>`, and the `in` that distinguishes it sits after a whole
+  expression — nothing adjacent decides it, and the parse fails before any type is known.
+
 - **Eight reserved words given back** — `characters`, `delivery`, `entry`, `key`, `interrupt`,
   `environment`, `read` and `channel` are ordinary names again, usable as variables, parameters,
   record fields and loop iterators.

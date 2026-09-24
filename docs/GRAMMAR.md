@@ -335,7 +335,6 @@ equality `is` uses. `Descend.` (explicit fall-through) is reserved and not yet a
 | `by` | By | Sort field marker |
 | `range` | Range | Range expression |
 | `counting` | Counting | Range step marker |
-| `length` | LengthKw | (legacy text length alias) |
 
 ### Text operations
 
@@ -394,7 +393,6 @@ therefore a character-wise match.
 | `like` | Like | Record shape annotation |
 | `map` | Map | Map type |
 | `has` | Has | Map-has-key check |
-| `size` | Size | Map size |
 
 ### Failures
 
@@ -418,7 +416,6 @@ therefore a character-wise match.
 | `run` | Run |
 | `stream` | Stream |
 | `open` | Open |
-| `contents` | ContentsKw |
 | `directory` | DirectoryKw |
 | `path` | PathKw |
 | `arguments` | Arguments |
@@ -523,10 +520,22 @@ which is the whole test:
 | `environment` | `the environment variable <n>` | `variable` |
 | `read` | `read a line from the input` | `line` / `all` |
 
+**Given back 2026-09-24** — `contents`, by a third route: the TARGET of a field access has to
+be an expression, and `the contents of the DIRECTORY <path>` puts a keyword there. `the directory
+<path>` is not an expression standing alone, so `contents` could never have been a field name in
+that shape — which is the mandatory-token rule again, reaching two tokens out instead of one.
+
+**Given back 2026-09-24** — `length` and `size`, by a different route. Their shape is
+`the <word> of <x>`, which NAMED FIELD ACCESS claims before the expression switch runs, so a
+mandatory token cannot free them. Instead the TARGET'S TYPE decides, exactly as it already does
+for `the rows of <matrix>` and `the width of <bits>`: text has a length, a map has a size, and on
+anything else the name is an ordinary field. `Define length as 7.` and a record field called
+`size` both work.
+
 So `Define key as 5.`, `given (the number entry)` and a record field named `channel` all
-work. ⚠ `length`, `size`, `contents` and `position` are **reserved** despite also taking a
-mandatory `of`: their shape is `the <word> of <x>`, which named field access claims first,
-so freeing them needs the type-directed resolution `rows` and `columns` use.
+work. ⚠ `position` is still **reserved**. Its shape is `the position of <needle> in <haystack>`,
+and the `in` that distinguishes it sits after a whole expression — so nothing adjacent decides
+it, and named field access claims `the position of <needle>` before the `in` is ever reached.
 
 **Type names** — `text`, `fact` and `bits` are contextual too. The lexer has no token for any
 of them; they are recognised by lexeme in type position, so `Define text as "hi".` is legal.
