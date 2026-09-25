@@ -72,6 +72,18 @@ Bind fact to bp-owed, given (
     Return false.
 Done.
 
+/// The name of the step that makes this path, or "" when none does.
+Bind text to bp-maker-of, given (
+    the series of records like (the text name, the series of text needs, the series of text makes, the series of text runs) bp-plan,
+    the text bp-path):
+    For each bp-step in bp-plan, repeat:
+        For each bp-made in the makes of bp-step, repeat:
+            If bp-made is bp-path, return the name of bp-step.
+        Done.
+    Done.
+    Return "".
+Done.
+
 /// What a file's contents amount to, as one word — or "missing" when there is no such file.
 ///
 /// ⚠⚠ THE SELF-PULL IS LOAD-BEARING AND IS NOT A MISTAKE. `checksum` is a member of this book, and
@@ -268,6 +280,25 @@ Bind void to bp-walk, given (
 
         Define bp-doing as item bp-pick of bp-plan.
         Define bp-argv as the runs of bp-doing.
+
+        // ★ A need is a path that must EXIST first, and by now nothing still owes one — so a need
+        // that is missing here will never arrive. Refused BEFORE the up-to-date check: a record
+        // left by a build from before this rule — when such a step could run and succeed — would
+        // otherwise match and skip it in silence. Without this the step ran anyway, and its command failed in its own words,
+        // which could not name the step or the path. Two causes, and they want different fixes:
+        // nothing makes the path, or the step that should have made it ran and did not.
+        For each bp-need in the needs of bp-doing, repeat:
+            If cast bp-stamp on (bp-need) is "missing":
+                Define bp-maker as cast bp-maker-of on (bp-plan, bp-need).
+                If bp-maker is "":
+                    State "cufet build: '{the name of bp-doing}' needs {bp-need}, and there is no such file. No step makes it, so it has to be there before the build starts. Paths are relative to the project root, the folder holding blueprint.cufe.".
+                Done.
+                Otherwise:
+                    State "cufet build: '{the name of bp-doing}' needs {bp-need}, which '{bp-maker}' should have made. That step ran, and the file is not there — check that it writes {bp-need}.".
+                Done.
+                Exit with 1.
+            Done.
+        Done.
 
         // ★★ TWO questions, and a step is skipped only when both agree. The signature says the
         // INPUTS and the argv are what they were; `bp-made-already` says the OUTPUTS are still
