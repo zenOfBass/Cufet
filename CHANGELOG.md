@@ -119,6 +119,12 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **The old `Add … to` statement is told what it became.** Since `Add <x> to <series>` was
+  renamed `Insert <x> into <series>`, `add` has been an ordinary name, so `Add 4 to scores.`
+  reached the rule for names and was told only *"identifier 'Add' must start with a lowercase
+  letter"* — true, and no help to anyone writing the old form. It now says `Add` became
+  `Insert … into` and shows the rewritten line. Lowercase `add` is still an ordinary name.
+
 - **A caught fault inside a call's argument used up the interpreter's call depth for good.** The
   interpreter raises its depth before evaluating a function's or method's arguments, and lowered
   it only once the body had run. An argument that faulted, such as `cast twice on (1 / zero)`,
