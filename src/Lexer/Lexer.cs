@@ -125,6 +125,17 @@ public sealed class Lexer
     private static readonly HashSet<string> CapitalisableStatementWords =
         new(StringComparer.OrdinalIgnoreCase) { "output", "seed", "make" };
 
+    // Statement words that were RENAMED, with what to write instead. A renamed word is usually
+    // free again in lowercase — `add` is an ordinary name since `Add … to` became `Insert … into`
+    // — so its capitalised spelling reaches the lowercase rule below, which answered with the
+    // truth ("must start with a lowercase letter") and nothing a writer of the old form could use.
+    // Only the capitalised spelling is caught: that is the one that cannot be a name.
+    private static readonly Dictionary<string, string> RenamedStatementWords = new(StringComparer.Ordinal)
+    {
+        ["Add"] = "'Add' is not a statement any more — it became 'Insert … into'. "
+                + "Write 'Insert 4 into scores.' where you would have written 'Add 4 to scores.' before",
+    };
+
     // Reads exactly one logical token from the current position and appends it (or its
     // sequence, in the case of an interpolated string) to `tokens`.
     private void ReadOneToken(List<Token> tokens)
@@ -373,6 +384,8 @@ public sealed class Lexer
 
         // Identifiers must start with a lowercase letter — uppercase-initial is reserved
         // for keywords and produces a visible distinction between keywords and variables.
+        if (type == TokenType.Identifier && RenamedStatementWords.TryGetValue(lexeme, out var renamed))
+            throw new LexerException(_line, ColumnAt(start), renamed);
         if (type == TokenType.Identifier && !char.IsLower(lexeme[0]))
             throw new LexerException(_line, ColumnAt(start), $"identifier '{lexeme}' must start with a lowercase letter");
 

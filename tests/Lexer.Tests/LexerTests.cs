@@ -125,6 +125,24 @@ public class LexerTests
         Assert.Contains("must start with a lowercase letter", ex.Message);
     }
 
+    [Fact]
+    public void TheRenamedAdd_SaysWhatItBecame()
+    {
+        // `Add … to` became `Insert … into`, and `add` became an ordinary name — so the old
+        // statement used to be told only that an identifier must start with a lowercase letter.
+        var ex = Assert.Throws<LexerException>(() => Lex("Add 4 to scores."));
+        Assert.Contains("'Insert … into'", ex.Message);
+        Assert.Contains("Insert 4 into scores.", ex.Message);
+    }
+
+    [Fact]
+    public void TheRenamedWord_IsStillAnOrdinaryNameInLowercase()
+    {
+        var tokens = LexTokens("add");
+        Assert.Single(tokens);
+        Assert.Equal(TokenType.Identifier, tokens[0].Type);
+    }
+
     // ── Reserved keyword: it ──────────────────────────────────────────────
 
     [Fact]
