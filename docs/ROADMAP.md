@@ -271,12 +271,6 @@ rather than the operators `bits` already shipped.
 
 ### Language
 
-- **`sorted by <function>` — ordering by a computed key.** `sorted by the <field>` reaches named
-  fields only, so a series of text cannot be sorted by length: there is no field to name. MEASURED
-  — refused with *"'sorted by' requires a series of records or objects."* ⚠ Not a collation
-  question; text already orders ordinally and `<` on text is refused deliberately (DESIGN).
-  *Blocker:* none known — it extends a shape that already exists.
-
 - **Expression-level flow-narrowing.** Narrowing works on *variables* today
   (`If maybe-x is not void: … maybe-x`). Narrowing a value produced by an *expression* — say
   re-reading `the entry for "alice" in ages` inside an already-checked branch without naming

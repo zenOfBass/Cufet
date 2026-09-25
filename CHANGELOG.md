@@ -40,6 +40,20 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   way cannot remember anything. It printed `x` where it should have printed what it was given,
   directly under prose claiming it would remember.
 
+- **`sorted by <function>` — sorting by a computed key.** The name after `sorted by` may now be
+  a function that takes one element and gives back a number or text, and a function can be
+  written in place: `words sorted by a function given (the text word): Return the length of
+  word. Done`. A series of text could not be sorted by length before, because there was no field
+  to name. `in reverse` and stability work as they do for fields.
+
+  **A name that is both a field of the element and a function is refused**, rather than one of
+  them winning. That changes one existing behaviour: such a program used to sort by the field,
+  silently. The refusal shows how to write the function in place to say which is meant.
+
+  The key function runs exactly once per element, in order, before anything is compared, on
+  both backends. The compiled sort computes its keys up front to match the interpreter; calling
+  the function inside the comparison would have run it many more times, in a different order.
+
 ### Changed
 
 - **Three more reserved words given back: `length`, `size` and `contents`** — ordinary names

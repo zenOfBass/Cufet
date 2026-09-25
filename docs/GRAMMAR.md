@@ -332,7 +332,7 @@ equality `is` uses. `Descend.` (explicit fall-through) is reserved and not yet a
 | `number` | NumberKw | `the number of <series>` — not the type name `number` |
 | `sorted` | Sorted | Sort expression |
 | `reverse` | Reverse | Reverse sort |
-| `by` | By | Sort field marker |
+| `by` | By | Sort key marker — a field or a function |
 | `range` | Range | Range expression |
 | `counting` | Counting | Range step marker |
 
@@ -1299,7 +1299,7 @@ series/map layer.
 | `the first/last of expr` | read |
 | `item N of expr` | read |
 | `For each x in expr, repeat:` | read |
-| `expr sorted` / `expr sorted by field` / `in reverse` | read |
+| `expr sorted` / `expr sorted by field-or-function` / `in reverse` | read |
 
 **Mutating ops** (`Add`, `Remove`, `item N of ... becomes`) require an
 addressable target — a variable or field reference (`my-series`, `one's cards`,
@@ -2961,6 +2961,28 @@ the last of s          the position of x in s        the size of m
 
 So it is `nums sorted`, never `sorted nums`. If you are reaching for a
 transformation, it goes *after*.
+
+### `sorted by <name>` — a field or a function, and never both
+
+The name after `by` is looked up twice: as a named field of the element, and as a function in
+scope. Exactly one must answer.
+
+- **Both answering is refused**, never settled by a preference. Before `sorted by <function>`
+  existed the field always won, so a preference would make adding a same-named function
+  elsewhere silently change what an existing line sorts by. The refusal says how to reach the
+  function anyway: write it inline, `sorted by a function given (the person value): Return cast
+  age on (value). Done`.
+- **Only a FUNCTION collides.** A same-named variable holding a number is not a key, so
+  `sorted by the score` still sorts by the field when `score` is also a variable.
+- **The article is noise either way** — `sorted by the size-of` and `sorted by size-of` are the
+  same, as they always were for fields.
+- **The parameter must be EXACTLY the element type**, not one it widens into. The compiled sort
+  passes each element as it is stored, with no argument slot to widen it through, so a
+  `voidable text` parameter taking a series of text is refused rather than miscompiled.
+- **The key must be a number or text** — the same two orders a field sort allows.
+- **A chase takes no key function**; it sorts its characters naturally or not at all.
+- **The key function runs exactly once per element, front to back**, before any comparison, on
+  both backends. A key that prints shows it.
 
 ### Binary `-` needs spaces, because hyphens are identifier characters
 

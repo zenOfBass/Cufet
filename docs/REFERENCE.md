@@ -2897,6 +2897,25 @@ Ada
 The sort is **stable** — equal elements keep their original relative order — and
 `in reverse` composes with `by the <field>`.
 
+To sort by something that is not a field, sort **by a function**: one that takes an element
+and gives back a number or text. Name it, or write it in place:
+
+```cufet
+Bind number to size-of, given (the text word): Return the length of word. Done.
+
+Define words as a series of text with ("pear", "apple", "fig", "kiwi").
+State words sorted by size-of.
+State words sorted by a function given (the text word): Return the length of word. Done in reverse.
+```
+```output
+(fig, pear, kiwi, apple)
+(apple, pear, kiwi, fig)
+```
+
+The function is called once on each element, in order, before anything is compared. If a name
+is both a field of the element and a function, `sorted by` it is refused — write the function
+in place to say which you mean.
+
 > Because `sorted` produces a copy, `Add x to (items sorted)` would mutate a temporary
 > and lose the result. The type checker catches that.
 
