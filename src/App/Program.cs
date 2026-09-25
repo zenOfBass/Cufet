@@ -223,13 +223,42 @@ static void Help()
         """);
 }
 
+/// Whether reading a file failed because of the file, rather than because of a bug here.
+/// ⚠ A permission problem is NOT an IOException, and on Windows neither is naming a FOLDER — both
+/// are UnauthorizedAccessException, which a bare `catch (IOException)` let through as a stack trace.
+static bool IsReadFailure(Exception e) => e is IOException or UnauthorizedAccessException;
+
+/// Why a file a command was given could not be read, said in the CLI's voice rather than .NET's.
+/// <remarks>
+/// ★ It says where it LOOKED. A relative path is resolved against the directory cufet was run
+/// from, and a blueprint step runs from the project root — so "there is no such file" is only
+/// half an answer until it names the folder that was searched.
+/// ⚠ Decided by asking the file system, not by the exception's type: .NET reports a folder as
+/// "access denied" on Windows, which is false, and the type alone cannot tell the two apart.
+/// </remarks>
+static string Unreadable(string verb, string path, Exception e)
+{
+    string full = Path.GetFullPath(path);
+    string? folder = Path.GetDirectoryName(full);
+    if (Directory.Exists(full))
+        return $"{verb}: '{path}' is a folder, not a file. Name a .cufe file inside it.";
+    if (folder is not null && !Directory.Exists(folder))
+        return $"{verb}: there is no folder {folder}, so '{path}' cannot be read. "
+             + $"A relative path starts from where cufet was run: {Directory.GetCurrentDirectory()}.";
+    if (!File.Exists(full))
+        return $"{verb}: there is no file '{Path.GetFileName(full)}' in {folder}.";
+    if (e is UnauthorizedAccessException)
+        return $"{verb}: '{path}' is there, but cufet is not allowed to read it.";
+    return $"{verb}: '{path}' is there, but could not be read: {e.Message}";
+}
+
 // Emits C source only (no gcc) — used to cross-compile in another toolchain (e.g. WSL gcc for
 // POSIX subprocess code that this box's mingw gcc can't build).
 static void EmitC(string sourcePath, string outPath)
 {
     string source;
     try { source = File.ReadAllText(sourcePath); }
-    catch (IOException e) { Console.Error.WriteLine(e.Message); Environment.Exit(1); return; }
+    catch (Exception e) when (IsReadFailure(e)) { Console.Error.WriteLine(Unreadable("emit-c", sourcePath, e)); Environment.Exit(1); return; }
     try
     {
         var tokens  = new Lexer(source).Tokenize();
@@ -299,7 +328,7 @@ static void Check(string[] rest)
     string full = standsFor is null ? read : Path.GetFullPath(standsFor);
     string source;
     try { source = File.ReadAllText(read); }
-    catch (IOException e) { Console.Error.WriteLine(e.Message); Environment.Exit(2); return; }
+    catch (Exception e) when (IsReadFailure(e)) { Console.Error.WriteLine(Unreadable("check", path, e)); Environment.Exit(2); return; }
 
     var checker = MakeChecker(full);
     Cufet.Interpreter.Program program;
@@ -410,9 +439,9 @@ static void Pulls(string[] rest)
     {
         string source;
         try { source = File.ReadAllText(file); }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        catch (Exception e) when (IsReadFailure(e))
         {
-            Console.Error.WriteLine($"pulls: {file}: {e.Message}");
+            Console.Error.WriteLine(Unreadable("pulls", file, e));
             anyMissing = true;
             continue;
         }
@@ -461,7 +490,7 @@ static void Tokens(string[] rest)
     string full = standsFor is null ? read : Path.GetFullPath(standsFor);
     string source;
     try { source = File.ReadAllText(read); }
-    catch (IOException e) { Console.Error.WriteLine(e.Message); Environment.Exit(2); return; }
+    catch (Exception e) when (IsReadFailure(e)) { Console.Error.WriteLine(Unreadable("tokens", path, e)); Environment.Exit(2); return; }
 
     IReadOnlyList<SemanticToken> semantic;
     try
@@ -612,7 +641,7 @@ static void BuildProject()
 
     string source;
     try { source = File.ReadAllText(blueprintFile); }
-    catch (IOException e) { Console.Error.WriteLine(e.Message); Environment.Exit(1); return; }
+    catch (Exception e) when (IsReadFailure(e)) { Console.Error.WriteLine(Unreadable("build", blueprintFile, e)); Environment.Exit(1); return; }
 
     var checker = MakeChecker(blueprintFile);
     Cufet.Interpreter.Program program;
@@ -674,7 +703,7 @@ static void InstallProject()
 
     string source;
     try { source = File.ReadAllText(blueprintFile); }
-    catch (IOException e) { Console.Error.WriteLine(e.Message); Environment.Exit(1); return; }
+    catch (Exception e) when (IsReadFailure(e)) { Console.Error.WriteLine(Unreadable("install", blueprintFile, e)); Environment.Exit(1); return; }
 
     // ★ A WORKLIST, never recursion — the same rule `bp-walk` follows, and here it also gives
     // cycle termination for free: a name already seen is never queued again, so two books pinning
@@ -1022,7 +1051,7 @@ static void Page(string sourcePath)
     string full = Path.GetFullPath(sourcePath);
     string source;
     try { source = File.ReadAllText(full); }
-    catch (IOException e) { Console.Error.WriteLine(e.Message); Environment.Exit(2); return; }
+    catch (Exception e) when (IsReadFailure(e)) { Console.Error.WriteLine(Unreadable("page", sourcePath, e)); Environment.Exit(2); return; }
 
     var lines = source.Replace("\r\n", "\n").Split('\n');
     Cufet.Interpreter.Program program;
@@ -1126,7 +1155,7 @@ static void Build(string sourcePath)
 {
     string source;
     try { source = File.ReadAllText(sourcePath); }
-    catch (IOException e) { Console.Error.WriteLine(e.Message); Environment.Exit(1); return; }
+    catch (Exception e) when (IsReadFailure(e)) { Console.Error.WriteLine(Unreadable("build", sourcePath, e)); Environment.Exit(1); return; }
 
     var checker = MakeChecker(sourcePath);
     Cufet.Interpreter.Program program;
@@ -1197,9 +1226,9 @@ static void Interpret(string[] args)
         // recognised verb is treated as a path — so point at the usage text rather than
         // letting an unhandled exception print a stack trace at someone.
         try { source = File.ReadAllText(args[0]); }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        catch (Exception e) when (IsReadFailure(e))
         {
-            Console.Error.WriteLine($"{e.Message} Run 'cufet --help' for usage.");
+            Console.Error.WriteLine($"{Unreadable("cufet", args[0], e)} Run 'cufet --help' for usage.");
             Environment.Exit(2);
             return;
         }

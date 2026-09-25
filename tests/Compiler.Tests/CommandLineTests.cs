@@ -346,6 +346,39 @@ public class CommandLineTests
         finally { File.Delete(file); }
     }
 
+    // ⚠ A file that cannot be read used to be reported in .NET's words — "Could not find a part of
+    // the path" for a missing folder — and a FOLDER given as the file crashed `check` and `build`
+    // with a stack trace, because Windows reports it as UnauthorizedAccessException and those
+    // catches took IOException only. A blueprint step running `cufet build x.cufe` passed the
+    // same words on. "" means a bare `cufet <file>`, the run path.
+    [Theory]
+    [InlineData("")]
+    [InlineData("check")]
+    [InlineData("build")]
+    [InlineData("pulls")]
+    [InlineData("emit-c")]
+    [InlineData("tokens")]
+    [InlineData("page")]
+    public void AFileThatCannotBeRead_IsExplainedInCufetsVoice(string verb)
+    {
+        string missingFolder = Path.Combine(TestScratch.Root, "no-such-folder-" + Guid.NewGuid().ToString("N"));
+        var cases = new (string Path, string Says)[]
+        {
+            (Path.Combine(missingFolder, "program.cufe"), $"there is no folder {missingFolder}"),
+            (Path.Combine(TestScratch.Root, "absent-" + Guid.NewGuid().ToString("N") + ".cufe"), "there is no file"),
+            (TestScratch.Root, "is a folder, not a file"),
+        };
+        foreach (var (path, says) in cases)
+        {
+            var (exit, _, err) = verb == "" ? Run(path) : Run(verb, path);
+            Assert.NotEqual(0, exit);
+            Assert.Contains(says, err);
+            Assert.DoesNotContain("Unhandled exception", err);
+            Assert.DoesNotContain("Could not find", err);
+            Assert.DoesNotContain("Access to the path", err);
+        }
+    }
+
     [Fact]
     public void Check_WithAMistypedFlag_IsRefused()
     {
