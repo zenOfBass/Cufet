@@ -10,6 +10,13 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+- **Lesson 2 of the tutorial — something that might not be there.** Text that may or may not be a
+  number, `converted to number`, what `void` is, and `but void is`, taught from the refusal a
+  beginner meets first. Writing it is what found the five refusals below that never said "void".
+  The curriculum in the ROADMAP was revised alongside it to thirteen lessons: lifetimes are taught
+  with a rabbit before a person declares one, projects come before books, and a last lesson on
+  writing modules ends at `Prelude/rabbit.cufe`, which is one line.
+
 - **`examples/circuits/` — a four-valued logic simulator, and the first multi-file example.**
   Five programs sharing a directory with nothing pulled and no book anywhere: inside a project a
   directory is a namespace whose files see each other flatly, and `blueprint.cufe` is what makes
@@ -124,6 +131,23 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   at all: their `to` and `with` come after an expression, so nothing ADJACENT distinguishes them.
 
 ### Fixed
+
+- **A value that might be void, used where only one that is there will do, now says "void".**
+  Five places refused this, each in its own words, and none mentioned void or `but void is`.
+  `carrots + 1` said *"arithmetic requires numbers on both sides"* to someone who believed
+  `carrots` was a number; ordering said much the same; assigning it advised defining a new name;
+  a hole listed what *can* be converted to text, `chase` included; and joining advised
+  `converted to text`, which then refused in turn. All five now say the value might be void and
+  show the fix in the shape that was written: `(carrots but void is 0)`, `{carrots but void is 0}`,
+  `(carrots but void is 0) converted to text`, or `The total becomes carrots but void is 0`.
+  `If carrots is not void:` is offered as well when the value is a plain name. **The brackets are
+  said out loud**, because `carrots but void is 0 + 1` reads the default as `0 + 1` and prints the
+  wrong number without complaint. Found by trying to write lesson 2 of the tutorial.
+
+- **Keeping a value past the end of its region no longer mentions a rabbit.** The advice said
+  *"move the container inside the rabbit block"*, from before a person could write a region, and a
+  program whose only region was one it had declared was told about a rabbit it never pulled. It now
+  says to declare the container inside that region, or make the value before the region opens.
 
 - **A file `cufet` cannot read is explained in Cufet's voice, not .NET's.** Every command that
   takes a file (`cufet <file>`, `check`, `build`, `pulls`, `emit-c`, `tokens`, `page`) passed the

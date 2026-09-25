@@ -99,4 +99,92 @@ knowing first, because it is what the hole is doing for you.
 
 ---
 
-**Next:** collections, and what happens when you put the wrong kind of thing in one.
+## Lesson 2 — Something that might not be there
+
+Numbers often arrive as text: somebody typed them, or they came out of a file. `converted to number`
+turns text into a number. Here it is used to add one carrot. It does not work.
+
+```cufet-refused
+Define typed as "12".
+Define carrots as typed converted to number.
+State carrots + 1.
+```
+```output
+That doesn't work: 'carrots' might be void, and + needs a number that is there.
+Here on line 3, you're trying to use + with a voidable number.
+
+Say what to use when it is void: '(carrots but void is 0)' in its place.
+Keep the brackets: without them, the default runs on to the end of the line.
+Or check first, with 'If carrots is not void:'.
+```
+
+### What void is
+
+`"12"` is a number written as text, so it converts. But not every text is a number:
+
+```cufet
+State "12" converted to number.
+State "a dozen" converted to number.
+```
+```output
+12
+void
+```
+
+**`void` means nothing is there.** `converted to number` cannot promise a number, because the text
+might be `"a dozen"` — so what it gives back is a *voidable number*: a number, or void. That is the
+word the refusal used.
+
+In many languages `carrots + 1` would run anyway, and the program would find out halfway through
+that there was nothing to add to. Cufet asks before it runs: if `carrots` turns out to be void,
+what should happen? You are the only one who knows.
+
+### Saying what to use
+
+`but void is` gives the answer — use this instead when there is nothing there:
+
+```cufet
+Define typed as "12".
+Define carrots as typed converted to number.
+State (carrots but void is 0) + 1.
+```
+```output
+13
+```
+
+Change `"12"` to `"a dozen"` and it prints `1`: no carrots, plus one.
+
+The brackets matter, and the refusal said so. Without them, `carrots but void is 0 + 1` reads the
+default as `0 + 1` — the whole rest of the line — so it would print `12`, which is not what
+anybody meant.
+
+### A shorter way
+
+If the answer is the same everywhere, say it once, where the name is defined:
+
+```cufet
+Define typed as "12".
+Define carrots as typed converted to number but void is 0.
+State carrots + 1.
+State "Hopper has {carrots} carrots.".
+```
+```output
+13
+Hopper has 12 carrots.
+```
+
+Now `carrots` is a plain number — it can no longer be void — so everything from lesson 1 works on it
+again, holes included.
+
+A default is a decision, though, and `0` is not always the right one: `"a dozen"` really is twelve
+carrots, not none. The refusal offered a second way — checking first, and doing something different
+when there is nothing there. That needs `If`, which is the next lesson.
+
+### Try it
+
+- Set `typed` to `"a dozen"` in the last program. What does it say, and is that right?
+- Put `carrots but void is 0` straight into the hole: `{carrots but void is 0}`.
+
+---
+
+**Next:** choosing and repeating — `If`, and doing something different when there is nothing there.
