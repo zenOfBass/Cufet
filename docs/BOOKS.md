@@ -1214,6 +1214,11 @@ A step is four things:
 | `makes` | paths it produces, which is how another step comes to need it |
 | `runs` | argv, program first |
 
+**Every path in a step is relative to the project root** — the folder holding `blueprint.cufe`.
+`cufet build` reads the `blueprint.cufe` in the folder it is run from and does not search above
+it, so run it from there; `needs`, `makes`, and any file `runs` names are all measured from that
+folder.
+
 ★★ **Running a blueprint performs nothing.** It defines `blueprint` and calls nothing, so what
 comes out is a plan; the build happens afterwards, to that plan. Run it with plain `cufet
 blueprint.cufe` and you get no output and no compilation, which is correct rather than a bug.

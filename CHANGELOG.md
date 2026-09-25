@@ -119,6 +119,17 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **A file `cufet` cannot read is explained in Cufet's voice, not .NET's.** Every command that
+  takes a file (`cufet <file>`, `check`, `build`, `pulls`, `emit-c`, `tokens`, `page`) passed the
+  runtime's own words through: *"Could not find a part of the path 'C:\…'"* for a missing folder,
+  and a blueprint step running `cufet build x.cufe` repeated them under the step's name. Now it
+  says whether the file or its folder is missing and where it looked, which matters because a
+  relative path starts from where `cufet` was run. **Naming a folder instead of a file crashed
+  `check` and `build` with a .NET stack trace**, because Windows reports that as a permission
+  error and those commands caught only file errors; plain `cufet <folder>` claimed access was
+  denied. All of these now say it is a folder. BOOKS.md now states that a blueprint's paths are
+  relative to the project root, which was true but written down nowhere.
+
 - **The old `Add … to` statement is told what it became.** Since `Add <x> to <series>` was
   renamed `Insert <x> into <series>`, `add` has been an ordinary name, so `Add 4 to scores.`
   reached the rule for names and was told only *"identifier 'Add' must start with a lowercase

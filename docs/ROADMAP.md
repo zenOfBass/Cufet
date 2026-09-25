@@ -212,11 +212,6 @@ caught was `tools/snake/snake.cufe`, on the day it was written.
 `put` is an axiom at all. A newline-free output form would remove the hole rather than route
 around it. Nobody has asked for one.
 
-**A blueprint's missing input reports in .NET's voice.** A `needs` path that is not there answers
-*"Could not find a part of the path 'C:\…'"* rather than naming the step, the path and the fix.
-★ Found by writing the repo's first blueprint; the same exercise showed `needs`/`makes`/`runs`
-paths are resolved against the PROJECT ROOT, which is correct but written down nowhere.
-
 **Composition modes for rabbits** — `sequential` / `parallel` / `automatic`, an optional adjective
 in the type-annotation slot: `Pull an automatic rabbit as dispatcher.` The mode governs how a
 rabbit's TASKS compose, never its ordinary statements, which stay sequential imperative code.
