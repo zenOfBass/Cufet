@@ -92,6 +92,19 @@ public class VoidableMisuseTests
     }
 
     [Fact]
+    public void AMapLookup_IsQuotedAsWritten()
+    {
+        // ★ The commonest voidable there is — a map asked for a key it does not have — was quoted
+        // back as "'<expression>' might be void", because the renderer did not know the form.
+        var ex = Assert.Throws<TypeException>(() => Run(
+            "Define pantry as a map with (\"carrots\" : 12).\n"
+          + "State (the entry for \"lettuce\" in pantry) + 1."));
+        Assert.Contains("'the entry for \"lettuce\" in pantry' might be void", ex.Message);
+        Assert.Contains("'(the entry for \"lettuce\" in pantry but void is 0)'", ex.Message);
+        Assert.DoesNotContain("<expression>", ex.Message);
+    }
+
+    [Fact]
     public void ARealMismatch_KeepsItsOwnWords()
     {
         // Only a voidable whose PRESENT value would fit gets the void refusal.

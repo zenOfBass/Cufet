@@ -273,7 +273,7 @@ public sealed partial class TypeChecker
                         "all keys in a map must be the same type",
                         $"The first key is a {FormatType(inferredKey)}, so all keys must be {FormatTypePlural(inferredKey)}",
                         lit.Line, lit.Column,
-                        $"mix a {FormatType(kType)} key with {FormatTypePlural(inferredKey)} keys",
+                        $"mix a {FormatType(kType)} key with {FormatType(inferredKey)} keys",
                         "Make all keys the same type.");
             }
 
@@ -286,7 +286,7 @@ public sealed partial class TypeChecker
                         "all values in a map must be the same type",
                         $"The first value is a {FormatType(inferredVal)}, so all values must be {FormatTypePlural(inferredVal)}",
                         lit.Line, lit.Column,
-                        $"mix a {FormatType(vType)} value with {FormatTypePlural(inferredVal)} values",
+                        $"mix a {FormatType(vType)} value with {FormatType(inferredVal)} values",
                         "Make all values the same type.");
             }
         }

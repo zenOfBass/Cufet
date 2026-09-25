@@ -4318,6 +4318,13 @@ public sealed partial class TypeChecker
         BitsLiteral      b                => FormatBitsLiteral(b),
         VariableReference { Name: var n } => n,
         PossessiveAccess pa               => $"{FormatExpr(pa.Target)}'s {pa.Member}",
+        // ★ The places a VOIDABLE comes from, so a refusal about one can quote what was written.
+        // Without them the void refusal said "'<expression>' might be void" of the commonest case
+        // there is — a map asked for a key it does not have.
+        VoidLiteral                       => "void",
+        MapLookup ml                      => $"the entry for {FormatExpr(ml.Key)} in {FormatExpr(ml.Map)}",
+        NumberConvert nc                  => $"{FormatExpr(nc.Value)} converted to number",
+        TextFind tf                       => $"the position of {FormatExpr(tf.Substring)} in {FormatExpr(tf.Text)}",
         _                                 => "<expression>",
     };
 
