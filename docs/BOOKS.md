@@ -1186,24 +1186,24 @@ file, as it always has — the verb is overloaded by arity.
 ```cufet-fragment
 Pull a book on blueprints.
     Bind series of step to blueprint:
-        Define work as a series of step.
-
-        Insert a record with (
-            the name "shell",
-            the needs a series of text with ("tools/shell.cufe"),
-            the makes a series of text with ("build/cufetsh"),
-            the runs a series of text with ("cufet", "build", "tools/shell.cufe")) into work.
-
-        Insert a record with (
-            the name "smoke",
-            the needs a series of text with ("build/cufetsh"),
-            the makes a series of text with (),
-            the runs a series of text with ("build/cufetsh", "--version")) into work.
-
-        Return work.
+        Return a series of step with (
+            a record with (
+                the name "shell",
+                the needs a series of text with ("tools/shell.cufe"),
+                the makes a series of text with ("build/cufetsh"),
+                the runs a series of text with ("cufet", "build", "tools/shell.cufe")),
+            a record with (
+                the name "smoke",
+                the needs a series of text with ("build/cufetsh"),
+                the makes a series of text with (),
+                the runs a series of text with ("build/cufetsh", "--version"))).
     Done.
 Done.
 ```
+
+Steps that are known up front are returned as one series. When they are COMPUTED — one per file
+in a directory, say — `blueprint` is a function body like any other, so build the series with a
+loop and `Insert … into` instead.
 
 A step is four things:
 

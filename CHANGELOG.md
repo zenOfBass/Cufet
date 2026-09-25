@@ -62,6 +62,12 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Changed
 
+- **Blueprints are written as one returned series of steps.** BOOKS.md's example,
+  `tools/blueprint.cufe` and `examples/circuits/blueprint.cufe` built their steps up one at a time
+  (`Define work …`, `Insert … into work`, `Return work`), though returning a series literal
+  already worked and DESIGN.md already named it the settled spelling. Steps and pins now read the
+  same way. Building the series up is still right when the steps are computed, and BOOKS.md says so.
+
 - **Three more reserved words given back: `length`, `size` and `contents`** — ordinary names
   again, as variables, parameters, record fields and loop iterators.
 
