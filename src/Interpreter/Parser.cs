@@ -5950,7 +5950,7 @@ public sealed class Parser
                     throw new ParseException(holeLine, holeCol, "empty interpolation '{}' — write an expression between the braces");
                 var expr = ParseExpression();
                 Consume(TokenType.InterpolHoleClose);
-                piece = new TextConvert(expr, holeLine, holeCol);
+                piece = new TextConvert(expr, holeLine, holeCol, IsHole: true);
             }
             else
             {

@@ -3160,6 +3160,16 @@ public sealed partial class TypeChecker
         var rhsType = InferType(becomes.Value);
         if (rhsType == null) return;
 
+        // A voidable value into a name that holds only present ones: say void, not "a new name".
+        if (!IsAssignable(existing.Type, rhsType)
+            && rhsType is VoidableType { Inner: var present } && IsAssignable(existing.Type, present))
+            throw VoidableMisuse(
+                becomes.Value,
+                $"'{becomes.Name}' holds {FormatTypePlural(existing.Type)} that are there",
+                $"give it a {FormatType(rhsType)} value",
+                $"'The {becomes.Name} becomes {Defaulted(becomes.Value, present)}'",
+                becomes.Line, becomes.Column);
+
         if (!IsAssignable(existing.Type, rhsType))
             throw TypeError(
                 $"'{becomes.Name}' holds {FormatTypePlural(existing.Type)}",
@@ -3694,6 +3704,29 @@ public sealed partial class TypeChecker
             }
         }
 
+        // A voidable number where a number goes — the refusal names void and says how to supply
+        // one. Only when the other side is a number too, so a real mismatch keeps its own words.
+        bool arithmetic = bin.Op is TokenType.Plus or TokenType.Minus or TokenType.Star
+                                 or TokenType.Slash or TokenType.Percent;
+        bool ordering   = bin.Op is TokenType.Lt or TokenType.Gt or TokenType.Lte or TokenType.Gte;
+        if ((arithmetic || ordering)
+            && (l is VoidableType { Inner: NumberType } || r is VoidableType { Inner: NumberType })
+            && (l is NumberType or VoidableType { Inner: NumberType })
+            && (r is NumberType or VoidableType { Inner: NumberType }))
+        {
+            var voidable = l is VoidableType ? bin.Left : bin.Right;
+            // ⚠ IN BRACKETS, and the message says why. `carrots but void is 0 + 1` reads the
+            // default as `0 + 1` — MEASURED: it printed 12 for a carrots of 12, not 13, silently.
+            // And in a condition the unbracketed form does not parse at all.
+            throw VoidableMisuse(
+                voidable,
+                arithmetic ? $"{FormatOp(bin.Op)} needs a number that is there" : "ordering needs a number that is there",
+                arithmetic ? $"use {FormatOp(bin.Op)} with a voidable number" : "order a voidable number",
+                $"'({Defaulted(voidable, CufetType.Number)})' in its place",
+                bin.Line, bin.Column,
+                note: "Keep the brackets: without them, the default runs on to the end of the line.");
+        }
+
         return bin.Op switch
         {
             TokenType.Plus or TokenType.Minus or TokenType.Star or TokenType.Slash or TokenType.Percent
@@ -4131,6 +4164,44 @@ public sealed partial class TypeChecker
             violationLine,
             violationColumn);
     }
+
+    /// <summary>
+    /// A voidable value used where only one that is THERE will do — one refusal for every site.
+    /// </summary>
+    /// <remarks>
+    /// ⚠⚠ Five places refused this, each in its own words, and none said "void". Arithmetic told a
+    /// writer who believed `carrots` WAS a number that "arithmetic requires numbers on both sides";
+    /// joining advised `converted to text`, which then refused as well — the fix led to a second
+    /// refusal. Found by trying to write lesson 2 of the tutorial, which is about exactly this.
+    /// ★ Called only where stripping the void would make the line valid, so a real type mismatch
+    /// keeps its own message. `example` is the line or phrase written the way that works; the
+    /// `If` check is offered only for a plain name, because narrowing reaches variables alone.
+    /// </remarks>
+    private static TypeException VoidableMisuse(
+        IExpression expr, string needs, string action, string example, int line, int col,
+        string? note = null)
+    {
+        string said = FormatExpr(expr);
+        string check = expr is VariableReference
+            ? $"\nOr check first, with 'If {said} is not void:'."
+            : "";
+        return TypeError(
+            $"'{said}' might be void, and {needs}",
+            null, line, col, action,
+            $"Say what to use when it is void: {example}."
+          + (note is null ? "" : $"\n{note}")
+          + check);
+    }
+
+    /// <summary>`<expr> but void is <a default>` — the defaulted form an example is built from.</summary>
+    private static string Defaulted(IExpression expr, CufetType inner) =>
+        $"{FormatExpr(expr)} but void is " + (inner switch
+        {
+            NumberType => "0",
+            TextType   => "\"\"",
+            FactType   => "false",
+            _          => $"<a {FormatType(inner)}>",
+        });
 
     // internal, not private: GenericInstantiation names a filling with it, and one renderer is the
     // point — an instantiated type's name is what an error message shows.

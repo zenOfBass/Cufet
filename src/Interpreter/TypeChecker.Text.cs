@@ -9,6 +9,19 @@ public sealed partial class TypeChecker
         var left  = InferType(tj.Left);
         var right = InferType(tj.Right);
 
+        // A voidable on either side: say void. Its advice used to be `converted to text`, which
+        // refused a voidable in turn — the fix led straight to a second refusal.
+        foreach (var (side, type) in new[] { (tj.Left, left), (tj.Right, right) })
+            if (type is VoidableType { Inner: var inner } && IsTextConvertible(inner))
+                throw VoidableMisuse(
+                    side,
+                    "only text that is there can be joined",
+                    $"join a {FormatType(type)}",
+                    inner == CufetType.Text
+                        ? $"'{Defaulted(side, inner)}'"
+                        : $"'({Defaulted(side, inner)}) converted to text'",
+                    tj.Line, tj.Column);
+
         if (left != null && left != CufetType.Text)
             throw TypeError(
                 "you can only join text to text",
@@ -28,6 +41,10 @@ public sealed partial class TypeChecker
         return CufetType.Text;
     }
 
+    private static bool IsTextConvertible(CufetType type) =>
+        type == CufetType.Number || type == CufetType.Fact || type == CufetType.Text
+        || type == CufetType.Bits || type is ChaseType;
+
     private CufetType InferTextConvert(TextConvert tc)
     {
         var operand = InferType(tc.Value);
@@ -41,6 +58,15 @@ public sealed partial class TypeChecker
         // afterwards, independent — not consumed, and not a view, because a `text` that changed
         // under you would break the one thing `text` promises.
         if (operand is ChaseType) return CufetType.Text;
+        if (operand is VoidableType { Inner: var inner } && IsTextConvertible(inner))
+            throw VoidableMisuse(
+                tc.Value,
+                "void has no text to convert to",
+                tc.IsHole ? $"put a {FormatType(operand)} in a hole"
+                          : $"convert a {FormatType(operand)} to text",
+                tc.IsHole ? $"'{{{Defaulted(tc.Value, inner)}}}'"
+                          : $"'({Defaulted(tc.Value, inner)}) converted to text'",
+                tc.Line, tc.Column);
         throw TypeError(
             $"'converted to text' doesn't work on {FormatTypePlural(operand)}",
             null,

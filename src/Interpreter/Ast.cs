@@ -692,7 +692,9 @@ public sealed record PossessiveAccess(IExpression Target, string Member, int Lin
 public sealed record TextJoin(IExpression Left, IExpression Right, int Line, int Column) : IExpression;
 
 // score converted to text — explicit value → text (number, fact, or text no-op)
-public sealed record TextConvert(IExpression Value, int Line, int Column) : IExpression;
+// "{score}" — a hole in a piece of text is the same conversion, and IsHole says it was written as one,
+// so a refusal can show the fix in the shape the writer used rather than one they never wrote.
+public sealed record TextConvert(IExpression Value, int Line, int Column, bool IsHole = false) : IExpression;
 
 // "95" converted to number — text → voidable number; void if the text isn't a clean number literal
 public sealed record NumberConvert(IExpression Value, int Line, int Column) : IExpression;
