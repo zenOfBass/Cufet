@@ -347,18 +347,17 @@ public class BlueprintBuildTests
             File.WriteAllText(Path.Combine(project, "blueprint.cufe"), $$"""
                 Pull a book on blueprints.
                     Bind series of step to blueprint:
-                        Define work as a series of step.
-                        Insert a record with (
-                            the name "use",
-                            the needs a series of text with ("middle.txt"),
-                            the makes a series of text with (),
-                            the runs a series of text with ("{{cufet}}", "quiet.cufe")) into work.
-                        Insert a record with (
-                            the name "promise",
-                            the needs a series of text with ("quiet.cufe"),
-                            the makes a series of text with ("middle.txt"),
-                            the runs a series of text with ("{{cufet}}", "quiet.cufe")) into work.
-                        Return work.
+                        Return a series of step with (
+                            a record with (
+                                the name "use",
+                                the needs a series of text with ("middle.txt"),
+                                the makes a series of text with (),
+                                the runs a series of text with ("{{cufet}}", "quiet.cufe")),
+                            a record with (
+                                the name "promise",
+                                the needs a series of text with ("quiet.cufe"),
+                                the makes a series of text with ("middle.txt"),
+                                the runs a series of text with ("{{cufet}}", "quiet.cufe"))).
                     Done.
                 Done.
                 """);
