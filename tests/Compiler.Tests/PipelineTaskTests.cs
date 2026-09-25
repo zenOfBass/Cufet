@@ -419,6 +419,19 @@ public class PipelineTaskTests : PipelineTestBase
         Assert.Equal(Interpret(src), CompileSanitized(src));
     }
 
+    [LinuxFact]
+    public void SortByFunction_MemorySafety_ASan()
+    {
+        // The by-function sort builds a SECOND arena series, of keys, beside the result — and here
+        // the keys are texts the key function made, so both must free cleanly at scope exit.
+        const string src = """
+            Define words as a series of text with ("pear", "apple", "fig").
+            Define s as words sorted by a function given (the text word): Return word in uppercase. Done.
+            State s.
+            """;
+        Assert.Equal(Interpret(src), CompileSanitized(src));
+    }
+
     // ── CONC.C: named tasks + `the awaited result of` (result crosses task → awaiter) ──
     // LINUX-ONLY (pthreads). Unlike the channel spawn-collect pattern, an AWAIT drains the
     // cooperative interpreter deterministically (no deadlock) and the awaited VALUE is

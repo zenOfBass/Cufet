@@ -78,6 +78,74 @@ public class PipelineBooksTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
+    // ── `sorted by <function>` ──
+    // Each also pins the literal answer: two backends agreeing on a wrong order would pass the
+    // equality alone.
+
+    [Fact]
+    public void Sort_ByFunction_NamedAndInline_StableAndReversed()
+    {
+        // pear, kiwi and plum tie at length 4, so stability shows in both directions.
+        const string src = """
+            Bind number to size-of, given (the text word): Return the length of word. Done.
+            Define words as a series of text with ("pear", "apple", "fig", "kiwi", "plum").
+            State words sorted by size-of.
+            State words sorted by the size-of in reverse.
+            State words sorted by a function given (the text word): Return the length of word. Done.
+            State words sorted by a function given (the text word): Return word. Done in reverse.
+            """;
+        var interpreted = InterpretRaw(src);
+        Assert.Equal(
+            "(fig, pear, kiwi, plum, apple)\n(apple, pear, kiwi, plum, fig)\n" +
+            "(fig, pear, kiwi, plum, apple)\n(plum, pear, kiwi, fig, apple)",
+            interpreted.Replace("\r\n", "\n").TrimEnd());
+        Assert.Equal(interpreted, CompileRaw(src));
+    }
+
+    [Fact]
+    public void Sort_ByFunction_CallsTheKeyOncePerElement_FrontToBack()
+    {
+        // ★ The interpreter's OrderBy computes every key once, in order, before comparing. The C
+        // insertion sort would call it O(n²) times in comparison order if it called it inline —
+        // a key function that prints is what makes that visible.
+        const string src = """
+            Bind number to noisy-length, given (the text word):
+                State "key of " joined to word.
+                Return the length of word.
+            Done.
+            Define words as a series of text with ("pear", "apple", "fig").
+            State words sorted by noisy-length in reverse.
+            """;
+        var interpreted = InterpretRaw(src);
+        Assert.Equal("key of pear\nkey of apple\nkey of fig\n(apple, pear, fig)",
+                     interpreted.Replace("\r\n", "\n").TrimEnd());
+        Assert.Equal(interpreted, CompileRaw(src));
+    }
+
+    [Fact]
+    public void Sort_ByFunction_KeyIsAClosureOverALocal()
+    {
+        const string src = """
+            Define object person with (the text name, the number age).
+            Bind series of person to by-distance, given (the series of person folks, the number target):
+                Bind number to distance, given (the person p):
+                    If p's age > target, return p's age - target.
+                    Return target - p's age.
+                Done.
+                Return folks sorted by distance.
+            Done.
+            Define folks as a series of person.
+            Insert a new person { the name "Ada", the age 36 } into folks.
+            Insert a new person { the name "Cy", the age 31 } into folks.
+            Insert a new person { the name "Di", the age 29 } into folks.
+            For each p in cast by-distance on (folks, 30), repeat: State p's name. Done.
+            State (a series of text) sorted by a function given (the text t): Return t. Done.
+            """;
+        var interpreted = InterpretRaw(src);
+        Assert.Equal("Cy\nDi\nAda\n()", interpreted.Replace("\r\n", "\n").TrimEnd());
+        Assert.Equal(interpreted, CompileRaw(src));
+    }
+
     // ── math's transcendentals — written in Cufet, computed on the decimal ──
     // ★★ THE libm CAVEAT IS RETIRED. These used to be double-backed, which meant `power` with a
     // fractional exponent was last-ULP platform-dependent: .NET's Math.Pow IS the platform libm,

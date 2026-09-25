@@ -737,14 +737,29 @@ public sealed record TextTrim(IExpression Text, int Line, int Column) : IExpress
 // <series> sorted in reverse            — natural descending order
 // <series> sorted by <field>            — ascending by named field (records/objects)
 // <series> sorted by <field> in reverse — descending by named field
+// <series> sorted by <function>         — ascending by what a one-argument function gives back
+// <series> sorted by a function given (…): … Done — the same, written inline
 // Returns a new series (non-mutating). Delegates to host stable sort.
 public sealed record SortExpression(
-    IExpression Series,
-    string?     ByField,  // null = natural order; non-null = sort by this named field
-    bool        Reverse,
-    int         Line,
-    int         Column
-) : IExpression;
+    IExpression  Series,
+    string?      ByField,  // the name after `by`: a field or a function — the checker decides which
+    bool         Reverse,
+    int          Line,
+    int          Column,
+    LambdaLiteral? ByLambda = null   // `sorted by a function given (…): … Done`
+) : IExpression
+{
+    /// <summary>The key function a NAME after `by` resolved to, once the checker has decided it names one.</summary>
+    /// <remarks>
+    /// ★ A name after `by` can be a field of the element or a function in scope, and only the
+    /// checker knows which — so it writes the answer here, the way CastExpression carries
+    /// ResolvedFunctionName, and both backends read this rather than deciding again. Null means
+    /// sort by the field, naturally, or by ByLambda — which never needs deciding, so is not copied
+    /// here, and no walk meets the same lambda twice. Backends read `ByLambda ?? KeyFunction`. Rewritten on every check, never merely added to, so a
+    /// second checking pass over the same tree agrees with the first.
+    /// </remarks>
+    public IExpression? KeyFunction { get; set; }
+}
 
 // ── Range (Slice 1 + Slice 2: stepping) ────────────────────────────────────────
 

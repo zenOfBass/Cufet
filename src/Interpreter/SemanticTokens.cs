@@ -950,7 +950,11 @@ public sealed class SemanticTokenizer
 
             case SortExpression so:
                 Walk(so.Series);
-                EmitFound(Cursor.At(_tokens, so.Line, so.Column), so.ByField, SemanticTokenKind.Property);
+                // A name after `by` is a field unless the checker resolved it to a function — and
+                // if the checker never ran, a field is what it used to be, so that is the guess.
+                EmitFound(Cursor.At(_tokens, so.Line, so.Column), so.ByField,
+                          so.KeyFunction != null ? SemanticTokenKind.Function : SemanticTokenKind.Property);
+                if (so.ByLambda != null) Walk(so.ByLambda);
                 break;
 
             case LambdaLiteral lam:

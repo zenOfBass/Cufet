@@ -25,9 +25,18 @@ public sealed partial class Interpreter
         if (seriesVal is not List<object> list)
             throw new RuntimeException($"Expected a series or chase for 'sorted' on line {sort.Line}.");
 
-        // Key extractor: identity for natural sort, named field value for by-field sort.
-        object KeyOf(object elem) => sort.ByField == null
-            ? elem
+        // Key extractor: identity for natural sort, named field value for by-field sort, and what
+        // the key function gives back for by-function sort.
+        // ★ LINQ's OrderBy calls the key selector exactly ONCE per element, in the series' order,
+        // before comparing anything — so a key function that prints or counts is seen to run n
+        // times, front to back. The compiled sort computes its keys up front for the same reason.
+        var keyFunction = (sort.ByLambda ?? sort.KeyFunction) is { } kf
+            ? Evaluate(kf) as FunctionValue
+              ?? throw new RuntimeException($"The key of 'sorted by' is not a function (line {sort.Line}).")
+            : null;
+        object KeyOf(object elem) =>
+            keyFunction != null ? ExecuteCallOnValues(keyFunction, "the key function", [elem], sort.Line)!
+            : sort.ByField == null ? elem
             : GetSortKey(elem, sort.ByField, sort.Line);
 
         // Use OrderBy / OrderByDescending (both stable in LINQ) so equal-key elements

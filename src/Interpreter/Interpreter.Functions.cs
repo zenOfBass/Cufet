@@ -54,11 +54,23 @@ public sealed partial class Interpreter
 
     // Executes a resolved function call and returns the return value (null for void).
     // Manages call depth, argument evaluation, and scope isolation.
-    private object? ExecuteCall(FunctionValue func, string displayName, IReadOnlyList<IExpression> args, int line)
+    private object? ExecuteCall(FunctionValue func, string displayName, IReadOnlyList<IExpression> args, int line) =>
+        // Evaluate args in caller scope before altering env.
+        ExecuteCall(func, displayName, args.Count, () => args.Select(Evaluate).ToList(), line);
+
+    // For a caller already holding the argument VALUES — a sort's key function is handed each
+    // element, which has no expression of its own to evaluate.
+    private object? ExecuteCallOnValues(FunctionValue func, string displayName, IReadOnlyList<object> argValues, int line) =>
+        ExecuteCall(func, displayName, argValues.Count, () => argValues, line);
+
+    // ⚠ The arguments arrive as a thunk so they are still evaluated AFTER the depth check, as they
+    // always were — evaluating them first would move where a deep recursion is caught.
+    private object? ExecuteCall(FunctionValue func, string displayName, int argCount,
+                                Func<IReadOnlyList<object>> evaluateArgs, int line)
     {
-        if (args.Count != func.ParameterNames.Count)
+        if (argCount != func.ParameterNames.Count)
             throw new RuntimeException(
-                $"{displayName} expects {func.ParameterNames.Count} argument(s), got {args.Count} (line {line}).");
+                $"{displayName} expects {func.ParameterNames.Count} argument(s), got {argCount} (line {line}).");
 
         _callDepth++;
         // ★ The real limit, asked before descending. See OutOfStack.
@@ -74,9 +86,9 @@ public sealed partial class Interpreter
         }
 
         // Evaluate args in caller scope before altering env.
-        var argValues = args.Select(Evaluate).ToList();
+        var argValues = evaluateArgs();
 
-        var saved      = SaveScopes();
+        var saved    = SaveScopes();
         var prevHidden = _hiddenTopLevelData;
 
         if (func.CapturedEnv != null)

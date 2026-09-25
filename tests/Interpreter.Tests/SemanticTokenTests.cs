@@ -193,6 +193,23 @@ public class SemanticTokenTests
     }
 
     [Fact]
+    public void SortedBy_ColoursAFieldAsAPropertyAndAFunctionAsAFunction()
+    {
+        var shapes = Classify("""
+            Define object person with (the text name, the number age).
+            Bind number to name-size, given (the person p): Return the length of p's name. Done.
+            Define folks as a series of person.
+            State folks sorted by the age.
+            State folks sorted by name-size.
+            State folks sorted by a function given (the person p): Return p's age. Done.
+            """).Select(Shape).ToList();
+
+        Assert.Contains((4, 27, 3, "property", false), shapes);   // age
+        Assert.Contains((5, 23, 9, "function", false), shapes);   // name-size
+        Assert.Contains((6, 52, 1, "parameter", true), shapes);   // the lambda's p — walked into
+    }
+
+    [Fact]
     public void FieldsThatReachTheAstOutOfOrder_StillLandOnTheirOwnWords()
     {
         // An object's named fields arrive from the parser sorted by name, not as written — 'suit'

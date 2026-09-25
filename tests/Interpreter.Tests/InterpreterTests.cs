@@ -9419,6 +9419,62 @@ public class InterpreterTests
             "State entries sorted by the active."));
     }
 
+    [Fact]
+    public void Sort_ByFunction_FieldAndFunctionOfOneName_IsRefused()
+    {
+        // ★ Neither reading wins silently — before `sorted by <function>` existed the field always
+        // did, and a function added later would otherwise have changed what this line sorts by.
+        var ex = Assert.Throws<TypeException>(() => Run(
+            "Define object person with (the text name, the number age).\n" +
+            "Bind number to age, given (the person p): Return 0 - p's age. Done.\n" +
+            "Define folks as a series of person.\n" +
+            "State folks sorted by age."));
+        Assert.Contains("'age' is both a field of person objects and a function", ex.Message);
+    }
+
+    [Fact]
+    public void Sort_ByFunction_TheCollisionMessagesAdvice_Runs()
+    {
+        // The refusal above suggests a spelling. A suggestion that does not run is worse than none —
+        // its first draft named the parameter `item`, which is reserved.
+        Assert.Equal("(person(age: 36, name: Ada), person(age: 24, name: Bo))", Run(
+            "Define object person with (the text name, the number age).\n" +
+            "Bind number to age, given (the person p): Return 0 - p's age. Done.\n" +
+            "Define folks as a series of person.\n" +
+            "Insert a new person { the name \"Bo\", the age 24 } into folks.\n" +
+            "Insert a new person { the name \"Ada\", the age 36 } into folks.\n" +
+            "State folks sorted by a function given (the person value): Return cast age on (value). Done."));
+    }
+
+    [Fact]
+    public void Sort_ByField_ASameNamedVariableThatIsNotAFunction_DoesNotCollide()
+    {
+        Assert.Equal("1\n3", Run(
+            "Define entries as a series of records like (the number score).\n" +
+            "Insert a record with (the score 3) into entries.\n" +
+            "Insert a record with (the score 1) into entries.\n" +
+            "Define score as 99.\n" +
+            "For each e in entries sorted by the score, repeat: State the score of e. Done."));
+    }
+
+    [Theory]
+    [InlineData("Bind fact to long, given (the text w): Return the length of w > 3. Done.\nState words sorted by long.",
+                "a key function must give back a number or text")]
+    [InlineData("Bind number to twice, given (the number n): Return n * 2. Done.\nState words sorted by twice.",
+                "a key function must take exactly one text")]
+    [InlineData("Define limit as 3.\nState words sorted by limit.",
+                "'limit' is a number, not a function")]
+    [InlineData("State words sorted by mystery.",
+                "there is no function named 'mystery'")]
+    [InlineData("State words sorted by a function given (the text w): State w. Done.",
+                "a key function must give back a number or text")]
+    public void Sort_ByFunction_RefusesWhatCannotBeAKey(string tail, string expected)
+    {
+        var ex = Assert.Throws<TypeException>(() => Run(
+            "Define words as a series of text with (\"pear\", \"fig\").\n" + tail));
+        Assert.Contains(expected, ex.Message);
+    }
+
     // ── Books / Math ────────────────────────────────────────────────────────────
 
     [Fact]

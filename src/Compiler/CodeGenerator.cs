@@ -882,10 +882,14 @@ public sealed partial class CodeGenerator
         var st       = (SeriesType)TypeOf(sort.Series);
         string ser   = RegisterSeriesStruct(st);
         var elemType = st.ElementType;
-        var keyType  = sort.ByField == null ? elemType : FieldType(elemType, sort.ByField);
         string src   = EmitExpr(sort.Series);
         int id = _freshId++;
         string ssrc = $"cf_ss{id}", dst = $"cf_srt{id}";
+
+        if ((sort.ByLambda ?? sort.KeyFunction) is { } keyFunction)
+            return EmitSortByFunction(sort, keyFunction, ser, elemType, src, id);
+
+        var keyType  = sort.ByField == null ? elemType : FieldType(elemType, sort.ByField);
         // Key of an element expr: the element itself (natural), or its named field (by-field).
         string KeyOf(string e) => sort.ByField == null ? e : $"({e}).{MangleName(sort.ByField)}";
         string cmp = CmpCall(KeyOf($"{dst}->data[cf_j{id}]"), KeyOf($"cf_k{id}"), keyType);
@@ -897,6 +901,37 @@ public sealed partial class CodeGenerator
         b.Append($"{EmitCType(elemType)} cf_k{id} = {dst}->data[cf_a{id}]; int cf_j{id} = cf_a{id} - 1; ");
         b.Append($"while (cf_j{id} >= 0 && {outOfOrder}) {{ {dst}->data[cf_j{id} + 1] = {dst}->data[cf_j{id}]; cf_j{id}--; }} ");
         b.Append($"{dst}->data[cf_j{id} + 1] = cf_k{id}; }}");
+        _preEmits.Add(b.ToString());
+        return dst;
+    }
+
+    // `<series> sorted by <function>` — the same stable insertion sort, over keys computed UP FRONT.
+    // ★ Each key is computed exactly once, front to back, before any comparison — which is what the
+    // interpreter's OrderBy does. Calling the function inside the comparison would call it O(n²)
+    // times in an order nothing promises, and a key function that prints would show it.
+    // The keys live in a parallel series and move with their elements.
+    private string EmitSortByFunction(SortExpression sort, IExpression keyFunction, string ser,
+                                      CufetType elemType, string src, int id)
+    {
+        var ft      = (FunctionType)TypeOf(keyFunction);
+        var keyType = ft.ReturnType!;
+        string cfn  = RegisterFuncStruct(ft);
+        string kser = RegisterSeriesStruct(new SeriesType(keyType));
+        string ssrc = $"cf_ss{id}", dst = $"cf_srt{id}", keys = $"cf_skeys{id}", fn = $"cf_skf{id}";
+        string cmp = CmpCall($"{keys}->data[cf_j{id}]", $"cf_kk{id}", keyType);
+        string outOfOrder = sort.Reverse ? $"({cmp}) < 0" : $"({cmp}) > 0";
+        _preEmits.Add($"{cfn} {fn} = {EmitExpr(keyFunction)};");
+        var b = new StringBuilder();
+        b.Append($"{ser}* {ssrc} = {src}; {ser}* {dst} = {ser}_new(); {kser}* {keys} = {kser}_new(); ");
+        b.Append($"for (int cf_i{id} = 0; cf_i{id} < {ssrc}->len; cf_i{id}++) {{ ");
+        b.Append($"{ser}_append({dst}, {ssrc}->data[cf_i{id}]); ");
+        b.Append($"{kser}_append({keys}, {fn}.fn({fn}.env, {ssrc}->data[cf_i{id}])); }} ");
+        b.Append($"for (int cf_a{id} = 1; cf_a{id} < {dst}->len; cf_a{id}++) {{ ");
+        b.Append($"{EmitCType(elemType)} cf_k{id} = {dst}->data[cf_a{id}]; ");
+        b.Append($"{EmitCType(keyType)} cf_kk{id} = {keys}->data[cf_a{id}]; int cf_j{id} = cf_a{id} - 1; ");
+        b.Append($"while (cf_j{id} >= 0 && {outOfOrder}) {{ ");
+        b.Append($"{dst}->data[cf_j{id} + 1] = {dst}->data[cf_j{id}]; {keys}->data[cf_j{id} + 1] = {keys}->data[cf_j{id}]; cf_j{id}--; }} ");
+        b.Append($"{dst}->data[cf_j{id} + 1] = cf_k{id}; {keys}->data[cf_j{id} + 1] = cf_kk{id}; }}");
         _preEmits.Add(b.ToString());
         return dst;
     }

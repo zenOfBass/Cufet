@@ -3330,11 +3330,22 @@ public sealed class Parser
                 var col = lineTok.Column;
                 SkipNoise();
                 string? byField = null;
+                LambdaLiteral? byLambda = null;
                 if (Peek().Type == TokenType.By)
                 {
                     Advance(); // consume 'by'
-                    SkipNoise(); // eats optional 'the' article before field name
-                    byField = Consume(TokenType.Identifier).Lexeme;
+                    SkipNoise(); // eats optional 'the' article before field name, or 'a' before 'function'
+                    // A name may be a field or a function — the checker decides. A lambda can only
+                    // be a function, so it is recognised here by its keyword.
+                    if (Peek().Type == TokenType.FunctionKw)
+                    {
+                        var keyTok = Peek();
+                        byLambda = ParseCorePrimary() as LambdaLiteral
+                            ?? throw new ParseException(keyTok.Line, keyTok.Column,
+                                "expected a function literal after 'sorted by'");
+                    }
+                    else
+                        byField = Consume(TokenType.Identifier).Lexeme;
                     SkipNoise();
                 }
                 bool reverse = false;
@@ -3346,7 +3357,7 @@ public sealed class Parser
                     reverse = true;
                     SkipNoise();
                 }
-                baseExpr = new SortExpression(baseExpr, byField, reverse, line, col);
+                baseExpr = new SortExpression(baseExpr, byField, reverse, line, col, byLambda);
             }
             else if (Peek().Type == TokenType.Trimmed)
             {
