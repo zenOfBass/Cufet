@@ -1618,8 +1618,8 @@ Otherwise, state the length of first.
 ```
 
 All series operations apply: ordinal and parametric access, `the number of`,
-`Add`, `Remove`, `for each`, element assignment. `Add` enforces the declared
-union type; adding a value outside the union is a static type error. Open
+`Insert`, `Remove`, `for each`, element assignment. `Insert` enforces the declared
+union type; inserting a value outside the union is a static type error. Open
 catalogues accept any element type.
 
 ---
@@ -2487,7 +2487,7 @@ Three things fall out of the shape:
 - **A leaf is a node with no children**, not a different type. `a series of expr`
   with no `with (…)` is the empty one.
 - **Children can be attached later.** A node's `children` is an ordinary series, so
-  `Add kid to the children of parent.` works and the tree can be grown top-down.
+  `Insert kid into the children of parent.` works and the tree can be grown top-down.
 - ★ **But a child is stored by copy.** Objects are values, and a series holds what it
   was given — not a link to it. So this prints `after` then `before`:
 
@@ -2916,8 +2916,9 @@ The function is called once on each element, in order, before anything is compar
 is both a field of the element and a function, `sorted by` it is refused — write the function
 in place to say which you mean.
 
-> Because `sorted` produces a copy, `Add x to (items sorted)` would mutate a temporary
-> and lose the result. The type checker catches that.
+> ⚠ Because `sorted` produces a copy, `Insert x into (items sorted)` inserts into a temporary
+> and the result is lost — silently: nothing refuses it. Sort into a variable first if the
+> sorted copy is what you mean to change.
 
 ---
 

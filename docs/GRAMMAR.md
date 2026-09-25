@@ -1002,10 +1002,11 @@ Define val as item 3 of one's items.                        ← OK (series read)
 For each x in one's nodes, repeat: ...                      ← OK (for-each)
 ```
 
-**Mutating ops require an addressable target** — a variable or field access, not
-a computed expression. Writing `Add x to (sorted one's cards)` would mutate the
-temporary sorted copy and lose the result. The type checker catches this when the
-expression's type is not a series.
+⚠ **A mutation on a computed series is LOST, silently.** Mutate a variable or a field
+access. `Insert x into (one's cards sorted)` inserts into the temporary sorted copy,
+which nothing holds afterwards, so the insert has no effect and nothing reports it.
+The type checker refuses a target that is not a series at all; a series that is
+merely computed is accepted.
 
 ### Field mutation: `one's field becomes X`
 
@@ -1023,9 +1024,9 @@ This produces a `PossessiveSetStatement` and is valid in method bodies.
 
 | Operation | Accepts expression? | Notes |
 |---|---|---|
-| `Add X to series` | Yes — IExpression | target must evaluate to a series |
-| `Add X to the start of series` | Yes — IExpression | same |
-| `Add X after item N of series` | Yes — IExpression | same |
+| `Insert X into series` | Yes — IExpression | target must evaluate to a series |
+| `Insert X into the start of series` | Yes — IExpression | same |
+| `Insert X after item N of series` | Yes — IExpression | same |
 | `Remove item N from series` | Yes — IExpression | same |
 | `Remove X from series` (by value) | Yes — IExpression | also works on maps |
 | `item N of series becomes X` | Yes — IExpression | target must be series/object/record |
@@ -1131,7 +1132,7 @@ through the alias is reflected back in the outer series.
 The value/reference split is the **memory model**, and it is what makes the rest of
 Cufet work correctly:
 
-**`Add x to one's cards.` mutates the object's actual field** — series are
+**`Insert x into one's cards.` mutates the object's actual field** — series are
 reference-typed, so evaluating `one's cards` returns the live list stored in the
 field. All series operations mutate that list in place; no write-back step is needed.
 This is why the series-ops-take-`IExpression` work (gap #3) operates on `one's
@@ -1288,9 +1289,9 @@ series/map layer.
 
 | Syntax | Read or mutate? |
 |---|---|
-| `Add X to expr.` | mutate |
-| `Add X to the start of expr.` | mutate |
-| `Add X after item N of expr.` | mutate |
+| `Insert X into expr.` | mutate |
+| `Insert X into the start of expr.` | mutate |
+| `Insert X after item N of expr.` | mutate |
 | `Remove the last item from expr.` | mutate |
 | `Remove item N from expr.` | mutate |
 | `Remove X from expr.` (by value) | mutate |
@@ -1301,10 +1302,10 @@ series/map layer.
 | `For each x in expr, repeat:` | read |
 | `expr sorted` / `expr sorted by field-or-function` / `in reverse` | read |
 
-**Mutating ops** (`Add`, `Remove`, `item N of ... becomes`) require an
-addressable target — a variable or field reference (`my-series`, `one's cards`,
-`alice's hand`), not a computed expression. Passing a non-series expression
-(e.g. a number) is a **static type error**:
+**Mutating ops** (`Insert`, `Remove`, `item N of ... becomes`) take effect only on a
+variable or field reference (`my-series`, `one's cards`, `alice's hand`). On a
+computed series they change a temporary and are lost without a word — see above.
+Passing a non-series expression (e.g. a number) is a **static type error**:
 
 ```
 Insert 1 into (x + y).   ← TYPE ERROR: (x + y) is not a series
@@ -2947,7 +2948,7 @@ often supply the wrong order confidently.
 trailing phrases):
 
 ```
-nums sorted            nums sorted by the age        nums in reverse
+nums sorted            nums sorted by the age        nums sorted in reverse
 s trimmed              s in uppercase                s split by ","
 score converted to text                              first joined to last
 ```
@@ -3769,7 +3770,7 @@ to encapsulate initialization of objects that have collection fields.
 ### The for-each body cannot add or remove elements during iteration
 
 `For each x in series` forbids **structural mutation** of the iterated collection —
-`Add` and `Remove` operations that change the series' length, or any entry-add /
+`Insert` and `Remove` operations that change the series' length, or any entry-add /
 entry-remove on the iterated map. Both are caught at runtime with a named error:
 
 ```
