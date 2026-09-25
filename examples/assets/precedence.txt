@@ -1,0 +1,5 @@
+# Semantic Versioning 2.0.0, item 11 — https://semver.org/spec/v2.0.0.html
+# Each line is one of the spec's own "Example:" chains, copied as written, lowest first.
+1.0.0 < 2.0.0 < 2.1.0 < 2.1.1
+1.0.0-alpha < 1.0.0
+1.0.0-alpha < 1.0.0-alpha.1 < 1.0.0-alpha.beta < 1.0.0-beta < 1.0.0-beta.2 < 1.0.0-beta.11 < 1.0.0-rc.1 < 1.0.0

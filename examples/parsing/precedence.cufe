@@ -1,0 +1,188 @@
+/* precedence — putting versions in the order semver.org says they go, and checking it did.
+
+   `semver` asks whether a version is well-formed. This asks the next question a
+   release tool has: given several, which is newest? The spec answers that too,
+   in item 11, and gives worked examples — `examples/assets/precedence.txt` holds
+   them exactly as written there. Each chain is scrambled, sorted, and compared
+   with the spec's own order.
+
+       cufet examples/parsing/precedence.cufe
+
+   The exit contract:
+
+       0   every chain came back in the spec's order
+       1   at least one did not
+       2   the chain file could not be read
+
+   ── Why this needs a key, and what the key is ──
+
+   ★★ Sorting versions AS TEXT is wrong in two ways the spec's example happens to
+   contain both of. `1.0.0-beta.11` sorts before `1.0.0-beta.2`, because `1` is
+   less than `2` whatever follows it; and `1.0.0` sorts before `1.0.0-alpha`,
+   because a shorter text that is a prefix of a longer one comes first — while
+   the spec says a release OUTRANKS its own pre-releases. The program prints the
+   text order beside the right one so both mistakes can be seen.
+
+   So the sort is by a KEY: a text built from the version whose ordinary order IS
+   precedence. Every rule of item 11 becomes something about characters:
+
+   - Major, minor and patch compare as numbers, so each is padded with zeroes to
+     one width. `2` becomes `0000000002`, which now sorts below `0000000011`.
+   - A numeric pre-release identifier sorts below an alphanumeric one, so each is
+     tagged: `0` before a padded number, `1` before a word.
+   - A shorter run of identifiers sorts below a longer one it begins. Each
+     identifier is closed with `!`, which is lower than every character an
+     identifier may hold — so `alpha!` ends first, and ending first sorts first.
+   - A release outranks its pre-releases. The core is followed by `~` for a
+     release and `-` for a pre-release, and `~` is higher than `-`.
+   - Build metadata does not count, so everything from `+` is dropped.
+
+   ⚠ The width is a limit, and a real one: a number with more than ten digits
+   overruns it and sorts wrongly. The spec puts no bound on a version number.
+
+   Exercises `sorted by` a named function and by a function written in place, a
+   key function that is a closure over a local, `in reverse`, and a pattern
+   called from inside a key function.
+*/
+
+Pull a book on regex.
+    /* A numeric identifier is digits and nothing else. `converted to number`
+       would also accept `-1`, and `-1` is an alphanumeric identifier here: the
+       spec counts the hyphen as a letter. */
+    Define regex numeric as [^[0-9]+$].
+
+    Define object release with (the text version, the number chain).
+
+    Bind void to usage:
+        State "usage: precedence".
+        State "".
+        State "sorts every chain in examples/assets/precedence.txt and checks it against the spec".
+        State "leaves with 0 if they all came back in order, 1 if any did not, 2 on a bad file".
+    Done.
+
+    Bind void to play:
+        Define target as "examples/assets/precedence.txt".
+
+        If the number of the arguments is greater than 0:
+            Cast usage.
+            Exit with 2.
+        Done.
+
+        Define lines as a series of text.
+        Try to:
+            The lines becomes read all lines from the file target.
+        Done.
+        In case of failure:
+            State "precedence: {target}: {the message of the failure}".
+            Exit with 2.
+        Done.
+
+        Define width as 10.
+
+        Bind text to padded, given (the text digits):
+            Define out as digits.
+            While the length of out is less than width, repeat:
+                The out becomes "0" joined to out.
+            Done.
+            Return out.
+        Done.
+
+        Bind text to precedence-key, given (the text version):
+            Define bare as item 1 of (version split by "+").
+            Define core as bare.
+            Define pre as "".
+            Define dash as the position of "-" in bare.
+            If dash is not void:
+                The core becomes the first (dash - 1) characters of bare.
+                The pre becomes the characters from (dash + 1) to the end of bare.
+            Done.
+
+            Define out as "".
+            For each part in core split by ".", repeat:
+                The out becomes out joined to cast padded on (part).
+            Done.
+
+            If pre is "", return out joined to "~".
+
+            The out becomes out joined to "-".
+            For each identifier in pre split by ".", repeat:
+                If cast numeric on (identifier):
+                    The out becomes out joined to "0" joined to cast padded on (identifier) joined to "!".
+                Done.
+                Otherwise:
+                    The out becomes out joined to "1" joined to identifier joined to "!".
+                Done.
+            Done.
+            Return out.
+        Done.
+
+        /* A chain written the way the spec writes one, so a line of output can
+           be read against a line of the file. */
+        Bind text to chained, given (the series of text versions):
+            Define out as "".
+            For each version in versions, repeat:
+                If the length of out is greater than 0, the out becomes out joined to " < ".
+                The out becomes out joined to version.
+            Done.
+            Return out.
+        Done.
+
+        Define chains as 0.
+        Define disagreements as 0.
+        Define everything as a series of release.
+
+        For each line in lines, repeat:
+            If the length of line is 0, skip.
+            If the first 1 characters of line is "#", skip.
+            Increment chains by 1.
+
+            Define spec-order as line split by " < ".
+
+            /* Scrambled by putting it in REVERSE TEXT order first — the first
+               chain is then exactly backwards, and the third comes out in an
+               order that is neither the spec's nor its opposite. */
+            Define ours as (spec-order sorted in reverse) sorted by precedence-key.
+
+            Define mark as "  ".
+            If ours is not spec-order:
+                The mark becomes "!!".
+                Increment disagreements by 1.
+            Done.
+            State "{mark} chain {chains converted to text}: {cast chained on (ours)}".
+
+            For each version in spec-order, repeat:
+                Insert a new release { the version version, the chain chains } into everything.
+            Done.
+        Done.
+
+        State "".
+        State "{chains converted to text} chain(s) checked against the spec".
+        State "{disagreements converted to text} disagreement(s)".
+
+        /* Every version the spec names, newest first. `1.0.0` is in all three
+           chains and `1.0.0-alpha` in two; equal versions keep the order they
+           were read in, which is what a stable sort promises in either
+           direction. */
+        State "".
+        State "newest first:".
+        Define newest as everything sorted by a function given (the release candidate):
+            Return cast precedence-key on (candidate's version).
+        Done in reverse.
+        For each entry in newest, repeat:
+            State "  {entry's version} (chain {entry's chain converted to text})".
+        Done.
+
+        /* And the order plain text would have given, for comparison. */
+        Define names as a series of text.
+        For each entry in everything, repeat:
+            Insert entry's version into names.
+        Done.
+        State "".
+        State "as text, which is wrong: {cast chained on (names sorted)}".
+
+        If disagreements is greater than 0, exit with 1.
+        Exit.
+    Done.
+
+    Cast play.
+Done.

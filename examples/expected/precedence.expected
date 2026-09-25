@@ -1,0 +1,24 @@
+   chain 1: 1.0.0 < 2.0.0 < 2.1.0 < 2.1.1
+   chain 2: 1.0.0-alpha < 1.0.0
+   chain 3: 1.0.0-alpha < 1.0.0-alpha.1 < 1.0.0-alpha.beta < 1.0.0-beta < 1.0.0-beta.2 < 1.0.0-beta.11 < 1.0.0-rc.1 < 1.0.0
+
+3 chain(s) checked against the spec
+0 disagreement(s)
+
+newest first:
+  2.1.1 (chain 1)
+  2.1.0 (chain 1)
+  2.0.0 (chain 1)
+  1.0.0 (chain 1)
+  1.0.0 (chain 2)
+  1.0.0 (chain 3)
+  1.0.0-rc.1 (chain 3)
+  1.0.0-beta.11 (chain 3)
+  1.0.0-beta.2 (chain 3)
+  1.0.0-beta (chain 3)
+  1.0.0-alpha.beta (chain 3)
+  1.0.0-alpha.1 (chain 3)
+  1.0.0-alpha (chain 2)
+  1.0.0-alpha (chain 3)
+
+as text, which is wrong: 1.0.0 < 1.0.0 < 1.0.0 < 1.0.0-alpha < 1.0.0-alpha < 1.0.0-alpha.1 < 1.0.0-alpha.beta < 1.0.0-beta < 1.0.0-beta.11 < 1.0.0-beta.2 < 1.0.0-rc.1 < 2.0.0 < 2.1.0 < 2.1.1
