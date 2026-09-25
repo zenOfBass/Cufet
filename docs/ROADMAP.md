@@ -96,9 +96,9 @@ they are large, not because they are waiting — the order among them means noth
    reference's shape would teach in chapter five what the reader hit in minute one.
 
    1. Say and compute — text vs number. ✅ written.
-   2. Absence — `void`, `but void is`.
-   3. Choose and repeat — `If`/`Otherwise`, `For each`, `Judge`.
-   4. Collections — series, maps, records.
+   2. Collections — series, maps, records: making one and reading one item. No loops yet.
+   3. Absence — a map asked for a key it does not have, then `void` and `but void is`.
+   4. Choose and repeat — `If`/`Otherwise` (so `If … is not void`), `For each`, `Judge`.
    5. Borrowing — `Pull a book on math.` and `collections`.
    6. Your own words — `Bind`, parameters, `Return`.
    7. When it can fail — `Try`, failure. The language makes you handle it, so it cannot be late.
@@ -130,8 +130,11 @@ they are large, not because they are waiting — the order among them means noth
    (tasks and channels, a follow-on after 9) and the type system proper (interfaces, generics,
    unions — introduced where they are needed rather than as a unit).
 
-   ⚠ The order of 2 and 7 is the least defended. Absence and fallibility are both distinctive
-   enough to want to be earlier, and writing the broken programs would settle it.
+   ★ **Absence comes after collections, and writing it is what decided that (2026-09-25).** Void
+   cannot be introduced on its own: `Define x as void.` makes a name that can ONLY ever hold void,
+   and there is no way to write "a number, or nothing" in a `Define`. So void needs something that
+   produces it, and a map asked for a key it lacks is the plainest producer there is. A first draft
+   led in with `converted to number`, which made the lesson about parsing text first.
 
    ▶ **DESIGNED 2026-09-14, not built.** The author's vision, and the reasoning that came out of
    working it through. The CONTENT is the work and it is medium-independent — write the lessons as

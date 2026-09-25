@@ -99,14 +99,99 @@ knowing first, because it is what the hole is doing for you.
 
 ---
 
-## Lesson 2 — Something that might not be there
+## Lesson 2 — Keeping several things together
 
-Numbers often arrive as text: somebody typed them, or they came out of a file. `converted to number`
-turns text into a number. Here it is used to add one carrot. It does not work.
+One carrot count is a number. The counts in three baskets are a **series**: several values, kept in
+order under one name. Here is one. It does not work.
 
 ```cufet-refused
-Define typed as "12".
-Define carrots as typed converted to number.
+Define baskets as a series with (3, 5, "four").
+```
+```output
+That doesn't work: every item in a series must be the same type.
+The first item is a number, so all items must be numbers.
+Here on line 1, you're trying to make item 3 a text.
+
+Remove the mismatched item, or define two separate series — one for numbers and one for text.
+```
+
+A series holds one kind of thing. That is lesson 1's rule again — text and numbers do not mix — and
+it is what lets Cufet know, whatever you take out of `baskets`, that it is a number.
+
+### Series
+
+Write the third basket as a number, and it runs:
+
+```cufet
+Define baskets as a series with (3, 5, 4).
+State baskets.
+State item 2 of baskets.
+State the first of baskets.
+State the number of baskets.
+```
+```output
+(3, 5, 4)
+5
+3
+3
+```
+
+Items are counted from 1, the way people count them. `the number of` a series is how many things it
+holds.
+
+### Maps
+
+A **map** keeps each value under a key, so you can look it up by name instead of by position:
+
+```cufet
+Define pantry as a map with ("carrots" : 12, "kale" : 3).
+State pantry.
+State the entry for "carrots" in pantry.
+State the size of pantry.
+```
+```output
+map {carrots: 12, kale: 3}
+12
+2
+```
+
+Every key is the same kind of thing, and so is every value — here the keys are text and the values
+are numbers. A map's count is `the size of`, not `the number of`; ask for the wrong one and Cufet
+says which to use.
+
+### Records
+
+A **record** keeps a few named things about one subject together, and they need not be the same kind:
+
+```cufet
+Define hopper as a record with (the name "Hopper", the carrots 12).
+State hopper.
+State "{the name of hopper} has {the carrots of hopper} carrots.".
+```
+```output
+record(carrots: 12, name: Hopper)
+Hopper has 12 carrots.
+```
+
+A series is many of one thing, a map is things found by key, and a record is one thing described by
+several names.
+
+### Try it
+
+- Add a fourth basket, and see what `the number of baskets` says.
+- Ask for `item 5 of baskets`, and read what Cufet says.
+- Add `"lettuce"` to the pantry with a count of its own.
+
+---
+
+## Lesson 3 — Something that might not be there
+
+Here is the pantry from lesson 2, and a program that adds one carrot to what is in it. It does not
+work.
+
+```cufet-refused
+Define pantry as a map with ("carrots" : 12, "kale" : 3).
+Define carrots as the entry for "carrots" in pantry.
 State carrots + 1.
 ```
 ```output
@@ -120,20 +205,22 @@ Or check first, with 'If carrots is not void:'.
 
 ### What void is
 
-`"12"` is a number written as text, so it converts. But not every text is a number:
+The pantry has carrots, so this looks safe. But ask it for something it does not have:
 
 ```cufet
-State "12" converted to number.
-State "a dozen" converted to number.
+Define pantry as a map with ("carrots" : 12, "kale" : 3).
+State the entry for "carrots" in pantry.
+State the entry for "lettuce" in pantry.
 ```
 ```output
 12
 void
 ```
 
-**`void` means nothing is there.** `converted to number` cannot promise a number, because the text
-might be `"a dozen"` — so what it gives back is a *voidable number*: a number, or void. That is the
-word the refusal used.
+**`void` means nothing is there.** A map cannot promise to have every key you might ask for, so what
+`the entry for` gives back is a *voidable number*: a number, or void. That is the word the refusal
+used — and Cufet checks it for every key, not just the ones that happen to be missing, because it
+cannot know in advance which those are.
 
 In many languages `carrots + 1` would run anyway, and the program would find out halfway through
 that there was nothing to add to. Cufet asks before it runs: if `carrots` turns out to be void,
@@ -144,46 +231,44 @@ what should happen? You are the only one who knows.
 `but void is` gives the answer — use this instead when there is nothing there:
 
 ```cufet
-Define typed as "12".
-Define carrots as typed converted to number.
+Define pantry as a map with ("carrots" : 12, "kale" : 3).
+Define carrots as the entry for "carrots" in pantry.
 State (carrots but void is 0) + 1.
 ```
 ```output
 13
 ```
 
-Change `"12"` to `"a dozen"` and it prints `1`: no carrots, plus one.
+Ask for `"lettuce"` instead and it prints `1`: none in the pantry, plus one.
 
 The brackets matter, and the refusal said so. Without them, `carrots but void is 0 + 1` reads the
-default as `0 + 1` — the whole rest of the line — so it would print `12`, which is not what
-anybody meant.
+default as `0 + 1` — the whole rest of the line — so it would print `12`, which is not what anybody
+meant.
 
-### A shorter way
+### Saying it once
 
-If the answer is the same everywhere, say it once, where the name is defined:
+If the answer is the same everywhere, say it where the name is defined, and the name is a plain
+number from then on:
 
 ```cufet
-Define typed as "12".
-Define carrots as typed converted to number but void is 0.
-State carrots + 1.
-State "Hopper has {carrots} carrots.".
+Define pantry as a map with ("carrots" : 12, "kale" : 3).
+Define lettuce as the entry for "lettuce" in pantry but void is 0.
+State lettuce + 1.
+State "Hopper has {lettuce} lettuces.".
 ```
 ```output
-13
-Hopper has 12 carrots.
+1
+Hopper has 0 lettuces.
 ```
 
-Now `carrots` is a plain number — it can no longer be void — so everything from lesson 1 works on it
-again, holes included.
-
-A default is a decision, though, and `0` is not always the right one: `"a dozen"` really is twelve
-carrots, not none. The refusal offered a second way — checking first, and doing something different
-when there is nothing there. That needs `If`, which is the next lesson.
+For a pantry, `0` is the right answer: a key that is not there means none. It is not always right —
+a missing *price* is not a free one — and then the answer is to check first and do something
+different when there is nothing there. That needs `If`, which is the next lesson.
 
 ### Try it
 
-- Set `typed` to `"a dozen"` in the last program. What does it say, and is that right?
-- Put `carrots but void is 0` straight into the hole: `{carrots but void is 0}`.
+- Ask the pantry for `"kale"`, then for something it does not have.
+- Put the default straight into the hole: `{the entry for "lettuce" in pantry but void is 0}`.
 
 ---
 

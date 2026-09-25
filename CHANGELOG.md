@@ -10,12 +10,15 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
-- **Lesson 2 of the tutorial — something that might not be there.** Text that may or may not be a
-  number, `converted to number`, what `void` is, and `but void is`, taught from the refusal a
-  beginner meets first. Writing it is what found the five refusals below that never said "void".
-  The curriculum in the ROADMAP was revised alongside it to thirteen lessons: lifetimes are taught
-  with a rabbit before a person declares one, projects come before books, and a last lesson on
-  writing modules ends at `Prelude/rabbit.cufe`, which is one line.
+- **Lessons 2 and 3 of the tutorial.** Lesson 2 keeps several things together — series, maps and
+  records, opening on the refusal for a series that mixes kinds. Lesson 3 is absence: a map asked
+  for a key it does not have, what `void` is, and `but void is`. A first draft led into absence with
+  `converted to number` and was rewritten: void cannot be introduced on its own (`Define x as void.`
+  makes a name that can only ever hold void), so it needs something that produces it, and a map is
+  the plainest producer there is. Writing it is what found the five refusals below that never said
+  "void". The curriculum in the ROADMAP was revised alongside to thirteen lessons: collections
+  before absence, lifetimes taught with a rabbit before a person declares one, projects before
+  books, and a last lesson on writing modules that ends at `Prelude/rabbit.cufe`, one line long.
 
 - **`examples/circuits/` — a four-valued logic simulator, and the first multi-file example.**
   Five programs sharing a directory with nothing pulled and no book anywhere: inside a project a
@@ -142,7 +145,11 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   `(carrots but void is 0) converted to text`, or `The total becomes carrots but void is 0`.
   `If carrots is not void:` is offered as well when the value is a plain name. **The brackets are
   said out loud**, because `carrots but void is 0 + 1` reads the default as `0 + 1` and prints the
-  wrong number without complaint. Found by trying to write lesson 2 of the tutorial.
+  wrong number without complaint. Found by trying to write the tutorial's lesson on absence. A
+  refusal also quotes a map lookup, `converted to number` and `the position of` as written, where it
+  used to say `<expression>` — of the commonest source of void there is.
+
+- **A map mixing kinds of value said "numbers values".** It now says "number values".
 
 - **Keeping a value past the end of its region no longer mentions a rabbit.** The advice said
   *"move the container inside the rabbit block"*, from before a person could write a region, and a
