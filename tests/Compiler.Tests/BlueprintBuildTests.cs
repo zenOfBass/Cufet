@@ -301,4 +301,76 @@ public class BlueprintBuildTests
             try { Directory.Delete(project, recursive: true); } catch (IOException) { }
         }
     }
+
+    // ── A need that is not there ──────────────────────────────────────────
+    //
+    // ⚠ A step whose need was missing used to RUN anyway, and fail in its own command's words —
+    // which could name neither the step nor the path. BOOKS.md says a need "must exist first".
+
+    [Fact]
+    public void ANeedNoStepMakes_IsRefusedBeforeTheStepRuns_EveryTime()
+    {
+        var project = Path.Combine(TestScratch.Root, "bp-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(project);
+        try
+        {
+            // No input.txt, and nothing in the plan makes it.
+            File.WriteAllText(Path.Combine(project, "copy.cufe"), CopyProgram);
+            File.WriteAllText(Path.Combine(project, "blueprint.cufe"), Blueprint(""));
+
+            var first = Build(project);
+            Assert.Equal(1, first.Exit);
+            Assert.Contains("'copy' needs input.txt, and there is no such file. No step makes it", first.Out);
+            Assert.DoesNotContain("cufet build: copy\n", first.Out.Replace("\r\n", "\n"));   // it never ran
+            Assert.False(File.Exists(Path.Combine(project, "output.txt")));
+
+            // And again: a refused step records nothing, so the next build asks the same question.
+            var second = Build(project);
+            Assert.Equal(1, second.Exit);
+            Assert.Contains("'copy' needs input.txt", second.Out);
+        }
+        finally
+        {
+            try { Directory.Delete(project, recursive: true); } catch (IOException) { }
+        }
+    }
+
+    [Fact]
+    public void ANeedItsMakerDidNotMake_NamesTheMaker()
+    {
+        var project = Path.Combine(TestScratch.Root, "bp-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(project);
+        try
+        {
+            string cufet = CufetExe.Replace('\\', '/');
+            File.WriteAllText(Path.Combine(project, "quiet.cufe"), "State \"made nothing\".\n");
+            File.WriteAllText(Path.Combine(project, "blueprint.cufe"), $$"""
+                Pull a book on blueprints.
+                    Bind series of step to blueprint:
+                        Define work as a series of step.
+                        Insert a record with (
+                            the name "use",
+                            the needs a series of text with ("middle.txt"),
+                            the makes a series of text with (),
+                            the runs a series of text with ("{{cufet}}", "quiet.cufe")) into work.
+                        Insert a record with (
+                            the name "promise",
+                            the needs a series of text with ("quiet.cufe"),
+                            the makes a series of text with ("middle.txt"),
+                            the runs a series of text with ("{{cufet}}", "quiet.cufe")) into work.
+                        Return work.
+                    Done.
+                Done.
+                """);
+
+            var result = Build(project);
+            Assert.Equal(1, result.Exit);
+            Assert.Contains("cufet build: promise", result.Out);   // the maker ran first
+            Assert.Contains("'use' needs middle.txt, which 'promise' should have made", result.Out);
+        }
+        finally
+        {
+            try { Directory.Delete(project, recursive: true); } catch (IOException) { }
+        }
+    }
 }
