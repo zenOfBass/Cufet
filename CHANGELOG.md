@@ -119,6 +119,14 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **A caught fault inside a call's argument used up the interpreter's call depth for good.** The
+  interpreter raises its depth before evaluating a function's or method's arguments, and lowered
+  it only once the body had run. An argument that faulted, such as `cast twice on (1 / zero)`,
+  left the depth one level too high, and a program that caught the fault and carried on leaked a
+  level every time. After 600 such catches, a 500-deep recursion was refused interpreted
+  (*"went deeper than 1000 calls"*) and printed `500` compiled. The depth is now given back when
+  an argument faults. The compiled side was never affected.
+
 - **A noun phrase with a connective in it could not be a call argument or a record field.**
   `cast twice on (the entry for "a" in ages but void is 0)` was refused with *"expected
   expression, got For"*, and so was `the characters from 1 to 2 of <text>` and `the delivery

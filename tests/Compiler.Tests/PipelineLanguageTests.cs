@@ -749,4 +749,51 @@ public class PipelineLanguageTests : PipelineTestBase
             """;
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
+
+    [Fact]
+    public void CaughtFaultsInsideArguments_DoNotUseUpTheCallDepth()
+    {
+        // ⚠⚠ An argument is evaluated after the interpreter raises its call depth and before the
+        // finally that lowers it, so every fault raised there and CAUGHT left the depth one level
+        // too high for the rest of the run. 600 caught faults then made a 500-deep recursion
+        // "went deeper than 1000 calls" interpreted, while compiled it printed 500. A function and
+        // a method each had the gap; both are driven here, 1001 times apiece — so EITHER gap alone
+        // leaks past the limit of 1000, and even a 10-deep call is refused if either comes back.
+        // ⚠ Apiece, not in total: at 600 each, reopening one gap leaked 600 and still passed.
+        // (Shallow on purpose: this runs in the test host, whose stack is far smaller than the CLI's.)
+        const string src = """
+            Define object doubler with (the number factor).
+            Bind number to scaled unto doubler, given (the number n): Return n * one's factor. Done.
+            Bind number to twice, given (the number n): Return n * 2. Done.
+            Bind number to depth-probe, given (the number n):
+                If n is 0, return 0.
+                Return 1 + cast depth-probe on (n - 1).
+            Done.
+
+            Define pair as a new doubler { the factor 2 }.
+            Define zero as 0.
+            Define caught as 0.
+            For each round in range 1 to 1001, repeat:
+                Try to:
+                    State cast twice on (1 / zero).
+                Done.
+                In case of exception:
+                    Increment caught by 1.
+                    Suppress the exception.
+                Done.
+                Try to:
+                    State cast pair's scaled on (1 / zero).
+                Done.
+                In case of exception:
+                    Increment caught by 1.
+                    Suppress the exception.
+                Done.
+            Done.
+            State caught.
+            State cast depth-probe on (10).
+            """;
+        var interpreted = InterpretRaw(src);
+        Assert.Equal("2002\n10", interpreted.Replace("\r\n", "\n").TrimEnd());
+        Assert.Equal(interpreted, CompileRaw(src));
+    }
 }

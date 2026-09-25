@@ -63,6 +63,20 @@ public sealed partial class Interpreter
     private object? ExecuteCallOnValues(FunctionValue func, string displayName, IReadOnlyList<object> argValues, int line) =>
         ExecuteCall(func, displayName, argValues.Count, () => argValues, line);
 
+    /// <summary>Runs what sits between a call's depth increment and its try/finally.</summary>
+    /// <remarks>
+    /// ⚠⚠ Argument evaluation runs AFTER the depth is raised and BEFORE the finally that lowers it,
+    /// so an argument that faults used to leave the depth one too high, for good. A program that
+    /// catches that fault and carries on — `Try … Suppress the exception.` in a loop — then walks
+    /// the counter up by one per catch. MEASURED 2026-09-24: after 600 caught faults, a 500-deep
+    /// recursion was refused interpreted ("went deeper than 1000 calls") and printed 500 compiled.
+    /// </remarks>
+    private T WithDepthUndoneOnThrow<T>(Func<T> beforeTheBody)
+    {
+        try { return beforeTheBody(); }
+        catch { _callDepth--; throw; }
+    }
+
     // ⚠ The arguments arrive as a thunk so they are still evaluated AFTER the depth check, as they
     // always were — evaluating them first would move where a deep recursion is caught.
     private object? ExecuteCall(FunctionValue func, string displayName, int argCount,
@@ -86,7 +100,7 @@ public sealed partial class Interpreter
         }
 
         // Evaluate args in caller scope before altering env.
-        var argValues = evaluateArgs();
+        var argValues = WithDepthUndoneOnThrow(evaluateArgs);
 
         var saved    = SaveScopes();
         var prevHidden = _hiddenTopLevelData;
@@ -189,11 +203,13 @@ public sealed partial class Interpreter
         }
 
         var paramNames = method.Parameters.Select(p => p.Name).ToList();
-        if (args.Count != paramNames.Count)
-            throw new RuntimeException(
-                $"'{method.Name}' expects {paramNames.Count} argument(s), got {args.Count} (line {line}).");
-
-        var argValues  = args.Select(Evaluate).ToList();
+        var argValues  = WithDepthUndoneOnThrow(() =>
+        {
+            if (args.Count != paramNames.Count)
+                throw new RuntimeException(
+                    $"'{method.Name}' expects {paramNames.Count} argument(s), got {args.Count} (line {line}).");
+            return args.Select(Evaluate).ToList();
+        });
         var saved      = SaveScopes();
         var prevHidden = _hiddenTopLevelData;
 
