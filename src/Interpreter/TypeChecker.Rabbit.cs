@@ -290,10 +290,14 @@ public sealed partial class TypeChecker
     {
         var valueDepth = ValueDepthOf(valueExpr, valueType);
         if (valueDepth <= targetDepth) return;
+        // ⚠ The advice names no RABBIT. It used to, from before `and region` let anyone write a
+        // region, and a program whose only region was one it declared was told about a rabbit it
+        // had never pulled. Both fixes are measured to work.
         throw TypeError(
             "this value lives in a shorter-lived region than its destination — it will be gone when that region ends",
             null, line, col,
             action,
-            "Move the container inside the rabbit block, or restructure so this value does not outlive its rabbit.");
+            "Declare the container inside that region too, so both end at its 'Done.', "
+          + "or make the value before the region opens, so it lives as long as the container.");
     }
 }

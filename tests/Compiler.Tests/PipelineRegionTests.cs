@@ -82,6 +82,11 @@ public class PipelineRegionTests : PipelineTestBase
             Done.
             """));
         Assert.Contains("shorter-lived region than its destination", ex.Message);
+
+        // ★ The ADVICE is pinned too. It said "move the container inside the rabbit block" from
+        // before a person could write a region, to a program that had pulled no rabbit at all.
+        Assert.DoesNotContain("rabbit", ex.Message);
+        Assert.Contains("Declare the container inside that region too", ex.Message);
     }
 
     [Fact]
