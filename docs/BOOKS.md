@@ -1214,6 +1214,10 @@ A step is four things:
 | `makes` | paths it produces, which is how another step comes to need it |
 | `runs` | argv, program first |
 
+**A need that is not there stops the build before the step runs.** Once every step that makes
+it has run, a missing need will never arrive, so `cufet build` names the step and the path and
+leaves with 1 — saying whether no step makes it, or which step should have and did not.
+
 **Every path in a step is relative to the project root** — the folder holding `blueprint.cufe`.
 `cufet build` reads the `blueprint.cufe` in the folder it is run from and does not search above
 it, so run it from there; `needs`, `makes`, and any file `runs` names are all measured from that

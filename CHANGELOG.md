@@ -130,6 +130,12 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   denied. All of these now say it is a folder. BOOKS.md now states that a blueprint's paths are
   relative to the project root, which was true but written down nowhere.
 
+- **A blueprint step whose need is missing is refused before it runs.** BOOKS.md said a need is
+  a path that must exist first, but the step ran anyway and failed in its own command's words,
+  which named neither the step nor the path. Now `cufet build` stops with the step and the path,
+  and says which of two things happened: no step makes that path, so it had to be there before
+  the build; or the step that promised to make it ran and did not.
+
 - **The old `Add … to` statement is told what it became.** Since `Add <x> to <series>` was
   renamed `Insert <x> into <series>`, `add` has been an ordinary name, so `Add 4 to scores.`
   reached the rule for names and was told only *"identifier 'Add' must start with a lowercase
