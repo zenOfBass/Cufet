@@ -54,6 +54,12 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   both backends. The compiled sort computes its keys up front to match the interpreter; calling
   the function inside the comparison would have run it many more times, in a different order.
 
+  **`examples/parsing/precedence.cufe` is its first real program**: it orders versions by
+  semver.org's precedence rules and checks the result against the spec's own worked examples,
+  kept in `examples/assets/precedence.txt`. Sorting versions as text gets `1.0.0-beta.11` before
+  `1.0.0-beta.2` and `1.0.0` before its own pre-releases; a text key whose ordinary order is
+  precedence gets both right.
+
 ### Changed
 
 - **Three more reserved words given back: `length`, `size` and `contents`** — ordinary names
