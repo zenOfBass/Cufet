@@ -87,8 +87,9 @@ they are large, not because they are waiting — the order among them means noth
      ⚠ This bullet used to defer to a "`docs/`-folder and GitHub-Pages question" settled on
      2026-08-24, and pointed at the wrong item while doing it.
 
-   ✅ **THE CURRICULUM IS SETTLED, 2026-09-16**, and lesson 1 is written — `docs/TUTORIAL.md`,
-   with every program and every message in it run by the suite.
+   ✅ **THE CURRICULUM IS SETTLED, 2026-09-16, revised 2026-09-25**, and lesson 1 is written —
+   `docs/TUTORIAL.md`, with every program and every message in it run by the suite. A draft, and
+   expected to move as lessons get written.
 
    ★★ **Ordered by the refusals a beginner MEETS, not by topic.** `REFERENCE.md` reaches the type
    system in Part V; lesson 1 meets a type refusal on its SECOND LINE. A tutorial built on the
@@ -102,25 +103,28 @@ they are large, not because they are waiting — the order among them means noth
    6. Your own words — `Bind`, parameters, `Return`.
    7. When it can fail — `Try`, failure. The language makes you handle it, so it cannot be late.
    8. Your own things — objects, fields, methods, and their UNMAKERS.
-   9. Things that own things — rabbits, and why a structure needs a region.
+   9. Things with a lifetime — what `Done.` releases, taught with `Pull a rabbit.`, the region that
+      already exists. Using one, not declaring one.
    10. Reading and writing — files, arguments, input.
-   11. Your own books — a second file, modules, and the library-versus-program rule.
-   12. A project — `blueprints` and `cufet build`.
+   11. A project — `blueprints`, `cufet build`, and a folder as a namespace: a second file in the
+       same folder needs no pull.
+   12. Your own books — `and book`, sharing across projects, `cufet install`.
+   13. Your own modules — `and module`, then `and region`, then `Prelude/rabbit.cufe`, which is
+       the one line `Define object rabbit with () and region.` The lesson 9 rabbit is something the
+       learner could have written.
 
-   ⚠ **MEASURED, and it placed 9:** no example in `basics/` needs a rabbit. Twelve of fifty pull
-   one, and every one is a data structure, concurrency, `patterns`/`stashes`, or FFI — so a rabbit
-   arrives exactly when something OWNS something else, and not before.
+   ⚠ **MEASURED 2026-09-25: a structure does NOT need a region.** `binarysearchtree.cufe` with its
+   rabbit removed prints the same on both backends. What needs a lifetime is `bury`, tasks, and
+   releasing sooner than the program's end — so 9 is about lifetimes, not structures. Since
+   `and region` a person can write the owner, which is why declaring one waits for 13.
+   ★ Projects before books because a folder is a namespace: the first second file arrives with a
+   project, and a book is how code crosses between projects.
 
    ✅ **Lesson 8 is unblocked: item 5 is SETTLED, not pending.** An unmaker fires at the
    `Done.` of the BLOCK a binding was declared in — an `If` or a loop is enough, no rabbit
    needed — and a frame body is deliberately not a block. So the lesson teaches the block rule
    and the idempotency caveat, which is what a reader needs, rather than waiting on a change that is
    not coming.
-
-   ✅ **Lessons 11 and 12 used to depend on the package manager, and no longer do** — it shipped.
-   They teach what `books/` holds, what a `blueprint.cufe` carries and whether a book is one file,
-   and all three are now settled: flat, pins as well as steps, and yes. Lessons 2 to 10 never
-   depended on any of it.
 
    ★ **Deliberately outside the string**, to stop it becoming a second reference: concurrency
    (tasks and channels, a follow-on after 9) and the type system proper (interfaces, generics,
