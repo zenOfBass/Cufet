@@ -994,8 +994,19 @@ public sealed partial class TypeChecker
             : string.Join(" and ", names.Select(n => $"'{n}'"));
     }
 
+    /// <summary>Set by a cast just before it types its target — the one place a method may be named.</summary>
+    /// <remarks>
+    /// ⚠⚠ A possessive naming a METHOD typed as a function value anywhere, so `State front's area.`
+    /// checked clean — and then the interpreter died looking for a field and the compiler refused
+    /// with "'bed' has no member 'area'". A method is reached only by calling it. Read and cleared on
+    /// entry, so a possessive nested inside the target is not mistaken for the target.
+    /// </remarks>
+    private bool _castTargetNext;
+
     private CufetType? InferPossessiveAccess(PossessiveAccess poss)
     {
+        bool calledHere = _castTargetNext;
+        _castTargetNext = false;
         var targetType = InferType(poss.Target);
         if (targetType == null) return null;
 
@@ -1061,6 +1072,13 @@ public sealed partial class TypeChecker
 
         // Methods first, then getters (field-syntax), then fields.
         var methodSig = FindMethodInOtOrPromoted(ot, poss.Member);
+        if (methodSig != null && !calledHere)
+            throw TypeError(
+                $"'{poss.Member}' is a method of '{ot.Name}', and a method is used by calling it",
+                null, poss.Line, poss.Column,
+                $"use '{FormatExpr(poss)}' without calling it",
+                $"Call it with 'cast': 'cast {FormatExpr(poss)}'"
+              + (methodSig.ParameterTypes.Count > 0 ? " on (…)." : "."));
         if (methodSig != null) return methodSig;  // method ref: depth tracked at call site via _castDepthCache
 
         var getterType = FindGetterInOtOrPromoted(ot, poss.Member);

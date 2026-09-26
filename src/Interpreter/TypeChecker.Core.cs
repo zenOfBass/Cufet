@@ -1649,6 +1649,18 @@ public sealed partial class TypeChecker
         // ⚠ A body written INSIDE a pull is unaffected and never reaches here: SaveScopes carries
         // every pulled module and book into a detached body's scope, aliases included, so those
         // resolve lexically like any other name.
+        // ★ Inside a method, a bare FIELD name is the commonest mistake there is — it is what several
+        // other languages accept — and the message below advised declaring it as a module. Found by
+        // writing the tutorial's lesson on objects, whose first method reads `width * depth`.
+        if (TryLookup("one", out var receiver) && receiver.Type is ObjectType owner
+            && FindFieldInOtOrPromoted(owner, vr.Name) is not null)
+            throw TypeError(
+                $"'{vr.Name}' is a field of '{owner.Name}', and inside its methods a field is reached through 'one'",
+                null,
+                vr.Line, vr.Column,
+                $"use '{vr.Name}' on its own",
+                $"Write 'one's {vr.Name}' — 'one' is the {owner.Name} the method was called on.");
+
         if (!IsModuleName(vr.Name))
             throw TypeError(
                 $"'{vr.Name}' isn't defined",

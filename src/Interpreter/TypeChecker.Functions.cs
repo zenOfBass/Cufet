@@ -913,7 +913,9 @@ public sealed partial class TypeChecker
         var lookedUp = resolvedName is not null && funcExpr is PossessiveAccess mpa
             ? new PossessiveAccess(mpa.Target, resolvedName, mpa.Line, mpa.Column)
             : funcExpr;
+        _castTargetNext = lookedUp is PossessiveAccess;
         var exprType = InferType(lookedUp);
+        _castTargetNext = false;
         if (exprType == null) return (null, "this function", callLine, args);
         if (exprType is AxiomType heldAxiom)
         {
