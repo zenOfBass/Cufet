@@ -131,7 +131,7 @@ Pull a book on collections.
         Return true.
     Done.
 
-    Bind fact or failure to skip-space unto scanner:
+    Bind void or failure to skip-space unto scanner:
         While cast one's at-end is false, repeat:
             Define ch as cast one's peek.
             Define next-ch as cast one's ahead.
@@ -147,13 +147,12 @@ Pull a book on collections.
                 Cast one's skip-line-comment.
             Done.
             Otherwise if ch is "/" and next-ch is "*":
-                Define closed as cast one's skip-block-comment or pass the failure off.
+                Cast one's skip-block-comment or pass the failure off.
             Done.
             Otherwise:
-                Return true.
+                Return.
             Done.
         Done.
-        Return true.
     Done.
 
     /// Everything to the end of the line. The line break is left for skip-space, so the row is
@@ -167,7 +166,7 @@ Pull a book on collections.
 
     /// A `/* … */`, NESTED: an inner opener needs its own closer. Unterminated is refused at the
     /// OUTERMOST opener, which is the one a writer has to go and find.
-    Bind fact or failure to skip-block-comment unto scanner:
+    Bind void or failure to skip-block-comment unto scanner:
         Define opened-row as one's row.
         Define opened-column as cast one's column-at on (one's cursor).
         Define depth as 1.
@@ -201,35 +200,34 @@ Pull a book on collections.
                 Cast one's advance.
             Done.
         Done.
-        Return true.
     Done.
 
     // ── One token ─────────────────────────────────────────────────────────
 
-    Bind fact or failure to read-one unto scanner:
+    Bind void or failure to read-one unto scanner:
         Define ch as cast one's peek.
         Define next-ch as cast one's ahead.
         If cast one's is-letter on (ch):
-            Define word as cast one's read-word or pass the failure off.
+            Cast one's read-word or pass the failure off.
         Done.
         Otherwise if cast one's is-digit on (ch):
-            Define figure as cast one's read-number or pass the failure off.
+            Cast one's read-number or pass the failure off.
         Done.
         Otherwise if ch is "\"":
-            Define quoted as cast one's read-string or pass the failure off.
+            Cast one's read-string or pass the failure off.
         Done.
         // Before the symbols, which would take the first '<' as Lt.
         Otherwise if ch is "<" and next-ch is "<":
-            Define verbatim as cast one's read-raw or pass the failure off.
+            Cast one's read-raw or pass the failure off.
         Done.
         Otherwise if ch is "[":
-            Define foreign as cast one's read-axiom or pass the failure off.
+            Cast one's read-axiom or pass the failure off.
         Done.
         Otherwise if (the entry for ch in one's marks) is not void:
             Cast one's read-symbol.
         Done.
         Otherwise if ch is "'":
-            Define owner as cast one's read-possessive or pass the failure off.
+            Cast one's read-possessive or pass the failure off.
         Done.
         Otherwise if ch is ".":
             Cast one's emit on ("Dot", ".", one's row, cast one's column-at on (one's cursor)).
@@ -239,10 +237,9 @@ Pull a book on collections.
             Return a failure (cast refusal on (one's row, cast one's column-at on (one's cursor),
                 "unexpected character '{ch}'")).
         Done.
-        Return true.
     Done.
 
-    Bind fact or failure to read-word unto scanner:
+    Bind void or failure to read-word unto scanner:
         Define begun as one's cursor.
         Define piece as a chase.
         While cast one's at-end is false, repeat:
@@ -271,7 +268,7 @@ Pull a book on collections.
             // Contextual statement words may open a statement with a capital.
             If lowered is "output" or lowered is "seed" or lowered is "make":
                 Cast one's emit on (kind, lexeme, one's row, column).
-                Return true.
+                Return.
             Done.
             If lexeme is "Add":
                 Return a failure (cast refusal on (one's row, column,
@@ -283,14 +280,13 @@ Pull a book on collections.
         Done.
 
         Cast one's emit on (kind, lexeme, one's row, column).
-        Return true.
     Done.
 
-    Bind fact or failure to read-number unto scanner:
+    Bind void or failure to read-number unto scanner:
         Define prefix as (cast one's ahead) in lowercase.
         If cast one's peek is "0" and (prefix is "x" or prefix is "b" or prefix is "o"):
-            Define pattern as cast one's read-bits or pass the failure off.
-            Return true.
+            Cast one's read-bits or pass the failure off.
+            Return.
         Done.
 
         Define begun as one's cursor.
@@ -309,7 +305,6 @@ Pull a book on collections.
             Done.
         Done.
         Cast one's emit on ("Number", piece converted to text, one's row, cast one's column-at on (begun)).
-        Return true.
     Done.
 
     Bind fact to is-digit-of-base, given (the text ch, the text base):
@@ -326,7 +321,7 @@ Pull a book on collections.
     Done.
 
     /// 0x, 0b and 0o. `_` groups digits and is dropped, and the digit count sets the width.
-    Bind fact or failure to read-bits unto scanner:
+    Bind void or failure to read-bits unto scanner:
         Define opened-row as one's row.
         Define opened-column as cast one's column-at on (one's cursor).
         Cast one's advance.
@@ -370,7 +365,6 @@ Pull a book on collections.
         Done.
 
         Cast one's emit on ("Bits", "0{base}{digits converted to text}", opened-row, opened-column).
-        Return true.
     Done.
 
     Bind void to read-symbol unto scanner:
@@ -387,13 +381,13 @@ Pull a book on collections.
         Cast one's emit on (kind, ch, one's row, column).
     Done.
 
-    Bind fact or failure to read-possessive unto scanner:
+    Bind void or failure to read-possessive unto scanner:
         Define column as cast one's column-at on (one's cursor).
         Cast one's advance.
         If cast one's peek is "s":
             Cast one's advance.
             Cast one's emit on ("Possessive", "'s", one's row, column).
-            Return true.
+            Return.
         Done.
         Return a failure (cast refusal on (one's row, column, "unexpected character '''")).
     Done.
@@ -404,7 +398,7 @@ Pull a book on collections.
     /// it is InterpolOpen, then pieces and holes, then InterpolClose — and ⚠ a piece, a hole's
     /// braces and the closer each report where the scan STANDS when it is emitted, not where it
     /// began, because that is what Lexer.cs does.
-    Bind fact or failure to read-string unto scanner:
+    Bind void or failure to read-string unto scanner:
         Define opened-row as one's row.
         Define opened-column as cast one's column-at on (one's cursor).
         // The opener goes in front of everything the holes produce, so where it goes is kept.
@@ -464,7 +458,7 @@ Pull a book on collections.
                 Cast one's advance.
                 Cast one's emit on ("InterpolHoleOpen", "\{", one's row, cast one's column-at on (one's cursor - 1)).
 
-                Define cleared as cast one's skip-space or pass the failure off.
+                Cast one's skip-space or pass the failure off.
                 If cast one's at-end or cast one's peek is "\}":
                     Return a failure (cast refusal on (one's row, cast one's column-at on (one's cursor),
                         "empty interpolation — write an expression between the braces")).
@@ -477,7 +471,7 @@ Pull a book on collections.
                         Return a failure (cast refusal on (one's row, cast one's column-at on (one's cursor),
                             "unterminated interpolation")).
                     Done.
-                    Define spaced as cast one's skip-space or pass the failure off.
+                    Cast one's skip-space or pass the failure off.
                     If cast one's at-end:
                         Return a failure (cast refusal on (one's row, cast one's column-at on (one's cursor),
                             "unterminated interpolation")).
@@ -496,7 +490,7 @@ Pull a book on collections.
                     Done.
                     Otherwise:
                         // Anything else — words, numbers, a string with holes of its own.
-                        Define nested as cast one's read-one or pass the failure off.
+                        Cast one's read-one or pass the failure off.
                     Done.
                 Done.
                 Skip.
@@ -512,7 +506,7 @@ Pull a book on collections.
 
         If holed is false:
             Cast one's emit on ("String", piece converted to text, opened-row, opened-column).
-            Return true.
+            Return.
         Done.
 
         If the number of piece is greater than 0:
@@ -523,11 +517,10 @@ Pull a book on collections.
         If mark is 0, insert opener into the start of one's out.
         Otherwise, insert opener after item mark of one's out.
         Cast one's emit on ("InterpolClose", "", one's row, cast one's column-at on (one's cursor)).
-        Return true.
     Done.
 
     /// `<< … >>` — nothing inside is interpreted, and the pairs nest.
-    Bind fact or failure to read-raw unto scanner:
+    Bind void or failure to read-raw unto scanner:
         Define opened-row as one's row.
         Define opened-column as cast one's column-at on (one's cursor).
         Cast one's advance.
@@ -562,12 +555,11 @@ Pull a book on collections.
             Done.
         Done.
         Cast one's emit on ("String", piece converted to text, opened-row, opened-column).
-        Return true.
     Done.
 
     /// `[ … ]` — foreign source, kept as written. Bracket pairs nest, and a backslash escapes the
     /// next character for COUNTING only: both are kept.
-    Bind fact or failure to read-axiom unto scanner:
+    Bind void or failure to read-axiom unto scanner:
         Define opened-row as one's row.
         Define opened-column as cast one's column-at on (one's cursor).
         Cast one's advance.
@@ -609,19 +601,17 @@ Pull a book on collections.
             Done.
         Done.
         Cast one's emit on ("Axiom", piece converted to text, opened-row, opened-column).
-        Return true.
     Done.
 
     // ── A whole file ──────────────────────────────────────────────────────
 
-    Bind fact or failure to tokenize unto scanner:
+    Bind void or failure to tokenize unto scanner:
         While cast one's at-end is false, repeat:
-            Define cleared as cast one's skip-space or pass the failure off.
+            Cast one's skip-space or pass the failure off.
             If cast one's at-end, stop.
-            Define taken as cast one's read-one or pass the failure off.
+            Cast one's read-one or pass the failure off.
         Done.
         Cast one's emit on ("Eof", "", one's row, cast one's column-at on (one's cursor)).
-        Return true.
     Done.
 
     // ── The tables ────────────────────────────────────────────────────────
@@ -664,7 +654,7 @@ Pull a book on collections.
                 the source buffer, the size the number of buffer, the cursor 1,
                 the row 1, the row-start 1, the out a series of text,
                 the kinds kinds, the marks marks, the words words }.
-            Define finished as cast scan's tokenize.
+            Cast scan's tokenize.
             For each token in scan's out, repeat:
                 State token.
             Done.
