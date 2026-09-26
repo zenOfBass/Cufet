@@ -3262,6 +3262,21 @@ public sealed partial class TypeChecker
                     null, ret.Line, ret.Column,
                     "return a rabbit from a function",
                     "Pass the rabbit as an argument instead, or return a value that lives in it (a handle into the rabbit).");
+            // ★ Returning a FAILURE from a function that did not say it can fail is almost always
+            // "I want this to be able to fail", and the general advice below — change the returned
+            // value to a number — told that writer to stop failing. Found by writing the tutorial's
+            // lesson on failure, whose natural first step is adding `return a failure` to a word
+            // bound in the lesson before.
+            if (ret.Value is FailureLiteral && _expectedReturnType is not null
+                && returnType != null && !IsAssignable(_expectedReturnType, returnType))
+                throw TypeError(
+                    $"this function is declared to give back a {FormatType(_expectedReturnType)}, and a failure is not one",
+                    $"You declared the return type as {FormatType(_expectedReturnType)} on line {_functionDeclarationLine}",
+                    ret.Line, ret.Column,
+                    "return a failure from it",
+                    $"If it is meant to be able to fail, say so where it is declared: "
+                  + $"'Bind {FormatType(_expectedReturnType)} or failure to …'.");
+
             if (returnType != null && !IsAssignable(_expectedReturnType!, returnType))
                 throw TypeError(
                     $"this function is declared to give back a {FormatType(_expectedReturnType!)}",
