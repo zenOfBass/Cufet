@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using Cufet.Interpreter;
 using Cufet.Lexer;
 
@@ -449,6 +449,11 @@ public sealed partial class CodeGenerator
                     ? "(void)" + EmitAxiomCall(effectAxiom, cs.Args, cs.Line)
                     : cs.RunsAxiomValue
                     ? "(void)" + EmitIndirectCall(cs.Function, cs.Args)
+                    // ⚠ A fallible call is allowed as a statement only inside a Try, and its failure
+                    // must reach that Try's handler — the expression form's check-and-goto does it.
+                    // Emitting the bare call dropped the failure and ran the next line.
+                    : FallibleReturnType(AsCastExpression(cs)) is not null
+                    ? "(void)" + EmitCastExpr(AsCastExpression(cs))
                     : EmitCall(CalledFunction(cs.Function, cs.ResolvedFunctionName, cs.Line, cs.Column), cs.Args);
                 FlushPreEmits(sb, indent);
                 sb.AppendLine($"{indent}{call};");
@@ -2432,6 +2437,11 @@ public sealed partial class CodeGenerator
         if (TypeOf(c.Function) is FunctionType cft) return cft.ReturnType ?? TNumber;
         return TNumber;
     }
+
+    // A call written as a statement, seen as the expression it is — so the one path that knows how
+    // a fallible call reaches its Try serves both spellings.
+    private static CastExpression AsCastExpression(CastStatement cs) =>
+        new(cs.Function, cs.Args, cs.Line, cs.Column) { ResolvedFunctionName = cs.ResolvedFunctionName };
 
     // If `expr` is a fallible operation (a call to a fallible fn/method, or a fallible I/O op),
     // its `T or failure` return type; else null. Fallible I/O composes with Try / but-on-failure /

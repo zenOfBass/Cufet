@@ -869,4 +869,72 @@ public class PipelineLanguageTests : PipelineTestBase
         Assert.Equal(expected, interpreted.Replace("\r\n", "\n").TrimEnd());
         Assert.Equal(interpreted, CompileRaw(src));
     }
+
+    [Fact]
+    public void AFallibleCallWrittenAsAStatement_ReachesTheTrysHandler()
+    {
+        // ⚠⚠ SILENT on both backends, so the oracle could not see it: `Cast shallow on (0).` inside a
+        // Try dropped the failure and ran the next line as though the call had worked. The same
+        // call written in a `Define` reached the handler. Found writing the Cufet lexer, whose
+        // errors unwind through methods called for their effect.
+        const string src = """
+            Define object counter with (the number tally).
+            Bind fact or failure to bump unto counter, given (the number limit):
+                Increment one's tally by 1.
+                If one's tally is greater than limit, return a failure "over {limit}".
+                Return true.
+            Done.
+            Bind fact or failure to shallow, given (the number depth):
+                If depth is 0, return a failure "shallow at zero".
+                Return true.
+            Done.
+
+            Try to:
+                Cast shallow on (1).
+                State "one is fine".
+                Cast shallow on (0).
+                State "zero is fine".
+            Done.
+            In case of failure:
+                State "caught: {the message of the failure}".
+            Done.
+
+            Define ticks as a new counter { the tally 0 }.
+            Try to:
+                Cast ticks's bump on (1).
+                Cast ticks's bump on (1).
+                State "two bumps are fine".
+            Done.
+            In case of failure:
+                State "caught: {the message of the failure}".
+            Done.
+            """;
+        var interpreted = InterpretRaw(src);
+        Assert.Equal("one is fine\ncaught: shallow at zero\ncaught: over 1",
+                     interpreted.Replace("\r\n", "\n").TrimEnd());
+        Assert.Equal(interpreted, CompileRaw(src));
+    }
+
+    [Fact]
+    public void BracketsEndAPossessive_SoTheOfAfterThemBelongsToItem()
+    {
+        // ★ `item (one's cursor) of held` was refused: the book-call postfix (`math's floor of x`)
+        // saw a possessive and took `of held` as its argument, straight through the brackets.
+        // Found by the first line of the Cufet lexer that indexed a buffer by a field.
+        const string src = """
+            Define object scanner with (the number cursor).
+            Bind void to show unto scanner, given (the series of text held):
+                State item (one's cursor) of held.
+            Done.
+            Define letters as a series of text with ("a", "b", "c").
+            Define scan as a new scanner { the cursor 2 }.
+            Cast scan's show on (letters).
+            Pull a book on math.
+                State math's floor of 3.7.
+            Done.
+            """;
+        var interpreted = InterpretRaw(src);
+        Assert.Equal("b\n3", interpreted.Replace("\r\n", "\n").TrimEnd());
+        Assert.Equal(interpreted, CompileRaw(src));
+    }
 }

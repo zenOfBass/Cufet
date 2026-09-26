@@ -10,6 +10,13 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+- **The Cufet lexer, written in Cufet** — `tools/lexer/`, the first piece of the compiler in its own
+  language. `cufet tools/lexer/lexer.cufe <files…>` prints each file's tokens, one per line, and
+  `LexerParityTests` holds it to `src/Lexer/Lexer.cs` token for token — type, line, column and
+  lexeme — over every `.cufe` file in the repository, on both backends, and to the same refusal at
+  the same place for each way a source can be refused. Comments are skipped, not carried: tokens
+  only. Columns count characters where the C# lexer counts UTF-16 units; the test converts.
+
 - **Lessons 2 to 13 of the tutorial — the whole curriculum**, each opening on the refusal a beginner meets first.
   Lesson 2 keeps several things together — series, maps and records — from a series that mixes
   kinds. Lesson 3 is absence: a map asked for a key it does not have, what `void` is, and
@@ -160,6 +167,16 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   at all: their `to` and `with` come after an expression, so nothing ADJACENT distinguishes them.
 
 ### Fixed
+
+- **A fallible call written as a statement inside `Try to:` now reaches `In case of failure`.**
+  `Cast shallow on (0).` dropped the failure and ran the next line as though the call had worked,
+  on both backends alike — so the oracle had nothing to compare. The same call written in a
+  `Define` always reached the handler. Found by the Cufet-in-Cufet lexer, whose errors unwind
+  through methods called for their effect.
+
+- **Brackets end a possessive.** `item (one's cursor) of held` was refused with *"expected Of"*:
+  the book-call form (`math's floor of x`) read `of held` as the argument of `one's cursor`,
+  straight through the closing bracket.
 
 - **A value that might be void, used where only one that is there will do, now says "void".**
   Five places refused this, each in its own words, and none mentioned void or `but void is`.

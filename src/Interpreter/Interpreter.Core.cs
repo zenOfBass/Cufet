@@ -1,4 +1,4 @@
-﻿using System.Runtime.CompilerServices;
+using System.Runtime.CompilerServices;
 using Cufet.Lexer;
 using System.Globalization;
 
@@ -1369,9 +1369,13 @@ public sealed partial class Interpreter
                     _ = RunAxiomCall(cs.Args, effectAxiom, cs.Line);
                 else if (cs.RunsAxiomValue)
                     _ = RunAxiomCall(cs.Args, HeldAxiom(cs.Function, cs.Line), cs.Line);
-                else
-                    ExecuteCallExpr(CalledFunction(cs.Function, cs.ResolvedFunctionName, cs.Line, cs.Column),
-                                    cs.Args, cs.Line);
+                // ⚠ A failure is not a value to drop. The checker allows a fallible call as a
+                // statement only inside a Try, so the failure it returns has to reach that Try's
+                // handler — as the same call written in a `Define` does. Dropping it here ran the
+                // next line as though the call had succeeded, on both backends alike.
+                else if (ExecuteCallExpr(CalledFunction(cs.Function, cs.ResolvedFunctionName, cs.Line, cs.Column),
+                                         cs.Args, cs.Line) is FailureValue dropped)
+                    throw new FailureUnwind(dropped);
                 break;
 
             case ReturnStatement ret:

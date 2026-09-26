@@ -1,4 +1,4 @@
-﻿using Cufet.Lexer;
+using Cufet.Lexer;
 using System.Globalization;
 
 namespace Cufet.Interpreter;
@@ -3456,6 +3456,10 @@ public sealed class Parser
         }
         var tok = Peek();
         IExpression baseExpr;
+        // ⚠ Brackets END a possessive. `(one's cursor)` is a finished value, so the `of` after
+        // `item (one's cursor) of held` belongs to `item` — without this, the book-call postfix
+        // below read it as `cursor of held`, a call, and the line was refused.
+        bool bracketed = false;
         // EffectiveType, not tok.Type: book words lex as Identifiers so they stay usable as
         // names, and this is where a confirmed shape routes one to its own case.
         switch (EffectiveType(tok))
@@ -3551,6 +3555,7 @@ public sealed class Parser
                 SkipNoise();
                 Consume(TokenType.RParen);
                 baseExpr = inner;
+                bracketed = true;
                 break;
             }
             case TokenType.Item:
@@ -4512,6 +4517,8 @@ public sealed class Parser
             // keyword-named field fallback).
             while (Peek().Type == TokenType.Article) Advance();
             baseExpr = new PossessiveAccess(baseExpr, Advance().Lexeme, possTok.Line, possTok.Column);
+            // A possessive written AFTER the brackets is a new one, and may take a call again.
+            bracketed = false;
             SkipNoise();
         }
 
@@ -4520,7 +4527,7 @@ public sealed class Parser
         // Single-arg: ParsePrimary() so arithmetic operators bind to the result, not the argument.
         //   math's log of x / math's log of 10  →  log(x) / log(10), not log(x / log(10))
         // Multi-arg: 'of (<e1>, <e2>, ...)' uses ParseExpression() per arg.
-        while (baseExpr is PossessiveAccess && Peek().Type == TokenType.Of)
+        while (!bracketed && baseExpr is PossessiveAccess && Peek().Type == TokenType.Of)
         {
             var ofLineTok = Advance(); // consume 'of'
             var ofLine = ofLineTok.Line;
