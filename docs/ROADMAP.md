@@ -87,7 +87,7 @@ they are large, not because they are waiting — the order among them means noth
      ⚠ This bullet used to defer to a "`docs/`-folder and GitHub-Pages question" settled on
      2026-08-24, and pointed at the wrong item while doing it.
 
-   ✅ **THE CURRICULUM IS SETTLED, 2026-09-16, revised 2026-09-25**, and lessons 1–11 are written —
+   ✅ **THE CURRICULUM IS SETTLED, 2026-09-16, revised 2026-09-25**, and lessons 1–12 are written —
    `docs/TUTORIAL.md`, with every program and every message in it run by the suite. A draft, and
    expected to move as lessons get written.
 
@@ -108,7 +108,7 @@ they are large, not because they are waiting — the order among them means noth
    10. Reading and writing — files, arguments, input. ✅ written.
    11. A project — `blueprints`, `cufet build`, and a folder as a namespace: a second file in the
        same folder needs no pull. ✅ written.
-   12. Your own books — `and book`, sharing across projects, `cufet install`.
+   12. Your own books — `and book`, sharing across projects, `cufet install`. ✅ written.
    13. Your own modules — `and module`, then `and region`, then `Prelude/rabbit.cufe`, which is
        the one line `Define object rabbit with () and region.` The lesson 9 rabbit is something the
        learner could have written.

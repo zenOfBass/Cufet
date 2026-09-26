@@ -1246,4 +1246,114 @@ another makes runs after it, without you saying so: the order comes from the `ne
 
 ---
 
-**Next:** your own books — `and book`, and sharing what you wrote between projects.
+## Lesson 12 — A book of your own
+
+Inside a project, a folder's files see each other. A **book** is how something you wrote travels
+further — to another folder, another project, or somebody else. Lesson 5 borrowed from the books
+that come with Cufet; this one writes one. Its files are in `examples/planting/`, where the test
+suite runs them.
+
+Hopper wants to know how many plants fit in a bed. `planting.cufe` is going to be the book:
+
+```cufet
+Define object planting with () and book:
+    /// How many plants fit in an area, each needing `spacing` square metres.
+    Bind number to plants-in, given (the number area, the number spacing):
+        Return area / spacing.
+    Done.
+
+    /// Square metres a plant of this kind needs, or void for one the book does not know.
+    Bind voidable number to spacing-for, given (the text crop):
+        Define spacings as a map with ("carrots" : 0.05, "kale" : 0.25, "lettuce" : 0.1).
+        Return the entry for crop in spacings.
+    Done.
+Done.
+```
+
+and `plan.cufe`, beside it, pulls it the way lesson 5 pulled `math`:
+
+```cufet-fragment
+Pull a book on planting.
+    For each crop in a series of text with ("carrots", "kale", "parsnips"), repeat:
+        Define spacing as planting's spacing-for of (crop).
+        If spacing is void, state "The book does not know {crop}.".
+        Otherwise, state "A 20 square metre bed holds {planting's plants-in of (20, spacing)} {crop}.".
+    Done.
+Done.
+```
+
+Write the first line without its last two words — `Define object planting with ():` — and the pull
+does not work:
+
+```
+cufet plan.cufe
+That doesn't work: planting.cufe declares 'object planting', but not as a book, so it cannot be pulled.
+Here on line 1, you're trying to pull 'planting'.
+
+Say what it is where it is defined: 'Define object planting with () and book:'.
+```
+
+### What makes it a book
+
+`and book` says two things. It can be **pulled** — `Pull a book on planting.` finds `planting.cufe`
+because it sits beside the file that pulls it. And it owns **no lifetime** of its own: it is
+consulted rather than kept, and inside the pull you reach its members through its name —
+`planting's plants-in of (…)` — exactly as you reach `math's square-root of (…)`.
+
+With `and book` back, it runs:
+
+```
+cufet plan.cufe
+A 20 square metre bed holds 400 carrots.
+A 20 square metre bed holds 80 kale.
+The book does not know parsnips.
+```
+
+Look at `plan.cufe`'s `Otherwise`. `spacing-for` gives back a voidable number, and `If spacing is
+void` handles the empty case — so in the `Otherwise`, `spacing` is a plain number, and goes straight
+into `plants-in`.
+
+### What a book may do
+
+A book is pulled into somebody else's program, so its top level only **declares**. A book that
+*did* something — a `State` outside its members — would do it inside whoever pulled it, before
+their own first line; Cufet refuses to pull one, and says to move those lines into a program of
+their own. And a book is only usable inside a pull: `planting's plants-in of (…)` without one is
+refused with the same words `math` got in lesson 5.
+
+The `///` lines above each member are for readers. `cufet page planting.cufe` turns the book into a
+page of documentation — its name, how to pull it, and each member's first line with the comment
+above it.
+
+### Where a pull looks
+
+A pull looks **beside the file that pulls**, and then in the `books/` folder of the project it is
+in. So a book can live next to one program, or in `books/` for every program in a project.
+
+To use somebody else's book, a project **pins** it in its blueprint — its name, the `git` repository
+it comes from, and the exact commit to take:
+
+```cufet-fragment
+Pull a book on blueprints.
+    Bind series of pin to books:
+        Return a series of pin with (
+            a record with (
+                the name "planting",
+                the source "https://github.com/someone/planting",
+                the commit "afb061c5b438a0ae5dcd56074d2a9096984b4ada")).
+    Done.
+Done.
+```
+
+`cufet install` fetches every pinned book into `books/`, where pulls already look. Publishing a book
+is putting it in a `git` repository; there is nothing else to it.
+
+### Try it
+
+- Take `and book` off, read the refusal, and put it back.
+- Add a member `rows-in`, which says how many rows of plants fit across a bed's width.
+- Add `State "loading planting".` at the top level of `planting.cufe`, outside the book, and pull it.
+
+---
+
+**Next:** modules of your own — `and module`, `and region`, and where the rabbit came from.

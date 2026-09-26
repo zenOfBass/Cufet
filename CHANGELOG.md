@@ -10,7 +10,7 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
-- **Lessons 2 to 11 of the tutorial**, each opening on the refusal a beginner meets first.
+- **Lessons 2 to 12 of the tutorial**, each opening on the refusal a beginner meets first.
   Lesson 2 keeps several things together — series, maps and records — from a series that mixes
   kinds. Lesson 3 is absence: a map asked for a key it does not have, what `void` is, and
   `but void is`. Lesson 4 is choosing and repeating — both forms of `If`, facts, `For each` and a
@@ -31,6 +31,8 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   — from a second file its neighbour cannot see. Its project is `examples/garden/`, which the
   corpus suite runs on both backends, since a lesson spanning files cannot be checked a block at
   a time.
+  Lesson 12 is a book of your own — `and book`, where a pull looks, `cufet page`, and pinning with
+  `cufet install` — from a book file missing `and book`. Its files are `examples/planting/`.
   A first draft of lesson 3 led in with `converted to number` and was rewritten: void cannot be
   introduced on its own (`Define x as void.` makes a name that can only ever hold void), so it
   needs something that produces it, and a map is the plainest producer there is. Writing these
@@ -167,6 +169,20 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   wrong number without complaint. Found by trying to write the tutorial's lesson on absence. A
   refusal also quotes a map lookup, `converted to number` and `the position of` as written, where it
   used to say `<expression>` — of the commonest source of void there is.
+
+- **The `Otherwise` of `If x is void` now reads `x` as present.** `If x is not void` has always
+  narrowed its own arm; its mirror did not narrow the `Otherwise`, which is reached only when `x` is
+  there, so `Otherwise, state "{spacing}".` was refused. Fixed in the checker and, since the
+  compiler keeps its own copy of the rule, there too — an oracle test holds the two together.
+
+- **A book of your own is treated like a bundled one.** Using it without a pull said *"'planting'
+  isn't defined … Define it first"*; it now gets lesson 5's *"is a book, and it is not pulled
+  here"*. And a book file that declares its object without `and book` was refused with a message
+  describing that very file as where a book should go; it now says to add `and book`.
+
+- **A voidable passed as an argument says "void".** *"Change argument 2 to a number"* was all it
+  said; it now joins the other void refusals and shows `but void is`. All three found by writing
+  the tutorial's lesson on books.
 
 - **A name declared in a file beside this one says the folder is not a project.** `a new bed { … }`
   with `bed` defined in `beds.cufe` next door was told *"'bed' is not a defined object type …
