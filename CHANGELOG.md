@@ -10,7 +10,7 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
-- **Lessons 2 to 12 of the tutorial**, each opening on the refusal a beginner meets first.
+- **Lessons 2 to 13 of the tutorial — the whole curriculum**, each opening on the refusal a beginner meets first.
   Lesson 2 keeps several things together — series, maps and records — from a series that mixes
   kinds. Lesson 3 is absence: a map asked for a key it does not have, what `void` is, and
   `but void is`. Lesson 4 is choosing and repeating — both forms of `If`, facts, `For each` and a
@@ -33,6 +33,11 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   a time.
   Lesson 12 is a book of your own — `and book`, where a pull looks, `cufet page`, and pinning with
   `cufet install` — from a book file missing `and book`. Its files are `examples/planting/`.
+  Lesson 13 is modules of your own — books, modules and regions as three claims about a
+  lifetime — from a module pulled as a book, and ends at `Prelude/rabbit.cufe`, one line long.
+  That file's header still said a rabbit was the only region in the language and that letting a
+  person write one was a design mountain; both stopped being true with `and region`, and it is
+  corrected. REFERENCE showed a module pulled as `Pull a book on …`, which is refused; also fixed.
   A first draft of lesson 3 led in with `converted to number` and was rewritten: void cannot be
   introduced on its own (`Define x as void.` makes a name that can only ever hold void), so it
   needs something that produces it, and a map is the plainest producer there is. Writing these

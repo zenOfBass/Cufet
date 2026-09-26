@@ -13,6 +13,8 @@ and Cufet's refusals are written to be read — so learning to read them is the 
 
 > Every program in this file is run by the test suite, and every message beneath one is compared to
 > what the language actually says. If a lesson claims Cufet prints something, Cufet prints it.
+> Lessons 11 and 12 are the exception in form only: a project spans several files, so theirs live in
+> `examples/garden/` and `examples/planting/`, and the suite runs them there.
 
 ---
 
@@ -1356,4 +1358,106 @@ is putting it in a `git` repository; there is nothing else to it.
 
 ---
 
-**Next:** modules of your own — `and module`, `and region`, and where the rabbit came from.
+## Lesson 13 — Modules of your own
+
+A book is consulted: lesson 12's `planting` holds nothing and owns no lifetime. A **module** is the
+wider kind — something you *have one of* while its pull lasts. Hopper wants a log of what was
+picked. Pulled the way lesson 12 pulled a book, it does not work:
+
+```cufet-refused
+Define object harvest-log with () and module:
+    Bind text to report, given (the text crop, the number count):
+        Return "{count} {crop} picked".
+    Done.
+Done.
+Pull a book on harvest-log.
+    State harvest-log's report of ("carrots", 12).
+Done.
+```
+```output
+That doesn't work: 'harvest-log' is not a book.
+'harvest-log' is a module: it may own a lifetime of its own, so you have one of it rather than consulting it.
+Here on line 6, you're trying to pull 'harvest-log' as a book.
+
+Write 'Pull a harvest-log.' instead — or add 'and book' to its definition if it owns no lifetime.
+```
+
+### Books, modules and regions
+
+The refusal names the one thing that separates them: **a lifetime**. There are three claims an
+object can make about itself, and each is one pair of words:
+
+| Says | It is | Pulled as |
+| --- | --- | --- |
+| `and book` | consulted; owns no lifetime | `Pull a book on planting.` |
+| `and module` | held while its pull lasts | `Pull a harvest-log.` |
+| `and region` | a module that owns a lifetime, which its `Done.` ends | `Pull a garden-trip.` |
+
+The spelling says which, so a reader of `Pull a harvest-log.` knows it is a module without looking it
+up:
+
+```cufet
+Define object harvest-log with () and module:
+    Bind text to report, given (the text crop, the number count):
+        Return "{count} {crop} picked".
+    Done.
+Done.
+Pull a harvest-log.
+    State harvest-log's report of ("carrots", 12).
+Done.
+```
+```output
+12 carrots picked
+```
+
+### A lifetime of your own
+
+`and region` is the claim that pulling this opens a lifetime, and that its `Done.` ends it —
+everything made inside belongs to it, and is let go there:
+
+```cufet
+Define object watering-can with (the text label).
+Bind unmaking a watering-can to put-away:
+    State "putting the {one's label} watering can away".
+Done.
+Define object garden-trip with () and region.
+Pull a garden-trip as hopper.
+    Define can as a new watering-can { the label "green" }.
+    State "watering".
+Done.
+State "back in the house".
+```
+```output
+watering
+putting the green watering can away
+back in the house
+```
+
+That is lesson 9's program, and it behaves the same way — because it is the same thing. A value made
+inside a `garden-trip` cannot be kept past its `Done.` either, and the refusal is lesson 9's, word for
+word.
+
+### Where the rabbit came from
+
+Here is how the rabbit you have been pulling since lesson 9 is defined, in `Prelude/rabbit.cufe`,
+which comes with Cufet:
+
+```
+Define object rabbit with () and region.
+```
+
+That is all of it. The rabbit is not a special part of the language: it is a region that somebody
+wrote, in one line, exactly the way you just wrote `garden-trip`. Everything lesson 9 taught about
+it was true of every region, and now you can make your own.
+
+### Try it
+
+- Give `harvest-log` a second member, `summary`, and call it inside the same pull.
+- Try `Define object garden-trip with () and book and region.`, and read why it cannot be both.
+- Inside the `garden-trip`, make a series and try to keep it in one made before the pull.
+
+---
+
+That is the end of the tutorial. You have met every kind of refusal a beginner is likely to, and
+the rules each one stands for. [REFERENCE.md](REFERENCE.md) has the rest of the language, and
+[BOOKS.md](BOOKS.md) the books that come with it.

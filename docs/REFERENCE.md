@@ -4419,7 +4419,7 @@ here, then for `‹name›.cufe` **beside the file that pulls it**, and finally 
 `books` folder:
 
 ```cufet-fragment
-Pull a book on greeting-kit.        ← loads greeting-kit.cufe if nothing here is called that
+Pull greeting-kit.                  ← loads greeting-kit.cufe if nothing here is called that
     State cast greeting-kit's greet on ("world").
 Done.
 ```
