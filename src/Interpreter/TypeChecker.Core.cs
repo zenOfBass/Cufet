@@ -941,9 +941,21 @@ public sealed partial class TypeChecker
 
     private void ExitScope()
     {
+        foreach (var (name, info) in _scopes[^1])
+            if (info.EstablishingLine > 0)
+                _endedNames[name] = info.EstablishingLine;
         _scopes.RemoveAt(_scopes.Count - 1);
         _typeScopes.RemoveAt(_typeScopes.Count - 1);
     }
+
+    /// <summary>Names whose block has closed, with the line each was defined on.</summary>
+    /// <remarks>
+    /// ★ Asked only once a name has FAILED, to tell "you never defined it" from "you defined it, and
+    /// its block has ended". The second was answered with the first — "Define it first" — to someone
+    /// who had, two lines up, inside an `If` or a rabbit. Found by writing the tutorial's lesson on
+    /// lifetimes, which is about exactly what a `Done.` lets go of.
+    /// </remarks>
+    private readonly Dictionary<string, int> _endedNames = new(StringComparer.Ordinal);
 
     // Save both scope chains and replace the VALUE chain with a fresh single scope (for function
     // isolation). V = value scopes, T = type scopes. Call sites iterate V to re-import outer
@@ -1618,6 +1630,17 @@ public sealed partial class TypeChecker
             // advice to make a VARIABLE called math. Found by writing the tutorial's lesson on
             // borrowing, whose first refusal this is. The same words fit the line after the
             // pull's `Done.`, which is the other way to meet it.
+            // ⚠ After the book check below, not before: a pull's `Done.` ends the book's name too,
+            // and "'math' is a book … the pull lasts until its Done." is the more useful sentence.
+            if (!BuiltinBooks.ContainsKey(vr.Name)
+                && _endedNames.TryGetValue(vr.Name, out var definedOn) && definedOn < vr.Line)
+                throw TypeError(
+                    $"'{vr.Name}' was defined on line {definedOn}, inside a block that has ended",
+                    "A name lasts until the 'Done.' of the block it was defined in, and no further",
+                    vr.Line, vr.Column,
+                    $"use '{vr.Name}' after that block's 'Done.'",
+                    $"Use it before the 'Done.', or define it before the block begins so it outlasts it.");
+
             if (BuiltinBooks.ContainsKey(vr.Name))
                 throw TypeError(
                     $"'{vr.Name}' is a book, and it is not pulled here",
