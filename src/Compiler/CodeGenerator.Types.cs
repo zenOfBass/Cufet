@@ -1149,6 +1149,7 @@ static const char* cufet_str_lower(const char* s) {
         // different Cufet types, and one signature for both would make them the same type.
         SetType st2 => "S(" + TypeSig(st2.ElementType) + ")",
         FailureType f => "F(" + TypeSig(f.Inner) + ")",
+        VoidType => "V",      // only ever inside `void or failure`: the success that carries nothing
         MatrixType => "MX",   // one fixed runtime struct (CufetMatrix*) — identity is the type itself
         ChaseType  => "CH",   // likewise: one struct, and the type is its own identity
         RabbitType => "RB",
@@ -1718,7 +1719,10 @@ static const char* cufet_str_lower(const char* s) {
             }
             if (failables.TryGetValue(cname, out var fInner))
             {
-                sb.AppendLine($"typedef struct {{ int is_failure; {EmitCType(fInner)} val; const char* message; const char* category; }} {cname};");
+                // ⚠ `void or failure` has no value to hold, and C has no void field — a byte stands
+                // in so every `.val` the call sites read still names something.
+                string valType = fInner is VoidType ? "char" : EmitCType(fInner);
+                sb.AppendLine($"typedef struct {{ int is_failure; {valType} val; const char* message; const char* category; }} {cname};");
                 continue;
             }
             if (unions.TryGetValue(cname, out var uDef))

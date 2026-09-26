@@ -1375,7 +1375,9 @@ public sealed partial class Interpreter
                 // next line as though the call had succeeded, on both backends alike.
                 else if (ExecuteCallExpr(CalledFunction(cs.Function, cs.ResolvedFunctionName, cs.Line, cs.Column),
                                          cs.Args, cs.Line) is FailureValue dropped)
-                    throw new FailureUnwind(dropped);
+                    // `or pass the failure off` hands it to this function's caller, as the
+                    // expression form does; otherwise the Try around the call is where it goes.
+                    throw cs.PassesFailureOff ? new ReturnException(dropped) : new FailureUnwind(dropped);
                 break;
 
             case ReturnStatement ret:

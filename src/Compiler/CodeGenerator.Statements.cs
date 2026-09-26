@@ -408,7 +408,10 @@ public sealed partial class CodeGenerator
                     && TryEmitSelfTailCall(sb, selfCall, indent))
                     break;
 
-                if (ret.Value == null)
+                // `void or failure` succeeding: the tagged struct with nothing set, which is success.
+                if (ret.Value == null && FailureType.IsVoidOrFailure(_currentReturnType))
+                    sb.AppendLine($"{indent}{UnwindTo(FrameExit)}return ({EmitCType(_currentReturnType)}){{0}};");
+                else if (ret.Value == null)
                     sb.AppendLine($"{indent}{UnwindTo(FrameExit)}return;");
                 else
                 {
@@ -452,6 +455,9 @@ public sealed partial class CodeGenerator
                     // ⚠ A fallible call is allowed as a statement only inside a Try, and its failure
                     // must reach that Try's handler — the expression form's check-and-goto does it.
                     // Emitting the bare call dropped the failure and ran the next line.
+                    // `or pass the failure off.` — the expression form's check-and-return, value dropped.
+                    : cs.PassesFailureOff
+                    ? "(void)" + EmitFailurePropagate(new FailurePropagate(AsCastExpression(cs), cs.Line, cs.Column))
                     : FallibleReturnType(AsCastExpression(cs)) is not null
                     ? "(void)" + EmitCastExpr(AsCastExpression(cs))
                     : EmitCall(CalledFunction(cs.Function, cs.ResolvedFunctionName, cs.Line, cs.Column), cs.Args);
@@ -2623,6 +2629,18 @@ public sealed partial class CodeGenerator
         _objectDefs.TryGetValue(target, out var def) ? def
             : throw new CompilerException($"'unto {target}': {kind} on '{target}' are not yet supported by the compiler (not a plain object type).");
 
+    /// <summary>A `void or failure` body that reaches its end has succeeded, and says so.</summary>
+    /// <remarks>
+    /// ⚠ C would otherwise fall off the end of a function returning a struct — undefined, and on gcc
+    /// whatever happened to be in the return register. Emitted as an ordinary bare `Return.` so the
+    /// regions the body opened are unwound exactly as an early return would unwind them.
+    /// </remarks>
+    private void EmitFallOffSuccess(StringBuilder sb, string indent)
+    {
+        if (FailureType.IsVoidOrFailure(_currentReturnType))
+            EmitStatement(sb, new ReturnStatement(null, 0, 0), indent);
+    }
+
     private void EmitBind(StringBuilder sb, BindStatement bind, string? cName = null)
     {
         // Save and restore _varTypes so function-local names don't pollute
@@ -2660,6 +2678,7 @@ public sealed partial class CodeGenerator
         EmitBlock(bodyText, bind.Body, "    ");
         if (_tailSelfUsed) sb.AppendLine($"    {_tailSelf!.Value.Label}: ;");
         sb.Append(bodyText);
+        EmitFallOffSuccess(sb, "    ");
 
         _tailSelf = savedTail;
         _tailSelfUsed = savedTailUsed;
@@ -2943,6 +2962,7 @@ public sealed partial class CodeGenerator
         sb.AppendLine($"{MethodSignature(def, method, cName)} {{");
         var savedMF = EnterFrame(sb, "    ");
         EmitBlock(sb, method.Body, "    ");
+        EmitFallOffSuccess(sb, "    ");
         ExitFrame(savedMF);
         sb.AppendLine("}");
         sb.AppendLine();

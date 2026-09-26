@@ -98,6 +98,36 @@ public sealed partial class TypeChecker
         return null;
     }
 
+    /// <summary>`Cast … or pass the failure off.` — the statement form of propagation.</summary>
+    /// <remarks>
+    /// ★ The same three rules the expression form keeps, said for a call made for its effect: the
+    /// callee must be able to fail, the function around it must be able to fail too, and a Try is
+    /// already where a failure goes, so the words would be dead inside one.
+    /// </remarks>
+    private void CheckPassOffStatement(CastStatement cs, FunctionType? funcType, string displayName)
+    {
+        if (funcType?.ReturnType is not FailureType)
+            throw TypeError(
+                $"{displayName} can never fail — there is no failure to pass off",
+                null, cs.Line, cs.Column,
+                "pass off the failure of a call that cannot fail",
+                "Remove 'or pass the failure off' and end the line after the call.");
+        if (_inTryBlock)
+            throw TypeError(
+                "inside 'Try to:', a failure already goes to 'In case of failure'",
+                null, cs.Line, cs.Column,
+                "pass a failure off from inside a Try",
+                "Remove 'or pass the failure off' — the Try handles it — or move the call out of the Try.");
+        if (_expectedReturnType is not FailureType)
+            throw TypeError(
+                "you can only pass a failure off from a function that can fail",
+                null, cs.Line, cs.Column,
+                "pass a failure off from a function that cannot fail",
+                "Declare the function so it can fail — 'Bind void or failure to …' when it gives nothing "
+              + "back, 'Bind number or failure to …' when it does — or handle the failure here with a "
+              + "'Try to: / In case of failure:' block.");
+    }
+
     // ── File I/O ─────────────────────────────────────────────────────────────
 
     // read all from the file "<path>"       → text or failure (FailureType(Text))

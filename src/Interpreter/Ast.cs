@@ -420,6 +420,14 @@ public sealed record CastStatement(
 
     /// <inheritdoc cref="CastExpression.RunsAxiomValue"/>
     public bool RunsAxiomValue { get; set; }
+
+    /// <summary>`Cast close on (writer) or pass the failure off.` — a failure leaves the function.</summary>
+    /// <remarks>
+    /// ★ A flag on the statement rather than a statement of its own, so that every walk which already
+    /// knows a call statement knows this one: it IS a call, made for its effect, whose failure goes to
+    /// the enclosing function's caller instead of to a Try.
+    /// </remarks>
+    public bool PassesFailureOff { get; init; }
 }
 
 // return <value>.  or  return.  (bare, for void early exit)

@@ -624,7 +624,8 @@ public sealed partial class TypeChecker
             // end is how it finishes, and the caller holds a stash that reports that with void.
             // Without this exemption the refusal blamed a missing `Return` in a method that was
             // never going to return one — the identical wrong message nested functions used to get.
-            if (method.ReturnType != null && !buries && !DefinitelyReturns(method.Body))
+            if (method.ReturnType != null && !FailureType.IsVoidOrFailure(method.ReturnType)
+                && !buries && !DefinitelyReturns(method.Body))
                 throw TypeError(
                     $"method '{method.Name}' is declared to give back a {FormatType(method.ReturnType)}, but it can reach its end without returning one",
                     null, method.Line, method.Column,

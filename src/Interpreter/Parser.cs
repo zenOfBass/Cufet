@@ -4998,7 +4998,7 @@ public sealed class Parser
         // a void one gets the statement form, there being no value to imply a return for. Both are
         // reached by the same comma — the difference is what one thing means for that body.
         _functionDepth++;
-        var body = returnType == null
+        var body = returnType == null || FailureType.IsVoidOrFailure(returnType)
             ? ParseVoidBodyOrBlock(bindTok, "Bind void to greet, State \"hi\".")
             : ParseValueBodyOrBlock(bindTok, "Bind number to double, given (the number n), n * 2.");
         _functionDepth--;
@@ -5019,6 +5019,14 @@ public sealed class Parser
         if (Peek().Type == TokenType.Void)
         {
             Advance(); SkipNoise();
+            // `void or failure` — gives nothing back when it works, and a failure when it does not.
+            // A close, a flush, a check: the call is made for its effect, and the effect can fail.
+            if (Peek().Type == TokenType.Or && PeekAfterCurrent() == TokenType.Failure)
+            {
+                Advance(); SkipNoise(); // consume 'or'
+                Consume(TokenType.Failure); SkipNoise();
+                return new FailureType(CufetType.Void);
+            }
             if (Peek().Type != TokenType.FunctionKw)
                 return null; // bare void — this function returns nothing
             Advance(); SkipNoise(); // consume 'function'
@@ -5230,8 +5238,19 @@ public sealed class Parser
     {
         var cast = (CastExpression)ParseCastExpression();
         SkipNoise();
+        // `… or pass the failure off.` — a call made for its effect, its failure handed upward.
+        bool passesOff = false;
+        if (Peek().Type == TokenType.Or && PeekAfterCurrent() == TokenType.Pass)
+        {
+            Advance(); SkipNoise();                  // 'or'
+            Consume(TokenType.Pass); SkipNoise();    // 'the' is noise
+            Consume(TokenType.Failure); SkipNoise();
+            Consume(TokenType.Off); SkipNoise();
+            passesOff = true;
+        }
         Consume(TokenType.Dot);
-        return new CastStatement(cast.Function, cast.Args, cast.Line, cast.Column) { NamedArgs = cast.NamedArgs };
+        return new CastStatement(cast.Function, cast.Args, cast.Line, cast.Column)
+            { NamedArgs = cast.NamedArgs, PassesFailureOff = passesOff };
     }
 
     // Returns a CastExpression for both free-function calls and method dispatch.

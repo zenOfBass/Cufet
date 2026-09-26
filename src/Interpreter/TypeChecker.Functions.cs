@@ -1,4 +1,4 @@
-﻿namespace Cufet.Interpreter;
+namespace Cufet.Interpreter;
 
 public sealed partial class TypeChecker
 {
@@ -342,7 +342,8 @@ public sealed partial class TypeChecker
         // declared type is what it BURIES, not what it returns — the caller gets a stash, and the
         // stash reports "spent" by handing back void. Requiring a terminal `Return` here would be
         // demanding an answer to a question the form does not ask.
-        if (bind.ReturnType != null && !_buryingFunctions.Contains(bind.Name) && !DefinitelyReturns(bind.Body))
+        if (bind.ReturnType != null && !FailureType.IsVoidOrFailure(bind.ReturnType)
+            && !_buryingFunctions.Contains(bind.Name) && !DefinitelyReturns(bind.Body))
             throw TypeError(
                 $"'{bind.Name}' is declared to give back a {FormatType(bind.ReturnType)}, but it can reach its end without returning one",
                 null,
@@ -755,6 +756,17 @@ public sealed partial class TypeChecker
                 cast.Line, cast.Column,
                 "use its result as a value",
                 "Cast it as a statement instead, or change its return type if you need a result.");
+
+        // `void or failure` has no value on EITHER path, so the same holds — and it has to be said
+        // here: inside a Try the unwrapped type is void, which nothing else refuses, and the line
+        // only failed when it ran.
+        if (FailureType.IsVoidOrFailure(funcType.ReturnType))
+            throw TypeError(
+                $"{displayName} gives nothing back — it can't be used as a value",
+                $"You declared it as 'void or failure' on line {declLine}: it can fail, but when it works there is no result",
+                cast.Line, cast.Column,
+                "use its result as a value",
+                "Cast it as a statement — inside 'Try to:', or ending '… or pass the failure off.' in a function that can fail.");
 
         // Determine the receiver for depth tracking:
         //   TryMethodDispatch consumed the receiver from args → receiver is cast.Args[0].

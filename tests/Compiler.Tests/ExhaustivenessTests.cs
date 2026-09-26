@@ -155,7 +155,6 @@ public class ExhaustivenessTests
         // Nothing holds a `void`: it is the absence of a value, and `voidable T` is how absence is
         // carried. A C declaration for it would be a slot for something that never arrives.
         [("EmitCType", typeof(VoidType))] = "void is not a value a slot can hold",
-        [("TypeSig", typeof(VoidType))] = "no struct is ever keyed on void",
         [("EqCall", typeof(VoidType))] = "nothing to compare",
         [("WriteCall", typeof(VoidType))] = "nothing to print",
 

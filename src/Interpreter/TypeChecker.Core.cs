@@ -450,6 +450,17 @@ public sealed class FailureType : CufetType
 {
     public CufetType Inner { get; }
     public FailureType(CufetType inner) => Inner = inner;
+
+    /// <summary>`void or failure` — nothing when it works, a failure when it does not.</summary>
+    /// <remarks>
+    /// ★ The one fallible type with no value on its success path, so a call to it is made for its
+    /// EFFECT: a statement, never an operand. Everywhere else a null return type is what says "void",
+    /// and this is the one void that needed a type to hang "or failure" on.
+    /// </remarks>
+    public bool IsVoid => Inner is VoidType;
+
+    public static bool IsVoidOrFailure(CufetType? t) => t is FailureType { IsVoid: true };
+
     public override bool Equals(object? obj) => obj is FailureType f && Inner == f.Inner;
     public override int GetHashCode() => HashCode.Combine(typeof(FailureType), Inner);
 }
@@ -2956,6 +2967,9 @@ public sealed partial class TypeChecker
                 // the writer to bind a result they had deliberately thrown away.
                 if (AxiomCalledBy(cs.Function) is { } statementAxiom)
                 {
+                    // Foreign source has no failure path at all.
+                    if (cs.PassesFailureOff)
+                        CheckPassOffStatement(cs, null, $"'{FormatExpr(cs.Function)}'");
                     RunAxiomOnCastStatement(cs, statementAxiom);
                     break;
                 }
@@ -2969,6 +2983,8 @@ public sealed partial class TypeChecker
                 {
                     if (heldAxiom.ReturnType is null)
                         throw AxiomSourceNotReachable(heldAxiom, cs.Line, cs.Column);
+                    if (cs.PassesFailureOff)
+                        CheckPassOffStatement(cs, null, $"'{axiomValueCall.Name}'");
                     RunAxiomValueOnCastStatement(cs, heldAxiom);
                     break;
                 }
@@ -3001,18 +3017,25 @@ public sealed partial class TypeChecker
                 {
                     if (statementHeld.ReturnType is null)
                         throw AxiomSourceNotReachable(statementHeld, cs.Line, cs.Column);
+                    if (cs.PassesFailureOff)
+                        CheckPassOffStatement(cs, null, displayName);
                     RunAxiomValueOnCastStatement(cs, statementHeld);
                     break;
                 }
                 if (funcType != null)
                 {
                     ValidateCastArgs(funcType, displayName, declLine, argsToValidate, cs.Line, cs.Column);
-                    if (!_inTryBlock && funcType.ReturnType is FailureType)
+                    if (cs.PassesFailureOff)
+                        CheckPassOffStatement(cs, funcType, displayName);
+                    else if (!_inTryBlock && funcType.ReturnType is FailureType)
                         throw TypeError(
                             $"{displayName} can fail — you must handle the failure",
                             null, cs.Line, cs.Column,
                             $"call a fallible function without handling the failure",
-                            "Wrap this call in a 'Try to: / In case of failure:' block.");
+                            _expectedReturnType is FailureType
+                                ? "Hand the failure to this function's caller — end the line '… or pass the failure off.' — "
+                                  + "or wrap the call in a 'Try to: / In case of failure:' block."
+                                : "Wrap this call in a 'Try to: / In case of failure:' block.");
                 }
                 break;
             }
@@ -3328,6 +3351,14 @@ public sealed partial class TypeChecker
 
         if (_expectedReturnType == null) // void function (or _inFunction guard is parser-level)
         {
+            // ★ A void function that tries to fail almost always means "this can fail", and the
+            // general refusal below would tell its writer to stop failing.
+            if (ret.Value is FailureLiteral)
+                throw TypeError(
+                    "this function is declared void, so it cannot give back a failure",
+                    null, ret.Line, ret.Column,
+                    "return a failure from it",
+                    "If it is meant to be able to fail, say so where it is declared: 'Bind void or failure to …'.");
             if (ret.Value != null)
                 throw TypeError(
                     "this function is declared void — it gives nothing back",
@@ -3336,6 +3367,21 @@ public sealed partial class TypeChecker
                     "return a value from a void function",
                     "Remove the value, or change the function's return type if you need to produce a result.");
             // bare return in void → ok
+        }
+        else if (FailureType.IsVoidOrFailure(_expectedReturnType))
+        {
+            // `void or failure`: a bare `Return.` is success, and a failure is the only value.
+            if (ret.Value != null)
+            {
+                var given = InferType(ret.Value);
+                if (!IsFailureExpr(ret.Value) && given is not (FailureMarkerType or FailureType { IsVoid: true }))
+                    throw TypeError(
+                        "this function is declared 'void or failure' — when it works it gives nothing back",
+                        $"You declared the return type on line {_functionDeclarationLine}",
+                        ret.Line, ret.Column,
+                        "return a value from it",
+                        "Write 'Return.' for success, or 'Return a failure \"…\".' when it does not work.");
+            }
         }
         else // non-void function
         {

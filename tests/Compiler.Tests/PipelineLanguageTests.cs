@@ -916,6 +916,55 @@ public class PipelineLanguageTests : PipelineTestBase
     }
 
     [Fact]
+    public void AVoidOrFailureMethod_PassesItsFailureOff_AsAStatement()
+    {
+        // ★ `void or failure` and `Cast … or pass the failure off.`, together, on both backends:
+        // success by falling off the end and by a bare `Return.`, a failure passed off from a call
+        // that gives nothing back and from one whose value is dropped, and the chain stopping at the
+        // first failure — with the moves made before it kept. The compiled form needs a success value
+        // at the end of the body; without one C falls off a function that returns a struct.
+        const string src = """
+            Define object ledger with (the number balance, the number moves).
+
+            Bind number or failure to checked, given (the number amount):
+                If amount is less than 0, return a failure "negative amount {amount}" of category "range".
+                Return amount.
+            Done.
+
+            Bind void or failure to withdraw unto ledger, given (the number amount):
+                If amount is 0:
+                    Return.
+                Done.
+                Cast checked on (amount) or pass the failure off.
+                If amount is greater than one's balance, return a failure "only {one's balance} left".
+                Decrement one's balance by amount.
+                Increment one's moves by 1.
+            Done.
+
+            Bind void or failure to withdraw-all unto ledger, given (the series of number amounts):
+                For each amount in amounts, repeat:
+                    Cast one's withdraw on (amount) or pass the failure off.
+                Done.
+            Done.
+
+            Define book-keeping as a new ledger { the balance 10, the moves 0 }.
+            For each plan in a series with (a series with (1, 0, 2), a series with (3, -1, 1), a series with (5, 9)), repeat:
+                Try to:
+                    Cast book-keeping's withdraw-all on (plan).
+                    State "done: balance {book-keeping's balance}".
+                Done.
+                In case of failure:
+                    State "stopped: {the message of the failure} ({book-keeping's moves} moves)".
+                Done.
+            Done.
+            """;
+        var interpreted = InterpretRaw(src);
+        Assert.Equal("done: balance 7\nstopped: negative amount -1 (3 moves)\nstopped: only 4 left (3 moves)",
+                     interpreted.Replace("\r\n", "\n").TrimEnd());
+        Assert.Equal(interpreted, CompileRaw(src));
+    }
+
+    [Fact]
     public void BracketsEndAPossessive_SoTheOfAfterThemBelongsToItem()
     {
         // ★ `item (one's cursor) of held` was refused: the book-call postfix (`math's floor of x`)
