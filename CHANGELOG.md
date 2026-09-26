@@ -23,6 +23,20 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   ★ Found by the Cufet lexer, which bound 13 throwaway names only to reach the expression form and
   returned a meaningless `fact` from every scanning method; rewritten in the new forms it lost
   every throwaway name and every `Return true.` that meant only "it worked".
+- **The Cufet parser, written in Cufet** — `tools/front-end/`, the second piece of the compiler in its
+  own language. `cufet tools/front-end/parser.cufe <files…>` prints each file's syntax tree, one
+  top-level statement per line, and `ParserParityTests` holds it to `src/Interpreter/Parser.cs`
+  tree for tree — every node, field, name and position — over all 100 `.cufe` files in the
+  repository, its own included. It covers the whole language the corpus uses: patterns compiled
+  to their automata, `cufet` blocks parsed where they sit, and interface defaults expanded. The
+  compiled parser is checked over every file; the interpreted one over a fifth of them, because
+  interpreted the whole corpus takes two minutes. Parse ERRORS are not yet compared — only trees.
+
+### Changed
+
+- **The lexer moved from `tools/lexer/` to `tools/front-end/`**, where the parser reads it: its scanning
+  became `scanner.cufe`, which gives back tokens as objects, and `lexer.cufe` is the small program
+  that prints them.
 
 ## [0.26.0] — 2026-09-26
 

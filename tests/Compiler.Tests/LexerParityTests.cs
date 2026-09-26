@@ -6,7 +6,7 @@ using Xunit;
 namespace Cufet.Compiler.Tests;
 
 /// <summary>
-/// The lexer written in Cufet (`tools/lexer/`) gives the same tokens as the one in C#.
+/// The lexer written in Cufet (`tools/front-end/`) gives the same tokens as the one in C#.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -28,7 +28,7 @@ namespace Cufet.Compiler.Tests;
 /// </remarks>
 public class LexerParityTests
 {
-    private static readonly string RepoRoot = FindRepoRoot();
+    internal static readonly string RepoRoot = FindRepoRoot();
 
     private static string FindRepoRoot()
     {
@@ -38,14 +38,14 @@ public class LexerParityTests
         return dir?.FullName ?? "";
     }
 
-    private static string CufetExe => Path.Combine(
+    internal static string CufetExe => Path.Combine(
         RepoRoot, "src", "App", "bin", "Debug", "net10.0",
         "Cufet.App" + (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? ".exe" : ""));
 
-    private static string LexerDir => Path.Combine(RepoRoot, "tools", "lexer");
+    private static string LexerDir => Path.Combine(RepoRoot, "tools", "front-end");
 
     /// <summary>Every Cufet file in the repository, relative to its root, with forward slashes.</summary>
-    private static List<string> Corpus() =>
+    internal static List<string> Corpus() =>
         new[] { "examples", "tools", Path.Combine("src", "Interpreter", "Prelude") }
             .Select(d => Path.Combine(RepoRoot, d))
             .Where(Directory.Exists)
@@ -88,7 +88,7 @@ public class LexerParityTests
 
     // ── The Cufet side ──────────────────────────────────────────────────────
 
-    private static string Run(string exe, IEnumerable<string> arguments, string workingDirectory)
+    internal static string Run(string exe, IEnumerable<string> arguments, string workingDirectory)
     {
         var psi = new ProcessStartInfo(exe)
         {
@@ -109,7 +109,7 @@ public class LexerParityTests
     }
 
     /// <summary>The lexer's output, split at its `file` headers.</summary>
-    private static Dictionary<string, List<string>> ByFile(string output)
+    internal static Dictionary<string, List<string>> ByFile(string output)
     {
         var files = new Dictionary<string, List<string>>();
         List<string>? current = null;
@@ -162,7 +162,7 @@ public class LexerParityTests
         // (a wrong root, a moved folder) fails rather than comparing nothing and passing.
         Assert.True(files.Count >= 80, $"only {files.Count} Cufet files found under {RepoRoot}");
 
-        var got = ByFile(Run(CufetExe, ["tools/lexer/lexer.cufe", .. files], RepoRoot));
+        var got = ByFile(Run(CufetExe, ["tools/front-end/lexer.cufe", .. files], RepoRoot));
         var problems = Differences(WithSources(files), got);
         Assert.True(problems.Count == 0,
             $"{problems.Count} of {files.Count} files lex differently:\n{string.Join("\n", problems)}");
@@ -230,7 +230,7 @@ public class LexerParityTests
             foreach (var f in Directory.GetFiles(LexerDir, "*.cufe"))
                 File.Copy(f, Path.Combine(dir, Path.GetFileName(f)));
             // A blueprint marks the directory as a project, so the files see each other as they do
-            // in tools/lexer/.
+            // in tools/front-end/.
             File.WriteAllText(Path.Combine(dir, "blueprint.cufe"), "");
             Run(CufetExe, ["build", "lexer.cufe"], dir);
 
