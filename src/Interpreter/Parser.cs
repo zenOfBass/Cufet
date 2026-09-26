@@ -5785,6 +5785,9 @@ public sealed class Parser
             if (expected == TokenType.Identifier && LooksLikeAWord(tok))
                 throw ReservedWordAsName(tok);
 
+            if (expected == TokenType.Dot && CallOrFieldShape(tok) is { } shape)
+                throw new ParseException(tok.Line, tok.Column, shape);
+
             throw new ParseException(tok, Describe(expected));
         }
         return Advance();
@@ -5804,6 +5807,36 @@ public sealed class Parser
     /// </remarks>
     private string? PullReservedBook(Token tok) =>
         EffectiveType(tok) == TokenType.Chase ? "collections" : null;
+
+    /// <summary>
+    /// A name followed by `(` or `of` where a statement should have ended — which of three
+    /// mistakes it is, in one sentence, or null for anything else.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ All three answered `expected '.', got LParen "("` or `got Of "of"`, naming a token type at
+    /// a beginner. Found by writing the tutorial's lesson on functions, where `area of (4, 5)` is
+    /// the natural guess right after `math's square-root of (16)`, and `area(4, 5)` is what every
+    /// other language taught. What FOLLOWS `of` tells them apart: brackets are a call, a name is a
+    /// field read missing its `the`.
+    /// </remarks>
+    private string? CallOrFieldShape(Token tok)
+    {
+        if (_pos == 0 || _tokens[_pos - 1] is not { Type: TokenType.Identifier } before) return null;
+        string name = before.Lexeme;
+
+        if (tok.Type == TokenType.LParen)
+            return $"'{name}(' looks like a call, and Cufet calls a function with 'cast': "
+                 + $"'cast {name} on (…)'.";
+
+        if (tok.Type != TokenType.Of) return null;
+        var after = PeekAfterCurrent();
+        if (after == TokenType.LParen)
+            return $"'{name} of (…)' is how a BOOK's member is called — 'math's square-root of (16)'. "
+                 + $"A function of your own is called with 'cast': 'cast {name} on (…)'.";
+        if (after == TokenType.Identifier)
+            return $"reading a field needs 'the' in front: 'the {name} of …'.";
+        return null;
+    }
 
     /// <summary>A reserved word sitting where a name belongs, in one sentence.</summary>
     /// <remarks>
