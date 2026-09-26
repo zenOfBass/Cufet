@@ -1,10 +1,12 @@
 // The rabbit, written in Cufet.
 //
-// ★★ THE ONE MODULE THAT IS NOT A BOOK, and since 2026-09-17 that is what the distinction MEANS:
-// a module may own a LIFETIME and a book may not. Everything else pullable — `math`, `collections`,
-// `chance`, a writer's own — owns none, and says `and book`. This file says `and module` because a
-// rabbit is a region, and it is the only thing in the language that is. ⚠ That also makes it the
-// single member of its category today; letting a person WRITE one is a design mountain, not a gap.
+// ★★ A MODULE THAT OWNS A LIFETIME, and since 2026-09-17 that is what separates a module from a
+// book: a book may not own one. This file says `and region` — the claim that pulling it opens a
+// lifetime its `Done.` closes — and since 0.25.0 anybody can make the same claim for a type of
+// their own. So a rabbit is the first instance of that rule rather than an exception to it; the
+// tutorial's last lesson ends here for exactly that reason.
+// ⚠ This header used to say a rabbit was "the only thing in the language" that is a region, and
+// that letting a person write one was a design mountain. Both stopped being true with `and region`.
 //
 // A rabbit says so here, in the language, rather than by the
 // checker knowing a special name. That is the whole of the definition, and deliberately so:
@@ -14,15 +16,15 @@
 // `If` is, and it is provided by the compiler for the same reason. When the compiler itself is
 // written in Cufet, that provision moves with it.
 //
-// What a rabbit IS, on the other hand, belongs here: an object, conforming to `module`, pulled
-// by name like `math` or a writer's own. `Pull a rabbit as hopper.` opens its region — that is
-// the one thing pulling a rabbit does that pulling another module does not, and it is why the
-// parser still recognises the name.
+// What a rabbit IS, on the other hand, belongs here: an object that says `and region`, pulled
+// by name like any module. `Pull a rabbit as hopper.` opens its region, as pulling any region
+// does. What still sets the name apart is the parser: `Have rabbit …` addresses the enclosing
+// rabbit, which is why the parser still recognises the word.
 
 /// A region you can **bury** work in and **unbury** it from later.
 ///
-/// `Pull a rabbit as hopper.` opens one, and it closes at the matching `Done.` — that is the one
-/// thing pulling a rabbit does that pulling any other module does not.
+/// `Pull a rabbit as hopper.` opens one, and it closes at the matching `Done.` — as any region
+/// does. A type of your own becomes one by saying `and region` too.
 ///
 /// ★ Its verbs are the language's floor rather than methods you could have written: `bury`
 /// suspends the function around it, which is a REWRITE of that function rather than a call. That
