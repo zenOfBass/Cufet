@@ -1,0 +1,21 @@
+/*  A book of your own — lesson 12 of `docs/TUTORIAL.md`.
+
+    `and book` is what makes this pullable: `Pull a book on planting.` finds this file because it
+    sits beside the program that pulls it, and would find it in a project's `books/` folder too.
+    A book owns no lifetime of its own, so it is consulted — `planting's plants-in of (…)` — rather
+    than held. Its top level only declares: a book that DID something would do it inside whoever
+    pulled it, so that is refused.
+*/
+
+Define object planting with () and book:
+    /// How many plants fit in an area, each needing `spacing` square metres.
+    Bind number to plants-in, given (the number area, the number spacing):
+        Return area / spacing.
+    Done.
+
+    /// Square metres a plant of this kind needs, or void for one the book does not know.
+    Bind voidable number to spacing-for, given (the text crop):
+        Define spacings as a map with ("carrots" : 0.05, "kale" : 0.25, "lettuce" : 0.1).
+        Return the entry for crop in spacings.
+    Done.
+Done.

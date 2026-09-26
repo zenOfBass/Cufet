@@ -1,0 +1,14 @@
+/*  Planning a bed with the `planting` book beside this file — lesson 12 of `docs/TUTORIAL.md`.
+
+        cufet examples/planting/plan.cufe
+
+    No blueprint is needed for this: a book is looked for beside the file that pulls it.
+*/
+
+Pull a book on planting.
+    For each crop in a series of text with ("carrots", "kale", "parsnips"), repeat:
+        Define spacing as planting's spacing-for of (crop).
+        If spacing is void, state "The book does not know {crop}.".
+        Otherwise, state "A 20 square metre bed holds {planting's plants-in of (20, spacing)} {crop}.".
+    Done.
+Done.
