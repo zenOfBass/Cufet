@@ -525,6 +525,24 @@ Done.
 That doesn't work: this judgement does not cover fact.
 ```
 
+**A voidable is judged as the two cases it is** — the value, or `void` — so naming both
+covers it, and `it` is the plain value in the first arm:
+
+```cufet
+Define count as the entry for "kale" in a map with ("carrots" : 12).
+
+Judge count, where it is:
+    A number, state "{it} of them".
+    A void, state "none".
+Done.
+```
+```output
+none
+```
+
+`void` names a type wherever one is expected: `x is a void` tests for absence, and
+`(number or void)` is the same type as `voidable number`.
+
 For anything else, `Otherwise` is required. Either way, control can never fall off
 the end of a `Judge`. It is the same discipline `voidable` applies to absence:
 handle it, or say what happens instead.

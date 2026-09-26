@@ -175,6 +175,17 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   there, so `Otherwise, state "{spacing}".` was refused. Fixed in the checker and, since the
   compiler keeps its own copy of the rule, there too — an oracle test holds the two together.
 
+- **`void` can be written as a type, and a voidable can be judged.** `x is a void`,
+  `(number or void)` and a `Judge` arm `A void, …` were all refused as *"expected type name"*:
+  everything past the parser already expected void as a type, and nothing produced one. A `Judge`
+  over a voidable now treats it as the two cases it is, so `A number` and `A void` cover it with no
+  `Otherwise`, and a missing one is named. The compiler had no lowering for a `Judge` whose subject
+  is not a closed union and now tests `.has` for a voidable; an oracle test holds the two backends
+  together. Found by writing the tutorial's lesson on choosing.
+
+- **`at` can be used as an index.** `at` is a free name, but `item at of digits` was read as the
+  matrix form `item at (row, column) of m` on the word alone. The matrix form now needs its bracket.
+
 - **A book is pulled, not made.** `a new planting`, where `planting` is a book of your own, was
   accepted and gave a value with nothing behind it; it is now refused and says to pull it. The
   bundled books were already refused, but told to *"Write 'Pull math.'"* — which is itself refused,
