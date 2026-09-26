@@ -312,6 +312,17 @@ public sealed partial class TypeChecker
             return moduleType;
         }
 
+        // ★ The file IS where a pull looks, and it declares the object — just not as something that
+        // can be pulled. The message below would describe that very file as the place to put one.
+        // Found by writing the tutorial's lesson on books, where leaving off `and book` is the first
+        // slip there is.
+        if (BookFileOnDisk(name) is { } file && DeclaresObject(file.Text, name) && !DeclaresPullable(file.Text))
+            throw TypeError(
+                $"{Path.GetFileName(file.Path)} declares 'object {name}', but not as a book, so it cannot be pulled",
+                null, ps.Line, ps.Column,
+                $"pull '{name}'",
+                $"Say what it is where it is defined: 'Define object {name} with () and {BookInterface}:'.");
+
         var available = string.Join(", ", BuiltinBooks.Keys.OrderBy(k => k).Select(k => $"'{k}'"));
 
         // ⚠⚠ THE PLACES IT LOOKED, by name. This message used to offer the bundled books and an
@@ -335,6 +346,43 @@ public sealed partial class TypeChecker
             + $"'{name}' as a module: 'Define object {name} with (...) and {ModuleInterface}:'."
             + where);
     }
+
+    /// <summary>The file a pull on this name would load, and its text — or null.</summary>
+    /// <remarks>
+    /// Asked only once something has already failed, and through the loader's own rule
+    /// (`BookLoading.Resolve`: beside the file, then the project's shared folder), so a refusal
+    /// never names a file a pull would not have looked at.
+    /// </remarks>
+    private (string Path, string Text)? BookFileOnDisk(string name)
+    {
+        if (SourceDirectory is null) return null;
+        try
+        {
+            if (BookLoading.Resolve(name, SourceDirectory, BookLoading.SharedBooks(SourceDirectory)) is not { } path)
+                return null;
+            return (path, File.ReadAllText(path));
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            return null;
+        }
+    }
+
+    private static bool DeclaresObject(string text, string name) =>
+        System.Text.RegularExpressions.Regex.IsMatch(text,
+            $@"^\s*Define\s+object\s+{System.Text.RegularExpressions.Regex.Escape(name)}\b",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Multiline);
+
+    private static bool DeclaresPullable(string text) =>
+        System.Text.RegularExpressions.Regex.IsMatch(text, @"\band\s+(book|module|region)\b",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+    /// <summary>Is this name a book — bundled, or a book file a pull would find?</summary>
+    private bool IsABook(string name) =>
+        BuiltinBooks.ContainsKey(name)
+        || (BookFileOnDisk(name) is { } file && DeclaresObject(file.Text, name)
+            && System.Text.RegularExpressions.Regex.IsMatch(file.Text, @"\band\s+book\b",
+                   System.Text.RegularExpressions.RegexOptions.IgnoreCase));
 
     /// <summary>Names the language itself owns: the bundled books, and the rabbit.</summary>
     /// <remarks>

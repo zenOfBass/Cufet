@@ -652,6 +652,16 @@ public sealed partial class TypeChecker
             }
 
             if (IsAssignable(formalType, argType)) continue;
+            // A voidable where only a present value will do — the shared refusal, so this site says
+            // "void" like the five others. "Change argument 2 to a number" was all it said, to
+            // someone passing a number that might not be there. Found writing the lesson on books.
+            if (argType is VoidableType { Inner: var present } && IsAssignable(formalType, present))
+                throw VoidableMisuse(
+                    args[i],
+                    $"argument {i + 1} of {displayName} needs a {FormatType(formalType)} that is there",
+                    $"pass a {FormatType(argType)} as argument {i + 1}",
+                    $"'{Defaulted(args[i], present)}' in its place",
+                    callLine, callCol);
             throw TypeError(
                 $"argument {i + 1} of {displayName} must be a {FormatType(formalType)}, but you passed a {FormatType(argType)}",
                 $"You declared {displayName} on line {declLine}, so argument {i + 1} must be a {FormatType(formalType)}",

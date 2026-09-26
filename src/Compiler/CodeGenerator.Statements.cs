@@ -1340,6 +1340,14 @@ public sealed partial class CodeGenerator
     // remains, x reads at that case's concrete type (mirroring the front-end's residual-union narrowing).
     private (string Name, CufetType Inner, string Access)? ElseNarrow(IfStatement ifStmt)
     {
+        // ★ The else of a lone `x is void` is reached only when x is present — the checker narrows
+        // it the same way, and without this mirror the else read `.has`/`.val` wrongly and a hole
+        // there refused to compile while it ran interpreted.
+        if (ifStmt.Arms.Count == 1
+            && ifStmt.Arms[0].Condition is BinaryExpression { Op: TokenType.Equal, Right: VoidLiteral, Left: VariableReference vvr }
+            && TypeOf(vvr) is VoidableType vvt)
+            return (vvr.Name, vvt.Inner, ".val");
+
         // ★ A single NEGATED arm inverts the rule. The else of `x is not a <case>` is reached
         // exactly when x IS that case, so it names the survivor outright rather than eliminating
         // down to one — and it narrows whatever the union's size, where the positive path below

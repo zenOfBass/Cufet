@@ -1681,7 +1681,7 @@ public sealed partial class TypeChecker
             // pull's `Done.`, which is the other way to meet it.
             // ⚠ After the book check below, not before: a pull's `Done.` ends the book's name too,
             // and "'math' is a book … the pull lasts until its Done." is the more useful sentence.
-            if (!BuiltinBooks.ContainsKey(vr.Name)
+            if (!IsABook(vr.Name)
                 && _endedNames.TryGetValue(vr.Name, out var definedOn) && definedOn < vr.Line)
                 throw TypeError(
                     $"'{vr.Name}' was defined on line {definedOn}, inside a block that has ended",
@@ -1693,7 +1693,7 @@ public sealed partial class TypeChecker
             if (NotAProjectYet(vr.Name, vr.Line, vr.Column, $"use '{vr.Name}' here") is { } besideIt)
                 throw besideIt;
 
-            if (BuiltinBooks.ContainsKey(vr.Name))
+            if (IsABook(vr.Name))
                 throw TypeError(
                     $"'{vr.Name}' is a book, and it is not pulled here",
                     $"A book's members can be used only inside 'Pull a book on {vr.Name}. … Done.', "
@@ -2722,6 +2722,20 @@ public sealed partial class TypeChecker
                     {
                         narrowedVar = nvTarget;
                         narrowedTo  = nvNarrowed;
+                        canExhaustNarrow = false;
+                    }
+                    // ★ `If x is void … Otherwise …` — the Otherwise is reached only when x is NOT
+                    // void, the mirror of `If x is not void` narrowing its own arm. Only that one
+                    // was counted, so `If spacing is void, state "…". Otherwise, state "{spacing}".`
+                    // was refused on the second line. Found by writing the tutorial's lesson on
+                    // books. A lone arm, as the negated type test below is.
+                    else if (ifStmt.Arms.Count == 1
+                             && arm.Condition is BinaryExpression { Op: TokenType.Equal, Right: VoidLiteral, Left: VariableReference isVoid }
+                             && TryLookup(isVoid.Name, out var isVoidInfo)
+                             && (_narrowedVars.TryGetValue(isVoid.Name, out var already) ? already : isVoidInfo.Type) is VoidableType isVoidType)
+                    {
+                        negatedElseVar  = isVoid.Name;
+                        negatedElseType = isVoidType.Inner;
                         canExhaustNarrow = false;
                     }
                     else if (TryGetTypeCheckNarrowing(arm.Condition,

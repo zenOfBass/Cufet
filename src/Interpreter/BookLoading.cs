@@ -195,7 +195,7 @@ public static class BookLoading
     /// ★★ LOCAL WINS. A program may keep its own `canvas.cufe` beside it and have that one rather
     /// than the project's, which is what makes the shared folder a default instead of a ceiling.
     /// </remarks>
-    private static string? Resolve(string bookName, string directory, string? shared)
+    internal static string? Resolve(string bookName, string directory, string? shared)
     {
         var beside = Path.Combine(directory, bookName + ".cufe");
         if (File.Exists(beside)) return beside;

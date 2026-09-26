@@ -797,6 +797,25 @@ public class PipelineLanguageTests : PipelineTestBase
         Assert.Equal(interpreted, CompileRaw(src));
     }
 
+    [Fact]
+    public void TheOtherwiseOfIsVoid_ReadsTheValueAsPresent()
+    {
+        // ★ `If x is void … Otherwise …` reaches its Otherwise only when x is present — the mirror
+        // of `If x is not void` narrowing its own arm, which was the only one counted. The compiler
+        // keeps its own copy (ElseNarrow) and needed the same case.
+        const string src = """
+            Define pantry as a map with ("carrots" : 12).
+            For each crop in a series of text with ("carrots", "kale"), repeat:
+                Define count as the entry for crop in pantry.
+                If count is void, state "no {crop}".
+                Otherwise, state "{count + 1} {crop} after one more".
+            Done.
+            """;
+        var interpreted = InterpretRaw(src);
+        Assert.Equal("13 carrots after one more\nno kale", interpreted.Replace("\r\n", "\n").TrimEnd());
+        Assert.Equal(interpreted, CompileRaw(src));
+    }
+
     [Theory]
     [InlineData("skip", "carrots: 12\nkale: 3")]
     [InlineData("stop", "carrots: 12")]

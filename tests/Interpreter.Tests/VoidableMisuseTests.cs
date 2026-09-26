@@ -131,6 +131,17 @@ public class VoidableMisuseTests
     }
 
     [Fact]
+    public void AVoidableArgument_SaysVoid()
+    {
+        // "Change argument 2 to a number" was all it said. Found writing the tutorial's lesson on books.
+        var ex = Assert.Throws<TypeException>(() => Run(Carrots
+          + "Bind number to twice, given (the number n): Return n * 2. Done.\n"
+          + "State cast twice on (carrots)."));
+        Assert.Contains("'carrots' might be void, and argument 1 of", ex.Message);
+        Assert.Contains("'carrots but void is 0' in its place", ex.Message);
+    }
+
+    [Fact]
     public void ARealMismatch_KeepsItsOwnWords()
     {
         // Only a voidable whose PRESENT value would fit gets the void refusal.
