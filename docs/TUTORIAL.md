@@ -738,4 +738,145 @@ what. A map lookup gives void; a garden with a negative width is a failure.
 
 ---
 
-**Next:** things of your own — objects, and what happens when one goes away.
+## Lesson 8 — Things of your own
+
+A record from lesson 2 describes one thing. An **object** is a *kind* of thing, with a name of its
+own, and it can do things as well as hold them. Here is a garden bed that knows its own area. It
+does not work.
+
+```cufet-refused
+Define object bed with (the number width, the number depth):
+    Bind number to area:
+        Return width * depth.
+    Done.
+Done.
+```
+```output
+That doesn't work: 'width' is a field of 'bed', and inside its methods a field is reached through 'one'.
+Here on line 3, you're trying to use 'width' on its own.
+
+Write 'one's width' — 'one' is the bed the method was called on.
+```
+
+### An object, and its methods
+
+`Define object bed with (…)` names a new kind of thing and says what every one of them holds. A
+`Bind` inside it is a **method** — a word that belongs to beds. Inside one, `one` is the particular
+bed it was called on, so its width is `one's width`:
+
+```cufet
+Define object bed with (the number width, the number depth):
+    Bind number to area:
+        Return one's width * one's depth.
+    Done.
+Done.
+Define front as a new bed { the width 4, the depth 5 }.
+State cast front's area.
+State front's width.
+State front.
+```
+```output
+20
+4
+bed(depth: 5, width: 4)
+```
+
+`a new bed { … }` makes one, with a value for each field. A method is called with `cast`, the same
+way lesson 6 called a word of your own — `front's area` on its own is refused, because a method is
+there to be called. A field is just read. Change one with `becomes`, as you would a name:
+`The front's width becomes 6.`
+
+### Fields with a default
+
+Leave a field out when making one, and Cufet says which is missing — and suggests a default. A
+default is written where the kind is defined, and every bed made without that field gets it:
+
+```cufet
+Define object bed with (the number width, the number depth, the text crop with default "nothing yet").
+Define front as a new bed { the width 4, the depth 5 }.
+Define back as a new bed { the width 2, the depth 3, the crop "carrots" }.
+State "The front bed grows {front's crop}; the back grows {back's crop}.".
+```
+```output
+The front bed grows nothing yet; the back grows carrots.
+```
+
+### When one goes away
+
+Some things need tidying up after. An **unmaker** is a word Cufet runs for you when a thing's name
+goes out of use — at the `Done.` of the block it was defined in:
+
+```cufet
+Define object watering-can with (the text label).
+Bind unmaking a watering-can to put-away:
+    State "putting the {one's label} watering can away".
+Done.
+If 1 is 1:
+    Define can as a new watering-can { the label "green" }.
+    State "watering with the {can's label} can".
+Done.
+State "back in the house".
+```
+```output
+watering with the green can
+putting the green watering can away
+back in the house
+```
+
+A loop's block ends once per turn, so a can defined inside a loop is put away every time round:
+
+```cufet
+Define object watering-can with (the text label).
+Bind unmaking a watering-can to put-away:
+    State "putting the {one's label} watering can away".
+Done.
+For each colour in a series of text with ("green", "red"), repeat:
+    Define can as a new watering-can { the label colour }.
+    State "watering with the {colour} can".
+Done.
+```
+```output
+watering with the green can
+putting the green watering can away
+watering with the red can
+putting the red watering can away
+```
+
+Two things to know before relying on one.
+
+**It needs a block.** A thing defined at the very top of a program, or directly in a word's body,
+is never unmade — neither of those is a block that ends. Put it inside an `If`, a loop, or the
+lifetime of lesson 9.
+
+**It belongs to the name, not the thing.** Objects are copied, so `Define spare as can.` makes a
+second watering can — and both are put away:
+
+```cufet
+Define object watering-can with (the text label).
+Bind unmaking a watering-can to put-away:
+    State "putting the {one's label} watering can away".
+Done.
+If 1 is 1:
+    Define can as a new watering-can { the label "green" }.
+    Define spare as can.
+    State "watering".
+Done.
+```
+```output
+watering
+putting the green watering can away
+putting the green watering can away
+```
+
+So write an unmaker that is safe to run twice: saying something, or setting a flag, is fine. For
+tidying that must happen exactly once, give the object a method and call it yourself.
+
+### Try it
+
+- Give `bed` a second method, `perimeter`.
+- Define a watering can at the top of the program, outside any block, and see whether it is put away.
+- Write `State front's area.` without `cast`, and read what Cufet says.
+
+---
+
+**Next:** things with a lifetime — `Pull a rabbit.`, and what its `Done.` lets go of.
