@@ -118,7 +118,7 @@ Pull a book on math.
                 State "beamforming: {source}: '{field}' is not a number".
                 Exit with 2.
             Done.
-            Insert (value but void is 0) into values.
+            Insert value into values.
         Done.
         Return values.
     Done.
