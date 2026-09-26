@@ -3617,6 +3617,16 @@ public sealed partial class TypeChecker
     private CufetType InferReadExpr(ReadExpression re)
     {
         var sourceType = InferType(re.Source);
+        // ★ Reading from TEXT is nearly always a file name missing its two words — `read all from
+        // "notes.txt"` — and the advice below was about opening streams. Found by writing the
+        // tutorial's lesson on files. `read a line` has no file form, so it keeps the stream advice.
+        if (sourceType == CufetType.Text && re.Form is ReadForm.All or ReadForm.AllLines)
+            throw TypeError(
+                "you can read from a file or a stream, and this is a piece of text",
+                null, re.Line, re.Column,
+                $"read from {FormatExpr(re.Source)}",
+                $"If it names a file, say so: 'read {(re.Form == ReadForm.All ? "all" : "all lines")} "
+              + $"from the file {FormatExpr(re.Source)}'.");
         if (sourceType != null && sourceType is not ReadableStreamType { ElementType: TextType })
             throw TypeError(
                 "read expects a readable stream of text",
@@ -4161,7 +4171,7 @@ public sealed partial class TypeChecker
             CheckStatement(s);
             _inPrelude = wasInPrelude;
             if (s is IfStatement { Arms.Count: 1, ElseBody: null } guard
-                && DefinitelyReturns(guard.Arms[0].Body))
+                && (DefinitelyReturns(guard.Arms[0].Body) || LeavesTheBlock(guard.Arms[0].Body)))
             {
                 var narrowings = new List<(string Name, CufetType Type)>();
                 CollectGuardNarrowings(guard.Arms[0].Condition, narrowings);
@@ -4180,6 +4190,18 @@ public sealed partial class TypeChecker
             else _narrowedVars.Remove(name);
         }
     }
+
+    /// <summary>Does this guard body leave the rest of the block behind, without returning?</summary>
+    /// <remarks>
+    /// ★★ The narrowing's reason is "the statements after the guard run only when its condition
+    /// was false" — and `Stop.`, `Skip.` and `Exit` make that as true as `return` does. Only
+    /// `return` was counted, so REFERENCE's own input loop — `If line is void, stop.` — left `line`
+    /// voidable on the next line, and a hole there was refused with advice to check first, which the
+    /// writer just had. Found by writing the tutorial's lesson on input. A top-level statement of
+    /// the arm only: a `Stop.` nested in an inner loop leaves THAT loop, not this block.
+    /// </remarks>
+    private static bool LeavesTheBlock(IReadOnlyList<IStatement> body) =>
+        body.Any(s => s is StopStatement or SkipStatement or ExitStatement);
 
     // Collects the narrowings implied by the NEGATION of a guard condition — what holds on the
     // fall-through path once an exiting guard on `condition` has been passed.

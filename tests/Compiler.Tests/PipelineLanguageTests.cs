@@ -796,4 +796,27 @@ public class PipelineLanguageTests : PipelineTestBase
         Assert.Equal("2002\n10", interpreted.Replace("\r\n", "\n").TrimEnd());
         Assert.Equal(interpreted, CompileRaw(src));
     }
+
+    [Theory]
+    [InlineData("skip", "carrots: 12\nkale: 3")]
+    [InlineData("stop", "carrots: 12")]
+    [InlineData("exit", "carrots: 12")]
+    public void AGuardThatLeavesTheBlock_NarrowsWhatFollows(string leave, string expected)
+    {
+        // ★ `If count is void, stop.` leaves the rest of the loop body only to non-void counts, as a
+        // `return` guard does for a function. Only `return` was counted — so a hole on the next line
+        // was refused, with advice to check first, to a writer who just had. REFERENCE's own input
+        // loop is this shape. The compiler keeps its own copy of the rule, and both had to learn it.
+        string src = $$"""
+            Define pantry as a map with ("carrots" : 12, "kale" : 3).
+            For each crop in a series of text with ("carrots", "lettuce", "kale"), repeat:
+                Define count as the entry for crop in pantry.
+                If count is void, {{leave}}.
+                State "{crop}: {count}".
+            Done.
+            """;
+        var interpreted = InterpretRaw(src);
+        Assert.Equal(expected, interpreted.Replace("\r\n", "\n").TrimEnd());
+        Assert.Equal(interpreted, CompileRaw(src));
+    }
 }

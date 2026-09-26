@@ -293,6 +293,13 @@ public sealed partial class TypeChecker
                 "Convert the value to text first with 'converted to text', or build a text value with 'joined to'.");
 
         var streamType = InferType(wts.Stream);
+        // ★ Writing to TEXT is a file name missing `the file`, as with reading — see InferReadExpr.
+        if (streamType == CufetType.Text)
+            throw TypeError(
+                "you can write to a file or a stream, and this is a piece of text",
+                null, wts.Line, wts.Column,
+                $"write to {FormatExpr(wts.Stream)}",
+                $"If it names a file, say so: 'Write … to the file {FormatExpr(wts.Stream)}.'");
         if (streamType != null && streamType is not WritableStreamType { ElementType: TextType })
             throw TypeError(
                 "write expects a writable stream of text",

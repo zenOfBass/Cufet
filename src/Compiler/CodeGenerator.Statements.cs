@@ -198,6 +198,11 @@ public sealed partial class CodeGenerator
         foreach (var s in body)
         {
             if (s is ReturnStatement) return true;
+            // ★ Leaving the loop, the turn or the program makes the fall-through as conditional as
+            // a return does — the checker's LeavesTheBlock, mirrored. Without it `If line is void,
+            // stop.` narrowed `line` in the interpreter and not here, and a hole on the next line
+            // refused to compile while it ran interpreted.
+            if (s is StopStatement or SkipStatement or ExitStatement) return true;
             if (s is IfStatement { ElseBody: not null } ifs
                 && ifs.Arms.All(a => BlockAlwaysExits(a.Body)) && BlockAlwaysExits(ifs.ElseBody))
                 return true;
