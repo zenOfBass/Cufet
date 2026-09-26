@@ -948,6 +948,55 @@ public sealed partial class TypeChecker
         _typeScopes.RemoveAt(_typeScopes.Count - 1);
     }
 
+    /// <summary>
+    /// The refusal for a name some OTHER file beside this one declares, in a folder that is not a
+    /// project — or null when that is not what happened.
+    /// </summary>
+    /// <remarks>
+    /// ★ "'bed' is not a defined object type … Define the object type first" was said to someone
+    /// who had, in `beds.cufe` next door. The missing fact is that a folder's files see each other
+    /// only inside a PROJECT, which a `blueprint.cufe` makes. Found by writing the tutorial's
+    /// lesson on projects, whose first step is exactly this.
+    /// ⚠ Asked only after a name has FAILED, and it reads the neighbours' TEXT rather than loading
+    /// them: it needs to know which file to name, not what the file means, and a failed lookup is
+    /// no place to start compiling other files. Nothing here changes what a program is.
+    /// </remarks>
+    private TypeException? NotAProjectYet(string name, int line, int column, string action)
+    {
+        if (SourceDirectory is null || BookLoading.ProjectRoot(SourceDirectory) is not null) return null;
+        // ⚠ TOP-LEVEL declarations only — at the start of a line, unindented. An indented one is a
+        // method inside an object or a helper inside a pull, and neither is something a neighbour
+        // would see in a project either, so pointing at a blueprint would be false advice. The
+        // first version matched those and told a module's own caller to write a blueprint.
+        var escaped = System.Text.RegularExpressions.Regex.Escape(name);
+        var declares = new System.Text.RegularExpressions.Regex(
+            $@"^(Define\s+object\s+{escaped}\b|Bind\b[^\n]*?\bto\s+{escaped}\s*[,:])",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase
+          | System.Text.RegularExpressions.RegexOptions.Multiline);
+        // A file that declares a book, a module or a region is a LIBRARY: what it holds is reached
+        // through its name, never seen flatly, so its declarations are not this mistake either.
+        var library = new System.Text.RegularExpressions.Regex(@"\band\s+(book|module|region)\b",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        IEnumerable<string> neighbours;
+        try { neighbours = Directory.EnumerateFiles(SourceDirectory, "*.cufe").Order(StringComparer.Ordinal).ToList(); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return null; }
+        foreach (var file in neighbours)
+        {
+            if (SourceFile is not null && string.Equals(Path.GetFullPath(file), SourceFile, StringComparison.OrdinalIgnoreCase))
+                continue;
+            string text;
+            try { text = File.ReadAllText(file); }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { continue; }
+            if (library.IsMatch(text) || !declares.IsMatch(text)) continue;
+            return TypeError(
+                $"'{name}' is declared in {Path.GetFileName(file)} beside this file, but this folder is not a project, so its files do not see each other",
+                null, line, column, action,
+                "Make the folder a project by giving it a 'blueprint.cufe' — inside a project, every file "
+              + "in a folder sees the others. See docs/BOOKS.md, 'Blueprints'.");
+        }
+        return null;
+    }
+
     /// <summary>Names whose block has closed, with the line each was defined on.</summary>
     /// <remarks>
     /// ★ Asked only once a name has FAILED, to tell "you never defined it" from "you defined it, and
@@ -1640,6 +1689,9 @@ public sealed partial class TypeChecker
                     vr.Line, vr.Column,
                     $"use '{vr.Name}' after that block's 'Done.'",
                     $"Use it before the 'Done.', or define it before the block begins so it outlasts it.");
+
+            if (NotAProjectYet(vr.Name, vr.Line, vr.Column, $"use '{vr.Name}' here") is { } besideIt)
+                throw besideIt;
 
             if (BuiltinBooks.ContainsKey(vr.Name))
                 throw TypeError(

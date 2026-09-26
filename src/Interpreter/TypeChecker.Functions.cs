@@ -898,6 +898,8 @@ public sealed partial class TypeChecker
             // ★ Everything that legitimately resolves late has already been taken by the time
             // this is reached — axioms, generic fillings, method dispatch and ordinary bindings
             // are each handled above, and a template’s name is resolved before any of them.
+            if (NotAProjectYet(vr.Name, callLine, callCol, $"cast '{vr.Name}'") is { } besideIt)
+                throw besideIt;
             throw TypeError(
                 $"'{vr.Name}' isn't defined, so there is nothing to cast",
                 "A cast reaches a function, a method, or an axiom, and no declaration of this name "

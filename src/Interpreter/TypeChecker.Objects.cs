@@ -847,6 +847,9 @@ public sealed partial class TypeChecker
             objType = scopedObject;
             lit.ResolvedTypeName = objType.Name;
         }
+        else if (objType is null && NotAProjectYet(lit.TypeName, lit.Line, lit.Column,
+                     $"create a new {lit.TypeName} object") is { } besideIt)
+            throw besideIt;
         else if (objType is null)
             throw _genericObjectDefs.TryGetValue(lit.TypeName, out var template)
                 // ⚠ It IS defined — it just names nothing on its own. Saying "not a defined object

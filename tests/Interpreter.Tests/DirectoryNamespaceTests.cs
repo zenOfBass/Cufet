@@ -110,7 +110,11 @@ public class DirectoryNamespaceTests : IDisposable
     {
         Write("", "helper", Helper);
         var refusal = Refuses(Write("", "main", UsesHelper));
-        Assert.Contains("'doubled' isn't defined", refusal.Message);
+        // Still refused — the gate is unchanged. The WORDS changed (2026-09-26): this used to say
+        // "'doubled' isn't defined", and now names the neighbour and the missing blueprint, which
+        // is the actual reason. Found by writing the tutorial's lesson on projects.
+        Assert.Contains("'doubled' is declared in helper.cufe beside this file", refusal.Message);
+        Assert.Contains("this folder is not a project", refusal.Message);
     }
 
     /// <remarks>
