@@ -87,7 +87,7 @@ they are large, not because they are waiting — the order among them means noth
      ⚠ This bullet used to defer to a "`docs/`-folder and GitHub-Pages question" settled on
      2026-08-24, and pointed at the wrong item while doing it.
 
-   ✅ **THE CURRICULUM IS SETTLED, 2026-09-16, revised 2026-09-25**, and lessons 1–6 are written —
+   ✅ **THE CURRICULUM IS SETTLED, 2026-09-16, revised 2026-09-25**, and lessons 1–7 are written —
    `docs/TUTORIAL.md`, with every program and every message in it run by the suite. A draft, and
    expected to move as lessons get written.
 
@@ -101,7 +101,7 @@ they are large, not because they are waiting — the order among them means noth
    4. Choose and repeat — `If`/`Otherwise` (so `If … is not void`), `For each`, `Judge`. ✅ written.
    5. Borrowing — `Pull a book on math.` and `collections`. ✅ written.
    6. Your own words — `Bind`, parameters, `Return`. ✅ written.
-   7. When it can fail — `Try`, failure. The language makes you handle it, so it cannot be late.
+   7. When it can fail — `Try`, failure. The language makes you handle it, so it cannot be late. ✅ written.
    8. Your own things — objects, fields, methods, and their UNMAKERS.
    9. Things with a lifetime — what `Done.` releases, taught with `Pull a rabbit.`, the region that
       already exists. Using one, not declaring one.

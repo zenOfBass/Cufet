@@ -610,4 +610,132 @@ State words sorted by size-of.
 
 ---
 
-**Next:** when it can fail — `Try`, and failures a program has to handle.
+## Lesson 7 — When it can fail
+
+A garden bed cannot be minus four metres wide. `area` from lesson 6 should refuse to answer rather
+than give back a nonsense number — it should **fail**, and say why. Adding that to it does not work:
+
+```cufet-refused
+Bind number to area, given (the number width, the number depth):
+    If width is less than 0, return a failure "a width cannot be negative".
+    Return width * depth.
+Done.
+```
+```output
+That doesn't work: this function is declared to give back a number, and a failure is not one.
+You declared the return type as number on line 1.
+Here on line 2, you're trying to return a failure from it.
+
+If it is meant to be able to fail, say so where it is declared: 'Bind number or failure to …'.
+```
+
+### Saying a word can fail
+
+The first line of a `Bind` is a promise about what comes back. `area` promised a number, and a
+failure is not one — so the promise has to change: *a number, or a failure*.
+
+That fixes `area`, and moves the question to everyone who uses it:
+
+```cufet-refused
+Bind number or failure to area, given (the number width, the number depth):
+    If width is less than 0, return a failure "a width cannot be negative".
+    Return width * depth.
+Done.
+State cast area on (4, 5).
+```
+```output
+That doesn't work: 'area' can fail — you must handle the failure.
+Here on line 5, you're trying to use a fallible function's result without handling the failure.
+
+Wrap the call in a 'Try to: / In case of failure:' block, use 'but on failure <default>', or use 'or pass the failure off'.
+```
+
+`4` and `5` are fine, so this would work today — but Cufet does not check the numbers, it checks
+the promise. `area` says it *can* fail, so every use of it has to say what happens if it does. The
+refusal lists the three ways.
+
+### Trying, and catching
+
+`Try to:` runs a block. If anything in it fails, the rest of the block is skipped and
+`In case of failure:` runs instead, with the failure's message to hand:
+
+```cufet
+Bind number or failure to area, given (the number width, the number depth):
+    If width is less than 0, return a failure "a width cannot be negative".
+    Return width * depth.
+Done.
+Try to:
+    State cast area on (4, 5).
+    State cast area on (0 - 4, 5).
+    State "not reached".
+Done.
+In case of failure:
+    State "That did not work: {the message of the failure}.".
+Done.
+```
+```output
+20
+That did not work: a width cannot be negative.
+```
+
+### A default instead
+
+`but on failure` is lesson 3's `but void is` for failures — use this instead if it fails:
+
+```cufet
+Bind number or failure to area, given (the number width, the number depth):
+    If width is less than 0, return a failure "a width cannot be negative".
+    Return width * depth.
+Done.
+Define garden as cast area on (0 - 4, 5) but on failure 0.
+State "The garden covers {garden} square metres.".
+```
+```output
+The garden covers 0 square metres.
+```
+
+### Passing it on
+
+Sometimes the word you are writing cannot fix the failure either, and the right thing is to fail
+too. `or pass the failure off` does that — if `area` fails, `two-beds` fails with the same message:
+
+```cufet
+Bind number or failure to area, given (the number width, the number depth):
+    If width is less than 0, return a failure "a width cannot be negative".
+    Return width * depth.
+Done.
+Bind number or failure to two-beds, given (the number width, the number depth):
+    Define one-bed as cast area on (width, depth) or pass the failure off.
+    Return one-bed * 2.
+Done.
+State cast two-beds on (4, 5) but on failure 0.
+Try to:
+    State cast two-beds on (0 - 4, 5).
+Done.
+In case of failure:
+    State "No beds: {the message of the failure}.".
+Done.
+```
+```output
+40
+No beds: a width cannot be negative.
+```
+
+`two-beds` had to say `or failure` as well. A failure can only travel through words that admit they
+can fail, so reading the first line of any `Bind` tells you whether you will have to handle one.
+
+### Void, or a failure?
+
+They can look alike, and they mean different things. **Void** is an ordinary answer: the pantry has
+no lettuce, and nothing went wrong. A **failure** is something going wrong, with a message saying
+what. A map lookup gives void; a garden with a negative width is a failure.
+
+### Try it
+
+- Make `area` fail for a negative depth too, with its own message.
+- Use `but on failure 0` on a call that works, and check the default is not used.
+- Take `or failure` off `two-beds`'s first line, and read what Cufet says.
+
+---
+
+**Next:** things of your own — objects, and what happens when one goes away.
