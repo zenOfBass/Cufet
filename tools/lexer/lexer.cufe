@@ -1,0 +1,676 @@
+/*  The Cufet lexer, written in Cufet.
+
+        cufet tools/lexer/lexer.cufe <file.cufe> [more…]
+
+    Prints every token of every file named, one per line:
+
+        file    <the path, as given>
+        <token type> <line> <column> <lexeme>
+        …
+        Eof     <line> <column>
+
+    separated by tabs, with a backslash, a line break, a tab and a carriage return in a lexeme
+    written `\\`, `\n`, `\t` and `\r` so that a token is always one line. A file the lexer refuses
+    prints `error`, the line, the column and the reason instead of its tokens — exactly what
+    `src/Lexer/Lexer.cs` does, which throws before handing any token over.
+
+    ★★ The answer key is `src/Lexer/Lexer.cs` itself. `LexerParityTests` runs this over every
+    `.cufe` file in the repository and compares it with `new Lexer(source).Tokenize()`, token by
+    token, so this file and that one cannot drift apart without a test saying where.
+
+    ⚠ Columns count CHARACTERS here and UTF-16 units there. They agree everywhere except after a
+    character outside the Basic Multilingual Plane on the same line, and the test converts.
+*/
+
+Pull a book on collections.
+    Define object scanner with (
+        the chase source,
+        the number size,
+        the number cursor,
+        the number row,
+        the number row-start,
+        the series of text out,
+        the map from text to number kinds,
+        the map from text to text marks,
+        the map from text to text words).
+
+    // ── Where the scan stands ─────────────────────────────────────────────
+
+    /// The character under the scan, or "" once the source is used up.
+    Bind text to peek unto scanner:
+        If one's cursor is greater than one's size, return "".
+        Return item (one's cursor) of one's source.
+    Done.
+
+    /// The character after the one under the scan, or "" past the end.
+    Bind text to ahead unto scanner:
+        If one's cursor + 1 is greater than one's size, return "".
+        Return item (one's cursor + 1) of one's source.
+    Done.
+
+    Bind void to advance unto scanner:
+        Increment one's cursor by 1.
+    Done.
+
+    Bind fact to at-end unto scanner:
+        Return one's cursor is greater than one's size.
+    Done.
+
+    /// The 1-based column of the character at `spot`, which must sit on the current line.
+    Bind number to column-at unto scanner, given (the number spot):
+        Return spot - one's row-start + 1.
+    Done.
+
+    // ── What a character is ───────────────────────────────────────────────
+
+    /// ⚠ Cufet cannot ask what a character IS. A table answers for ASCII, and outside it a
+    /// character with two cases is a letter. That matches `char.IsLetter` on every character in
+    /// this repository, and not on an uncased script — which none of it is written in.
+    Bind fact to is-letter unto scanner, given (the text ch):
+        Define kind as (the entry for ch in one's kinds) but void is 0.
+        If kind is 1, return true.
+        If kind is not 0, return false.
+        If ch is "", return false.
+        Return (ch in lowercase) is not (ch in uppercase).
+    Done.
+
+    Bind fact to is-digit unto scanner, given (the text ch):
+        Return ((the entry for ch in one's kinds) but void is 0) is 2.
+    Done.
+
+    Bind fact to is-space unto scanner, given (the text ch):
+        Return ((the entry for ch in one's kinds) but void is 0) is 3.
+    Done.
+
+    Bind fact to is-word-part unto scanner, given (the text ch):
+        If cast one's is-digit on (ch), return true.
+        Return cast one's is-letter on (ch).
+    Done.
+
+    /// A lowercase letter is one whose uppercase is something else.
+    Bind fact to is-lower, given (the text ch):
+        Return (ch in uppercase) is not ch.
+    Done.
+
+    // ── What the scan produces ────────────────────────────────────────────
+
+    Bind void to emit unto scanner, given (the text kind, the text lexeme, the number at-row, the number at-column):
+        Insert "{kind}\t{at-row}\t{at-column}\t{cast escaped on (lexeme)}" into one's out.
+    Done.
+
+    /// A refusal, in the shape the failure carries it: line, column and reason, tab-separated.
+    Bind text to refusal, given (the number at-row, the number at-column, the text reason):
+        Return "{at-row}\t{at-column}\t{reason}".
+    Done.
+
+    /// A lexeme on one line: the four characters that could break one written as escapes.
+    Bind text to escaped, given (the text raw):
+        Define result as replace "\\" with "\\\\" in raw.
+        The result becomes replace "\n" with "\\n" in result.
+        The result becomes replace "\t" with "\\t" in result.
+        The result becomes replace "\r" with "\\r" in result.
+        Return result.
+    Done.
+
+    // ── Between tokens ────────────────────────────────────────────────────
+
+    /// A line break inside a literal, consumed and counted. A CRLF is ONE break, as it is in
+    /// Lexer.cs — see NewlineInLiteral there for why that is a language rule.
+    Bind fact to newline-in-literal unto scanner:
+        Define ch as cast one's peek.
+        If ch is "\r":
+            If cast one's ahead is not "\n", return false.
+            Cast one's advance.
+        Done.
+        Otherwise if ch is not "\n":
+            Return false.
+        Done.
+        Increment one's row by 1.
+        Cast one's advance.
+        One's row-start becomes one's cursor.
+        Return true.
+    Done.
+
+    Bind fact or failure to skip-space unto scanner:
+        While cast one's at-end is false, repeat:
+            Define ch as cast one's peek.
+            Define next-ch as cast one's ahead.
+            If ch is "\n":
+                Increment one's row by 1.
+                One's row-start becomes one's cursor + 1.
+                Cast one's advance.
+            Done.
+            Otherwise if cast one's is-space on (ch):
+                Cast one's advance.
+            Done.
+            Otherwise if ch is "/" and next-ch is "/":
+                Cast one's skip-line-comment.
+            Done.
+            Otherwise if ch is "/" and next-ch is "*":
+                Define closed as cast one's skip-block-comment or pass the failure off.
+            Done.
+            Otherwise:
+                Return true.
+            Done.
+        Done.
+        Return true.
+    Done.
+
+    /// Everything to the end of the line. The line break is left for skip-space, so the row is
+    /// counted in one place.
+    Bind void to skip-line-comment unto scanner:
+        While cast one's at-end is false, repeat:
+            If cast one's peek is "\n", stop.
+            Cast one's advance.
+        Done.
+    Done.
+
+    /// A `/* … */`, NESTED: an inner opener needs its own closer. Unterminated is refused at the
+    /// OUTERMOST opener, which is the one a writer has to go and find.
+    Bind fact or failure to skip-block-comment unto scanner:
+        Define opened-row as one's row.
+        Define opened-column as cast one's column-at on (one's cursor).
+        Define depth as 1.
+        Cast one's advance.
+        Cast one's advance.
+        // `/**/` is an empty ordinary comment, not a doc comment nobody closed.
+        If cast one's peek is "*" and cast one's ahead is not "/", cast one's advance.
+        While depth is greater than 0, repeat:
+            If cast one's at-end:
+                Return a failure (cast refusal on (opened-row, opened-column,
+                    "unterminated comment — expected '*/' to close it")).
+            Done.
+            Define ch as cast one's peek.
+            Define next-ch as cast one's ahead.
+            If ch is "\n":
+                Increment one's row by 1.
+                One's row-start becomes one's cursor + 1.
+                Cast one's advance.
+            Done.
+            Otherwise if ch is "/" and next-ch is "*":
+                Increment depth by 1.
+                Cast one's advance.
+                Cast one's advance.
+            Done.
+            Otherwise if ch is "*" and next-ch is "/":
+                Decrement depth by 1.
+                Cast one's advance.
+                Cast one's advance.
+            Done.
+            Otherwise:
+                Cast one's advance.
+            Done.
+        Done.
+        Return true.
+    Done.
+
+    // ── One token ─────────────────────────────────────────────────────────
+
+    Bind fact or failure to read-one unto scanner:
+        Define ch as cast one's peek.
+        Define next-ch as cast one's ahead.
+        If cast one's is-letter on (ch):
+            Define word as cast one's read-word or pass the failure off.
+        Done.
+        Otherwise if cast one's is-digit on (ch):
+            Define figure as cast one's read-number or pass the failure off.
+        Done.
+        Otherwise if ch is "\"":
+            Define quoted as cast one's read-string or pass the failure off.
+        Done.
+        // Before the symbols, which would take the first '<' as Lt.
+        Otherwise if ch is "<" and next-ch is "<":
+            Define verbatim as cast one's read-raw or pass the failure off.
+        Done.
+        Otherwise if ch is "[":
+            Define foreign as cast one's read-axiom or pass the failure off.
+        Done.
+        Otherwise if (the entry for ch in one's marks) is not void:
+            Cast one's read-symbol.
+        Done.
+        Otherwise if ch is "'":
+            Define owner as cast one's read-possessive or pass the failure off.
+        Done.
+        Otherwise if ch is ".":
+            Cast one's emit on ("Dot", ".", one's row, cast one's column-at on (one's cursor)).
+            Cast one's advance.
+        Done.
+        Otherwise:
+            Return a failure (cast refusal on (one's row, cast one's column-at on (one's cursor),
+                "unexpected character '{ch}'")).
+        Done.
+        Return true.
+    Done.
+
+    Bind fact or failure to read-word unto scanner:
+        Define begun as one's cursor.
+        Define piece as a chase.
+        While cast one's at-end is false, repeat:
+            Define ch as cast one's peek.
+            If cast one's is-word-part on (ch):
+                Insert ch into piece.
+                Cast one's advance.
+            Done.
+            // A dash only when a letter or digit follows it — internal, never trailing.
+            Otherwise if ch is "-" and cast one's is-word-part on (cast one's ahead):
+                Insert ch into piece.
+                Cast one's advance.
+            Done.
+            Otherwise:
+                Stop.
+            Done.
+        Done.
+
+        Define lexeme as piece converted to text.
+        Define lowered as lexeme in lowercase.
+        Define kind as (the entry for lowered in one's words) but void is "Identifier".
+        Define column as cast one's column-at on (begun).
+        Define lead as the first 1 characters of lexeme.
+
+        If kind is "Identifier" and cast is-lower on (lead) is false:
+            // Contextual statement words may open a statement with a capital.
+            If lowered is "output" or lowered is "seed" or lowered is "make":
+                Cast one's emit on (kind, lexeme, one's row, column).
+                Return true.
+            Done.
+            If lexeme is "Add":
+                Return a failure (cast refusal on (one's row, column,
+                    "'Add' is not a statement any more — it became 'Insert … into'. "
+                    joined to "Write 'Insert 4 into scores.' where you would have written 'Add 4 to scores.' before")).
+            Done.
+            Return a failure (cast refusal on (one's row, column,
+                "identifier '{lexeme}' must start with a lowercase letter")).
+        Done.
+
+        Cast one's emit on (kind, lexeme, one's row, column).
+        Return true.
+    Done.
+
+    Bind fact or failure to read-number unto scanner:
+        Define prefix as (cast one's ahead) in lowercase.
+        If cast one's peek is "0" and (prefix is "x" or prefix is "b" or prefix is "o"):
+            Define pattern as cast one's read-bits or pass the failure off.
+            Return true.
+        Done.
+
+        Define begun as one's cursor.
+        Define piece as a chase.
+        While cast one's is-digit on (cast one's peek), repeat:
+            Insert cast one's peek into piece.
+            Cast one's advance.
+        Done.
+        // A '.' is a decimal point only when a digit follows it; otherwise it ends the statement.
+        If cast one's peek is "." and cast one's is-digit on (cast one's ahead):
+            Insert "." into piece.
+            Cast one's advance.
+            While cast one's is-digit on (cast one's peek), repeat:
+                Insert cast one's peek into piece.
+                Cast one's advance.
+            Done.
+        Done.
+        Cast one's emit on ("Number", piece converted to text, one's row, cast one's column-at on (begun)).
+        Return true.
+    Done.
+
+    Bind fact to is-digit-of-base, given (the text ch, the text base):
+        If ch is "", return false.
+        If base is "x", return "0123456789abcdefABCDEF" contains ch.
+        If base is "o", return "01234567" contains ch.
+        Return "01" contains ch.
+    Done.
+
+    Bind text to base-name, given (the text base):
+        If base is "x", return "hex".
+        If base is "o", return "octal".
+        Return "binary".
+    Done.
+
+    /// 0x, 0b and 0o. `_` groups digits and is dropped, and the digit count sets the width.
+    Bind fact or failure to read-bits unto scanner:
+        Define opened-row as one's row.
+        Define opened-column as cast one's column-at on (one's cursor).
+        Cast one's advance.
+        Define written as cast one's peek.
+        Define base as written in lowercase.
+        Cast one's advance.
+
+        Define digits as a chase.
+        While cast one's at-end is false, repeat:
+            Define ch as cast one's peek.
+            If ch is "_":
+                // Only BETWEEN digits: a leading, trailing or doubled one is a typo.
+                If the number of digits is 0 or cast is-digit-of-base on (cast one's ahead, base) is false:
+                    Return a failure (cast refusal on (opened-row, opened-column,
+                        "'_' must sit between digits in a 0{written} literal")).
+                Done.
+                Cast one's advance.
+                Skip.
+            Done.
+            If cast is-digit-of-base on (ch, base) is false, stop.
+            Insert ch into digits.
+            Cast one's advance.
+        Done.
+
+        If the number of digits is 0:
+            Return a failure (cast refusal on (opened-row, opened-column,
+                "'0{written}' needs at least one {cast base-name on (base)} digit after it")).
+        Done.
+        If cast one's at-end is false and cast one's is-word-part on (cast one's peek):
+            Return a failure (cast refusal on (opened-row, opened-column,
+                "'{cast one's peek}' is not a {cast base-name on (base)} digit")).
+        Done.
+
+        Define per-digit as 4 when base is "x", otherwise (3 when base is "o", otherwise 1).
+        Define width as the number of digits * per-digit.
+        If width is greater than 64:
+            Return a failure (cast refusal on (opened-row, opened-column,
+                "this literal is {width} bits wide, and bits values hold at most 64 — "
+                joined to "64 bits covers every C flag set and address, so anything wider belongs in a "
+                joined to "library reached through the foreign function interface")).
+        Done.
+
+        Cast one's emit on ("Bits", "0{base}{digits converted to text}", opened-row, opened-column).
+        Return true.
+    Done.
+
+    Bind void to read-symbol unto scanner:
+        Define column as cast one's column-at on (one's cursor).
+        Define ch as cast one's peek.
+        Define kind as (the entry for ch in one's marks) but void is "".
+        Cast one's advance.
+        If cast one's peek is "=" and (ch is "<" or ch is ">"):
+            Cast one's advance.
+            Define wide as "Lte" when ch is "<", otherwise "Gte".
+            Cast one's emit on (wide, ch joined to "=", one's row, column).
+            Return.
+        Done.
+        Cast one's emit on (kind, ch, one's row, column).
+    Done.
+
+    Bind fact or failure to read-possessive unto scanner:
+        Define column as cast one's column-at on (one's cursor).
+        Cast one's advance.
+        If cast one's peek is "s":
+            Cast one's advance.
+            Cast one's emit on ("Possessive", "'s", one's row, column).
+            Return true.
+        Done.
+        Return a failure (cast refusal on (one's row, column, "unexpected character '''")).
+    Done.
+
+    // ── Text ──────────────────────────────────────────────────────────────
+
+    /// A quoted literal. Plain, it is one String token at the opening quote. With a hole in it,
+    /// it is InterpolOpen, then pieces and holes, then InterpolClose — and ⚠ a piece, a hole's
+    /// braces and the closer each report where the scan STANDS when it is emitted, not where it
+    /// began, because that is what Lexer.cs does.
+    Bind fact or failure to read-string unto scanner:
+        Define opened-row as one's row.
+        Define opened-column as cast one's column-at on (one's cursor).
+        // The opener goes in front of everything the holes produce, so where it goes is kept.
+        Define mark as the number of one's out.
+        Cast one's advance.
+        Define piece as a chase.
+        Define holed as false.
+
+        Define scanning as true.
+        While scanning, repeat:
+            If cast one's at-end:
+                Return a failure (cast refusal on (one's row, cast one's column-at on (one's cursor),
+                    "unterminated string literal")).
+            Done.
+            Define ch as cast one's peek.
+
+            If ch is "\"":
+                Cast one's advance.
+                The scanning becomes false.
+                Skip.
+            Done.
+
+            If ch is "\\":
+                Cast one's advance.
+                If cast one's at-end:
+                    Return a failure (cast refusal on (one's row, cast one's column-at on (one's cursor),
+                        "unterminated string literal")).
+                Done.
+                Define escape as cast one's peek.
+                Cast one's advance.
+                If escape is "n":
+                    Insert "\n" into piece.
+                Done.
+                Otherwise if escape is "t":
+                    Insert "\t" into piece.
+                Done.
+                Otherwise if escape is "r":
+                    Insert "\r" into piece.
+                Done.
+                Otherwise if escape is "\\" or escape is "\"" or escape is "\{" or escape is "\}":
+                    Insert escape into piece.
+                Done.
+                Otherwise:
+                    Return a failure (cast refusal on (one's row, cast one's column-at on (one's cursor - 1),
+                        "unrecognized escape sequence '\\{escape}'")).
+                Done.
+                Skip.
+            Done.
+
+            If ch is "\{":
+                The holed becomes true.
+                If the number of piece is greater than 0:
+                    Cast one's emit on ("StringPiece", piece converted to text, one's row,
+                        cast one's column-at on (one's cursor)).
+                    The piece becomes a chase.
+                Done.
+                Cast one's advance.
+                Cast one's emit on ("InterpolHoleOpen", "\{", one's row, cast one's column-at on (one's cursor - 1)).
+
+                Define cleared as cast one's skip-space or pass the failure off.
+                If cast one's at-end or cast one's peek is "\}":
+                    Return a failure (cast refusal on (one's row, cast one's column-at on (one's cursor),
+                        "empty interpolation — write an expression between the braces")).
+                Done.
+
+                // Brace depth, so an object literal inside a hole does not close it.
+                Define depth as 1.
+                While depth is greater than 0, repeat:
+                    If cast one's at-end:
+                        Return a failure (cast refusal on (one's row, cast one's column-at on (one's cursor),
+                            "unterminated interpolation")).
+                    Done.
+                    Define spaced as cast one's skip-space or pass the failure off.
+                    If cast one's at-end:
+                        Return a failure (cast refusal on (one's row, cast one's column-at on (one's cursor),
+                            "unterminated interpolation")).
+                    Done.
+                    Define inner as cast one's peek.
+                    If inner is "\{":
+                        Increment depth by 1.
+                        Cast one's advance.
+                        Cast one's emit on ("LBrace", "\{", one's row, cast one's column-at on (one's cursor - 1)).
+                    Done.
+                    Otherwise if inner is "\}":
+                        Decrement depth by 1.
+                        Cast one's advance.
+                        Define closer as "InterpolHoleClose" when depth is 0, otherwise "RBrace".
+                        Cast one's emit on (closer, "\}", one's row, cast one's column-at on (one's cursor - 1)).
+                    Done.
+                    Otherwise:
+                        // Anything else — words, numbers, a string with holes of its own.
+                        Define nested as cast one's read-one or pass the failure off.
+                    Done.
+                Done.
+                Skip.
+            Done.
+
+            If cast one's newline-in-literal:
+                Insert "\n" into piece.
+                Skip.
+            Done.
+            Cast one's advance.
+            Insert ch into piece.
+        Done.
+
+        If holed is false:
+            Cast one's emit on ("String", piece converted to text, opened-row, opened-column).
+            Return true.
+        Done.
+
+        If the number of piece is greater than 0:
+            Cast one's emit on ("StringPiece", piece converted to text, one's row,
+                cast one's column-at on (one's cursor)).
+        Done.
+        Define opener as "InterpolOpen\t{opened-row}\t{opened-column}\t".
+        If mark is 0, insert opener into the start of one's out.
+        Otherwise, insert opener after item mark of one's out.
+        Cast one's emit on ("InterpolClose", "", one's row, cast one's column-at on (one's cursor)).
+        Return true.
+    Done.
+
+    /// `<< … >>` — nothing inside is interpreted, and the pairs nest.
+    Bind fact or failure to read-raw unto scanner:
+        Define opened-row as one's row.
+        Define opened-column as cast one's column-at on (one's cursor).
+        Cast one's advance.
+        Cast one's advance.
+        Define piece as a chase.
+        Define depth as 1.
+        While depth is greater than 0, repeat:
+            If cast one's at-end:
+                Return a failure (cast refusal on (opened-row, opened-column,
+                    "unterminated verbatim text — expected '>>' to close it")).
+            Done.
+            Define ch as cast one's peek.
+            Define next-ch as cast one's ahead.
+            If ch is "<" and next-ch is "<":
+                Increment depth by 1.
+                Cast one's advance.
+                Cast one's advance.
+                Insert "<<" into piece.
+            Done.
+            Otherwise if ch is ">" and next-ch is ">":
+                Cast one's advance.
+                Cast one's advance.
+                Decrement depth by 1.
+                If depth is greater than 0, insert ">>" into piece.
+            Done.
+            Otherwise if cast one's newline-in-literal:
+                Insert "\n" into piece.
+            Done.
+            Otherwise:
+                Cast one's advance.
+                Insert ch into piece.
+            Done.
+        Done.
+        Cast one's emit on ("String", piece converted to text, opened-row, opened-column).
+        Return true.
+    Done.
+
+    /// `[ … ]` — foreign source, kept as written. Bracket pairs nest, and a backslash escapes the
+    /// next character for COUNTING only: both are kept.
+    Bind fact or failure to read-axiom unto scanner:
+        Define opened-row as one's row.
+        Define opened-column as cast one's column-at on (one's cursor).
+        Cast one's advance.
+        Define piece as a chase.
+        Define depth as 1.
+        While depth is greater than 0, repeat:
+            If cast one's at-end:
+                Return a failure (cast refusal on (opened-row, opened-column,
+                    "unterminated foreign source — expected ']' to close it")).
+            Done.
+            Define ch as cast one's peek.
+            If ch is "\\" and cast one's ahead is not "":
+                Cast one's advance.
+                Insert "\\" into piece.
+                If cast one's newline-in-literal:
+                    Insert "\n" into piece.
+                Done.
+                Otherwise:
+                    Insert cast one's peek into piece.
+                    Cast one's advance.
+                Done.
+            Done.
+            Otherwise if ch is "[":
+                Increment depth by 1.
+                Cast one's advance.
+                Insert "[" into piece.
+            Done.
+            Otherwise if ch is "]":
+                Cast one's advance.
+                Decrement depth by 1.
+                If depth is greater than 0, insert "]" into piece.
+            Done.
+            Otherwise if cast one's newline-in-literal:
+                Insert "\n" into piece.
+            Done.
+            Otherwise:
+                Cast one's advance.
+                Insert ch into piece.
+            Done.
+        Done.
+        Cast one's emit on ("Axiom", piece converted to text, opened-row, opened-column).
+        Return true.
+    Done.
+
+    // ── A whole file ──────────────────────────────────────────────────────
+
+    Bind fact or failure to tokenize unto scanner:
+        While cast one's at-end is false, repeat:
+            Define cleared as cast one's skip-space or pass the failure off.
+            If cast one's at-end, stop.
+            Define taken as cast one's read-one or pass the failure off.
+        Done.
+        Cast one's emit on ("Eof", "", one's row, cast one's column-at on (one's cursor)).
+        Return true.
+    Done.
+
+    // ── The tables ────────────────────────────────────────────────────────
+
+    /// 1 a letter, 2 a digit, 3 a space. The spaces are every character `char.IsWhiteSpace`
+    /// answers yes to — most of which no text literal can spell, so they go in by code point.
+    Define kinds as a map from text to number.
+    Define letters as a chase.
+    Insert "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ" into letters.
+    For each ch in letters, repeat:
+        In kinds, the entry for ch becomes 1.
+    Done.
+    Define numerals as a chase.
+    Insert "0123456789" into numerals.
+    For each ch in numerals, repeat:
+        In kinds, the entry for ch becomes 2.
+    Done.
+    Define spaces as a chase.
+    For each code in a series with (9, 10, 11, 12, 13, 32, 133, 160, 5760, 8192, 8193, 8194, 8195,
+            8196, 8197, 8198, 8199, 8200, 8201, 8202, 8232, 8233, 8239, 8287, 12288), repeat:
+        Insert code into spaces.
+    Done.
+    For each ch in spaces, repeat:
+        In kinds, the entry for ch becomes 3.
+    Done.
+
+    Define marks as a map with (
+        "+" : "Plus", "-" : "Minus", "*" : "Star", "/" : "Slash", "%" : "Percent",
+        "(" : "LParen", ")" : "RParen", "=" : "Equal", ":" : "Colon", "," : "Comma",
+        "\{" : "LBrace", "\}" : "RBrace", "|" : "Pipe", "<" : "Lt", ">" : "Gt").
+    Define words as cast keyword-table.
+
+    For each name in the arguments, repeat:
+        State "file\t{name}".
+        Try to:
+            Define whole as read all from the file name.
+            Define buffer as a chase.
+            Insert whole into buffer.
+            Define scan as a new scanner {
+                the source buffer, the size the number of buffer, the cursor 1,
+                the row 1, the row-start 1, the out a series of text,
+                the kinds kinds, the marks marks, the words words }.
+            Define finished as cast scan's tokenize.
+            For each token in scan's out, repeat:
+                State token.
+            Done.
+        Done.
+        In case of failure:
+            State "error\t{the message of the failure}".
+        Done.
+    Done.
+Done.
