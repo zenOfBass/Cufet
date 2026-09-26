@@ -272,4 +272,139 @@ different when there is nothing there. That needs `If`, which is the next lesson
 
 ---
 
-**Next:** choosing and repeating — `If`, and doing something different when there is nothing there.
+## Lesson 4 — Choosing, and doing it again
+
+Lesson 3 ended on the other way to handle absence: check first, and do something different when
+there is nothing there. Here is that program. It does not work.
+
+```cufet-refused
+Define pantry as a map with ("carrots" : 12, "kale" : 3).
+Define lettuce as the entry for "lettuce" in pantry.
+If lettuce is not void:
+    State "Hopper has {lettuce} lettuces.".
+Otherwise:
+    State "There is no lettuce.".
+```
+```output
+Line 3, column 1: this 'If' opens a block, and 'Otherwise' arrived on line 5 before its 'Done.'. In the block form every arm closes before the next one begins: 'If x is 1: ... Done. Otherwise: ... Done.'. The INLINE form is the one that needs no 'Done.': 'If x is 1, state "one". Otherwise, state "other".'
+```
+
+This refusal is about shape rather than type, so it reads differently from the others — but it
+still names the rule, where you broke it, and both ways to write it.
+
+### Two ways to write `If`
+
+A colon opens a **block**: as many lines as you like, closed by `Done.`. Each arm closes before the
+next begins:
+
+```cufet
+Define pantry as a map with ("carrots" : 12, "kale" : 3).
+Define lettuce as the entry for "lettuce" in pantry.
+If lettuce is not void:
+    State "Hopper has {lettuce} lettuces.".
+Done.
+Otherwise:
+    State "There is no lettuce.".
+Done.
+```
+```output
+There is no lettuce.
+```
+
+A comma instead of a colon is the **inline** form — one statement, and no `Done.`:
+
+```cufet
+Define pantry as a map with ("carrots" : 12, "kale" : 3).
+Define lettuce as the entry for "lettuce" in pantry.
+If lettuce is not void, state "Hopper has {lettuce} lettuces.".
+Otherwise, state "There is no lettuce.".
+```
+```output
+There is no lettuce.
+```
+
+Look at the first arm. `lettuce` went into a hole without `but void is` — something lesson 3 said
+could not be done. Inside `If lettuce is not void`, Cufet knows it is not void, so there it is a
+plain number. The check is what earned it.
+
+### Facts
+
+What an `If` tests is a **fact** — `true` or `false`. A comparison is one:
+
+```cufet
+Define carrots as 12.
+If carrots is greater than 10, state "plenty".
+Otherwise, state "running low".
+State carrots is greater than 10.
+```
+```output
+plenty
+true
+```
+
+`fact` is the third kind of value, after numbers and text. Comparing things of different kinds is
+refused, the same way joining them was in lesson 1: `If carrots is "12"` asks whether a number is
+the same as some text, and it never can be.
+
+### Doing it again
+
+`For each` runs its block once for every item of a series, naming the item as it goes:
+
+```cufet
+Define baskets as a series with (3, 5, 4).
+Define total as 0.
+For each basket in baskets, repeat:
+    Increment total by basket.
+Done.
+State "{total} carrots in all.".
+```
+```output
+12 carrots in all.
+```
+
+`Increment total by basket.` adds to `total` where it stands. An `If` inside a loop runs for each
+item in turn:
+
+```cufet
+Define baskets as a series with (3, 5, 4).
+For each basket in baskets, repeat:
+    If basket is greater than 4, state "{basket} is a big basket".
+    Otherwise, state "{basket} is a small basket".
+Done.
+```
+```output
+3 is a small basket
+5 is a big basket
+4 is a small basket
+```
+
+### Choosing among many
+
+Several `If`s in a row can pick one of many — or, if none of them matches, quietly do nothing.
+`Judge` picks one of many and will not let you forget the rest:
+
+```cufet
+Define wanted as "kale".
+Judge wanted, where it is:
+    It is "carrots", state "orange and crunchy".
+    It is "kale" or "lettuce", state "something green".
+    Otherwise, state "never heard of {it}".
+Done.
+```
+```output
+something green
+```
+
+Leave out the `Otherwise` and Cufet refuses: no list of words can cover every piece of text, so it
+asks what should happen to the rest. That is the same question lesson 3 asked about void, in a
+different place.
+
+### Try it
+
+- Set `wanted` to `"parsnip"`, and see what `it` becomes.
+- Count only the big baskets: add to `total` inside an `If`.
+- Add `"lettuce" : 2` to the pantry in the first program, and watch the other arm run.
+
+---
+
+**Next:** borrowing — `Pull a book on math.`, and what a book is for.

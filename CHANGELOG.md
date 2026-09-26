@@ -10,8 +10,10 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
-- **Lessons 2 and 3 of the tutorial.** Lesson 2 keeps several things together — series, maps and
-  records, opening on the refusal for a series that mixes kinds. Lesson 3 is absence: a map asked
+- **Lessons 2, 3 and 4 of the tutorial.** Lesson 2 keeps several things together — series, maps and
+  records, opening on the refusal for a series that mixes kinds. Lesson 4 is choosing and repeating:
+  both forms of `If`, facts, `For each`, and a value `Judge`, opening on the block `If` left without
+  its `Done.` before `Otherwise`. Lesson 3 is absence: a map asked
   for a key it does not have, what `void` is, and `but void is`. A first draft led into absence with
   `converted to number` and was rewritten: void cannot be introduced on its own (`Define x as void.`
   makes a name that can only ever hold void), so it needs something that produces it, and a map is
