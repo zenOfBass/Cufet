@@ -10,7 +10,7 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
-- **Lessons 2 to 8 of the tutorial**, each opening on the refusal a beginner meets first.
+- **Lessons 2 to 9 of the tutorial**, each opening on the refusal a beginner meets first.
   Lesson 2 keeps several things together — series, maps and records — from a series that mixes
   kinds. Lesson 3 is absence: a map asked for a key it does not have, what `void` is, and
   `but void is`. Lesson 4 is choosing and repeating — both forms of `If`, facts, `For each` and a
@@ -23,6 +23,8 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   `or pass the failure off` — from `return a failure` added to lesson 6's `area`.
   Lesson 8 is objects — fields, methods, `one`, defaults, and unmakers with both of their caveats
   shown running — from a method that names its fields without `one`.
+  Lesson 9 is lifetimes, taught with `Pull a rabbit.` — a region, what crosses its `Done.` and what
+  cannot, and unmakers at its end — from a series kept past the rabbit that made it.
   A first draft of lesson 3 led in with `converted to number` and was rewritten: void cannot be
   introduced on its own (`Define x as void.` makes a name that can only ever hold void), so it
   needs something that produces it, and a map is the plainest producer there is. Writing these
@@ -159,6 +161,12 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   wrong number without complaint. Found by trying to write the tutorial's lesson on absence. A
   refusal also quotes a map lookup, `converted to number` and `the position of` as written, where it
   used to say `<expression>` — of the commonest source of void there is.
+
+- **A name used after its block ended says so.** A name defined inside an `If`, a loop or a rabbit
+  and used after that block's `Done.` was told *"'picked' isn't defined … Define it first"* — to
+  someone who had, two lines up. It now says the name was defined on that line, inside a block that
+  has ended, and that a name lasts until its block's `Done.`. Found by writing the tutorial's
+  lesson on lifetimes.
 
 - **A method named without being called is refused before the program runs.** `State front's area.`,
   where `area` is a method, CHECKED CLEAN — then the interpreter died looking for a field named

@@ -879,4 +879,126 @@ tidying that must happen exactly once, give the object a method and call it your
 
 ---
 
-**Next:** things with a lifetime — `Pull a rabbit.`, and what its `Done.` lets go of.
+## Lesson 9 — Things with a lifetime
+
+Every name so far has lasted until the `Done.` of the block it was defined in — lesson 8's unmaker
+needed a block to have anything to do. A **rabbit** is a block whose whole job is that: everything
+made inside it belongs to it, and at its `Done.` it lets all of it go at once.
+
+Hopper goes out to pick carrots, and the harvest should come back. This does not work:
+
+```cufet-refused
+Define harvest as a series of series of number.
+Pull a rabbit as hopper.
+    Define picked as a series of number with (3, 5, 4).
+    Insert picked into harvest.
+Done.
+```
+```output
+That doesn't work: this value lives in a shorter-lived region than its destination — it will be gone when that region ends.
+Here on line 4, you're trying to add a region-scoped value to a series in a longer-lived region.
+
+Declare the container inside that region too, so both end at its 'Done.', or make the value before the region opens, so it lives as long as the container.
+```
+
+### A region
+
+`Pull a rabbit as hopper.` opens a **region**: a stretch of the program with a lifetime of its own.
+`picked` is made inside it, so it lives there, and at `Done.` it is gone. `harvest` was made
+outside and lasts longer — so putting `picked` into it would leave the harvest holding a basket that
+no longer exists. Cufet refuses before that can happen.
+
+Inside the region, `picked` is an ordinary series:
+
+```cufet
+Pull a rabbit as hopper.
+    Define picked as a series of number with (3, 5, 4).
+    State "Hopper picked {the number of picked} baskets.".
+Done.
+```
+```output
+Hopper picked 3 baskets.
+```
+
+`as hopper` names the rabbit, which some things need; a plain `Pull a rabbit.` works too.
+
+### What comes back
+
+Numbers and text do cross a `Done.` — they are copied on the way out. So do single items taken out
+of a series. What cannot cross is a series made inside: that is where things are *kept*, and it
+belongs to the region.
+
+```cufet
+Define total as 0.
+Define first-crop as "".
+Define harvest as a series of number.
+Pull a rabbit as hopper.
+    Define picked as a series of number with (3, 5, 4).
+    Define crops as a series of text with ("carrot", "kale").
+    For each basket in picked, repeat:
+        Increment total by basket.
+        Insert basket into harvest.
+    Done.
+    The first-crop becomes the first of crops.
+Done.
+State "{total} carrots came back, in {the number of harvest} baskets, starting with {first-crop}.".
+```
+```output
+12 carrots came back, in 3 baskets, starting with carrot.
+```
+
+`harvest` was made outside, so it lasts; each basket number was copied into it as it went.
+
+### Names end there too
+
+A name defined inside the rabbit ends at its `Done.`, like a name in any other block — and Cufet
+says so, rather than claiming it was never defined:
+
+```cufet-refused
+Pull a rabbit as hopper.
+    Define picked as a series of number with (3, 5, 4).
+Done.
+State picked.
+```
+```output
+That doesn't work: 'picked' was defined on line 2, inside a block that has ended.
+A name lasts until the 'Done.' of the block it was defined in, and no further.
+Here on line 4, you're trying to use 'picked' after that block's 'Done.'.
+
+Use it before the 'Done.', or define it before the block begins so it outlasts it.
+```
+
+### Tidying up
+
+Lesson 8 promised that a rabbit is a block unmakers can use. Everything the region made is let go at its `Done.`, and anything with an unmaker is tidied then:
+
+```cufet
+Define object watering-can with (the text label).
+Bind unmaking a watering-can to put-away:
+    State "putting the {one's label} watering can away".
+Done.
+Pull a rabbit as hopper.
+    Define can as a new watering-can { the label "green" }.
+    State "watering".
+Done.
+State "back in the house".
+```
+```output
+watering
+putting the green watering can away
+back in the house
+```
+
+That is what a rabbit is for. A program that makes a lot of things in a loop can wrap each round in one, and everything a round made is let go at the end of the round, instead of piling up until the program finishes.
+
+Rabbits can do more — they can run work side by side, and lesson 13 shows that a rabbit is something you could have written yourself.
+
+### Try it
+
+- Move `Define harvest …` inside the rabbit, and see what changes.
+- Put a watering can in a loop that runs inside a rabbit, and count how often it is put away.
+- Name the rabbit `grace` instead of `hopper`. Does anything else have to change?
+
+---
+
+**Next:** reading and writing — files, the arguments a program is given, and what it is typed.
