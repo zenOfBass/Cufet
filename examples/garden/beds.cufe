@@ -1,0 +1,13 @@
+/*  What a garden bed is — the half of lesson 11's project that DECLARES.
+
+    `docs/TUTORIAL.md`, lesson 11, is built on this folder. This file only declares: the other
+    files in the folder see `bed` because `blueprint.cufe` makes the folder a project, and inside a
+    project every file in a folder sees the others, with nothing pulled.
+*/
+
+Define object bed with (the text name, the number width, the number depth,
+                        the text crop with default "nothing yet"):
+    Bind number to area:
+        Return one's width * one's depth.
+    Done.
+Done.

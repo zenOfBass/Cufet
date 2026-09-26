@@ -1,0 +1,19 @@
+/*  Hopper's garden — the half of lesson 11's project that RUNS.
+
+        cufet examples/garden/garden.cufe
+
+    `bed` is declared in `beds.cufe` beside this file. Nothing here pulls it: `blueprint.cufe` makes
+    this folder a project, and a project's files see each other. Take the blueprint away and this
+    line is refused with the reason — the folder is not a project.
+*/
+
+Define beds as a series of bed with (
+    a new bed { the name "front", the width 4, the depth 5, the crop "carrots" },
+    a new bed { the name "back", the width 2, the depth 3 }).
+
+Define total as 0.
+For each patch in beds, repeat:
+    State "The {patch's name} bed covers {cast patch's area} square metres, and grows {patch's crop}.".
+    Increment total by cast patch's area.
+Done.
+State "{total} square metres in all.".

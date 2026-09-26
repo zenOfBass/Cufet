@@ -1,0 +1,20 @@
+/*  The file that makes `examples/garden/` a project — lesson 11 of `docs/TUTORIAL.md`.
+
+    Its LOCATION does the first job: a folder with a `blueprint.cufe` in it is a project, so
+    `garden.cufe` sees `bed` from `beds.cufe` with nothing pulled. Its CONTENTS do the second:
+    `cufet build`, run in this folder, builds what the steps describe.
+
+    `needs` came from `cufet pulls garden.cufe`, which reports the files the program really loads.
+    Paths are relative to this folder.
+*/
+
+Pull a book on blueprints.
+    Bind series of step to blueprint:
+        Return a series of step with (
+            a record with (
+                the name "garden",
+                the needs a series of text with ("garden.cufe", "beds.cufe"),
+                the makes a series of text with ("garden.exe"),
+                the runs a series of text with ("cufet", "build", "garden.cufe"))).
+    Done.
+Done.
