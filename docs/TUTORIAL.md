@@ -1001,4 +1001,137 @@ Rabbits can do more — they can run work side by side, and lesson 13 shows that
 
 ---
 
-**Next:** reading and writing — files, the arguments a program is given, and what it is typed.
+## Lesson 10 — Reading and writing
+
+Everything so far has lived inside the program. Real programs read things — files, the words they
+are started with, what somebody types — and write things back. Hopper keeps garden notes in a file.
+Reading them does not work yet:
+
+```cufet-refused
+Define notes as read all from the file "garden-notes.txt".
+State notes.
+```
+```output
+That doesn't work: reading from a file can fail — you must handle the failure.
+Here on line 1, you're trying to use a file read's result without handling the failure.
+
+Wrap the read in a 'Try to: / In case of failure:' block, use 'but on failure <default>', or use 'or pass the failure off'.
+```
+
+This is lesson 7's refusal, and for the same reason: the file might not be there, and Cufet will
+not let a program find that out halfway through.
+
+### Files
+
+`Write … to the file` makes a file, or replaces what it held. Reading it back goes in a `Try`, and
+`Remove the file` tidies up:
+
+```cufet
+Write "carrots: 12\nkale: 3" to the file "garden-notes.txt".
+Try to:
+    Define notes as read all from the file "garden-notes.txt".
+    State notes.
+Done.
+In case of failure:
+    State "could not read the notes: {the message of the failure}".
+Done.
+Remove the file "garden-notes.txt".
+```
+```output
+carrots: 12
+kale: 3
+```
+
+`\n` in a piece of text starts a new line. `read all lines from the file` gives the lines as a series
+instead, ready for `For each`, and `Append … to the file` adds to the end:
+
+```cufet
+Write "carrots: 12\nkale: 3" to the file "garden-notes.txt".
+Append "\nlettuce: 2" to the file "garden-notes.txt".
+Try to:
+    For each line in read all lines from the file "garden-notes.txt", repeat:
+        State "- {line}".
+    Done.
+Done.
+In case of failure:
+    State "could not read the notes".
+Done.
+Remove the file "garden-notes.txt".
+```
+```output
+- carrots: 12
+- kale: 3
+- lettuce: 2
+```
+
+A file that is not there is an ordinary failure, handled any of lesson 7's ways:
+
+```cufet
+Define notes as read all from the file "no-such-notes.txt" but on failure "(no notes yet)".
+State notes.
+Try to:
+    State read all from the file "no-such-notes.txt".
+Done.
+In case of failure:
+    State "could not read the notes: {the message of the failure}".
+Done.
+```
+```output
+(no notes yet)
+could not read the notes: the file 'no-such-notes.txt' was not found
+```
+
+Leave out `the file` — `read all from "garden-notes.txt"` — and Cufet asks whether the text names a
+file, and shows where the two words go.
+
+### What a program is given
+
+The words typed after a program's name when it is started are `the arguments`, a series of text:
+
+```cufet
+State "I was given {the number of the arguments} words.".
+For each word in the arguments, repeat:
+    State "Hello, {word}.".
+Done.
+```
+```output
+I was given 0 words.
+```
+
+Run here, it was given none. Saved as `hello.cufe` and started with two words, it greets both:
+
+```
+cufet hello.cufe Grace Hopper
+I was given 2 words.
+Hello, Grace.
+Hello, Hopper.
+```
+
+### What somebody types
+
+`read a line from the input` waits for a line to be typed and gives it back — or void, once there is
+nothing more to read. So the usual loop reads until void, and stops:
+
+```cufet
+Repeat:
+    Define line as read a line from the input.
+    If line is void, stop.
+    State "you said: {line}".
+Until false.
+```
+
+After `If line is void, stop.`, the rest of the loop only runs when `line` is not void — so it goes
+straight into a hole, as it did inside lesson 4's `If line is not void:`. `Until false` means the
+loop only ends by `stop`.
+
+### Try it
+
+- Change `Write` to `Append` in the second program, run it twice, and see what builds up — then
+  work out why the `Remove` stops that.
+- Save the arguments program and start it with your own name.
+- Run the input loop, type a few lines, and end the input with Ctrl+D (or Ctrl+Z then Enter on
+  Windows).
+
+---
+
+**Next:** a project — `blueprint.cufe`, `cufet build`, and a second file in the same folder.

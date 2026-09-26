@@ -10,7 +10,7 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
-- **Lessons 2 to 9 of the tutorial**, each opening on the refusal a beginner meets first.
+- **Lessons 2 to 10 of the tutorial**, each opening on the refusal a beginner meets first.
   Lesson 2 keeps several things together — series, maps and records — from a series that mixes
   kinds. Lesson 3 is absence: a map asked for a key it does not have, what `void` is, and
   `but void is`. Lesson 4 is choosing and repeating — both forms of `If`, facts, `For each` and a
@@ -25,6 +25,8 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   shown running — from a method that names its fields without `one`.
   Lesson 9 is lifetimes, taught with `Pull a rabbit.` — a region, what crosses its `Done.` and what
   cannot, and unmakers at its end — from a series kept past the rabbit that made it.
+  Lesson 10 is reading and writing — files, `the arguments`, and a loop over what is typed — from a
+  file read left unhandled.
   A first draft of lesson 3 led in with `converted to number` and was rewritten: void cannot be
   introduced on its own (`Define x as void.` makes a name that can only ever hold void), so it
   needs something that produces it, and a map is the plainest producer there is. Writing these
@@ -161,6 +163,21 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   wrong number without complaint. Found by trying to write the tutorial's lesson on absence. A
   refusal also quotes a map lookup, `converted to number` and `the position of` as written, where it
   used to say `<expression>` — of the commonest source of void there is.
+
+- **`If x is void, stop.` now narrows `x`, as `return` always did.** A guard whose body returns lets
+  the lines after it treat `x` as present; `stop`, `skip` and `Exit` leave just as surely and were
+  not counted — so REFERENCE's own input loop, `If line is void, stop.`, left `line` voidable on the
+  next line, and a hole there was refused with advice to check first. The compiler keeps its own
+  copy of the rule and had the same gap; both now count all four, and agree. Found by writing the
+  tutorial's lesson on input.
+  **A workaround for the old gap is now refused**, because it has become redundant: after
+  `If value is void: … Exit with 2. Done.`, `value but void is 0` puts a default on something that
+  can no longer be void, and `but void is` on a plain value is refused as it always was. Delete the
+  default. `examples/algorithms/beamforming.cufe` carried exactly this and has been updated.
+
+- **Reading or writing a piece of text says to add `the file`.** `read all from "notes.txt"` and
+  `Write … to "notes.txt"` advised opening a STREAM. They now say: if it names a file, write
+  `the file` in front of it.
 
 - **A name used after its block ended says so.** A name defined inside an `If`, a loop or a rabbit
   and used after that block's `Done.` was told *"'picked' isn't defined … Define it first"* — to
