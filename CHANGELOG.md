@@ -10,17 +10,20 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
-- **Lessons 2, 3 and 4 of the tutorial.** Lesson 2 keeps several things together — series, maps and
-  records, opening on the refusal for a series that mixes kinds. Lesson 4 is choosing and repeating:
-  both forms of `If`, facts, `For each`, and a value `Judge`, opening on the block `If` left without
-  its `Done.` before `Otherwise`. Lesson 3 is absence: a map asked
-  for a key it does not have, what `void` is, and `but void is`. A first draft led into absence with
-  `converted to number` and was rewritten: void cannot be introduced on its own (`Define x as void.`
-  makes a name that can only ever hold void), so it needs something that produces it, and a map is
-  the plainest producer there is. Writing it is what found the five refusals below that never said
-  "void". The curriculum in the ROADMAP was revised alongside to thirteen lessons: collections
-  before absence, lifetimes taught with a rabbit before a person declares one, projects before
-  books, and a last lesson on writing modules that ends at `Prelude/rabbit.cufe`, one line long.
+- **Lessons 2 to 5 of the tutorial**, each opening on the refusal a beginner meets first.
+  Lesson 2 keeps several things together — series, maps and records — from a series that mixes
+  kinds. Lesson 3 is absence: a map asked for a key it does not have, what `void` is, and
+  `but void is`. Lesson 4 is choosing and repeating — both forms of `If`, facts, `For each` and a
+  value `Judge` — from a block `If` left without its `Done.` before `Otherwise`. Lesson 5 is
+  borrowing from a book: `math`, `collections`, a pull as a block that ends at its `Done.`, and a
+  book's voidable answer handled as lesson 3 taught.
+  A first draft of lesson 3 led in with `converted to number` and was rewritten: void cannot be
+  introduced on its own (`Define x as void.` makes a name that can only ever hold void), so it
+  needs something that produces it, and a map is the plainest producer there is. Writing these
+  lessons is what found the refusals under Fixed below that never said "void" or never said "book".
+  The curriculum in the ROADMAP was revised alongside to thirteen lessons: collections before
+  absence, lifetimes taught with a rabbit before a person declares one, projects before books, and
+  a last lesson on writing modules that ends at `Prelude/rabbit.cufe`, one line long.
 
 - **`examples/circuits/` — a four-valued logic simulator, and the first multi-file example.**
   Five programs sharing a directory with nothing pulled and no book anywhere: inside a project a
@@ -152,6 +155,13 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   used to say `<expression>` — of the commonest source of void there is.
 
 - **A map mixing kinds of value said "numbers values".** It now says "number values".
+
+- **A book used where it is not pulled is called a book.** `math's square-root of (16)` with no
+  pull — or after the pull's `Done.` — was told *"'math' isn't defined … Define it first: 'Define
+  math as <value>.'"*, advice to make a variable named after the book. It now says `math` is a book
+  that is not pulled here, and that a pull lasts until its `Done.`. A void refusal also quotes a
+  book call as written, `collections's maximum of (baskets)`, instead of `<expression>`. Both found
+  by writing the tutorial's lesson on books.
 
 - **Keeping a value past the end of its region no longer mentions a rabbit.** The advice said
   *"move the container inside the rabbit block"*, from before a person could write a region, and a

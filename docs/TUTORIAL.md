@@ -407,4 +407,103 @@ different place.
 
 ---
 
-**Next:** borrowing — `Pull a book on math.`, and what a book is for.
+## Lesson 5 — Borrowing from a book
+
+Hopper's garden is square, and covers 16 square metres. How long is each side? That is a square
+root, and Cufet has one. This does not work yet.
+
+```cufet-refused
+Define garden as 16.
+State math's square-root of (garden).
+```
+```output
+That doesn't work: 'math' is a book, and it is not pulled here.
+A book's members can be used only inside 'Pull a book on math. … Done.', and the pull lasts until its 'Done.'.
+Here on line 2, you're trying to use 'math' outside a pull on it.
+
+Put this line inside 'Pull a book on math.', before its 'Done.'.
+```
+
+### What a book is
+
+Most programs never need a square root. So instead of being part of every program, it lives in a
+**book** — something that comes with Cufet, which a program brings in when it wants it. You *pull*
+a book for a block, and inside that block its members are reached with `'s`, the way a record's
+fields are:
+
+```cufet
+Define garden as 16.
+Pull a book on math.
+    State math's square-root of (garden).
+    State math's pi.
+Done.
+```
+```output
+4
+3.1415926535897932384626433833
+```
+
+A pull is a block like any other, so it ends at its `Done.` — use `math` after that line and you
+get the same refusal. Nothing is borrowed for longer than you asked.
+
+### A book you have met before, in a way
+
+`collections` is the book of things to do with a series:
+
+```cufet
+Define baskets as a series with (3, 5, 4).
+Pull a book on collections.
+    State collections's maximum of (baskets).
+    State collections's average of (baskets).
+    State collections's maximum of (a series of number).
+Done.
+```
+```output
+5
+4
+void
+```
+
+An empty series has no biggest item, so `maximum` gives back a voidable number — and you already
+know what to do with one of those:
+
+```cufet
+Define baskets as a series with (3, 5, 4).
+Pull a book on collections.
+    Define biggest as collections's maximum of (baskets) but void is 0.
+    State "The biggest basket holds {biggest}.".
+Done.
+```
+```output
+The biggest basket holds 5.
+```
+
+A book's members follow the same rules as everything else. Nothing about void changed because the
+number came out of a book.
+
+### Several at once
+
+`Pull books on` takes a list, and one `Done.` closes them all:
+
+```cufet
+Define garden as 16.
+Define baskets as a series with (3, 5, 4).
+Pull books on math and collections.
+    State math's square-root of (garden).
+    State collections's average of (baskets).
+Done.
+```
+```output
+4
+4
+```
+
+### Try it
+
+- Move `State math's pi.` below the `Done.`, and read what Cufet says.
+- Find the smallest basket: `collections` has a `minimum`.
+- `math` has `power` too: `math's power of (2, 10)`.
+
+---
+
+**Next:** your own words — `Bind`, and teaching Cufet something new.

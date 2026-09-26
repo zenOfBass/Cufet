@@ -87,7 +87,7 @@ they are large, not because they are waiting — the order among them means noth
      ⚠ This bullet used to defer to a "`docs/`-folder and GitHub-Pages question" settled on
      2026-08-24, and pointed at the wrong item while doing it.
 
-   ✅ **THE CURRICULUM IS SETTLED, 2026-09-16, revised 2026-09-25**, and lessons 1–4 are written —
+   ✅ **THE CURRICULUM IS SETTLED, 2026-09-16, revised 2026-09-25**, and lessons 1–5 are written —
    `docs/TUTORIAL.md`, with every program and every message in it run by the suite. A draft, and
    expected to move as lessons get written.
 
@@ -99,7 +99,7 @@ they are large, not because they are waiting — the order among them means noth
    2. Collections — series, maps, records: making one and reading one item. No loops yet. ✅ written.
    3. Absence — a map asked for a key it does not have, then `void` and `but void is`. ✅ written.
    4. Choose and repeat — `If`/`Otherwise` (so `If … is not void`), `For each`, `Judge`. ✅ written.
-   5. Borrowing — `Pull a book on math.` and `collections`.
+   5. Borrowing — `Pull a book on math.` and `collections`. ✅ written.
    6. Your own words — `Bind`, parameters, `Return`.
    7. When it can fail — `Try`, failure. The language makes you handle it, so it cannot be late.
    8. Your own things — objects, fields, methods, and their UNMAKERS.
