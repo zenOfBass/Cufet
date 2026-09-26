@@ -1128,6 +1128,55 @@ public sealed partial class CodeGenerator
         }
     }
 
+    // A Judge over a VOIDABLE — `A number, …` / `A void, …` — is one test, not a tag dispatch: the
+    // checker treats the subject as the two-case union it is, and here the case is `.has`. The arm
+    // naming the inner type reads `it` through `.val`; the arm naming void leaves it as it is.
+    // `it` is saved and restored exactly as the union path does it, for the same nested-Judge reason.
+    private void EmitVoidableJudge(StringBuilder sb, JudgeStatement judge, string indent, VoidableType subjType)
+    {
+        string subjExpr = EmitExpr(judge.Subject);
+        FlushPreEmits(sb, indent);
+        string inner = indent + "    ";
+        string body  = inner + "    ";
+        string itName = MangleName("it");
+
+        sb.AppendLine($"{indent}{{");
+        sb.AppendLine($"{inner}{EmitCType(subjType)} {itName} = {subjExpr};");
+
+        bool hadIt = _varTypes.TryGetValue("it", out var prevIt);
+        _varTypes["it"] = subjType;
+        bool hadItNarrow = _narrowedVars.TryGetValue("it", out var prevItNarrow);
+        _narrowedVars.Remove("it");
+        bool hadItCases = _armCases.TryGetValue("it", out var prevItCases);
+        _armCases.Remove("it");
+
+        bool presentCovered = false, voidCovered = false;
+        string keyword = "if";
+        foreach (var arm in judge.Arms)
+        {
+            bool present = arm.Cases.Any(c => c is not VoidType);
+            bool isVoid  = arm.Cases.Any(c => c is VoidType);
+            presentCovered |= present;
+            voidCovered    |= isVoid;
+            string test = present && isVoid ? "1" : present ? $"({itName}).has" : $"!({itName}).has";
+            sb.AppendLine($"{inner}{keyword} ({test}) {{");
+            EmitNarrowedBlock(sb, present && !isVoid ? ("it", subjType.Inner, ".val") : null, arm.Body, body);
+            keyword = "} else if";
+        }
+        if (judge.OtherwiseBody != null)
+        {
+            sb.AppendLine($"{inner}}} else {{");
+            EmitNarrowedBlock(sb, !presentCovered && voidCovered ? ("it", subjType.Inner, ".val") : null,
+                              judge.OtherwiseBody, body);
+        }
+        sb.AppendLine($"{inner}}}");
+        sb.AppendLine($"{indent}}}");
+
+        if (hadIt) _varTypes["it"] = prevIt!; else _varTypes.Remove("it");
+        if (hadItNarrow) _narrowedVars["it"] = prevItNarrow; else _narrowedVars.Remove("it");
+        if (hadItCases) _armCases["it"] = prevItCases!; else _armCases.Remove("it");
+    }
+
     // Judge lowers to a tag dispatch over the subject's union, evaluated ONCE into a C local.
     //
     // ★ That local is literally `cv_it`. Declaring it inside a fresh C block means a nested Judge
@@ -1142,6 +1191,12 @@ public sealed partial class CodeGenerator
         if (judge.Arms.Count > 0 && judge.Arms[0].IsValueArm)
         {
             EmitValueJudge(sb, judge, indent, subjType);
+            return;
+        }
+
+        if (subjType is VoidableType judgedVoidable)
+        {
+            EmitVoidableJudge(sb, judge, indent, judgedVoidable);
             return;
         }
 

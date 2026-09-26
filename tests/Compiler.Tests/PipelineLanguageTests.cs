@@ -798,6 +798,37 @@ public class PipelineLanguageTests : PipelineTestBase
     }
 
     [Fact]
+    public void AJudgeOverAVoidable_NamesBothCases()
+    {
+        // ★ A voidable IS "the value, or void", so `A number` and `A void` cover it. `void` could not
+        // be written as a type at all — the arm was refused as "expected type name" — and the
+        // compiler had no lowering for a Judge whose subject was not a closed union.
+        const string src = """
+            Define pantry as a map with ("carrots" : 12).
+            For each crop in a series of text with ("carrots", "kale"), repeat:
+                Define count as the entry for crop in pantry.
+                Judge count, where it is:
+                    A number, state "{crop}: {it + 1} after one more".
+                    A void, state "{crop}: none".
+                Done.
+                Judge count, where it is:
+                    A void, state "{crop}: void arm".
+                    Otherwise, state "{crop}: {it} via otherwise".
+                Done.
+                Judge count, where it is:
+                    A number or a void, state "{crop}: grouped".
+                Done.
+            Done.
+            """;
+        var interpreted = InterpretRaw(src);
+        Assert.Equal(
+            "carrots: 13 after one more\ncarrots: 12 via otherwise\ncarrots: grouped\n"
+          + "kale: none\nkale: void arm\nkale: grouped",
+            interpreted.Replace("\r\n", "\n").TrimEnd());
+        Assert.Equal(interpreted, CompileRaw(src));
+    }
+
+    [Fact]
     public void TheOtherwiseOfIsVoid_ReadsTheValueAsPresent()
     {
         // ★ `If x is void … Otherwise …` reaches its Otherwise only when x is present — the mirror

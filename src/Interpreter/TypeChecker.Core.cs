@@ -2609,7 +2609,12 @@ public sealed partial class TypeChecker
                 // a type, so no set of them can ever be proved to exhaust one — which is what makes
                 // `Otherwise` mandatory for a value judgement, by the same machinery that makes it
                 // mandatory for any subject that is not a closed union.
-                CufetType? remaining = subjectType;
+                // ★ A voidable IS a two-case union — the value, or void — so `A number` and `A void`
+                // cover it and need no `Otherwise`. Without this the voidable was one opaque case
+                // that no arm could remove, and a judgement naming both was told it covered neither.
+                CufetType? remaining = subjectType is VoidableType judgedVoidable && !valueJudgement
+                    ? new UnionType([judgedVoidable.Inner, CufetType.Void])
+                    : subjectType;
 
                 foreach (var arm in judge.Arms)
                 {

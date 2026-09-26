@@ -776,6 +776,17 @@ public sealed class Parser
     {
         var tok = Peek();
 
+        // ★ `void` as a TYPE. Everything after the parser already expected it — `(T or void)`
+        // normalises to a voidable below, the compiler's `is a` handles `x is a void`, and a Judge
+        // over a voidable is a judgement over two cases — but no path here produced one, so
+        // `x is a void`, `(number or void)` and a `Judge` arm `A void` were all refused as "expected
+        // type name". Found by writing the tutorial's lesson on choosing.
+        if (tok.Type == TokenType.Void)
+        {
+            Advance();
+            return CufetType.Void;
+        }
+
         // `record like (number, number)` — a record SHAPE written where a type goes, so a map can
         // be keyed by one and a series element or field can be annotated with one.
         //
@@ -2121,7 +2132,10 @@ public sealed class Parser
     // returning its own shape and neither statement has to carry the other's fields.
     private IStatement ParseSeriesSetStatement()
     {
-        if (Peek().Type == TokenType.Item && PeekAfterCurrentIsWord("at"))
+        // ⚠ `at` AND a bracket. On the word alone, a variable named `at` — which is legal — could
+        // never index a series: `The item at of digits becomes 1.` was read as the matrix form.
+        if (Peek().Type == TokenType.Item && PeekAfterCurrentIsWord("at")
+            && PeekTwoAfterCurrent() == TokenType.LParen)
             return ParseMatrixSetStatement();
 
         var (series, idx, line, col) = ParseAccessTarget();
@@ -3543,7 +3557,10 @@ public sealed class Parser
             {
                 var itemTok = Advance();
                 SkipNoise();
-                if (IsWord("at"))
+                // ★ `at` AND a bracket, not the word alone. `at` is a free name, and `item at of
+                // digits` — a variable used as an index — was read as the matrix form and refused:
+                // the one position a name given back could still not be used in.
+                if (IsWord("at") && PeekAfterCurrent() == TokenType.LParen)
                 {
                     // Matrix indexing: "item at (row, col) of <matrix>"
                     Advance(); SkipNoise();              // consume 'at'
@@ -6050,6 +6067,17 @@ public sealed class Parser
     private TokenType PeekAfterCurrent()
     {
         int i = _pos + 1;
+        while (i < _tokens.Count && _tokens[i].IsNoise) i++;
+        return i < _tokens.Count ? _tokens[i].Type : TokenType.Eof;
+    }
+
+    // The type of the SECOND non-noise token after the current one — for `item at (…)`, which needs to
+    // see past `at` to the bracket before it may commit to the matrix form.
+    private TokenType PeekTwoAfterCurrent()
+    {
+        int i = _pos + 1;
+        while (i < _tokens.Count && _tokens[i].IsNoise) i++;
+        i++;
         while (i < _tokens.Count && _tokens[i].IsNoise) i++;
         return i < _tokens.Count ? _tokens[i].Type : TokenType.Eof;
     }
