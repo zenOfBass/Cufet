@@ -58,7 +58,21 @@ The ordering is not ceremonial: this tier's real blocker is stated below as **er
     block holds, and a block that says what it gives back is lowered to an ordinary function. What is
     NOT built is the expander this entry means: syntax parameters, and generating AST from them.
 
-    ⚠ **Its blocker is item 2 above.** An expander generates Cufet AST, so building one in C# now means building it again in Cufet later. Macro errors are the worst part of every language that has them, and clear errors are this language's distinguishing feature — that tax is still paid deliberately, not early.
+    ★★ **DECIDED 2026-09-26 — the grammar stays STRICT, and becomes OPEN.** Books will provide
+    DSLs rather than the language growing them (no built-in LINQ; a book on queries). The errors come
+    from strictness — the parser always knows which shape it expected — not from the grammar being
+    closed. So a book DECLARES phrase shapes: fixed words and typed holes, e.g.
+    `from each <name> in <series> where <fact>` (what Agda calls mixfix), and each shape is live only
+    inside a pull of that book. It reuses three mechanisms the language already has: contextual words
+    (shape words cost no names), words reserved only inside a pull (as `chase` is), and refusal on
+    collision (two pulled books declaring clashing shapes are refused, never ranked). Bracketed DSLs,
+    as `regex` does now, remain the nearer route; parse-time code that a book RUNS is declined, since
+    a parser running arbitrary code cannot say what it expected. The near-term piece is templates for
+    the `cufet` tag, after Nim's: hygienic substitution first, full macros later if ever.
+    ⚠ **Open, to settle on paper first:** typed holes want types checked BEFORE expansion (as Nim's
+    typed macros do), and this entry says the expander runs before the checker.
+
+    ⚠ **Its blocker is item 1 above.** An expander generates Cufet AST, so building one in C# now means building it again in Cufet later. Macro errors are the worst part of every language that has them, and clear errors are this language's distinguishing feature — that tax is still paid deliberately, not early.
 
     ★ Fexprs stay out, but the recorded reason was the weaker one. Wand's result (no two expressions
     ever equivalent, taking out `check` and monomorphization) is true; the **decisive** reason is that a compiled Cufet binary is standalone C, so running a Cufet block at run time needs a Cufet
@@ -112,6 +126,22 @@ they are large, not because they are waiting — the order among them means noth
 
 A formal soundness proof or a fresh-eyes red-team · a periodic error-message audit for internal
 vocabulary
+
+**The compiler re-derives what the checker already decided — so rules exist twice.** Narrowing is
+the clearest case: the checker decides where a voidable is known present (`CheckBlock`'s guard
+narrowing, the If/Otherwise arms), and `CodeGenerator` works it out AGAIN from the same syntax
+(`BlockAlwaysExits`, `ElseNarrow`, `NotVoidNarrow`) to know when to read `.val`. MEASURED
+2026-09-26: three fixes that week — narrowing after `stop`/`skip`/`Exit`, the `Otherwise` of
+`If x is void`, and a `Judge` over a voidable — each needed the same change in both places, and
+each first fix CREATED a divergence (runs interpreted, refused compiled) until the second copy
+caught up. The oracle tests contain it; they do not remove it — every new narrowing rule is two
+changes, and forgetting one ships a program that works on one backend only.
+▶ **Direction:** the checker WRITES its conclusions onto the tree and the compiler READS them,
+instead of re-deriving — the pattern already used by `CastExpression.ResolvedFunctionName`,
+`IsTypeCheck.StaticTargetType` and `SortExpression.KeyFunction`. For narrowing, that means
+recording on each use of a variable the type it is known to have there. ⚠ Large, and it touches
+the compiler's type tables everywhere; worth doing before the self-hosted compiler copies the
+two-copy shape.
 
 **An axiom's output bypasses the interpreter's writer.** The interpreter loads an axiom with
 `NativeLibrary.Load` and calls it IN-PROCESS, so a `fputs(text, stdout)` inside one writes to the
@@ -190,6 +220,20 @@ rather than the operators `bits` already shipped.
 ## Deferred — blocked on something that is not itself on the list
 
 ### Language
+
+- **A character cannot be classified.** There is no "is a letter", "is a digit", or code point of a
+  one-character text — only patterns (`regex`) and case conversion, so `c in lowercase is not c in
+  uppercase` stands in for "is a cased letter". Met writing the tutorial; the Cufet lexer (next on the
+  self-hosting path) needs `char.IsLetter`/`IsDigit`/`IsWhiteSpace` equivalents and will MEASURE how
+  far the workarounds reach. *Blocker:* none known; wait for that measurement before designing.
+
+- **A series cannot be reversed.** Only `sorted in reverse` exists; `nums in reverse` fails to parse
+  (GRAMMAR once listed it, and was corrected 2026-09-24). *Blocker:* none known.
+
+- **A series can be stated but not `converted to text`.** `State words.` prints `(pear, fig)`, but
+  `words converted to text` is refused — *"Only numbers, facts, bits and a chase can be converted to
+  text"* — so a series cannot go in a hole. Met writing `examples/parsing/precedence.cufe`, which built
+  its own joining helper instead. *Blocker:* none known.
 
 - **Expression-level flow-narrowing.** Narrowing works on *variables* today
   (`If maybe-x is not void: … maybe-x`). Narrowing a value produced by an *expression* — say
