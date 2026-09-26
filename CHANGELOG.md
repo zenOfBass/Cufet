@@ -10,13 +10,15 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
-- **Lessons 2 to 5 of the tutorial**, each opening on the refusal a beginner meets first.
+- **Lessons 2 to 6 of the tutorial**, each opening on the refusal a beginner meets first.
   Lesson 2 keeps several things together — series, maps and records — from a series that mixes
   kinds. Lesson 3 is absence: a map asked for a key it does not have, what `void` is, and
   `but void is`. Lesson 4 is choosing and repeating — both forms of `If`, facts, `For each` and a
   value `Judge` — from a block `If` left without its `Done.` before `Otherwise`. Lesson 5 is
   borrowing from a book: `math`, `collections`, a pull as a block that ends at its `Done.`, and a
   book's voidable answer handled as lesson 3 taught.
+  Lesson 6 is words of your own — `Bind`, `Return`, `cast`, a word that gives back nothing, and
+  handing one to `sorted by` — from `area of (4, 5)`, the call shape lesson 5 made natural.
   A first draft of lesson 3 led in with `converted to number` and was rewritten: void cannot be
   introduced on its own (`Define x as void.` makes a name that can only ever hold void), so it
   needs something that produces it, and a map is the plainest producer there is. Writing these
@@ -153,6 +155,12 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   wrong number without complaint. Found by trying to write the tutorial's lesson on absence. A
   refusal also quotes a map lookup, `converted to number` and `the position of` as written, where it
   used to say `<expression>` — of the commonest source of void there is.
+
+- **Three shapes of call and field read now say what they are.** `area(4, 5)` and `area of (4, 5)`
+  answered *"expected '.', got LParen"* and *"got Of"*, naming a token type at someone who had
+  written the call shape of every other language, or the one lesson 5 teaches for a book. They now
+  say that a function of your own is called with `cast area on (…)`. `carrots of hopper` — a field
+  read without its `the` — now says so too. Found by writing the tutorial's lesson on functions.
 
 - **A map mixing kinds of value said "numbers values".** It now says "number values".
 

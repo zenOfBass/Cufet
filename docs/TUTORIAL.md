@@ -506,4 +506,108 @@ Done.
 
 ---
 
-**Next:** your own words — `Bind`, and teaching Cufet something new.
+## Lesson 6 — Words of your own
+
+Lesson 5 borrowed a square root from a book. Now Hopper wants a word Cufet does not have: the area
+of a garden bed, from its width and depth. `Bind` makes one. Calling it the way lesson 5 called
+`square-root` does not work:
+
+```cufet-refused
+Bind number to area, given (the number width, the number depth):
+    Return width * depth.
+Done.
+State area of (4, 5).
+```
+```output
+Line 4, column 12: 'area of (…)' is how a BOOK's member is called — 'math's square-root of (16)'. A function of your own is called with 'cast': 'cast area on (…)'.
+```
+
+### Binding a word
+
+Read the first line as a sentence: *bind a number to `area`, given a number called `width` and a
+number called `depth`*. It says what the word gives back, what it is called, and what it needs.
+`Return` hands the answer back. A word of your own is used with `cast`:
+
+```cufet
+Bind number to area, given (the number width, the number depth):
+    Return width * depth.
+Done.
+State cast area on (4, 5).
+Define garden as cast area on (4, 4).
+State "The garden covers {garden} square metres.".
+```
+```output
+20
+The garden covers 16 square metres.
+```
+
+`cast area on (4, 5)` is a number like any other, so it can be stated, defined, or put in a hole.
+Pass it the wrong kind of thing — `cast area on (4, "five")` — and Cufet says which argument, and
+what it should have been.
+
+### Every way out gives an answer
+
+A word that says it gives back text has to, whichever way it goes. With an `If` from lesson 4 that
+is easy to forget: if `how-many` only returned inside the `If`, Cufet would refuse it — *"it can
+reach its end without returning one"* — because a small count would fall out of the bottom with
+nothing. Say what happens the rest of the time:
+
+```cufet
+Bind text to how-many, given (the number carrots):
+    If carrots is greater than 10, return "plenty".
+    Return "running low".
+Done.
+State cast how-many on (12).
+State cast how-many on (3).
+```
+```output
+plenty
+running low
+```
+
+### A word that only does something
+
+Not every word gives an answer. One that only *does* something gives back `void` — nothing — and
+is used as a statement, with a capital `Cast`:
+
+```cufet
+Bind void to greet, given (the text name):
+    State "Hello, {name}.".
+Done.
+Cast greet on ("Hopper").
+Cast greet on ("Grace").
+```
+```output
+Hello, Hopper.
+Hello, Grace.
+```
+
+### Handing a word to something else
+
+A word you bound is a value too, and some things take one. Text sorts alphabetically; to sort by
+length, hand `sorted by` a word that says how long each one is:
+
+```cufet
+Bind number to size-of, given (the text word):
+    Return the length of word.
+Done.
+Define words as a series of text with ("pear", "apple", "fig").
+State words sorted.
+State words sorted by size-of.
+```
+```output
+(apple, fig, pear)
+(fig, pear, apple)
+```
+
+`sorted by` calls `size-of` once for each word and sorts by what comes back.
+
+### Try it
+
+- Write `perimeter`, which gives back twice the width plus twice the depth.
+- Delete `Return "running low".` from `how-many`, and read what Cufet says.
+- Try `State area(4, 5).` — the way other languages call a function — and see what Cufet tells you.
+
+---
+
+**Next:** when it can fail — `Try`, and failures a program has to handle.
