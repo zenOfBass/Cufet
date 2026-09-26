@@ -3239,6 +3239,43 @@ Bind number or failure to double-positive, given (the number n):
 Done.
 ```
 
+**A call made for its effect can fail too — `void or failure`.** A close, a flush, a check:
+nothing comes back when it works, and a failure when it does not. A bare `Return.` or reaching
+`Done.` is success. The call is a statement — in a `Try`, or passed off to the caller by ending
+the line with the same words:
+
+```cufet
+Define object ledger with (the number balance).
+
+Bind void or failure to withdraw unto ledger, given (the number amount):
+    If amount is greater than one's balance, return a failure "only {one's balance} left".
+    Decrement one's balance by amount.
+Done.
+
+Bind void or failure to withdraw-both unto ledger, given (the number first, the number second):
+    Cast one's withdraw on (first) or pass the failure off.
+    Cast one's withdraw on (second) or pass the failure off.
+Done.
+
+Define account as a new ledger { the balance 10 }.
+Try to:
+    Cast account's withdraw-both on (4, 9).
+Done.
+In case of failure:
+    State "{the message of the failure}, and {account's balance} is still there".
+Done.
+```
+```output
+only 6 left, and 6 is still there
+```
+
+- **Its result is not a value**, on either path — `Define x as cast withdraw on (…)` is refused,
+  in a `Try` or out of one, and so is `but on failure`, which would have nothing to stand in for.
+- **`… or pass the failure off.` ends any fallible call**, not only one to `void or failure` — a
+  `number or failure` called for its effect drops the number and passes the failure on.
+- **A plain `void` function cannot fail.** `Return a failure` in one is refused, pointing at
+  `Bind void or failure to …`.
+
 **Unhandled failure is a static error** — dropping a failable value without
 a fallback, a propagation, or a `Try` block is caught by the type checker, not
 at runtime.

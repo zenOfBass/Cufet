@@ -3566,15 +3566,19 @@ In case of failure:
 Done.
 ```
 
-### `or pass the failure off` is a postfix expression operator
+### `or pass the failure off` ends an expression, or a call made for its effect
 
-`expr or pass the failure off` propagates a failure from a fallible expression.
-It must appear as **part of an expression** — it is not a statement:
+`expr or pass the failure off` propagates a failure from a fallible expression. A
+`Cast` statement may end with it as well — the call is made for its effect, any
+value it gives back is dropped, and a failure goes to the caller:
 
 ```
-Define result as cast compute on (x) or pass the failure off.   ← OK
-Cast compute on (x) or pass the failure off.                    ← PARSE ERROR
+Define result as cast compute on (x) or pass the failure off.   ← OK: the value is kept
+Cast compute on (x) or pass the failure off.                    ← OK: made for its effect
 ```
+
+The same rules hold for both: the call must be able to fail, the function around it
+must be able to fail too, and neither is written inside a `Try`.
 
 ### `but void is` fallback value must be the right type
 
@@ -3765,7 +3769,8 @@ to encapsulate initialization of objects that have collection fields.
   handle with `Try to: ... In case of failure: ...`.
 - Both can combine: `voidable T or failure` is possible but unusual.
 - `map lookup` returns `voidable V` (key might not exist).
-- Declared-fallible functions return `T or failure`.
+- Declared-fallible functions return `T or failure` — or `void or failure`, which gives
+  nothing back when it works and so is called as a statement.
 
 ### The for-each body cannot add or remove elements during iteration
 

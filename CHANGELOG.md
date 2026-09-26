@@ -6,6 +6,24 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- **`void or failure` — a call made for its effect can fail.** A close, a flush, a check:
+  `Bind void or failure to withdraw unto ledger, …` gives nothing back when it works and a failure
+  when it does not; a bare `Return.` or reaching `Done.` is success. Its result is not a value on
+  either path, so using one as a value is refused before the program runs — in a `Try` as well,
+  where it had nothing to refuse it — and so is `but on failure`. A plain `void` function that
+  returns a failure is now pointed at `Bind void or failure to …`.
+- **`Cast … or pass the failure off.` as a statement**, for any fallible call made for its effect;
+  a value it gives back is dropped. The same rules as the expression form, each refused in its own
+  words: the call must be able to fail, the function around it must be able to fail, and it is not
+  written inside a `Try`. The refusal for an unhandled call now offers it, where it would be legal.
+  ★ Found by the Cufet lexer, which bound 13 throwaway names only to reach the expression form and
+  returned a meaningless `fact` from every scanning method; rewritten in the new forms it lost
+  every throwaway name and every `Return true.` that meant only "it worked".
+
 ## [0.26.0] — 2026-09-26
 
 ### Added
