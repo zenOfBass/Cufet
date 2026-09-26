@@ -1,0 +1,165 @@
+/*  Interface defaults — `InterfaceDefaults.Expand` in `src/Interpreter/InterfaceDefaults.cs`,
+    the one pass the C# parser runs over a whole program before handing it on.
+
+    A default method written `Bind text to describe unto <interface>` becomes one ordinary method
+    per conforming object type, and the original is dropped. A type's own method beats the default,
+    and two interfaces supplying the same name are refused, naming both.
+
+    ⚠ It works on the tree by FIELD POSITION, because a node is its constructor's fields in order:
+    an ObjectDefinition's name is its first child and its conformed interfaces its eighth, a Bind's
+    `unto` its fifth. Those positions are the C# records', and the parity test is what holds them.
+*/
+
+Pull a book on collections.
+    /// Every statement at the top, and inside every Pull, in order.
+    Bind void to gather-flat, given (the node statements, the series of node into-list):
+        For each held in statements's children, repeat:
+            Insert held into into-list.
+            If held's kind is "PullStatement" or held's kind is "PullRabbitStatement":
+                Cast gather-flat on (item 2 of held's children, into-list).
+            Done.
+        Done.
+    Done.
+
+    Bind text to word-of, given (the node leaf):
+        Return leaf's word.
+    Done.
+
+    /// Own body, own `unto`, or promoted through an embedded type.
+    Bind fact to has-method, given (the node definition, the text method-name,
+            the map from text to node by-name, the series of node flat):
+        For each method in (item 4 of definition's children)'s children, repeat:
+            If (item 1 of method's children)'s word is method-name, return true.
+        Done.
+        Define own-name as (item 1 of definition's children)'s word.
+        For each held in flat, repeat:
+            If held's kind is "BindStatement":
+                If (item 5 of held's children)'s word is own-name and (item 1 of held's children)'s word is method-name:
+                    Return true.
+                Done.
+            Done.
+        Done.
+        Define seen as a series of text.
+        Insert own-name into seen.
+        Define current as definition.
+        Define walking as true.
+        While walking, repeat:
+            Define embedded as (item 7 of current's children)'s word.
+            If embedded is "_", stop.
+            For each earlier in seen, repeat:
+                If earlier is embedded, the walking becomes false.
+            Done.
+            If walking is false, stop.
+            Insert embedded into seen.
+            Define next-definition as the entry for embedded in by-name.
+            If next-definition is void, stop.
+            For each method in (item 4 of next-definition's children)'s children, repeat:
+                If (item 1 of method's children)'s word is method-name, return true.
+            Done.
+            The current becomes next-definition.
+        Done.
+        Return false.
+    Done.
+
+    /// The statements with every `unto <interface>` Bind taken out, Pull bodies included.
+    Bind node to stripped, given (the node statements, the series of text interface-names):
+        Define kept as cast listed.
+        For each held in statements's children, repeat:
+            Define drop as false.
+            If held's kind is "BindStatement":
+                Define target as (item 5 of held's children)'s word.
+                For each named in interface-names, repeat:
+                    If target is named, the drop becomes true.
+                Done.
+            Done.
+            If drop is false:
+                If held's kind is "PullStatement" or held's kind is "PullRabbitStatement":
+                    Define rebuilt as a series of node.
+                    Define place as 0.
+                    For each part in held's children, repeat:
+                        Increment place by 1.
+                        If place is 2, insert cast stripped on (part, interface-names) into rebuilt.
+                        Otherwise, insert part into rebuilt.
+                    Done.
+                    Cast kept's add on (cast made on (held's kind, rebuilt)).
+                Done.
+                Otherwise:
+                    Cast kept's add on (held).
+                Done.
+            Done.
+        Done.
+        Return kept.
+    Done.
+
+    Bind node or failure to expand-defaults, given (the node statements):
+        Define flat as a series of node.
+        Cast gather-flat on (statements, flat).
+
+        Define interface-names as a series of text.
+        Define objects as a series of node.
+        Define by-name as a map from text to node.
+        For each held in flat, repeat:
+            If held's kind is "InterfaceDefinition", insert (item 1 of held's children)'s word into interface-names.
+            If held's kind is "ObjectDefinition":
+                Insert held into objects.
+                In by-name, the entry for (item 1 of held's children)'s word becomes held.
+            Done.
+        Done.
+
+        Define defaults as a map from text to node.
+        Define any-default as false.
+        For each held in flat, repeat:
+            If held's kind is "BindStatement":
+                Define target as (item 5 of held's children)'s word.
+                For each named in interface-names, repeat:
+                    If target is named:
+                        Define bucket as (the entry for target in defaults) but void is cast listed.
+                        Cast bucket's add on (held).
+                        In defaults, the entry for target becomes bucket.
+                        The any-default becomes true.
+                    Done.
+                Done.
+            Done.
+        Done.
+        If any-default is false, return statements.
+
+        Define injected as a series of node.
+        For each definition in objects, repeat:
+            Define taken-from as a map from text to text.
+            Define own-name-node as item 1 of definition's children.
+            For each claimed in (item 8 of definition's children)'s children, repeat:
+                Define bucket as the entry for claimed's word in defaults.
+                If bucket is not void:
+                    For each default-method in bucket's children, repeat:
+                        Define method-name as (item 1 of default-method's children)'s word.
+                        If cast has-method on (definition, method-name, by-name, flat) is false:
+                            Define already as the entry for method-name in taken-from.
+                            If already is not void:
+                                Define shown-name as the characters from 2 to (the length of method-name - 1) of method-name.
+                                Define shown-type as the characters from 2 to (the length of own-name-node's word - 1) of own-name-node's word.
+                                Define shown-first as the characters from 2 to (the length of already - 1) of already.
+                                Define shown-second as the characters from 2 to (the length of claimed's word - 1) of claimed's word.
+                                Return a failure "error\t{(item 7 of default-method's children)'s word}\t{(item 8 of default-method's children)'s word}\t'{shown-type}' would get a default '{shown-name}' from both '{shown-first}' and '{shown-second}', and there is no rule for which should win. Give '{shown-type}' its own '{shown-name}' — a type's own method beats an interface default.".
+                            Done.
+                            In taken-from, the entry for method-name becomes claimed's word.
+                            Define copied as a series of node.
+                            Define place as 0.
+                            For each part in default-method's children, repeat:
+                                Increment place by 1.
+                                If place is 5, insert own-name-node into copied.
+                                Otherwise, insert part into copied.
+                            Done.
+                            Insert cast made on ("BindStatement", copied) into injected.
+                        Done.
+                    Done.
+                Done.
+            Done.
+        Done.
+
+        Define kept as cast stripped on (statements, interface-names).
+        For each extra in injected, repeat:
+            Cast kept's add on (extra).
+        Done.
+        Return kept.
+    Done.
+Done.

@@ -1,0 +1,495 @@
+/*  Types, where a type is written — ParseTypeAnnotationCore and its neighbours in
+    `src/Interpreter/Parser.cs`.
+
+    A type is a node like any other, named after the C# class it stands for: `(NumberType)`,
+    `(SeriesType (TextType))`, `(ObjectType "stack" [(NumberType)])`.
+
+    ⚠ The C# parser marks a type position with a depth it restores in a `finally`. Here a failure
+    ends the whole file, so only the SPECULATIVE parses — which catch a failure and go on — restore
+    anything, and they restore the depth along with the position.
+*/
+
+Pull a book on collections.
+    Bind node to plain-type, given (the text kind):
+        Return cast made on (kind, a series of node).
+    Done.
+
+    Bind node or failure to type-annotation unto parser:
+        Increment one's type-depth by 1.
+        Define parsed as cast one's type-core or pass the failure off.
+        Decrement one's type-depth by 1.
+        Return parsed.
+    Done.
+
+    Bind node or failure to type-core unto parser:
+        Define tok as cast one's peek.
+        Define kind as tok's kind.
+
+        If kind is "Void":
+            Cast one's advance.
+            Return cast plain-type on ("VoidType").
+        Done.
+
+        If kind is "Record" or cast spelled on (tok, "records"):
+            Cast one's advance.
+            Cast one's skip-noise.
+            Cast one's consume on ("Like") or pass the failure off.
+            Cast one's skip-noise.
+            Return cast one's record-shape-body or pass the failure off.
+        Done.
+
+        // (A or B or C), and (T or void) is a voidable T.
+        If kind is "LParen":
+            Cast one's advance.
+            Cast one's skip-noise.
+            Define cases as cast listed.
+            Define first-case as cast one's type-annotation or pass the failure off.
+            Cast cases's add on (first-case).
+            Cast one's skip-noise.
+            While cast one's peek-kind is "Or", repeat:
+                Cast one's advance.
+                Cast one's skip-noise.
+                Define next-case as cast one's type-annotation or pass the failure off.
+                Cast cases's add on (next-case).
+                Cast one's skip-noise.
+            Done.
+            Cast one's consume on ("RParen") or pass the failure off.
+            If the number of cases's children is 2:
+                Define one-case as item 1 of cases's children.
+                Define other-case as item 2 of cases's children.
+                If one-case's kind is "VoidType":
+                    Return cast made on ("VoidableType", a series with (other-case)).
+                Done.
+                If other-case's kind is "VoidType":
+                    Return cast made on ("VoidableType", a series with (one-case)).
+                Done.
+            Done.
+            Return cast made on ("UnionType", a series with (cases)).
+        Done.
+
+        If kind is "Voidable":
+            Cast one's advance.
+            Cast one's skip-noise.
+            Define inner as cast one's type-annotation or pass the failure off.
+            // A voidable never nests: voidable voidable T is voidable T.
+            If inner's kind is "VoidableType", return inner.
+            Return cast made on ("VoidableType", a series with (inner)).
+        Done.
+
+        If kind is "SetKw":
+            Cast one's advance.
+            Cast one's skip-noise.
+            Cast one's consume on ("Of") or pass the failure off.
+            Cast one's skip-noise.
+            Define element as cast one's type-annotation or pass the failure off.
+            Return cast made on ("SetType", a series with (element)).
+        Done.
+
+        If kind is "Map":
+            Cast one's advance.
+            Cast one's skip-noise.
+            Cast one's consume on ("From") or pass the failure off.
+            Cast one's skip-noise.
+            Define key-type as cast one's type-annotation or pass the failure off.
+            Cast one's skip-noise.
+            Cast one's consume on ("To") or pass the failure off.
+            Cast one's skip-noise.
+            Define value-type as cast one's type-annotation or pass the failure off.
+            Return cast made on ("MapType", a series with (key-type, value-type)).
+        Done.
+
+        If kind is "NumberKw" or (kind is "Identifier" and cast spelled on (tok, "numbers")):
+            Cast one's advance.
+            Return cast plain-type on ("NumberType").
+        Done.
+        If kind is "Identifier":
+            Define lowered as tok's lexeme in lowercase.
+            If lowered is "text" or lowered is "texts":
+                Cast one's advance.
+                Return cast plain-type on ("TextType").
+            Done.
+            If lowered is "fact" or lowered is "facts":
+                Cast one's advance.
+                Return cast plain-type on ("FactType").
+            Done.
+            If lowered is "address" or lowered is "addresses":
+                Cast one's advance.
+                Return cast plain-type on ("AddressType").
+            Done.
+            If lowered is "bits":
+                Cast one's advance.
+                Return cast plain-type on ("BitsType").
+            Done.
+        Done.
+
+        If kind is "Series":
+            Cast one's advance.
+            Cast one's skip-noise.
+            Cast one's consume on ("Of") or pass the failure off.
+            Cast one's skip-noise.
+            Define element as cast one's element-type on (true) or pass the failure off.
+            Return cast made on ("SeriesType", a series with (element)).
+        Done.
+
+        If kind is "Stash":
+            Cast one's advance.
+            Cast one's skip-noise.
+            Cast one's consume on ("Of") or pass the failure off.
+            Cast one's skip-noise.
+            Define element as cast one's type-annotation or pass the failure off.
+            Return cast made on ("StashType", a series with (element)).
+        Done.
+
+        If cast spelled on (tok, "readable") or cast spelled on (tok, "writable"):
+            Define stream-kind as "ReadableStreamType" when cast spelled on (tok, "readable"), otherwise "WritableStreamType".
+            Cast one's advance.
+            Cast one's skip-noise.
+            Cast one's consume on ("Stream") or pass the failure off.
+            Cast one's skip-noise.
+            Cast one's consume on ("Of") or pass the failure off.
+            Cast one's skip-noise.
+            Define element as cast one's type-annotation or pass the failure off.
+            Return cast made on (stream-kind, a series with (element)).
+        Done.
+
+        If kind is "Channel" or (cast spelled on (tok, "channel") and cast one's kind-after is "Of"):
+            Cast one's advance.
+            Cast one's skip-noise.
+            Cast one's consume on ("Of") or pass the failure off.
+            Cast one's skip-noise.
+            Define element as cast one's type-annotation or pass the failure off.
+            Return cast made on ("ChannelType", a series with (element)).
+        Done.
+
+        If cast spelled on (tok, "matrix") or cast spelled on (tok, "matrices"):
+            Cast one's advance.
+            Return cast plain-type on ("MatrixType").
+        Done.
+        If cast spelled on (tok, "chase"):
+            Cast one's advance.
+            Return cast plain-type on ("ChaseType").
+        Done.
+
+        // catalogue [of T] — a series whose elements are a union; atlas [from K to V] — a map.
+        If kind is "CatalogueKw":
+            Cast one's advance.
+            Cast one's skip-noise.
+            If cast one's peek-kind is "Of":
+                Cast one's advance.
+                Cast one's skip-noise.
+                Define element as cast one's element-type on (true) or pass the failure off.
+                Return cast made on ("SeriesType", a series with (element)).
+            Done.
+            Return cast made on ("SeriesType", a series with (cast open-union)).
+        Done.
+        If kind is "AtlasKw":
+            Cast one's advance.
+            Cast one's skip-noise.
+            If cast one's peek-kind is "From":
+                Cast one's advance.
+                Cast one's skip-noise.
+                Define key-type as cast one's type-annotation or pass the failure off.
+                Cast one's skip-noise.
+                Cast one's consume on ("To") or pass the failure off.
+                Cast one's skip-noise.
+                Define value-type as cast one's type-annotation or pass the failure off.
+                Return cast made on ("MapType", a series with (key-type, value-type)).
+            Done.
+            Return cast made on ("MapType", a series with (cast plain-type on ("TextType"), cast open-union)).
+        Done.
+
+        // `<language> [<result>] [axiom] [given (…)]` — foreign source, tagged by its language.
+        If kind is "Identifier" and (cast one's next-word-is on ("axiom") or cast one's is-axiom-result-ahead):
+            Define axiom-type as cast one's axiom-type-after-tag on (tok) or pass the failure off.
+            If axiom-type's word is not "_", return axiom-type.
+        Done.
+
+        // A named type — an object or interface, with its blanks filled: `a stack of number`.
+        If kind is "Identifier":
+            Cast one's advance.
+            Define args as cast listed.
+            While cast one's peek-kind is "Of", repeat:
+                Cast one's advance.
+                Cast one's skip-noise.
+                Define argument as cast one's type-annotation or pass the failure off.
+                Cast args's add on (argument).
+                Cast one's skip-noise.
+            Done.
+            Return cast made on ("ObjectType", a series with (cast quoted on (tok's lexeme), args)).
+        Done.
+
+        Return a failure (cast one's refused on (tok,
+            "expected type name (number, text, fact, series of ..., or a defined type name)")).
+    Done.
+
+    /// The axiom arm of ParseTypeAnnotationCore. Nothing, with the position put back, when what
+    /// looked like a result type was the name being declared all along.
+    Bind node or failure to axiom-type-after-tag unto parser, given (the token tag):
+        Define saved-at as one's at.
+        Cast one's advance.
+        Cast one's skip-noise.
+        Define before-result as one's at.
+        Define saved-depth as one's type-depth.
+        Define result as cast nothing.
+        If cast one's is-word on ("axiom") is false:
+            Try to:
+                The result becomes cast one's type-annotation.
+                Cast one's skip-noise.
+            Done.
+            In case of failure:
+                If (the first 11 characters of the message of the failure) is "unsupported":
+                    Return a failure (the message of the failure).
+                Done.
+                One's at becomes before-result.
+                One's type-depth becomes saved-depth.
+                The result becomes cast nothing.
+            Done.
+        Done.
+        If cast one's is-word on ("axiom"):
+            Cast one's advance.
+            Cast one's skip-noise.
+        Done.
+        Otherwise if result's word is not "_" and cast one's peek-kind is not "Identifier" and cast one's peek-kind is not "Given":
+            One's at becomes before-result.
+            The result becomes cast nothing.
+        Done.
+        Define takes as cast listed.
+        If cast one's peek-kind is "Given":
+            The takes becomes cast one's function-param-type-list or pass the failure off.
+            If the number of takes's children is greater than 0, cast one's skip-noise.
+        Done.
+        If result's word is not "_" or the number of takes's children is greater than 0 or cast one's peek-kind is "Identifier":
+            Return cast made on ("AxiomType", a series with (cast quoted on (tag's lexeme), result, takes)).
+        Done.
+        One's at becomes saved-at.
+        Return cast nothing.
+    Done.
+
+    /// IsAxiomResultAhead — a language tag followed by a result type.
+    Bind fact to is-axiom-result-ahead unto parser:
+        Define here as cast one's peek.
+        If here's kind is "Identifier":
+            Define lowered as here's lexeme in lowercase.
+            If lowered is "c-language" or lowered is "cufet" or lowered is "regex", return true.
+        Done.
+        Define next-tok as cast one's token-at on (cast one's past-noise on (one's at + 1)).
+        Define next-kind as next-tok's kind.
+        If next-kind is "NumberKw" or next-kind is "Void" or next-kind is "Voidable", return true.
+        If next-kind is "Identifier":
+            Define lowered as next-tok's lexeme in lowercase.
+            Return lowered is "text" or lowered is "fact" or lowered is "bits".
+        Done.
+        Return false.
+    Done.
+
+    /// The element type after `of`, where a function type may be the element.
+    Bind node or failure to element-type unto parser, given (the fact name-follows):
+        If cast one's peek-kind is "Void":
+            Cast one's advance.
+            Cast one's skip-noise.
+            Cast one's consume on ("FunctionKw") or pass the failure off.
+            Cast one's skip-noise.
+            Define parameters as cast one's function-param-type-list or pass the failure off.
+            Return cast made on ("FunctionType", a series with (parameters, cast nothing)).
+        Done.
+        Define inner as cast one's type-annotation or pass the failure off.
+        Cast one's skip-noise.
+        If cast one's peek-kind is not "FunctionKw", return inner.
+        If name-follows and cast one's kind-after is not "Given", return inner.
+        Cast one's advance.
+        Cast one's skip-noise.
+        Define parameters as cast one's function-param-type-list or pass the failure off.
+        Return cast made on ("FunctionType", a series with (parameters, inner)).
+    Done.
+
+    /// `given (<type>, …)` in a function type — empty when there is no `given`.
+    Bind node or failure to function-param-type-list unto parser:
+        Define types as cast listed.
+        If cast one's peek-kind is not "Given", return types.
+        Cast one's advance.
+        Cast one's skip-noise.
+        Cast one's consume on ("LParen") or pass the failure off.
+        Cast one's skip-noise.
+        If cast one's peek-kind is not "RParen":
+            Define first-type as cast one's function-param-type or pass the failure off.
+            Cast types's add on (first-type).
+            Cast one's skip-noise.
+            While cast one's peek-kind is "Comma", repeat:
+                Cast one's advance.
+                Cast one's skip-noise.
+                Define next-type as cast one's function-param-type or pass the failure off.
+                Cast types's add on (next-type).
+                Cast one's skip-noise.
+            Done.
+        Done.
+        Cast one's consume on ("RParen") or pass the failure off.
+        Return types.
+    Done.
+
+    Bind node or failure to function-param-type unto parser:
+        Increment one's type-depth by 1.
+        Cast one's skip-noise.
+        Define returned as cast nothing.
+        Define saw-void as false.
+        If cast one's peek-kind is "Void":
+            Cast one's advance.
+            Cast one's skip-noise.
+            The saw-void becomes true.
+        Done.
+        Otherwise:
+            The returned becomes cast one's type-annotation or pass the failure off.
+            Cast one's skip-noise.
+        Done.
+        If cast one's peek-kind is "FunctionKw":
+            Cast one's advance.
+            Cast one's skip-noise.
+            Cast one's consume on ("Identifier") or pass the failure off.
+            Cast one's skip-noise.
+            Define parameters as cast one's function-param-type-list or pass the failure off.
+            Decrement one's type-depth by 1.
+            Return cast made on ("FunctionType", a series with (parameters, returned)).
+        Done.
+        If saw-void:
+            Return a failure (cast one's refused on (cast one's peek,
+                "expected function — 'void' can only appear as a function return type")).
+        Done.
+        Decrement one's type-depth by 1.
+        Return returned.
+    Done.
+
+    // ── Record shapes ─────────────────────────────────────────────────────
+
+    /// `(<positional types>, the <type> <name>, …)`. ⚠ The named fields come out SORTED by name,
+    /// because RecordType sorts them — two shapes are equal whatever order their fields were written.
+    Bind node or failure to record-shape-body unto parser:
+        Return cast one's shape-into on (cast listed, cast listed) or pass the failure off.
+    Done.
+
+    /// A record shape, also collecting the names declared `permanently` and the fields given a
+    /// default — which an object definition keeps and a plain record type does not.
+    Bind node or failure to shape-into unto parser, given (the node permanent, the node defaults):
+        Cast one's consume on ("LParen") or pass the failure off.
+        Define positional as cast listed.
+        Define named as cast listed.
+        If cast one's peek-kind is not "RParen":
+            Cast one's one-shape-field on (positional, named, permanent, defaults) or pass the failure off.
+            Cast one's skip-noise.
+            While cast one's peek-kind is "Comma", repeat:
+                Cast one's advance.
+                Cast one's one-shape-field on (positional, named, permanent, defaults) or pass the failure off.
+                Cast one's skip-noise.
+            Done.
+        Done.
+        Cast one's consume on ("RParen") or pass the failure off.
+        Return cast made on ("RecordType", a series with (positional, cast sorted-by-name on (named))).
+    Done.
+
+    /// The pairs of a list, ordered by the quoted name each begins with.
+    ///
+    /// ⚠ Through `sorted by` on records, because `is less than` does not order text.
+    Bind node to sorted-by-name, given (the node pairs):
+        Define keyed as a series of records like (the text name, the number spot).
+        Define spot as 0.
+        For each pair in pairs's children, repeat:
+            Increment spot by 1.
+            Define first-part as item 1 of pair's children.
+            Insert a record with (the name first-part's word, the spot spot) into keyed.
+        Done.
+        Define ordered as cast listed.
+        For each entry in keyed sorted by name, repeat:
+            Cast ordered's add on (item (the spot of entry) of pairs's children).
+        Done.
+        Return ordered.
+    Done.
+
+    Bind void or failure to one-shape-field unto parser, given (the node positional, the node named, the node permanent, the node defaults):
+        If cast one's peek-kind is "Article":
+            Cast one's advance.
+            Cast one's skip-noise.
+            Define void-return as cast one's peek-kind is "Void".
+            Define returned as cast nothing.
+            If void-return:
+                Cast one's advance.
+                Cast one's skip-noise.
+            Done.
+            Otherwise:
+                The returned becomes cast one's type-annotation or pass the failure off.
+                Cast one's skip-noise.
+            Done.
+            Define is-function as cast one's peek-kind is "FunctionKw".
+            If void-return and is-function is false:
+                Return a failure (cast one's refused on (cast one's peek,
+                    "expected field — 'void' can only appear as a function return type")).
+            Done.
+            If is-function:
+                Cast one's advance.
+                Cast one's skip-noise.
+            Done.
+            Define name-tok as cast one's consume on ("Identifier") or pass the failure off.
+            Define field-type as returned.
+            If is-function:
+                Cast one's skip-noise.
+                Define parameters as cast one's function-param-type-list or pass the failure off.
+                The field-type becomes cast made on ("FunctionType", a series with (parameters, returned)).
+            Done.
+            Define pair as cast listed.
+            Cast pair's add on (cast quoted on (name-tok's lexeme)).
+            Cast pair's add on (field-type).
+            Cast named's add on (pair).
+            If cast one's peek-kind is "Permanently":
+                Cast one's advance.
+                Cast permanent's add on (cast quoted on (name-tok's lexeme)).
+            Done.
+            If cast one's peek-kind is "With":
+                Cast one's advance.
+                Cast one's skip-noise.
+                If cast one's is-word on ("default") is false:
+                    Return a failure (cast one's refused on (cast one's peek,
+                        "expected field '{name-tok's lexeme}' — 'with' here introduces a default, so write "
+                        joined to "'the ... {name-tok's lexeme} with default <value>'")).
+                Done.
+                Cast one's advance.
+                Cast one's skip-noise.
+                Define fallback as cast one's expression or pass the failure off.
+                Define default-pair as cast listed.
+                Cast default-pair's add on (cast quoted on (name-tok's lexeme)).
+                Cast default-pair's add on (fallback).
+                Cast defaults's add on (default-pair).
+            Done.
+            Return.
+        Done.
+        If the number of named's children is greater than 0:
+            Return a failure (cast one's refused on (cast one's peek,
+                "expected type — positional fields must come before named fields in a record shape")).
+        Done.
+        Define field-type as cast one's type-annotation or pass the failure off.
+        Cast positional's add on (field-type).
+    Done.
+
+    /// TryParseTypeBeforeName — a type, when a NAME follows it; otherwise nothing, and the position
+    /// put back.
+    ///
+    /// ⚠ Only a REFUSAL rolls back. A construct this parser has not been taught yet is not "no type
+    /// here" — rolling that back would read the tag of `Define regex serious as […]` as the name.
+    Bind node or failure to type-before-name unto parser:
+        Define saved-at as one's at.
+        Define saved-depth as one's type-depth.
+        Increment one's type-depth by 1.
+        Try to:
+            Define parsed as cast one's type-annotation.
+            Cast one's skip-noise.
+            If cast one's peek-kind is "Identifier":
+                One's type-depth becomes saved-depth.
+                Return parsed.
+            Done.
+        Done.
+        In case of failure:
+            If (the first 11 characters of the message of the failure) is "unsupported":
+                Return a failure (the message of the failure).
+            Done.
+        Done.
+        One's at becomes saved-at.
+        One's type-depth becomes saved-depth.
+        Return cast nothing.
+    Done.
+Done.

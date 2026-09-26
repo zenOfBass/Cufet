@@ -1,0 +1,1457 @@
+/*  Statements — ParseStatement in `src/Interpreter/Parser.cs` and the parsers it dispatches to.
+
+    ★ The dispatch is on the FIRST token, in the C# switch's order, including the identifier cases
+    that are decided by a word after it (`output`, `seed`, `make`, `current`, a pipe).
+*/
+
+Pull a book on collections.
+    Bind node or failure to statement unto parser:
+        Define tok as cast one's peek.
+        Define kind as tok's kind.
+
+        If kind is "State":
+            Cast one's advance.
+            Cast one's skip-noise.
+            Define value as cast one's expression or pass the failure off.
+            Cast one's skip-noise.
+            Cast one's consume on ("Dot") or pass the failure off.
+            Return cast made on ("StateStatement", a series with (value)).
+        Done.
+        If kind is "Define", return cast one's define-statement or pass the failure off.
+
+        If kind is "Identifier":
+            Define following as cast one's kind-after.
+            Define lowered as tok's lexeme in lowercase.
+            If lowered is "output" and following is not "Becomes" and following is not "Possessive" and following is not "Equal" and following is not "Pipe":
+                Cast one's advance.
+                Cast one's skip-noise.
+                Define value as cast one's expression or pass the failure off.
+                Return cast one's finish-with-dot on (cast placed on ("OutputStatement", a series with (value), tok)) or pass the failure off.
+            Done.
+            If lowered is "make" and following is "DirectoryKw":
+                Cast one's advance.
+                Cast one's skip-noise.
+                Cast one's consume on ("DirectoryKw") or pass the failure off.
+                Cast one's skip-noise.
+                Define path-expr as cast one's expr-or or pass the failure off.
+                Return cast one's finish-with-dot on (cast placed on ("PathActionStatement",
+                    a series with (cast atom on ("MakeDirectory"), path-expr), tok)) or pass the failure off.
+            Done.
+            If lowered is "seed" and cast one's next-word-is on ("chance"):
+                Cast one's advance.
+                Cast one's skip-noise.
+                If cast one's is-word on ("chance") is false:
+                    Return a failure (cast one's refused on (cast one's peek, "expected 'chance' — expected after 'Seed the'")).
+                Done.
+                Cast one's advance.
+                Cast one's skip-noise.
+                Cast one's consume on ("With") or pass the failure off.
+                Cast one's skip-noise.
+                Define seed-value as cast one's expression or pass the failure off.
+                Return cast one's finish-with-dot on (cast placed on ("SeedChanceStatement", a series with (seed-value), tok)) or pass the failure off.
+            Done.
+            If following is "Pipe", return cast one's pipe-statement or pass the failure off.
+            If lowered is "current" and following is "DirectoryKw":
+                Cast one's advance.
+                Cast one's skip-noise.
+                Cast one's consume on ("DirectoryKw") or pass the failure off.
+                Cast one's skip-noise.
+                Cast one's consume on ("Becomes") or pass the failure off.
+                Cast one's skip-noise.
+                Define path-expr as cast one's expression or pass the failure off.
+                Return cast one's finish-with-dot on (cast placed on ("CurrentDirectorySetStatement", a series with (path-expr), tok)) or pass the failure off.
+            Done.
+            If cast is-ordinal-lexeme on (tok's lexeme) and following is "Of":
+                Return cast one's series-set-statement or pass the failure off.
+            Done.
+            Return cast one's becomes-statement or pass the failure off.
+        Done.
+
+        If kind is "One":
+            Cast one's advance.
+            Cast one's skip-noise.
+            Return cast one's possessive-set on (cast variable-named on ("one", tok)) or pass the failure off.
+        Done.
+        If kind is "Article", return cast one's record-named-set or pass the failure off.
+        If kind is "If", return cast one's if-statement or pass the failure off.
+        If kind is "While", return cast one's while-statement or pass the failure off.
+        If kind is "Repeat", return cast one's repeat-until or pass the failure off.
+        If kind is "Exit":
+            Cast one's advance.
+            Cast one's skip-noise.
+            Define status as cast nothing.
+            If cast one's peek-kind is "With":
+                Cast one's advance.
+                Cast one's skip-noise.
+                The status becomes cast one's expression or pass the failure off.
+                Cast one's skip-noise.
+            Done.
+            Cast one's consume on ("Dot") or pass the failure off.
+            Return cast placed on ("ExitStatement", a series with (status), tok).
+        Done.
+        If kind is "Stop" or kind is "Skip":
+            If one's loop-depth is 0:
+                Return a failure (cast one's refused on (tok, "'{tok's lexeme}' used outside a loop")).
+            Done.
+            Cast one's advance.
+            Cast one's consume on ("Dot") or pass the failure off.
+            Define shape as "StopStatement" when kind is "Stop", otherwise "SkipStatement".
+            Return cast made on (shape, a series of node).
+        Done.
+        If kind is "Item", return cast one's series-set-statement or pass the failure off.
+        If kind is "Insert", return cast one's insert-statement or pass the failure off.
+        If kind is "Increment" or kind is "Decrement", return cast one's increment-statement or pass the failure off.
+        If kind is "Remove", return cast one's remove-statement or pass the failure off.
+        If kind is "For", return cast one's for-each or pass the failure off.
+        If kind is "Bind":
+            Define following as cast one's kind-after.
+            If following is "UnmakingKw", return cast one's unmaker-declaration or pass the failure off.
+            If following is "OverloadingKw", return cast one's overload-declaration or pass the failure off.
+            Return cast one's bind-statement or pass the failure off.
+        Done.
+        If kind is "Cast", return cast one's cast-statement or pass the failure off.
+        If kind is "Return", return cast one's return-statement or pass the failure off.
+        If kind is "Try", return cast one's try-statement or pass the failure off.
+        If kind is "In", return cast one's map-set or pass the failure off.
+        If kind is "Pull", return cast one's pull-statement or pass the failure off.
+        If kind is "Run", return cast one's pipe-statement or pass the failure off.
+        If kind is "Judge", return cast one's judge-statement or pass the failure off.
+        If kind is "Bury":
+            Return a failure (cast one's refused on (tok, "a bury needs a rabbit to do it — write 'Have <rabbit> bury <value>.'")).
+        Done.
+        If kind is "Suppress":
+            Cast one's advance.
+            Cast one's skip-noise.
+            Cast one's consume on ("Exception") or pass the failure off.
+            Return cast one's finish-with-dot on (cast placed on ("SuppressStatement", a series of node, tok)) or pass the failure off.
+        Done.
+        If kind is "Write" or kind is "Append", return cast one's write-statement or pass the failure off.
+        If kind is "With", return cast one's with-open or pass the failure off.
+        If kind is "Cite":
+            Cast one's advance.
+            Cast one's skip-noise.
+            Define name-tok as cast one's consume on ("Identifier") or pass the failure off.
+            Return cast one's finish-with-dot on (cast placed on ("CiteStatement", a series with (cast quoted on (name-tok's lexeme)), tok))
+                or pass the failure off.
+        Done.
+        If kind is "HaveKw", return cast one's have-statement or pass the failure off.
+        If kind is "Send":
+            Cast one's advance.
+            Cast one's skip-noise.
+            Define value as cast one's expression or pass the failure off.
+            Cast one's skip-noise.
+            Cast one's consume on ("Through") or pass the failure off.
+            Cast one's skip-noise.
+            Define channel as cast one's expression or pass the failure off.
+            Return cast one's finish-with-dot on (cast placed on ("SendStatement", a series with (value, channel), tok)) or pass the failure off.
+        Done.
+        If kind is "Close":
+            Cast one's advance.
+            Cast one's skip-noise.
+            Define channel as cast one's expression or pass the failure off.
+            Return cast one's finish-with-dot on (cast placed on ("CloseStatement", a series with (channel), tok)) or pass the failure off.
+        Done.
+        If kind is "AcknowledgeKw":
+            Cast one's advance.
+            Cast one's skip-noise.
+            If cast one's is-word on ("interrupt") is false:
+                Return a failure (cast one's refused on (cast one's peek, "expected 'interrupt'")).
+            Done.
+            Cast one's advance.
+            Return cast one's finish-with-dot on (cast placed on ("AcknowledgeInterruptStatement", a series of node, tok)) or pass the failure off.
+        Done.
+        If kind is "YieldKw":
+            Cast one's advance.
+            Return cast one's finish-with-dot on (cast placed on ("YieldStatement", a series of node, tok)) or pass the failure off.
+        Done.
+        If kind is "GetKw", return cast one's getter-declaration or pass the failure off.
+        If kind is "SetKw", return cast one's setter-declaration or pass the failure off.
+        Return a failure (cast one's refused on (tok, "expected statement keyword, got {kind} \"{tok's lexeme}\"")).
+    Done.
+
+    // ── Naming and changing ───────────────────────────────────────────────
+
+    Bind node or failure to define-statement unto parser:
+        Define define-tok as cast one's advance.
+        Cast one's skip-noise-before-type.
+        If cast one's peek-kind is "Object", return cast one's object-definition on (define-tok) or pass the failure off.
+        Define shadowing as false.
+        If cast one's peek-kind is "Shadow":
+            Cast one's advance.
+            The shadowing becomes true.
+            Cast one's skip-noise.
+        Done.
+        Define declared as cast one's type-before-name or pass the failure off.
+        Define name-tok as cast one's consume on ("Identifier") or pass the failure off.
+        Cast one's skip-noise.
+        // `Define c-language open-file, given (the text path), as [ … ].` — parsed for ANY Define and
+        // refused by the checker for the rest; the clause sits between two commas.
+        Define has-parameters as cast one's peek-kind is "Comma" and cast one's past-comma-is on ("Given").
+        Define parameters as cast one's given-clause or pass the failure off.
+        If has-parameters and cast one's peek-kind is "Comma":
+            Cast one's advance.
+            Cast one's skip-noise.
+        Done.
+        If cast one's peek-kind is "Equal":
+            Return a failure (cast one's refused on (define-tok,
+                "'=' is comparison, not assignment. A 'Define' introduces a name with 'as': "
+                joined to "'Define {name-tok's lexeme} as ...'. To update a name that already exists, write "
+                joined to "'{name-tok's lexeme} becomes ...'.")).
+        Done.
+        Cast one's consume on ("As") or pass the failure off.
+        Cast one's skip-noise.
+        If cast one's peek-kind is "Interface", return cast one's interface-definition on (name-tok, define-tok) or pass the failure off.
+        Define value as cast nothing.
+        If cast one's peek-kind is "Series":
+            The value becomes cast one's series-literal or pass the failure off.
+        Done.
+        Otherwise:
+            The value becomes cast one's expression or pass the failure off.
+        Done.
+        Cast one's skip-noise.
+        Define permanent as false.
+        If cast one's peek-kind is "Permanently":
+            Cast one's advance.
+            The permanent becomes true.
+            Cast one's skip-noise.
+        Done.
+        Define released-by as cast one's free-it-with or pass the failure off.
+        Cast one's consume on ("Dot") or pass the failure off.
+
+        Define is-axiom as value's kind is "AxiomLiteral".
+        If is-axiom and the number of parameters's children is greater than 0:
+            Cast value's add on (cast atom on (":Parameters")).
+            Cast value's add on (parameters).
+        Done.
+        If is-axiom and released-by's word is not "_":
+            Cast value's add on (cast atom on (":ReleasedBy")).
+            Cast value's add on (released-by).
+        Done.
+
+        // `Define regex <name> as [ … ]` — compiled here and lowered to an ordinary function, so
+        // neither backend learns that patterns exist.
+        If is-axiom and released-by's word is "_" and cast names-language on (declared, "regex"):
+            If has-parameters:
+                Return a failure (cast one's refused on (define-tok,
+                    "a pattern cannot be 'given' anything — a value is spliced INTO a pattern, never handed to it as a parameter")).
+            Done.
+            Define states as cast compiled-pattern on (value's word, define-tok's row, define-tok's column)
+                or pass the failure off.
+            Return cast regex-function on (name-tok's lexeme, states, define-tok).
+        Done.
+
+        If is-axiom and released-by's word is "_" and cast names-language on (declared, "cufet"):
+            Define source-tok as a new token {
+                the kind "Axiom", the lexeme value's word,
+                the row cast numeral-value on (item 2 of value's children),
+                the column cast numeral-value on (item 3 of value's children) }.
+            // Says what it gives back ⇒ a function, lowered to a Bind right here.
+            If declared's kind is "AxiomType" and (item 2 of declared's children)'s word is not "_":
+                Define held-body as cast one's held-cufet on (source-tok, true) or pass the failure off.
+                Define lowered as cast made on ("BindStatement", a series with (cast quoted on (name-tok's lexeme),
+                    item 2 of declared's children, parameters, held-body, cast nothing, cast nothing,
+                    cast row-of on (define-tok), cast column-of on (define-tok))).
+                Cast lowered's add on (cast atom on (":FromAxiomLanguage")).
+                Cast lowered's add on (cast quoted on ("cufet")).
+                Return lowered.
+            Done.
+            Define held-source as cast one's held-cufet on (source-tok, false) or pass the failure off.
+            Define holding as cast placed on ("CufetAxiomDefinition", a series with (cast quoted on (name-tok's lexeme), held-source), define-tok).
+            If has-parameters:
+                Cast holding's add on (cast atom on (":HasParameterClause")).
+                Cast holding's add on (cast flag on (true)).
+            Done.
+            Return holding.
+        Done.
+
+        Define defined as cast made on ("DefineStatement", a series with (cast quoted on (name-tok's lexeme), value,
+            cast flag on (permanent), cast flag on (shadowing),
+            cast row-of on (define-tok), cast column-of on (define-tok), declared)).
+        If has-parameters:
+            Cast defined's add on (cast atom on (":HasParameterClause")).
+            Cast defined's add on (cast flag on (true)).
+        Done.
+        Return defined.
+    Done.
+
+    Bind fact to is-module-conformer, given (the node conformed):
+        For each claimed in conformed's children, repeat:
+            Define lowered as claimed's word in lowercase.
+            If lowered is "\"module\"" or lowered is "\"book\"" or lowered is "\"region\"", return true.
+        Done.
+        Return false.
+    Done.
+
+    /// `Define object <name> [of <blank>…] [with (…)] [and as a <type>] [and <interface>…][: … Done.]`
+    Bind node or failure to object-definition unto parser, given (the token define-tok):
+        Cast one's consume on ("Object") or pass the failure off.
+        Cast one's skip-noise.
+        Define name-tok as cast one's consume on ("Identifier") or pass the failure off.
+        Cast one's skip-noise.
+        Define blanks as cast listed.
+        While cast one's peek-kind is "Of", repeat:
+            Cast one's advance.
+            Cast one's skip-noise.
+            Define blank-tok as cast one's consume on ("Identifier") or pass the failure off.
+            Cast blanks's add on (cast quoted on (blank-tok's lexeme)).
+            Cast one's skip-noise.
+        Done.
+        Define permanent as cast listed.
+        Define defaults as cast listed.
+        Define shape as cast made on ("RecordType", a series with (cast listed, cast listed)).
+        If cast one's peek-kind is "With":
+            Cast one's advance.
+            Cast one's skip-noise.
+            The shape becomes cast one's shape-into on (permanent, defaults) or pass the failure off.
+        Done.
+        Cast one's skip-noise.
+        Define embedded as cast nothing.
+        Define conformed as cast listed.
+        While cast one's peek-kind is "And", repeat:
+            Cast one's advance.
+            Cast one's skip-noise.
+            If cast one's peek-kind is "As":
+                Cast one's advance.
+                Cast one's skip-noise.
+                Define embedded-tok as cast one's consume on ("Identifier") or pass the failure off.
+                The embedded becomes cast quoted on (embedded-tok's lexeme).
+            Done.
+            Otherwise:
+                Define claimed-tok as cast one's consume on ("Identifier") or pass the failure off.
+                Cast conformed's add on (cast quoted on (claimed-tok's lexeme)).
+            Done.
+            Cast one's skip-noise.
+        Done.
+        Define methods as cast listed.
+        Define getters as cast listed.
+        Define setters as cast listed.
+        Define carried as cast listed.
+        Define is-module as cast is-module-conformer on (conformed).
+        If cast one's peek-kind is "Colon":
+            Cast one's advance.
+            One's in-object-def becomes true.
+            Increment one's nest-depth by 1.
+            Define scanning as true.
+            While scanning, repeat:
+                Cast one's skip-noise.
+                Define kind as cast one's peek-kind.
+                If kind is "Done" or kind is "Eof", stop.
+                If kind is "Bind":
+                    Define method as cast one's bind-statement or pass the failure off.
+                    Cast methods's add on (method).
+                Done.
+                Otherwise if kind is "GetKw":
+                    Define getter as cast one's getter-declaration or pass the failure off.
+                    Cast getters's add on (getter).
+                Done.
+                Otherwise if kind is "SetKw":
+                    Define setter as cast one's setter-declaration or pass the failure off.
+                    Cast setters's add on (setter).
+                Done.
+                Otherwise if kind is "Define" and is-module:
+                    Define was-in-object as one's in-object-def.
+                    Define carried-tok as cast one's advance.
+                    Cast one's skip-noise-before-type.
+                    Define inner as cast one's object-definition on (carried-tok) or pass the failure off.
+                    Cast carried's add on (inner).
+                    One's in-object-def becomes was-in-object.
+                Done.
+                Otherwise:
+                    Return a failure (cast one's refused on (cast one's peek,
+                        "expected Bind, Get, or Set — only method, getter, and setter definitions are allowed inside an object body")).
+                Done.
+            Done.
+            Decrement one's nest-depth by 1.
+            One's in-object-def becomes false.
+            Cast one's consume on ("Done") or pass the failure off.
+            Cast one's consume on ("Dot") or pass the failure off.
+        Done.
+        Otherwise:
+            Cast one's consume on ("Dot") or pass the failure off.
+        Done.
+        Return cast made on ("ObjectDefinition", a series with (cast quoted on (name-tok's lexeme),
+            item 1 of shape's children, item 2 of shape's children, methods, getters, setters, embedded,
+            conformed, cast row-of on (define-tok), cast column-of on (define-tok), permanent, blanks,
+            carried, defaults)).
+    Done.
+
+    /// A compiled pattern as the function the C# parser lowers it to: `given (the text subject)`,
+    /// and one `Return` that runs the engine over the states and the subject.
+    Bind node to regex-function, given (the text name,
+            the series of records like (the number kind, the text ch, the number step, the number alt) states,
+            the token define-tok):
+        Define elements as cast listed.
+        For each one-state in states, repeat:
+            Define fields as cast listed.
+            For each field-name in a series with ("kind", "ch", "step", "alt"), repeat:
+                Define field-pair as cast listed.
+                Cast field-pair's add on (cast quoted on (field-name)).
+                If field-name is "kind", cast field-pair's add on (cast made on ("NumberLiteral", a series with (cast numeral on (the kind of one-state)))).
+                If field-name is "ch", cast field-pair's add on (cast made on ("StringLiteral", a series with (cast quoted on (the ch of one-state)))).
+                If field-name is "step", cast field-pair's add on (cast made on ("NumberLiteral", a series with (cast numeral on (the step of one-state)))).
+                If field-name is "alt", cast field-pair's add on (cast made on ("NumberLiteral", a series with (cast numeral on (the alt of one-state)))).
+                Cast fields's add on (field-pair).
+            Done.
+            Cast elements's add on (cast placed on ("RecordLiteral", a series with (cast listed, fields), define-tok)).
+        Done.
+        Define state-fields as cast listed.
+        For each shape-field in a series with ("alt", "ch", "kind", "step"), repeat:
+            Define shape-pair as cast listed.
+            Cast shape-pair's add on (cast quoted on (shape-field)).
+            If shape-field is "ch":
+                Cast shape-pair's add on (cast plain-type on ("TextType")).
+            Done.
+            Otherwise:
+                Cast shape-pair's add on (cast plain-type on ("NumberType")).
+            Done.
+            Cast state-fields's add on (shape-pair).
+        Done.
+        Define state-type as cast made on ("RecordType", a series with (cast listed, state-fields)).
+        Define automaton as cast placed on ("SeriesLiteral", a series with (elements, state-type), define-tok).
+        Define call-args as cast listed.
+        Cast call-args's add on (automaton).
+        Cast call-args's add on (cast variable-named on ("subject", define-tok)).
+        Define engine-call as cast placed on ("CastExpression", a series with (
+            cast variable-named on ("match in regex", define-tok), call-args), define-tok).
+        Define body as cast listed.
+        Cast body's add on (cast placed on ("ReturnStatement", a series with (engine-call), define-tok)).
+        Define subject-pair as cast listed.
+        Cast subject-pair's add on (cast plain-type on ("TextType")).
+        Cast subject-pair's add on (cast quoted on ("subject")).
+        Define taking as cast listed.
+        Cast taking's add on (subject-pair).
+        Define lowered as cast made on ("BindStatement", a series with (cast quoted on (name), cast plain-type on ("FactType"),
+            taking, body, cast nothing, cast nothing, cast row-of on (define-tok), cast column-of on (define-tok))).
+        Cast lowered's add on (cast atom on (":FromAxiomLanguage")).
+        Cast lowered's add on (cast quoted on ("regex")).
+        Return lowered.
+    Done.
+
+    /// `, and free it with <name>` — the release half of an acquiring axiom. Nothing when absent.
+    Bind node or failure to free-it-with unto parser:
+        If cast one's peek-kind is not "Comma", return cast nothing.
+        Define second-tok as cast one's token-at on (one's at + 1).
+        Define third-tok as cast one's token-at on (one's at + 2).
+        If second-tok's kind is not "And", return cast nothing.
+        If third-tok's kind is not "Identifier" or cast spelled on (third-tok, "free") is false, return cast nothing.
+        Cast one's advance.
+        Cast one's skip-noise.
+        Cast one's advance.
+        Cast one's skip-noise.
+        Cast one's advance.
+        Cast one's skip-noise.
+        Cast one's consume on ("It") or pass the failure off.
+        Cast one's skip-noise.
+        Cast one's consume on ("With") or pass the failure off.
+        Cast one's skip-noise.
+        Define name-tok as cast one's consume on ("Identifier") or pass the failure off.
+        Cast one's skip-noise.
+        Return cast quoted on (name-tok's lexeme).
+    Done.
+
+    /// NamesRegex / NamesCufet — the declared type names that language's tag.
+    Bind fact to names-language, given (the node declared, the text language):
+        Define wanted as "\"" joined to language joined to "\"".
+        If declared's kind is "ObjectType" or declared's kind is "AxiomType":
+            Return ((item 1 of declared's children)'s word in lowercase) is wanted.
+        Done.
+        Return false.
+    Done.
+
+    Bind number to numeral-value, given (the node leaf):
+        Return (leaf's word converted to number) but void is 0.
+    Done.
+
+    Bind node or failure to becomes-statement unto parser:
+        Define name-tok as cast one's consume on ("Identifier") or pass the failure off.
+        Cast one's skip-noise.
+        If cast one's peek-kind is "Possessive":
+            Return cast one's possessive-set on (cast variable-named on (name-tok's lexeme, name-tok)) or pass the failure off.
+        Done.
+        If cast one's peek-kind is "Equal":
+            Return a failure (cast one's refused on (name-tok,
+                "'=' is comparison, not assignment. Did you mean '{name-tok's lexeme} becomes ...' (update) "
+                joined to "or 'Define {name-tok's lexeme} as ...' (introduce)?")).
+        Done.
+        Cast one's consume on ("Becomes") or pass the failure off.
+        Cast one's skip-noise.
+        Define value as cast one's expression or pass the failure off.
+        Cast one's skip-noise.
+        Cast one's consume on ("Dot") or pass the failure off.
+        Return cast placed on ("BecomesStatement", a series with (cast quoted on (name-tok's lexeme), value), name-tok).
+    Done.
+
+    Bind node or failure to possessive-set unto parser, given (the node target):
+        Define owns as cast one's consume on ("Possessive") or pass the failure off.
+        Cast one's skip-noise.
+        Define member as cast one's advance.
+        Cast one's skip-noise.
+        Cast one's consume on ("Becomes") or pass the failure off.
+        Cast one's skip-noise.
+        Define value as cast one's expression or pass the failure off.
+        Cast one's skip-noise.
+        Cast one's consume on ("Dot") or pass the failure off.
+        Return cast placed on ("PossessiveSetStatement", a series with (target, cast quoted on (member's lexeme), value), owns).
+    Done.
+
+    Bind node or failure to record-named-set unto parser:
+        Cast one's consume on ("Article") or pass the failure off.
+        Define field-tok as cast one's advance.
+        Cast one's skip-noise.
+        Cast one's consume on ("Of") or pass the failure off.
+        Cast one's skip-noise.
+        Define whole as cast one's postfix or pass the failure off.
+        Cast one's skip-noise.
+        Cast one's consume on ("Becomes") or pass the failure off.
+        Cast one's skip-noise.
+        Define value as cast one's expression or pass the failure off.
+        Cast one's skip-noise.
+        Cast one's consume on ("Dot") or pass the failure off.
+        Return cast placed on ("RecordNamedSetStatement", a series with (cast quoted on (field-tok's lexeme), whole, value), field-tok).
+    Done.
+
+    /// `The item 3 of s becomes 1.` / `The first of s becomes 1.`
+    Bind node or failure to series-set-statement unto parser:
+        If cast one's peek-kind is "Item" and cast one's next-word-is on ("at") and cast one's kind-two-after is "LParen":
+            Define item-tok as cast one's advance.
+            Cast one's skip-noise.
+            Cast one's advance.
+            Cast one's skip-noise.
+            Cast one's consume on ("LParen") or pass the failure off.
+            Cast one's skip-noise.
+            Define row as cast one's expression or pass the failure off.
+            Cast one's skip-noise.
+            Cast one's consume on ("Comma") or pass the failure off.
+            Cast one's skip-noise.
+            Define column as cast one's expression or pass the failure off.
+            Cast one's skip-noise.
+            Cast one's consume on ("RParen") or pass the failure off.
+            Cast one's skip-noise.
+            Cast one's consume on ("Of") or pass the failure off.
+            Cast one's skip-noise.
+            Define grid as cast one's core-primary or pass the failure off.
+            Cast one's skip-noise.
+            Cast one's consume on ("Becomes") or pass the failure off.
+            Cast one's skip-noise.
+            Define value as cast one's expression or pass the failure off.
+            Return cast one's finish-with-dot on (cast placed on ("MatrixSetStatement", a series with (grid, row, column, value), item-tok))
+                or pass the failure off.
+        Done.
+        Define lead as cast one's peek.
+        Define index as cast nothing.
+        If lead's kind is "Identifier" and cast is-ordinal-lexeme on (lead's lexeme):
+            Cast one's advance.
+            The index becomes cast ordinal-index on (lead's lexeme).
+        Done.
+        Otherwise:
+            Cast one's consume on ("Item") or pass the failure off.
+            Cast one's skip-noise.
+            The index becomes cast one's expression or pass the failure off.
+        Done.
+        Cast one's skip-noise.
+        Cast one's consume on ("Of") or pass the failure off.
+        Cast one's skip-noise.
+        Define whole as cast one's core-primary or pass the failure off.
+        Cast one's skip-noise.
+        Cast one's consume on ("Becomes") or pass the failure off.
+        Cast one's skip-noise.
+        Define value as cast one's expression or pass the failure off.
+        Cast one's skip-noise.
+        Cast one's consume on ("Dot") or pass the failure off.
+        Return cast placed on ("SeriesSetStatement", a series with (whole, index, value), lead).
+    Done.
+
+    /// `Increment <target> by <amount>.` — sugar, desugared here into the `becomes` it stands for.
+    Bind node or failure to increment-statement unto parser:
+        Define verb as cast one's advance.
+        Define op as "Plus" when verb's kind is "Increment", otherwise "Minus".
+        Cast one's skip-noise.
+        Define name-tok as cast one's peek.
+        If name-tok's kind is "One":
+            Cast one's advance.
+        Done.
+        Otherwise:
+            The name-tok becomes cast one's consume on ("Identifier") or pass the failure off.
+        Done.
+        Define name as "one" when name-tok's kind is "One", otherwise name-tok's lexeme.
+        Define target as cast variable-named on (name, name-tok).
+        Cast one's skip-noise.
+        Define member as "".
+        Define owns as name-tok.
+        If cast one's peek-kind is "Possessive":
+            The owns becomes cast one's advance.
+            Cast one's skip-noise.
+            Define member-tok as cast one's advance.
+            The member becomes member-tok's lexeme.
+            Cast one's skip-noise.
+        Done.
+        Cast one's consume on ("By") or pass the failure off.
+        Cast one's skip-noise.
+        Define amount as cast one's expression or pass the failure off.
+        Cast one's skip-noise.
+        Cast one's consume on ("Dot") or pass the failure off.
+        If member is "":
+            Return cast placed on ("BecomesStatement", a series with (cast quoted on (name),
+                cast binary on (target, op, amount, name-tok)), name-tok).
+        Done.
+        Define read as cast placed on ("PossessiveAccess", a series with (target, cast quoted on (member)), owns).
+        Return cast placed on ("PossessiveSetStatement", a series with (target, cast quoted on (member),
+            cast binary on (read, op, amount, owns)), owns).
+    Done.
+
+    // ── Collections ───────────────────────────────────────────────────────
+
+    Bind node or failure to insert-statement unto parser:
+        Define insert-tok as cast one's advance.
+        Cast one's skip-noise.
+        Define value as cast one's expression or pass the failure off.
+        Cast one's skip-noise.
+        Define after-spot as cast nothing.
+        Define to-start as false.
+        If cast one's peek-kind is "Into":
+            Cast one's advance.
+            Cast one's skip-noise.
+            If cast one's peek-kind is "Start":
+                Cast one's advance.
+                Cast one's skip-noise.
+                Cast one's consume on ("Of") or pass the failure off.
+                Cast one's skip-noise.
+                The to-start becomes true.
+            Done.
+        Done.
+        Otherwise:
+            Cast one's consume on ("After") or pass the failure off.
+            Cast one's skip-noise.
+            Define lead as cast one's peek.
+            If lead's kind is "Identifier" and cast is-ordinal-lexeme on (lead's lexeme):
+                Cast one's advance.
+                The after-spot becomes cast ordinal-index on (lead's lexeme).
+                Cast one's skip-noise.
+                If cast one's peek-kind is "Item", cast one's advance.
+            Done.
+            Otherwise:
+                Cast one's consume on ("Item") or pass the failure off.
+                Cast one's skip-noise.
+                The after-spot becomes cast one's expression or pass the failure off.
+            Done.
+            Cast one's skip-noise.
+            Cast one's consume on ("Of") or pass the failure off.
+            Cast one's skip-noise.
+        Done.
+        Define whole as cast one's core-primary or pass the failure off.
+        Cast one's skip-noise.
+        Cast one's consume on ("Dot") or pass the failure off.
+        Return cast placed on ("SeriesInsertStatement", a series with (value, whole, after-spot, cast flag on (to-start)), insert-tok).
+    Done.
+
+    Bind node or failure to remove-statement unto parser:
+        Define remove-tok as cast one's advance.
+        Cast one's skip-noise.
+        If cast one's peek-kind is "File" or cast one's peek-kind is "DirectoryKw":
+            Define what as cast one's advance.
+            Define action as "RemoveFile" when what's kind is "File", otherwise "RemoveDirectory".
+            Cast one's skip-noise.
+            Define path-expr as cast one's expr-or or pass the failure off.
+            Return cast one's finish-with-dot on (cast placed on ("PathActionStatement",
+                a series with (cast atom on (action), path-expr), remove-tok)) or pass the failure off.
+        Done.
+        Define lead as cast one's peek.
+        If lead's kind is "Identifier" and cast is-ordinal-lexeme on (lead's lexeme):
+            Cast one's advance.
+            Define index as cast ordinal-index on (lead's lexeme).
+            Cast one's skip-noise.
+            If cast one's peek-kind is "Item", cast one's advance.
+            Cast one's skip-noise.
+            Cast one's consume on ("From") or pass the failure off.
+            Cast one's skip-noise.
+            Define whole as cast one's core-primary or pass the failure off.
+            Cast one's skip-noise.
+            Cast one's consume on ("Dot") or pass the failure off.
+            Return cast placed on ("SeriesRemoveAtStatement", a series with (whole, index), remove-tok).
+        Done.
+        If lead's kind is "Item":
+            Cast one's advance.
+            Cast one's skip-noise.
+            Define index as cast one's expression or pass the failure off.
+            Cast one's skip-noise.
+            Cast one's consume on ("From") or pass the failure off.
+            Cast one's skip-noise.
+            Define whole as cast one's core-primary or pass the failure off.
+            Cast one's skip-noise.
+            Cast one's consume on ("Dot") or pass the failure off.
+            Return cast placed on ("SeriesRemoveAtStatement", a series with (whole, index), remove-tok).
+        Done.
+        Define value as cast one's expression or pass the failure off.
+        Cast one's skip-noise.
+        Cast one's consume on ("From") or pass the failure off.
+        Cast one's skip-noise.
+        Define whole as cast one's core-primary or pass the failure off.
+        Cast one's skip-noise.
+        Cast one's consume on ("Dot") or pass the failure off.
+        Return cast placed on ("SeriesRemoveValueStatement", a series with (whole, value), remove-tok).
+    Done.
+
+    Bind node or failure to map-set unto parser:
+        Define in-tok as cast one's advance.
+        Cast one's skip-noise.
+        Define whole as cast one's postfix or pass the failure off.
+        Cast one's skip-noise.
+        Cast one's consume on ("Comma") or pass the failure off.
+        Cast one's skip-noise.
+        If cast one's is-word on ("entry") is false:
+            Return a failure (cast one's refused on (cast one's peek, "expected 'entry'")).
+        Done.
+        Cast one's advance.
+        Cast one's skip-noise.
+        Cast one's consume on ("For") or pass the failure off.
+        Cast one's skip-noise.
+        Define key as cast one's expression or pass the failure off.
+        Cast one's skip-noise.
+        Cast one's consume on ("Becomes") or pass the failure off.
+        Cast one's skip-noise.
+        Define value as cast one's expression or pass the failure off.
+        Cast one's skip-noise.
+        Cast one's consume on ("Dot") or pass the failure off.
+        Return cast placed on ("MapSetStatement", a series with (whole, key, value), in-tok).
+    Done.
+
+    // ── Choosing and repeating ────────────────────────────────────────────
+
+    Bind node or failure to if-statement unto parser:
+        Define arms as cast listed.
+        Define otherwise-body as cast nothing.
+        Define if-tok as cast one's consume on ("If") or pass the failure off.
+        Cast one's skip-noise.
+        Define first-condition as cast one's condition or pass the failure off.
+        Define first-body as cast one's if-body on (if-tok) or pass the failure off.
+        Cast arms's add on (cast made on ("ConditionArm", a series with (first-condition, first-body))).
+        Define scanning as true.
+        While scanning, repeat:
+            Cast one's skip-noise.
+            If cast one's peek-kind is not "Otherwise", stop.
+            Define otherwise-tok as cast one's advance.
+            Cast one's skip-noise.
+            If cast one's peek-kind is "If":
+                Define else-if-tok as cast one's advance.
+                Cast one's skip-noise.
+                Define condition as cast one's condition or pass the failure off.
+                Define body as cast one's if-body on (else-if-tok) or pass the failure off.
+                Cast arms's add on (cast made on ("ConditionArm", a series with (condition, body))).
+            Done.
+            Otherwise:
+                The otherwise-body becomes cast one's if-body on (otherwise-tok) or pass the failure off.
+                The scanning becomes false.
+            Done.
+        Done.
+        Return cast made on ("IfStatement", a series with (arms, otherwise-body)).
+    Done.
+
+    /// A comma and ONE statement, or a colon and a block closed by `Done.`
+    Bind node or failure to if-body unto parser, given (the token opener):
+        Cast one's skip-noise.
+        If cast one's peek-kind is "Comma":
+            Cast one's advance.
+            Cast one's skip-noise.
+            Increment one's nest-depth by 1.
+            Define single as cast one's statement or pass the failure off.
+            Decrement one's nest-depth by 1.
+            Define body as cast listed.
+            Cast body's add on (single).
+            Return body.
+        Done.
+        Cast one's consume on ("Colon") or pass the failure off.
+        Increment one's nest-depth by 1.
+        Define body as cast one's loop-body on (opener, "Otherwise") or pass the failure off.
+        Decrement one's nest-depth by 1.
+        Return body.
+    Done.
+
+    /// Statements up to `Done.` — at least one. A token in `continuation` (an `Otherwise`) arriving
+    /// first means the block was never closed.
+    Bind node or failure to loop-body unto parser, given (the token opener, the text continuation):
+        Define body as cast listed.
+        Define scanning as true.
+        While scanning, repeat:
+            Cast one's skip-noise.
+            Define kind as cast one's peek-kind.
+            If kind is "Done" or kind is "Eof", stop.
+            If continuation is not "" and kind is continuation:
+                Return a failure (cast one's refused on (opener, "this '{opener's lexeme}' opens a block, and '{(cast one's peek)'s lexeme}' arrived before its 'Done.'")).
+            Done.
+            Define inner as cast one's statement or pass the failure off.
+            Cast body's add on (inner).
+        Done.
+        If the number of body's children is 0:
+            Return a failure (cast one's refused on (cast one's peek, "expected at least one statement in loop body")).
+        Done.
+        If cast one's peek-kind is "Eof":
+            Return a failure (cast one's refused on (opener, "this '{opener's lexeme}' opens a block, and the file ended before its 'Done.'")).
+        Done.
+        Cast one's consume on ("Done") or pass the failure off.
+        Cast one's consume on ("Dot") or pass the failure off.
+        Return body.
+    Done.
+
+    /// A loop's body: `repeat:` and a block, or one statement.
+    Bind node or failure to loop-body-or-inline unto parser:
+        Cast one's skip-noise.
+        Increment one's loop-depth by 1.
+        Increment one's nest-depth by 1.
+        Define body as cast listed.
+        If cast one's peek-kind is "Repeat":
+            Define repeat-tok as cast one's advance.
+            Cast one's skip-noise.
+            Cast one's consume on ("Colon") or pass the failure off.
+            The body becomes cast one's loop-body on (repeat-tok, "") or pass the failure off.
+        Done.
+        Otherwise:
+            Define single as cast one's statement or pass the failure off.
+            Cast body's add on (single).
+        Done.
+        Decrement one's nest-depth by 1.
+        Decrement one's loop-depth by 1.
+        Return body.
+    Done.
+
+    Bind node or failure to while-statement unto parser:
+        Cast one's advance.
+        Cast one's skip-noise.
+        Define condition as cast one's condition or pass the failure off.
+        Cast one's skip-noise.
+        Cast one's consume on ("Comma") or pass the failure off.
+        Define body as cast one's loop-body-or-inline or pass the failure off.
+        Return cast made on ("WhileStatement", a series with (condition, body)).
+    Done.
+
+    Bind node or failure to repeat-until unto parser:
+        Cast one's advance.
+        Cast one's skip-noise.
+        Cast one's consume on ("Colon") or pass the failure off.
+        Increment one's loop-depth by 1.
+        Increment one's nest-depth by 1.
+        Define body as cast listed.
+        Define scanning as true.
+        While scanning, repeat:
+            Cast one's skip-noise.
+            If cast one's peek-kind is "Until" or cast one's peek-kind is "Eof", stop.
+            Define inner as cast one's statement or pass the failure off.
+            Cast body's add on (inner).
+        Done.
+        If the number of body's children is 0:
+            Return a failure (cast one's refused on (cast one's peek, "expected at least one statement in repeat-until body")).
+        Done.
+        Decrement one's nest-depth by 1.
+        Decrement one's loop-depth by 1.
+        Cast one's consume on ("Until") or pass the failure off.
+        Cast one's skip-noise.
+        Define condition as cast one's condition or pass the failure off.
+        Cast one's skip-noise.
+        Cast one's consume on ("Dot") or pass the failure off.
+        Return cast made on ("RepeatUntilStatement", a series with (body, condition)).
+    Done.
+
+    Bind node or failure to for-each unto parser:
+        Define for-tok as cast one's advance.
+        Cast one's skip-noise.
+        Cast one's consume on ("Each") or pass the failure off.
+        Cast one's skip-noise.
+        Define iterator as cast nothing.
+        If cast one's peek-kind is "Identifier" or cast one's peek-kind is "Item":
+            Define name-tok as cast one's advance.
+            The iterator becomes cast quoted on (name-tok's lexeme).
+            Cast one's skip-noise.
+        Done.
+        If cast one's peek-kind is "From":
+            Cast one's advance.
+            Cast one's skip-noise.
+            If cast one's peek-kind is not "Identifier" or cast one's is-word on ("input") is false:
+                Return a failure (cast one's refused on (cast one's peek, "expected 'input' (in 'for each ... from the input:')")).
+            Done.
+            Cast one's advance.
+            Cast one's skip-noise.
+            Increment one's loop-depth by 1.
+            Increment one's nest-depth by 1.
+            Define consumer-body as cast listed.
+            If cast one's peek-kind is "Comma":
+                Cast one's advance.
+                Cast one's skip-noise.
+                Define single as cast one's statement or pass the failure off.
+                Cast consumer-body's add on (single).
+            Done.
+            Otherwise:
+                Define colon-tok as cast one's consume on ("Colon") or pass the failure off.
+                The consumer-body becomes cast one's loop-body on (colon-tok, "") or pass the failure off.
+            Done.
+            Decrement one's nest-depth by 1.
+            Decrement one's loop-depth by 1.
+            Define consumer-name as "it".
+            If iterator's word is not "_":
+                Define name-length as the length of iterator's word.
+                The consumer-name becomes the characters from 2 to (name-length - 1) of iterator's word.
+            Done.
+            Return cast placed on ("ForEachFromInputStatement", a series with (cast quoted on (consumer-name), consumer-body), for-tok).
+        Done.
+        Cast one's consume on ("In") or pass the failure off.
+        Cast one's skip-noise.
+        Define over as cast one's expression or pass the failure off.
+        Cast one's skip-noise.
+        Cast one's consume on ("Comma") or pass the failure off.
+        Define body as cast one's loop-body-or-inline or pass the failure off.
+        Return cast placed on ("ForEachStatement", a series with (iterator, over, body), for-tok).
+    Done.
+
+    // ── Conditions ────────────────────────────────────────────────────────
+
+    Bind node or failure to condition unto parser:
+        Define left as cast one's logical-xor or pass the failure off.
+        While cast one's peek-kind is "Or", repeat:
+            Define op-tok as cast one's advance.
+            Cast one's skip-noise.
+            Define right as cast one's logical-xor or pass the failure off.
+            The left becomes cast binary on (left, "Or", right, op-tok).
+        Done.
+        Return left.
+    Done.
+
+    Bind node or failure to logical-xor unto parser:
+        Define left as cast one's logical-and or pass the failure off.
+        While cast one's peek-kind is "Xor", repeat:
+            Define op-tok as cast one's advance.
+            Cast one's skip-noise.
+            Define right as cast one's logical-and or pass the failure off.
+            The left becomes cast binary on (left, "Xor", right, op-tok).
+        Done.
+        Return left.
+    Done.
+
+    Bind node or failure to logical-and unto parser:
+        Define left as cast one's cond-not or pass the failure off.
+        While cast one's peek-kind is "And", repeat:
+            Define op-tok as cast one's advance.
+            Cast one's skip-noise.
+            Define right as cast one's cond-not or pass the failure off.
+            The left becomes cast binary on (left, "And", right, op-tok).
+        Done.
+        Return left.
+    Done.
+
+    Bind node or failure to cond-not unto parser:
+        If cast one's peek-kind is "Not":
+            Define not-tok as cast one's advance.
+            Cast one's skip-noise.
+            Define operand as cast one's cond-not or pass the failure off.
+            Return cast unary on ("Not", operand, not-tok).
+        Done.
+        Return cast one's single-condition or pass the failure off.
+    Done.
+
+    Bind node or failure to single-condition unto parser:
+        Cast one's skip-noise.
+        Define left as cast one's joined-to or pass the failure off.
+        Cast one's skip-noise.
+        If cast is-symbol-comparison on (cast one's peek-kind):
+            Define op-tok as cast one's advance.
+            Cast one's skip-noise.
+            Define right as cast one's joined-to or pass the failure off.
+            Return cast binary on (left, op-tok's kind, right, op-tok).
+        Done.
+        If cast one's peek-kind is not "Is", return left.
+        Define is-tok as cast one's advance.
+        Return cast one's after-is on (left, is-tok) or pass the failure off.
+    Done.
+
+    // ── Functions ─────────────────────────────────────────────────────────
+
+    Bind node or failure to cast-statement unto parser:
+        Define call as cast one's cast-expression or pass the failure off.
+        Cast one's skip-noise.
+        Define passes-off as false.
+        If cast one's peek-kind is "Or" and cast one's kind-after is "Pass":
+            Cast one's advance.
+            Cast one's skip-noise.
+            Cast one's consume on ("Pass") or pass the failure off.
+            Cast one's skip-noise.
+            Cast one's consume on ("Failure") or pass the failure off.
+            Cast one's skip-noise.
+            Cast one's consume on ("Off") or pass the failure off.
+            Cast one's skip-noise.
+            The passes-off becomes true.
+        Done.
+        Cast one's consume on ("Dot") or pass the failure off.
+        // A statement carries the call's own fields, in the same order, then what the parser set on it.
+        Define statement as cast made on ("CastStatement", call's children).
+        If passes-off:
+            Cast statement's add on (cast atom on (":PassesFailureOff")).
+            Cast statement's add on (cast flag on (true)).
+        Done.
+        Return statement.
+    Done.
+
+    Bind node or failure to return-statement unto parser:
+        Define return-tok as cast one's advance.
+        If one's function-depth is 0:
+            Return a failure (cast one's refused on (return-tok, "'return' used outside a function")).
+        Done.
+        Cast one's skip-noise.
+        If cast one's peek-kind is "Dot":
+            Cast one's advance.
+            Return cast placed on ("ReturnStatement", a series with (cast nothing), return-tok).
+        Done.
+        Define value as cast one's expression or pass the failure off.
+        Cast one's skip-noise.
+        Cast one's consume on ("Dot") or pass the failure off.
+        Return cast placed on ("ReturnStatement", a series with (value), return-tok).
+    Done.
+
+    Bind node or failure to bind-statement unto parser:
+        Define bind-tok as cast one's advance.
+        If one's nest-depth is greater than 0 and one's in-object-def is false and one's in-free-function is false:
+            Return a failure (cast one's refused on (bind-tok,
+                "Functions can only be declared at the top level or inside another function, not inside a block")).
+        Done.
+        Define saved-object-def as one's in-object-def.
+        Define saved-free-function as one's in-free-function.
+        One's in-object-def becomes false.
+        Cast one's skip-noise.
+        Define constructs as cast nothing.
+        Define returned as cast nothing.
+        If cast one's peek-kind is "MakingKw":
+            Cast one's advance.
+            Cast one's skip-noise.
+            Define made-tok as cast one's consume on ("Identifier") or pass the failure off.
+            Cast one's skip-noise.
+            The constructs becomes cast quoted on (made-tok's lexeme).
+            The returned becomes cast made on ("ObjectType", a series with (cast quoted on (made-tok's lexeme), cast listed)).
+            If cast one's peek-kind is "Or" and cast one's kind-after is "Failure":
+                Cast one's advance.
+                Cast one's skip-noise.
+                Cast one's consume on ("Failure") or pass the failure off.
+                Cast one's skip-noise.
+                The returned becomes cast made on ("FailureType", a series with (returned)).
+            Done.
+        Done.
+        Otherwise:
+            The returned becomes cast one's return-type or pass the failure off.
+            Cast one's skip-noise.
+        Done.
+        Cast one's consume on ("To") or pass the failure off.
+        Cast one's skip-noise.
+        Define name-tok as cast one's consume on ("Identifier") or pass the failure off.
+        Cast one's skip-noise.
+        Define unto-name as cast nothing.
+        If cast one's peek-kind is "Unto":
+            Cast one's advance.
+            Cast one's skip-noise.
+            The unto-name becomes cast one's unto-target or pass the failure off.
+            Cast one's skip-noise.
+        Done.
+        Define parameters as cast one's given-clause or pass the failure off.
+        Define when-clause as cast nothing.
+        Cast one's skip-noise.
+        If cast one's peek-kind is "When":
+            Cast one's advance.
+            Cast one's skip-noise.
+            The when-clause becomes cast one's expression or pass the failure off.
+            Cast one's skip-noise.
+        Done.
+        One's in-free-function becomes unto-name's word is "_" and constructs's word is "_" and saved-object-def is false.
+        Increment one's function-depth by 1.
+        Define body as cast listed.
+        If returned's word is "_" or cast is-void-or-failure on (returned):
+            The body becomes cast one's void-body on (bind-tok) or pass the failure off.
+        Done.
+        Otherwise:
+            The body becomes cast one's value-body on (bind-tok) or pass the failure off.
+        Done.
+        Decrement one's function-depth by 1.
+        One's in-object-def becomes saved-object-def.
+        One's in-free-function becomes saved-free-function.
+        Define bound as cast made on ("BindStatement", a series with (cast quoted on (name-tok's lexeme), returned,
+            parameters, body, unto-name, constructs, cast row-of on (bind-tok), cast column-of on (bind-tok))).
+        If when-clause's word is not "_":
+            Cast bound's add on (cast atom on (":When")).
+            Cast bound's add on (when-clause).
+        Done.
+        Return bound.
+    Done.
+
+    Bind fact to is-void-or-failure, given (the node returned):
+        If returned's kind is not "FailureType", return false.
+        Define inner as item 1 of returned's children.
+        Return inner's kind is "VoidType".
+    Done.
+
+    /// ParseReturnType — nothing for a bare `void`.
+    Bind node or failure to return-type unto parser:
+        Increment one's type-depth by 1.
+        Define parsed as cast one's return-type-core or pass the failure off.
+        Decrement one's type-depth by 1.
+        Return parsed.
+    Done.
+
+    Bind node or failure to return-type-core unto parser:
+        If cast one's peek-kind is "Void":
+            Cast one's advance.
+            Cast one's skip-noise.
+            If cast one's peek-kind is "Or" and cast one's kind-after is "Failure":
+                Cast one's advance.
+                Cast one's skip-noise.
+                Cast one's consume on ("Failure") or pass the failure off.
+                Cast one's skip-noise.
+                Return cast made on ("FailureType", a series with (cast plain-type on ("VoidType"))).
+            Done.
+            If cast one's peek-kind is not "FunctionKw", return cast nothing.
+            Cast one's advance.
+            Cast one's skip-noise.
+            Define parameters as cast one's function-param-type-list or pass the failure off.
+            Return cast made on ("FunctionType", a series with (parameters, cast nothing)).
+        Done.
+        If cast one's peek-kind is "Record":
+            Cast one's advance.
+            Cast one's skip-noise.
+            If cast one's peek-kind is "Identifier":
+                Cast one's advance.
+                Cast one's skip-noise.
+            Done.
+            Cast one's consume on ("With") or pass the failure off.
+            Cast one's skip-noise.
+            Return cast one's record-shape-body or pass the failure off.
+        Done.
+        Define base as cast one's type-annotation or pass the failure off.
+        Cast one's skip-noise.
+        If cast one's peek-kind is "Or" and cast one's kind-after is "Failure":
+            Cast one's advance.
+            Cast one's skip-noise.
+            Cast one's consume on ("Failure") or pass the failure off.
+            Cast one's skip-noise.
+            Return cast made on ("FailureType", a series with (base)).
+        Done.
+        If cast one's peek-kind is not "FunctionKw", return base.
+        Cast one's advance.
+        Cast one's skip-noise.
+        Define parameters as cast one's function-param-type-list or pass the failure off.
+        Return cast made on ("FunctionType", a series with (parameters, base)).
+    Done.
+
+    /// `, given (<type> <name>, …)` — an empty list when there is none.
+    Bind node or failure to given-clause unto parser:
+        Define parameters as cast listed.
+        If cast one's peek-kind is not "Comma" or cast one's past-comma-is on ("Given") is false, return parameters.
+        Cast one's advance.
+        Cast one's skip-noise.
+        Cast one's consume on ("Given") or pass the failure off.
+        Cast one's skip-noise.
+        Cast one's consume on ("LParen") or pass the failure off.
+        Cast one's skip-noise.
+        If cast one's peek-kind is not "RParen":
+            Define first-parameter as cast one's parameter or pass the failure off.
+            Cast parameters's add on (first-parameter).
+            Cast one's skip-noise.
+            While cast one's peek-kind is "Comma", repeat:
+                Cast one's advance.
+                Cast one's skip-noise.
+                Define next-parameter as cast one's parameter or pass the failure off.
+                Cast parameters's add on (next-parameter).
+                Cast one's skip-noise.
+            Done.
+        Done.
+        Cast one's consume on ("RParen") or pass the failure off.
+        Cast one's skip-noise.
+        Return parameters.
+    Done.
+
+    /// `[<type> <name>]`, or a function-typed one: `<type> function <name> given (…)`.
+    Bind node or failure to parameter unto parser:
+        Cast one's skip-noise-before-type.
+        If cast one's peek-kind is "Record":
+            Cast one's advance.
+            Cast one's skip-noise.
+            Define record-name as cast one's consume on ("Identifier") or pass the failure off.
+            Cast one's skip-noise.
+            Cast one's consume on ("With") or pass the failure off.
+            Cast one's skip-noise.
+            Define shape as cast one's record-shape-body or pass the failure off.
+            Define record-pair as cast listed.
+            Cast record-pair's add on (shape).
+            Cast record-pair's add on (cast quoted on (record-name's lexeme)).
+            Return record-pair.
+        Done.
+        Define returned as cast nothing.
+        If cast one's peek-kind is "Void":
+            Cast one's advance.
+            Cast one's skip-noise.
+            If cast one's peek-kind is not "FunctionKw":
+                Return a failure (cast one's refused on (cast one's peek,
+                    "expected function — 'void' can only appear as the return type of a function-typed parameter")).
+            Done.
+        Done.
+        Otherwise:
+            The returned becomes cast one's type-annotation or pass the failure off.
+            Cast one's skip-noise.
+            If cast one's peek-kind is not "FunctionKw":
+                Define name-tok as cast one's consume on ("Identifier") or pass the failure off.
+                Define pair as cast listed.
+                Cast pair's add on (returned).
+                Cast pair's add on (cast quoted on (name-tok's lexeme)).
+                Return pair.
+            Done.
+        Done.
+        Cast one's advance.
+        Cast one's skip-noise.
+        Define name-tok as cast one's consume on ("Identifier") or pass the failure off.
+        Cast one's skip-noise.
+        Define inner as cast one's function-param-type-list or pass the failure off.
+        Define pair as cast listed.
+        Cast pair's add on (cast made on ("FunctionType", a series with (inner, returned))).
+        Cast pair's add on (cast quoted on (name-tok's lexeme)).
+        Return pair.
+    Done.
+
+    /// A body giving a value back: a comma and the value, or a block.
+    Bind node or failure to value-body unto parser, given (the token opener):
+        Cast one's skip-noise.
+        If cast one's peek-kind is "Comma":
+            Define comma as cast one's advance.
+            Cast one's skip-noise.
+            If cast one's peek-kind is "Return":
+                Return a failure (cast one's not-yet on ("the inline-body refusals")).
+            Done.
+            Increment one's nest-depth by 1.
+            Define value as cast one's expression or pass the failure off.
+            Decrement one's nest-depth by 1.
+            Cast one's skip-noise.
+            Cast one's consume on ("Dot") or pass the failure off.
+            Define body as cast listed.
+            Cast body's add on (cast placed on ("ReturnStatement", a series with (value), comma)).
+            Return body.
+        Done.
+        Cast one's consume on ("Colon") or pass the failure off.
+        Increment one's nest-depth by 1.
+        Define body as cast one's function-body on (opener) or pass the failure off.
+        Decrement one's nest-depth by 1.
+        Return body.
+    Done.
+
+    /// A body giving nothing back: a comma and one statement, or a block.
+    Bind node or failure to void-body unto parser, given (the token opener):
+        Cast one's skip-noise.
+        If cast one's peek-kind is "Comma":
+            Cast one's advance.
+            Cast one's skip-noise.
+            Increment one's nest-depth by 1.
+            Define single as cast one's statement or pass the failure off.
+            Decrement one's nest-depth by 1.
+            Define body as cast listed.
+            Cast body's add on (single).
+            Return body.
+        Done.
+        Cast one's consume on ("Colon") or pass the failure off.
+        Increment one's nest-depth by 1.
+        Define body as cast one's function-body on (opener) or pass the failure off.
+        Decrement one's nest-depth by 1.
+        Return body.
+    Done.
+
+    /// Statements up to `Done.` — none is fine.
+    Bind node or failure to function-body unto parser, given (the token opener):
+        Define body as cast listed.
+        Define scanning as true.
+        While scanning, repeat:
+            Cast one's skip-noise.
+            If cast one's peek-kind is "Done" or cast one's peek-kind is "Eof", stop.
+            Define inner as cast one's statement or pass the failure off.
+            Cast body's add on (inner).
+        Done.
+        If cast one's peek-kind is "Eof":
+            Return a failure (cast one's refused on (opener, "this '{opener's lexeme}' opens a block, and the file ended before its 'Done.'")).
+        Done.
+        Cast one's consume on ("Done") or pass the failure off.
+        Cast one's consume on ("Dot") or pass the failure off.
+        Return body.
+    Done.
+
+    // ── Failures ──────────────────────────────────────────────────────────
+
+    /// PeekHandlerKind — the word after `In case of`, or Eof.
+    Bind text to handler-kind unto parser:
+        Define spot as cast one's past-noise on (one's at).
+        For each expected in a series with ("In", "Case", "Of"), repeat:
+            Define here as cast one's token-at on (spot).
+            If here's kind is not expected, return "Eof".
+            The spot becomes cast one's past-noise on (spot + 1).
+        Done.
+        Define found as cast one's token-at on (spot).
+        Return found's kind.
+    Done.
+
+    Bind node or failure to try-statement unto parser:
+        Define try-tok as cast one's advance.
+        Cast one's skip-noise.
+        Cast one's consume on ("To") or pass the failure off.
+        Cast one's skip-noise.
+        Cast one's consume on ("Colon") or pass the failure off.
+        Increment one's nest-depth by 1.
+        Define body as cast one's loop-body on (try-tok, "") or pass the failure off.
+        Decrement one's nest-depth by 1.
+        Cast one's skip-noise.
+        Define on-failure as cast nothing.
+        Define on-exception as cast nothing.
+        If cast one's handler-kind is "Failure":
+            Define handler-tok as cast one's advance.
+            Cast one's skip-noise.
+            For each word in a series with ("Case", "Of", "Failure"), repeat:
+                Cast one's consume on (word) or pass the failure off.
+                Cast one's skip-noise.
+            Done.
+            Cast one's consume on ("Colon") or pass the failure off.
+            Increment one's nest-depth by 1.
+            The on-failure becomes cast one's loop-body on (handler-tok, "") or pass the failure off.
+            Decrement one's nest-depth by 1.
+            Cast one's skip-noise.
+        Done.
+        Define exception-name as "exception".
+        If cast one's handler-kind is "Exception":
+            Define handler-tok as cast one's advance.
+            Cast one's skip-noise.
+            For each word in a series with ("Case", "Of", "Exception"), repeat:
+                Cast one's consume on (word) or pass the failure off.
+                Cast one's skip-noise.
+            Done.
+            If cast one's peek-kind is "LParen":
+                Cast one's advance.
+                Cast one's skip-noise.
+                If cast one's peek-kind is "Exception":
+                    Cast one's advance.
+                Done.
+                Otherwise:
+                    Define named as cast one's consume on ("Identifier") or pass the failure off.
+                    The exception-name becomes named's lexeme.
+                Done.
+                Cast one's skip-noise.
+                Cast one's consume on ("RParen") or pass the failure off.
+                Cast one's skip-noise.
+            Done.
+            Cast one's consume on ("Colon") or pass the failure off.
+            Increment one's nest-depth by 1.
+            The on-exception becomes cast one's loop-body on (handler-tok, "") or pass the failure off.
+            Decrement one's nest-depth by 1.
+        Done.
+        Define attempt as cast placed on ("TryStatement", a series with (body, on-failure, on-exception), try-tok).
+        Cast attempt's add on (cast atom on (":ExceptionName")).
+        Cast attempt's add on (cast quoted on (exception-name)).
+        Return attempt.
+    Done.
+
+    // ── Pulls ─────────────────────────────────────────────────────────────
+
+    Bind fact to is-book-word unto parser, given (the text word):
+        Define here as cast one's peek.
+        If here's kind is not "Identifier" or cast spelled on (here, word) is false, return false.
+        Define next-tok as cast one's token-at on (one's at + 1).
+        Return next-tok's kind is "On".
+    Done.
+
+    /// One pulled entry: `<name> [as <local>]`, as a pair.
+    Bind node or failure to pull-entry unto parser:
+        Define book-tok as cast one's consume on ("Identifier") or pass the failure off.
+        Cast one's skip-noise.
+        Define local as book-tok's lexeme.
+        If cast one's peek-kind is "As":
+            Cast one's advance.
+            Cast one's skip-noise.
+            Define local-tok as cast one's consume on ("Identifier") or pass the failure off.
+            The local becomes local-tok's lexeme.
+            Cast one's skip-noise.
+        Done.
+        Define pair as cast listed.
+        Cast pair's add on (cast quoted on (book-tok's lexeme)).
+        Cast pair's add on (cast quoted on (local)).
+        Return pair.
+    Done.
+
+    /// Statements up to `Done.` — none is fine, and no nesting is counted.
+    Bind node or failure to pull-body unto parser, given (the node books):
+        Define introduces as false.
+        For each entry in books's children, repeat:
+            If ((item 1 of entry's children)'s word in lowercase) is "\"collections\"", the introduces becomes true.
+        Done.
+        If introduces, increment one's collections-depth by 1.
+        Define body as cast listed.
+        Define scanning as true.
+        While scanning, repeat:
+            Cast one's skip-noise.
+            If cast one's peek-kind is "Done" or cast one's peek-kind is "Eof", stop.
+            Define inner as cast one's statement or pass the failure off.
+            Cast body's add on (inner).
+        Done.
+        Cast one's consume on ("Done") or pass the failure off.
+        Cast one's consume on ("Dot") or pass the failure off.
+        If introduces, decrement one's collections-depth by 1.
+        Return body.
+    Done.
+
+    Bind node or failure to pull-statement unto parser:
+        Define pull-tok as cast one's advance.
+        Cast one's skip-noise.
+        Define here as cast one's peek.
+        If here's kind is "Identifier" and cast spelled on (here, "rabbit"):
+            Cast one's advance.
+            Cast one's skip-noise.
+            Define name as cast nothing.
+            If cast one's peek-kind is "As":
+                Cast one's advance.
+                Cast one's skip-noise.
+                Define name-tok as cast one's consume on ("Identifier") or pass the failure off.
+                The name becomes cast quoted on (name-tok's lexeme).
+                Cast one's skip-noise.
+            Done.
+            Cast one's consume on ("Dot") or pass the failure off.
+            Define body as cast one's pull-body on (cast listed) or pass the failure off.
+            Return cast placed on ("PullRabbitStatement", a series with (name, body), pull-tok).
+        Done.
+        Define books as cast listed.
+        Define via-book as false.
+        If cast one's is-book-word on ("books"):
+            Cast one's advance.
+            Cast one's skip-noise.
+            Cast one's consume on ("On") or pass the failure off.
+            Cast one's skip-noise.
+            Define first-entry as cast one's pull-entry or pass the failure off.
+            Cast books's add on (first-entry).
+            Define scanning as true.
+            While cast one's peek-kind is "Comma" or cast one's peek-kind is "And", repeat:
+                If cast one's peek-kind is "Comma", cast one's advance.
+                Cast one's skip-noise.
+                If cast one's peek-kind is "And", cast one's advance.
+                Cast one's skip-noise.
+                If cast one's peek-kind is "Dot", stop.
+                Define entry as cast one's pull-entry or pass the failure off.
+                Cast books's add on (entry).
+            Done.
+            The via-book becomes true.
+        Done.
+        Otherwise if cast one's is-book-word on ("book"):
+            Cast one's advance.
+            Cast one's skip-noise.
+            Cast one's consume on ("On") or pass the failure off.
+            Cast one's skip-noise.
+            Define entry as cast one's pull-entry or pass the failure off.
+            Cast books's add on (entry).
+            The via-book becomes true.
+        Done.
+        Otherwise:
+            Define entry as cast one's pull-entry or pass the failure off.
+            Cast books's add on (entry).
+        Done.
+        Cast one's consume on ("Dot") or pass the failure off.
+        Define body as cast listed.
+        If via-book:
+            The body becomes cast one's pull-body on (books) or pass the failure off.
+        Done.
+        Otherwise:
+            The body becomes cast one's pull-body on (cast listed) or pass the failure off.
+        Done.
+        Return cast made on ("PullStatement", a series with (books, body,
+            cast row-of on (pull-tok), cast column-of on (pull-tok), cast flag on (via-book))).
+    Done.
+Done.

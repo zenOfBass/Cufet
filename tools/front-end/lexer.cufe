@@ -1,0 +1,32 @@
+/*  The Cufet lexer, written in Cufet.
+
+        cufet tools/front-end/lexer.cufe <file.cufe> [more…]
+
+    Prints every token of every file named, one per line:
+
+        file    <the path, as given>
+        <token type> <line> <column> <lexeme>
+        …
+        Eof     <line> <column>
+
+    separated by tabs, with a backslash, a line break, a tab and a carriage return in a lexeme
+    written `\\`, `\n`, `\t` and `\r` so that a token is always one line. A file the lexer refuses
+    prints `error`, the line, the column and the reason instead of its tokens — exactly what
+    `src/Lexer/Lexer.cs` does, which throws before handing any token over.
+
+    The scanning itself is `scanner.cufe`, beside this, where the parser reaches it too.
+*/
+
+For each name in the arguments, repeat:
+    State "file\t{name}".
+    Try to:
+        Define whole as read all from the file name.
+        Define found as cast tokens-of on (whole).
+        For each token in found, repeat:
+            State "{token's kind}\t{token's row}\t{token's column}\t{cast escaped on (token's lexeme)}".
+        Done.
+    Done.
+    In case of failure:
+        State "error\t{the message of the failure}".
+    Done.
+Done.

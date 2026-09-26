@@ -1,0 +1,61 @@
+/*  The Cufet parser, written in Cufet.
+
+        cufet tools/front-end/parser.cufe <file.cufe> [more…]
+
+    Prints each file's tree, one line per top-level statement:
+
+        file    <the path, as given>
+        (DefineStatement "total" (NumberLiteral 0) false false 1 1 _)
+        …
+
+    in the shape `ParserTreePrinter` prints the C# parser's tree — `(Kind field field …)` in each
+    record's field order — so `ParserParityTests` can compare the two line for line. A file this
+    parser cannot read yet prints `unsupported`, the line, the column and what it met; a file the
+    C# parser would refuse prints `error` and why.
+
+    The files beside this one hold the rest: `reader` the parser's hold on its tokens, `types`,
+    `expressions`, `primaries` and `statements` the grammar, `tree` the node and its printer, and
+    `scanner` the lexer they all read from.
+*/
+
+Pull a book on collections.
+    /// The whole program's statements as printed lines — or the one line saying why not.
+    Bind series of text or failure to program-lines, given (the text whole):
+        Define found as cast tokens-of on (whole) but on failure a series of token.
+        If the number of found is 0:
+            Return a failure "error\tthe lexer refused this file".
+        Done.
+        Define reading as a new parser {
+            the tokens found, the at 1, the type-depth 0, the collections-depth 0, the loop-depth 0,
+            the nest-depth 0, the function-depth 0, the in-object-def false, the in-free-function false }.
+        Define statements as cast listed.
+        Define scanning as true.
+        While scanning, repeat:
+            Cast reading's skip-noise.
+            If cast reading's peek-kind is "Eof", stop.
+            Define next-statement as cast reading's statement or pass the failure off.
+            Cast statements's add on (next-statement).
+        Done.
+        // The one pass the C# parser runs over the whole program before handing it on.
+        Define expanded as cast expand-defaults on (statements) or pass the failure off.
+        Define lines as a series of text.
+        For each finished in expanded's children, repeat:
+            Insert cast shown-tree on (finished) into lines.
+        Done.
+        Return lines.
+    Done.
+
+    For each name in the arguments, repeat:
+        State "file\t{name}".
+        Try to:
+            Define whole as read all from the file name.
+            Define lines as cast program-lines on (whole).
+            For each line in lines, repeat:
+                State line.
+            Done.
+        Done.
+        In case of failure:
+            State the message of the failure.
+        Done.
+    Done.
+Done.

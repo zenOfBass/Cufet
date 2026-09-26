@@ -1,0 +1,604 @@
+/*  The primaries — ParseCorePrimary in `src/Interpreter/Parser.cs`, and what it leans on: text
+    with holes, call arguments, `cast`, record, series and object literals.
+
+    ⚠ ParseCorePrimary is the largest method in that file. Its cases are ported here in the order
+    the corpus uses them most, and anything not yet ported stops the file as `unsupported`, naming
+    the token that opened it — so the parity test's list of unsupported files is also the list of
+    what to write next.
+*/
+
+Pull a book on collections.
+    Bind fact to looks-like-index-start, given (the text kind):
+        For each opener in a series with ("Number", "String", "InterpolOpen", "Identifier", "It",
+                "One", "LParen", "Article", "TrueKw", "FalseKw", "Minus"), repeat:
+            If kind is opener, return true.
+        Done.
+        Return false.
+    Done.
+
+    /// OrdinalToIndex — `first` is 1 … `tenth` is 10, and `last` is nothing.
+    Bind node to ordinal-index, given (the text lexeme):
+        Define lowered as lexeme in lowercase.
+        Define place as 0.
+        For each ordinal in a series with ("first", "second", "third", "fourth", "fifth", "sixth",
+                "seventh", "eighth", "ninth", "tenth"), repeat:
+            Increment place by 1.
+            If lowered is ordinal, return cast made on ("NumberLiteral", a series with (cast numeral on (place))).
+        Done.
+        Return cast nothing.
+    Done.
+
+    /// A 0x/0o/0b literal's digits, as the number they write.
+    Bind number to bits-value, given (the text digits, the number radix):
+        Define value as 0.
+        Define spelled-digits as a chase.
+        Insert digits in lowercase into spelled-digits.
+        For each digit in spelled-digits, repeat:
+            Define worth as (the position of digit in "0123456789abcdef") but void is 1.
+            The value becomes value * radix + worth - 1.
+        Done.
+        Return value.
+    Done.
+
+    Bind node to bits-literal, given (the token written):
+        Define shown-base as the characters from 2 to 2 of written's lexeme.
+        Define digits as the characters from 3 to the end of written's lexeme.
+        Define radix as 16 when shown-base is "x", otherwise (8 when shown-base is "o", otherwise 2).
+        Define per-digit as 4 when shown-base is "x", otherwise (3 when shown-base is "o", otherwise 1).
+        Return cast placed on ("BitsLiteral", a series with (
+            cast numeral on (cast bits-value on (digits, radix)),
+            cast quoted on (shown-base),
+            cast numeral on (the length of digits * per-digit)), written).
+    Done.
+
+    Bind node or failure to core-primary unto parser:
+        // `from <map>, the entry for <key>` — the map-first way to say a lookup.
+        If cast one's peek-kind is "From":
+            Define from-tok as cast one's advance.
+            Cast one's skip-noise.
+            If cast one's peek-kind is "Map":
+                Cast one's advance.
+                Cast one's skip-noise.
+            Done.
+            Define mapping as cast one's postfix or pass the failure off.
+            Cast one's skip-noise.
+            Cast one's consume on ("Comma") or pass the failure off.
+            Cast one's skip-noise.
+            If cast one's is-word on ("entry") is false:
+                Return a failure (cast one's refused on (cast one's peek, "expected 'entry'")).
+            Done.
+            Cast one's advance.
+            Cast one's skip-noise.
+            Cast one's consume on ("For") or pass the failure off.
+            Cast one's skip-noise.
+            Define key as cast one's expression or pass the failure off.
+            Return cast placed on ("MapLookup", a series with (mapping, key), from-tok).
+        Done.
+
+        // `the <name> of <thing>` — before the noise is skipped, so the `the` is still there.
+        If cast one's is-word on ("the") and cast one's peek-kind is "Article" and cast one's is-named-access-pattern:
+            Cast one's advance.
+            Define name-tok as cast one's advance.
+            Cast one's skip-noise.
+            Cast one's advance.
+            Cast one's skip-noise.
+            Define whole as cast one's core-primary or pass the failure off.
+            Return cast placed on ("RecordNamedAccess", a series with (cast quoted on (name-tok's lexeme), whole), name-tok).
+        Done.
+
+        Cast one's skip-noise.
+        If cast one's is-word on ("text") and cast one's word-after-is on ("at"):
+            Define text-tok as cast one's advance.
+            Cast one's skip-noise.
+            Cast one's advance.
+            Cast one's skip-noise.
+            Define address as cast one's core-primary or pass the failure off.
+            Return cast placed on ("ForeignTextAt", a series with (address), text-tok).
+        Done.
+
+        Define tok as cast one's peek.
+        Define kind as cast one's effective-kind on (tok).
+        Define base as cast nothing.
+        Define bracketed as false.
+
+        If kind is "Number":
+            Cast one's advance.
+            Define amount as (tok's lexeme converted to number) but void is 0.
+            The base becomes cast made on ("NumberLiteral", a series with (cast numeral on (amount))).
+        Done.
+        Otherwise if kind is "Bits":
+            Cast one's advance.
+            The base becomes cast bits-literal on (tok).
+        Done.
+        Otherwise if kind is "String":
+            Cast one's advance.
+            The base becomes cast made on ("StringLiteral", a series with (cast quoted on (tok's lexeme))).
+        Done.
+        Otherwise if kind is "Axiom":
+            Cast one's advance.
+            The base becomes cast placed on ("AxiomLiteral", a series with (cast quoted on (tok's lexeme)), tok).
+            // ⚠ The raw text rides in `word`, which only a leaf prints — a `cufet` block is parsed again
+            // from it, and the quoted form cannot be read back without ambiguity.
+            The base's word becomes tok's lexeme.
+        Done.
+        Otherwise if kind is "InterpolOpen":
+            Cast one's advance.
+            The base becomes cast one's interpolated on (tok) or pass the failure off.
+        Done.
+        Otherwise if kind is "Identifier":
+            Cast one's advance.
+            The base becomes cast variable-named on (tok's lexeme, tok).
+            If cast is-ordinal-lexeme on (tok's lexeme):
+                Cast one's skip-noise.
+                Define edge as cast spelled on (tok, "first") or cast spelled on (tok, "last").
+                If edge and (cast one's peek-kind is "Number" or cast one's peek-kind is "LParen"):
+                    Define count as cast one's addition or pass the failure off.
+                    Cast one's skip-noise.
+                    If cast one's is-word on ("characters") is false:
+                        Return a failure (cast one's refused on (cast one's peek, "expected 'characters'")).
+                    Done.
+                    Cast one's advance.
+                    Cast one's skip-noise.
+                    Cast one's consume on ("Of") or pass the failure off.
+                    Cast one's skip-noise.
+                    Define text-target as cast one's core-primary or pass the failure off.
+                    The base becomes cast placed on ("TextSubstringEdge", a series with (
+                        text-target, count, cast flag on (cast spelled on (tok, "first"))), tok).
+                Done.
+                Otherwise if cast one's peek-kind is "Of":
+                    Cast one's advance.
+                    Cast one's skip-noise.
+                    Define target as cast one's core-primary or pass the failure off.
+                    The base becomes cast placed on ("SeriesAccess", a series with (
+                        target, cast ordinal-index on (tok's lexeme)), tok).
+                Done.
+            Done.
+        Done.
+        Otherwise if kind is "It":
+            Cast one's advance.
+            The base becomes cast variable-named on ("it", tok).
+        Done.
+        Otherwise if kind is "One":
+            Cast one's advance.
+            The base becomes cast variable-named on ("one", tok).
+        Done.
+        Otherwise if kind is "LParen":
+            Cast one's advance.
+            The base becomes cast one's expression or pass the failure off.
+            Cast one's skip-noise.
+            Cast one's consume on ("RParen") or pass the failure off.
+            The bracketed becomes true.
+        Done.
+        Otherwise if kind is "Item":
+            Cast one's advance.
+            Cast one's skip-noise.
+            If cast one's is-word on ("at") and cast one's kind-after is "LParen":
+                Cast one's advance.
+                Cast one's skip-noise.
+                Cast one's consume on ("LParen") or pass the failure off.
+                Cast one's skip-noise.
+                Define row as cast one's expression or pass the failure off.
+                Cast one's skip-noise.
+                Cast one's consume on ("Comma") or pass the failure off.
+                Cast one's skip-noise.
+                Define column as cast one's expression or pass the failure off.
+                Cast one's skip-noise.
+                Cast one's consume on ("RParen") or pass the failure off.
+                Cast one's skip-noise.
+                Cast one's consume on ("Of") or pass the failure off.
+                Cast one's skip-noise.
+                Define grid as cast one's core-primary or pass the failure off.
+                The base becomes cast placed on ("MatrixAccess", a series with (grid, row, column), tok).
+            Done.
+            Otherwise if cast looks-like-index-start on (cast one's peek-kind):
+                Define index as cast one's expression or pass the failure off.
+                Cast one's skip-noise.
+                Cast one's consume on ("Of") or pass the failure off.
+                Cast one's skip-noise.
+                Define target as cast one's core-primary or pass the failure off.
+                The base becomes cast placed on ("SeriesAccess", a series with (target, index), tok).
+            Done.
+            Otherwise:
+                The base becomes cast variable-named on ("item", tok).
+            Done.
+        Done.
+        Otherwise if kind is "NumberKw":
+            Cast one's advance.
+            Cast one's skip-noise.
+            Cast one's consume on ("Of") or pass the failure off.
+            Cast one's skip-noise.
+            Define counted as cast one's core-primary or pass the failure off.
+            The base becomes cast placed on ("SeriesLength", a series with (counted), tok).
+        Done.
+        Otherwise if kind is "Position":
+            Cast one's advance.
+            Cast one's skip-noise.
+            Cast one's consume on ("Of") or pass the failure off.
+            Cast one's skip-noise.
+            Define part as cast one's expression or pass the failure off.
+            Cast one's skip-noise.
+            Cast one's consume on ("In") or pass the failure off.
+            Cast one's skip-noise.
+            Define whole as cast one's core-primary or pass the failure off.
+            The base becomes cast placed on ("TextFind", a series with (part, whole), tok).
+        Done.
+        Otherwise if kind is "Characters":
+            Cast one's advance.
+            Cast one's skip-noise.
+            Cast one's consume on ("From") or pass the failure off.
+            Cast one's skip-noise.
+            Define lower as cast one's addition or pass the failure off.
+            Cast one's skip-noise.
+            Cast one's consume on ("To") or pass the failure off.
+            Define upper as cast nothing.
+            If cast one's peek-kind is "End":
+                Cast one's advance.
+            Done.
+            Otherwise if cast one's peek-kind is "Article" and cast one's kind-after is "End":
+                Cast one's advance.
+                Cast one's advance.
+            Done.
+            Otherwise:
+                Cast one's skip-noise.
+                The upper becomes cast one's addition or pass the failure off.
+            Done.
+            Cast one's skip-noise.
+            Cast one's consume on ("Of") or pass the failure off.
+            Cast one's skip-noise.
+            Define whole as cast one's core-primary or pass the failure off.
+            The base becomes cast placed on ("TextSubstringRange", a series with (whole, lower, upper), tok).
+        Done.
+        Otherwise if kind is "Replace":
+            Cast one's advance.
+            Cast one's skip-noise.
+            Define old as cast one's addition or pass the failure off.
+            Cast one's skip-noise.
+            Cast one's consume on ("With") or pass the failure off.
+            Cast one's skip-noise.
+            Define fresh as cast one's addition or pass the failure off.
+            Cast one's skip-noise.
+            Cast one's consume on ("In") or pass the failure off.
+            Cast one's skip-noise.
+            Define whole as cast one's core-primary or pass the failure off.
+            The base becomes cast placed on ("TextReplace", a series with (whole, old, fresh), tok).
+        Done.
+        Otherwise if kind is "Range":
+            Cast one's advance.
+            Cast one's skip-noise.
+            Define lower as cast one's expression or pass the failure off.
+            Cast one's skip-noise.
+            Cast one's consume on ("To") or pass the failure off.
+            Cast one's skip-noise.
+            Define upper as cast one's expression or pass the failure off.
+            Cast one's skip-noise.
+            Define stride as cast nothing.
+            If cast one's peek-kind is "Counting":
+                Cast one's advance.
+                Cast one's skip-noise.
+                Cast one's consume on ("By") or pass the failure off.
+                Cast one's skip-noise.
+                The stride becomes cast one's expression or pass the failure off.
+            Done.
+            The base becomes cast placed on ("RangeExpression", a series with (lower, upper, stride), tok).
+        Done.
+        Otherwise if kind is "Void":
+            Cast one's advance.
+            The base becomes cast placed on ("VoidLiteral", a series of node, tok).
+        Done.
+        Otherwise if kind is "TrueKw" or kind is "FalseKw":
+            Cast one's advance.
+            The base becomes cast placed on ("BooleanLiteral", a series with (cast flag on (kind is "TrueKw")), tok).
+        Done.
+        Otherwise if kind is "Failure":
+            Cast one's advance.
+            Define next-kind as cast one's peek-kind.
+            If next-kind is "String" or next-kind is "InterpolOpen" or next-kind is "Identifier" or next-kind is "LParen":
+                Define message as cast one's expression or pass the failure off.
+                Cast one's skip-noise.
+                Define category-part as cast nothing.
+                If cast one's peek-kind is "Of":
+                    Cast one's advance.
+                    Cast one's skip-noise.
+                    Cast one's consume on ("Category") or pass the failure off.
+                    Cast one's skip-noise.
+                    The category-part becomes cast one's expression or pass the failure off.
+                Done.
+                The base becomes cast placed on ("FailureLiteral", a series with (message, category-part), tok).
+            Done.
+            Otherwise:
+                The base becomes cast variable-named on ("the failure", tok).
+            Done.
+        Done.
+        Otherwise if kind is "Exception":
+            Cast one's advance.
+            The base becomes cast variable-named on ("the exception", tok).
+        Done.
+        Otherwise if kind is "Cast":
+            The base becomes cast one's cast-expression or pass the failure off.
+        Done.
+        Otherwise if kind is "Unbury":
+            Cast one's advance.
+            Cast one's skip-noise.
+            Define stashed as cast one's unary-expr or pass the failure off.
+            The base becomes cast placed on ("UnburyExpression", a series with (stashed), tok).
+        Done.
+        Otherwise if kind is "Series":
+            The base becomes cast one's series-literal or pass the failure off.
+        Done.
+        Otherwise if kind is "Chase":
+            Cast one's advance.
+            The base becomes cast placed on ("ChaseLiteral", a series of node, tok).
+        Done.
+        Otherwise if kind is "Record":
+            The base becomes cast one's record-literal or pass the failure off.
+        Done.
+        Otherwise if kind is "New":
+            The base becomes cast one's object-literal or pass the failure off.
+        Done.
+        Otherwise:
+            The base becomes cast one's rare-primary on (kind, tok) or pass the failure off.
+        Done.
+
+        // Possessive postfix: alice's name, one's field, alice's friend's name, math's floor.
+        Cast one's skip-noise.
+        While cast one's peek-kind is "Possessive", repeat:
+            Define owns as cast one's advance.
+            While cast one's peek-kind is "Article", repeat:
+                Cast one's advance.
+            Done.
+            Define member as cast one's advance.
+            The base becomes cast placed on ("PossessiveAccess", a series with (base, cast quoted on (member's lexeme)), owns).
+            The bracketed becomes false.
+            Cast one's skip-noise.
+        Done.
+
+        // A book member called with `of`: math's floor of x. Only a possessive, and never through
+        // brackets.
+        While bracketed is false and base's kind is "PossessiveAccess" and cast one's peek-kind is "Of", repeat:
+            Define of-tok as cast one's advance.
+            Cast one's skip-noise.
+            Define args as cast listed.
+            Define named as cast listed.
+            If cast one's peek-kind is "LParen":
+                Cast one's call-arguments on (args, named) or pass the failure off.
+            Done.
+            Otherwise:
+                Define single as cast one's negation or pass the failure off.
+                Cast args's add on (single).
+            Done.
+            The base becomes cast one's call-node on (base, args, named, of-tok).
+            Cast one's skip-noise.
+        Done.
+
+        Return base.
+    Done.
+
+    /// `(CastExpression function [args] line column)`, with `:NamedArgs` when there are some.
+    Bind node to call-node unto parser, given (the node callee, the node args, the node named, the token spot-tok):
+        Define call as cast placed on ("CastExpression", a series with (callee, args), spot-tok).
+        If the number of named's children is greater than 0:
+            Cast call's add on (cast atom on (":NamedArgs")).
+            Cast call's add on (named).
+        Done.
+        Return call.
+    Done.
+
+    // ── Text with holes ───────────────────────────────────────────────────
+
+    Bind node or failure to interpolated unto parser, given (the token opener):
+        Define result as cast nothing.
+        Define started as false.
+        While cast one's peek-kind is not "InterpolClose", repeat:
+            Define piece as cast nothing.
+            If cast one's peek-kind is "StringPiece":
+                Define written as cast one's advance.
+                The piece becomes cast made on ("StringLiteral", a series with (cast quoted on (written's lexeme))).
+            Done.
+            Otherwise if cast one's peek-kind is "InterpolHoleOpen":
+                Define hole as cast one's advance.
+                If cast one's peek-kind is "InterpolHoleClose":
+                    Return a failure (cast one's refused on (hole, "empty interpolation '\{\}' — write an expression between the braces")).
+                Done.
+                Define inside as cast one's expression or pass the failure off.
+                Cast one's consume on ("InterpolHoleClose") or pass the failure off.
+                The piece becomes cast placed on ("TextConvert", a series with (inside), hole).
+                Cast piece's add on (cast flag on (true)).
+            Done.
+            Otherwise:
+                Return a failure (cast one's refused on (cast one's peek, "expected string piece or interpolation expression")).
+            Done.
+            If started:
+                The result becomes cast placed on ("TextJoin", a series with (result, piece), opener).
+            Done.
+            Otherwise:
+                The result becomes piece.
+                The started becomes true.
+            Done.
+        Done.
+        Cast one's consume on ("InterpolClose") or pass the failure off.
+        If started is false, return cast made on ("StringLiteral", a series with (cast quoted on (""))).
+        Return result.
+    Done.
+
+    // ── Calls ─────────────────────────────────────────────────────────────
+
+    /// IsNamedArgumentStart — a named field start with something after the name.
+    Bind fact to is-named-argument-start unto parser:
+        If cast one's is-named-field-start is false, return false.
+        Define following as cast one's token-at on (cast one's past-noise on (one's at + 2)).
+        Return following's kind is not "Comma" and following's kind is not "RParen".
+    Done.
+
+    Bind void or failure to one-call-argument unto parser, given (the node positional, the node named):
+        If cast one's is-named-argument-start:
+            Cast one's advance.
+            Define name-tok as cast one's advance.
+            Cast one's skip-noise.
+            Define value as cast one's expression or pass the failure off.
+            Define pair as cast listed.
+            Cast pair's add on (cast quoted on (name-tok's lexeme)).
+            Cast pair's add on (value).
+            Cast named's add on (pair).
+            Return.
+        Done.
+        If the number of named's children is greater than 0:
+            Return a failure (cast one's refused on (cast one's peek, "expected a named argument")).
+        Done.
+        Cast one's skip-noise.
+        Define value as cast one's expression or pass the failure off.
+        Cast positional's add on (value).
+    Done.
+
+    Bind void or failure to call-arguments unto parser, given (the node positional, the node named):
+        Cast one's consume on ("LParen") or pass the failure off.
+        If cast one's kind-past-noise is not "RParen":
+            Cast one's one-call-argument on (positional, named) or pass the failure off.
+            Cast one's skip-noise.
+            While cast one's peek-kind is "Comma", repeat:
+                Cast one's advance.
+                Cast one's one-call-argument on (positional, named) or pass the failure off.
+                Cast one's skip-noise.
+            Done.
+        Done.
+        Cast one's skip-noise.
+        Cast one's consume on ("RParen") or pass the failure off.
+    Done.
+
+    Bind node or failure to cast-expression unto parser:
+        Define cast-tok as cast one's consume on ("Cast") or pass the failure off.
+        Define callee as cast one's postfix or pass the failure off.
+        Cast one's skip-noise.
+        Define args as cast listed.
+        Define named as cast listed.
+        If cast one's peek-kind is "On":
+            Cast one's advance.
+            Cast one's skip-noise.
+            If cast one's peek-kind is not "LParen":
+                If callee's kind is not "VariableReference":
+                    Return a failure (cast one's refused on (cast-tok,
+                        "identifier — method name must be a plain identifier in 'Cast method on receiver'")).
+                Done.
+                Define receiver as cast one's postfix or pass the failure off.
+                Cast args's add on (receiver).
+                Return cast one's call-node on (callee, args, named, cast-tok).
+            Done.
+            Cast one's call-arguments on (args, named) or pass the failure off.
+            Return cast one's call-node on (callee, args, named, cast-tok).
+        Done.
+        If callee's kind is "CastExpression", return callee.
+        Return cast one's call-node on (callee, args, named, cast-tok).
+    Done.
+
+    // ── Literals of several things ────────────────────────────────────────
+
+    /// One field of a record or object literal: `the <name> <value>`, or a value by position.
+    Bind void or failure to one-record-field unto parser, given (the node positional, the node named):
+        If cast one's is-named-field-start:
+            Cast one's advance.
+            Define name-tok as cast one's advance.
+            Cast one's skip-noise.
+            Define value as cast one's expression or pass the failure off.
+            Define pair as cast listed.
+            Cast pair's add on (cast quoted on (name-tok's lexeme)).
+            Cast pair's add on (value).
+            Cast named's add on (pair).
+            Return.
+        Done.
+        If the number of named's children is greater than 0:
+            Return a failure (cast one's refused on (cast one's peek,
+                "positional fields must come before named fields — move all 'the name value' fields to the end")).
+        Done.
+        Define value as cast one's expression or pass the failure off.
+        Cast positional's add on (value).
+    Done.
+
+    Bind void or failure to record-fields unto parser, given (the text closer, the node positional, the node named):
+        If cast one's peek-kind is not closer:
+            Cast one's one-record-field on (positional, named) or pass the failure off.
+            Cast one's skip-noise.
+            While cast one's peek-kind is "Comma", repeat:
+                Cast one's advance.
+                Cast one's one-record-field on (positional, named) or pass the failure off.
+                Cast one's skip-noise.
+            Done.
+        Done.
+        Cast one's consume on (closer) or pass the failure off.
+    Done.
+
+    Bind node or failure to record-literal unto parser:
+        Define record-tok as cast one's consume on ("Record") or pass the failure off.
+        Cast one's skip-noise.
+        Cast one's consume on ("With") or pass the failure off.
+        Cast one's skip-noise.
+        Cast one's consume on ("LParen") or pass the failure off.
+        Define positional as cast listed.
+        Define named as cast listed.
+        Cast one's record-fields on ("RParen", positional, named) or pass the failure off.
+        Return cast placed on ("RecordLiteral", a series with (positional, named), record-tok).
+    Done.
+
+    Bind node or failure to object-literal unto parser:
+        Define new-tok as cast one's advance.
+        Cast one's skip-noise.
+        Define name-tok as cast one's consume on ("Identifier") or pass the failure off.
+        Cast one's skip-noise.
+        Define args as cast listed.
+        While cast one's peek-kind is "Of", repeat:
+            Cast one's advance.
+            Cast one's skip-noise.
+            Define argument as cast one's type-annotation or pass the failure off.
+            Cast args's add on (argument).
+            Cast one's skip-noise.
+        Done.
+        Define positional as cast listed.
+        Define named as cast listed.
+        If cast one's peek-kind is "LBrace":
+            Cast one's advance.
+            Cast one's record-fields on ("RBrace", positional, named) or pass the failure off.
+        Done.
+        Return cast made on ("ObjectLiteral", a series with (cast quoted on (name-tok's lexeme), positional, named,
+            cast row-of on (new-tok), cast column-of on (new-tok), args)).
+    Done.
+
+    Bind node or failure to series-literal unto parser:
+        Define series-tok as cast one's advance.
+        Cast one's skip-noise.
+        Define annotation as cast nothing.
+        If cast one's peek-kind is "Of":
+            Cast one's advance.
+            Cast one's skip-noise.
+            If cast one's peek-kind is "Record" or cast one's is-word on ("records"):
+                Cast one's advance.
+                Cast one's skip-noise.
+                Cast one's consume on ("Like") or pass the failure off.
+                Cast one's skip-noise.
+                The annotation becomes cast one's record-shape-body or pass the failure off.
+            Done.
+            Otherwise:
+                The annotation becomes cast one's element-type on (false) or pass the failure off.
+            Done.
+            Cast one's skip-noise.
+        Done.
+        Define elements as cast listed.
+        If cast one's peek-kind is "With":
+            Cast one's advance.
+            Cast one's skip-noise.
+            Cast one's consume on ("LParen") or pass the failure off.
+            Cast one's skip-noise.
+            If cast one's peek-kind is not "RParen":
+                Define first-element as cast one's expression or pass the failure off.
+                Cast elements's add on (first-element).
+                Cast one's skip-noise.
+                While cast one's peek-kind is "Comma", repeat:
+                    Cast one's advance.
+                    Cast one's skip-noise.
+                    Define element as cast one's expression or pass the failure off.
+                    Cast elements's add on (element).
+                    Cast one's skip-noise.
+                Done.
+            Done.
+            Cast one's consume on ("RParen") or pass the failure off.
+        Done.
+        Return cast placed on ("SeriesLiteral", a series with (elements, annotation), series-tok).
+    Done.
+Done.

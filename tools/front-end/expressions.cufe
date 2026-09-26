@@ -1,0 +1,503 @@
+/*  Expressions — the precedence ladder of `src/Interpreter/Parser.cs`, rung for rung.
+
+    Loosest first:
+        expression     → pipe-expr [ but void is … | but on failure … | or pass the failure off ] [ when … ]
+        pipe-expr      → expr-or ( "|" expr-or )*
+        expr-or / expr-xor / expr-and / expr-not
+        comparison     → joined-to ( = < > <= >= joined-to )*  [ is … ]
+        joined-to      → has-check ( joined to addition )*
+        has-check      → split-by [ has … ]
+        split-by       → text-contains [ split by addition ]
+        text-contains  → addition [ contains addition ]
+        addition / multiplication / unary
+        postfix        → core-primary ( converted to … | trimmed | sorted … | in uppercase … )*
+        core-primary   → the rest of the language
+
+    ★ Conditions (`If`, `While`) have a ladder of their own that meets this one at `joined-to`,
+    exactly as the C# parser's does.
+*/
+
+Pull a book on collections.
+    // ── Building nodes ────────────────────────────────────────────────────
+
+    Bind node to made, given (the text kind, the series of node parts):
+        Return a new node { the kind kind, the word "", the children parts }.
+    Done.
+
+    Bind node to row-of, given (the token spot-tok):
+        Return cast numeral on (spot-tok's row).
+    Done.
+
+    Bind node to column-of, given (the token spot-tok):
+        Return cast numeral on (spot-tok's column).
+    Done.
+
+    /// `(BinaryExpression left Op right line column)`.
+    Bind node to binary, given (the node left, the text op, the node right, the token spot-tok):
+        Return cast made on ("BinaryExpression", a series with (
+            left, cast atom on (op), right, cast row-of on (spot-tok), cast column-of on (spot-tok))).
+    Done.
+
+    Bind node to unary, given (the text op, the node operand, the token spot-tok):
+        Return cast made on ("UnaryExpression", a series with (
+            cast atom on (op), operand, cast row-of on (spot-tok), cast column-of on (spot-tok))).
+    Done.
+
+    /// A node of `kind` whose fields are `parts` and then the position of `spot-tok`.
+    Bind node to placed, given (the text kind, the series of node parts, the token spot-tok):
+        Insert cast row-of on (spot-tok) into parts.
+        Insert cast column-of on (spot-tok) into parts.
+        Return cast made on (kind, parts).
+    Done.
+
+    Bind node to variable-named, given (the text name, the token spot-tok):
+        Return cast placed on ("VariableReference", a series with (cast quoted on (name)), spot-tok).
+    Done.
+
+    // ── The expression ladder ─────────────────────────────────────────────
+
+    Bind node or failure to expression unto parser:
+        Define left as cast one's pipe-expr or pass the failure off.
+        Cast one's skip-noise.
+
+        If cast one's peek-kind is "But":
+            Define but-tok as cast one's advance.
+            Cast one's skip-noise.
+            If cast one's peek-kind is "On":
+                Cast one's advance.
+                Cast one's skip-noise.
+                Cast one's consume on ("Failure") or pass the failure off.
+                Cast one's skip-noise.
+                Define fallback as cast one's expr-or or pass the failure off.
+                Return cast one's when-suffix on (cast placed on ("FailureFallback", a series with (left, fallback), but-tok))
+                    or pass the failure off.
+            Done.
+            Cast one's consume on ("Void") or pass the failure off.
+            Cast one's skip-noise.
+            Cast one's consume on ("Is") or pass the failure off.
+            Cast one's skip-noise.
+            Define fallback as cast one's expr-or or pass the failure off.
+            Return cast one's when-suffix on (cast placed on ("ButVoidDefault", a series with (left, fallback), but-tok))
+                or pass the failure off.
+        Done.
+
+        If cast one's peek-kind is "Or" and cast one's kind-after is "Pass":
+            Define or-tok as cast one's advance.
+            Cast one's skip-noise.
+            Cast one's consume on ("Pass") or pass the failure off.
+            Cast one's skip-noise.
+            Cast one's consume on ("Failure") or pass the failure off.
+            Cast one's skip-noise.
+            Cast one's consume on ("Off") or pass the failure off.
+            Return cast one's when-suffix on (cast placed on ("FailurePropagate", a series with (left), or-tok))
+                or pass the failure off.
+        Done.
+
+        Return cast one's when-suffix on (left) or pass the failure off.
+    Done.
+
+    /// `<value> when <condition>, otherwise <alternative>` — right-associative.
+    Bind node or failure to when-suffix unto parser, given (the node left):
+        Cast one's skip-noise.
+        If cast one's peek-kind is not "When", return left.
+        Define when-tok as cast one's advance.
+        Cast one's skip-noise.
+        Define condition as cast one's expr-or or pass the failure off.
+        Cast one's skip-noise.
+        Cast one's consume on ("Comma") or pass the failure off.
+        Cast one's skip-noise.
+        Cast one's consume on ("Otherwise") or pass the failure off.
+        Cast one's skip-noise.
+        Define alternative as cast one's expression or pass the failure off.
+        Return cast placed on ("ConditionalExpression", a series with (left, condition, alternative), when-tok).
+    Done.
+
+    Bind node or failure to pipe-expr unto parser:
+        Define left as cast one's expr-or or pass the failure off.
+        Cast one's skip-noise.
+        While cast one's peek-kind is "Pipe", repeat:
+            Define pipe-tok as cast one's advance.
+            Cast one's skip-noise.
+            Define right as cast one's expr-or or pass the failure off.
+            The left becomes cast placed on ("PipeExpression", a series with (left, right), pipe-tok).
+            Cast one's skip-noise.
+        Done.
+        Return left.
+    Done.
+
+    Bind node or failure to expr-or unto parser:
+        Define left as cast one's expr-xor or pass the failure off.
+        While cast one's peek-kind is "Or" and cast one's kind-after is not "Pass", repeat:
+            Define op-tok as cast one's advance.
+            Cast one's skip-noise.
+            Define right as cast one's expr-xor or pass the failure off.
+            The left becomes cast binary on (left, "Or", right, op-tok).
+        Done.
+        Return left.
+    Done.
+
+    Bind node or failure to expr-xor unto parser:
+        Define left as cast one's expr-and or pass the failure off.
+        While cast one's peek-kind is "Xor", repeat:
+            Define op-tok as cast one's advance.
+            Cast one's skip-noise.
+            Define right as cast one's expr-and or pass the failure off.
+            The left becomes cast binary on (left, "Xor", right, op-tok).
+        Done.
+        Return left.
+    Done.
+
+    Bind node or failure to expr-and unto parser:
+        Define left as cast one's expr-not or pass the failure off.
+        While cast one's peek-kind is "And", repeat:
+            Define op-tok as cast one's advance.
+            Cast one's skip-noise.
+            Define right as cast one's expr-not or pass the failure off.
+            The left becomes cast binary on (left, "And", right, op-tok).
+        Done.
+        Return left.
+    Done.
+
+    Bind node or failure to expr-not unto parser:
+        If cast one's peek-kind is "Not":
+            Define not-tok as cast one's advance.
+            Cast one's skip-noise.
+            Define operand as cast one's expr-not or pass the failure off.
+            Return cast unary on ("Not", operand, not-tok).
+        Done.
+        Return cast one's comparison or pass the failure off.
+    Done.
+
+    Bind fact to is-symbol-comparison, given (the text kind):
+        Return kind is "Equal" or kind is "Lt" or kind is "Gt" or kind is "Lte" or kind is "Gte".
+    Done.
+
+    Bind node or failure to comparison unto parser:
+        Define left as cast one's joined-to or pass the failure off.
+        While cast is-symbol-comparison on (cast one's peek-kind), repeat:
+            Define op-tok as cast one's advance.
+            Cast one's skip-noise.
+            Define right as cast one's joined-to or pass the failure off.
+            The left becomes cast binary on (left, op-tok's kind, right, op-tok).
+        Done.
+        If cast one's peek-kind is "Is":
+            Define is-tok as cast one's advance.
+            Return cast one's after-is on (left, is-tok) or pass the failure off.
+        Done.
+        Return left.
+    Done.
+
+    /// IsTypeTestArticle — `a` or `an`, never `the`.
+    Bind fact to is-type-test-article, given (the token candidate):
+        If candidate's kind is not "Article", return false.
+        Return cast spelled on (candidate, "a") or cast spelled on (candidate, "an").
+    Done.
+
+    /// Everything after an `is` — a type test, or a word comparison. Shared by the expression and
+    /// the condition ladders, which ask the same questions in the same order.
+    Bind node or failure to after-is unto parser, given (the node left, the token is-tok):
+        If cast is-type-test-article on (cast one's peek):
+            Cast one's advance.
+            Cast one's skip-noise.
+            Define tested as cast one's type-annotation or pass the failure off.
+            Return cast placed on ("IsTypeCheck", a series with (left, tested, cast flag on (false)), is-tok).
+        Done.
+        Define following as cast one's token-at on (one's at + 1).
+        If cast one's peek-kind is "Not" and cast is-type-test-article on (following):
+            Cast one's advance.
+            Cast one's advance.
+            Cast one's skip-noise.
+            Define tested as cast one's type-annotation or pass the failure off.
+            Return cast placed on ("IsTypeCheck", a series with (left, tested, cast flag on (true)), is-tok).
+        Done.
+        Cast one's skip-noise.
+        Return cast one's word-comparison on (left, is-tok) or pass the failure off.
+    Done.
+
+    Bind node or failure to word-comparison unto parser, given (the node left, the token is-tok):
+        Define kind as cast one's peek-kind.
+        If kind is "Not":
+            Define not-tok as cast one's advance.
+            Cast one's skip-noise.
+            If cast one's peek-kind is "Greater":
+                Cast one's advance.
+                Cast one's skip-noise.
+                Cast one's consume on ("Than") or pass the failure off.
+                Cast one's skip-noise.
+                Define right as cast one's joined-to or pass the failure off.
+                Return cast binary on (left, "Lte", right, not-tok).
+            Done.
+            If cast one's peek-kind is "Less":
+                Cast one's advance.
+                Cast one's skip-noise.
+                Cast one's consume on ("Than") or pass the failure off.
+                Cast one's skip-noise.
+                Define right as cast one's joined-to or pass the failure off.
+                Return cast binary on (left, "Gte", right, not-tok).
+            Done.
+            Define following as cast one's token-at on (one's at + 1).
+            If cast one's peek-kind is "Identifier" and cast one's is-word on ("equal") and following's kind is "To":
+                Cast one's advance.
+                Cast one's advance.
+                Cast one's skip-noise.
+            Done.
+            Define right as cast one's joined-to or pass the failure off.
+            Return cast binary on (left, "NotEqual", right, not-tok).
+        Done.
+        If kind is "Greater" or kind is "Less":
+            Define word-tok as cast one's advance.
+            Cast one's skip-noise.
+            Cast one's consume on ("Than") or pass the failure off.
+            Cast one's skip-noise.
+            Define right as cast one's joined-to or pass the failure off.
+            Define op as "Gt" when kind is "Greater", otherwise "Lt".
+            Return cast binary on (left, op, right, word-tok).
+        Done.
+        If kind is "More":
+            Define more-tok as cast one's advance.
+            Return a failure (cast one's refused on (more-tok,
+                "'is more than' isn't a comparison Cufet recognises — did you mean 'is greater than'? "
+                joined to "For example: 'While count is greater than 0, repeat:'.")).
+        Done.
+        Define right as cast one's joined-to or pass the failure off.
+        Cast one's skip-noise.
+        Define beyond as cast one's kind-after.
+        If cast one's peek-kind is "Or" and (beyond is "More" or beyond is "Less"):
+            Cast one's consume on ("Or") or pass the failure off.
+            Cast one's skip-noise.
+            Define tail as cast one's advance.
+            Define op as "Gte" when tail's kind is "More", otherwise "Lte".
+            Return cast binary on (left, op, right, is-tok).
+        Done.
+        Return cast binary on (left, "Equal", right, is-tok).
+    Done.
+
+    Bind node or failure to has-check unto parser:
+        Define left as cast one's split-by or pass the failure off.
+        Cast one's skip-noise.
+        If cast one's peek-kind is not "Has", return left.
+        Define has-tok as cast one's advance.
+        Cast one's skip-noise.
+        Define shape as cast one's effective-kind on (cast one's peek).
+        If shape is not "Entry" and shape is not "Key":
+            Define member as cast one's addition or pass the failure off.
+            Return cast placed on ("SetHasMember", a series with (left, member), has-tok).
+        Done.
+        Cast one's advance.
+        Cast one's skip-noise.
+        Cast one's consume on ("For") or pass the failure off.
+        Cast one's skip-noise.
+        Define key as cast one's addition or pass the failure off.
+        Define kind as "MapHasEntry" when shape is "Entry", otherwise "MapHasKey".
+        Return cast placed on (kind, a series with (left, key), has-tok).
+    Done.
+
+    Bind node or failure to split-by unto parser:
+        Define left as cast one's text-contains or pass the failure off.
+        Cast one's skip-noise.
+        If cast one's peek-kind is not "Split", return left.
+        Define split-tok as cast one's advance.
+        Cast one's skip-noise.
+        Cast one's consume on ("By") or pass the failure off.
+        Cast one's skip-noise.
+        Define delimiter as cast one's addition or pass the failure off.
+        Return cast placed on ("TextSplit", a series with (left, delimiter), split-tok).
+    Done.
+
+    Bind node or failure to text-contains unto parser:
+        Define left as cast one's addition or pass the failure off.
+        Cast one's skip-noise.
+        If cast one's peek-kind is not "Contains", return left.
+        Define contains-tok as cast one's advance.
+        Cast one's skip-noise.
+        Define part as cast one's addition or pass the failure off.
+        Return cast placed on ("TextContains", a series with (left, part), contains-tok).
+    Done.
+
+    Bind node or failure to joined-to unto parser:
+        Define left as cast one's has-check or pass the failure off.
+        Cast one's skip-noise.
+        While cast one's peek-kind is "Joined", repeat:
+            Define joined-tok as cast one's advance.
+            Cast one's skip-noise.
+            Cast one's consume on ("To") or pass the failure off.
+            Cast one's skip-noise.
+            Define right as cast one's addition or pass the failure off.
+            The left becomes cast placed on ("TextJoin", a series with (left, right), joined-tok).
+            Cast one's skip-noise.
+        Done.
+        Return left.
+    Done.
+
+    Bind node or failure to addition unto parser:
+        Define left as cast one's multiplication or pass the failure off.
+        While cast one's peek-kind is "Plus" or cast one's peek-kind is "Minus", repeat:
+            Define op-tok as cast one's advance.
+            Cast one's skip-noise.
+            Define right as cast one's multiplication or pass the failure off.
+            The left becomes cast binary on (left, op-tok's kind, right, op-tok).
+        Done.
+        Return left.
+    Done.
+
+    Bind node or failure to multiplication unto parser:
+        Define left as cast one's unary-expr or pass the failure off.
+        Define kind as cast one's peek-kind.
+        While kind is "Star" or kind is "Slash" or kind is "Percent", repeat:
+            Define op-tok as cast one's advance.
+            Cast one's skip-noise.
+            Define right as cast one's unary-expr or pass the failure off.
+            The left becomes cast binary on (left, op-tok's kind, right, op-tok).
+            The kind becomes cast one's peek-kind.
+        Done.
+        Return left.
+    Done.
+
+    Bind node or failure to unary-expr unto parser:
+        If cast one's peek-kind is "Minus":
+            Define minus-tok as cast one's advance.
+            Define operand as cast one's unary-expr or pass the failure off.
+            Return cast unary on ("Minus", operand, minus-tok).
+        Done.
+        Return cast one's postfix or pass the failure off.
+    Done.
+
+    /// ParseNegation — a minus, then a primary with NO postfix: `math's floor of x converted to
+    /// text` converts the floor, not the x.
+    Bind node or failure to negation unto parser:
+        If cast one's peek-kind is "Minus":
+            Define minus-tok as cast one's advance.
+            Define operand as cast one's core-primary or pass the failure off.
+            Return cast unary on ("Minus", operand, minus-tok).
+        Done.
+        Return cast one's core-primary or pass the failure off.
+    Done.
+
+    // ── Postfix ───────────────────────────────────────────────────────────
+
+    Bind text to bits-base-for, given (the text lexeme):
+        Define lowered as lexeme in lowercase.
+        If lowered is "hex", return "x".
+        If lowered is "binary", return "b".
+        If lowered is "octal", return "o".
+        Return "".
+    Done.
+
+    Bind node or failure to postfix unto parser:
+        Define base as cast one's core-primary or pass the failure off.
+
+        While cast one's peek-kind is "Converted", repeat:
+            Define converted-tok as cast one's advance.
+            Cast one's skip-noise.
+            Cast one's consume on ("To") or pass the failure off.
+            Cast one's skip-noise.
+            Define target as cast one's peek.
+            If target's kind is "NumberKw":
+                Cast one's advance.
+                The base becomes cast placed on ("NumberConvert", a series with (base), converted-tok).
+            Done.
+            Otherwise if target's kind is "Identifier" and cast spelled on (target, "text"):
+                Cast one's advance.
+                Define conversion as cast placed on ("TextConvert", a series with (base), converted-tok).
+                Cast conversion's add on (cast flag on (false)).
+                The base becomes conversion.
+            Done.
+            Otherwise if target's kind is "Identifier" and cast bits-base-for on (target's lexeme) is not "":
+                Cast one's advance.
+                The base becomes cast made on ("BitsConvert", a series with (base,
+                    cast quoted on (cast bits-base-for on (target's lexeme)),
+                    cast row-of on (converted-tok), cast column-of on (converted-tok))).
+            Done.
+            Otherwise:
+                Return a failure (cast one's refused on (target,
+                    "text, number, hex, binary or octal — expected after 'converted to'")).
+            Done.
+            Cast one's skip-noise.
+        Done.
+
+        Define scanning as true.
+        While scanning, repeat:
+            Define kind as cast one's peek-kind.
+            Define following as cast one's kind-after.
+            If cast one's is-word on ("at"):
+                Define at-tok as cast one's advance.
+                Cast one's skip-noise.
+                Define width as cast one's unary-expr or pass the failure off.
+                Cast one's skip-noise.
+                If cast one's is-word on ("bits") is false:
+                    Return a failure (cast one's refused on (cast one's peek,
+                        "expected 'bits' after a stated width — the phrase is '<value> at <n> bits', as in '0b0 at 3 bits'.")).
+                Done.
+                Cast one's advance.
+                The base becomes cast placed on ("BitsAtWidth", a series with (base, width), at-tok).
+                Skip.
+            Done.
+            If kind is "Shifted":
+                Define shifted-tok as cast one's advance.
+                Cast one's skip-noise.
+                Define direction as cast one's peek.
+                Define leftward as direction's kind is "Identifier" and cast spelled on (direction, "left").
+                Define rightward as direction's kind is "Identifier" and cast spelled on (direction, "right").
+                If leftward is false and rightward is false:
+                    Return a failure (cast one's refused on (direction, "expected 'left' or 'right' after 'shifted'")).
+                Done.
+                Cast one's advance.
+                Cast one's skip-noise.
+                Cast one's consume on ("By") or pass the failure off.
+                Cast one's skip-noise.
+                Define amount as cast one's unary-expr or pass the failure off.
+                The base becomes cast placed on ("BitsShift", a series with (base, cast flag on (leftward), amount), shifted-tok).
+                Cast one's skip-noise.
+                Skip.
+            Done.
+            If kind is "Sorted":
+                Define sorted-tok as cast one's advance.
+                Cast one's skip-noise.
+                Define by-field as cast nothing.
+                Define by-lambda as cast nothing.
+                If cast one's peek-kind is "By":
+                    Cast one's advance.
+                    Cast one's skip-noise.
+                    If cast one's peek-kind is "FunctionKw":
+                        The by-lambda becomes cast one's core-primary or pass the failure off.
+                        If by-lambda's kind is not "LambdaLiteral":
+                            Return a failure (cast one's refused on (cast one's peek, "expected a function literal after 'sorted by'")).
+                        Done.
+                    Done.
+                    Otherwise:
+                        Define field-tok as cast one's consume on ("Identifier") or pass the failure off.
+                        The by-field becomes cast quoted on (field-tok's lexeme).
+                    Done.
+                    Cast one's skip-noise.
+                Done.
+                Define reversed as false.
+                If cast one's peek-kind is "In" and cast one's kind-after is "Reverse":
+                    Cast one's advance.
+                    Cast one's skip-noise.
+                    Cast one's advance.
+                    The reversed becomes true.
+                    Cast one's skip-noise.
+                Done.
+                The base becomes cast made on ("SortExpression", a series with (base, by-field,
+                    cast flag on (reversed), cast row-of on (sorted-tok), cast column-of on (sorted-tok), by-lambda)).
+            Done.
+            Otherwise if kind is "Trimmed":
+                Define trimmed-tok as cast one's advance.
+                The base becomes cast placed on ("TextTrim", a series with (base), trimmed-tok).
+            Done.
+            Otherwise if kind is "In" and (following is "Uppercase" or following is "Lowercase"):
+                Define in-tok as cast one's advance.
+                Cast one's skip-noise.
+                Define upper as cast one's peek-kind is "Uppercase".
+                Cast one's advance.
+                The base becomes cast placed on ("TextCase", a series with (base, cast flag on (upper)), in-tok).
+            Done.
+            Otherwise:
+                The scanning becomes false.
+            Done.
+            If scanning, cast one's skip-noise.
+        Done.
+
+        Return base.
+    Done.
+Done.

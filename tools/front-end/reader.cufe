@@ -1,0 +1,264 @@
+/*  The parser's hold on its tokens: where it stands, what comes next, and how it refuses.
+
+    ★ Each helper here is a port of the one in `src/Interpreter/Parser.cs` with the same name, in
+    the same order of tests, because the parity test compares TREES and a lookahead that asks its
+    questions in a different order builds a different tree on exactly the inputs nobody thought of.
+
+    ★ A token's kind is the C# enum's name, spelled exactly, so the two parsers read one vocabulary.
+
+    Two ways to stop, both failures, both carrying line, column and reason tab-separated:
+    - `refused`, for a source the C# parser also refuses (`error` in the output);
+    - `not-yet`, for a construct this parser has not been taught (`unsupported`) — the parity test
+      lists those files rather than failing them, so the parser can be written a piece at a time.
+*/
+
+Pull a book on collections.
+    Define object parser with (
+        the series of token tokens,
+        the number at,
+        the number type-depth,
+        the number collections-depth,
+        the number loop-depth,
+        the number nest-depth,
+        the number function-depth,
+        the fact in-object-def,
+        the fact in-free-function).
+
+    // ── Where the parser stands ───────────────────────────────────────────
+
+    /// The token at `spot`, or the last one (Eof) past the end.
+    Bind token to token-at unto parser, given (the number spot):
+        If spot is greater than the number of one's tokens, return the last of one's tokens.
+        Return item spot of one's tokens.
+    Done.
+
+    Bind token to peek unto parser:
+        Return cast one's token-at on (one's at).
+    Done.
+
+    Bind text to peek-kind unto parser:
+        Define current as cast one's token-at on (one's at).
+        Return current's kind.
+    Done.
+
+    Bind token to advance unto parser:
+        Define current as cast one's token-at on (one's at).
+        Increment one's at by 1.
+        Return current.
+    Done.
+
+    /// The token just consumed.
+    Bind token to previous unto parser:
+        Return cast one's token-at on (one's at - 1).
+    Done.
+
+    Bind fact to is-noise, given (the token candidate):
+        Return candidate's kind is "Article".
+    Done.
+
+    /// Where the first token past any noise sits, looking from `spot`.
+    Bind number to past-noise unto parser, given (the number spot):
+        Define found as spot.
+        While cast is-noise on (cast one's token-at on (found)), repeat:
+            Increment found by 1.
+        Done.
+        Return found.
+    Done.
+
+    /// PeekAfterCurrent — the first non-noise token after the current one.
+    Bind text to kind-after unto parser:
+        Define found as cast one's token-at on (cast one's past-noise on (one's at + 1)).
+        Return found's kind.
+    Done.
+
+    /// PeekTwoAfterCurrent.
+    Bind text to kind-two-after unto parser:
+        Define second-spot as cast one's past-noise on (cast one's past-noise on (one's at + 1) + 1).
+        Define found as cast one's token-at on (second-spot).
+        Return found's kind.
+    Done.
+
+    /// PeekSkippingNoise — the current token's kind, looking past noise.
+    Bind text to kind-past-noise unto parser:
+        Define found as cast one's token-at on (cast one's past-noise on (one's at)).
+        Return found's kind.
+    Done.
+
+    /// PeekPastNoiseIs — past one comma and any noise.
+    Bind fact to past-comma-is unto parser, given (the text kind):
+        Define spot as one's at.
+        Define here as cast one's token-at on (spot).
+        If here's kind is "Comma", increment spot by 1.
+        Define found as cast one's token-at on (cast one's past-noise on (spot)).
+        Return found's kind is kind.
+    Done.
+
+    Bind fact to spelled, given (the token candidate, the text word):
+        Return (candidate's lexeme in lowercase) is word.
+    Done.
+
+    /// IsWord — the current token is spelled `word`, whatever kind it is.
+    Bind fact to is-word unto parser, given (the text word):
+        Return cast spelled on (cast one's peek, word).
+    Done.
+
+    /// NextWordIs / PeekAfterCurrentIsWord — the first non-noise token after the current one.
+    Bind fact to next-word-is unto parser, given (the text word):
+        Return cast spelled on (cast one's token-at on (cast one's past-noise on (one's at + 1)), word).
+    Done.
+
+    /// IsWordAfterCurrent — skips articles only.
+    Bind fact to word-after-is unto parser, given (the text word):
+        Return cast one's next-word-is on (word).
+    Done.
+
+    // ── Refusing ──────────────────────────────────────────────────────────
+
+    Bind text to refusal-at, given (the text shape, the token spot-tok, the text reason):
+        Return "{shape}\t{spot-tok's row}\t{spot-tok's column}\t{reason}".
+    Done.
+
+    /// A construct this parser has not been taught yet.
+    Bind text to not-yet unto parser, given (the text what):
+        Return cast refusal-at on ("unsupported", cast one's peek, what).
+    Done.
+
+    /// A source the C# parser refuses too.
+    Bind text to refused unto parser, given (the token spot-tok, the text reason):
+        Return cast refusal-at on ("error", spot-tok, reason).
+    Done.
+
+    Bind token or failure to consume unto parser, given (the text kind):
+        Define current as cast one's peek.
+        If current's kind is not kind:
+            Return a failure (cast one's refused on (current,
+                "expected {kind}, got {current's kind} \"{current's lexeme}\"")).
+        Done.
+        Return cast one's advance.
+    Done.
+
+    // ── Noise ─────────────────────────────────────────────────────────────
+
+    /// Articles are noise — except a `the` that opens `the <name> of <thing>`.
+    Bind void to skip-noise unto parser:
+        While cast is-noise on (cast one's peek), repeat:
+            If cast one's is-word on ("the") and cast one's is-named-access-pattern, stop.
+            Cast one's advance.
+        Done.
+    Done.
+
+    /// SkipNoiseBeforeType — in a type position no `the` opens a field access.
+    Bind void to skip-noise-before-type unto parser:
+        Increment one's type-depth by 1.
+        Cast one's skip-noise.
+        Decrement one's type-depth by 1.
+    Done.
+
+    // ── What a word is here ───────────────────────────────────────────────
+
+    Bind fact to is-ordinal-lexeme, given (the text lexeme):
+        Define lowered as lexeme in lowercase.
+        For each ordinal in a series with ("first", "second", "third", "fourth", "fifth", "sixth",
+                "seventh", "eighth", "ninth", "tenth", "last"), repeat:
+            If lowered is ordinal, return true.
+        Done.
+        Return false.
+    Done.
+
+    /// Tokens that can never be the FIRST token of a value — see CannotBeginAValue.
+    Bind fact to cannot-begin-a-value, given (the text kind):
+        For each shut in a series with (
+                "Plus", "Star", "Slash", "Percent", "Equal", "Lt", "Gt", "Lte", "Gte", "NotEqual",
+                "For", "From", "To", "In", "Into", "Unto", "Through", "On", "As", "By", "Than",
+                "Is", "And", "Or", "Xor", "But", "Has", "Contains", "Joined", "Converted", "Split",
+                "Like", "Becomes", "Sorted", "Trimmed", "Shifted", "Reverse", "Uppercase",
+                "Lowercase", "DirectoryKw"), repeat:
+            If kind is shut, return true.
+        Done.
+        Return false.
+    Done.
+
+    /// IsFieldNameToken.
+    Bind fact to is-field-name, given (the token candidate, the fact for-access):
+        Define kind as candidate's kind.
+        For each shut in a series with (
+                "Of", "Dot", "Colon", "LParen", "RParen", "Comma", "Number", "String", "Plus",
+                "Minus", "Star", "Slash", "Percent", "Equal", "Lt", "Gt", "Lte", "Gte", "NotEqual",
+                "Eof"), repeat:
+            If kind is shut, return false.
+        Done.
+        Define is-the as kind is "Article" and cast spelled on (candidate, "the").
+        If is-the, return false.
+        If for-access:
+            Define other-article as kind is "Article" and is-the is false.
+            If kind is not "Identifier" and kind is not "Category" and other-article is false:
+                Return false.
+            Done.
+            If kind is "Identifier" and cast is-ordinal-lexeme on (candidate's lexeme), return false.
+        Done.
+        Return true.
+    Done.
+
+    /// IsNamedAccessPattern — `the <name> of <something that can begin a value>`.
+    Bind fact to is-named-access-pattern unto parser:
+        If one's type-depth is greater than 0, return false.
+        Define spot as one's at + 1.
+        If cast is-field-name on (cast one's token-at on (spot), true) is false, return false.
+        Define following as cast one's token-at on (cast one's past-noise on (spot + 1)).
+        If following's kind is not "Of", return false.
+        Define target as cast one's token-at on (cast one's past-noise on (cast one's past-noise on (spot + 1) + 1)).
+        Return cast cannot-begin-a-value on (target's kind) is false.
+    Done.
+
+    /// BindsToWhatFollows — a `-` written against the value after it.
+    Bind fact to binds-to-what-follows unto parser, given (the number spot):
+        Define sign as cast one's token-at on (spot).
+        Define value as cast one's token-at on (spot + 1).
+        Return value's row is sign's row and value's column is sign's column + the length of sign's lexeme.
+    Done.
+
+    /// IsNamedFieldStart — `the <name> <value>`.
+    Bind fact to is-named-field-start unto parser:
+        Define here as cast one's peek.
+        If here's kind is not "Article" or cast spelled on (here, "the") is false, return false.
+        If cast is-field-name on (cast one's token-at on (one's at + 1), false) is false, return false.
+        Define spot as cast one's past-noise on (one's at + 2).
+        Define following as cast one's token-at on (spot).
+        If following's kind is "Of", return false.
+        If cast cannot-begin-a-value on (following's kind), return false.
+        If following's kind is "Minus", return cast one's binds-to-what-follows on (spot).
+        Return true.
+    Done.
+
+    /// EffectiveType — what a word acts as HERE. Book words lex as identifiers so they stay usable
+    /// as names, and a mandatory next word is what tells the shape apart.
+    Bind text to effective-kind unto parser, given (the token candidate):
+        If candidate's kind is not "Identifier", return candidate's kind.
+        Define lowered as candidate's lexeme in lowercase.
+        Define following as cast one's kind-after.
+        If lowered is "current" and following is "DirectoryKw", return "CurrentKw".
+        If lowered is "matrix" and following is "With", return "Matrix".
+        If lowered is "chase" and one's collections-depth is greater than 0, return "Chase".
+        If lowered is "randomly" and cast one's next-word-is on ("shuffled"), return "Randomly".
+        If lowered is "random":
+            If following is "NumberKw" or following is "Item" or cast one's next-word-is on ("guess"):
+                Return "Random".
+            Done.
+        Done.
+        If lowered is "channel" and following is "Of", return "Channel".
+        If lowered is "characters" and following is "From", return "Characters".
+        If lowered is "delivery" and following is "From", return "Delivery".
+        If lowered is "entry" and following is "For", return "Entry".
+        If lowered is "key" and following is "For", return "Key".
+        If lowered is "interrupt" and following is "Is", return "InterruptKw".
+        If lowered is "environment" and cast one's next-word-is on ("variable"), return "EnvironmentKw".
+        If lowered is "read":
+            If cast one's next-word-is on ("line") or cast one's next-word-is on ("all"), return "Read".
+        Done.
+        If lowered is "contents" and following is "Of":
+            Define beyond as cast one's token-at on (cast one's past-noise on (cast one's past-noise on (one's at + 1) + 1)).
+            If beyond's kind is "DirectoryKw", return "ContentsKw".
+        Done.
+        Return candidate's kind.
+    Done.
+Done.

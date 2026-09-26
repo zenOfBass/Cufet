@@ -1,0 +1,456 @@
+/*  The rarer primaries — the cases of ParseCorePrimary that a handful of programs use each:
+    matrices, chance, maps, sets, catalogues and atlases, channels and tasks, lambdas, running
+    programs, reading, the file system and the environment.
+
+    Reached from `core-primary` once its common cases have not matched, with the token already
+    known; each case consumes its own opening word.
+*/
+
+Pull a book on collections.
+    /// Comma-separated expressions up to `)`, after the `(` has been consumed.
+    Bind void or failure to expressions-to-close unto parser, given (the node holder):
+        Cast one's skip-noise.
+        If cast one's peek-kind is not "RParen":
+            Define first-item as cast one's expression or pass the failure off.
+            Cast holder's add on (first-item).
+            Cast one's skip-noise.
+            While cast one's peek-kind is "Comma", repeat:
+                Cast one's advance.
+                Cast one's skip-noise.
+                Define next-item as cast one's expression or pass the failure off.
+                Cast holder's add on (next-item).
+                Cast one's skip-noise.
+            Done.
+        Done.
+        Cast one's consume on ("RParen") or pass the failure off.
+    Done.
+
+    /// `("k" : v, …)` after `with`, as a list of pairs.
+    Bind void or failure to map-pairs unto parser, given (the node holder):
+        Cast one's consume on ("LParen") or pass the failure off.
+        Cast one's skip-noise.
+        If cast one's peek-kind is not "RParen":
+            Define going as true.
+            While going, repeat:
+                Define key as cast one's expression or pass the failure off.
+                Cast one's skip-noise.
+                Cast one's consume on ("Colon") or pass the failure off.
+                Cast one's skip-noise.
+                Define value as cast one's expression or pass the failure off.
+                Define pair as cast listed.
+                Cast pair's add on (key).
+                Cast pair's add on (value).
+                Cast holder's add on (pair).
+                Cast one's skip-noise.
+                If cast one's peek-kind is "Comma":
+                    Cast one's advance.
+                    Cast one's skip-noise.
+                Done.
+                Otherwise:
+                    The going becomes false.
+                Done.
+            Done.
+        Done.
+        Cast one's consume on ("RParen") or pass the failure off.
+    Done.
+
+    /// The one open union — `(UnionType _)`, a union whose cases are discovered, not declared.
+    Bind node to open-union:
+        Return cast made on ("UnionType", a series with (cast nothing)).
+    Done.
+
+    Bind node or failure to rare-primary unto parser, given (the text kind, the token tok):
+        If kind is "Matrix":
+            Cast one's advance.
+            Cast one's skip-noise.
+            Cast one's consume on ("With") or pass the failure off.
+            Cast one's skip-noise.
+            If cast one's peek-kind is "LParen":
+                Cast one's advance.
+                Cast one's skip-noise.
+                Define rows as cast listed.
+                If cast one's peek-kind is not "RParen":
+                    Define going as true.
+                    While going, repeat:
+                        Cast one's consume on ("LParen") or pass the failure off.
+                        Define row as cast listed.
+                        Cast one's expressions-to-close on (row) or pass the failure off.
+                        Cast rows's add on (row).
+                        Cast one's skip-noise.
+                        If cast one's peek-kind is "Comma":
+                            Cast one's advance.
+                            Cast one's skip-noise.
+                        Done.
+                        Otherwise:
+                            The going becomes false.
+                        Done.
+                    Done.
+                Done.
+                Cast one's consume on ("RParen") or pass the failure off.
+                Return cast placed on ("MatrixLiteral", a series with (rows), tok).
+            Done.
+            Define row-count as cast one's expression or pass the failure off.
+            Cast one's skip-noise.
+            Cast one's consume on ("By") or pass the failure off.
+            Cast one's skip-noise.
+            Define column-count as cast one's expression or pass the failure off.
+            Cast one's skip-noise.
+            Define fill as cast nothing.
+            If cast one's is-word on ("filled"):
+                Cast one's advance.
+                Cast one's skip-noise.
+                Cast one's consume on ("With") or pass the failure off.
+                Cast one's skip-noise.
+                The fill becomes cast one's expression or pass the failure off.
+            Done.
+            Return cast placed on ("MatrixSized", a series with (row-count, column-count, fill), tok).
+        Done.
+
+        If kind is "Random":
+            Cast one's advance.
+            Cast one's skip-noise.
+            If cast one's peek-kind is "NumberKw":
+                Cast one's advance.
+                Cast one's skip-noise.
+                Cast one's consume on ("From") or pass the failure off.
+                Cast one's skip-noise.
+                Define low as cast one's addition or pass the failure off.
+                Cast one's skip-noise.
+                Cast one's consume on ("To") or pass the failure off.
+                Cast one's skip-noise.
+                Define high as cast one's addition or pass the failure off.
+                Return cast placed on ("RandomNumber", a series with (low, high), tok).
+            Done.
+            If cast one's peek-kind is "Item":
+                Cast one's advance.
+                Cast one's skip-noise.
+                Cast one's consume on ("From") or pass the failure off.
+                Cast one's skip-noise.
+                Define pool as cast one's core-primary or pass the failure off.
+                Return cast placed on ("RandomItem", a series with (pool), tok).
+            Done.
+            If cast one's is-word on ("guess"):
+                Cast one's advance.
+                Return cast placed on ("RandomGuess", a series of node, tok).
+            Done.
+            Return a failure (cast one's refused on (cast one's peek, "expected number, item, or guess — expected after 'random'")).
+        Done.
+
+        If kind is "Randomly":
+            Cast one's advance.
+            Cast one's skip-noise.
+            If cast one's is-word on ("shuffled") is false:
+                Return a failure (cast one's refused on (cast one's peek, "expected 'shuffled'")).
+            Done.
+            Cast one's advance.
+            Cast one's skip-noise.
+            Define pool as cast one's core-primary or pass the failure off.
+            Return cast placed on ("RandomlyShuffled", a series with (pool), tok).
+        Done.
+
+        If kind is "CatalogueKw":
+            Cast one's advance.
+            Cast one's skip-noise.
+            Define annotation as cast open-union.
+            If cast one's peek-kind is "Of":
+                Cast one's advance.
+                Cast one's skip-noise.
+                The annotation becomes cast one's type-annotation or pass the failure off.
+                Cast one's skip-noise.
+            Done.
+            Define elements as cast listed.
+            If cast one's peek-kind is "With":
+                Cast one's advance.
+                Cast one's skip-noise.
+                Cast one's consume on ("LParen") or pass the failure off.
+                Cast one's expressions-to-close on (elements) or pass the failure off.
+            Done.
+            Return cast placed on ("SeriesLiteral", a series with (elements, annotation), tok).
+        Done.
+
+        If kind is "AtlasKw" or kind is "Map":
+            Cast one's advance.
+            Cast one's skip-noise.
+            Define key-type as cast nothing.
+            Define value-type as cast nothing.
+            If kind is "AtlasKw":
+                The key-type becomes cast plain-type on ("TextType").
+                The value-type becomes cast open-union.
+            Done.
+            If cast one's peek-kind is "From":
+                Cast one's advance.
+                Cast one's skip-noise.
+                The key-type becomes cast one's type-annotation or pass the failure off.
+                Cast one's skip-noise.
+                Cast one's consume on ("To") or pass the failure off.
+                Cast one's skip-noise.
+                The value-type becomes cast one's type-annotation or pass the failure off.
+                Cast one's skip-noise.
+            Done.
+            Define pairs as cast listed.
+            // A map with no types written needs its entries; an atlas and a typed map do not.
+            Define needs-entries as kind is "Map" and value-type's word is "_".
+            If needs-entries or cast one's peek-kind is "With":
+                Cast one's consume on ("With") or pass the failure off.
+                Cast one's skip-noise.
+                Cast one's map-pairs on (pairs) or pass the failure off.
+            Done.
+            Return cast placed on ("MapLiteral", a series with (key-type, value-type, pairs), tok).
+        Done.
+
+        If kind is "SetKw":
+            Cast one's advance.
+            Cast one's skip-noise.
+            Cast one's consume on ("Of") or pass the failure off.
+            Cast one's skip-noise.
+            Define element-type as cast one's type-annotation or pass the failure off.
+            Cast one's skip-noise.
+            Define members as cast listed.
+            If cast one's peek-kind is "With":
+                Cast one's advance.
+                Cast one's skip-noise.
+                Cast one's consume on ("LParen") or pass the failure off.
+                Cast one's skip-noise.
+                While cast one's peek-kind is not "RParen", repeat:
+                    Define member as cast one's expression or pass the failure off.
+                    Cast members's add on (member).
+                    Cast one's skip-noise.
+                    If cast one's peek-kind is "Comma":
+                        Cast one's advance.
+                        Cast one's skip-noise.
+                    Done.
+                Done.
+                Cast one's consume on ("RParen") or pass the failure off.
+            Done.
+            Return cast placed on ("SetLiteral", a series with (element-type, members), tok).
+        Done.
+
+        If kind is "Channel":
+            Cast one's advance.
+            Cast one's skip-noise.
+            Cast one's consume on ("Of") or pass the failure off.
+            Cast one's skip-noise.
+            Define element-type as cast one's type-annotation or pass the failure off.
+            Return cast placed on ("ChannelCreation", a series with (element-type), tok).
+        Done.
+
+        If kind is "Delivery":
+            Cast one's advance.
+            Cast one's skip-noise.
+            Cast one's consume on ("From") or pass the failure off.
+            Cast one's skip-noise.
+            Define source as cast one's expression or pass the failure off.
+            Return cast placed on ("DeliveryExpression", a series with (source), tok).
+        Done.
+
+        If kind is "Awaited":
+            Cast one's advance.
+            Cast one's skip-noise.
+            If cast one's peek-kind is "Identifier" and cast one's is-word on ("result"), cast one's advance.
+            Cast one's skip-noise.
+            Cast one's consume on ("Of") or pass the failure off.
+            Cast one's skip-noise.
+            Define awaited-task as cast one's expr-or or pass the failure off.
+            Return cast placed on ("AwaitedResultExpression", a series with (awaited-task), tok).
+        Done.
+
+        If kind is "Entry":
+            Cast one's advance.
+            Cast one's skip-noise.
+            Cast one's consume on ("For") or pass the failure off.
+            Cast one's skip-noise.
+            Define key as cast one's expression or pass the failure off.
+            Cast one's skip-noise.
+            Cast one's consume on ("In") or pass the failure off.
+            Cast one's skip-noise.
+            Define mapping as cast one's core-primary or pass the failure off.
+            Return cast placed on ("MapLookup", a series with (mapping, key), tok).
+        Done.
+
+        If kind is "FunctionKw":
+            Cast one's advance.
+            Cast one's skip-noise.
+            Define parameters as cast listed.
+            If cast one's peek-kind is "Given":
+                Cast one's advance.
+                Cast one's skip-noise.
+                Cast one's consume on ("LParen") or pass the failure off.
+                Cast one's skip-noise.
+                If cast one's peek-kind is not "RParen":
+                    Define first-parameter as cast one's parameter or pass the failure off.
+                    Cast parameters's add on (first-parameter).
+                    Cast one's skip-noise.
+                    While cast one's peek-kind is "Comma", repeat:
+                        Cast one's advance.
+                        Cast one's skip-noise.
+                        Define next-parameter as cast one's parameter or pass the failure off.
+                        Cast parameters's add on (next-parameter).
+                        Cast one's skip-noise.
+                    Done.
+                Done.
+                Cast one's consume on ("RParen") or pass the failure off.
+                Cast one's skip-noise.
+            Done.
+            Cast one's consume on ("Colon") or pass the failure off.
+            Define saved-free-function as one's in-free-function.
+            One's in-free-function becomes true.
+            Increment one's function-depth by 1.
+            Increment one's nest-depth by 1.
+            Define body as cast listed.
+            Define scanning as true.
+            While scanning, repeat:
+                Cast one's skip-noise.
+                If cast one's peek-kind is "Done" or cast one's peek-kind is "Eof", stop.
+                Define inner as cast one's statement or pass the failure off.
+                Cast body's add on (inner).
+            Done.
+            Cast one's consume on ("Done") or pass the failure off.
+            Decrement one's nest-depth by 1.
+            Decrement one's function-depth by 1.
+            One's in-free-function becomes saved-free-function.
+            Return cast placed on ("LambdaLiteral", a series with (parameters, body), tok).
+        Done.
+
+        If kind is "Run":
+            Cast one's advance.
+            Cast one's skip-noise.
+            Define program as cast one's expr-or or pass the failure off.
+            Cast one's skip-noise.
+            Define args as cast listed.
+            Define args-series as cast nothing.
+            Define with-terminal as false.
+            Define fed-input as cast nothing.
+            While cast one's peek-kind is "With", repeat:
+                Cast one's advance.
+                Cast one's skip-noise.
+                If cast one's is-word on ("terminal"):
+                    Cast one's advance.
+                    The with-terminal becomes true.
+                Done.
+                Otherwise if cast one's is-word on ("input"):
+                    Cast one's advance.
+                    Cast one's skip-noise.
+                    The fed-input becomes cast one's expr-or or pass the failure off.
+                Done.
+                Otherwise:
+                    Cast one's consume on ("Arguments") or pass the failure off.
+                    Cast one's skip-noise.
+                    If cast one's peek-kind is "LParen":
+                        Cast one's advance.
+                        Cast one's expressions-to-close on (args) or pass the failure off.
+                    Done.
+                    Otherwise:
+                        The args-series becomes cast one's expr-or or pass the failure off.
+                    Done.
+                Done.
+            Done.
+            Return cast made on ("RunExpression", a series with (program, args, args-series,
+                cast row-of on (tok), cast column-of on (tok), cast flag on (with-terminal), fed-input)).
+        Done.
+
+        If kind is "Read":
+            Cast one's advance.
+            Cast one's skip-noise.
+            Define form as "".
+            If cast one's is-word on ("line"):
+                Cast one's advance.
+                The form becomes "Line".
+            Done.
+            Otherwise if cast one's is-word on ("all"):
+                Cast one's advance.
+                Cast one's skip-noise.
+                The form becomes "All".
+                If cast one's is-word on ("lines"):
+                    Cast one's advance.
+                    The form becomes "AllLines".
+                Done.
+            Done.
+            Otherwise:
+                Return a failure (cast one's refused on (cast one's peek, "expected 'line', 'all', or 'all lines' after 'read'")).
+            Done.
+            Cast one's skip-noise.
+            Cast one's consume on ("From") or pass the failure off.
+            Cast one's skip-noise.
+            If cast one's peek-kind is "File":
+                If form is "Line":
+                    Return a failure (cast one's refused on (cast one's peek, "a line has to be read from an open stream, not from a path")).
+                Done.
+                Cast one's advance.
+                Cast one's skip-noise.
+                Define path-expr as cast one's expr-or or pass the failure off.
+                Define file-form as "AllLines" when form is "AllLines", otherwise "All".
+                Return cast placed on ("FileReadExpression", a series with (cast atom on (file-form), path-expr), tok).
+            Done.
+            Define source as cast one's expr-or or pass the failure off.
+            Return cast placed on ("ReadExpression", a series with (cast atom on (form), source), tok).
+        Done.
+
+        If kind is "ContentsKw":
+            Cast one's advance.
+            Cast one's skip-noise.
+            Cast one's consume on ("Of") or pass the failure off.
+            Cast one's skip-noise.
+            Cast one's consume on ("DirectoryKw") or pass the failure off.
+            Cast one's skip-noise.
+            Define path-expr as cast one's joined-to or pass the failure off.
+            Return cast placed on ("DirectoryContentsExpression", a series with (path-expr), tok).
+        Done.
+
+        If kind is "PathKw":
+            Cast one's advance.
+            Cast one's skip-noise.
+            Define path-expr as cast one's joined-to or pass the failure off.
+            Cast one's skip-noise.
+            If cast one's peek-kind is "Identifier" and cast one's is-word on ("exists"):
+                Cast one's advance.
+                Return cast placed on ("PathCheckExpression", a series with (path-expr, cast atom on ("Exists")), tok).
+            Done.
+            Cast one's consume on ("Is") or pass the failure off.
+            Cast one's skip-noise.
+            If cast one's peek-kind is "DirectoryKw":
+                Cast one's advance.
+                Return cast placed on ("PathCheckExpression", a series with (path-expr, cast atom on ("IsDirectory")), tok).
+            Done.
+            If cast one's peek-kind is "File":
+                Cast one's advance.
+                Return cast placed on ("PathCheckExpression", a series with (path-expr, cast atom on ("IsFile")), tok).
+            Done.
+            Return a failure (cast one's refused on (cast one's peek, "expected 'directory' or 'file' after 'the path ... is a'")).
+        Done.
+
+        If kind is "EnvironmentKw":
+            Cast one's advance.
+            If cast one's peek-kind is not "Identifier" or cast one's is-word on ("variable") is false:
+                Return a failure (cast one's refused on (cast one's peek, "expected 'variable' after 'environment'")).
+            Done.
+            Cast one's advance.
+            Cast one's skip-noise.
+            Define variable-name as cast one's expr-or or pass the failure off.
+            Return cast placed on ("EnvironmentVariableExpression", a series with (variable-name), tok).
+        Done.
+
+        If kind is "Arguments":
+            Cast one's advance.
+            Return cast placed on ("ProgramArgumentsExpression", a series of node, tok).
+        Done.
+
+        If kind is "CurrentKw":
+            Cast one's advance.
+            Cast one's skip-noise.
+            Cast one's consume on ("DirectoryKw") or pass the failure off.
+            Return cast placed on ("CurrentDirectoryExpression", a series of node, tok).
+        Done.
+
+        If kind is "InterruptKw":
+            Cast one's advance.
+            Cast one's consume on ("Is") or pass the failure off.
+            If cast one's peek-kind is not "Identifier" or cast one's is-word on ("requested") is false:
+                Return a failure (cast one's refused on (cast one's peek, "expected 'requested' after 'an interrupt is'")).
+            Done.
+            Cast one's advance.
+            Return cast placed on ("InterruptRequestedExpression", a series of node, tok).
+        Done.
+
+        Return a failure (cast one's not-yet on (kind)).
+    Done.
+Done.

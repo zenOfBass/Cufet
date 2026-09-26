@@ -1,0 +1,619 @@
+/*  Patterns — `RegexPattern.Compile` in `src/Interpreter/RegexPattern.cs`, which the C# parser
+    calls on the text of `Define regex <name> as [ … ]` and lowers to an ordinary function.
+
+    The pattern is read into a small tree of its own (a `node`, reused: `Ch`, `Any`, `Cat`, `Or`,
+    `Star`, `Plus`, `Opt`, the anchors, `NoneOf`), then built into the automaton the engine in
+    `Prelude/regex.cufe` runs: a series of states, each a kind, a text and two successors.
+
+    ⚠ FINDING: Cufet cannot ask a character for its code point, and `[a-z]` is a range of them. A
+    chase goes the other way — a number inserted into one IS a character — so a table from
+    character to number is built from that, once, and only when a pattern has a range in it.
+*/
+
+Pull a book on collections.
+    Define object pattern-reader with (
+        the chase source,
+        the number size,
+        the number at,
+        the fact folding,
+        the fact dot-all,
+        the fact multiline,
+        the map from text to number codes,
+        the number declared-row,
+        the number declared-column).
+
+    // ── Where the reader stands ───────────────────────────────────────────
+
+    Bind text to char-at unto pattern-reader, given (the number spot):
+        If spot is greater than one's size, return "".
+        Return item spot of one's source.
+    Done.
+
+    Bind text to peek-char unto pattern-reader:
+        Return cast one's char-at on (one's at).
+    Done.
+
+    Bind fact to at-end unto pattern-reader:
+        Return one's at is greater than one's size.
+    Done.
+
+    /// The fault, in the voice the C# parser gives it: what, why, and the fix with a capital.
+    Bind text to fault unto pattern-reader, given (the text what, the text why, the text fix):
+        Define lead as the first 1 characters of fix.
+        Define rest as the characters from 2 to the end of fix.
+        Return "error\t{one's declared-row}\t{one's declared-column}\t{what} — {why}. {lead in uppercase}{rest}.".
+    Done.
+
+    // ── Code points ───────────────────────────────────────────────────────
+
+    /// A character's code point, from a table built the first time one is asked for.
+    Bind number to code-of unto pattern-reader, given (the text ch):
+        If the size of one's codes is 0:
+            Define every as a chase.
+            Define point as 0.
+            While point is less than 12288, repeat:
+                If point is less than 55296 or point is greater than 57343, insert point into every.
+                Increment point by 1.
+            Done.
+            Define place as 0.
+            For each held in every, repeat:
+                In one's codes, the entry for held becomes place.
+                Increment place by 1.
+            Done.
+        Done.
+        Return (the entry for ch in one's codes) but void is -1.
+    Done.
+
+    Bind text to char-of, given (the number point):
+        Define one-char as a chase.
+        Insert point into one-char.
+        Return one-char converted to text.
+    Done.
+
+    // ── Case ──────────────────────────────────────────────────────────────
+
+    /// Both cases of every character, when `(?i)` is in force.
+    Bind text to folded unto pattern-reader, given (the text members):
+        If one's folding is false, return members.
+        Define both as a chase.
+        Define each-char as a chase.
+        Insert members into each-char.
+        For each ch in each-char, repeat:
+            Insert ch into both.
+            Define upper as ch in uppercase.
+            Define lower as ch in lowercase.
+            If the length of upper is 1 and upper is not ch, insert upper into both.
+            If the length of lower is 1 and lower is not ch, insert lower into both.
+        Done.
+        Return both converted to text.
+    Done.
+
+    // ── The pattern's own tree ────────────────────────────────────────────
+
+    Bind node to leaf-node, given (the text kind, the text value):
+        Return a new node { the kind kind, the word value, the children a series of node }.
+    Done.
+
+    Bind node to pair-node, given (the text kind, the node left, the node right):
+        Return cast made on (kind, a series with (left, right)).
+    Done.
+
+    Bind node to wrap-node, given (the text kind, the node inner):
+        Return cast made on (kind, a series with (inner)).
+    Done.
+
+    /// An alternation over every character of `members`.
+    Bind node to admitting, given (the text members):
+        Define each-char as a chase.
+        Insert members into each-char.
+        Define built as cast nothing.
+        Define started as false.
+        For each ch in each-char, repeat:
+            If started:
+                The built becomes cast pair-node on ("Or", built, cast leaf-node on ("Ch", ch)).
+            Done.
+            Otherwise:
+                The built becomes cast leaf-node on ("Ch", ch).
+                The started becomes true.
+            Done.
+        Done.
+        Return built.
+    Done.
+
+    Bind node to character unto pattern-reader, given (the text ch):
+        If one's folding, return cast admitting on (cast one's folded on (ch)).
+        Return cast leaf-node on ("Ch", ch).
+    Done.
+
+    Bind text to shorthand-members, given (the text letter):
+        If letter is "d", return "0123456789".
+        If letter is "w", return "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_".
+        If letter is "s":
+            Define spaces as a chase.
+            Insert " \t\n\r" into spaces.
+            Insert 12 into spaces.
+            Insert 11 into spaces.
+            Return spaces converted to text.
+        Done.
+        Return "".
+    Done.
+
+    Bind fact to is-negated-shorthand, given (the text letter):
+        If cast shorthand-members on (letter in lowercase) is "", return false.
+        Return letter is not (letter in lowercase).
+    Done.
+
+    Bind fact to is-meta, given (the text ch):
+        If ch is "", return false.
+        Return "*+?|().[]^$\{\}" contains ch.
+    Done.
+
+    Bind text to typed-directly, given (the text letter):
+        If letter is "t", return "a tab".
+        If letter is "n", return "a line break".
+        If letter is "r", return "a carriage return".
+        Return "".
+    Done.
+
+    // ── Reading ───────────────────────────────────────────────────────────
+
+    Bind node or failure to read-alternation unto pattern-reader:
+        Define left as cast one's read-sequence or pass the failure off.
+        While cast one's at-end is false and cast one's peek-char is "|", repeat:
+            Increment one's at by 1.
+            Define right as cast one's read-sequence or pass the failure off.
+            The left becomes cast pair-node on ("Or", left, right).
+        Done.
+        Return left.
+    Done.
+
+    Bind fact to is-ascii-letter, given (the text ch):
+        If ch is "", return false.
+        Return "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ" contains ch.
+    Done.
+
+    /// `(?i)`, `(?s:`, `(?is)` … — applies the letters and answers whether the group is scoped.
+    /// Answers "none" and leaves the reader alone for anything else.
+    Bind text or failure to take-flags unto pattern-reader:
+        If cast one's at-end or cast one's peek-char is not "(" or cast one's char-at on (one's at + 1) is not "?":
+            Return "none".
+        Done.
+        Define scan as one's at + 2.
+        While cast is-ascii-letter on (cast one's char-at on (scan)), repeat:
+            Increment scan by 1.
+        Done.
+        If scan is one's at + 2, return "none".
+        Define terminator as cast one's char-at on (scan).
+        If terminator is not ")" and terminator is not ":", return "none".
+        Define spot as one's at + 2.
+        While spot is less than scan, repeat:
+            Define flag-letter as cast one's char-at on (spot).
+            If flag-letter is "i":
+                One's folding becomes true.
+            Done.
+            Otherwise if flag-letter is "s":
+                One's dot-all becomes true.
+            Done.
+            Otherwise if flag-letter is "m":
+                One's multiline becomes true.
+            Done.
+            Otherwise:
+                Return a failure (cast one's fault on ("'{flag-letter}' is not a flag this pattern understands",
+                    "the flags are 'i' to ignore case, 's' to let '.' cross a line break, and 'm' to make '^' and '$' mean each line",
+                    "write '(?i)', '(?s)', '(?m)' or any of them together")).
+            Done.
+            Increment spot by 1.
+        Done.
+        One's at becomes scan + 1.
+        Return "scoped" when terminator is ":", otherwise "bare".
+    Done.
+
+    Bind node or failure to read-sequence unto pattern-reader:
+        Define built as cast nothing.
+        Define started as false.
+        Define scanning as true.
+        While scanning, repeat:
+            If cast one's at-end, stop.
+            Define here as cast one's peek-char.
+            If here is "|" or here is ")", stop.
+            Define before as one's at.
+            Define was-folding as one's folding.
+            Define was-dot-all as one's dot-all.
+            Define was-multiline as one's multiline.
+            Define flags as cast one's take-flags or pass the failure off.
+            If flags is "bare", skip.
+            If flags is "scoped":
+                One's at becomes before.
+                One's folding becomes was-folding.
+                One's dot-all becomes was-dot-all.
+                One's multiline becomes was-multiline.
+            Done.
+            Define piece as cast one's read-repeated or pass the failure off.
+            If started:
+                The built becomes cast pair-node on ("Cat", built, piece).
+            Done.
+            Otherwise:
+                The built becomes piece.
+                The started becomes true.
+            Done.
+        Done.
+        If started is false:
+            Return a failure (cast one's fault on ("this pattern has an empty alternative",
+                "one side of a '|' has nothing on it, which would match everywhere",
+                "write what that side should find, or drop the '|'")).
+        Done.
+        Return built.
+    Done.
+
+    Bind node or failure to read-repeated unto pattern-reader:
+        Define inner as cast one's read-atom or pass the failure off.
+        Define scanning as true.
+        While scanning, repeat:
+            If cast one's at-end, stop.
+            Define mark as cast one's peek-char.
+            If mark is "\{":
+                The inner becomes cast one's read-count on (inner) or pass the failure off.
+            Done.
+            Otherwise if mark is "*" or mark is "+" or mark is "?":
+                Increment one's at by 1.
+                Define shape as "Star" when mark is "*", otherwise ("Plus" when mark is "+", otherwise "Opt").
+                The inner becomes cast wrap-node on (shape, inner).
+            Done.
+            Otherwise:
+                Stop.
+            Done.
+        Done.
+        Return inner.
+    Done.
+
+    /// Digits, or -1 when there are none.
+    Bind number to read-count-number unto pattern-reader:
+        Define digits as "".
+        While cast one's at-end is false and "0123456789" contains cast one's peek-char, repeat:
+            The digits becomes digits joined to cast one's peek-char.
+            Increment one's at by 1.
+        Done.
+        If digits is "", return -1.
+        If the length of digits is greater than 6, return 1001.
+        Return (digits converted to number) but void is 1001.
+    Done.
+
+    /// `{n}`, `{n,}` or `{n,m}` — desugared to repetition of what came before it.
+    Bind node or failure to read-count unto pattern-reader, given (the node inner):
+        Increment one's at by 1.
+        Define least as cast one's read-count-number.
+        Define most as least.
+        Define open-ended as false.
+        If cast one's at-end is false and cast one's peek-char is ",":
+            Increment one's at by 1.
+            If cast one's at-end is false and cast one's peek-char is "\}":
+                The open-ended becomes true.
+                The most becomes -1.
+            Done.
+            Otherwise:
+                The most becomes cast one's read-count-number.
+            Done.
+        Done.
+        If cast one's at-end or cast one's peek-char is not "\}":
+            Return a failure (cast one's fault on ("this count is never closed",
+                "a count is written '\{n\}', '\{n,\}' or '\{n,m\}'", "write '\\\{' if you meant the character")).
+        Done.
+        Increment one's at by 1.
+        If least is -1 or (open-ended is false and most is -1):
+            Return a failure (cast one's fault on ("this count has no number in it",
+                "a count says how many times to repeat, so it needs a number",
+                "write '\{2\}', '\{2,\}' or '\{2,5\}' — or '\\\{' for the character")).
+        Done.
+        If open-ended is false and most is less than least:
+            Return a failure (cast one's fault on ("'\{{least},{most}\}' counts down, from {least} to {most}",
+                "a count goes from the smaller number to the larger one", "write '\{{most},{least}\}'")).
+        Done.
+        If least is 0 and open-ended is false and most is 0:
+            Return a failure (cast one's fault on ("'\{0\}' repeats nothing zero times",
+                "a count of zero leaves nothing behind, so the pattern could never use it",
+                "remove it, or write '\{0,1\}' for something optional")).
+        Done.
+        If least is greater than 1000 or most is greater than 1000:
+            Return a failure (cast one's fault on ("a count above 1000 is more than this pattern will build",
+                "a count is written out as that many copies, so a large one becomes a very large automaton",
+                "use a repeat like '+' or '*' instead of counting past 1000")).
+        Done.
+        Return cast repeated on (inner, least, most).
+    Done.
+
+    /// `least` copies, then a star (when `most` is -1) or nested options up to `most`.
+    Bind node to repeated, given (the node inner, the number least, the number most):
+        Define built as cast nothing.
+        Define started as false.
+        If most is -1:
+            The built becomes cast wrap-node on ("Star", inner).
+            The started becomes true.
+        Done.
+        Otherwise:
+            Define count as 0.
+            While count is less than most - least, repeat:
+                If started:
+                    The built becomes cast wrap-node on ("Opt", cast pair-node on ("Cat", inner, built)).
+                Done.
+                Otherwise:
+                    The built becomes cast wrap-node on ("Opt", inner).
+                    The started becomes true.
+                Done.
+                Increment count by 1.
+            Done.
+        Done.
+        Define count as 0.
+        While count is less than least, repeat:
+            If started:
+                The built becomes cast pair-node on ("Cat", inner, built).
+            Done.
+            Otherwise:
+                The built becomes inner.
+                The started becomes true.
+            Done.
+            Increment count by 1.
+        Done.
+        Return built.
+    Done.
+
+    Bind text to group-extension unto pattern-reader:
+        Define next-char as cast one's char-at on (one's at + 1).
+        If next-char is "=" or next-char is "!":
+            Return cast one's fault on ("this pattern uses lookahead, which an automaton cannot express",
+                "lookahead asks what comes next without consuming it, which needs a machine that can backtrack — and backtracking is what lets a pattern hang forever, so this book does not have one",
+                "match what you mean to consume, or split the question into two patterns").
+        Done.
+        Define after-next as cast one's char-at on (one's at + 2).
+        If next-char is "<" and (after-next is "=" or after-next is "!"):
+            Return cast one's fault on ("this pattern uses lookbehind, which an automaton cannot express",
+                "lookbehind asks what came before without consuming it, which needs a machine that can backtrack — and backtracking is what lets a pattern hang forever, so this book does not have one",
+                "match what you mean to consume, or split the question into two patterns").
+        Done.
+        If next-char is "<":
+            Return cast one's fault on ("this pattern names a capture, which patterns cannot do yet",
+                "a pattern answers whether the subject holds a match, and gives back no part of what it matched",
+                "use the group without a name").
+        Done.
+        If next-char is "i" or next-char is "m" or next-char is "s" or next-char is "x":
+            Return cast one's fault on ("'(?{next-char}' is not a flag this pattern understands",
+                "the only flag is 'i' for ignoring case, written '(?i)' to the end of the group or '(?i:…)' around part of it",
+                "write '(?i)' on its own, or '(?i:' around what it should cover").
+        Done.
+        Return cast one's fault on ("'(?{next-char}' is not something this pattern understands",
+            "a '(' opens a group, and '(?:' opens one that captures nothing", "write '\\(' if you meant the character").
+    Done.
+
+    Bind node or failure to read-atom unto pattern-reader:
+        If cast one's at-end:
+            Return a failure (cast one's fault on ("this pattern is empty",
+                "a pattern with nothing in it would match everywhere, which is never what was meant",
+                "write the text the pattern should find")).
+        Done.
+        Define ch as cast one's peek-char.
+        If ch is "*" or ch is "+" or ch is "?":
+            Return a failure (cast one's fault on ("'{ch}' has nothing before it to repeat",
+                "a repeat applies to whatever comes just before it", "write '\\{ch}' if you meant the character itself")).
+        Done.
+        If ch is "^":
+            Increment one's at by 1.
+            Return cast leaf-node on ("AtLineStart" when one's multiline, otherwise "AtStart", "").
+        Done.
+        If ch is "$":
+            Increment one's at by 1.
+            Return cast leaf-node on ("AtLineEnd" when one's multiline, otherwise "AtEnd", "").
+        Done.
+        If ch is "[":
+            Increment one's at by 1.
+            Return cast one's read-class or pass the failure off.
+        Done.
+        If ch is "(":
+            Increment one's at by 1.
+            Define outer-folding as one's folding.
+            Define outer-dot-all as one's dot-all.
+            Define outer-multiline as one's multiline.
+            If cast one's at-end is false and cast one's peek-char is "?" and cast one's char-at on (one's at + 1) is ":":
+                Increment one's at by 2.
+            Done.
+            Otherwise if cast one's at-end is false and cast one's peek-char is "?":
+                Decrement one's at by 1.
+                Define flags as cast one's take-flags or pass the failure off.
+                If flags is not "scoped":
+                    Increment one's at by 1.
+                    Return a failure (cast one's group-extension).
+                Done.
+            Done.
+            Define inside as cast one's read-alternation or pass the failure off.
+            If cast one's at-end or cast one's peek-char is not ")":
+                Return a failure (cast one's fault on ("this pattern opens a group that is never closed",
+                    "every '(' needs a ')' after it", "write '\\(' if you meant the character")).
+            Done.
+            Increment one's at by 1.
+            One's folding becomes outer-folding.
+            One's dot-all becomes outer-dot-all.
+            One's multiline becomes outer-multiline.
+            Return inside.
+        Done.
+        If ch is ".":
+            Increment one's at by 1.
+            If one's dot-all, return cast leaf-node on ("Any", "").
+            Return cast leaf-node on ("NoneOf", "\n").
+        Done.
+        If ch is "\\":
+            If one's at + 1 is greater than one's size:
+                Return a failure (cast one's fault on ("this pattern ends in a backslash, which escapes nothing",
+                    "a backslash makes the character after it ordinary, so there has to be one",
+                    "write '\\\\' for a backslash you meant literally")).
+            Done.
+            Define escaped-char as cast one's char-at on (one's at + 1).
+            Define members as cast shorthand-members on (escaped-char).
+            If members is not "":
+                Increment one's at by 2.
+                Return cast admitting on (cast one's folded on (members)).
+            Done.
+            If cast is-negated-shorthand on (escaped-char):
+                Increment one's at by 2.
+                Return cast leaf-node on ("NoneOf", cast one's folded on (cast shorthand-members on (escaped-char in lowercase))).
+            Done.
+            If escaped-char is not "\\" and cast is-meta on (escaped-char) is false:
+                Define spelled-as as cast typed-directly on (escaped-char).
+                Define fix as "write '{escaped-char}' on its own if you meant the character".
+                If spelled-as is not "", the fix becomes "write {spelled-as} straight into the pattern — it needs no escape".
+                Return a failure (cast one's fault on ("'\\{escaped-char}' is not an escape this pattern understands",
+                    "a backslash may make a metacharacter ordinary, or stand for a backslash", fix)).
+            Done.
+            Increment one's at by 2.
+            Return cast one's character on (escaped-char).
+        Done.
+        Increment one's at by 1.
+        Return cast one's character on (ch).
+    Done.
+
+    /// One character inside a class, with escapes honoured.
+    Bind text or failure to class-character unto pattern-reader:
+        Define ch as cast one's peek-char.
+        If ch is not "\\":
+            Increment one's at by 1.
+            Return ch.
+        Done.
+        If one's at + 1 is greater than one's size:
+            Return a failure (cast one's fault on ("this class ends in a backslash, which escapes nothing",
+                "a backslash makes the character after it ordinary, so there has to be one",
+                "write '\\\\' for a backslash you meant literally")).
+        Done.
+        Define escaped-char as cast one's char-at on (one's at + 1).
+        If escaped-char is not "\\" and escaped-char is not "]" and escaped-char is not "[" and escaped-char is not "-" and escaped-char is not "^":
+            Define spelled-as as cast typed-directly on (escaped-char).
+            Define fix as "write '{escaped-char}' on its own if you meant the character".
+            If spelled-as is not "", the fix becomes "write {spelled-as} straight into the class — it needs no escape".
+            Return a failure (cast one's fault on ("'\\{escaped-char}' is not an escape a class understands",
+                "inside a class a backslash may precede a backslash, a bracket, a dash, a caret, or one of the shorthands \\d \\w \\s", fix)).
+        Done.
+        Increment one's at by 2.
+        Return escaped-char.
+    Done.
+
+    /// `[ … ]` — an alternation of what it admits, or one NoneOf state when negated.
+    Bind node or failure to read-class unto pattern-reader:
+        Define negated as cast one's at-end is false and cast one's peek-char is "^".
+        If negated, increment one's at by 1.
+        Define admitted as a chase.
+        While cast one's at-end is false and cast one's peek-char is not "]", repeat:
+            If cast one's peek-char is "\\" and one's at + 1 is not greater than one's size:
+                Define letter as cast one's char-at on (one's at + 1).
+                Define members as cast shorthand-members on (letter).
+                If members is not "":
+                    Increment one's at by 2.
+                    Insert members into admitted.
+                    Skip.
+                Done.
+                If cast is-negated-shorthand on (letter):
+                    Return a failure (cast one's fault on ("'\\{letter}' cannot be used inside a class",
+                        "a class is the characters it admits, and a negated shorthand is every character except some — the two cannot be listed together",
+                        "write '\\{letter}' on its own, outside the brackets")).
+                Done.
+            Done.
+            Define low as cast one's class-character or pass the failure off.
+            If cast one's at-end is false and cast one's peek-char is "-" and cast one's char-at on (one's at + 1) is not "]" and one's at + 1 is not greater than one's size:
+                Increment one's at by 1.
+                Define high as cast one's class-character or pass the failure off.
+                Define from-point as cast one's code-of on (low).
+                Define to-point as cast one's code-of on (high).
+                If from-point is -1 or to-point is -1:
+                    Return a failure "unsupported\t{one's declared-row}\t{one's declared-column}\ta class range beyond the characters this parser can number".
+                Done.
+                If to-point is less than from-point:
+                    Return a failure (cast one's fault on ("'{low}-{high}' is a range that runs backwards",
+                        "a range goes from the earlier character to the later one", "write '{high}-{low}'")).
+                Done.
+                Define point as from-point.
+                While point is not greater than to-point, repeat:
+                    Insert point into admitted.
+                    Increment point by 1.
+                Done.
+                Skip.
+            Done.
+            Insert low into admitted.
+        Done.
+        If cast one's at-end or cast one's peek-char is not "]":
+            Return a failure (cast one's fault on ("this pattern opens a class that is never closed",
+                "every '[' needs a ']' after it", "write '\\[' if you meant the character")).
+        Done.
+        Increment one's at by 1.
+        If the number of admitted is 0:
+            If negated:
+                Return a failure (cast one's fault on ("this class excludes nothing",
+                    "a negated class with no characters in it admits every character, which '.' already says",
+                    "write '.' for any character, or list the characters to exclude")).
+            Done.
+            Return a failure (cast one's fault on ("this class is empty",
+                "a class with no characters in it admits nothing, so the pattern could never match",
+                "list the characters it should admit")).
+        Done.
+        Define chosen as cast one's folded on (admitted converted to text).
+        If negated, return cast leaf-node on ("NoneOf", chosen).
+        Return cast admitting on (chosen).
+    Done.
+
+    // ── Building the automaton ────────────────────────────────────────────
+
+    Bind number to emit-state, given (the series of records like (the number kind, the text ch, the number step, the number alt) states,
+            the number kind, the text ch, the number step, the number alt):
+        Insert a record with (the kind kind, the ch ch, the step step, the alt alt) into states.
+        Return the number of states.
+    Done.
+
+    /// Compiles `tree` so that finishing it lands on `next`, and answers where it is entered.
+    Bind number to build-state, given (the series of records like (the number kind, the text ch, the number step, the number alt) states,
+            the node tree, the number next):
+        Define kind as tree's kind.
+        If kind is "Ch", return cast emit-state on (states, 0, tree's word, next, 0).
+        If kind is "Any", return cast emit-state on (states, 1, "", next, 0).
+        If kind is "AtStart", return cast emit-state on (states, 4, "", next, 0).
+        If kind is "AtEnd", return cast emit-state on (states, 5, "", next, 0).
+        If kind is "AtLineStart", return cast emit-state on (states, 7, "\n", next, 0).
+        If kind is "AtLineEnd", return cast emit-state on (states, 8, "\n", next, 0).
+        If kind is "NoneOf", return cast emit-state on (states, 6, tree's word, next, 0).
+        If kind is "Cat":
+            Define right-entry as cast build-state on (states, item 2 of tree's children, next).
+            Return cast build-state on (states, item 1 of tree's children, right-entry).
+        Done.
+        If kind is "Or":
+            Define left-entry as cast build-state on (states, item 1 of tree's children, next).
+            Define right-entry as cast build-state on (states, item 2 of tree's children, next).
+            Return cast emit-state on (states, 2, "", left-entry, right-entry).
+        Done.
+        If kind is "Opt":
+            Define body-entry as cast build-state on (states, item 1 of tree's children, next).
+            Return cast emit-state on (states, 2, "", body-entry, next).
+        Done.
+        // `*` and `+` differ only in where the loop is entered.
+        Define branch as cast emit-state on (states, 2, "", 0, 0).
+        Define body as cast build-state on (states, item 1 of tree's children, branch).
+        The item branch of states becomes a record with (the kind 2, the ch "", the step body, the alt next).
+        If kind is "Plus", return body.
+        Return branch.
+    Done.
+
+    /// The automaton, or the fault in the C# parser's words at the declaration.
+    Bind series of records like (the number kind, the text ch, the number step, the number alt) or failure
+            to compiled-pattern, given (the text written, the number row, the number column):
+        Define characters as a chase.
+        Insert written into characters.
+        Define reader as a new pattern-reader {
+            the source characters, the size the number of characters, the at 1,
+            the folding false, the dot-all false, the multiline false,
+            the codes a map from text to number, the declared-row row, the declared-column column }.
+        Define root as cast reader's read-alternation or pass the failure off.
+        If cast reader's at-end is false and cast reader's peek-char is ")":
+            Return a failure (cast reader's fault on ("this pattern closes a group that was never opened",
+                "every ')' needs a '(' before it", "write '\\)' if you meant the character")).
+        Done.
+        Define states as a series of records like (the number kind, the text ch, the number step, the number alt).
+        // Index 1 is reserved first and filled in last: the entry is state 1.
+        Insert a record with (the kind 2, the ch "", the step 0, the alt 0) into states.
+        Define accept as cast emit-state on (states, 3, "", 0, 0).
+        Define entry-state as cast build-state on (states, root, accept).
+        The item 1 of states becomes a record with (the kind 2, the ch "", the step entry-state, the alt entry-state).
+        Return states.
+    Done.
+Done.

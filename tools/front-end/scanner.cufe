@@ -1,35 +1,28 @@
-/*  The Cufet lexer, written in Cufet.
+/*  The Cufet scanner — the lexer, as something other Cufet can call.
 
-        cufet tools/lexer/lexer.cufe <file.cufe> [more…]
+    `cast tokens-of on (source)` gives back every token of a Cufet source as a series of `token`,
+    ending with Eof, or the failure the C# lexer would have refused it with: line, column and
+    reason, tab-separated in the message.
 
-    Prints every token of every file named, one per line:
-
-        file    <the path, as given>
-        <token type> <line> <column> <lexeme>
-        …
-        Eof     <line> <column>
-
-    separated by tabs, with a backslash, a line break, a tab and a carriage return in a lexeme
-    written `\\`, `\n`, `\t` and `\r` so that a token is always one line. A file the lexer refuses
-    prints `error`, the line, the column and the reason instead of its tokens — exactly what
-    `src/Lexer/Lexer.cs` does, which throws before handing any token over.
-
-    ★★ The answer key is `src/Lexer/Lexer.cs` itself. `LexerParityTests` runs this over every
-    `.cufe` file in the repository and compares it with `new Lexer(source).Tokenize()`, token by
-    token, so this file and that one cannot drift apart without a test saying where.
+    ★★ The answer key is `src/Lexer/Lexer.cs` itself. `LexerParityTests` runs `lexer.cufe` (which
+    prints what this gives back) over every `.cufe` file in the repository and compares it with
+    `new Lexer(source).Tokenize()`, token by token, on both backends.
 
     ⚠ Columns count CHARACTERS here and UTF-16 units there. They agree everywhere except after a
     character outside the Basic Multilingual Plane on the same line, and the test converts.
 */
 
 Pull a book on collections.
+    /// One token: its type (the C# enum's name, spelled exactly), what was written, and where.
+    Define object token with (the text kind, the text lexeme, the number row, the number column).
+
     Define object scanner with (
         the chase source,
         the number size,
         the number cursor,
         the number row,
         the number row-start,
-        the series of text out,
+        the series of token out,
         the map from text to number kinds,
         the map from text to text marks,
         the map from text to text words).
@@ -95,7 +88,8 @@ Pull a book on collections.
     // ── What the scan produces ────────────────────────────────────────────
 
     Bind void to emit unto scanner, given (the text kind, the text lexeme, the number at-row, the number at-column):
-        Insert "{kind}\t{at-row}\t{at-column}\t{cast escaped on (lexeme)}" into one's out.
+        Insert a new token { the kind kind, the lexeme lexeme, the row at-row, the column at-column }
+            into one's out.
     Done.
 
     /// A refusal, in the shape the failure carries it: line, column and reason, tab-separated.
@@ -513,7 +507,8 @@ Pull a book on collections.
             Cast one's emit on ("StringPiece", piece converted to text, one's row,
                 cast one's column-at on (one's cursor)).
         Done.
-        Define opener as "InterpolOpen\t{opened-row}\t{opened-column}\t".
+        Define opener as a new token {
+            the kind "InterpolOpen", the lexeme "", the row opened-row, the column opened-column }.
         If mark is 0, insert opener into the start of one's out.
         Otherwise, insert opener after item mark of one's out.
         Cast one's emit on ("InterpolClose", "", one's row, cast one's column-at on (one's cursor)).
@@ -618,49 +613,47 @@ Pull a book on collections.
 
     /// 1 a letter, 2 a digit, 3 a space. The spaces are every character `char.IsWhiteSpace`
     /// answers yes to — most of which no text literal can spell, so they go in by code point.
-    Define kinds as a map from text to number.
-    Define letters as a chase.
-    Insert "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ" into letters.
-    For each ch in letters, repeat:
-        In kinds, the entry for ch becomes 1.
-    Done.
-    Define numerals as a chase.
-    Insert "0123456789" into numerals.
-    For each ch in numerals, repeat:
-        In kinds, the entry for ch becomes 2.
-    Done.
-    Define spaces as a chase.
-    For each code in a series with (9, 10, 11, 12, 13, 32, 133, 160, 5760, 8192, 8193, 8194, 8195,
-            8196, 8197, 8198, 8199, 8200, 8201, 8202, 8232, 8233, 8239, 8287, 12288), repeat:
-        Insert code into spaces.
-    Done.
-    For each ch in spaces, repeat:
-        In kinds, the entry for ch becomes 3.
+    Bind map from text to number to character-kinds:
+        Define kinds as a map from text to number.
+        Define letters as a chase.
+        Insert "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ" into letters.
+        For each ch in letters, repeat:
+            In kinds, the entry for ch becomes 1.
+        Done.
+        Define numerals as a chase.
+        Insert "0123456789" into numerals.
+        For each ch in numerals, repeat:
+            In kinds, the entry for ch becomes 2.
+        Done.
+        Define spaces as a chase.
+        For each code in a series with (9, 10, 11, 12, 13, 32, 133, 160, 5760, 8192, 8193, 8194, 8195,
+                8196, 8197, 8198, 8199, 8200, 8201, 8202, 8232, 8233, 8239, 8287, 12288), repeat:
+            Insert code into spaces.
+        Done.
+        For each ch in spaces, repeat:
+            In kinds, the entry for ch becomes 3.
+        Done.
+        Return kinds.
     Done.
 
-    Define marks as a map with (
-        "+" : "Plus", "-" : "Minus", "*" : "Star", "/" : "Slash", "%" : "Percent",
-        "(" : "LParen", ")" : "RParen", "=" : "Equal", ":" : "Colon", "," : "Comma",
-        "\{" : "LBrace", "\}" : "RBrace", "|" : "Pipe", "<" : "Lt", ">" : "Gt").
-    Define words as cast keyword-table.
+    Bind map from text to text to mark-table:
+        Return a map with (
+            "+" : "Plus", "-" : "Minus", "*" : "Star", "/" : "Slash", "%" : "Percent",
+            "(" : "LParen", ")" : "RParen", "=" : "Equal", ":" : "Colon", "," : "Comma",
+            "\{" : "LBrace", "\}" : "RBrace", "|" : "Pipe", "<" : "Lt", ">" : "Gt").
+    Done.
 
-    For each name in the arguments, repeat:
-        State "file\t{name}".
-        Try to:
-            Define whole as read all from the file name.
-            Define buffer as a chase.
-            Insert whole into buffer.
-            Define scan as a new scanner {
-                the source buffer, the size the number of buffer, the cursor 1,
-                the row 1, the row-start 1, the out a series of text,
-                the kinds kinds, the marks marks, the words words }.
-            Cast scan's tokenize.
-            For each token in scan's out, repeat:
-                State token.
-            Done.
-        Done.
-        In case of failure:
-            State "error\t{the message of the failure}".
-        Done.
+    // ── From outside ──────────────────────────────────────────────────────
+
+    /// Every token of `whole`, ending with Eof — or the refusal Lexer.cs would give.
+    Bind series of token or failure to tokens-of, given (the text whole):
+        Define buffer as a chase.
+        Insert whole into buffer.
+        Define scan as a new scanner {
+            the source buffer, the size the number of buffer, the cursor 1,
+            the row 1, the row-start 1, the out a series of token,
+            the kinds cast character-kinds, the marks cast mark-table, the words cast keyword-table }.
+        Cast scan's tokenize or pass the failure off.
+        Return scan's out.
     Done.
 Done.

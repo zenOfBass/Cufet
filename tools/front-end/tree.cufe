@@ -1,0 +1,86 @@
+/*  The tree the parser builds, and how it is printed.
+
+    ★ ONE node type for every kind of node. A node is its KIND — the name of the C# record it
+    stands for, `BinaryExpression`, `DefineStatement` — and its children in that record's field
+    order. A leaf (a name, a number, a line) is an `atom` holding the text it prints as, and a
+    list of things is a `list`. That is the whole of it, and it is exactly the shape the answer key
+    prints: `ParserTreePrinter` walks the C# tree by reflection, one field at a time.
+
+    ★ Printed into a chase rather than joined as text — a program's tree is a long line, and
+    joining it a piece at a time would copy it once per piece.
+*/
+
+Pull a book on collections.
+    Define object node with (the text kind, the text word, the series of node children).
+
+    /// A node of one kind, with no children yet.
+    Bind node to shaped, given (the text kind):
+        Return a new node { the kind kind, the word "", the children a series of node }.
+    Done.
+
+    /// A leaf, printed exactly as `word`.
+    Bind node to atom, given (the text word):
+        Return a new node { the kind "atom", the word word, the children a series of node }.
+    Done.
+
+    Bind node to listed:
+        Return a new node { the kind "list", the word "", the children a series of node }.
+    Done.
+
+    /// What the printer writes for a field holding nothing.
+    Bind node to nothing:
+        Return cast atom on ("_").
+    Done.
+
+    /// A text, in quotes, with the characters that would break a line or a quote escaped.
+    Bind node to quoted, given (the text raw):
+        Define shown as replace "\\" with "\\\\" in raw.
+        The shown becomes replace "\"" with "\\\"" in shown.
+        The shown becomes replace "\n" with "\\n" in shown.
+        The shown becomes replace "\t" with "\\t" in shown.
+        The shown becomes replace "\r" with "\\r" in shown.
+        Return cast atom on ("\"" joined to shown joined to "\"").
+    Done.
+
+    Bind node to numeral, given (the number amount):
+        Return cast atom on (amount converted to text).
+    Done.
+
+    Bind node to flag, given (the fact truth):
+        Return cast atom on (truth converted to text).
+    Done.
+
+    Bind void to add unto node, given (the node child):
+        Insert child into one's children.
+    Done.
+
+    /// `(Kind a b)`, `[a b]`, or a leaf's own text.
+    Bind void to write-tree, given (the node tree, the chase out):
+        If tree's kind is "atom":
+            Insert tree's word into out.
+            Return.
+        Done.
+        Define closer as ")".
+        If tree's kind is "list":
+            Insert "[" into out.
+            The closer becomes "]".
+        Done.
+        Otherwise:
+            Insert "(" into out.
+            Insert tree's kind into out.
+        Done.
+        Define opening as tree's kind is "list".
+        For each child in tree's children, repeat:
+            If opening is false, insert " " into out.
+            The opening becomes false.
+            Cast write-tree on (child, out).
+        Done.
+        Insert closer into out.
+    Done.
+
+    Bind text to shown-tree, given (the node tree):
+        Define out as a chase.
+        Cast write-tree on (tree, out).
+        Return out converted to text.
+    Done.
+Done.
