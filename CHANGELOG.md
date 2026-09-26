@@ -10,7 +10,7 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
-- **Lessons 2 to 10 of the tutorial**, each opening on the refusal a beginner meets first.
+- **Lessons 2 to 11 of the tutorial**, each opening on the refusal a beginner meets first.
   Lesson 2 keeps several things together — series, maps and records — from a series that mixes
   kinds. Lesson 3 is absence: a map asked for a key it does not have, what `void` is, and
   `but void is`. Lesson 4 is choosing and repeating — both forms of `If`, facts, `For each` and a
@@ -27,6 +27,10 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   cannot, and unmakers at its end — from a series kept past the rabbit that made it.
   Lesson 10 is reading and writing — files, `the arguments`, and a loop over what is typed — from a
   file read left unhandled.
+  Lesson 11 is a project — a folder made one by `blueprint.cufe`, `cufet pulls`, and `cufet build`
+  — from a second file its neighbour cannot see. Its project is `examples/garden/`, which the
+  corpus suite runs on both backends, since a lesson spanning files cannot be checked a block at
+  a time.
   A first draft of lesson 3 led in with `converted to number` and was rewritten: void cannot be
   introduced on its own (`Define x as void.` makes a name that can only ever hold void), so it
   needs something that produces it, and a map is the plainest producer there is. Writing these
@@ -163,6 +167,12 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   wrong number without complaint. Found by trying to write the tutorial's lesson on absence. A
   refusal also quotes a map lookup, `converted to number` and `the position of` as written, where it
   used to say `<expression>` — of the commonest source of void there is.
+
+- **A name declared in a file beside this one says the folder is not a project.** `a new bed { … }`
+  with `bed` defined in `beds.cufe` next door was told *"'bed' is not a defined object type …
+  Define the object type first"*. Outside a project a folder's files do not see each other, and the
+  refusal now says so, names the file, and says a `blueprint.cufe` makes the folder a project. The
+  same for a function cast from a neighbour. Found by writing the tutorial's lesson on projects.
 
 - **`If x is void, stop.` now narrows `x`, as `return` always did.** A guard whose body returns lets
   the lines after it treat `x` as present; `stop`, `skip` and `Exit` leave just as surely and were

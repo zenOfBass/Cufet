@@ -1134,4 +1134,116 @@ loop only ends by `stop`.
 
 ---
 
-**Next:** a project — `blueprint.cufe`, `cufet build`, and a second file in the same folder.
+## Lesson 11 — A project
+
+Programs grow, and one file stops being a comfortable size. Hopper's garden program has a kind of
+thing in it — a `bed` — that deserves a file of its own. This lesson's project lives in
+`examples/garden/`, and the test suite runs it there, both ways; the blocks below are its files.
+
+`beds.cufe` says what a bed is:
+
+```cufet
+Define object bed with (the text name, the number width, the number depth,
+                        the text crop with default "nothing yet"):
+    Bind number to area:
+        Return one's width * one's depth.
+    Done.
+Done.
+```
+
+and `garden.cufe`, beside it in the same folder, uses one:
+
+```cufet-fragment
+Define beds as a series of bed with (
+    a new bed { the name "front", the width 4, the depth 5, the crop "carrots" },
+    a new bed { the name "back", the width 2, the depth 3 }).
+
+Define total as 0.
+For each patch in beds, repeat:
+    State "The {patch's name} bed covers {cast patch's area} square metres, and grows {patch's crop}.".
+    Increment total by cast patch's area.
+Done.
+State "{total} square metres in all.".
+```
+
+Running it does not work yet:
+
+```
+cufet garden.cufe
+That doesn't work: 'bed' is declared in beds.cufe beside this file, but this folder is not a project, so its files do not see each other.
+Here on line 2, you're trying to create a new bed object.
+
+Make the folder a project by giving it a 'blueprint.cufe' — inside a project, every file in a folder sees the others. See docs/BOOKS.md, 'Blueprints'.
+```
+
+### A project
+
+Two files in a folder are just two files. A folder becomes a **project** when it has a
+`blueprint.cufe` in it — and inside a project, every file in a folder sees what the others declare,
+with nothing pulled. Here is the garden's:
+
+```cufet
+Pull a book on blueprints.
+    Bind series of step to blueprint:
+        Return a series of step with (
+            a record with (
+                the name "garden",
+                the needs a series of text with ("garden.cufe", "beds.cufe"),
+                the makes a series of text with ("garden.exe"),
+                the runs a series of text with ("cufet", "build", "garden.cufe"))).
+    Done.
+Done.
+```
+
+Just being there is enough to make `garden.cufe` run:
+
+```
+cufet garden.cufe
+The front bed covers 20 square metres, and grows carrots.
+The back bed covers 6 square metres, and grows nothing yet.
+26 square metres in all.
+```
+
+### Building it
+
+What the blueprint *says* is how to build the project. It is a series of **steps**, and each step
+has four parts:
+
+- `needs` — the files it reads. If any of them changes, the step runs again.
+- `makes` — what it produces.
+- `runs` — the command that does it.
+- `name` — what to call it while it works.
+
+Where does the `needs` list come from? `cufet pulls` asks a program which files it really loads:
+
+```
+cufet pulls garden.cufe
+garden.cufe: beds.cufe
+```
+
+`cufet build`, run in the project's folder, does what the blueprint describes:
+
+```
+cufet build
+cufet build: garden
+Built: …\garden\garden.exe
+```
+
+`garden.exe` is the program, compiled — it runs without Cufet, and says the same as before. Run
+`cufet build` again straight away and it prints nothing at all: nothing it needs has changed, so
+there is nothing to do. Change `beds.cufe`, and the next build runs the step again.
+
+A step that needs a file which is not there, and which no other step makes, is refused before
+it runs — with the step and the file named. When there are several steps, one that needs what
+another makes runs after it, without you saying so: the order comes from the `needs` and the
+`makes`.
+
+### Try it
+
+- Delete `blueprint.cufe`, run `cufet garden.cufe`, and read what Cufet says. Put it back.
+- Add a third bed in `garden.cufe`, run `cufet build` twice, and see which build does any work.
+- Add `"notes.txt"` to the step's `needs`, without making that file, and run `cufet build`.
+
+---
+
+**Next:** your own books — `and book`, and sharing what you wrote between projects.
