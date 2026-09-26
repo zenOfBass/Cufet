@@ -105,6 +105,32 @@ public class VoidableMisuseTests
     }
 
     [Fact]
+    public void ABookCall_IsQuotedAsWritten()
+    {
+        // `collections's maximum of (…)` is void for an empty series, and was quoted "<expression>".
+        var ex = Assert.Throws<TypeException>(() => Run(
+            "Pull a book on collections.\n"
+          + "    Define baskets as a series with (3, 5, 4).\n"
+          + "    State collections's maximum of (baskets) + 1.\n"
+          + "Done."));
+        Assert.Contains("'collections's maximum of (baskets)' might be void", ex.Message);
+        Assert.DoesNotContain("<expression>", ex.Message);
+    }
+
+    [Theory]
+    [InlineData("State math's square-root of (16).")]                                   // never pulled
+    [InlineData("Pull a book on math.\n    State math's pi.\nDone.\nState math's pi.")]  // after its Done.
+    public void ABookUsedWhereItIsNotPulled_IsCalledABook(string source)
+    {
+        // ⚠ It said "'math' isn't defined … Define it first: 'Define math as <value>.'" — advice to
+        // make a VARIABLE named after the book. Found by writing the tutorial's lesson on books.
+        var ex = Assert.Throws<TypeException>(() => Run(source));
+        Assert.Contains("'math' is a book, and it is not pulled here", ex.Message);
+        Assert.Contains("Pull a book on math.", ex.Message);
+        Assert.DoesNotContain("Define math as", ex.Message);
+    }
+
+    [Fact]
     public void ARealMismatch_KeepsItsOwnWords()
     {
         // Only a voidable whose PRESENT value would fit gets the void refusal.

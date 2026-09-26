@@ -1613,6 +1613,20 @@ public sealed partial class TypeChecker
                     $"Wrap it in 'Pull a book on {fromBook}. … Done.'");
             }
 
+            // ★★ And a name that is a BOOK is a third mistake. `math's square-root of (16)` with no
+            // pull was told "'math' isn't defined … Define it first: 'Define math as <value>.'" —
+            // advice to make a VARIABLE called math. Found by writing the tutorial's lesson on
+            // borrowing, whose first refusal this is. The same words fit the line after the
+            // pull's `Done.`, which is the other way to meet it.
+            if (BuiltinBooks.ContainsKey(vr.Name))
+                throw TypeError(
+                    $"'{vr.Name}' is a book, and it is not pulled here",
+                    $"A book's members can be used only inside 'Pull a book on {vr.Name}. … Done.', "
+                  + "and the pull lasts until its 'Done.'",
+                    vr.Line, vr.Column,
+                    $"use '{vr.Name}' outside a pull on it",
+                    $"Put this line inside 'Pull a book on {vr.Name}.', before its 'Done.'.");
+
             throw TypeError(
                 $"'{vr.Name}' isn't defined",
                 "Nothing later in this block can give it a value — a name has to exist before it is used",
@@ -4325,6 +4339,12 @@ public sealed partial class TypeChecker
         MapLookup ml                      => $"the entry for {FormatExpr(ml.Key)} in {FormatExpr(ml.Map)}",
         NumberConvert nc                  => $"{FormatExpr(nc.Value)} converted to number",
         TextFind tf                       => $"the position of {FormatExpr(tf.Substring)} in {FormatExpr(tf.Text)}",
+        // A call. A bundled book's member is written `math's square-root of (x)`, and quoting it
+        // back as `cast … on` would be a spelling the reader never used — so it is asked which.
+        CastExpression { Function: PossessiveAccess { Target: VariableReference book } pa } call
+            when BuiltinBooks.ContainsKey(book.Name)
+                                          => $"{FormatExpr(pa)} of ({string.Join(", ", call.Args.Select(FormatExpr))})",
+        CastExpression call               => $"cast {FormatExpr(call.Function)} on ({string.Join(", ", call.Args.Select(FormatExpr))})",
         _                                 => "<expression>",
     };
 
