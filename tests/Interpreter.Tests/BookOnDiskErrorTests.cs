@@ -58,6 +58,26 @@ public class BookOnDiskErrorTests : IDisposable
     }
 
     [Fact]
+    public void YourOwnBook_IsNotMadeWithANew()
+    {
+        // ⚠ `a new planting` was accepted — a value with nothing behind it. A book is pulled.
+        File.WriteAllText(Path.Combine(_folder, "planting.cufe"),
+            "Define object planting with () and book:\n" + Members);
+        var ex = CheckFails("Pull a book on planting.\n    Define mine as a new planting.\nDone.");
+        Assert.Contains("'planting' is a book, and a book is pulled, not made", ex.Message);
+        Assert.Contains("'Pull a book on planting.'", ex.Message);
+    }
+
+    [Fact]
+    public void ABundledBook_IsToldTheRightWayToPullIt()
+    {
+        // ⚠ The advice was "Write 'Pull math.'", which is itself refused: a book is pulled as one.
+        var ex = CheckFails("Define mine as a new math.");
+        Assert.Contains("'Pull a book on math.'", ex.Message);
+        Assert.DoesNotContain("'Pull math.'", ex.Message);
+    }
+
+    [Fact]
     public void APullThatFindsNoFile_KeepsItsOwnWords()
     {
         var ex = CheckFails("Pull a book on planting.\nDone.");

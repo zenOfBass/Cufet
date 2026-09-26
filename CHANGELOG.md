@@ -175,6 +175,11 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   there, so `Otherwise, state "{spacing}".` was refused. Fixed in the checker and, since the
   compiler keeps its own copy of the rule, there too — an oracle test holds the two together.
 
+- **A book is pulled, not made.** `a new planting`, where `planting` is a book of your own, was
+  accepted and gave a value with nothing behind it; it is now refused and says to pull it. The
+  bundled books were already refused, but told to *"Write 'Pull math.'"* — which is itself refused,
+  since a book is pulled as `Pull a book on math.`; that advice is corrected too.
+
 - **A book of your own is treated like a bundled one.** Using it without a pull said *"'planting'
   isn't defined … Define it first"*; it now gets lesson 5's *"is a book, and it is not pulled
   here"*. And a book file that declares its object without `and book` was refused with a message

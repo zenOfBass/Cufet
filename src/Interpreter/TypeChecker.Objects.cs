@@ -815,7 +815,11 @@ public sealed partial class TypeChecker
                     : null,
                 lit.Line, lit.Column,
                 $"construct '{lit.TypeName}' with 'a new'",
-                $"Write 'Pull {lit.TypeName}.' (or 'Pull {lit.TypeName} as <name>.') and use it inside that block.");
+                // ⚠ The advice was 'Pull math.' for every name here — and `Pull math.` is itself
+                // refused, since a book is pulled as one. Only the rabbit is pulled by its name.
+                lit.TypeName.Equals(RabbitModuleName, StringComparison.OrdinalIgnoreCase)
+                    ? $"Write 'Pull a {lit.TypeName}.' (or 'Pull a {lit.TypeName} as <name>.') and use it inside that block."
+                    : $"Write 'Pull a book on {lit.TypeName}.' and use it inside that block.");
 
         // `a new stack of number { … }` — fill the blanks first, so everything below reads a
         // concrete definition and knows nothing about templates. The resolved name is recorded on
@@ -867,6 +871,17 @@ public sealed partial class TypeChecker
                     null, lit.Line, lit.Column,
                     $"create a new {lit.TypeName} object",
                     $"Define the object type first: Define object {lit.TypeName} with (...).");
+
+        // ★ A book of YOUR OWN is consulted too, never made — the bundled ones were refused above,
+        // and a writer's `and book` object was quietly constructed instead: `a new planting` gave a
+        // value with nothing behind it. Found writing the tutorial's lesson on books.
+        if (IsBookConformer(objType.ConformedInterfaces))
+            throw TypeError(
+                $"'{lit.TypeName}' is a book, and a book is pulled, not made",
+                $"'{lit.TypeName}' says 'and book', so it owns no lifetime of its own — it is consulted rather than held",
+                lit.Line, lit.Column,
+                $"construct '{lit.TypeName}' with 'a new'",
+                $"Write 'Pull a book on {lit.TypeName}.' and use its members inside that block.");
 
         // Flat construction: positionals = own + embedded (all levels), in order.
         var allPositionals = GetAllPositionalTypes(objType);
