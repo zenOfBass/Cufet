@@ -741,6 +741,45 @@ ordinary bootstrap gap, recorded so nobody reads it as a defect.
 
 ---
 
+## Teaching the language
+
+`docs/TUTORIAL.md` is thirteen lessons, written 2026-09-16 to 2026-09-26. What decided its shape:
+
+**Ordered by the refusals a beginner MEETS, not by topic.** `REFERENCE.md` reaches the type system in
+Part V; lesson 1 meets a type refusal on its second line. A tutorial built on the reference's shape
+would teach in chapter five what the reader hit in minute one. So every lesson opens on a program
+broken in exactly one way, and on the refusal it gets — **the curriculum is the refusal messages**:
+each "no" names the rule, what you did, and the fix, so the language does the teaching and a lesson
+cannot drift from it. The suite checks every program and every message.
+
+★★ **Writing a lesson is also an instrument.** Every lesson but one found a refusal that could not
+teach — advice to define a variable called `math`, to stop a word failing, to declare a field as a
+module — and three found checker holes, including a program that checked clean and then died. A
+lesson approaches the language by ANALOGY, from another language or the lesson before, which is the
+path the existing tests, written by people who knew the right form, had never walked.
+
+**The order, where it is not obvious, and what decided it:**
+
+- **Collections before absence.** Void cannot be introduced on its own: `Define x as void.` makes a
+  name that can only ever hold void, and a `Define` cannot say "a number, or nothing". Void needs a
+  producer, and a map asked for a key it lacks is the plainest one. A draft that led in with
+  `converted to number` made the lesson about parsing text first.
+- **Lifetimes (9) taught with a rabbit, declared only at 13.** A data structure does NOT need a
+  region — `binarysearchtree.cufe` prints the same on both backends with its rabbit removed — so 9 is
+  about what `Done.` lets go of, not about structures. Using the region that exists comes first;
+  `and region` waits for 13, which ends at `Prelude/rabbit.cufe`: one line, a region somebody wrote.
+- **Projects before books.** A folder in a project is a namespace, so the first second file arrives
+  with a project; a book is how code crosses BETWEEN projects.
+- **Outside the string**, so it does not become a second reference: concurrency (a follow-on after
+  lesson 9) and the type system proper — interfaces, generics, unions arrive where needed, not as a
+  unit.
+
+⚠ **A multi-file lesson cannot be checked a block at a time**, since the checks run one block alone.
+Lessons 11 and 12 therefore quote real projects — `examples/garden/`, `examples/planting/` — which the
+corpus suite runs on both backends, and the lesson says so.
+
+---
+
 ## Tooling
 
 What the toolchain is, and what it declines to become.

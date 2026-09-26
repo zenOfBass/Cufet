@@ -70,125 +70,43 @@ The ordering is not ceremonial: this tier's real blocker is stated below as **er
 All need a design session before they can be ordered against anything. They are here because
 they are large, not because they are waiting — the order among them means nothing yet.
 
-1. **Teaching the language: a documentation site, and an interactive tutorial.** The playground
-   runs the real interpreter in the browser, loads the corpus, shows squiggles and survives a
-   runaway program. What it does not do is teach anybody anything — the only way in is
-   `REFERENCE.md`, which is over four thousand lines and is a reference rather than a way in.
+1. **Teaching the language: making the tutorial playable.** `docs/TUTORIAL.md` is written —
+   thirteen lessons, every program and message checked by the suite; why it is shaped the way it
+   is lives in DESIGN.md, *Teaching the language*. What is left is the SHELL: a tutorial whose
+   examples run, in the page, against the same front end that compiles them, is a playground with
+   prose around it — so nothing new has to be built to execute a lesson.
 
-   ★ **The vehicle already exists**, which is what makes this an arc rather than a wish: a tutorial
-   whose examples RUN, in the page, against the same front end that compiles them, is a playground
-   with prose around it. Nothing new has to be built to execute a lesson.
+   **One decision, still open — what the site IS.** Lessons loaded into the playground, generated
+   pages, or something else. ✅ Where it LIVES is answered: Pages publishes an uploaded artifact,
+   which is how the playground ships. ⚠ Lessons 11 and 12 span several files, so a shell has to
+   place a small project, not one program.
 
-   **One decision, still open:**
+   ▶ **DESIGNED 2026-09-14, not built — the story frame.** Deliberately left out of the first draft.
+   - **The Velveteen Rabbit meets Peter Rabbit.** Grace and Hopper are not real yet, and sneak into
+     the garden to find out how. The ending is already the language's: lesson 13 shows a rabbit is
+     one line a person writes, so they become real because the learner made them.
+   - **Dialogue, not narration.** Grace is careful, Hopper is not; the learner overhears, and
+     identifies with the one making the mistake. *"Good little rabbits always remember to …"* is
+     Grace's catchphrase; Hopper pushing back keeps it from preaching.
+   - **Four stages**, mapping onto the language's taxonomy: *it won't run* (a refusal) → *it runs
+     and is wrong* (a failure) → *fill in the hole* → *blank page*. The lessons so far are stage one.
+   - **Shape:** a branching tree was DECLINED (2^N paths, and it fights the prerequisite order); a
+     **navigable map with gates** survives — a locked door is a puzzle you cannot yet solve. ⚠ That is
+     a small GAME, none of it Cufet work, and the spine must be decided before rooms are written.
 
-   - **What the site IS.** Generated pages, hand-written lessons, or REFERENCE reorganised.
-     ✅ **Where it LIVES is already answered** — Pages publishes an uploaded artifact, which is
-     how the playground ships, so a site has somewhere to go without anyone deciding anything.
-     ⚠ This bullet used to defer to a "`docs/`-folder and GitHub-Pages question" settled on
-     2026-08-24, and pointed at the wrong item while doing it.
+   ★ **A REPL page, the cheapest thing here.** `tools/repl.cufe` keeps state by REPLAY — it re-runs
+   the accumulated lines and shows only what the new run added — and that gets SIMPLER in the
+   browser: `Runtime.Run(source)` already takes a whole program and returns its output, statelessly.
+   ⚠ Replay repeats side effects, and a page invites longer sessions than a terminal; every line
+   re-runs every earlier one. Accepted natively; write it down rather than rediscover it.
 
-   ✅ **THE CURRICULUM IS SETTLED, 2026-09-16, revised 2026-09-25**, and all thirteen lessons are written —
-   `docs/TUTORIAL.md`, with every program and every message in it run by the suite. A draft, and
-   expected to move as lessons get written.
+   ★ **A follow-on lesson on concurrency** — tasks and channels, after lesson 9 — is the one piece of
+   content the curriculum deliberately left for later.
 
-   ★★ **Ordered by the refusals a beginner MEETS, not by topic.** `REFERENCE.md` reaches the type
-   system in Part V; lesson 1 meets a type refusal on its SECOND LINE. A tutorial built on the
-   reference's shape would teach in chapter five what the reader hit in minute one.
-
-   1. Say and compute — text vs number. ✅ written.
-   2. Collections — series, maps, records: making one and reading one item. No loops yet. ✅ written.
-   3. Absence — a map asked for a key it does not have, then `void` and `but void is`. ✅ written.
-   4. Choose and repeat — `If`/`Otherwise` (so `If … is not void`), `For each`, `Judge`. ✅ written.
-   5. Borrowing — `Pull a book on math.` and `collections`. ✅ written.
-   6. Your own words — `Bind`, parameters, `Return`. ✅ written.
-   7. When it can fail — `Try`, failure. The language makes you handle it, so it cannot be late. ✅ written.
-   8. Your own things — objects, fields, methods, and their UNMAKERS. ✅ written.
-   9. Things with a lifetime — what `Done.` releases, taught with `Pull a rabbit.`, the region that
-      already exists. Using one, not declaring one. ✅ written.
-   10. Reading and writing — files, arguments, input. ✅ written.
-   11. A project — `blueprints`, `cufet build`, and a folder as a namespace: a second file in the
-       same folder needs no pull. ✅ written.
-   12. Your own books — `and book`, sharing across projects, `cufet install`. ✅ written.
-   13. Your own modules — `and module`, then `and region`, then `Prelude/rabbit.cufe`, which is
-       the one line `Define object rabbit with () and region.` The lesson 9 rabbit is something the
-       learner could have written. ✅ written.
-
-   ⚠ **MEASURED 2026-09-25: a structure does NOT need a region.** `binarysearchtree.cufe` with its
-   rabbit removed prints the same on both backends. What needs a lifetime is `bury`, tasks, and
-   releasing sooner than the program's end — so 9 is about lifetimes, not structures. Since
-   `and region` a person can write the owner, which is why declaring one waits for 13.
-   ★ Projects before books because a folder is a namespace: the first second file arrives with a
-   project, and a book is how code crosses between projects.
-
-   ✅ **Lesson 8 is unblocked: item 5 is SETTLED, not pending.** An unmaker fires at the
-   `Done.` of the BLOCK a binding was declared in — an `If` or a loop is enough, no rabbit
-   needed — and a frame body is deliberately not a block. So the lesson teaches the block rule
-   and the idempotency caveat, which is what a reader needs, rather than waiting on a change that is
-   not coming.
-
-   ★ **Deliberately outside the string**, to stop it becoming a second reference: concurrency
-   (tasks and channels, a follow-on after 9) and the type system proper (interfaces, generics,
-   unions — introduced where they are needed rather than as a unit).
-
-   ★ **Absence comes after collections, and writing it is what decided that (2026-09-25).** Void
-   cannot be introduced on its own: `Define x as void.` makes a name that can ONLY ever hold void,
-   and there is no way to write "a number, or nothing" in a `Define`. So void needs something that
-   produces it, and a map asked for a key it lacks is the plainest producer there is. A first draft
-   led in with `converted to number`, which made the lesson about parsing text first.
-
-   ▶ **DESIGNED 2026-09-14, not built.** The author's vision, and the reasoning that came out of
-   working it through. The CONTENT is the work and it is medium-independent — write the lessons as
-   markdown pinned by the doc fences first, and decide the shell afterwards with them in hand.
-
-   - **The frame: the Velveteen Rabbit meets Peter Rabbit.** Grace and Hopper are not real yet, and
-     sneak into the garden to find out how. ★ The mascots are a LANGUAGE FEATURE — `Pull a rabbit.`
-     brings one into being — so the last lesson can be the learner writing it, and they become real
-     because the learner made them. The story's ending is the language's most distinctive construct.
-   - ★★ **Debugging FIRST, writing later.** Most tutorials teach the happy path and leave the first
-     error message as a cliff. Cufet inverts well because its refusals explain themselves. Four
-     stages, and they map onto the language's own taxonomy: *it won't run* (a refusal) → *it runs
-     and is wrong* (a failure) → *fill in the hole* → *blank page*.
-   - ★★ **The curriculum is the refusal messages.** Every "no" already names the rule, what you
-     did, the fix, and an example. A lesson picks which no to teach and lets the compiler deliver
-     it. It cannot drift from the language, because the language is doing the teaching.
-   - **Dialogue, not narration.** Grace is careful, Hopper is not. The learner overhears rather than
-     being lectured, and identifies with the one making the mistake. *"Good little rabbits always
-     remember to …"* is Grace's catchphrase; Hopper pushing back is what keeps it from preaching.
-   - ⚠ **Authoring constraint:** a broken program must be broken in exactly ONE legible way, or the
-     refusal points somewhere other than the mistake and the learner concludes the compiler is
-     confusing. And the check must compare OUTPUT, never just "it ran" — otherwise deleting the
-     offending line passes.
-   - **Shape, weighed:** a branching tree was DECLINED (2^N paths, and it fights the prerequisite
-     order). What survives is a **navigable map with gates**, which makes the dependency graph
-     diegetic — nodes are written once, and a locked door is a puzzle you cannot yet solve rather
-     than a permission check. ⚠ That is a small GAME, and none of it is Cufet work. The spine must
-     be decided before rooms are written, or the becoming-real ending cannot know you are ready.
-
-   ✅ **The parse-error blocker is CLEARED, 2026-09-15**, and it was found by trying to teach: a
-   beginner meets a missing `Done.` long before a type error, so debugging lessons could not start
-   where beginners actually start. Unclosed blocks and declaration bodies, a missing `Done.` before
-   `Otherwise`, `Define x = 3`, and a reserved word used as a loop variable all explain themselves
-   now. ★ It was a gap in the language's own voice rather than a tutorial problem, which is why it
-   was worth fixing first — the lessons would have had to apologise for it.
-
-   ★ **A REPL page, and it is the cheapest thing on this entry.** `tools/repl.cufe` already
-   answers the question a REPL usually poses — how to keep state across evaluations — and answers
-   it by REPLAY: it accumulates the typed lines, re-runs the whole program each time, and shows
-   only what the new run said that the previous one had not. *"The old output is a prefix of the
-   new one — the same program, with a line on the end."*
-
-   That model gets SIMPLER in the browser. The native REPL needs a scratch file and a subprocess;
-   `Runtime.Run(source)` already takes a whole program and hands back its output, statelessly — so
-   the two things wasm does not have are the two things a web REPL does not need.
-
-   ⚠ **Replay means side effects repeat**, and a page invites longer sessions than a terminal does.
-   Every `State` runs again on every line — the delta hides that for output, but a fifty-line
-   session re-runs fifty lines on the fifty-first, and anything that reads input or does real work
-   does it again. The native REPL carries the same cost and it is accepted there; write it down
-   rather than rediscover it.
-
-   ⚠ Whatever is written must be pinned like the doc fences are: a lesson whose code stops working
-   is worse than no lesson, and this project has the machinery to catch that already.
+   ⚠ **Authoring constraints, for any lesson added or changed:** a broken program is broken in exactly
+   ONE legible way, or the refusal points somewhere other than the mistake; the check compares OUTPUT,
+   never just "it ran"; and everything stays pinned by the doc fences — a lesson whose code stops
+   working is worse than no lesson.
 
 ## Ongoing, no fixed slot
 
