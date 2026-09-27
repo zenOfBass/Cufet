@@ -1,0 +1,614 @@
+/*  Objects — `Define object`, `a new …`, `'s` and `the … of`: `Pass1Hoist`'s object loop,
+    `Pass2ResolveTypes`, `CheckObjectDefinition`, `CheckMethodBodyCore`, `InferObjectLiteral`,
+    `InferPossessiveAccess`, `InferRecordNamedAccess` and `CheckObjectNamedSet` in
+    `src/Interpreter/TypeChecker.*.cs`.
+
+    ★ An object TYPE is its name: `(ObjectType "leaf" [])`, the node the parser writes for an
+    annotation. What the type holds is read off its DEFINITION, which the checker keeps by name —
+    the winning one, since a later definition of a name replaces an earlier.
+*/
+
+Pull a book on collections.
+    // ── What this checker can judge in an object ──────────────────────────
+
+    Bind text to object-beyond-reach, given (the node statement):
+        For each place in a series with (5, 6, 8, 12, 13, 14), repeat:
+            Define held as cast field-of on (statement, place).
+            If held's kind is "list" and the number of held's children is greater than 0:
+                Return "an object with {cast object-part-name on (place)}".
+            Done.
+        Done.
+        For each method in (cast field-of on (statement, 4))'s children, repeat:
+            Define inner as cast bind-beyond-reach on (method).
+            If inner is not "", return inner.
+        Done.
+        For each positional in (cast field-of on (statement, 2))'s children, repeat:
+            If cast beyond-types on (positional), return "an object with a {positional's kind} field".
+        Done.
+        For each pair in (cast field-of on (statement, 3))'s children, repeat:
+            Define held as cast field-of on (pair, 2).
+            If cast beyond-types on (held), return "an object with a {held's kind} field".
+        Done.
+        Return "".
+    Done.
+
+    Bind text to object-part-name, given (the number place):
+        If place is 5, return "getters".
+        If place is 6, return "setters".
+        If place is 8, return "interfaces".
+        If place is 12, return "blanks".
+        If place is 13, return "types it carries".
+        Return "defaults".
+    Done.
+
+    // ── Its definition ────────────────────────────────────────────────────
+
+    Bind text to def-name, given (the node definition):
+        Return cast unquoted on (cast field-of on (definition, 1)).
+    Done.
+
+    Bind text to embedded-name, given (the node definition):
+        Define held as cast field-of on (definition, 7).
+        If cast is-nothing on (held), return "".
+        Return cast unquoted on (held).
+    Done.
+
+    Bind node to object-type-named, given (the text name):
+        Return cast made on ("ObjectType", a series with (cast quoted on (name), cast listed)).
+    Done.
+
+    /// The definition behind an object type, or void.
+    Bind voidable node to definition-of unto checker, given (the text name):
+        Return the entry for name in one's defs.
+    Done.
+
+    /// Every positional field's type: its own, then the embedded object's, all the way down.
+    Bind void to gather-positionals unto checker, given (the text name, the series of node into-list):
+        Define definition as cast one's definition-of on (name).
+        If definition is void, return.
+        For each positional in (cast field-of on (definition, 2))'s children, repeat:
+            Insert positional into into-list.
+        Done.
+        Define embedded as cast embedded-name on (definition).
+        If embedded is not "", cast one's gather-positionals on (embedded, into-list).
+    Done.
+
+    /// Every named field, as `[name type]` pairs: its own, then the embedded object's.
+    Bind void to gather-fields unto checker, given (the text name, the series of node into-list):
+        Define definition as cast one's definition-of on (name).
+        If definition is void, return.
+        For each pair in (cast field-of on (definition, 3))'s children, repeat:
+            Insert pair into into-list.
+        Done.
+        Define embedded as cast embedded-name on (definition).
+        If embedded is not "", cast one's gather-fields on (embedded, into-list).
+    Done.
+
+    /// A named field's type — its own, the embed handle, or promoted — or void.
+    Bind voidable node to field-type-of unto checker, given (the text name, the text field):
+        Define definition as cast one's definition-of on (name).
+        If definition is void, return void.
+        For each pair in (cast field-of on (definition, 3))'s children, repeat:
+            If cast unquoted on (cast field-of on (pair, 1)) is field, return cast field-of on (pair, 2).
+        Done.
+        Define embedded as cast embedded-name on (definition).
+        If embedded is "" or cast one's definition-of on (embedded) is void, return void.
+        If field is embedded, return cast object-type-named on (embedded).
+        Return cast one's field-type-of on (embedded, field).
+    Done.
+
+    /// Is `field` the handle of an embedded object — reached by its type's name, not declared?
+    Bind fact to is-embed-handle unto checker, given (the text name, the text field):
+        Define definition as cast one's definition-of on (name).
+        If definition is void, return false.
+        For each pair in (cast field-of on (definition, 3))'s children, repeat:
+            If cast unquoted on (cast field-of on (pair, 1)) is field, return false.
+        Done.
+        Define embedded as cast embedded-name on (definition).
+        If embedded is "" or cast one's definition-of on (embedded) is void, return false.
+        Return field is embedded or cast one's is-embed-handle on (embedded, field).
+    Done.
+
+    Bind fact to is-permanent-field unto checker, given (the text name, the text field):
+        Define definition as cast one's definition-of on (name).
+        If definition is void, return false.
+        For each written in (cast field-of on (definition, 11))'s children, repeat:
+            If cast unquoted on (written) is field, return true.
+        Done.
+        Define embedded as cast embedded-name on (definition).
+        If embedded is "" or cast one's definition-of on (embedded) is void, return false.
+        Return cast one's is-permanent-field on (embedded, field).
+    Done.
+
+    /// A method's type, its own or promoted — or void.
+    Bind voidable node to method-type-of unto checker, given (the text name, the text method-name):
+        Define definition as cast one's definition-of on (name).
+        If definition is void, return void.
+        For each method in (cast field-of on (definition, 4))'s children, repeat:
+            If cast unquoted on (cast field-of on (method, 1)) is method-name, return cast function-type-of on (method).
+        Done.
+        Define embedded as cast embedded-name on (definition).
+        If embedded is "", return void.
+        Return cast one's method-type-of on (embedded, method-name).
+    Done.
+
+    /// Every name in a list of `[name …]` pairs, each in quotes, joined with commas.
+    Bind text to quoted-names, given (the series of text names, the text suffix):
+        Define out as a chase.
+        Define first-one as true.
+        For each name in names, repeat:
+            If first-one is false, insert ", " into out.
+            The first-one becomes false.
+            Insert "'{name}'{suffix}" into out.
+        Done.
+        Return out converted to text.
+    Done.
+
+    Bind series of text to field-names unto checker, given (the text name):
+        Define pairs as a series of node.
+        Cast one's gather-fields on (name, pairs).
+        Define names as a series of text.
+        For each pair in pairs, repeat:
+            Insert cast unquoted on (cast field-of on (pair, 1)) into names.
+        Done.
+        Return names.
+    Done.
+
+    Bind series of text to own-method-names unto checker, given (the text name):
+        Define names as a series of text.
+        Define definition as cast one's definition-of on (name).
+        If definition is void, return names.
+        For each method in (cast field-of on (definition, 4))'s children, repeat:
+            Insert cast unquoted on (cast field-of on (method, 1)) into names.
+        Done.
+        Return names.
+    Done.
+
+    // ── Gathering them first ──────────────────────────────────────────────
+
+    /// Every object type, registered before anything is checked. A name that belongs to a book
+    /// the language ships is refused; a second definition of any other name replaces the first.
+    Bind void or failure to hoist-objects unto checker, given (the node program):
+        For each statement in program's children, repeat:
+            If statement's kind is "ObjectDefinition":
+                Define name as cast def-name on (statement).
+                If cast is-bundled-module on (name) or (name in lowercase) is "rabbit":
+                    Return a failure (cast refusal-of on ("'{name}' comes with the language, so its name can't be used for a new object", "",
+                        cast numeric on (cast field-of on (statement, 9)), "define an object named '{name}'",
+                        "Pick another name — 'Pull {name}.' always finds the one the language ships.")).
+                Done.
+                If (the entry for name in one's defs) is void, insert name into one's def-order.
+                In one's defs, the entry for name becomes statement.
+            Done.
+        Done.
+    Done.
+
+    /// Whether every type name inside `shape` names something — `ResolveParamType`'s refusal, which
+    /// alone of the checker's says no line: it is met while types are gathered, before any is.
+    Bind void or failure to check-resolves unto checker, given (the node shape):
+        If shape's kind is "atom" or shape's kind is "list":
+            For each inner in shape's children, repeat:
+                Cast one's check-resolves on (inner) or pass the failure off.
+            Done.
+            Return.
+        Done.
+        If shape's kind is "ObjectType":
+            Define name as cast unquoted on (cast field-of on (shape, 1)).
+            If (cast field-of on (shape, 2))'s kind is "list" and the number of (cast field-of on (shape, 2))'s children is greater than 0:
+                Return a failure (cast not-judged on ("a filled-in type")).
+            Done.
+            If (the entry for name in one's defs) is not void, return.
+            If cast is-bundled-module on (name) or cast book-introducing on (name) is not "":
+                Return a failure (cast not-judged on ("a type named for a book")).
+            Done.
+            Return a failure "error\tThat doesn't work: '{name}' is not a defined type.\n\nDefine 'object {name}' before using it as a type name, or check the spelling.".
+        Done.
+        For each inner in shape's children, repeat:
+            Cast one's check-resolves on (inner) or pass the failure off.
+        Done.
+    Done.
+
+    /// A method that leaves blanks is beyond this checker yet. Asked once every object type is
+    /// registered, as C# asks it, so a type defined further down is not mistaken for a blank.
+    Bind void or failure to check-method-blanks unto checker:
+        For each name in one's def-order, repeat:
+            Define definition as the entry for name in one's defs but void is cast listed.
+            For each method in (cast field-of on (definition, 4))'s children, repeat:
+                If cast one's has-blanks on (method), return a failure (cast not-judged on ("a method that leaves blanks")).
+            Done.
+        Done.
+    Done.
+
+    /// `Pass2ResolveTypes`: every object's fields and methods, then every hoisted function.
+    Bind void or failure to resolve-types unto checker:
+        For each name in one's def-order, repeat:
+            Define definition as the entry for name in one's defs but void is cast listed.
+            Cast one's check-resolves on (cast field-of on (definition, 2)) or pass the failure off.
+            For each pair in (cast field-of on (definition, 3))'s children, repeat:
+                Cast one's check-resolves on (cast field-of on (pair, 2)) or pass the failure off.
+            Done.
+            For each method in (cast field-of on (definition, 4))'s children, repeat:
+                Cast one's check-resolves on (cast field-of on (method, 3)) or pass the failure off.
+                Cast one's check-resolves on (cast field-of on (method, 2)) or pass the failure off.
+            Done.
+        Done.
+        For each pair in item 1 of one's scopes, repeat:
+            Define held as the value of pair.
+            If held's shape's kind is "FunctionType":
+                Cast one's check-resolves on (cast field-of on (held's shape, 1)) or pass the failure off.
+                Cast one's check-resolves on (cast field-of on (held's shape, 2)) or pass the failure off.
+            Done.
+        Done.
+    Done.
+
+    // ── Checking a definition ─────────────────────────────────────────────
+
+    Bind void or failure to check-object-definition unto checker, given (the node statement):
+        Define name as cast def-name on (statement).
+        // A superseded definition is dead: nothing reaches it, so nothing is checked in it.
+        Define winner as the entry for name in one's defs.
+        If winner is void, return.
+        If cast shown-tree on (winner) is not cast shown-tree on (statement), return.
+        Define at-row as cast numeric on (cast field-of on (statement, 9)).
+
+        Define embedded as cast embedded-name on (statement).
+        If embedded is not "":
+            If cast one's definition-of on (embedded) is void:
+                Return a failure (cast refusal-of on ("object '{name}' embeds '{embedded}', but no such object type is defined", "",
+                    at-row, "embed '{embedded}' in '{name}'",
+                    "Define object {embedded} with (...). before defining {name}.")).
+            Done.
+            Define promoted-fields as cast one's field-names on (embedded).
+            For each pair in (cast field-of on (statement, 3))'s children, repeat:
+                Define field as cast unquoted on (cast field-of on (pair, 1)).
+                For each other in promoted-fields, repeat:
+                    If other is field:
+                        Return a failure (cast refusal-of on (
+                            "'{name}' has its own field '{field}' which collides with a promoted field from '{embedded}'", "",
+                            at-row, "define '{field}' in '{name}' while embedding '{embedded}'",
+                            "Rename one of the fields. To access the embedded field explicitly, use 'the {field} of the {embedded} of ...'.")).
+                    Done.
+                Done.
+            Done.
+            For each method in (cast field-of on (statement, 4))'s children, repeat:
+                Define method-name as cast unquoted on (cast field-of on (method, 1)).
+                If cast one's method-type-of on (embedded, method-name) is not void:
+                    Return a failure (cast refusal-of on (
+                        "'{name}' has its own method '{method-name}' which collides with a promoted method from '{embedded}'", "",
+                        at-row, "define '{method-name}' in '{name}' while embedding '{embedded}'",
+                        "Rename one of the methods. To call the embedded method explicitly, use 'Cast {method-name} on the {embedded} of ...'.")).
+                Done.
+            Done.
+        Done.
+
+        For each method in (cast field-of on (statement, 4))'s children, repeat:
+            Cast one's check-method-body on (method, name, at-row) or pass the failure off.
+        Done.
+    Done.
+
+    /// A method's body: `one` is the object, and otherwise it sees what a top-level function sees.
+    Bind void or failure to check-method-body unto checker, given (the node method, the text owner,
+            the number owner-row):
+        Define method-name as cast unquoted on (cast field-of on (method, 1)).
+        Define returned as cast field-of on (method, 2).
+        Define at-row as cast numeric on (cast field-of on (method, 7)).
+
+        Define saved as one's scopes.
+        Define fresh as cast builtin-scope.
+        Define earlier-hidden as one's hidden.
+        Define hiding as a map from text to fact.
+        For each scope in saved, repeat:
+            For each pair in scope, repeat:
+                Define held as the value of pair.
+                If held's shape's kind is "FunctionType" or held's permanent:
+                    In fresh, the entry for (the key of pair) becomes held.
+                Done.
+                Otherwise:
+                    In hiding, the entry for (the key of pair) becomes true.
+                Done.
+            Done.
+        Done.
+        The one's hidden becomes hiding.
+        The one's scopes becomes a series with (fresh).
+        Cast one's enter-scope.
+        Cast one's bind-name on ("one", a new binding {
+            the shape cast object-type-named on (owner),
+            the established-by cast named-reference on ("one"), the line owner-row, the permanent false }).
+        For each parameter in (cast field-of on (method, 3))'s children, repeat:
+            Define parameter-name as cast unquoted on (cast field-of on (parameter, 2)).
+            Cast one's check-resolves on (cast field-of on (parameter, 1)) or pass the failure off.
+            Cast one's bind-name on (parameter-name, a new binding {
+                the shape cast field-of on (parameter, 1),
+                the established-by cast named-reference on (parameter-name), the line at-row, the permanent false }).
+        Done.
+
+        Define earlier-in-function as one's in-function.
+        Define earlier-line as one's function-line.
+        The one's in-function becomes true.
+        If cast is-nothing on (returned), insert cast unknown-type into one's expected-returns.
+        Otherwise, insert returned into one's expected-returns.
+        The one's function-line becomes at-row.
+
+        Cast one's check-block on (cast field-of on (method, 4)) or pass the failure off.
+
+        If cast is-nothing on (returned) is false and cast definitely-returns on (cast field-of on (method, 4)) is false:
+            Return a failure (cast refusal-of on (
+                "method '{method-name}' is declared to give back a {cast type-words on (returned)}, but it can reach its end without returning one", "",
+                at-row, "define a method that might not return a value",
+                "Make sure every path through the method ends with a return statement.")).
+        Done.
+
+        The one's in-function becomes earlier-in-function.
+        Remove item (the number of one's expected-returns) from one's expected-returns.
+        The one's function-line becomes earlier-line.
+        The one's hidden becomes earlier-hidden.
+        The one's scopes becomes saved.
+    Done.
+
+    // ── Making one ────────────────────────────────────────────────────────
+
+    Bind node or failure to infer-object-literal unto checker, given (the node said):
+        Define name as cast unquoted on (cast field-of on (said, 1)).
+        Define positional-values as (cast field-of on (said, 2))'s children.
+        Define named-values as (cast field-of on (said, 3))'s children.
+        Define at-row as cast numeric on (cast field-of on (said, 4)).
+        If cast is-bundled-module on (name) or (name in lowercase) is "rabbit":
+            Define settled as "".
+            Define fix as "Write 'Pull a book on {name}.' and use it inside that block.".
+            If (name in lowercase) is "rabbit":
+                The settled becomes "Pulling a rabbit is what opens its region, so one built this way would stand on no ground".
+                The fix becomes "Write 'Pull a {name}.' (or 'Pull a {name} as <name>.') and use it inside that block.".
+            Done.
+            Return a failure (cast refusal-of on ("'{name}' comes with the language — 'Pull' is how you get one", settled,
+                at-row, "construct '{name}' with 'a new'", fix)).
+        Done.
+        If the number of (cast field-of on (said, 6))'s children is greater than 0:
+            Return a failure (cast not-judged on ("a filled-in object")).
+        Done.
+        If cast one's definition-of on (name) is void:
+            Return a failure (cast refusal-of on ("'{name}' is not a defined object type", "",
+                at-row, "create a new {name} object", "Define the object type first: Define object {name} with (...).")).
+        Done.
+
+        Define positionals as a series of node.
+        Cast one's gather-positionals on (name, positionals).
+        If the number of positional-values is not the number of positionals:
+            Return a failure (cast refusal-of on (
+                "'{name}' expects {the number of positionals} positional field(s) (including promoted), but you provided {the number of positional-values}", "",
+                at-row, "provide {the number of positional-values} positional field(s)",
+                "'{name}' requires exactly {the number of positionals} positional field(s).")).
+        Done.
+        Define place as 0.
+        For each value in positional-values, repeat:
+            Increment place by 1.
+            Define wanted as item place of positionals.
+            Define value-type as cast one's infer on (value) or pass the failure off.
+            If cast is-none on (value-type) is false and cast assignable on (wanted, value-type) is false:
+                If cast beyond-types on (value-type), return a failure (cast not-judged on ("a {value-type's kind} in a field")).
+                Return a failure (cast refusal-of on ("positional field {place} of '{name}' must be a {cast type-words on (wanted)}", "",
+                    at-row, "provide a {cast type-words on (value-type)} for positional field {place}",
+                    "Change the value to a {cast type-words on (wanted)}.")).
+            Done.
+        Done.
+
+        Define all-fields as cast one's field-names on (name).
+        For each required in all-fields, repeat:
+            Define present as false.
+            For each pair in named-values, repeat:
+                If cast unquoted on (cast field-of on (pair, 1)) is required, the present becomes true.
+            Done.
+            If present is false:
+                Return a failure (cast refusal-of on ("field '{required}' of '{name}' is missing", "",
+                    at-row, "create a {name} without field '{required}'",
+                    "Add 'the {required} <value>' to the object literal, or give the field a default where '{name}' is defined: 'the ... {required} with default <value>'.")).
+            Done.
+        Done.
+        For each pair in named-values, repeat:
+            Define field as cast unquoted on (cast field-of on (pair, 1)).
+            Define wanted as cast one's field-type-of on (name, field).
+            If wanted is void:
+                Define listing as "'{name}' has no named fields.".
+                If the number of all-fields is greater than 0:
+                    The listing becomes "Available named fields: {cast quoted-names on (all-fields, "")}.".
+                Done.
+                Return a failure (cast refusal-of on ("'{name}' has no field named '{field}'", "",
+                    at-row, "set unknown field '{field}'", listing)).
+            Done.
+            Define value-type as cast one's infer on (cast field-of on (pair, 2)) or pass the failure off.
+            If cast is-none on (value-type) is false and cast assignable on (wanted, value-type) is false:
+                If cast beyond-types on (value-type), return a failure (cast not-judged on ("a {value-type's kind} in a field")).
+                Return a failure (cast refusal-of on ("field '{field}' of '{name}' must be a {cast type-words on (wanted)}", "",
+                    at-row, "provide a {cast type-words on (value-type)} for field '{field}'",
+                    "Change the value to a {cast type-words on (wanted)}.")).
+            Done.
+        Done.
+        Return cast object-type-named on (name).
+    Done.
+
+    // ── Reaching into one ─────────────────────────────────────────────────
+
+    /// `x's member` — a field, or a method when it is being called here.
+    Bind node or failure to infer-possessive unto checker, given (the node said, the fact called-here):
+        Define member as cast unquoted on (cast field-of on (said, 2)).
+        Define at-row as cast numeric on (cast field-of on (said, 3)).
+        Define target as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
+        If cast is-none on (target), return target.
+        If target's kind is not "ObjectType":
+            If cast beyond-types on (target), return a failure (cast not-judged on ("'s on a {target's kind}")).
+            Return a failure (cast refusal-of on ("possessive access ('s) requires an object, but got a {cast type-words on (target)}", "",
+                at-row, "use 's on a {cast type-words on (target)}", "Only objects and books support the possessive 's syntax.")).
+        Done.
+        Define owner as cast unquoted on (cast field-of on (target, 1)).
+        If cast one's definition-of on (owner) is void, return a failure (cast not-judged on ("'s on a '{owner}'")).
+
+        Define method as cast one's method-type-of on (owner, member).
+        If method is not void:
+            If called-here is false:
+                Define spoken as "{cast expression-words on (cast field-of on (said, 1))}'s {member}".
+                Define fix as "Call it with 'cast': 'cast {spoken}'.".
+                If the number of (cast field-of on (method, 1))'s children is greater than 0, the fix becomes "Call it with 'cast': 'cast {spoken}' on (…).".
+                Return a failure (cast refusal-of on ("'{member}' is a method of '{owner}', and a method is used by calling it", "",
+                    at-row, "use '{spoken}' without calling it", fix)).
+            Done.
+            Return method.
+        Done.
+        Define field as cast one's field-type-of on (owner, member).
+        If field is not void, return field.
+
+        Define listing as a chase.
+        Define fields as cast quoted-names on (cast one's field-names on (owner), "").
+        Define methods as cast quoted-names on (cast one's own-method-names on (owner), " (method)").
+        Insert fields into listing.
+        If fields is not "" and methods is not "", insert ", " into listing.
+        Insert methods into listing.
+        Define available as listing converted to text.
+        Define fix as "'{owner}' has no fields, getters, or methods.".
+        If available is not "", the fix becomes "Available: {available}.".
+        Return a failure (cast refusal-of on ("'{owner}' has no field, getter, or method named '{member}'", "",
+            at-row, "access '{member}' on a {owner}", fix)).
+    Done.
+
+    /// `the <field> of <value>` — an object's field, a text's length, a map's size, a bits' width.
+    Bind node or failure to infer-named-access unto checker, given (the node said):
+        Define field as cast unquoted on (cast field-of on (said, 1)).
+        Define reached as cast field-of on (said, 2).
+        Define at-row as cast numeric on (cast field-of on (said, 3)).
+        Define target as cast one's infer on (reached) or pass the failure off.
+        If cast is-none on (target), return target.
+        Define kind as target's kind.
+        If kind is "ObjectType":
+            Define owner as cast unquoted on (cast field-of on (target, 1)).
+            If cast one's definition-of on (owner) is void, return a failure (cast not-judged on ("the fields of a '{owner}'")).
+            Define found as cast one's field-type-of on (owner, field).
+            If found is not void, return found.
+            Define names as cast one's field-names on (owner).
+            Define fix as "'{owner}' has no named fields or getters.".
+            If the number of names is greater than 0, the fix becomes "Available: {cast quoted-names on (names, "")}.".
+            Return a failure (cast refusal-of on ("'{owner}' has no field or getter named '{field}'", "",
+                at-row, "access field '{field}'", fix)).
+        Done.
+        If kind is "MatrixType" or kind is "SetType" or kind is "RecordType" or cast beyond-types on (target):
+            Return a failure (cast not-judged on ("the {field} of a {kind}")).
+        Done.
+        If kind is "BitsType" and field is "width", return cast plain-type on ("NumberType").
+        If kind is "TextType" and field is "length", return cast plain-type on ("NumberType").
+        If kind is "MapType" and field is "size", return cast plain-type on ("NumberType").
+        If field is "length":
+            Return a failure (cast refusal-of on ("'the length of' works on text only", "",
+                at-row, "get the length of a {cast type-words on (target)}",
+                "Only text values have a character length. For series, use 'the number of series'.")).
+        Done.
+        If field is "size":
+            Return a failure (cast refusal-of on ("'the size of' works on maps", "",
+                at-row, "get the size of a {cast type-words on (target)}",
+                "For series, use 'the number of'. For text, use 'the length of'.")).
+        Done.
+        Return a failure (cast refusal-of on ("you're trying to access field '{field}' on something that isn't a record or object", "",
+            at-row, "access a named field of a {cast type-words on (target)}", "Only records and objects have named fields.")).
+    Done.
+
+    /// `item N of <object>` — its Nth positional field, own first and then the embedded object's.
+    Bind node or failure to object-item unto checker, given (the node target, the node index-said,
+            the number at-row, the text verb):
+        Define owner as cast unquoted on (cast field-of on (target, 1)).
+        If cast is-nothing on (index-said):
+            Return a failure (cast refusal-of on ("'last' doesn't work on objects", "", at-row,
+                "use 'last' on an object", "Use a position like 'the first of ...' or a field name like 'the city of ...'.")).
+        Done.
+        If index-said's kind is not "NumberLiteral", return cast unknown-type.
+        Define positionals as a series of node.
+        Cast one's gather-positionals on (owner, positionals).
+        Define spot as cast numeric on (cast field-of on (index-said, 1)).
+        // C# truncates toward zero, as a cast to int does.
+        Define whole as spot - (spot % 1).
+        If whole is less than 1 or whole is greater than the number of positionals:
+            Define said as "'{owner}' has {the number of positionals} positional field(s) — there is no position {whole}".
+            Define fix as "Positions run 1 through {the number of positionals}.".
+            If the number of positionals is 0:
+                The said becomes "'{owner}' has no positional fields".
+                The fix becomes "'{owner}' has no positional fields. Access fields by name instead.".
+            Done.
+            Return a failure (cast refusal-of on (said, "", at-row, "{verb} {whole}", fix)).
+        Done.
+        Return item whole of positionals.
+    Done.
+
+    // ── Writing into one ──────────────────────────────────────────────────
+
+    /// `x's field becomes …` and `the field of x becomes …`: the shared field write.
+    Bind void or failure to check-field-write unto checker, given (the text owner, the text field,
+            the node value, the number at-row):
+        If cast one's is-permanent-field on (owner, field):
+            Return a failure (cast refusal-of on ("'{field}' is permanent — it is set when the {owner} is made, and never changes after", "",
+                at-row, "change '{field}' after the {owner} was made",
+                "Give '{field}' its value in the 'a new {owner}' literal. If it has to change later, declare the field without 'permanently'.")).
+        Done.
+        Define wanted as cast one's field-type-of on (owner, field).
+        If wanted is void:
+            Define names as cast one's field-names on (owner).
+            Define fix as "Object '{owner}' has no named fields.".
+            If the number of names is greater than 0:
+                Define listing as a chase.
+                Define first-one as true.
+                For each name in names, repeat:
+                    If first-one is false, insert ", " into listing.
+                    The first-one becomes false.
+                    Insert name into listing.
+                Done.
+                The fix becomes "Available named fields: {listing converted to text}.".
+            Done.
+            Return a failure (cast refusal-of on ("object '{owner}' has no field named '{field}'", "",
+                at-row, "set field '{field}'", fix)).
+        Done.
+        If cast one's is-embed-handle on (owner, field):
+            Return a failure (cast refusal-of on ("'{field}' is an embedded object handle — you can't replace the whole embedded object", "",
+                at-row, "set the embed handle '{field}'", "Mutate individual fields of the embedded object instead.")).
+        Done.
+        Define value-type as cast one's infer on (value) or pass the failure off.
+        If cast is-none on (value-type) is false and cast assignable on (wanted, value-type) is false:
+            If cast beyond-types on (value-type), return a failure (cast not-judged on ("a {value-type's kind} in a field")).
+            Return a failure (cast refusal-of on ("field '{field}' holds a {cast type-words on (wanted)}, not a {cast type-words on (value-type)}", "",
+                at-row, "set field '{field}' to a {cast type-words on (value-type)}",
+                "Field '{field}' has type {cast type-words on (wanted)}.")).
+        Done.
+    Done.
+
+    Bind void or failure to check-possessive-set unto checker, given (the node statement):
+        Define member as cast unquoted on (cast field-of on (statement, 2)).
+        Define at-row as cast numeric on (cast field-of on (statement, 4)).
+        Define target as cast one's infer on (cast field-of on (statement, 1)) or pass the failure off.
+        If cast is-none on (target), return.
+        If target's kind is not "ObjectType":
+            If cast beyond-types on (target), return a failure (cast not-judged on ("'s on a {target's kind}")).
+            Return a failure (cast refusal-of on ("possessive assignment requires an object, but got a {cast type-words on (target)}", "",
+                at-row, "set '{member}' on a {cast type-words on (target)}",
+                "Only objects support possessive field assignment (alice's field becomes X).")).
+        Done.
+        Define owner as cast unquoted on (cast field-of on (target, 1)).
+        If cast one's definition-of on (owner) is void, return a failure (cast not-judged on ("'s on a '{owner}'")).
+        If cast one's is-permanent-field on (owner, member):
+            Return a failure (cast refusal-of on ("'{member}' is permanent — it is set when the {owner} is made, and never changes after", "",
+                at-row, "change '{member}' after the {owner} was made",
+                "Give '{member}' its value in the 'a new {owner}' literal. If it has to change later, declare the field without 'permanently'.")).
+        Done.
+        Cast one's check-field-write on (owner, member, cast field-of on (statement, 3), at-row) or pass the failure off.
+    Done.
+
+    Bind void or failure to check-named-set unto checker, given (the node statement):
+        Define field as cast unquoted on (cast field-of on (statement, 1)).
+        Define at-row as cast numeric on (cast field-of on (statement, 4)).
+        Define target as cast one's infer on (cast field-of on (statement, 2)) or pass the failure off.
+        If cast is-none on (target), return.
+        If target's kind is "ObjectType":
+            Define owner as cast unquoted on (cast field-of on (target, 1)).
+            If cast one's definition-of on (owner) is void, return a failure (cast not-judged on ("the fields of a '{owner}'")).
+            Cast one's check-field-write on (owner, field, cast field-of on (statement, 3), at-row) or pass the failure off.
+            Return.
+        Done.
+        If target's kind is "RecordType" or cast beyond-types on (target):
+            Return a failure (cast not-judged on ("setting the {field} of a {target's kind}")).
+        Done.
+        Return a failure (cast refusal-of on ("you're trying to set field '{field}' on something that isn't a record or object", "",
+            at-row, "set a named field on a {cast type-words on (target)}", "Only records and objects have named fields.")).
+    Done.
+Done.

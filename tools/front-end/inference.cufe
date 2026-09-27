@@ -24,6 +24,9 @@ Pull a book on collections.
         If kind is "SeriesAccess", return cast one's infer-series-access on (said) or pass the failure off.
         If kind is "SeriesLength", return cast one's infer-series-length on (said) or pass the failure off.
         If kind is "CastExpression", return cast one's check-call on (said, true) or pass the failure off.
+        If kind is "ObjectLiteral", return cast one's infer-object-literal on (said) or pass the failure off.
+        If kind is "PossessiveAccess", return cast one's infer-possessive on (said, false) or pass the failure off.
+        If kind is "RecordNamedAccess", return cast one's infer-named-access on (said) or pass the failure off.
         Return a failure (cast not-judged on (kind)).
     Done.
 
@@ -34,7 +37,7 @@ Pull a book on collections.
     /// A type this checker cannot weigh yet — held behind `unsupported` wherever it turns up.
     Bind fact to beyond-types, given (the node shape):
         Define kind as shape's kind.
-        If kind is "ObjectType" or kind is "UnionType" or kind is "RecordType" or kind is "FunctionType":
+        If kind is "UnionType" or kind is "RecordType" or kind is "FunctionType" or kind is "InterfaceType":
             Return true.
         Done.
         For each inner in shape's children, repeat:
@@ -69,6 +72,18 @@ Pull a book on collections.
 
         // In a function body the scope is not final — but only a module may be left to the caller.
         If one's in-function:
+            Define receiver as cast one's look-up on ("one").
+            If receiver is not void:
+                If receiver's shape's kind is "ObjectType":
+                    Define owner as cast unquoted on (cast field-of on (receiver's shape, 1)).
+                    If cast one's field-type-of on (owner, name) is not void:
+                        Return a failure (cast refusal-of on (
+                            "'{name}' is a field of '{owner}', and inside its methods a field is reached through 'one'", "",
+                            at-row, "use '{name}' on its own",
+                            "Write 'one's {name}' — 'one' is the {owner} the method was called on.")).
+                    Done.
+                Done.
+            Done.
             If cast is-bundled-module on (name) is false:
                 Return a failure (cast refusal-of on ("'{name}' isn't defined",
                     "A function or method uses the names it can see where it is WRITTEN — plus any module its caller pulled, and no module is named this",
@@ -383,6 +398,7 @@ Pull a book on collections.
         Done.
 
         If annotated:
+            Cast one's check-resolves on (annotation) or pass the failure off.
             If cast is-none on (inferred) is false and cast same-type on (inferred, annotation) is false:
                 If cast beyond-types on (inferred), return a failure (cast not-judged on ("a series of {inferred's kind}")).
                 Return a failure (cast refusal-of on ("you said this is a series of {cast plural-words on (annotation)}",
@@ -409,6 +425,9 @@ Pull a book on collections.
         Define target as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
         If target's kind is "SeriesType", return cast field-of on (target, 1).
         If target's kind is "ChaseType", return cast plain-type on ("TextType").
+        If target's kind is "ObjectType":
+            Return cast one's object-item on (target, index-said, at-row, "access position") or pass the failure off.
+        Done.
         If cast beyond-types on (target), return a failure (cast not-judged on ("an item of a {target's kind}")).
         Return cast unknown-type.
     Done.

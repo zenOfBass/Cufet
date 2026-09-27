@@ -21,7 +21,10 @@ Pull a book on collections.
         the fact in-function,
         the series of node expected-returns,
         the number function-line,
-        the map from text to fact hidden).
+        the map from text to fact hidden,
+        the map from text to node defs,
+        the series of text def-order,
+        the map from text to fact templates).
 
     Bind node to unknown-type:
         Return cast shaped on ("none").
@@ -178,7 +181,7 @@ Pull a book on collections.
         If kind is "ForEachStatement", return cast beyond-reach on (cast field-of on (statement, 3)).
         If kind is "BindStatement", return cast bind-beyond-reach on (statement).
         For each known in a series with ("StateStatement", "BecomesStatement", "StopStatement", "SkipStatement",
-                "ReturnStatement", "CastStatement",
+                "ReturnStatement", "CastStatement", "PossessiveSetStatement", "RecordNamedSetStatement",
                 "SeriesInsertStatement", "SeriesSetStatement", "SeriesRemoveAtStatement", "SeriesRemoveValueStatement"), repeat:
             If kind is known, return "".
         Done.
@@ -187,11 +190,25 @@ Pull a book on collections.
 
     // ── The program ───────────────────────────────────────────────────────
 
+    /// The same, where an object definition is at the top level — the one place it can be judged.
+    Bind text to program-beyond-reach, given (the node program):
+        For each statement in program's children, repeat:
+            Define inner as "".
+            If statement's kind is "ObjectDefinition", the inner becomes cast object-beyond-reach on (statement).
+            Otherwise, the inner becomes cast statement-beyond-reach on (statement).
+            If inner is not "", return inner.
+        Done.
+        Return "".
+    Done.
+
     Bind void or failure to check-program unto checker, given (the node program):
-        Define reach as cast beyond-reach on (program).
+        Define reach as cast program-beyond-reach on (program).
         If reach is not "", return a failure (cast not-judged on (reach)).
         Cast check-versions on (program) or pass the failure off.
+        Cast one's hoist-objects on (program) or pass the failure off.
+        Cast one's check-method-blanks or pass the failure off.
         Cast one's hoist-functions on (program) or pass the failure off.
+        Cast one's resolve-types or pass the failure off.
         Cast one's hoist-shared-constants on (program) or pass the failure off.
         Cast one's check-block on (program) or pass the failure off.
     Done.
@@ -368,6 +385,15 @@ Pull a book on collections.
         Otherwise if kind is "CastStatement":
             Cast one's check-call on (statement, false) or pass the failure off.
         Done.
+        Otherwise if kind is "ObjectDefinition":
+            Cast one's check-object-definition on (statement) or pass the failure off.
+        Done.
+        Otherwise if kind is "PossessiveSetStatement":
+            Cast one's check-possessive-set on (statement) or pass the failure off.
+        Done.
+        Otherwise if kind is "RecordNamedSetStatement":
+            Cast one's check-named-set on (statement) or pass the failure off.
+        Done.
     Done.
 
     // ── If, and what its arms narrow ──────────────────────────────────────
@@ -527,6 +553,34 @@ Pull a book on collections.
             Done.
             Return.
         Done.
+        If container's kind is "ObjectType":
+            If cast is-nothing on (index-said), return a failure (cast refusal-of on ("'last' doesn't work on objects", "",
+                at-row, "use 'last' on an object", "Use a position like 'the first of ...' or a field name like 'alice's name'.")).
+            If index-said's kind is not "NumberLiteral", return.
+            Define owner as cast unquoted on (cast field-of on (container, 1)).
+            Define positionals as a series of node.
+            Cast one's gather-positionals on (owner, positionals).
+            Define spot as cast numeric on (cast field-of on (index-said, 1)).
+            Define whole as spot - (spot % 1).
+            If whole is less than 1 or whole is greater than the number of positionals:
+                Define said as "{spoken} has {the number of positionals} positional field(s) — there is no position {whole}".
+                Define fix as "Positions run 1 through {the number of positionals}.".
+                If the number of positionals is 0:
+                    The said becomes "{spoken} has no positional fields".
+                    The fix becomes "Object '{owner}' has no positional fields.".
+                Done.
+                Return a failure (cast refusal-of on (said, "", at-row, "set position {whole}", fix)).
+            Done.
+            Define wanted as item whole of positionals.
+            Define given-type as cast one's infer on (cast field-of on (statement, 3)) or pass the failure off.
+            If cast is-none on (given-type) is false and cast same-type on (given-type, wanted) is false:
+                Return a failure (cast refusal-of on (
+                    "position {whole} of {spoken} holds a {cast type-words on (wanted)}, not a {cast type-words on (given-type)}", "",
+                    at-row, "set position {whole} to a {cast type-words on (given-type)}",
+                    "Position {whole} has type {cast type-words on (wanted)}.")).
+            Done.
+            Return.
+        Done.
         If container's kind is "ChaseType" or cast beyond-types on (container):
             Return a failure (cast not-judged on ("setting an item of a {container's kind}")).
         Done.
@@ -586,6 +640,9 @@ Pull a book on collections.
         Define shadowing as cast truth-of on (cast field-of on (statement, 4)).
         Define at-row as cast numeric on (cast field-of on (statement, 5)).
 
+        If cast is-nothing on (cast field-of on (statement, 7)) is false:
+            Cast one's check-resolves on (cast field-of on (statement, 7)) or pass the failure off.
+        Done.
         Define value-type as cast one's infer on (value) or pass the failure off.
         If value-type's kind is "none":
             Return a failure (cast refusal-of on ("the type of the value for '{name}' can't be determined", "",
@@ -706,7 +763,10 @@ Pull a book on collections.
             the in-function false,
             the expected-returns a series with (cast unknown-type),
             the function-line 0,
-            the hidden a map from text to fact }.
+            the hidden a map from text to fact,
+            the defs a map from text to node,
+            the def-order a series of text,
+            the templates a map from text to fact }.
         Cast walker's check-program on (program) or pass the failure off.
         Return "ok".
     Done.
