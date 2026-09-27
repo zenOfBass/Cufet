@@ -1524,7 +1524,8 @@ Remove "alice" from ages.
 State the size of ages.
 ```
 
-**Iterate** — each element is a `mapping` (a key/value pair):
+**Iterate** — each element is a `mapping` (a key/value pair), in the order the keys were first
+added. Removing a key leaves the rest in that order, and a key added afterwards goes on the end:
 ```cufet-fragment
 For each mapping in ages, repeat:
     State the key of mapping.

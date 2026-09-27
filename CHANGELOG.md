@@ -57,6 +57,13 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   that began with "expected" said it twice. Each now says what it means.
 - **Shadowing `input` or `output` no longer says "It was defined on line 0".** Both are built into
   every program and written nowhere; the refusal now says so.
+- **`Remove <key> from <map>.` builds.** It ran interpreted, but a compiled program using it
+  failed to build with "series operation on a non-series value" and no line. A missing key stops
+  the program with the same message on both.
+- **A map is visited in the order its keys were added, after a removal too.** Interpreted, a key
+  added after a removal took the removed key's place: `a, b, c`, remove `a`, add `d` was visited
+  `d, b, c`. It is now `b, c, d` on both backends, and REFERENCE says so. Found writing the type
+  checker in Cufet.
 
 ## [0.26.0] — 2026-09-26
 
