@@ -1210,4 +1210,44 @@ public class PipelineRecordObjectTests : PipelineTestBase
 
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
+
+    // ★ A field holding an object may be given a new one. It used to be refused as "an embedded
+    // object handle" — the rule meant the EMBED handle and caught every object-typed field — and
+    // behind the refusal the backends disagreed: interpreted, the field and the value written into
+    // it stayed ONE object, while compiled it was a copy. Pinned outright, so neither drifts alone.
+    [Fact]
+    public void AFieldHoldingAnObject_CanBeGivenANewOne_AndHoldsACopy()
+    {
+        const string src = """
+            Define object leaf with (the text word).
+            Define object holder with (the leaf current).
+            Bind void to swap unto holder, given (the leaf other):
+                The one's current becomes other.
+            Done.
+            Define h as a new holder { the current a new leaf { the word "a" } }.
+            Define x as a new leaf { the word "b" }.
+            The h's current becomes x.
+            The x's word becomes "z".
+            State h's current's word.
+            Cast h's swap on (x).
+            State h.
+            The x's word becomes "w".
+            State h's current's word.
+            """;
+        Assert.Equal("b\nholder(current: leaf(word: z))\nz", Interpret(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Theory]
+    [InlineData("Define c as a new customer { the id 1, the name \"a\" }.\nThe c's person becomes a new person { the name \"b\" }.")]
+    [InlineData("Define object shop with (the text title) and as a customer.\nDefine s as a new shop { the title \"t\", the id 1, the name \"a\" }.\nThe s's person becomes a new person { the name \"b\" }.")]
+    public void TheEmbedHandle_StillCannotBeReplaced(string rest)
+    {
+        // The embedded object IS part of the outer one, reached through its type's name — here and
+        // through a chain of embeddings.
+        var src = "Define object person with (the text name).\n"
+                + "Define object customer with (the number id) and as a person.\n" + rest;
+        var ex = Assert.ThrowsAny<Exception>(() => Interpret(src));
+        Assert.Contains("'person' is an embedded object handle", ex.Message);
+    }
 }

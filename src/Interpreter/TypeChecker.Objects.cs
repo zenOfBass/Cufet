@@ -102,8 +102,12 @@ public sealed partial class TypeChecker
                 $"set field '{fieldName}'",
                 hint);
         }
-        // Embed handles (ObjectType) can't be set via becomes; only scalar/value types are settable.
-        if (fieldType is ObjectType)
+        // Embed handles can't be set via becomes: the embedded object IS part of this one.
+        // ⚠ The EMBED HANDLE, not every field holding an object. This used to test `fieldType is
+        // ObjectType`, which refused `The one's current becomes other.` for an ordinary field
+        // declared `the leaf current` — the rule was wider than its reason. Found writing the
+        // checker in Cufet, whose checker object keeps a `node` in a field.
+        if (IsEmbedHandle(ot, fieldName))
             throw TypeError(
                 $"'{fieldName}' is an embedded object handle — you can't replace the whole embedded object",
                 null, line, col,
@@ -137,6 +141,16 @@ public sealed partial class TypeChecker
         return ot.EmbeddedTypeName != null
             && _objectDefs.TryGetValue(ot.EmbeddedTypeName, out var embed)
             && IsPermanentInOtOrPromoted(embed, fieldName);
+    }
+
+    /// <summary>Is `fieldName`, on `ot`, the handle of an embedded object — here or up the chain?</summary>
+    /// <remarks>The same walk as <see cref="FindFieldInOtOrPromoted"/>: an own field wins first.</remarks>
+    private bool IsEmbedHandle(ObjectType ot, string fieldName)
+    {
+        if (ot.NamedFields.Any(f => f.FieldName == fieldName)) return false;
+        if (ot.EmbeddedTypeName == null || !_objectDefs.TryGetValue(ot.EmbeddedTypeName, out var embed))
+            return false;
+        return fieldName == ot.EmbeddedTypeName || IsEmbedHandle(embed, fieldName);
     }
 
     private CufetType? FindFieldInOtOrPromoted(ObjectType ot, string fieldName)

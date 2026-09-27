@@ -1,4 +1,4 @@
-﻿using System.Runtime.CompilerServices;
+using System.Runtime.CompilerServices;
 
 namespace Cufet.Interpreter;
 
@@ -22,7 +22,10 @@ public sealed partial class Interpreter
         if (owner == null)
             throw new RuntimeException($"Object of type '{pssOv.TypeName}' has no field named '{pss.Member}' (line {pss.Line}).");
         var fi = owner.NamedFields.FindIndex(f => f.Name == pss.Member);
-        owner.NamedFields[fi] = (pss.Member, Evaluate(pss.Value));
+        // ⚠ Copied, as every other store is — `Define`, `becomes`, an item, a map entry. Without it
+        // `The h's current becomes x.` left the field and `x` one object here, while compiled it
+        // was a copy. Unseen while the checker refused every object-typed field write.
+        owner.NamedFields[fi] = (pss.Member, BindCopy(Evaluate(pss.Value)));
     }
 
     // ── Getter / setter dispatch ──────────────────────────────────────────────

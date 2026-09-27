@@ -64,6 +64,12 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   added after a removal took the removed key's place: `a, b, c`, remove `a`, add `d` was visited
   `d, b, c`. It is now `b, c, d` on both backends, and REFERENCE says so. Found writing the type
   checker in Cufet.
+- **A field holding an object can be given a new one.** `The one's current becomes other.` was
+  refused as "an embedded object handle" for any field whose type is an object; only the handle of
+  an EMBEDDED object — `the person of customer` — is refused now. And the field holds a copy on
+  both backends: interpreted, the field and the object written into it had stayed one object, so a
+  later change to either showed through the other, where compiled it never did. Found writing the
+  type checker in Cufet.
 - **An empty series is told a spelling that works.** `a series with ()` was advised to write
   `a series of numbers ()`, which does not parse; it is now told `a series of numbers`, `a series
   of text` or `a series of facts`.
