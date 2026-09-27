@@ -231,8 +231,7 @@ Pull a book on collections.
         Define earlier-in-function as one's in-function.
         Define earlier-line as one's function-line.
         The one's in-function becomes true.
-        // ⚠ A stack rather than a field set and put back: a field holding an object cannot be
-        // given a new one — C# refuses it as "an embedded object handle".
+        // One per body entered, so leaving it is taking the last one off.
         If cast is-nothing on (returned), insert cast unknown-type into one's expected-returns.
         Otherwise, insert returned into one's expected-returns.
         The one's function-line becomes at-row.
