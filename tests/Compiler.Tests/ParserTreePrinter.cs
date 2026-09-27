@@ -23,8 +23,32 @@ public static class ParserTreePrinter
         }
         catch (Exception e) when (e is ParseException or Cufet.Lexer.LexerException)
         {
-            return [$"error\t{e.Message}"];
+            return [$"error\t{InCharacters(e.Message, source)}"];
         }
+    }
+
+    /// <summary>A refusal's column, counted in characters rather than UTF-16 units.</summary>
+    /// <remarks>
+    /// ⚠ The same conversion the lexer's test makes, for the same reason: past a character outside
+    /// the Basic Multilingual Plane, C# counts one more than Cufet does. Both message shapes carry
+    /// the position — `Line 3, column 7: …` and `… on line 3, column 7.`
+    /// </remarks>
+    private static string InCharacters(string message, string source)
+    {
+        var lines = source.Split('\n');
+        return System.Text.RegularExpressions.Regex.Replace(message,
+            @"([Ll]ine )(\d+)(, column )(\d+)",
+            m =>
+            {
+                int line = int.Parse(m.Groups[2].Value), column = int.Parse(m.Groups[4].Value);
+                if (line - 1 >= lines.Length) return m.Value;
+                string text = lines[line - 1];
+                int pairs = 0;
+                for (int i = 0; i + 1 < text.Length && i < column - 1; i++)
+                    if (char.IsHighSurrogate(text[i]) && char.IsLowSurrogate(text[i + 1])) pairs++;
+                return $"{m.Groups[1].Value}{line}{m.Groups[3].Value}{column - pairs}";
+            },
+            System.Text.RegularExpressions.RegexOptions.None, TimeSpan.FromSeconds(1));
     }
 
     /// <summary>One value of the tree, as the Cufet parser prints it.</summary>

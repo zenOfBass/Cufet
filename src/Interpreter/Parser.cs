@@ -2386,7 +2386,7 @@ public sealed class Parser
         Consume(TokenType.To);
         SkipNoise(); // eats 'the' article before 'file'
         if (Peek().Type != TokenType.File)
-            throw new ParseException(Peek(),
+            throw new ParseException(Peek().Line, Peek().Column,
                 "expected 'the file \"path\"' after 'append <value> to'");
         Advance(); // consume 'file'
         SkipNoise();
@@ -4351,7 +4351,7 @@ public sealed class Parser
                 }
                 else
                 {
-                    throw new ParseException(Peek(),
+                    throw new ParseException(Peek().Line, Peek().Column,
                         "expected 'line', 'all', or 'all lines' after 'read'");
                 }
 
@@ -6040,7 +6040,17 @@ public sealed class Parser
         return result ?? new StringLiteral("");
     }
 
-    private Token Advance() => _tokens[_pos++];
+    // ⚠ Never past Eof. Several places take "whatever word comes next" with a bare Advance — a
+    // possessive's member, a named field's name — and a file that ENDS there (`… one's`) walked off
+    // the token list and crashed with an index error instead of refusing. Staying on Eof hands those
+    // places an empty word, and the next Consume says what is missing. Found by cutting corpus files
+    // short to compare the Cufet parser's refusals with these.
+    private Token Advance()
+    {
+        var current = _tokens[_pos];
+        if (current.Type != TokenType.Eof) _pos++;
+        return current;
+    }
     /// <summary>Is this token the word `rabbit` — an ordinary identifier, not a keyword?</summary>
     /// <remarks>
     /// ★ `rabbit` names a module, exactly as `math` and `collections` do, and none of them is

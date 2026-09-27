@@ -4,29 +4,54 @@ using static Cufet.Compiler.Tests.LexerParityTests;
 
 namespace Cufet.Compiler.Tests;
 
+/// <summary>The Cufet parser, built once for every test that runs it compiled.</summary>
+public sealed class CompiledCufetParser : IDisposable
+{
+    private readonly string _dir;
+    public string Exe { get; }
+
+    public CompiledCufetParser()
+    {
+        _dir = Directory.CreateTempSubdirectory("cufet-parser-build-").FullName;
+        foreach (var f in Directory.GetFiles(Path.Combine(RepoRoot, "tools", "front-end"), "*.cufe"))
+            File.Copy(f, Path.Combine(_dir, Path.GetFileName(f)));
+        // A blueprint marks the directory as a project, so the files see each other as they do in
+        // tools/front-end/.
+        File.WriteAllText(Path.Combine(_dir, "blueprint.cufe"), "");
+        Run(CufetExe, ["build", "parser.cufe"], _dir);
+        Exe = Path.Combine(_dir, "parser" + (OperatingSystem.IsWindows() ? ".exe" : ""));
+    }
+
+    public void Dispose()
+    {
+        try { Directory.Delete(_dir, recursive: true); } catch (IOException) { }
+    }
+}
+
 /// <summary>
-/// The parser written in Cufet (`tools/front-end/parser.cufe`) builds the same tree as the one in C#.
+/// The parser written in Cufet (`tools/front-end/parser.cufe`) builds the same tree as the one in
+/// C#, and refuses what it refuses in the same words at the same place.
 /// </summary>
 /// <remarks>
 /// <para>
-/// ★★ THE ANSWER KEY IS <c>src/Interpreter/Parser.cs</c> ITSELF. Its tree is printed here as an
-/// S-expression — <c>(TypeName field field …)</c>, one line per top-level statement — by
-/// reflection over each node's constructor, so every node kind prints the same way without a
-/// printer to keep in step with Ast.cs. The Cufet parser prints the same text, and each file is
-/// compared line by line.
+/// ★★ THE ANSWER KEY IS <c>src/Interpreter/Parser.cs</c> ITSELF. Its tree is printed as an
+/// S-expression — <c>(TypeName field field …)</c>, one line per top-level statement — by reflection
+/// over each node's constructor (<see cref="ParserTreePrinter"/>), and a refusal as <c>error</c> and
+/// its message. The Cufet parser prints the same text, and each file is compared line by line.
 /// </para>
 /// <para>
-/// ★ ALL OR NOTHING PER FILE, AND STRICT WHERE IT CLAIMS. The Cufet parser is being written a
-/// construct at a time, so for a file it cannot parse yet it prints <c>unsupported</c> and stops.
-/// Such a file is listed, not failed. A file it DOES parse must match exactly — and a floor on how
-/// many it parses rises with each step, so coverage cannot quietly fall back.
+/// ★★ REFUSALS ARE COMPARED ON BROKEN PROGRAMS MADE FROM WORKING ONES — every corpus file cut off
+/// at a token and with a token deleted (<see cref="SourceMutations"/>) — and on a hand-written list
+/// for what no mutation of the corpus reaches. Refusals are the language's distinguishing feature,
+/// so a parser that builds the right trees and refuses differently would not be a replacement.
 /// </para>
 /// <para>
-/// ⚠ What is printed is what the PARSER built. Properties the checker fills in afterwards
-/// (<c>ResolvedFunctionName</c> and the like) are not constructor fields and never appear.
+/// ⚠ What is printed is what the PARSER built. Properties the checker fills in afterwards are not
+/// constructor fields and never appear.
 /// </para>
 /// </remarks>
-public class ParserParityTests(ITestOutputHelper output)
+public class ParserParityTests(ITestOutputHelper output, CompiledCufetParser compiled)
+    : IClassFixture<CompiledCufetParser>
 {
     /// <summary>How many corpus files the Cufet parser must parse. Raised as it grows; never lowered.</summary>
     private const int ParsedFloor = 100;
@@ -36,12 +61,13 @@ public class ParserParityTests(ITestOutputHelper output)
 
     // ── The comparison ──────────────────────────────────────────────────────
 
-    private (int Parsed, List<string> Problems, List<string> Unsupported) Compare(Dictionary<string, List<string>> got, List<string> files)
+    private static (int Parsed, List<string> Problems, List<string> Unsupported) Compare(
+        Dictionary<string, List<string>> got, IEnumerable<(string Name, string Source)> files)
     {
         int parsed = 0;
         var problems = new List<string>();
         var unsupported = new List<string>();
-        foreach (var name in files)
+        foreach (var (name, source) in files)
         {
             if (!got.TryGetValue(name, out var have))
             {
@@ -53,14 +79,14 @@ public class ParserParityTests(ITestOutputHelper output)
                 unsupported.Add($"{name}\t{have[0]["unsupported\t".Length..]}");
                 continue;
             }
-            var want = ParserTreePrinter.Expected(File.ReadAllText(Path.Combine(RepoRoot, name)));
+            var want = ParserTreePrinter.Expected(source);
             int before = problems.Count;
             for (int i = 0; i < Math.Max(want.Count, have.Count); i++)
             {
                 string w = i < want.Count ? want[i] : "<no more statements>";
                 string h = i < have.Count ? have[i] : "<no more statements>";
                 if (w == h) continue;
-                problems.Add($"{name}, statement {i + 1}:\n    C#:    {Clip(w, h)}\n    Cufet: {Clip(h, w)}");
+                problems.Add($"{name}, line {i + 1}:\n    C#:    {Clip(w, h)}\n    Cufet: {Clip(h, w)}");
                 break;
             }
             if (problems.Count == before) parsed++;
@@ -78,46 +104,52 @@ public class ParserParityTests(ITestOutputHelper output)
     }
 
     /// <summary>Compares, reports what is not yet parsed, and holds the floor.</summary>
-    private void Check(Dictionary<string, List<string>> got, List<string> files, int floor, string how)
+    private void Check(Dictionary<string, List<string>> got, IReadOnlyList<(string, string)> files, int floor, string how)
     {
         var (parsed, problems, unsupported) = Compare(got, files);
 
-        output.WriteLine($"{how}: {parsed} of {files.Count} files parsed; {unsupported.Count} not yet:");
+        output.WriteLine($"{how}: {parsed} of {files.Count} agree; {unsupported.Count} not yet:");
         foreach (var line in unsupported) output.WriteLine("    " + line);
 
         Assert.True(problems.Count == 0,
-            $"{problems.Count} files parse differently {how}:\n{string.Join("\n", problems)}");
+            $"{problems.Count} of {files.Count} differ {how}:\n{string.Join("\n", problems.Take(20))}");
         Assert.True(parsed >= floor,
-            $"only {parsed} files parsed {how}, and the floor is {floor}. Not yet:\n{string.Join("\n", unsupported)}");
+            $"only {parsed} agree {how}, and the floor is {floor}. Not yet:\n{string.Join("\n", unsupported)}");
     }
+
+    private static List<(string, string)> WithSources(IEnumerable<string> names) =>
+        names.Select(n => (n, File.ReadAllText(Path.Combine(RepoRoot, n)))).ToList();
+
+    /// <summary>Writes each source to a temporary directory and runs the compiled parser over them.</summary>
+    private Dictionary<string, List<string>> RunOnSources(IReadOnlyList<(string Name, string Source)> sources, string label)
+    {
+        var dir = Directory.CreateTempSubdirectory($"cufet-parser-{label}-").FullName;
+        try
+        {
+            foreach (var (name, source) in sources) File.WriteAllText(Path.Combine(dir, name), source);
+            var got = new Dictionary<string, List<string>>();
+            // In batches: a Windows command line has a length limit.
+            foreach (var batch in sources.Select(s => s.Name).Chunk(200))
+                foreach (var (k, v) in ByFile(Run(compiled.Exe, batch, dir))) got[k] = v;
+            return got;
+        }
+        finally { Directory.Delete(dir, recursive: true); }
+    }
+
+    // ── Trees ───────────────────────────────────────────────────────────────
 
     [Fact]
     public void TheCompiledParser_BuildsTheSameTreeAsCSharp_ForEveryFile()
     {
         var files = Corpus();
         Assert.True(files.Count >= 80, $"only {files.Count} Cufet files found under {RepoRoot}");
-
-        var dir = Directory.CreateTempSubdirectory("cufet-parser-build-").FullName;
-        try
-        {
-            foreach (var f in Directory.GetFiles(Path.Combine(RepoRoot, "tools", "front-end"), "*.cufe"))
-                File.Copy(f, Path.Combine(dir, Path.GetFileName(f)));
-            // A blueprint marks the directory as a project, so the files see each other as they do
-            // in tools/front-end/.
-            File.WriteAllText(Path.Combine(dir, "blueprint.cufe"), "");
-            Run(CufetExe, ["build", "parser.cufe"], dir);
-
-            string exe = Path.Combine(dir, "parser" + (OperatingSystem.IsWindows() ? ".exe" : ""));
-            Check(ByFile(Run(exe, files, RepoRoot)), files, ParsedFloor, "compiled");
-        }
-        finally { Directory.Delete(dir, recursive: true); }
+        Check(ByFile(Run(compiled.Exe, files, RepoRoot)), WithSources(files), ParsedFloor, "compiled");
     }
 
     /// <remarks>
     /// ⚠ A SAMPLE, every fifth file, and deliberately so. Interpreted, the whole corpus takes about
-    /// two minutes — a third of the suite again — while the compiled run above covers every file in
-    /// seconds. What this one adds is the other backend running the same parser, and a fifth of the
-    /// corpus reaches every kind of statement the corpus has many of.
+    /// two minutes — a third of the suite again — while the compiled run covers every file in
+    /// seconds. What this one adds is the other backend running the same parser.
     /// </remarks>
     [Fact]
     public void TheInterpretedParser_BuildsTheSameTree_OnASampleOfTheCorpus()
@@ -126,6 +158,95 @@ public class ParserParityTests(ITestOutputHelper output)
         Assert.True(files.Count >= 16, $"only {files.Count} Cufet files in the sample");
 
         var got = ByFile(Run(CufetExe, ["tools/front-end/parser.cufe", .. files], RepoRoot));
-        Check(got, files, SampleFloor, "interpreted");
+        Check(got, WithSources(files), SampleFloor, "interpreted");
+    }
+
+    // ── Refusals ────────────────────────────────────────────────────────────
+
+    /// <remarks>
+    /// ⚠ TWO mutations per file, about four hundred programs, and not more: the compiled parser
+    /// takes around sixty milliseconds a file, so the forty-per-file sweep this was checked against
+    /// (every one agreeing) takes minutes and stays a scratch tool. Positions are spread evenly
+    /// across each file, so these two land in different places in every one of them.
+    /// </remarks>
+    [Fact]
+    public void BrokenPrograms_AreRefusedTheSameWay_CutShortOrMissingAToken()
+    {
+        var mutants = new List<(string, string)>();
+        foreach (var name in Corpus())
+        {
+            string flat = name.Replace('/', '_').Replace(".cufe", "");
+            foreach (var (suffix, source) in SourceMutations.Of(File.ReadAllText(Path.Combine(RepoRoot, name)), 2))
+                mutants.Add(($"{flat}__{suffix}.cufe", source));
+        }
+        Assert.True(mutants.Count >= 300, $"only {mutants.Count} mutants");
+        // ★ Most of them must be refusals, or this is comparing trees again under another name.
+        int refused = mutants.Count(m => ParserTreePrinter.Expected(m.Item2)[0].StartsWith("error\t"));
+        Assert.True(refused >= mutants.Count / 2, $"only {refused} of {mutants.Count} mutants are refused");
+
+        Check(RunOnSources(mutants, "mutants"), mutants, mutants.Count, "on broken programs");
+    }
+
+    /// <summary>Refusals no cut or deletion of the corpus reaches.</summary>
+    private static readonly string[] Refused =
+    [
+        // The lexer, in its own two shapes.
+        "State \"never closed.",
+        "State 1 # 2.",
+        "Define Total as 1.",
+        "Add 4 to scores.",
+        "Define x as 0b12.",
+        "State alice'x.",
+        // A reserved word where a name belongs, and a name used like a call or a field.
+        "Define path as 1.",
+        "For each path in a series with (1), state 1.",
+        "Define total as 1.\nState total(4).",
+        "Define total as 1.\nState total of (4, 5).",
+        "Define total as 1.\nState total of alice.",
+        "Pull a book on collections.\n    Define chase as 5.\nDone.",
+        // `=` where `as` or `becomes` belongs.
+        "Define x = 3.",
+        "Define x as 1.\nx = 3.",
+        // Inline bodies.
+        "Bind number to f, return 5.",
+        "Bind number to f, state 5.",
+        "Bind void to g, 5 + 1.",
+        // Blocks left open, by the file ending or by the next arm.
+        "If true:\n    State 1.\n",
+        "If true:\n    State 1.\nOtherwise:\n    State 2.\nDone.",
+        "Try to:\n    State 1.\n",
+        "Try to:\n    State 1.\nDone.\nIn case of failure:\n    State 2.\n",
+        "Bind void to g:\n    State 1.\n",
+        "For each n in a series with (1), repeat:\n    State n.\n",
+        "Bind number to f, given (the number n):\n    Return n.\n",
+        // Loops and functions.
+        "Stop.",
+        "Return 5.",
+        "State 1 is more than 2.",
+        "Define x as 1.\nJudge x, where it is:\nDone.",
+        // Patterns, reported at the `[`.
+        "Pull a book on regex.\n    Define regex r as [a{3,1}].\nDone.",
+        "Pull a book on regex.\n    Define regex r as [(?=a)b].\nDone.",
+        "Pull a book on regex.\n    Define regex r as [[z-a]].\nDone.",
+        "Pull a book on regex.\n    Define regex r as [a|].\nDone.",
+        "Pull a book on regex.\n    Define regex r, given (the text t), as [a].\nDone.",
+        // Cufet held inside Cufet, reported where the block sits.
+        "Pull a book on cufet.\n    Define cufet held as [\n        State.\n    ].\nDone.",
+        // Two interfaces supplying one default.
+        "Define shouter as an interface for the text function shout.\n"
+      + "Define talker as an interface for the text function shout.\n"
+      + "Bind text to shout unto shouter, \"a\".\n"
+      + "Bind text to shout unto talker, \"b\".\n"
+      + "Define object hare with (the text name) and shouter and talker.",
+    ];
+
+    [Fact]
+    public void EveryHandWrittenRefusal_IsGivenAtTheSamePlaceInTheSameWords()
+    {
+        var sources = Refused.Select((s, i) => ($"refused-{i + 1}.cufe", s)).ToList();
+        // ⚠ Each has to be a refusal on the C# side too, or the case tests nothing.
+        foreach (var (name, source) in sources)
+            Assert.True(ParserTreePrinter.Expected(source)[0].StartsWith("error\t"), $"{name} is not refused by C#: {source}");
+        Check(RunOnSources(sources, "refused"), sources, sources.Count, "on hand-written refusals");
     }
 }

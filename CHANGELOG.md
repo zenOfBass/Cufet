@@ -30,7 +30,11 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   repository, its own included. It covers the whole language the corpus uses: patterns compiled
   to their automata, `cufet` blocks parsed where they sit, and interface defaults expanded. The
   compiled parser is checked over every file; the interpreted one over a fifth of them, because
-  interpreted the whole corpus takes two minutes. Parse ERRORS are not yet compared — only trees.
+  interpreted the whole corpus takes two minutes. ★ It REFUSES the same way too — the same words at
+  the same line and column — checked on broken programs made from the corpus (each file cut off at
+  a token, and with a token deleted) and on a hand-written list for what no cut reaches: the
+  lexer's refusals, a reserved word in a name's place, blocks left open, patterns, a `cufet` block
+  and two interfaces supplying one default. A sweep of 7,637 such programs agreed on every one.
 
 ### Changed
 
@@ -43,7 +47,11 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 - **A refusal in a neighbouring file names that file** when a program is run or built. `cufet
   main.cufe` refusing a line of `helper.cufe` printed "Here on line 2" and nothing else, which
   points into the file that was run; it now opens `In helper.cufe:`. `cufet check` always named it.
-- **Refusals that read as expectations no longer do.** Eleven sentences went through the "expected
+- **A file that ends where a word was expected is refused instead of crashing the parser.** A file
+  ending just after `one's` — or any possessive — took the member name with a step past the end of
+  the file and failed with an index error. It now says what is missing. Found by cutting corpus files
+  short to compare the Cufet parser's refusals with the C# one's.
+- **Refusals that read as expectations no longer do.** Thirteen sentences went through the "expected
   X, got Y" wording, so `Stop.` outside a loop said *"expected 'Stop' used outside a loop, got
   Stop"*, a misplaced unmaker said *"expected — unmakers must be declared…"*, and three sentences
   that began with "expected" said it twice. Each now says what it means.

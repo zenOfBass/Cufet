@@ -27,6 +27,7 @@ public class MessageWordingTests
     [InlineData("Define p as the path \"x\" is a number.", "expected 'directory' or 'file'")]
     [InlineData("Define r as run \"x\" with arguments (\"a\") with arguments (\"b\").", "this run already says 'with arguments'")]
     [InlineData("Bind overloading %, given (the a is a number, the b is a text), 1.", "expected an arithmetic operator")]
+    [InlineData("Append \"x\" to stdout.", "expected 'the file \"path\"' after 'append <value> to'")]
     public void ASentenceIsNotFramedAsAnExpectation(string source, string sentence)
     {
         var message = ParseFails(source);
@@ -44,6 +45,18 @@ public class MessageWordingTests
         Assert.Contains(sentence, message);
         Assert.DoesNotContain("— unmakers", message);
         Assert.DoesNotContain("expected", message);
+    }
+
+    [Theory]
+    [InlineData("Define object tank with (the number litres):\n    Set litres given (the number wanted):\n        One's")]
+    [InlineData("Increment one's")]
+    [InlineData("State alice's")]
+    public void AFileThatEndsWhereAWordWasTaken_IsRefused_NotCrashed(string source)
+    {
+        // ⚠ These crashed with an index error: the word after `'s` was taken with a bare Advance,
+        // which walked off the end of the tokens. Found cutting corpus files short.
+        var message = ParseFails(source);
+        Assert.Contains("got Eof", message);
     }
 
     [Fact]
