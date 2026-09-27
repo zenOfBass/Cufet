@@ -1,0 +1,154 @@
+/*  What type an expression has — `InferTypeCore` and its helpers in
+    `src/Interpreter/TypeChecker.Core.cs`.
+
+    Gives back the type as a node, `none` when there is nothing to go on (C#'s null), or a failure:
+    the refusal, or `unsupported` for an expression this checker cannot type yet.
+*/
+
+Pull a book on collections.
+    Bind node or failure to infer unto checker, given (the node said):
+        Define kind as said's kind.
+        If kind is "NumberLiteral", return cast plain-type on ("NumberType").
+        If kind is "StringLiteral", return cast plain-type on ("TextType").
+        If kind is "BooleanLiteral", return cast plain-type on ("FactType").
+        If kind is "BitsLiteral", return cast plain-type on ("BitsType").
+        If kind is "VoidLiteral", return cast plain-type on ("VoidType").
+        If kind is "VariableReference", return cast one's infer-name on (said) or pass the failure off.
+        If kind is "UnaryExpression", return cast one's infer-unary on (said) or pass the failure off.
+        If kind is "BinaryExpression", return cast one's infer-binary on (said) or pass the failure off.
+        Return a failure (cast not-judged on (kind)).
+    Done.
+
+    // ── Names ─────────────────────────────────────────────────────────────
+
+    Bind node or failure to infer-name unto checker, given (the node said):
+        Define name as cast unquoted on (cast field-of on (said, 1)).
+        Define found as cast one's look-up on (name).
+        If found is not void, return found's shape.
+        Return cast one's unresolved on (said) or pass the failure off.
+    Done.
+
+    /// A name nothing in scope defines — C#'s `NoteUnresolvedName`, for code whose scope is final.
+    Bind node or failure to unresolved unto checker, given (the node said):
+        Define name as cast unquoted on (cast field-of on (said, 1)).
+        Define at-row as cast numeric on (cast field-of on (said, 2)).
+
+        // A name that is a TYPE somewhere else is a different mistake from a missing variable.
+        Define from-book as cast book-introducing on (name).
+        If from-book is not "":
+            Return a failure (cast refusal-of on ("'{name}' is a type, and this program has not pulled it",
+                "The '{from-book}' book introduces it, and the name means the type only inside that pull",
+                at-row, "use '{name}' outside a '{from-book}' pull",
+                "Wrap it in 'Pull a book on {from-book}. … Done.'")).
+        Done.
+
+        Define is-book as cast is-a-book on (name).
+        Define ended-on as the entry for name in one's ended-names.
+        // ⚠ Nested, not `is-book is false and ended-on is not void` — narrowing reads a lone
+        // `is not void` test and does not see through `and`.
+        If ended-on is not void:
+            If is-book is false and ended-on is less than at-row:
+                Return a failure (cast refusal-of on ("'{name}' was defined on line {ended-on}, inside a block that has ended",
+                    "A name lasts until the 'Done.' of the block it was defined in, and no further",
+                    at-row, "use '{name}' after that block's 'Done.'",
+                    "Use it before the 'Done.', or define it before the block begins so it outlasts it.")).
+            Done.
+        Done.
+
+        If is-book:
+            Return a failure (cast refusal-of on ("'{name}' is a book, and it is not pulled here",
+                "A book's members can be used only inside 'Pull a book on {name}. … Done.', and the pull lasts until its 'Done.'",
+                at-row, "use '{name}' outside a pull on it",
+                "Put this line inside 'Pull a book on {name}.', before its 'Done.'.")).
+        Done.
+
+        Return a failure (cast refusal-of on ("'{name}' isn't defined",
+            "Nothing later in this block can give it a value — a name has to exist before it is used",
+            at-row, "use '{name}' here",
+            "Define it first: 'Define {name} as <value>.' — or check the spelling.")).
+    Done.
+
+    // ── Operators ─────────────────────────────────────────────────────────
+
+    Bind node or failure to infer-unary unto checker, given (the node said):
+        Define op as cast field-of on (said, 1)'s word.
+        Define operand as cast one's infer on (cast field-of on (said, 2)) or pass the failure off.
+        Define at-row as cast numeric on (cast field-of on (said, 3)).
+        Define operand-kind as operand's kind.
+        If operand-kind is "none", return operand.
+        If op is "Not":
+            If operand-kind is "FactType" or operand-kind is "BitsType", return operand.
+            Define advice as "Make sure the value you're negating is a fact (a true or false value) or a bits value. Write a comparison like 'x is 5' if you need one.".
+            If operand-kind is "NumberType":
+                The advice becomes "A number is a quantity, and has no bits to flip. Write the value as a bit pattern (0xFF, 0b1010, 0o755) if that is what you meant, or use unary minus if you wanted to negate the quantity.".
+            Done.
+            Return a failure (cast refusal-of on ("'not' flips a fact or a bit pattern", "",
+                at-row, "negate a {cast type-words on (operand)} value", advice)).
+        Done.
+        If operand-kind is "NumberType", return operand.
+        Define advice as "Make sure the value you're negating is a number.".
+        If operand-kind is "BitsType":
+            The advice becomes "Bits are unsigned — a bit pattern has no negative. Did you mean 'not', which flips every bit within the value's width?".
+        Done.
+        Return a failure (cast refusal-of on ("unary minus works on numbers only", "",
+            at-row, "negate a {cast type-words on (operand)} value", advice)).
+    Done.
+
+    Bind node or failure to infer-binary unto checker, given (the node said):
+        Define lhs as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
+        Define op as cast field-of on (said, 2)'s word.
+        Define rhs as cast one's infer on (cast field-of on (said, 3)) or pass the failure off.
+        Define at-row as cast numeric on (cast field-of on (said, 4)).
+        If lhs's kind is "none" or rhs's kind is "none", return cast unknown-type.
+        Define lk as lhs's kind.
+        Define rk as rhs's kind.
+
+        // What this checker cannot weigh yet: overloads and matrices, voidables, unions, rabbits.
+        For each seen in a series with (lk, rk), repeat:
+            If seen is "ObjectType" or seen is "MatrixType" or seen is "VoidableType" or seen is "UnionType":
+                Return a failure (cast not-judged on ("an operator on a {seen}")).
+            Done.
+        Done.
+
+        Define symbol as cast operator-words on (op).
+        Define arithmetic as op is "Plus" or op is "Minus" or op is "Star" or op is "Slash" or op is "Percent".
+        Define ordering as op is "Lt" or op is "Gt" or op is "Lte" or op is "Gte".
+        Define gate as op is "And" or op is "Or" or op is "Xor".
+        Define equality as op is "Equal" or op is "NotEqual".
+
+        If arithmetic:
+            If lk is "NumberType" and rk is "NumberType", return lhs.
+            If lk is "BitsType" and rk is "BitsType", return lhs.
+            Return a failure (cast refusal-of on ("arithmetic requires numbers on both sides", "",
+                at-row, "use {symbol} with {cast type-words on (lhs)} and {cast type-words on (rhs)}",
+                "If you meant arithmetic, both sides need to be numbers.\nIf you meant to join text, use 'joined to': \"hello\" joined to \" world\".")).
+        Done.
+        If equality:
+            If cast same-type on (lhs, rhs), return cast plain-type on ("FactType").
+            Return a failure (cast refusal-of on ("equality comparison requires matching types", "",
+                at-row, "compare a {cast type-words on (lhs)} to a {cast type-words on (rhs)}",
+                "A {cast type-words on (lhs)} and a {cast type-words on (rhs)} can never be equal — this is likely a mistake. Check which side has the wrong type.")).
+        Done.
+        If ordering:
+            If (lk is "NumberType" and rk is "NumberType") or (lk is "BitsType" and rk is "BitsType"):
+                Return cast plain-type on ("FactType").
+            Done.
+            Return a failure (cast refusal-of on ("ordering works on numbers and on bits", "",
+                at-row, "order a {cast type-words on (lhs)} and a {cast type-words on (rhs)}",
+                "Ordering comparisons (>, <, >=, <=) need both sides to be numbers, or both to be bits.")).
+        Done.
+        If gate:
+            If lk is "FactType" and rk is "FactType", return lhs.
+            If lk is "BitsType" and rk is "BitsType", return lhs.
+            If lk is "NumberType" or rk is "NumberType":
+                Return a failure (cast refusal-of on ("'{symbol}' is a gate, and a number has no bits to combine", "",
+                    at-row, "use '{symbol}' with {cast type-words on (lhs)} and {cast type-words on (rhs)}",
+                    "Gates work on facts (one bit) and on bits (a pattern of them), not on numbers. A number is a quantity — 255 counts something, where 0xFF is a pattern of eight bits. Write the value as a bit pattern (0xFF, 0b1010, 0o755), or convert with 'converted to hex'.")).
+            Done.
+            Return a failure (cast refusal-of on ("'{symbol}' needs both sides to be the same kind of thing", "",
+                at-row, "use '{symbol}' with {cast type-words on (lhs)} and {cast type-words on (rhs)}",
+                "Both sides of '{symbol}' must be facts, or both must be bits. Did you mean to write a comparison like 'x is 0' rather than just 'x'?")).
+        Done.
+        Return cast unknown-type.
+    Done.
+Done.

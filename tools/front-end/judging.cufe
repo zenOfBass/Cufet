@@ -1,0 +1,332 @@
+/*  The checker's walk over a program — `TypeChecker.Check` in `src/Interpreter/TypeChecker.Core.cs`.
+
+    A judgement gives back `void or failure` (or `node or failure`, for a type): nothing when all is
+    well, or a failure whose message is `error\t` and the C# checker's words, or `unsupported\t`
+    and what this checker met that it cannot judge yet.
+
+    ★ A type is a tree node, the same kind the parser builds for an annotation — `(NumberType)`,
+    `(SeriesType (TextType))`. One the checker cannot work out is a node of kind `none`, which is
+    what C# means by a null type: not a refusal, just nothing to go on.
+*/
+
+Pull a book on collections.
+    /// What a name stands for in a scope — C#'s `TypeInfo`.
+    Define object binding with (the node shape, the node established-by, the number line, the fact permanent).
+
+    Define object checker with (
+        the series of map from text to binding scopes,
+        the map from text to number ended-names,
+        the map from text to fact hoisted-constants).
+
+    Bind node to unknown-type:
+        Return cast shaped on ("none").
+    Done.
+
+    /// Two types the same — structurally, and an object type by its name alone.
+    Bind fact to same-type, given (the node first, the node second):
+        Return cast shown-tree on (first) is cast shown-tree on (second).
+    Done.
+
+    // ── Scopes ────────────────────────────────────────────────────────────
+
+    Bind map from text to binding to innermost unto checker:
+        Return item (the number of one's scopes) of one's scopes.
+    Done.
+
+    Bind void to enter-scope unto checker:
+        Insert a map from text to binding into one's scopes.
+    Done.
+
+    /// Leaving a block remembers what it held, to tell "never defined" from "its block ended".
+    Bind void to exit-scope unto checker:
+        Define leaving as cast one's innermost.
+        For each pair in leaving, repeat:
+            Define held as the value of pair.
+            If held's line is greater than 0:
+                In one's ended-names, the entry for (the key of pair) becomes held's line.
+            Done.
+        Done.
+        Remove item (the number of one's scopes) from one's scopes.
+    Done.
+
+    /// The binding a name has here, innermost first — or void.
+    Bind voidable binding to look-up unto checker, given (the text name):
+        Define depth as the number of one's scopes.
+        While depth is greater than 0, repeat:
+            Define found as the entry for name in item depth of one's scopes.
+            If found is not void, return found.
+            Decrement depth by 1.
+        Done.
+        Return void.
+    Done.
+
+    /// The same, skipping the innermost scope.
+    Bind voidable binding to look-up-outer unto checker, given (the text name):
+        Define depth as the number of one's scopes - 1.
+        While depth is greater than 0, repeat:
+            Define found as the entry for name in item depth of one's scopes.
+            If found is not void, return found.
+            Decrement depth by 1.
+        Done.
+        Return void.
+    Done.
+
+    Bind void to bind-name unto checker, given (the text name, the binding held):
+        Define here as cast one's innermost.
+        In here, the entry for name becomes held.
+    Done.
+
+    // ── Books ─────────────────────────────────────────────────────────────
+
+    /// A book bundled with the language — `BuiltinBooks`.
+    Bind fact to is-a-book, given (the text name):
+        Define lowered as name in lowercase.
+        For each book in a series with ("math", "collections", "blueprints", "chance", "c-language", "cufet", "regex"), repeat:
+            If lowered is book, return true.
+        Done.
+        Return false.
+    Done.
+
+    /// The bundled book that introduces this type name, or "".
+    Bind text to book-introducing, given (the text name):
+        Define lowered as name in lowercase.
+        If lowered is "matrix" or lowered is "chase", return "collections".
+        If lowered is "step" or lowered is "pin", return "blueprints".
+        Return "".
+    Done.
+
+    // ── What this checker can judge ───────────────────────────────────────
+
+    /// The first statement kind, anywhere in the program, this checker cannot judge yet — or "".
+    /// ⚠ Asked of the WHOLE program before anything is checked, because the C# checker gathers
+    /// declarations first: a refusal it gives while hoisting comes before any in the statements.
+    Bind text to beyond-reach, given (the node statements):
+        For each statement in statements's children, repeat:
+            Define kind as statement's kind.
+            If kind is "DefineStatement":
+                If cast is-nothing on (cast field-of on (statement, 7)) is false, return "a Define with a declared type".
+                If the number of statement's children is greater than 7, return "a Define given parameters".
+            Done.
+            Otherwise if kind is "IfStatement":
+                For each arm in (cast field-of on (statement, 1))'s children, repeat:
+                    Define inner as cast beyond-reach on (cast field-of on (arm, 2)).
+                    If inner is not "", return inner.
+                Done.
+                Define otherwise-body as cast field-of on (statement, 2).
+                If cast is-nothing on (otherwise-body) is false:
+                    Define inner as cast beyond-reach on (otherwise-body).
+                    If inner is not "", return inner.
+                Done.
+            Done.
+            Otherwise if kind is "WhileStatement":
+                Define inner as cast beyond-reach on (cast field-of on (statement, 2)).
+                If inner is not "", return inner.
+            Done.
+            Otherwise if kind is "RepeatUntilStatement":
+                Define inner as cast beyond-reach on (cast field-of on (statement, 1)).
+                If inner is not "", return inner.
+            Done.
+            Otherwise if kind is not "StateStatement" and kind is not "BecomesStatement"
+                    and kind is not "StopStatement" and kind is not "SkipStatement":
+                Return kind.
+            Done.
+        Done.
+        Return "".
+    Done.
+
+    // ── The program ───────────────────────────────────────────────────────
+
+    Bind void or failure to check-program unto checker, given (the node program):
+        Define reach as cast beyond-reach on (program).
+        If reach is not "", return a failure (cast not-judged on (reach)).
+        Cast one's hoist-shared-constants on (program) or pass the failure off.
+        Cast one's check-block on (program) or pass the failure off.
+    Done.
+
+    /// Every top-level `permanently` constant, registered before anything is checked — so a body
+    /// may read one declared further down. A value that cannot be typed yet is left for the
+    /// statement itself to refuse, in its own words.
+    Bind void or failure to hoist-shared-constants unto checker, given (the node program):
+        For each statement in program's children, repeat:
+            If statement's kind is "DefineStatement" and cast truth-of on (cast field-of on (statement, 3)):
+                Define name as cast unquoted on (cast field-of on (statement, 1)).
+                If (the entry for name in cast one's innermost) is void:
+                    Define value-type as cast unknown-type.
+                    Try to:
+                        The value-type becomes cast one's infer on (cast field-of on (statement, 2)).
+                    Done.
+                    In case of failure:
+                        Define said as the message of the failure.
+                        If (the first 12 characters of said) is "unsupported\t", return a failure said.
+                    Done.
+                    If value-type's kind is not "none":
+                        Cast one's bind-name on (name, a new binding {
+                            the shape value-type,
+                            the established-by cast field-of on (statement, 2),
+                            the line cast numeric on (cast field-of on (statement, 5)),
+                            the permanent true }).
+                        In one's hoisted-constants, the entry for name becomes true.
+                    Done.
+                Done.
+            Done.
+        Done.
+    Done.
+
+    Bind void or failure to check-block unto checker, given (the node body):
+        For each statement in body's children, repeat:
+            Cast one's check-statement on (statement) or pass the failure off.
+        Done.
+    Done.
+
+    Bind void or failure to check-statement unto checker, given (the node statement):
+        Define kind as statement's kind.
+        If kind is "DefineStatement":
+            Cast one's check-define on (statement) or pass the failure off.
+        Done.
+        Otherwise if kind is "BecomesStatement":
+            Cast one's check-becomes on (statement) or pass the failure off.
+        Done.
+        Otherwise if kind is "StateStatement":
+            Cast one's infer on (cast field-of on (statement, 1)) or pass the failure off.
+        Done.
+        Otherwise if kind is "IfStatement":
+            For each arm in (cast field-of on (statement, 1))'s children, repeat:
+                Cast one's infer on (cast field-of on (arm, 1)) or pass the failure off.
+                Cast one's enter-scope.
+                Cast one's check-block on (cast field-of on (arm, 2)) or pass the failure off.
+                Cast one's exit-scope.
+            Done.
+            Define otherwise-body as cast field-of on (statement, 2).
+            If cast is-nothing on (otherwise-body) is false:
+                Cast one's enter-scope.
+                Cast one's check-block on (otherwise-body) or pass the failure off.
+                Cast one's exit-scope.
+            Done.
+        Done.
+        Otherwise if kind is "WhileStatement":
+            Cast one's infer on (cast field-of on (statement, 1)) or pass the failure off.
+            Cast one's enter-scope.
+            Cast one's check-block on (cast field-of on (statement, 2)) or pass the failure off.
+            Cast one's exit-scope.
+        Done.
+        Otherwise if kind is "RepeatUntilStatement":
+            Cast one's enter-scope.
+            Cast one's check-block on (cast field-of on (statement, 1)) or pass the failure off.
+            Cast one's exit-scope.
+            Cast one's infer on (cast field-of on (statement, 2)) or pass the failure off.
+        Done.
+    Done.
+
+    Bind void or failure to check-define unto checker, given (the node statement):
+        Define name as cast unquoted on (cast field-of on (statement, 1)).
+        Define value as cast field-of on (statement, 2).
+        Define permanent as cast truth-of on (cast field-of on (statement, 3)).
+        Define shadowing as cast truth-of on (cast field-of on (statement, 4)).
+        Define at-row as cast numeric on (cast field-of on (statement, 5)).
+
+        Define value-type as cast one's infer on (value) or pass the failure off.
+        If value-type's kind is "none":
+            Return a failure (cast refusal-of on ("the type of the value for '{name}' can't be determined", "",
+                at-row, "define a variable without a clear starting type",
+                "Start with a literal value or a defined variable so the type is clear from the beginning.")).
+        Done.
+
+        // A hoisted shared constant reaching its own declaration is not a redefinition.
+        Define reclaiming as false.
+        If permanent and (the entry for name in one's hoisted-constants) is not void:
+            The reclaiming becomes true.
+            Remove name from one's hoisted-constants.
+        Done.
+
+        If (the entry for name in cast one's innermost) is not void and reclaiming is false:
+            Return a failure (cast refusal-of on ("'{name}' is already defined in this scope", "",
+                at-row, "define '{name}' again in the same block",
+                "Each name can only be defined once per block. Use 'becomes' to reassign it, or choose a different name.")).
+        Done.
+
+        If reclaiming is false:
+            Define outer as cast one's look-up-outer on (name).
+            If outer is not void:
+                If shadowing is false:
+                    Define said as "It was defined on line {outer's line}".
+                    If outer's line is 0:
+                        The said becomes "'{name}' is built into every program — it is not written anywhere, so no line defines it".
+                    Done.
+                    Return a failure (cast refusal-of on ("'{name}' already exists in an enclosing scope", said,
+                        at-row, "declare '{name}' in this block without shadowing the outer one",
+                        "To deliberately shadow it, write 'Define a shadow {name} as ...'.")).
+                Done.
+            Done.
+            Otherwise if shadowing:
+                Return a failure (cast refusal-of on (
+                    "'a shadow {name}' — there's nothing named '{name}' in an enclosing scope to shadow", "",
+                    at-row, "shadow a name that doesn't exist in any enclosing scope",
+                    "Remove 'a shadow' if you're just defining a new variable, or check the spelling.")).
+            Done.
+        Done.
+
+        Cast one's bind-name on (name, a new binding {
+            the shape value-type, the established-by value, the line at-row, the permanent permanent }).
+    Done.
+
+    Bind void or failure to check-becomes unto checker, given (the node statement):
+        Define name as cast unquoted on (cast field-of on (statement, 1)).
+        Define value as cast field-of on (statement, 2).
+        Define at-row as cast numeric on (cast field-of on (statement, 3)).
+        Define existing as cast one's look-up on (name).
+        If existing is void, return.
+
+        If existing's permanent:
+            Return a failure (cast refusal-of on ("'{name}' is permanent",
+                "It was fixed with a value on line {existing's line} and can't be reassigned",
+                at-row, "reassign it", "If it needs to change, define it without 'permanently'.")).
+        Done.
+
+        Define given-type as cast one's infer on (value) or pass the failure off.
+        If given-type's kind is "none", return.
+
+        If cast assignable on (existing's shape, given-type) is false:
+            If given-type's kind is "VoidableType" and cast assignable on (existing's shape, cast field-of on (given-type, 1)):
+                Return a failure (cast not-judged on ("a voidable value where a present one goes")).
+            Done.
+            Return a failure (cast refusal-of on ("'{name}' holds {cast plural-words on (existing's shape)}",
+                "You set it to {cast expression-words on (existing's established-by)} on line {existing's line}, so it can only ever hold {cast plural-words on (existing's shape)}",
+                at-row, "give it a {cast type-words on (given-type)} value",
+                "Variables keep their type for life. If you need a {cast type-words on (given-type)} value here, define a new name for it instead.")).
+        Done.
+    Done.
+
+    /// Does a value of type `source` fit where `target` is wanted — C#'s `IsAssignable`.
+    Bind fact to assignable, given (the node target, the node source):
+        If cast same-type on (target, source), return true.
+        If target's kind is "VoidableType":
+            Return cast assignable on (cast field-of on (target, 1), source) or source's kind is "VoidType".
+        Done.
+        If target's kind is "FailureType":
+            Return cast assignable on (cast field-of on (target, 1), source) or source's kind is "FailureMarkerType".
+        Done.
+        Return false.
+    Done.
+
+    // ── From outside ──────────────────────────────────────────────────────
+
+    /// "ok", or the failure that says why not.
+    Bind text or failure to checked, given (the node program):
+        Define globals as a map from text to binding.
+        Define none-yet as cast unknown-type.
+        Define reading as cast shaped on ("ReadableStreamType").
+        Cast reading's add on (cast plain-type on ("TextType")).
+        Define writing as cast shaped on ("WritableStreamType").
+        Cast writing's add on (cast plain-type on ("TextType")).
+        In globals, the entry for "input" becomes a new binding {
+            the shape reading, the established-by none-yet, the line 0, the permanent false }.
+        In globals, the entry for "output" becomes a new binding {
+            the shape writing, the established-by none-yet, the line 0, the permanent false }.
+        Define walker as a new checker {
+            the scopes a series with (globals),
+            the ended-names a map from text to number,
+            the hoisted-constants a map from text to fact }.
+        Cast walker's check-program on (program) or pass the failure off.
+        Return "ok".
+    Done.
+Done.

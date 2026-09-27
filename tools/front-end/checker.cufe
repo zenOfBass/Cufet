@@ -1,0 +1,62 @@
+/*  The Cufet type checker, written in Cufet.
+
+        cufet tools/front-end/checker.cufe <file.cufe> [more…]
+
+    Prints one line for each file, after its `file` header:
+
+        ok                      the C# checker accepts it
+        error   <message>       it refuses it, in these words (a line break written `\n`)
+        unsupported <what>      this checker cannot judge it yet
+        parse   <message>       the parser refused it, so there was nothing to check
+
+    ★★ `ok` IS A CLAIM, and the one this checker is slowest to make. A refusal is found at one place,
+    but acceptance is a statement about the whole program — so any construct not yet judged makes
+    the file `unsupported` rather than `ok`, and `CheckerParityTests` counts only real agreement.
+*/
+
+Pull a book on collections.
+    /// A refusal's words on one line, the way the parity test compares them.
+    Bind text to one-line, given (the text raw):
+        Define flat as replace "\\" with "\\\\" in raw.
+        Return replace "\n" with "\\n" in flat.
+    Done.
+
+    /// The one line printed for a program.
+    Bind text to verdict, given (the text whole):
+        Define parsed as cast listed.
+        Try to:
+            The parsed becomes cast program-tree on (whole).
+        Done.
+        In case of failure:
+            Return "parse\t{cast one-line on (the message of the failure)}".
+        Done.
+        Define outcome as "ok".
+        Try to:
+            The outcome becomes cast checked on (parsed).
+        Done.
+        In case of failure:
+            Define said as the message of the failure.
+            The outcome becomes said.
+            If (the first 6 characters of said) is "error\t":
+                The outcome becomes "error\t{cast one-line on (the characters from 7 to the end of said)}".
+            Done.
+        Done.
+        Return outcome.
+    Done.
+
+    For each name in the arguments, repeat:
+        State "file\t{name}".
+        Try to:
+            State cast verdict on (read all from the file name).
+        Done.
+        In case of failure:
+            State "crash\t{the message of the failure}".
+        Done.
+        // ⚠ A fault inside the checker itself — an index past the end — would otherwise stop every
+        // file after this one. Said as a `crash` line, which the parity test counts as a difference.
+        In case of exception:
+            State "crash\t{the message of the exception}".
+            Suppress the exception.
+        Done.
+    Done.
+Done.

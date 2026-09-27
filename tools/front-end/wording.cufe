@@ -1,0 +1,143 @@
+/*  How the checker says things — `TypeError`, `FormatType` and `FormatExpr` in
+    `src/Interpreter/TypeChecker.Core.cs`.
+
+    ★ Every refusal is built by `refusal-of`, in the one shape `TypeError` gives them all:
+
+        That doesn't work: <context>.
+        <what was established>.                  (only when there is something to say)
+        Here on line <n>, you're trying to <action>.
+
+        <what to do>
+
+    and handed back as a failure whose message is `error\t` and those words.
+*/
+
+Pull a book on collections.
+    /// The C# checker's refusal, as a failure message. An empty `established` says nothing there.
+    Bind text to refusal-of, given (the text context, the text established, the number at-row,
+            the text action, the text fix):
+        Define settled as "".
+        If established is not "", the settled becomes "\n{established}.".
+        Return "error\tThat doesn't work: {context}.{settled}\nHere on line {at-row}, you're trying to {action}.\n\n{fix}".
+    Done.
+
+    /// What the checker cannot judge yet, as a failure message.
+    Bind text to not-judged, given (the text what):
+        Return "unsupported\t{what}".
+    Done.
+
+    // ── Reading the tree ──────────────────────────────────────────────────
+
+    /// A node's `n`th field.
+    Bind node to field-of, given (the node whole, the number place):
+        Return item place of whole's children.
+    Done.
+
+    /// The text a quoted leaf holds — the reverse of `quoted` in tree.cufe.
+    Bind text to unquoted, given (the node leaf):
+        Define letters as a chase.
+        Insert leaf's word into letters.
+        Define out as a chase.
+        Define place as 2.
+        Define last as the number of letters - 1.
+        While place is less than last + 1, repeat:
+            Define ch as item place of letters.
+            If ch is "\\" and place is less than last:
+                Increment place by 1.
+                Define escape as item place of letters.
+                The ch becomes escape.
+                If escape is "n", the ch becomes "\n".
+                If escape is "t", the ch becomes "\t".
+                If escape is "r", the ch becomes "\r".
+            Done.
+            Insert ch into out.
+            Increment place by 1.
+        Done.
+        Return out converted to text.
+    Done.
+
+    /// A number field, read back from its leaf.
+    Bind number to numeric, given (the node leaf):
+        Return (leaf's word converted to number but void is 0).
+    Done.
+
+    /// A fact field, read back from its leaf.
+    Bind fact to truth-of, given (the node leaf):
+        Return leaf's word is "true".
+    Done.
+
+    /// Is this field empty — the `_` the printer writes for nothing?
+    Bind fact to is-nothing, given (the node leaf):
+        Return leaf's kind is "atom" and leaf's word is "_".
+    Done.
+
+    // ── Types, in words ───────────────────────────────────────────────────
+
+    Bind text to type-words, given (the node shape):
+        Define kind as shape's kind.
+        If kind is "NumberType", return "number".
+        If kind is "BitsType", return "bits".
+        If kind is "TextType", return "text".
+        If kind is "FactType", return "fact".
+        If kind is "VoidType", return "void".
+        If kind is "AddressType", return "address".
+        If kind is "MatrixType", return "matrix".
+        If kind is "ChaseType", return "chase".
+        If kind is "VoidableType", return "voidable {cast type-words on (cast field-of on (shape, 1))}".
+        If kind is "SeriesType", return "series of {cast plural-words on (cast field-of on (shape, 1))}".
+        If kind is "StashType", return "stash of {cast plural-words on (cast field-of on (shape, 1))}".
+        If kind is "SetType", return "set of {cast type-words on (cast field-of on (shape, 1))}".
+        If kind is "MapType":
+            Return "map from {cast type-words on (cast field-of on (shape, 1))} to {cast type-words on (cast field-of on (shape, 2))}".
+        Done.
+        If kind is "ObjectType", return cast unquoted on (cast field-of on (shape, 1)).
+        If kind is "FailureType", return "{cast type-words on (cast field-of on (shape, 1))} or failure".
+        If kind is "ReadableStreamType", return "readable stream of {cast plural-words on (cast field-of on (shape, 1))}".
+        If kind is "WritableStreamType", return "writable stream of {cast plural-words on (cast field-of on (shape, 1))}".
+        Return "<unknown>".
+    Done.
+
+    Bind text to plural-words, given (the node shape):
+        Define kind as shape's kind.
+        If kind is "NumberType", return "numbers".
+        If kind is "BitsType", return "bits".
+        If kind is "TextType", return "text".
+        If kind is "FactType", return "facts".
+        If kind is "VoidType", return "void values".
+        If kind is "MatrixType", return "matrices".
+        If kind is "VoidableType", return "voidable {cast plural-words on (cast field-of on (shape, 1))}".
+        If kind is "SeriesType", return "series of {cast plural-words on (cast field-of on (shape, 1))}".
+        If kind is "StashType", return "stashes of {cast plural-words on (cast field-of on (shape, 1))}".
+        If kind is "SetType", return "sets of {cast type-words on (cast field-of on (shape, 1))}".
+        If kind is "MapType":
+            Return "maps from {cast type-words on (cast field-of on (shape, 1))} to {cast type-words on (cast field-of on (shape, 2))}".
+        Done.
+        If kind is "ObjectType", return "{cast unquoted on (cast field-of on (shape, 1))} objects".
+        If kind is "FailureType", return "{cast plural-words on (cast field-of on (shape, 1))} or failures".
+        If kind is "ReadableStreamType", return "readable streams of {cast plural-words on (cast field-of on (shape, 1))}".
+        If kind is "WritableStreamType", return "writable streams of {cast plural-words on (cast field-of on (shape, 1))}".
+        Return "<unknown>".
+    Done.
+
+    /// An expression, quoted back to the writer — `<expression>` for anything not worth quoting.
+    /// ⚠ A number is quoted in its shortest form, where C# keeps the scale it was written with:
+    /// `1.50` comes back as `1.5` here. The tree holds no more than that.
+    Bind text to expression-words, given (the node said):
+        Define kind as said's kind.
+        If kind is "NumberLiteral", return cast field-of on (said, 1)'s word.
+        If kind is "StringLiteral", return "\"{cast unquoted on (cast field-of on (said, 1))}\"".
+        If kind is "VariableReference", return cast unquoted on (cast field-of on (said, 1)).
+        If kind is "VoidLiteral", return "void".
+        Return "<expression>".
+    Done.
+
+    /// An operator as a refusal names it.
+    Bind text to operator-words, given (the text op):
+        If op is "Plus", return "+".
+        If op is "Minus", return "-".
+        If op is "Star", return "*".
+        If op is "Slash", return "/".
+        If op is "Percent", return "%".
+        Return op in lowercase.
+    Done.
+Done.

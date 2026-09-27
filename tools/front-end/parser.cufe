@@ -34,7 +34,8 @@ Pull a book on collections.
         Return "error\tLine {at-row}, column {at-column}: {reason}.".
     Done.
 
-    Bind series of text or failure to program-lines, given (the text whole):
+    /// The whole program's top-level statements, as the C# parser hands them on — or why not.
+    Bind node or failure to program-tree, given (the text whole):
         Define found as a series of token.
         Try to:
             The found becomes cast tokens-of on (whole).
@@ -54,7 +55,11 @@ Pull a book on collections.
             Cast statements's add on (next-statement).
         Done.
         // The one pass the C# parser runs over the whole program before handing it on.
-        Define expanded as cast expand-defaults on (statements) or pass the failure off.
+        Return cast expand-defaults on (statements) or pass the failure off.
+    Done.
+
+    Bind series of text or failure to program-lines, given (the text whole):
+        Define expanded as cast program-tree on (whole) or pass the failure off.
         Define lines as a series of text.
         For each finished in expanded's children, repeat:
             Insert cast shown-tree on (finished) into lines.
