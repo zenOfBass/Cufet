@@ -1907,6 +1907,13 @@ static const char* cufet_str_lower(const char* s) {
             else
                 sb.AppendLine($"static {cvd} {name}_get({name}* m, {kc} k) {{ {cvd} r = {{0}}; int i = {name}_index(m, k); if (i >= 0) {{ r.has = 1; r.val = m->vals[i]; }} return r; }}");
             sb.AppendLine($"static int {name}_has({name}* m, {kc} k) {{ return {name}_index(m, k) >= 0; }}");
+            // ★ The rest close up behind the removed key, so the map is still visited in the order
+            // keys were added and the next one goes on the end — what the interpreter's
+            // RemoveKeepingOrder does, and why it has to rebuild rather than call Dictionary.Remove.
+            sb.AppendLine($"static void {name}_remove({name}* m, {kc} k, int line) {{ int i = {name}_index(m, k); "
+                        + $"if (i < 0) cufet_raise(cufet_msgf(\"Key not found in map on line %d.\", line)); "
+                        + $"if (i < m->len - 1) {{ memmove(&m->keys[i], &m->keys[i + 1], (size_t)(m->len - 1 - i) * sizeof({kc})); "
+                        + $"memmove(&m->vals[i], &m->vals[i + 1], (size_t)(m->len - 1 - i) * sizeof({vc})); }} m->len--; }}");
             // `has an entry` ≠ `has a key` for voidable values: an explicit stored void counts as a
             // key but NOT an entry (matches the interpreter's EvaluateMapHasEntry is-not-VoidValue).
             if (voidableV)

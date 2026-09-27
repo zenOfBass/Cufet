@@ -102,6 +102,45 @@ public class PipelineCoreTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
+    // ★ `Remove <key> from <map>` had no compiled form at all — the build died with "series
+    // operation on a non-series value" and no line — while it ran interpreted. And the order a map
+    // is visited in afterwards differed too: the interpreter's Dictionary handed the freed slot to
+    // the NEXT key added, so this printed d, b, c there. Insertion order is pinned here outright,
+    // not only matched, so neither backend can drift back on its own.
+    [Fact]
+    public void RemovingFromAMap_KeepsInsertionOrder_AndTheNextKeyGoesOnTheEnd()
+    {
+        const string src =
+            "Define ages as a map from text to number.\n" +
+            "In ages, the entry for \"a\" becomes 1.\n" +
+            "In ages, the entry for \"b\" becomes 2.\n" +
+            "In ages, the entry for \"c\" becomes 3.\n" +
+            "Remove \"a\" from ages.\n" +
+            "In ages, the entry for \"d\" becomes 4.\n" +
+            "State ages.\n" +
+            "Remove \"c\" from ages.\n" +
+            "State ages.";
+        Assert.Equal("map {b: 2, c: 3, d: 4}\nmap {b: 2, d: 4}\n", InterpretRaw(src).Replace("\r\n", "\n"));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void RemovingFromAMap_ThroughAField_InAMethod_MatchesInterpreter()
+    {
+        const string src =
+            "Define object holder with (the map from text to fact seen).\n" +
+            "Bind void to drop unto holder, given (the text name):\n" +
+            "    Remove name from one's seen.\n" +
+            "Done.\n" +
+            "Define h as a new holder { the seen a map from text to fact }.\n" +
+            "In h's seen, the entry for \"x\" becomes true.\n" +
+            "In h's seen, the entry for \"y\" becomes false.\n" +
+            "Cast h's drop on (\"x\").\n" +
+            "State h's seen.\n" +
+            "State the size of h's seen.";
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
     [Fact]
     public void NestedVoidableAnnotation_TakesAPlainValue_MatchesInterpreter()
     {

@@ -921,6 +921,16 @@ public sealed partial class CodeGenerator
                 break;
             }
 
+            case SeriesRemoveValueStatement srv when TypeOf(srv.Series) is MapType removeFrom:
+            {
+                // `Remove <key> from <map>.` Map, then key — the interpreter's evaluation order.
+                string mapExpr = EmitExpr(srv.Series);
+                string keyExpr = EmitAsType(srv.Value, removeFrom.KeyType);
+                FlushPreEmits(sb, indent);
+                sb.AppendLine($"{indent}{RegisterMapStruct(removeFrom)}_remove({mapExpr}, {keyExpr}, {srv.Line});");
+                break;
+            }
+
             case SeriesRemoveValueStatement srv:
             {
                 string ser = SeriesStructOf(srv.Series);

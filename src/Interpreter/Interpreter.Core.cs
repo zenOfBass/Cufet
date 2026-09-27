@@ -289,6 +289,23 @@ public sealed partial class Interpreter
     /// <summary>A new, empty map — the ONE place a map is created, so every one compares alike.</summary>
     internal static Dictionary<object, object> NewMap() => new(CufetKeyComparer.Instance);
 
+    /// <summary>Takes a key out of a map or set, leaving the rest in the order they were added.</summary>
+    /// <remarks>
+    /// ★★ A map is visited in INSERTION ORDER, on both backends — the compiled one is an array
+    /// appended to. A bare `Dictionary.Remove` breaks that silently: the freed slot is reused by
+    /// the NEXT key added, so a, b, c, remove a, add d was visited d, b, c here and b, c, d
+    /// compiled. MEASURED 2026-09-27. Rebuilding after the removal leaves no free slot behind, so
+    /// the next key goes on the end. O(n), the same as the compiled remove.
+    /// </remarks>
+    internal static bool RemoveKeepingOrder(Dictionary<object, object> dict, object key)
+    {
+        if (!dict.ContainsKey(key)) return false;
+        var kept = dict.Where(p => !dict.Comparer.Equals(p.Key, key)).ToList();
+        dict.Clear();
+        foreach (var (k, v) in kept) dict.Add(k, v);
+        return true;
+    }
+
     // ★ A SET IS STORED AS A MAP, keyed by its elements. Same comparer, so membership answers what
     // `is` answers; same Dictionary, so iteration follows insertion order exactly as a map's does,
     // which is what both backends were measured to agree on.
@@ -1206,7 +1223,7 @@ public sealed partial class Interpreter
                 if (srvTarget is Dictionary<object, object> srvDict)
                 {
                     var key = Evaluate(srv.Value);
-                    if (!srvDict.Remove(key))
+                    if (!RemoveKeepingOrder(srvDict, key))
                         throw new RuntimeException($"Key not found in map on line {srv.Line}.");
                     break;
                 }

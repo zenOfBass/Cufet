@@ -4,22 +4,22 @@ using static Cufet.Compiler.Tests.LexerParityTests;
 
 namespace Cufet.Compiler.Tests;
 
-/// <summary>The Cufet parser, built once for every test that runs it compiled.</summary>
-public sealed class CompiledCufetParser : IDisposable
+/// <summary>One program of `tools/front-end/`, built once for every test that runs it compiled.</summary>
+public abstract class CompiledFrontEnd : IDisposable
 {
     private readonly string _dir;
     public string Exe { get; }
 
-    public CompiledCufetParser()
+    protected CompiledFrontEnd(string entry)
     {
-        _dir = Directory.CreateTempSubdirectory("cufet-parser-build-").FullName;
+        _dir = Directory.CreateTempSubdirectory($"cufet-{entry}-build-").FullName;
         foreach (var f in Directory.GetFiles(Path.Combine(RepoRoot, "tools", "front-end"), "*.cufe"))
             File.Copy(f, Path.Combine(_dir, Path.GetFileName(f)));
         // A blueprint marks the directory as a project, so the files see each other as they do in
         // tools/front-end/.
         File.WriteAllText(Path.Combine(_dir, "blueprint.cufe"), "");
-        Run(CufetExe, ["build", "parser.cufe"], _dir);
-        Exe = Path.Combine(_dir, "parser" + (OperatingSystem.IsWindows() ? ".exe" : ""));
+        Run(CufetExe, ["build", $"{entry}.cufe"], _dir);
+        Exe = Path.Combine(_dir, entry + (OperatingSystem.IsWindows() ? ".exe" : ""));
     }
 
     public void Dispose()
@@ -27,6 +27,8 @@ public sealed class CompiledCufetParser : IDisposable
         try { Directory.Delete(_dir, recursive: true); } catch (IOException) { }
     }
 }
+
+public sealed class CompiledCufetParser() : CompiledFrontEnd("parser");
 
 /// <summary>
 /// The parser written in Cufet (`tools/front-end/parser.cufe`) builds the same tree as the one in
