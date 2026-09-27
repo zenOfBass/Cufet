@@ -27,7 +27,7 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
     : IClassFixture<CompiledCufetChecker>
 {
     /// <summary>How many corpus files must agree. Raised as the checker grows; never lowered.</summary>
-    private const int CorpusFloor = 0;
+    private const int CorpusFloor = 13;
 
     // ── The comparison ──────────────────────────────────────────────────────
 
@@ -214,6 +214,57 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
         "Bind void to greet:\n    State \"hi\".\nDone.\nBind void to greet:\n    State \"ho\".\nDone.",
         "Bind void to f, given (the number count):\n    State count.\nDone.\nBind void to f:\n    State 1.\nDone.",
         "Bind void to f:\n    State 1.\nDone.\nBind number to f:\n    Return 1.\nDone.",
+        // Objects: making one, its fields and methods, positions, embedding, and field writes.
+        "Define object leaf with (the text word).\nDefine x as a new leaf { the word \"a\" }.\nState x's word.\nState the word of x.",
+        "Define object leaf with (the text word).\nDefine x as a new leaf { the word 5 }.",
+        "Define object leaf with (the text word).\nDefine x as a new leaf { }.",
+        "Define object leaf with (the text word).\nDefine x as a new leaf { the word \"a\", the size 3 }.",
+        "Define x as a new twig { the word \"a\" }.",
+        "Define x as a new math { }.",
+        "Define x as a new rabbit { }.",
+        "Define object math with (the text word).",
+        "Define object leaf with (the text word).\nDefine x as a new leaf { the word \"a\" }.\nState x's colour.",
+        "Define object leaf with (the text word).\nDefine x as a new leaf { the word \"a\" }.\nState the colour of x.",
+        "Define object leaf with (the text word).\nDefine x as a new leaf { the word \"a\" }.\nThe x's word becomes 5.",
+        "Define object leaf with (the text word).\nDefine x as a new leaf { the word \"a\" }.\nThe x's colour becomes 5.",
+        "Define object leaf with (the text word).\nDefine x as a new leaf { the word \"a\" }.\nThe word of x becomes 5.",
+        "Define object leaf with (the text word permanently).\nDefine x as a new leaf { the word \"a\" }.\nThe x's word becomes \"b\".",
+        "Define object leaf with (the text word, the number id permanently).\nDefine x as a new leaf { the word \"a\", the id 1 }.\nThe id of x becomes 2.",
+        "Define object leaf with (the text word):\n    Bind text to shout, given (the number times):\n        Return one's word.\n    Done.\nDone.\nDefine x as a new leaf { the word \"a\" }.\nState cast x's shout on (2).\nState cast shout on (x, 2).",
+        "Define object leaf with (the text word):\n    Bind text to shout, given (the number times):\n        Return one's word.\n    Done.\nDone.\nDefine x as a new leaf { the word \"a\" }.\nState cast x's shout on (\"no\").",
+        "Define object leaf with (the text word):\n    Bind text to shout, given (the number times):\n        Return one's word.\n    Done.\nDone.\nDefine x as a new leaf { the word \"a\" }.\nState cast shout on (x, \"no\").",
+        "Define object leaf with (the text word):\n    Bind text to shout, given (the number times):\n        Return one's word.\n    Done.\nDone.\nDefine x as a new leaf { the word \"a\" }.\nState x's shout.",
+        "Define object leaf with (the text word):\n    Bind text to shout, given (the number times):\n        Return one's word.\n    Done.\nDone.\nDefine x as a new leaf { the word \"a\" }.\nState cast whisper on (x).",
+        "Define object leaf with (the text word):\n    Bind text to shout, given (the number times):\n        Return word.\n    Done.\nDone.",
+        "Define object leaf with (the text word):\n    Bind text to shout, given (the number times):\n        If times is 1, return one's word.\n    Done.\nDone.",
+        "Define object leaf with (the text word):\n    Bind number to shout:\n        Return one's word.\n    Done.\nDone.",
+        "Define object leaf with (the text word):\n    Bind text to shout, given (the number times):\n        Return one's word.\n    Done.\nDone.\nBind text to shout, given (the leaf l, the number n):\n    Return \"x\".\nDone.\nDefine x as a new leaf { the word \"a\" }.\nState cast shout on (x, 2).",
+        "Define object leaf with (the text word):\n    Bind text to shout, given (the number times):\n        Return one's word.\n    Done.\nDone.\nDefine x as a new leaf { the word \"a\" }.\nState cast x's shout on (the times 2).\nState cast shout on (x, the times 3).",
+        "Define object leaf with (the text word):\n    Bind text to shout, given (the number times):\n        Return one's word.\n    Done.\nDone.\nDefine x as a new leaf { the word \"a\" }.\nState cast shout on (x, the loud 3).",
+        "Define object pair with (number, text).\nDefine p as a new pair { 1, \"a\" }.\nState item 1 of p + 1.\nState item 3 of p.",
+        "Define object pair with (number, text).\nDefine p as a new pair { 1 }.",
+        "Define object pair with (number, text).\nDefine p as a new pair { 1, 2 }.",
+        "Define object pair with (number, text).\nDefine p as a new pair { 1, \"a\" }.\nThe item 2 of p becomes 5.",
+        "Define object person with (the text name).\nDefine object customer with (the number id) and as a person.\nDefine c as a new customer { the id 1, the name \"a\" }.\nState c's name.\nThe c's name becomes \"b\".\nState the person of c.",
+        "Define object person with (the text name).\nDefine object customer with (the number id) and as a person.\nDefine c as a new customer { the id 1, the name \"a\" }.\nThe c's person becomes a new person { the name \"b\" }.",
+        "Define object person with (the text name).\nDefine object customer with (the text name) and as a person.",
+        "Define object customer with (the number id) and as a ghost.",
+        "Define object leaf with (the text word).\nDefine object holder with (the leaf current).\nDefine h as a new holder { the current a new leaf { the word \"a\" } }.\nThe h's current becomes a new leaf { the word \"b\" }.\nThe h's current becomes 5.",
+        "Define object holder with (the twig current).",
+        "Bind void to f, given (the twig t):\n    State 1.\nDone.",
+        "Define the twig x as 5.",
+        "Define object leaf with (the text word).\nDefine x as a new leaf { the word \"a\" }.\nDefine y as a new leaf { the word \"b\" }.\nState x is y.\nState x is 5.",
+        "Define object leaf with (the text word).\nDefine x as a new leaf { the word \"a\" }.\nState x + 1.",
+        "Define object leaf with (the text word).\nDefine object leaf with (the number size).\nDefine x as a new leaf { the size 1 }.\nState x's size.",
+        "Define object leaf with (the text word).\nDefine xs as a series of leaf.\nInsert a new leaf { the word \"a\" } into xs.\nInsert 5 into xs.",
+        "Define t as \"abc\".\nState the length of t.\nState the length of 5.",
+        "Define t as \"abc\".\nState the size of t.",
+        "Define t as 5.\nState the colour of t.",
+        // A signature naming an unknown type twice leaves a BLANK: a template, set aside unchecked.
+        "Bind series of thing to wrap, given (the thing x):\n    Return a series with (x).\nDone.\nState 1.",
+        "Bind series of thing to wrap, given (the thing x):\n    Return mystery.\nDone.\nState 1.",
+        "Bind void to outer:\n    Bind void to inner, given (the twig t):\n        State 1.\n    Done.\nDone.",
+        "Bind thing to wrap, given (the thing x):\n    Return x.\nDone.\nBind thing to wrap, given (the thing y):\n    Return y.\nDone.",
     ];
 
     [Fact]

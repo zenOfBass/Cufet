@@ -35,6 +35,13 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   a token, and with a token deleted) and on a hand-written list for what no cut reaches: the
   lexer's refusals, a reserved word in a name's place, blocks left open, patterns, a `cufet` block
   and two interfaces supplying one default. A sweep of 7,637 such programs agreed on every one.
+- **The type checker, begun in Cufet** — `tools/front-end/checker.cufe`, the third piece. It says
+  of each file what `TypeChecker.Check` says — accepted, or refused in the same words — and
+  `CheckerParityTests` holds it to that on 165 hand-written programs and on the corpus. It judges
+  names and scopes, `Define` and `becomes`, operators, text, series, voidables and narrowing,
+  functions with named arguments, and objects with their fields, methods and embedding. Anything
+  it cannot judge yet it says so about, rather than accepting: 13 corpus files so far, the rest
+  waiting on books, interfaces and `Try`.
 
 ### Changed
 
