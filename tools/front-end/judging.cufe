@@ -17,7 +17,11 @@ Pull a book on collections.
         the series of map from text to binding scopes,
         the map from text to number ended-names,
         the map from text to fact hoisted-constants,
-        the map from text to node narrowed).
+        the map from text to node narrowed,
+        the fact in-function,
+        the series of node expected-returns,
+        the number function-line,
+        the map from text to fact hidden).
 
     Bind node to unknown-type:
         Return cast shaped on ("none").
@@ -25,10 +29,49 @@ Pull a book on collections.
 
     /// Two types the same — structurally, and an object type by its name alone.
     Bind fact to same-type, given (the node first, the node second):
-        Return cast shown-tree on (first) is cast shown-tree on (second).
+        Return cast type-key on (first) is cast type-key on (second).
+    Done.
+
+    /// A type's identity as text: an object type by its name, a function type by its parameter and
+    /// return types — not by what its parameters are called.
+    Bind text to type-key, given (the node shape):
+        If shape's kind is "atom", return shape's word.
+        If shape's kind is "ObjectType", return "(ObjectType {(cast field-of on (shape, 1))'s word})".
+        Define out as a chase.
+        Insert "(" into out.
+        Insert shape's kind into out.
+        Define place as 0.
+        For each inner in shape's children, repeat:
+            Increment place by 1.
+            If shape's kind is not "FunctionType" or place is less than 3:
+                Insert " " into out.
+                Insert cast type-key on (inner) into out.
+            Done.
+        Done.
+        Insert ")" into out.
+        Return out converted to text.
     Done.
 
     // ── Scopes ────────────────────────────────────────────────────────────
+
+    /// `(VariableReference "name" 0 0)` — what a name no statement wrote is established by.
+    Bind node to named-reference, given (the text name):
+        Return cast made on ("VariableReference", a series with (cast quoted on (name), cast numeral on (0), cast numeral on (0))).
+    Done.
+
+    /// The scope every program starts in, and every function body: `input` and `output`.
+    Bind map from text to binding to builtin-scope:
+        Define reading as cast shaped on ("ReadableStreamType").
+        Cast reading's add on (cast plain-type on ("TextType")).
+        Define writing as cast shaped on ("WritableStreamType").
+        Cast writing's add on (cast plain-type on ("TextType")).
+        Define scope as a map from text to binding.
+        In scope, the entry for "input" becomes a new binding {
+            the shape reading, the established-by cast named-reference on ("input"), the line 0, the permanent false }.
+        In scope, the entry for "output" becomes a new binding {
+            the shape writing, the established-by cast named-reference on ("output"), the line 0, the permanent false }.
+        Return scope.
+    Done.
 
     Bind map from text to binding to innermost unto checker:
         Return item (the number of one's scopes) of one's scopes.
@@ -133,7 +176,9 @@ Pull a book on collections.
         If kind is "WhileStatement", return cast beyond-reach on (cast field-of on (statement, 2)).
         If kind is "RepeatUntilStatement", return cast beyond-reach on (cast field-of on (statement, 1)).
         If kind is "ForEachStatement", return cast beyond-reach on (cast field-of on (statement, 3)).
+        If kind is "BindStatement", return cast bind-beyond-reach on (statement).
         For each known in a series with ("StateStatement", "BecomesStatement", "StopStatement", "SkipStatement",
+                "ReturnStatement", "CastStatement",
                 "SeriesInsertStatement", "SeriesSetStatement", "SeriesRemoveAtStatement", "SeriesRemoveValueStatement"), repeat:
             If kind is known, return "".
         Done.
@@ -145,6 +190,8 @@ Pull a book on collections.
     Bind void or failure to check-program unto checker, given (the node program):
         Define reach as cast beyond-reach on (program).
         If reach is not "", return a failure (cast not-judged on (reach)).
+        Cast check-versions on (program) or pass the failure off.
+        Cast one's hoist-functions on (program) or pass the failure off.
         Cast one's hoist-shared-constants on (program) or pass the failure off.
         Cast one's check-block on (program) or pass the failure off.
     Done.
@@ -311,6 +358,15 @@ Pull a book on collections.
         Done.
         Otherwise if kind is "SeriesRemoveValueStatement":
             Cast one's check-remove-value on (statement) or pass the failure off.
+        Done.
+        Otherwise if kind is "BindStatement":
+            Cast one's check-bind-statement on (statement) or pass the failure off.
+        Done.
+        Otherwise if kind is "ReturnStatement":
+            Cast one's check-return on (statement) or pass the failure off.
+        Done.
+        Otherwise if kind is "CastStatement":
+            Cast one's check-call on (statement, false) or pass the failure off.
         Done.
     Done.
 
@@ -642,21 +698,15 @@ Pull a book on collections.
 
     /// "ok", or the failure that says why not.
     Bind text or failure to checked, given (the node program):
-        Define globals as a map from text to binding.
-        Define none-yet as cast unknown-type.
-        Define reading as cast shaped on ("ReadableStreamType").
-        Cast reading's add on (cast plain-type on ("TextType")).
-        Define writing as cast shaped on ("WritableStreamType").
-        Cast writing's add on (cast plain-type on ("TextType")).
-        In globals, the entry for "input" becomes a new binding {
-            the shape reading, the established-by none-yet, the line 0, the permanent false }.
-        In globals, the entry for "output" becomes a new binding {
-            the shape writing, the established-by none-yet, the line 0, the permanent false }.
         Define walker as a new checker {
-            the scopes a series with (globals),
+            the scopes a series with (cast builtin-scope),
             the ended-names a map from text to number,
             the hoisted-constants a map from text to fact,
-            the narrowed a map from text to node }.
+            the narrowed a map from text to node,
+            the in-function false,
+            the expected-returns a series with (cast unknown-type),
+            the function-line 0,
+            the hidden a map from text to fact }.
         Cast walker's check-program on (program) or pass the failure off.
         Return "ok".
     Done.

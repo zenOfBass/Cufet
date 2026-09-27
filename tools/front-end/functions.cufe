@@ -1,0 +1,505 @@
+/*  Functions — `Bind`, `Return` and `cast`: `Pass1Hoist`'s free functions, `CheckBindBody`,
+    `CheckReturn`, `ResolveForCast` and `ValidateCastArgs` in `src/Interpreter/TypeChecker.*.cs`.
+
+    ★ A function's type is `(FunctionType [parameter types] <return type or _> [parameter names])`.
+    The names ride along because a call may NAME its arguments, and a function reached through a
+    value keeps the names of the declaration it came from; a type written in an annotation has no
+    names, and such a call cannot name them. The names are not part of the type's identity.
+*/
+
+Pull a book on collections.
+    /// A function's type, as a declaration gives it.
+    Bind node to function-type-of, given (the node statement):
+        Define parameter-types as cast listed.
+        Define parameter-names as cast listed.
+        For each parameter in (cast field-of on (statement, 3))'s children, repeat:
+            Cast parameter-types's add on (cast field-of on (parameter, 1)).
+            Cast parameter-names's add on (cast field-of on (parameter, 2)).
+        Done.
+        Define shape as cast plain-type on ("FunctionType").
+        Cast shape's add on (parameter-types).
+        Cast shape's add on (cast field-of on (statement, 2)).
+        Cast shape's add on (parameter-names).
+        Return shape.
+    Done.
+
+    /// The names a function's parameters are called, or nothing when its type was written.
+    Bind voidable series of text to parameter-names-of, given (the node shape):
+        If the number of shape's children is less than 3, return void.
+        Define names as a series of text.
+        For each named in (cast field-of on (shape, 3))'s children, repeat:
+            Insert cast unquoted on (named) into names.
+        Done.
+        Return names.
+    Done.
+
+    Bind fact to is-bundled-module, given (the text name):
+        Return cast is-a-book on (name) or name is "rabbit".
+    Done.
+
+    // ── What this checker can judge in a function ─────────────────────────
+
+    /// Why this `Bind` is beyond reach yet, or "".
+    Bind text to bind-beyond-reach, given (the node statement):
+        If cast is-nothing on (cast field-of on (statement, 5)) is false, return "a method bound 'unto' a type".
+        If cast is-nothing on (cast field-of on (statement, 6)) is false, return "a maker".
+        If the number of statement's children is greater than 8, return "a Bind with {(cast field-of on (statement, 9))'s word}".
+        Define returned as cast field-of on (statement, 2).
+        If cast is-nothing on (returned) is false:
+            If cast beyond-types on (returned) or returned's kind is "FailureType" or returned's kind is "AxiomType":
+                Return "a function giving back a {returned's kind}".
+            Done.
+        Done.
+        For each parameter in (cast field-of on (statement, 3))'s children, repeat:
+            Define taken as cast field-of on (parameter, 1).
+            If cast beyond-types on (taken) or taken's kind is "AxiomType" or taken's kind is "FunctionType":
+                Return "a function taking a {taken's kind}".
+            Done.
+        Done.
+        Return cast beyond-reach on (cast field-of on (statement, 4)).
+    Done.
+
+    // ── Versions of one name ──────────────────────────────────────────────
+
+    /// `DispatchExpansion`, which runs before anything is gathered: top-level functions that share
+    /// a name are versions of it. Only its refusals are here — a group that really does dispatch,
+    /// or carries a `when`, is beyond this checker yet.
+    Bind void or failure to check-versions, given (the node program):
+        Define order as a series of text.
+        Define groups as a map from text to node.
+        For each statement in program's children, repeat:
+            If statement's kind is "BindStatement" and cast is-nothing on (cast field-of on (statement, 5)):
+                Define name as cast unquoted on (cast field-of on (statement, 1)).
+                Define group as the entry for name in groups.
+                If group is void:
+                    Define fresh-group as cast listed.
+                    In groups, the entry for name becomes fresh-group.
+                    Insert name into order.
+                    Cast fresh-group's add on (statement).
+                Done.
+                Otherwise:
+                    Cast group's add on (statement).
+                Done.
+            Done.
+        Done.
+        For each name in order, repeat:
+            Define versions as (the entry for name in groups but void is cast listed)'s children.
+            Define first as item 1 of versions.
+            If the number of versions is greater than 1:
+                Define first-count as the number of (cast field-of on (first, 3))'s children.
+                Define first-row as cast numeric on (cast field-of on (first, 7)).
+                Define place as 0.
+                For each other in versions, repeat:
+                    Increment place by 1.
+                    If place is greater than 1:
+                        Define other-row as cast numeric on (cast field-of on (other, 7)).
+                        Define other-count as the number of (cast field-of on (other, 3))'s children.
+                        If other-count is not first-count:
+                            Return a failure (cast refusal-of on ("the versions of '{name}' take different numbers of arguments",
+                                "The one on line {first-row} takes {first-count}, and this one takes {other-count}",
+                                other-row, "declare a version of '{name}' with a different number of arguments",
+                                "Every version of a name is reached by the same call, so they all take the same arguments. Rename this one if it does something else.")).
+                        Done.
+                        Define first-gives as cast field-of on (first, 2).
+                        Define other-gives as cast field-of on (other, 2).
+                        If cast type-key on (first-gives) is not cast type-key on (other-gives):
+                            Define first-said as "nothing".
+                            If cast is-nothing on (first-gives) is false, the first-said becomes cast type-words on (first-gives).
+                            Define other-said as "nothing".
+                            If cast is-nothing on (other-gives) is false, the other-said becomes cast type-words on (other-gives).
+                            Return a failure (cast refusal-of on ("the versions of '{name}' give back different types",
+                                "The one on line {first-row} gives back {first-said}, and this one gives back {other-said}",
+                                other-row, "declare a version of '{name}' with another return type",
+                                "A caller has to know what it gets back without knowing which version ran, so every version gives back the same type.")).
+                        Done.
+                    Done.
+                Done.
+                // Versions with the same argument types and no condition cannot be told apart.
+                Define fallbacks as a map from text to number.
+                For each version in versions, repeat:
+                    If the number of version's children is greater than 8:
+                        Return a failure (cast not-judged on ("a version of '{name}' with a condition")).
+                    Done.
+                    Define key as cast type-key on (cast parameter-types-of on (version)).
+                    Define version-row as cast numeric on (cast field-of on (version, 7)).
+                    Define already as the entry for key in fallbacks.
+                    If already is not void:
+                        Return a failure (cast refusal-of on ("'{name}' is declared twice with the same argument types",
+                            "It was already declared on line {already}", version-row,
+                            "declare '{name}' again with nothing to tell the two apart",
+                            "Versions of a name are told apart by one argument's type or by a 'when' condition. These have neither, so no call could pick between them. Rename one of them.")).
+                    Done.
+                    In fallbacks, the entry for key becomes version-row.
+                Done.
+                Return a failure (cast not-judged on ("versions of '{name}' told apart by type")).
+            Done.
+            If the number of first's children is greater than 8:
+                Return a failure (cast not-judged on ("a version of '{name}' with a condition")).
+            Done.
+        Done.
+    Done.
+
+    /// A function's parameter types, as one list.
+    Bind node to parameter-types-of, given (the node statement):
+        Define types as cast listed.
+        For each parameter in (cast field-of on (statement, 3))'s children, repeat:
+            Cast types's add on (cast field-of on (parameter, 1)).
+        Done.
+        Return types.
+    Done.
+
+    // ── Gathering them first ──────────────────────────────────────────────
+
+    /// Every top-level function, in scope before anything is checked — so one may call another
+    /// declared further down. Two with one name are refused, the second pointing at the first.
+    Bind void or failure to hoist-functions unto checker, given (the node program):
+        Define seen as a map from text to number.
+        For each statement in program's children, repeat:
+            If statement's kind is "BindStatement":
+                Define name as cast unquoted on (cast field-of on (statement, 1)).
+                Define at-row as cast numeric on (cast field-of on (statement, 7)).
+                Define earlier as the entry for name in seen.
+                If earlier is not void:
+                    Return a failure (cast refusal-of on ("'{name}' is declared twice",
+                        "It was already declared on line {earlier}", at-row, "declare '{name}' again",
+                        "Two functions cannot share a name — the second would silently replace the first. Rename one of them.")).
+                Done.
+                In seen, the entry for name becomes at-row.
+                Cast one's bind-name on (name, a new binding {
+                    the shape cast function-type-of on (statement),
+                    the established-by cast named-reference on (name), the line at-row, the permanent false }).
+            Done.
+        Done.
+    Done.
+
+    // ── A function's body ─────────────────────────────────────────────────
+
+    Bind void or failure to check-bind-statement unto checker, given (the node statement):
+        Define name as cast unquoted on (cast field-of on (statement, 1)).
+        Define at-row as cast numeric on (cast field-of on (statement, 7)).
+        // A top-level function is in scope already, from the hoist; a nested one arrives here.
+        If (the entry for name in cast one's innermost) is void:
+            Cast one's bind-name on (name, a new binding {
+                the shape cast function-type-of on (statement),
+                the established-by cast named-reference on (name), the line at-row, the permanent false }).
+        Done.
+        Cast one's check-bind-body on (statement) or pass the failure off.
+    Done.
+
+    /// What a body sees: its parameters, and — from the top level — functions and `permanently`
+    /// constants only; top-level data it may not read. A function inside another sees all of it.
+    Bind void or failure to check-bind-body unto checker, given (the node statement):
+        Define name as cast unquoted on (cast field-of on (statement, 1)).
+        Define returned as cast field-of on (statement, 2).
+        Define at-row as cast numeric on (cast field-of on (statement, 7)).
+
+        Define saved as one's scopes.
+        Define fresh as cast builtin-scope.
+        Define earlier-hidden as one's hidden.
+        Define nested as one's in-function.
+        If nested:
+            For each scope in saved, repeat:
+                For each pair in scope, repeat:
+                    In fresh, the entry for (the key of pair) becomes the value of pair.
+                Done.
+            Done.
+        Done.
+        Otherwise:
+            Define hiding as a map from text to fact.
+            For each scope in saved, repeat:
+                For each pair in scope, repeat:
+                    Define held as the value of pair.
+                    If held's shape's kind is "FunctionType" or held's permanent:
+                        In fresh, the entry for (the key of pair) becomes held.
+                    Done.
+                    Otherwise:
+                        In hiding, the entry for (the key of pair) becomes true.
+                    Done.
+                Done.
+            Done.
+            The one's hidden becomes hiding.
+        Done.
+        The one's scopes becomes a series with (fresh).
+        Cast one's enter-scope.
+        For each parameter in (cast field-of on (statement, 3))'s children, repeat:
+            Define parameter-name as cast unquoted on (cast field-of on (parameter, 2)).
+            Cast one's bind-name on (parameter-name, a new binding {
+                the shape cast field-of on (parameter, 1),
+                the established-by cast named-reference on (parameter-name), the line at-row, the permanent false }).
+        Done.
+
+        Define earlier-in-function as one's in-function.
+        Define earlier-line as one's function-line.
+        The one's in-function becomes true.
+        // ⚠ A stack rather than a field set and put back: a field holding an object cannot be
+        // given a new one — C# refuses it as "an embedded object handle".
+        If cast is-nothing on (returned), insert cast unknown-type into one's expected-returns.
+        Otherwise, insert returned into one's expected-returns.
+        The one's function-line becomes at-row.
+
+        Cast one's check-block on (cast field-of on (statement, 4)) or pass the failure off.
+
+        The one's in-function becomes earlier-in-function.
+        Remove item (the number of one's expected-returns) from one's expected-returns.
+        The one's function-line becomes earlier-line.
+        The one's hidden becomes earlier-hidden.
+        The one's scopes becomes saved.
+
+        If cast is-nothing on (returned) is false and cast definitely-returns on (cast field-of on (statement, 4)) is false:
+            Return a failure (cast refusal-of on (
+                "'{name}' is declared to give back a {cast type-words on (returned)}, but it can reach its end without returning one", "",
+                at-row, "define a function that might not return a value",
+                "Make sure every path through the function ends with a return statement.")).
+        Done.
+    Done.
+
+    Bind void or failure to check-return unto checker, given (the node statement):
+        Define value as cast field-of on (statement, 1).
+        Define at-row as cast numeric on (cast field-of on (statement, 2)).
+        Define expected as item (the number of one's expected-returns) of one's expected-returns.
+        Define gives-value as cast is-nothing on (value) is false.
+        If cast is-none on (expected):
+            If gives-value and value's kind is "FailureLiteral":
+                Return a failure (cast refusal-of on ("this function is declared void, so it cannot give back a failure", "",
+                    at-row, "return a failure from it",
+                    "If it is meant to be able to fail, say so where it is declared: 'Bind void or failure to …'.")).
+            Done.
+            If gives-value:
+                Return a failure (cast refusal-of on ("this function is declared void — it gives nothing back", "",
+                    at-row, "return a value from a void function",
+                    "Remove the value, or change the function's return type if you need to produce a result.")).
+            Done.
+            Return.
+        Done.
+        Define promised as cast type-words on (expected).
+        Define declared-on as "You declared the return type as {promised} on line {one's function-line}".
+        If gives-value is false:
+            Return a failure (cast refusal-of on ("this function is declared to give back a {promised}", declared-on,
+                at-row, "return without a value", "Provide a {promised} value to return.")).
+        Done.
+        Define value-type as cast one's infer on (value) or pass the failure off.
+        If cast is-none on (value-type), return.
+        If cast assignable on (expected, value-type), return.
+        If cast beyond-types on (value-type), return a failure (cast not-judged on ("returning a {value-type's kind}")).
+        If value's kind is "FailureLiteral":
+            Return a failure (cast refusal-of on ("this function is declared to give back a {promised}, and a failure is not one",
+                declared-on, at-row, "return a failure from it",
+                "If it is meant to be able to fail, say so where it is declared: 'Bind {promised} or failure to …'.")).
+        Done.
+        Return a failure (cast refusal-of on ("this function is declared to give back a {promised}", declared-on,
+            at-row, "return a {cast type-words on (value-type)} value", "Change the returned value to a {promised}.")).
+    Done.
+
+    // ── Calls ─────────────────────────────────────────────────────────────
+
+    /// What `cast f on (…)` reaches: the function's type, how a refusal names it, and the line it
+    /// was declared on. Gives back a `call` — or `none` for a callee whose type is not known.
+    Define object call with (the node shape, the text display, the number declared-on).
+
+    Bind call or failure to resolve-cast unto checker, given (the node callee, the node call-args,
+            the number at-row):
+        If callee's kind is "VariableReference":
+            Define name as cast unquoted on (cast field-of on (callee, 1)).
+            // ⚠ The first argument is typed BEFORE the name is looked up: C# asks it whether the
+            // call is a method on an object, and a refusal inside it comes first.
+            If the number of call-args's children is greater than 0:
+                Define first as cast one's infer on (item 1 of call-args's children) or pass the failure off.
+                If cast beyond-types on (first), return a failure (cast not-judged on ("a call whose first argument is a {first's kind}")).
+            Done.
+            Define found as cast one's look-up on (name).
+            If found is void:
+                Return a failure (cast refusal-of on ("'{name}' isn't defined, so there is nothing to cast",
+                    "A cast reaches a function, a method, or an axiom, and no declaration of this name was found",
+                    at-row, "cast '{name}'",
+                    "Check the spelling, or declare it: 'Bind <type> to {name}, given (…):'.")).
+            Done.
+            If found's shape's kind is not "FunctionType":
+                If cast beyond-types on (found's shape) or found's shape's kind is "AxiomType":
+                    Return a failure (cast not-judged on ("casting a {found's shape's kind}")).
+                Done.
+                Return a failure (cast refusal-of on ("'{name}' holds a {cast type-words on (found's shape)}, not a function — you can only cast functions", "",
+                    at-row, "cast something that isn't a function",
+                    "Only functions can be cast. Make sure the name you're casting refers to a function.")).
+            Done.
+            Return a new call { the shape found's shape, the display "'{name}'", the declared-on found's line }.
+        Done.
+        Define reached as cast one's infer on (callee) or pass the failure off.
+        If cast is-none on (reached):
+            Return a new call { the shape reached, the display "this function", the declared-on at-row }.
+        Done.
+        If reached's kind is not "FunctionType":
+            If cast beyond-types on (reached) or reached's kind is "AxiomType":
+                Return a failure (cast not-judged on ("casting a {reached's kind}")).
+            Done.
+            Return a failure (cast refusal-of on ("this expression holds a {cast type-words on (reached)}, not a function — you can only cast functions", "",
+                at-row, "cast something that isn't a function", "Only functions can be cast.")).
+        Done.
+        Return a new call { the shape reached, the display "this function", the declared-on at-row }.
+    Done.
+
+    /// The arguments in the order the callee declares its parameters — `MergeNamedArgs`.
+    Bind node or failure to merged-arguments unto checker, given (the node callee, the node positional,
+            the node named, the number at-row):
+        Define display as "this function".
+        If callee's kind is "VariableReference", the display becomes "'{cast unquoted on (cast field-of on (callee, 1))}'".
+        If callee's kind is not "VariableReference":
+            Return a failure (cast not-judged on ("named arguments to a {callee's kind}")).
+        Done.
+        If the number of positional's children is greater than 0:
+            Define first as cast one's infer on (item 1 of positional's children) or pass the failure off.
+            If cast beyond-types on (first), return a failure (cast not-judged on ("named arguments after a {first's kind}")).
+        Done.
+        Define found as cast one's look-up on (cast unquoted on (cast field-of on (callee, 1))).
+        Define names as a series of text.
+        Define known as false.
+        If found is not void:
+            If found's shape's kind is "FunctionType":
+                Define declared as cast parameter-names-of on (found's shape).
+                If declared is not void:
+                    The names becomes declared.
+                    The known becomes true.
+                Done.
+            Done.
+        Done.
+        If known is false:
+            Return a failure (cast refusal-of on ("{display} can't be called with named arguments",
+                "A name has to match a parameter the function DECLARES, and this call reaches its function through a value — a parameter, a field, or another call's result — which carries the parameter types but not what they are called",
+                at-row, "name an argument here", "Pass the arguments in order instead.")).
+        Done.
+
+        Define slots as a map from number to node.
+        Define filled as a map from number to text.
+        Define place as 0.
+        For each passed in positional's children, repeat:
+            Increment place by 1.
+            If place is greater than the number of names:
+                Return a failure (cast refusal-of on ("{display} takes {the number of names} argument(s), but you passed more", "",
+                    at-row, "pass {the number of positional's children + the number of named's children} argument(s)",
+                    "Remove the extra argument(s).")).
+            Done.
+            In slots, the entry for place becomes passed.
+            In filled, the entry for place becomes "position".
+        Done.
+        For each pair in named's children, repeat:
+            Define wanted as cast unquoted on (cast field-of on (pair, 1)).
+            Define slot as 0.
+            Define tally as 0.
+            For each candidate in names, repeat:
+                Increment tally by 1.
+                If slot is 0 and candidate is wanted, the slot becomes tally.
+            Done.
+            If slot is 0:
+                Define listing as "It takes no parameters.".
+                If the number of names is greater than 0:
+                    Define quoted-names as a chase.
+                    Define first-one as true.
+                    For each candidate in names, repeat:
+                        If first-one is false, insert ", " into quoted-names.
+                        The first-one becomes false.
+                        Insert "'{candidate}'" into quoted-names.
+                    Done.
+                    The listing becomes "Its parameters are {quoted-names converted to text}.".
+                Done.
+                Return a failure (cast refusal-of on ("{display} has no parameter called '{wanted}'", "",
+                    at-row, "pass a value for '{wanted}'", listing)).
+            Done.
+            Define before as the entry for slot in filled but void is "".
+            If before is "position":
+                Return a failure (cast refusal-of on ("'{wanted}' was already given as argument {slot}", "",
+                    at-row, "give '{wanted}' twice", "Remove either the positional argument or 'the {wanted}'.")).
+            Done.
+            If before is "name":
+                Return a failure (cast refusal-of on ("'{wanted}' was given twice", "",
+                    at-row, "give '{wanted}' twice", "Remove one of the two 'the {wanted}' arguments.")).
+            Done.
+            In slots, the entry for slot becomes cast field-of on (pair, 2).
+            In filled, the entry for slot becomes "name".
+        Done.
+        Define ordered as cast listed.
+        Define tally as 0.
+        For each candidate in names, repeat:
+            Increment tally by 1.
+            Define held as the entry for tally in slots.
+            If held is void:
+                Return a failure (cast refusal-of on ("{display} has no value for '{candidate}'", "",
+                    at-row, "call {display} without a value for '{candidate}'",
+                    "Add 'the {candidate} <value>', or pass it in position {tally}.")).
+            Done.
+            Cast ordered's add on (held).
+        Done.
+        Return ordered.
+    Done.
+
+    /// The arguments measured against the parameters — `ValidateCastArgs`.
+    Bind void or failure to check-arguments unto checker, given (the call reached, the node call-args,
+            the number at-row):
+        Define formals as (cast field-of on (reached's shape, 1))'s children.
+        Define supplied as call-args's children.
+        Define display as reached's display.
+        If the number of supplied is not the number of formals:
+            Define advice as "Remove the extra argument(s).".
+            If the number of supplied is less than the number of formals, the advice becomes "Add the missing argument(s).".
+            Return a failure (cast refusal-of on (
+                "{display} expects {the number of formals} argument(s), but you passed {the number of supplied}",
+                "You declared it on line {reached's declared-on} with {the number of formals} parameter(s)",
+                at-row, "call it with {the number of supplied} argument(s)", advice)).
+        Done.
+        Define place as 0.
+        For each argument in supplied, repeat:
+            Increment place by 1.
+            Define argument-type as cast one's infer on (argument) or pass the failure off.
+            Define formal as item place of formals.
+            If cast is-none on (argument-type) is false and cast assignable on (formal, argument-type) is false:
+                If cast beyond-types on (argument-type) or cast beyond-types on (formal):
+                    Return a failure (cast not-judged on ("passing a {argument-type's kind}")).
+                Done.
+                If argument-type's kind is "VoidableType":
+                    Define present as cast field-of on (argument-type, 1).
+                    If cast assignable on (formal, present):
+                        Return a failure (cast void-misuse on (argument,
+                            "argument {place} of {display} needs a {cast type-words on (formal)} that is there",
+                            "pass a {cast type-words on (argument-type)} as argument {place}",
+                            "'{cast defaulted on (argument, present)}' in its place", at-row, "")).
+                    Done.
+                Done.
+                Return a failure (cast refusal-of on (
+                    "argument {place} of {display} must be a {cast type-words on (formal)}, but you passed a {cast type-words on (argument-type)}",
+                    "You declared {display} on line {reached's declared-on}, so argument {place} must be a {cast type-words on (formal)}",
+                    at-row, "pass a {cast type-words on (argument-type)} as argument {place}",
+                    "Change argument {place} to a {cast type-words on (formal)}.")).
+            Done.
+        Done.
+    Done.
+
+    /// `cast f on (…)`, as a statement or a value. Gives back what it returns, or `none`.
+    Bind node or failure to check-call unto checker, given (the node said, the fact as-value):
+        Define callee as cast field-of on (said, 1).
+        Define call-args as cast field-of on (said, 2).
+        Define at-row as cast numeric on (cast field-of on (said, 3)).
+        // Named arguments first: everything after reads the arguments by position.
+        Define place as 4.
+        While place is less than the number of said's children, repeat:
+            Increment place by 1.
+            Define marker as (item place of said's children)'s word.
+            If marker is ":NamedArgs":
+                The call-args becomes cast one's merged-arguments on (callee, call-args,
+                    item (place + 1) of said's children, at-row) or pass the failure off.
+            Done.
+            Otherwise if marker is ":PassesFailureOff":
+                Return a failure (cast not-judged on ("passing a failure off")).
+            Done.
+        Done.
+        Define reached as cast one's resolve-cast on (callee, call-args, at-row) or pass the failure off.
+        If cast is-none on (reached's shape), return reached's shape.
+        Cast one's check-arguments on (reached, call-args, at-row) or pass the failure off.
+        Define gives as cast field-of on (reached's shape, 2).
+        If as-value and cast is-nothing on (gives):
+            Return a failure (cast refusal-of on ("{reached's display} gives nothing back — it can't be used as a value",
+                "You declared it as void on line {reached's declared-on}", at-row, "use its result as a value",
+                "Cast it as a statement instead, or change its return type if you need a result.")).
+        Done.
+        If cast is-nothing on (gives), return cast unknown-type.
+        If gives's kind is "FailureType", return a failure (cast not-judged on ("calling a function that can fail")).
+        Return gives.
+    Done.
+Done.

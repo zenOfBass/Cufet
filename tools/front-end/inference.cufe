@@ -23,6 +23,7 @@ Pull a book on collections.
         If kind is "SeriesLiteral", return cast one's infer-series-literal on (said) or pass the failure off.
         If kind is "SeriesAccess", return cast one's infer-series-access on (said) or pass the failure off.
         If kind is "SeriesLength", return cast one's infer-series-length on (said) or pass the failure off.
+        If kind is "CastExpression", return cast one's check-call on (said, true) or pass the failure off.
         Return a failure (cast not-judged on (kind)).
     Done.
 
@@ -51,6 +52,13 @@ Pull a book on collections.
         If narrowing is not void, return narrowing.
         Define found as cast one's look-up on (name).
         If found is not void, return found's shape.
+        If (the entry for name in one's hidden) is not void:
+            Define at-row as cast numeric on (cast field-of on (said, 2)).
+            Return a failure (cast refusal-of on (
+                "'{name}' is a top-level value, but function and method bodies can't see top-level data", "",
+                at-row, "read '{name}' inside a top-level function or a method",
+                "They see other functions (for mutual recursion) and top-level `permanently` constants, but not top-level data that can change. This keeps data flow explicit and prevents hidden mutation.\nDeclare it `Define {name} as <value> permanently.` if it never changes, or pass '{name}' in as a parameter, or define the function inside a scope where '{name}' is already bound, so it captures '{name}' as a closure.")).
+        Done.
         Return cast one's unresolved on (said) or pass the failure off.
     Done.
 
@@ -58,6 +66,20 @@ Pull a book on collections.
     Bind node or failure to unresolved unto checker, given (the node said):
         Define name as cast unquoted on (cast field-of on (said, 1)).
         Define at-row as cast numeric on (cast field-of on (said, 2)).
+
+        // In a function body the scope is not final — but only a module may be left to the caller.
+        If one's in-function:
+            If cast is-bundled-module on (name) is false:
+                Return a failure (cast refusal-of on ("'{name}' isn't defined",
+                    "A function or method uses the names it can see where it is WRITTEN — plus any module its caller pulled, and no module is named this",
+                    at-row, "use '{name}' here",
+                    "Define it first, take it as a parameter, or — if it is meant to be a module — declare it: 'Define object {name} with (...) and module:'.")).
+            Done.
+            Return a failure (cast refusal-of on ("'{name}' isn't pulled here",
+                "'{name}' is a module, and a function reaches one only where it is WRITTEN — a module's methods inherit what their caller pulled, but a plain function has no caller to inherit from",
+                at-row, "use '{name}' inside this function without pulling it",
+                "Pull it around the body: 'Pull a book on {name}. … Done.'")).
+        Done.
 
         // A name that is a TYPE somewhere else is a different mistake from a missing variable.
         Define from-book as cast book-introducing on (name).
@@ -373,7 +395,7 @@ Pull a book on collections.
         If cast is-none on (inferred):
             Return a failure (cast refusal-of on ("an empty series has no items to infer its type from", "",
                 at-row, "define an empty series without saying what type of items it will hold",
-                "Add an annotation to declare the element type: a series of numbers (), a series of text (), or a series of facts ().")).
+                "Declare the element type: 'a series of numbers', 'a series of text', or 'a series of facts'.")).
         Done.
         Return cast wrapped on ("SeriesType", inferred).
     Done.
