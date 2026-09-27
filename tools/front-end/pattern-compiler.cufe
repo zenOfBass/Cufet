@@ -41,7 +41,7 @@ Pull a book on collections.
     Bind text to fault unto pattern-reader, given (the text what, the text why, the text fix):
         Define lead as the first 1 characters of fix.
         Define rest as the characters from 2 to the end of fix.
-        Return "error\t{one's declared-row}\t{one's declared-column}\t{what} — {why}. {lead in uppercase}{rest}.".
+        Return "error\tLine {one's declared-row}, column {one's declared-column}: {what} — {why}. {lead in uppercase}{rest}.".
     Done.
 
     // ── Code points ───────────────────────────────────────────────────────

@@ -40,8 +40,8 @@ Pull a book on collections.
             If lowered is "seed" and cast one's next-word-is on ("chance"):
                 Cast one's advance.
                 Cast one's skip-noise.
-                If cast one's is-word on ("chance") is false:
-                    Return a failure (cast one's refused on (cast one's peek, "expected 'chance' — expected after 'Seed the'")).
+                If cast one's peek-kind is not "Identifier" or cast one's is-word on ("chance") is false:
+                    Return a failure (cast one's expecting on (cast one's peek, "'chance' — expected after 'Seed the'")).
                 Done.
                 Cast one's advance.
                 Cast one's skip-noise.
@@ -91,7 +91,7 @@ Pull a book on collections.
         Done.
         If kind is "Stop" or kind is "Skip":
             If one's loop-depth is 0:
-                Return a failure (cast one's refused on (tok, "'{tok's lexeme}' used outside a loop")).
+                Return a failure (cast one's refused on (tok, "'{tok's lexeme}' is used outside a loop — " joined to ("it leaves the loop it is in, and there is none here" when kind is "Stop", otherwise "it moves on to the next turn of the loop it is in, and there is none here"))).
             Done.
             Cast one's advance.
             Cast one's consume on ("Dot") or pass the failure off.
@@ -117,7 +117,9 @@ Pull a book on collections.
         If kind is "Run", return cast one's pipe-statement or pass the failure off.
         If kind is "Judge", return cast one's judge-statement or pass the failure off.
         If kind is "Bury":
-            Return a failure (cast one's refused on (tok, "a bury needs a rabbit to do it — write 'Have <rabbit> bury <value>.'")).
+            Return a failure (cast one's refused on (tok, "a bury needs a rabbit to do it — write 'Have <rabbit> bury <value>.' A rabbit is the "
+                joined to "agent that does memory work, and burying is memory work; inside a burying function the "
+                joined to "rabbit is normally a parameter: 'given (the rabbit helper, ...)'.")).
         Done.
         If kind is "Suppress":
             Cast one's advance.
@@ -154,10 +156,7 @@ Pull a book on collections.
         If kind is "AcknowledgeKw":
             Cast one's advance.
             Cast one's skip-noise.
-            If cast one's is-word on ("interrupt") is false:
-                Return a failure (cast one's refused on (cast one's peek, "expected 'interrupt'")).
-            Done.
-            Cast one's advance.
+            Cast one's consume-word on ("interrupt") or pass the failure off.
             Return cast one's finish-with-dot on (cast placed on ("AcknowledgeInterruptStatement", a series of node, tok)) or pass the failure off.
         Done.
         If kind is "YieldKw":
@@ -166,7 +165,7 @@ Pull a book on collections.
         Done.
         If kind is "GetKw", return cast one's getter-declaration or pass the failure off.
         If kind is "SetKw", return cast one's setter-declaration or pass the failure off.
-        Return a failure (cast one's refused on (tok, "expected statement keyword, got {kind} \"{tok's lexeme}\"")).
+        Return a failure (cast one's expecting on (tok, "statement keyword")).
     Done.
 
     // ── Naming and changing ───────────────────────────────────────────────
@@ -235,7 +234,9 @@ Pull a book on collections.
                 Return a failure (cast one's refused on (define-tok,
                     "a pattern cannot be 'given' anything — a value is spliced INTO a pattern, never handed to it as a parameter")).
             Done.
-            Define states as cast compiled-pattern on (value's word, define-tok's row, define-tok's column)
+            // A fault is reported at the pattern itself — the `[` — as C# reports it.
+            Define states as cast compiled-pattern on (value's word,
+                cast numeral-value on (item 2 of value's children), cast numeral-value on (item 3 of value's children))
                 or pass the failure off.
             Return cast regex-function on (name-tok's lexeme, states, define-tok).
         Done.
@@ -356,9 +357,15 @@ Pull a book on collections.
                     Cast carried's add on (inner).
                     One's in-object-def becomes was-in-object.
                 Done.
+                Otherwise if kind is "Define":
+                    Return a failure (cast one's expecting on (cast one's peek,
+                        "Bind, Get, or Set — only a module may declare a type inside its body, and "
+                        joined to "'{name-tok's lexeme}' is not one. Add 'and module' to its declaration, or move the type "
+                        joined to "outside this body")).
+                Done.
                 Otherwise:
-                    Return a failure (cast one's refused on (cast one's peek,
-                        "expected Bind, Get, or Set — only method, getter, and setter definitions are allowed inside an object body")).
+                    Return a failure (cast one's expecting on (cast one's peek,
+                        "Bind, Get, or Set — only method, getter, and setter definitions are allowed inside an object body")).
                 Done.
             Done.
             Decrement one's nest-depth by 1.
@@ -698,10 +705,7 @@ Pull a book on collections.
         Cast one's skip-noise.
         Cast one's consume on ("Comma") or pass the failure off.
         Cast one's skip-noise.
-        If cast one's is-word on ("entry") is false:
-            Return a failure (cast one's refused on (cast one's peek, "expected 'entry'")).
-        Done.
-        Cast one's advance.
+        Cast one's consume-word on ("entry") or pass the failure off.
         Cast one's skip-noise.
         Cast one's consume on ("For") or pass the failure off.
         Cast one's skip-noise.
@@ -761,14 +765,39 @@ Pull a book on collections.
         Done.
         Cast one's consume on ("Colon") or pass the failure off.
         Increment one's nest-depth by 1.
-        Define body as cast one's loop-body on (opener, "Otherwise") or pass the failure off.
+        Define body as cast one's loop-body on (opener, "If x is 1, state \"one\".", "", "Otherwise") or pass the failure off.
         Decrement one's nest-depth by 1.
         Return body.
     Done.
 
-    /// Statements up to `Done.` — at least one. A token in `continuation` (an `Otherwise`) arriving
-    /// first means the block was never closed.
-    Bind node or failure to loop-body unto parser, given (the token opener, the text continuation):
+    /// Unclosed — a block the file ended inside, named at the word that opened it.
+    Bind text to unclosed, given (the token opener, the text example, the text construct):
+        Define called as opener's lexeme.
+        If construct is not "", the called becomes construct.
+        Define advice as "Close it with 'Done.'.".
+        If example is not "":
+            The advice becomes "Either close it with 'Done.', or — if the body is a single statement — write the "
+                joined to "inline form instead, which takes a comma and no 'Done.': '{example}'".
+        Done.
+        Return cast refused-at on (opener's row, opener's column,
+            "this '{called}' opens a block, and the file ended before its 'Done.'. " joined to advice).
+    Done.
+
+    /// UnclosedBeforeArm — a block left open by the next arm arriving.
+    Bind text to unclosed-before-arm, given (the token opener, the token found, the text construct):
+        Define called as opener's lexeme.
+        If construct is not "", the called becomes construct.
+        Return cast refused-at on (opener's row, opener's column,
+            "this '{called}' opens a block, and '{found's lexeme}' arrived on "
+            joined to "line {found's row} before its 'Done.'. In the block form every arm closes before the "
+            joined to "next one begins: 'If x is 1: ... Done. Otherwise: ... Done.'. The INLINE form is the "
+            joined to "one that needs no 'Done.': 'If x is 1, state \"one\". Otherwise, state \"other\".'").
+    Done.
+
+    /// ParseLoopBody — statements up to `Done.`, at least one. A `continuation` (an `Otherwise`)
+    /// arriving first means the block was never closed.
+    Bind node or failure to loop-body unto parser, given (the token opener, the text example,
+            the text construct, the text continuation):
         Define body as cast listed.
         Define scanning as true.
         While scanning, repeat:
@@ -776,16 +805,16 @@ Pull a book on collections.
             Define kind as cast one's peek-kind.
             If kind is "Done" or kind is "Eof", stop.
             If continuation is not "" and kind is continuation:
-                Return a failure (cast one's refused on (opener, "this '{opener's lexeme}' opens a block, and '{(cast one's peek)'s lexeme}' arrived before its 'Done.'")).
+                Return a failure (cast unclosed-before-arm on (opener, cast one's peek, construct)).
             Done.
             Define inner as cast one's statement or pass the failure off.
             Cast body's add on (inner).
         Done.
         If the number of body's children is 0:
-            Return a failure (cast one's refused on (cast one's peek, "expected at least one statement in loop body")).
+            Return a failure (cast one's expecting on (cast one's peek, "at least one statement in loop body")).
         Done.
         If cast one's peek-kind is "Eof":
-            Return a failure (cast one's refused on (opener, "this '{opener's lexeme}' opens a block, and the file ended before its 'Done.'")).
+            Return a failure (cast unclosed on (opener, example, construct)).
         Done.
         Cast one's consume on ("Done") or pass the failure off.
         Cast one's consume on ("Dot") or pass the failure off.
@@ -802,7 +831,7 @@ Pull a book on collections.
             Define repeat-tok as cast one's advance.
             Cast one's skip-noise.
             Cast one's consume on ("Colon") or pass the failure off.
-            The body becomes cast one's loop-body on (repeat-tok, "") or pass the failure off.
+            The body becomes cast one's loop-body on (repeat-tok, "For each n in items, State n.", "", "") or pass the failure off.
         Done.
         Otherwise:
             Define single as cast one's statement or pass the failure off.
@@ -838,7 +867,7 @@ Pull a book on collections.
             Cast body's add on (inner).
         Done.
         If the number of body's children is 0:
-            Return a failure (cast one's refused on (cast one's peek, "expected at least one statement in repeat-until body")).
+            Return a failure (cast one's expecting on (cast one's peek, "at least one statement in repeat-until body")).
         Done.
         Decrement one's nest-depth by 1.
         Decrement one's loop-depth by 1.
@@ -861,11 +890,15 @@ Pull a book on collections.
             The iterator becomes cast quoted on (name-tok's lexeme).
             Cast one's skip-noise.
         Done.
+        // A word-shaped token still here is RESERVED — the slot above takes every identifier.
+        Otherwise if cast one's looks-like-a-word on (cast one's peek) and cast one's peek-kind is not "In" and cast one's peek-kind is not "From":
+            Return a failure (cast one's reserved-as-name on (cast one's peek)).
+        Done.
         If cast one's peek-kind is "From":
             Cast one's advance.
             Cast one's skip-noise.
             If cast one's peek-kind is not "Identifier" or cast one's is-word on ("input") is false:
-                Return a failure (cast one's refused on (cast one's peek, "expected 'input' (in 'for each ... from the input:')")).
+                Return a failure (cast one's expecting on (cast one's peek, "'input' (in 'for each ... from the input:')")).
             Done.
             Cast one's advance.
             Cast one's skip-noise.
@@ -880,7 +913,7 @@ Pull a book on collections.
             Done.
             Otherwise:
                 Define colon-tok as cast one's consume on ("Colon") or pass the failure off.
-                The consumer-body becomes cast one's loop-body on (colon-tok, "") or pass the failure off.
+                The consumer-body becomes cast one's loop-body on (colon-tok, "For each n in items, State n.", "", "") or pass the failure off.
             Done.
             Decrement one's nest-depth by 1.
             Decrement one's loop-depth by 1.
@@ -990,7 +1023,7 @@ Pull a book on collections.
     Bind node or failure to return-statement unto parser:
         Define return-tok as cast one's advance.
         If one's function-depth is 0:
-            Return a failure (cast one's refused on (return-tok, "'return' used outside a function")).
+            Return a failure (cast one's refused on (return-tok, "'Return' is used outside a function — it gives a function's answer back, and there is no function here")).
         Done.
         Cast one's skip-noise.
         If cast one's peek-kind is "Dot":
@@ -1007,7 +1040,7 @@ Pull a book on collections.
         Define bind-tok as cast one's advance.
         If one's nest-depth is greater than 0 and one's in-object-def is false and one's in-free-function is false:
             Return a failure (cast one's refused on (bind-tok,
-                "Functions can only be declared at the top level or inside another function, not inside a block")).
+                "functions can only be declared at the top level or inside another function, not inside a block")).
         Done.
         Define saved-object-def as one's in-object-def.
         Define saved-free-function as one's in-free-function.
@@ -1058,10 +1091,10 @@ Pull a book on collections.
         Increment one's function-depth by 1.
         Define body as cast listed.
         If returned's word is "_" or cast is-void-or-failure on (returned):
-            The body becomes cast one's void-body on (bind-tok) or pass the failure off.
+            The body becomes cast one's void-body on (bind-tok, "Bind void to greet, State \"hi\".", "") or pass the failure off.
         Done.
         Otherwise:
-            The body becomes cast one's value-body on (bind-tok) or pass the failure off.
+            The body becomes cast one's value-body on (bind-tok, "Bind number to double, given (the number n), n * 2.", "") or pass the failure off.
         Done.
         Decrement one's function-depth by 1.
         One's in-object-def becomes saved-object-def.
@@ -1181,8 +1214,8 @@ Pull a book on collections.
             Cast one's advance.
             Cast one's skip-noise.
             If cast one's peek-kind is not "FunctionKw":
-                Return a failure (cast one's refused on (cast one's peek,
-                    "expected function — 'void' can only appear as the return type of a function-typed parameter")).
+                Return a failure (cast one's expecting on (cast one's peek,
+                    "function — 'void' can only appear as the return type of a function-typed parameter")).
             Done.
         Done.
         Otherwise:
@@ -1208,13 +1241,33 @@ Pull a book on collections.
     Done.
 
     /// A body giving a value back: a comma and the value, or a block.
-    Bind node or failure to value-body unto parser, given (the token opener):
+    Bind fact to is-statement-opener, given (the text kind):
+        For each opener-kind in a series with ("State", "Insert", "Increment", "Decrement", "Remove",
+                "Replace", "Send", "Close", "Write", "Append", "Open", "Define", "Bind", "If", "While",
+                "For", "Try", "Judge", "Stop", "Skip", "GetKw", "SetKw"), repeat:
+            If kind is opener-kind, return true.
+        Done.
+        Return false.
+    Done.
+
+    /// ParseValueBodyOrBlock — a comma and the value, or a colon and a block.
+    Bind node or failure to value-body unto parser, given (the token opener, the text example, the text construct):
         Cast one's skip-noise.
         If cast one's peek-kind is "Comma":
             Define comma as cast one's advance.
             Cast one's skip-noise.
-            If cast one's peek-kind is "Return":
-                Return a failure (cast one's not-yet on ("the inline-body refusals")).
+            Define first-tok as cast one's peek.
+            If first-tok's kind is "Return":
+                Return a failure (cast one's refused on (first-tok,
+                    "an inline body gives its value back on its own, so 'Return' is not written here "
+                    joined to "— drop it, as in 'Bind number to double, given (the number n), n * 2.'. "
+                    joined to "Use the block form ': ... Done.' if the body needs more than one statement.")).
+            Done.
+            If cast is-statement-opener on (first-tok's kind):
+                Return a failure (cast one's refused on (first-tok,
+                    "'{first-tok's lexeme}' opens a statement, but this body has to give a value back, "
+                    joined to "so its inline form is an EXPRESSION — the thing to return, with no 'Return'. "
+                    joined to "Use the block form ': ... Done.' to run statements.")).
             Done.
             Increment one's nest-depth by 1.
             Define value as cast one's expression or pass the failure off.
@@ -1227,33 +1280,47 @@ Pull a book on collections.
         Done.
         Cast one's consume on ("Colon") or pass the failure off.
         Increment one's nest-depth by 1.
-        Define body as cast one's function-body on (opener) or pass the failure off.
+        Define body as cast one's function-body on (opener, example, construct) or pass the failure off.
         Decrement one's nest-depth by 1.
         Return body.
     Done.
 
-    /// A body giving nothing back: a comma and one statement, or a block.
-    Bind node or failure to void-body unto parser, given (the token opener):
+    /// ParseVoidBodyOrBlock — a comma and one statement, or a colon and a block.
+    Bind node or failure to void-body unto parser, given (the token opener, the text example, the text construct):
         Cast one's skip-noise.
         If cast one's peek-kind is "Comma":
             Cast one's advance.
             Cast one's skip-noise.
+            Define first-tok as cast one's peek.
             Increment one's nest-depth by 1.
-            Define single as cast one's statement or pass the failure off.
-            Decrement one's nest-depth by 1.
             Define body as cast listed.
-            Cast body's add on (single).
+            Try to:
+                Define single as cast one's statement.
+                Cast body's add on (single).
+            Done.
+            In case of failure:
+                // An EXPRESSION where a statement belongs — "expected Becomes" points at the wrong idea.
+                If the message of the failure contains "expected Becomes":
+                    Return a failure (cast one's refused on (first-tok,
+                        "this body gives nothing back, so its inline form is a STATEMENT, not an "
+                        joined to "expression — something like 'State ...' or 'one's field becomes ...'. "
+                        joined to "A body that should return a value needs a return type: "
+                        joined to "'Bind number to ...' rather than 'Bind void to ...'.")).
+                Done.
+                Return a failure (the message of the failure).
+            Done.
+            Decrement one's nest-depth by 1.
             Return body.
         Done.
         Cast one's consume on ("Colon") or pass the failure off.
         Increment one's nest-depth by 1.
-        Define body as cast one's function-body on (opener) or pass the failure off.
+        Define body as cast one's function-body on (opener, example, construct) or pass the failure off.
         Decrement one's nest-depth by 1.
         Return body.
     Done.
 
-    /// Statements up to `Done.` — none is fine.
-    Bind node or failure to function-body unto parser, given (the token opener):
+    /// ParseFunctionBody — statements up to `Done.`, none being fine.
+    Bind node or failure to function-body unto parser, given (the token opener, the text example, the text construct):
         Define body as cast listed.
         Define scanning as true.
         While scanning, repeat:
@@ -1263,7 +1330,7 @@ Pull a book on collections.
             Cast body's add on (inner).
         Done.
         If cast one's peek-kind is "Eof":
-            Return a failure (cast one's refused on (opener, "this '{opener's lexeme}' opens a block, and the file ended before its 'Done.'")).
+            Return a failure (cast unclosed on (opener, example, construct)).
         Done.
         Cast one's consume on ("Done") or pass the failure off.
         Cast one's consume on ("Dot") or pass the failure off.
@@ -1291,7 +1358,7 @@ Pull a book on collections.
         Cast one's skip-noise.
         Cast one's consume on ("Colon") or pass the failure off.
         Increment one's nest-depth by 1.
-        Define body as cast one's loop-body on (try-tok, "") or pass the failure off.
+        Define body as cast one's loop-body on (try-tok, "", "", "") or pass the failure off.
         Decrement one's nest-depth by 1.
         Cast one's skip-noise.
         Define on-failure as cast nothing.
@@ -1305,7 +1372,7 @@ Pull a book on collections.
             Done.
             Cast one's consume on ("Colon") or pass the failure off.
             Increment one's nest-depth by 1.
-            The on-failure becomes cast one's loop-body on (handler-tok, "") or pass the failure off.
+            The on-failure becomes cast one's loop-body on (handler-tok, "", "In case of failure", "") or pass the failure off.
             Decrement one's nest-depth by 1.
             Cast one's skip-noise.
         Done.
@@ -1333,7 +1400,7 @@ Pull a book on collections.
             Done.
             Cast one's consume on ("Colon") or pass the failure off.
             Increment one's nest-depth by 1.
-            The on-exception becomes cast one's loop-body on (handler-tok, "") or pass the failure off.
+            The on-exception becomes cast one's loop-body on (handler-tok, "", "In case of exception", "") or pass the failure off.
             Decrement one's nest-depth by 1.
         Done.
         Define attempt as cast placed on ("TryStatement", a series with (body, on-failure, on-exception), try-tok).
@@ -1406,7 +1473,9 @@ Pull a book on collections.
                 Cast one's skip-noise.
             Done.
             Cast one's consume on ("Dot") or pass the failure off.
+            Increment one's rabbit-depth by 1.
             Define body as cast one's pull-body on (cast listed) or pass the failure off.
+            Decrement one's rabbit-depth by 1.
             Return cast placed on ("PullRabbitStatement", a series with (name, body), pull-tok).
         Done.
         Define books as cast listed.

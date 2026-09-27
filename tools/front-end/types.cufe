@@ -218,8 +218,8 @@ Pull a book on collections.
             Return cast made on ("ObjectType", a series with (cast quoted on (tok's lexeme), args)).
         Done.
 
-        Return a failure (cast one's refused on (tok,
-            "expected type name (number, text, fact, series of ..., or a defined type name)")).
+        Return a failure (cast one's expecting on (tok,
+            "type name (number, text, fact, series of ..., or a defined type name)")).
     Done.
 
     /// The axiom arm of ParseTypeAnnotationCore. Nothing, with the position put back, when what
@@ -350,8 +350,8 @@ Pull a book on collections.
             Return cast made on ("FunctionType", a series with (parameters, returned)).
         Done.
         If saw-void:
-            Return a failure (cast one's refused on (cast one's peek,
-                "expected function — 'void' can only appear as a function return type")).
+            Return a failure (cast one's expecting on (cast one's peek,
+                "function — 'void' can only appear as a function return type")).
         Done.
         Decrement one's type-depth by 1.
         Return returned.
@@ -418,8 +418,8 @@ Pull a book on collections.
             Done.
             Define is-function as cast one's peek-kind is "FunctionKw".
             If void-return and is-function is false:
-                Return a failure (cast one's refused on (cast one's peek,
-                    "expected field — 'void' can only appear as a function return type")).
+                Return a failure (cast one's expecting on (cast one's peek,
+                    "field — 'void' can only appear as a function return type")).
             Done.
             If is-function:
                 Cast one's advance.
@@ -444,8 +444,8 @@ Pull a book on collections.
                 Cast one's advance.
                 Cast one's skip-noise.
                 If cast one's is-word on ("default") is false:
-                    Return a failure (cast one's refused on (cast one's peek,
-                        "expected field '{name-tok's lexeme}' — 'with' here introduces a default, so write "
+                    Return a failure (cast one's expecting on (cast one's peek,
+                        "field '{name-tok's lexeme}' — 'with' here introduces a default, so write "
                         joined to "'the ... {name-tok's lexeme} with default <value>'")).
                 Done.
                 Cast one's advance.
@@ -459,8 +459,8 @@ Pull a book on collections.
             Return.
         Done.
         If the number of named's children is greater than 0:
-            Return a failure (cast one's refused on (cast one's peek,
-                "expected type — positional fields must come before named fields in a record shape")).
+            Return a failure (cast one's expecting on (cast one's peek,
+                "type — positional fields must come before named fields in a record shape")).
         Done.
         Define field-type as cast one's type-annotation or pass the failure off.
         Cast positional's add on (field-type).

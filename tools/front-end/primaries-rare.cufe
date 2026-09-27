@@ -133,16 +133,13 @@ Pull a book on collections.
                 Cast one's advance.
                 Return cast placed on ("RandomGuess", a series of node, tok).
             Done.
-            Return a failure (cast one's refused on (cast one's peek, "expected number, item, or guess — expected after 'random'")).
+            Return a failure (cast one's expecting on (cast one's peek, "number, item, or guess — expected after 'random'")).
         Done.
 
         If kind is "Randomly":
             Cast one's advance.
             Cast one's skip-noise.
-            If cast one's is-word on ("shuffled") is false:
-                Return a failure (cast one's refused on (cast one's peek, "expected 'shuffled'")).
-            Done.
-            Cast one's advance.
+            Cast one's consume-word on ("shuffled") or pass the failure off.
             Cast one's skip-noise.
             Define pool as cast one's core-primary or pass the failure off.
             Return cast placed on ("RandomlyShuffled", a series with (pool), tok).
@@ -320,20 +317,35 @@ Pull a book on collections.
             Define args-series as cast nothing.
             Define with-terminal as false.
             Define fed-input as cast nothing.
+            Define said-arguments as false.
             While cast one's peek-kind is "With", repeat:
                 Cast one's advance.
                 Cast one's skip-noise.
                 If cast one's is-word on ("terminal"):
+                    If with-terminal:
+                        Return a failure (cast one's refused on (cast one's peek, "this run already says 'with the terminal'")).
+                    Done.
                     Cast one's advance.
                     The with-terminal becomes true.
                 Done.
                 Otherwise if cast one's is-word on ("input"):
+                    If fed-input's word is not "_":
+                        Return a failure (cast one's refused on (cast one's peek, "this run already says 'with input'")).
+                    Done.
                     Cast one's advance.
                     Cast one's skip-noise.
                     The fed-input becomes cast one's expr-or or pass the failure off.
                 Done.
                 Otherwise:
-                    Cast one's consume on ("Arguments") or pass the failure off.
+                    If cast one's peek-kind is not "Arguments":
+                        Return a failure (cast one's refused on (cast one's peek,
+                            "expected 'arguments', 'input' or 'the terminal' after 'with' in a run expression")).
+                    Done.
+                    If said-arguments:
+                        Return a failure (cast one's refused on (cast one's peek, "this run already says 'with arguments'")).
+                    Done.
+                    Cast one's advance.
+                    The said-arguments becomes true.
                     Cast one's skip-noise.
                     If cast one's peek-kind is "LParen":
                         Cast one's advance.
@@ -373,7 +385,10 @@ Pull a book on collections.
             Cast one's skip-noise.
             If cast one's peek-kind is "File":
                 If form is "Line":
-                    Return a failure (cast one's refused on (cast one's peek, "a line has to be read from an open stream, not from a path")).
+                    Return a failure (cast one's refused on (cast one's peek, "a line has to be read from an open stream, not from a path — a path has nowhere to "
+                        joined to "remember how far you have read, so every read would hand back the first line. Open "
+                        joined to "it first: 'With the file \"x\" open for reading as src:', then 'read a line from src'. "
+                        joined to "('read all from the file \"x\"' needs no stream, because it keeps no position.)")).
                 Done.
                 Cast one's advance.
                 Cast one's skip-noise.
@@ -451,6 +466,6 @@ Pull a book on collections.
             Return cast placed on ("InterruptRequestedExpression", a series of node, tok).
         Done.
 
-        Return a failure (cast one's not-yet on (kind)).
+        Return a failure (cast one's expecting on (tok, "expression")).
     Done.
 Done.

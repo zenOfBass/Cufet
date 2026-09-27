@@ -21,6 +21,7 @@ Pull a book on collections.
         the number loop-depth,
         the number nest-depth,
         the number function-depth,
+        the number rabbit-depth,
         the fact in-object-def,
         the fact in-free-function).
 
@@ -41,9 +42,10 @@ Pull a book on collections.
         Return current's kind.
     Done.
 
+    /// ⚠ Never past Eof — a file that ends where a word was taken must refuse, not run off the end.
     Bind token to advance unto parser:
         Define current as cast one's token-at on (one's at).
-        Increment one's at by 1.
+        If current's kind is not "Eof", increment one's at by 1.
         Return current.
     Done.
 
@@ -113,6 +115,12 @@ Pull a book on collections.
     Done.
 
     // ── Refusing ──────────────────────────────────────────────────────────
+    //
+    // ★ The two shapes a C# ParseException takes, word for word, because the parity test compares
+    // refusals as well as trees:
+    //   ParseException(token, expected)     → "Line L, column C: expected X, got Kind \"lexeme\"."
+    //   ParseException(line, column, words) → "Line L, column C: words"
+    // Each failure message starts `error` and a tab; the program prints it as it stands.
 
     Bind text to refusal-at, given (the text shape, the token spot-tok, the text reason):
         Return "{shape}\t{spot-tok's row}\t{spot-tok's column}\t{reason}".
@@ -123,16 +131,101 @@ Pull a book on collections.
         Return cast refusal-at on ("unsupported", cast one's peek, what).
     Done.
 
-    /// A source the C# parser refuses too.
+    /// ParseException(line, column, message) — at a token's place.
     Bind text to refused unto parser, given (the token spot-tok, the text reason):
-        Return cast refusal-at on ("error", spot-tok, reason).
+        Return "error\tLine {spot-tok's row}, column {spot-tok's column}: {reason}".
+    Done.
+
+    /// ParseException(line, column, message) — at a place with no token to hand.
+    Bind text to refused-at, given (the number at-row, the number at-column, the text reason):
+        Return "error\tLine {at-row}, column {at-column}: {reason}".
+    Done.
+
+    /// ParseException(token, expected) — "expected X, got Kind \"lexeme\"."
+    Bind text to expecting unto parser, given (the token got, the text expected):
+        Return "error\tLine {got's row}, column {got's column}: expected {expected}, got {got's kind} \"{got's lexeme}\".".
+    Done.
+
+    /// Describe — what to CALL a token kind in a message meant for a person.
+    Bind text to described, given (the text kind):
+        If kind is "Dot", return "'.'".
+        If kind is "Colon", return "':'".
+        If kind is "Comma", return "','".
+        If kind is "LParen", return "'('".
+        If kind is "RParen", return "')'".
+        If kind is "Identifier", return "a name".
+        If kind is "Eof", return "the end of the file".
+        Return kind.
+    Done.
+
+    /// LooksLikeAWord — the lexeme starts with a letter.
+    Bind fact to looks-like-a-word unto parser, given (the token candidate):
+        If candidate's lexeme is "", return false.
+        Define lead as the first 1 characters of candidate's lexeme.
+        Return cast one's is-letter-char on (lead).
+    Done.
+
+    /// char.IsLetter, as the scanner answers it.
+    Bind fact to is-letter-char unto parser, given (the text ch):
+        Define kinds as cast character-kinds.
+        Define kind as (the entry for ch in kinds) but void is 0.
+        If kind is 1, return true.
+        If kind is not 0, return false.
+        Return (ch in lowercase) is not (ch in uppercase).
+    Done.
+
+    /// ReservedWordAsName.
+    Bind text to reserved-as-name unto parser, given (the token word):
+        Return cast one's refused on (word, "'{word's lexeme}' is a word Cufet has taken, so it cannot be a name here. "
+            joined to "A reserved word can be neither a variable nor a field, anywhere in any "
+            joined to "program. Choose another name — see the reserved list in GRAMMAR.").
+    Done.
+
+    /// CallOrFieldShape — a name then `(` or `of` where a statement should have ended.
+    Bind text to call-or-field-shape unto parser, given (the token got):
+        If one's at is 1, return "".
+        Define before as cast one's token-at on (one's at - 1).
+        If before's kind is not "Identifier", return "".
+        Define name as before's lexeme.
+        If got's kind is "LParen":
+            Return "'{name}(' looks like a call, and Cufet calls a function with 'cast': 'cast {name} on (…)'.".
+        Done.
+        If got's kind is not "Of", return "".
+        Define following as cast one's kind-after.
+        If following is "LParen":
+            Return "'{name} of (…)' is how a BOOK's member is called — 'math's square-root of (16)'. "
+                joined to "A function of your own is called with 'cast': 'cast {name} on (…)'.".
+        Done.
+        If following is "Identifier", return "reading a field needs 'the' in front: 'the {name} of …'.".
+        Return "".
     Done.
 
     Bind token or failure to consume unto parser, given (the text kind):
         Define current as cast one's peek.
-        If current's kind is not kind:
+        // A word a pull has taken is reserved where that pull is, and nowhere else.
+        If kind is "Identifier" and cast one's effective-kind on (current) is "Chase":
             Return a failure (cast one's refused on (current,
-                "expected {kind}, got {current's kind} \"{current's lexeme}\"")).
+                "'{current's lexeme}' is a type while 'collections' is pulled, so it cannot be a name here. "
+                joined to "Outside that pull it is an ordinary name. Choose another name, or move this "
+                joined to "out of the 'collections' pull.")).
+        Done.
+        If current's kind is not kind:
+            If kind is "Identifier" and cast one's looks-like-a-word on (current):
+                Return a failure (cast one's reserved-as-name on (current)).
+            Done.
+            If kind is "Dot":
+                Define shape as cast one's call-or-field-shape on (current).
+                If shape is not "", return a failure (cast one's refused on (current, shape)).
+            Done.
+            Return a failure (cast one's expecting on (current, cast described on (kind))).
+        Done.
+        Return cast one's advance.
+    Done.
+
+    /// ConsumeWord — a contextual word the frame requires.
+    Bind token or failure to consume-word unto parser, given (the text word):
+        If cast one's is-word on (word) is false:
+            Return a failure (cast one's expecting on (cast one's peek, "'{word}'")).
         Done.
         Return cast one's advance.
     Done.

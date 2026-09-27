@@ -64,10 +64,7 @@ Pull a book on collections.
             Cast one's skip-noise.
             Cast one's consume on ("Comma") or pass the failure off.
             Cast one's skip-noise.
-            If cast one's is-word on ("entry") is false:
-                Return a failure (cast one's refused on (cast one's peek, "expected 'entry'")).
-            Done.
-            Cast one's advance.
+            Cast one's consume-word on ("entry") or pass the failure off.
             Cast one's skip-noise.
             Cast one's consume on ("For") or pass the failure off.
             Cast one's skip-noise.
@@ -134,10 +131,7 @@ Pull a book on collections.
                 If edge and (cast one's peek-kind is "Number" or cast one's peek-kind is "LParen"):
                     Define count as cast one's addition or pass the failure off.
                     Cast one's skip-noise.
-                    If cast one's is-word on ("characters") is false:
-                        Return a failure (cast one's refused on (cast one's peek, "expected 'characters'")).
-                    Done.
-                    Cast one's advance.
+                    Cast one's consume-word on ("characters") or pass the failure off.
                     Cast one's skip-noise.
                     Cast one's consume on ("Of") or pass the failure off.
                     Cast one's skip-noise.
@@ -405,7 +399,7 @@ Pull a book on collections.
                 Cast piece's add on (cast flag on (true)).
             Done.
             Otherwise:
-                Return a failure (cast one's refused on (cast one's peek, "expected string piece or interpolation expression")).
+                Return a failure (cast one's expecting on (cast one's peek, "string piece or interpolation expression")).
             Done.
             If started:
                 The result becomes cast placed on ("TextJoin", a series with (result, piece), opener).
@@ -442,7 +436,8 @@ Pull a book on collections.
             Return.
         Done.
         If the number of named's children is greater than 0:
-            Return a failure (cast one's refused on (cast one's peek, "expected a named argument")).
+            Return a failure (cast one's expecting on (cast one's peek, "a named argument — once one argument is named, the ones after it must be too, "
+                joined to "because position no longer says which parameter is meant")).
         Done.
         Cast one's skip-noise.
         Define value as cast one's expression or pass the failure off.
@@ -505,7 +500,7 @@ Pull a book on collections.
             Return.
         Done.
         If the number of named's children is greater than 0:
-            Return a failure (cast one's refused on (cast one's peek,
+            Return a failure (cast one's expecting on (cast one's peek,
                 "positional fields must come before named fields — move all 'the name value' fields to the end")).
         Done.
         Define value as cast one's expression or pass the failure off.

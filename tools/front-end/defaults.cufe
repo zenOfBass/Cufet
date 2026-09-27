@@ -139,7 +139,7 @@ Pull a book on collections.
                                 Define shown-type as the characters from 2 to (the length of own-name-node's word - 1) of own-name-node's word.
                                 Define shown-first as the characters from 2 to (the length of already - 1) of already.
                                 Define shown-second as the characters from 2 to (the length of claimed's word - 1) of claimed's word.
-                                Return a failure "error\t{(item 7 of default-method's children)'s word}\t{(item 8 of default-method's children)'s word}\t'{shown-type}' would get a default '{shown-name}' from both '{shown-first}' and '{shown-second}', and there is no rule for which should win. Give '{shown-type}' its own '{shown-name}' — a type's own method beats an interface default.".
+                                Return a failure "error\tLine {(item 7 of default-method's children)'s word}, column {(item 8 of default-method's children)'s word}: '{shown-type}' would get a default '{shown-name}' from both '{shown-first}' and '{shown-second}', and there is no rule for which should win. Give '{shown-type}' its own '{shown-name}' — a type's own method beats an interface default.".
                             Done.
                             In taken-from, the entry for method-name becomes claimed's word.
                             Define copied as a series of node.

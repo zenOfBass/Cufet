@@ -409,7 +409,7 @@ Pull a book on collections.
                     cast row-of on (converted-tok), cast column-of on (converted-tok))).
             Done.
             Otherwise:
-                Return a failure (cast one's refused on (target,
+                Return a failure (cast one's expecting on (target,
                     "text, number, hex, binary or octal — expected after 'converted to'")).
             Done.
             Cast one's skip-noise.
@@ -459,9 +459,10 @@ Pull a book on collections.
                     Cast one's advance.
                     Cast one's skip-noise.
                     If cast one's peek-kind is "FunctionKw":
+                        Define key-tok as cast one's peek.
                         The by-lambda becomes cast one's core-primary or pass the failure off.
                         If by-lambda's kind is not "LambdaLiteral":
-                            Return a failure (cast one's refused on (cast one's peek, "expected a function literal after 'sorted by'")).
+                            Return a failure (cast one's refused on (key-tok, "expected a function literal after 'sorted by'")).
                         Done.
                     Done.
                     Otherwise:

@@ -20,14 +20,31 @@
 
 Pull a book on collections.
     /// The whole program's statements as printed lines — or the one line saying why not.
+    /// A lexer refusal — line, column and reason, tab-separated — in the words LexerException uses.
+    /// ★ Two shapes, as there: an unexpected character names itself, and anything else is a sentence
+    /// after the position, ending in a full stop.
+    Bind text to lexer-refusal, given (the text raw):
+        Define parts as raw split by "\t".
+        Define at-row as item 1 of parts.
+        Define at-column as item 2 of parts.
+        Define reason as the characters from (the length of at-row + the length of at-column + 3) to the end of raw.
+        If (the first 22 characters of reason) is "unexpected character '":
+            Return "error\tUnexpected character {the characters from 22 to the end of reason} on line {at-row}, column {at-column}.".
+        Done.
+        Return "error\tLine {at-row}, column {at-column}: {reason}.".
+    Done.
+
     Bind series of text or failure to program-lines, given (the text whole):
-        Define found as cast tokens-of on (whole) but on failure a series of token.
-        If the number of found is 0:
-            Return a failure "error\tthe lexer refused this file".
+        Define found as a series of token.
+        Try to:
+            The found becomes cast tokens-of on (whole).
+        Done.
+        In case of failure:
+            Return a failure (cast lexer-refusal on (the message of the failure)).
         Done.
         Define reading as a new parser {
             the tokens found, the at 1, the type-depth 0, the collections-depth 0, the loop-depth 0,
-            the nest-depth 0, the function-depth 0, the in-object-def false, the in-free-function false }.
+            the nest-depth 0, the function-depth 0, the rabbit-depth 0, the in-object-def false, the in-free-function false }.
         Define statements as cast listed.
         Define scanning as true.
         While scanning, repeat:
@@ -56,6 +73,12 @@ Pull a book on collections.
         Done.
         In case of failure:
             State the message of the failure.
+        Done.
+        // ⚠ A fault inside the parser itself — an index past the end — would otherwise stop every file
+        // after this one. Said as a `crash` line, which the parity test counts as a difference.
+        In case of exception:
+            State "crash\t{the message of the exception}".
+            Suppress the exception.
         Done.
     Done.
 Done.

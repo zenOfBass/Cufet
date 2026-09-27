@@ -22,7 +22,7 @@ Pull a book on collections.
             Cast one's skip-noise.
             Define digits as cast one's peek.
             If digits's kind is not "Number":
-                Return a failure (cast one's refused on (digits, "expected a number after '-'")).
+                Return a failure (cast one's expecting on (digits, "a number after '-'")).
             Done.
             Cast one's advance.
             Define amount as (digits's lexeme converted to number) but void is 0.
@@ -45,7 +45,7 @@ Pull a book on collections.
             Cast one's advance.
             Return cast placed on ("BooleanLiteral", a series with (cast flag on (tok's kind is "TrueKw")), tok).
         Done.
-        Return a failure (cast one's refused on (tok, "expected a number, some text, a bit pattern or a fact after 'It is'")).
+        Return a failure (cast one's expecting on (tok, "a number, some text, a bit pattern or a fact after 'It is'")).
     Done.
 
     Bind node or failure to judge-statement unto parser:
@@ -113,7 +113,7 @@ Pull a book on collections.
         Cast one's consume on ("Done") or pass the failure off.
         Cast one's consume on ("Dot") or pass the failure off.
         If the number of arms's children is 0:
-            Return a failure (cast one's refused on (judge-tok, "expected at least one case in a Judge")).
+            Return a failure (cast one's expecting on (judge-tok, "at least one case in a Judge")).
         Done.
         Return cast placed on ("JudgeStatement", a series with (subject, arms, otherwise-body), judge-tok).
     Done.
@@ -133,7 +133,8 @@ Pull a book on collections.
         Done.
         If cast one's peek-kind is "Bury":
             If one's function-depth is 0:
-                Return a failure (cast one's refused on (have-tok, "'bury' is only meaningful inside a function")).
+                Return a failure (cast one's refused on (have-tok, "'bury' is only meaningful inside a function — it is what makes that function hand "
+                    joined to "back a stash. At the top level there is nothing to suspend.")).
             Done.
             Cast one's advance.
             Cast one's skip-noise.
@@ -143,6 +144,10 @@ Pull a book on collections.
             Define bury-node as cast placed on ("BuryStatement", a series with (value), have-tok).
             Cast bury-node's add on (rabbit-name).
             Return bury-node.
+        Done.
+        If one's rabbit-depth is 0:
+            Return a failure (cast one's refused on (have-tok,
+                "'Have rabbit start a task' requires an active rabbit — wrap it in 'Pull a rabbit. ... Done.'")).
         Done.
         Cast one's consume on ("Start") or pass the failure off.
         Cast one's skip-noise.
@@ -214,7 +219,7 @@ Pull a book on collections.
         If cast one's peek-kind is "Identifier" and cast one's is-word on ("reading"), the mode becomes "Reading".
         If cast one's peek-kind is "Identifier" and cast one's is-word on ("writing"), the mode becomes "Writing".
         If mode is "":
-            Return a failure (cast one's refused on (cast one's peek, "expected 'reading' or 'writing' after 'for'")).
+            Return a failure (cast one's expecting on (cast one's peek, "'reading' or 'writing' after 'for'")).
         Done.
         Cast one's advance.
         Cast one's skip-noise.
@@ -224,7 +229,7 @@ Pull a book on collections.
         Cast one's skip-noise.
         Cast one's consume on ("Colon") or pass the failure off.
         Increment one's nest-depth by 1.
-        Define body as cast one's loop-body on (with-tok, "") or pass the failure off.
+        Define body as cast one's loop-body on (with-tok, "", "", "") or pass the failure off.
         Decrement one's nest-depth by 1.
         Return cast placed on ("WithOpenStatement", a series with (cast atom on (mode), path-expr,
             cast quoted on (binding-tok's lexeme), body), with-tok).
@@ -238,10 +243,15 @@ Pull a book on collections.
         Define left as cast one's expr-or or pass the failure off.
         If cast one's peek-kind is not "Pipe":
             If left's kind is not "RunExpression":
-                Return a failure (cast one's refused on (cast one's peek, "expected '|' — a pipe stage that is not a `run` must be piped to something")).
+                Return a failure (cast one's expecting on (cast one's peek, "'|' — a pipe stage that is not a `run` must be piped to something")).
             Done.
             If (item 6 of left's children)'s word is "true":
-                Return a failure (cast one's refused on (start-tok, "'with the terminal' asks for the child's exit code, and a statement has nowhere to put it.")).
+                Return a failure (cast refused-at on (cast numeral-value on (item 4 of left's children),
+                    cast numeral-value on (item 5 of left's children),
+                    "'with the terminal' asks for the child's exit code, and a statement has "
+                    joined to "nowhere to put it. Write `Define <name> as run ... with the terminal.` to "
+                    joined to "keep the exit code, or `Run ...` on its own to hand over the terminal and "
+                    joined to "ignore it.")).
             Done.
             Cast one's skip-noise.
             Cast one's consume on ("Dot") or pass the failure off.
@@ -288,11 +298,11 @@ Pull a book on collections.
         Cast one's skip-noise.
         Define returned as cast one's return-type or pass the failure off.
         If returned's word is "_":
-            Return a failure (cast one's refused on (cast one's peek, "expected a return type — getters cannot be void")).
+            Return a failure (cast one's expecting on (cast one's peek, "a return type — getters cannot be void")).
         Done.
         Cast one's skip-noise.
         Increment one's function-depth by 1.
-        Define body as cast one's value-body on (get-tok) or pass the failure off.
+        Define body as cast one's value-body on (get-tok, "Get doubled unto box as number, one's n * 2.", "") or pass the failure off.
         Decrement one's function-depth by 1.
         One's in-object-def becomes saved-object-def.
         One's in-free-function becomes saved-free-function.
@@ -324,7 +334,7 @@ Pull a book on collections.
         Cast one's consume on ("RParen") or pass the failure off.
         Cast one's skip-noise.
         Increment one's function-depth by 1.
-        Define body as cast one's void-body on (set-tok) or pass the failure off.
+        Define body as cast one's void-body on (set-tok, "Set bump unto box given (the number v), one's n becomes v.", "") or pass the failure off.
         Decrement one's function-depth by 1.
         One's in-object-def becomes saved-object-def.
         One's in-free-function becomes saved-free-function.
@@ -334,7 +344,7 @@ Pull a book on collections.
 
     Bind node or failure to unmaker-declaration unto parser:
         If one's nest-depth is greater than 0:
-            Return a failure (cast one's refused on (cast one's peek, "— unmakers must be declared at the top level, not inside a block")).
+            Return a failure (cast one's refused on (cast one's peek, "unmakers must be declared at the top level, not inside a block")).
         Done.
         Define saved-object-def as one's in-object-def.
         Define saved-free-function as one's in-free-function.
@@ -350,10 +360,10 @@ Pull a book on collections.
         Define name-tok as cast one's consume on ("Identifier") or pass the failure off.
         Cast one's skip-noise.
         If cast one's peek-kind is "Given":
-            Return a failure (cast one's refused on (cast one's peek, "— unmakers take no parameters (omit 'given (...)' entirely)")).
+            Return a failure (cast one's refused on (cast one's peek, "unmakers take no parameters — omit 'given (...)' entirely")).
         Done.
         Increment one's function-depth by 1.
-        Define body as cast one's void-body on (bind-tok) or pass the failure off.
+        Define body as cast one's void-body on (bind-tok, "Bind unmaking a handle to release, State \"closed\".", "Bind unmaking") or pass the failure off.
         Decrement one's function-depth by 1.
         One's in-object-def becomes saved-object-def.
         One's in-free-function becomes saved-free-function.
@@ -366,7 +376,7 @@ Pull a book on collections.
         Define lowered as tok's lexeme in lowercase.
         Define built-in as lowered is "number" or lowered is "text" or lowered is "fact" or lowered is "bits".
         If tok's kind is not "Identifier" and built-in is false:
-            Return a failure (cast one's refused on (tok, "expected a type name for this operand")).
+            Return a failure (cast one's expecting on (tok, "a type name for this operand")).
         Done.
         Cast one's advance.
         Return cast quoted on (tok's lexeme).
@@ -374,7 +384,7 @@ Pull a book on collections.
 
     Bind node or failure to overload-declaration unto parser:
         If one's nest-depth is greater than 0:
-            Return a failure (cast one's refused on (cast one's peek, "— operator overloads must be declared at the top level, not inside a block")).
+            Return a failure (cast one's refused on (cast one's peek, "operator overloads must be declared at the top level, not inside a block")).
         Done.
         Define saved-object-def as one's in-object-def.
         Define saved-free-function as one's in-free-function.
@@ -413,7 +423,7 @@ Pull a book on collections.
         Cast one's consume on ("RParen") or pass the failure off.
         Cast one's skip-noise.
         Increment one's function-depth by 1.
-        Define body as cast one's value-body on (bind-tok) or pass the failure off.
+        Define body as cast one's value-body on (bind-tok, "Bind overloading +, given (the lhs is a vec, the rhs is a vec), a new vec \{ the x lhs's x + rhs's x \}.", "Bind overloading") or pass the failure off.
         Decrement one's function-depth by 1.
         One's in-object-def becomes saved-object-def.
         One's in-free-function becomes saved-free-function.
@@ -514,7 +524,7 @@ Pull a book on collections.
         Done.
         Define inner-parser as a new parser {
             the tokens moved, the at 1, the type-depth 0, the collections-depth 0, the loop-depth 0,
-            the nest-depth 0, the function-depth 0, the in-object-def false, the in-free-function false }.
+            the nest-depth 0, the function-depth 0, the rabbit-depth 0, the in-object-def false, the in-free-function false }.
         If as-body:
             The inner-parser's function-depth becomes 1.
             The inner-parser's in-free-function becomes true.
