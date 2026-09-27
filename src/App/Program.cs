@@ -1,4 +1,4 @@
-﻿using Cufet.Compiler;
+using Cufet.Compiler;
 using Cufet.Interpreter;
 using Cufet.Lexer;
 using System.Diagnostics;
@@ -280,9 +280,9 @@ static void EmitC(string sourcePath, string outPath)
         Console.WriteLine($"         {Path.Combine(outDir, RuntimeSplit.SourceFileName)}");
         Console.WriteLine($"         {Path.Combine(outDir, RuntimeSplit.HeaderFileName)}");
     }
-    catch (LexerException e) { Console.Error.WriteLine(e.Message); Environment.Exit(1); }
-    catch (ParseException e) { Console.Error.WriteLine(e.Message); Environment.Exit(1); }
-    catch (TypeException e)  { Console.Error.WriteLine(e.Message); Environment.Exit(1); }
+    catch (LexerException e) { RefuseToRun(e); }
+    catch (ParseException e) { RefuseToRun(e); }
+    catch (TypeException e)  { RefuseToRun(e); }
     catch (CompilerException e) { Console.Error.WriteLine(e.Message); Environment.Exit(1); }
 }
 
@@ -565,6 +565,21 @@ static void WriteWarnings(string file, DiagnosticBag bag)
         Report(false, Path.GetFullPath(file), (w.Line, w.Column), w.SeverityName, w.Message);
 }
 
+/// <summary>A lex, parse or type refusal from a verb that runs or builds, and the exit that follows.</summary>
+/// <remarks>
+/// ⚠ The message says "Here on line 2" and nothing else, which is enough when the program is one
+/// file. In a project the refused line may sit in a NEIGHBOUR — `cufet main.cufe` refusing a line of
+/// `helper.cufe` — and "line 2" then points into the file that was run, where it is wrong. `check`
+/// always named the file; these verbs now do too, when it is not the one they were given.
+/// </remarks>
+static void RefuseToRun(Exception e)
+{
+    if (SourceMap.Current?.Resolve(PositionOf(e).Line) is { } origin)
+        Console.Error.WriteLine($"In {Path.GetRelativePath(Environment.CurrentDirectory, origin.Path)}:");
+    Console.Error.WriteLine(e.Message);
+    Environment.Exit(1);
+}
+
 static void Report(bool json, string file, (int Line, int Column) at, string severity, string message)
 {
     var (line, column) = at;
@@ -661,9 +676,9 @@ static void BuildProject()
         ]);
         program = checker.Check(program);
     }
-    catch (LexerException e) { Console.Error.WriteLine(e.Message); Environment.Exit(1); return; }
-    catch (ParseException e) { Console.Error.WriteLine(e.Message); Environment.Exit(1); return; }
-    catch (TypeException e)  { Console.Error.WriteLine(e.Message); Environment.Exit(1); return; }
+    catch (LexerException e) { RefuseToRun(e); return; }
+    catch (ParseException e) { RefuseToRun(e); return; }
+    catch (TypeException e)  { RefuseToRun(e); return; }
 
     WriteWarnings(blueprintFile, checker.Diagnostics);
 
@@ -1169,9 +1184,9 @@ static void Build(string sourcePath)
         program = checker.Check(program);
         RefuseIfNothingToRun("build", sourcePath, program, checker.PreludeStatements);
     }
-    catch (LexerException e) { Console.Error.WriteLine(e.Message); Environment.Exit(1); return; }
-    catch (ParseException e) { Console.Error.WriteLine(e.Message); Environment.Exit(1); return; }
-    catch (TypeException e)  { Console.Error.WriteLine(e.Message); Environment.Exit(1); return; }
+    catch (LexerException e) { RefuseToRun(e); return; }
+    catch (ParseException e) { RefuseToRun(e); return; }
+    catch (TypeException e)  { RefuseToRun(e); return; }
 
     WriteWarnings(sourcePath, checker.Diagnostics);
 
@@ -1280,9 +1295,9 @@ static void Interpret(string[] args)
         // 128 + SIGINT, the convention every shell already understands.
         if (interpreter.WasInterrupted) Environment.Exit(130);
     }
-    catch (LexerException e)   { Console.Error.WriteLine(e.Message); Environment.Exit(1); }
-    catch (ParseException e)   { Console.Error.WriteLine(e.Message); Environment.Exit(1); }
-    catch (TypeException e)    { Console.Error.WriteLine(e.Message); Environment.Exit(1); }
+    catch (LexerException e)   { RefuseToRun(e); }
+    catch (ParseException e)   { RefuseToRun(e); }
+    catch (TypeException e)    { RefuseToRun(e); }
     catch (RuntimeException e) { Console.Error.WriteLine(e.Message); Environment.Exit(1); }
 }
 

@@ -1782,7 +1782,7 @@ public sealed class Parser
     private StopStatement ParseStopStatement(Token tok)
     {
         if (_loopDepth == 0)
-            throw new ParseException(tok, "'Stop' used outside a loop");
+            throw new ParseException(tok.Line, tok.Column, "'Stop' is used outside a loop — it leaves the loop it is in, and there is none here");
         Advance();
         Consume(TokenType.Dot);
         return new StopStatement();
@@ -1791,7 +1791,7 @@ public sealed class Parser
     private SkipStatement ParseSkipStatement(Token tok)
     {
         if (_loopDepth == 0)
-            throw new ParseException(tok, "'Skip' used outside a loop");
+            throw new ParseException(tok.Line, tok.Column, "'Skip' is used outside a loop — it moves on to the next turn of the loop it is in, and there is none here");
         Advance();
         Consume(TokenType.Dot);
         return new SkipStatement();
@@ -4253,7 +4253,7 @@ public sealed class Parser
                     if (IsWord("terminal"))
                     {
                         if (withTerminal)
-                            throw new ParseException(Peek(),
+                            throw new ParseException(Peek().Line, Peek().Column,
                                 "this run already says 'with the terminal'");
                         Advance(); // consume 'terminal' (contextual)
                         withTerminal = true;
@@ -4262,7 +4262,7 @@ public sealed class Parser
                     if (IsWord("input"))
                     {
                         if (runInput != null)
-                            throw new ParseException(Peek(),
+                            throw new ParseException(Peek().Line, Peek().Column,
                                 "this run already says 'with input'");
                         Advance(); // consume 'input' (contextual)
                         SkipNoise();
@@ -4272,10 +4272,10 @@ public sealed class Parser
                         continue;
                     }
                     if (Peek().Type != TokenType.Arguments)
-                        throw new ParseException(Peek(),
+                        throw new ParseException(Peek().Line, Peek().Column,
                             "expected 'arguments', 'input' or 'the terminal' after 'with' in a run expression");
                     if (saidArguments)
-                        throw new ParseException(Peek(),
+                        throw new ParseException(Peek().Line, Peek().Column,
                             "this run already says 'with arguments'");
                     Advance(); // consume 'arguments'
                     saidArguments = true;
@@ -4439,7 +4439,7 @@ public sealed class Parser
                     }
                     else
                     {
-                        throw new ParseException(Peek(), "expected 'directory' or 'file' after 'the path ... is a'");
+                        throw new ParseException(Peek().Line, Peek().Column, "expected 'directory' or 'file' after 'the path ... is a'");
                     }
                 }
                 break;
@@ -4453,7 +4453,7 @@ public sealed class Parser
                 var envCol = envLineTok.Column;
                 if (Peek().Type != TokenType.Identifier ||
                     !Peek().Lexeme.Equals("variable", StringComparison.OrdinalIgnoreCase))
-                    throw new ParseException(Peek(), "expected 'variable' after 'environment'");
+                    throw new ParseException(Peek().Line, Peek().Column, "expected 'variable' after 'environment'");
                 Advance(); // consume 'variable'
                 SkipNoise();
                 // ParseExprOr so that 'but void is' (parsed one level above) stays outside the name.
@@ -4492,7 +4492,7 @@ public sealed class Parser
                 Consume(TokenType.Is);
                 if (Peek().Type != TokenType.Identifier ||
                     !Peek().Lexeme.Equals("requested", StringComparison.OrdinalIgnoreCase))
-                    throw new ParseException(Peek(), "expected 'requested' after 'an interrupt is'");
+                    throw new ParseException(Peek().Line, Peek().Column, "expected 'requested' after 'an interrupt is'");
                 Advance(); // consume 'requested'
                 baseExpr = new InterruptRequestedExpression(intLine, intCol);
                 break;
@@ -4923,7 +4923,7 @@ public sealed class Parser
     {
         var bindTok = Consume(TokenType.Bind);
         if (_nestDepth > 0 && !_inObjectDef && !_inFreeFunction)
-            throw new ParseException(bindTok, "Functions can only be declared at the top level or inside another function, not inside a block");
+            throw new ParseException(bindTok.Line, bindTok.Column, "functions can only be declared at the top level or inside another function, not inside a block");
         var savedInObjectDef   = _inObjectDef;
         var savedInFreeFunction = _inFreeFunction;
         _inObjectDef    = false;               // method body must not allow nested Binds
@@ -5546,8 +5546,8 @@ public sealed class Parser
     private UnmakerDeclaration ParseUnmakerDeclaration()
     {
         if (_nestDepth > 0)
-            throw new ParseException(Peek(),
-                "— unmakers must be declared at the top level, not inside a block");
+            throw new ParseException(Peek().Line, Peek().Column,
+                "unmakers must be declared at the top level, not inside a block");
 
         var savedInObjectDef   = _inObjectDef;
         var savedInFreeFunction = _inFreeFunction;
@@ -5567,8 +5567,8 @@ public sealed class Parser
         SkipNoise();
 
         if (Peek().Type == TokenType.Given)
-            throw new ParseException(Peek(),
-                "— unmakers take no parameters (omit 'given (...)' entirely)");
+            throw new ParseException(Peek().Line, Peek().Column,
+                "unmakers take no parameters — omit 'given (...)' entirely");
 
         _functionDepth++;
         // a destructor is void, so its inline form is a statement
@@ -5610,8 +5610,8 @@ public sealed class Parser
     private OperatorOverloadDeclaration ParseOverloadDeclaration()
     {
         if (_nestDepth > 0)
-            throw new ParseException(Peek(),
-                "— operator overloads must be declared at the top level, not inside a block");
+            throw new ParseException(Peek().Line, Peek().Column,
+                "operator overloads must be declared at the top level, not inside a block");
 
         var savedInObjectDef    = _inObjectDef;
         var savedInFreeFunction = _inFreeFunction;
@@ -5627,7 +5627,7 @@ public sealed class Parser
         // The operator token: +, -, *, /
         var opTok = Peek();
         if (opTok.Type is not (TokenType.Plus or TokenType.Minus or TokenType.Star or TokenType.Slash))
-            throw new ParseException(opTok,
+            throw new ParseException(opTok.Line, opTok.Column,
                 "expected an arithmetic operator (+, -, *, /) after 'overloading'");
         Advance();
         var op = opTok.Type;
@@ -5699,7 +5699,7 @@ public sealed class Parser
         var line = lineTok.Line;
         var col = lineTok.Column;
         if (_functionDepth == 0)
-            throw new ParseException(_tokens[_pos - 1], "'return' used outside a function");
+            throw new ParseException(lineTok.Line, lineTok.Column, "'Return' is used outside a function — it gives a function's answer back, and there is no function here");
         SkipNoise();
         if (Peek().Type == TokenType.Dot)
         {

@@ -67,6 +67,41 @@ public class CommandLineTests
         return path;
     }
 
+    // ── A refusal in a neighbour names its file ───────────────────────────
+
+    [Fact]
+    public void ARefusalInANeighbouringFile_NamesThatFile_WhenRunOrBuilt()
+    {
+        // ⚠ "Here on line 2" pointed into the file that was RUN, where line 2 is something else
+        // entirely. `check` always named the file; running and building printed the bare message.
+        // Found writing the Cufet parser, whose files are neighbours in one directory.
+        var dir = Directory.CreateTempSubdirectory("cufet-neighbour-").FullName;
+        try
+        {
+            File.WriteAllText(Path.Combine(dir, "blueprint.cufe"), "");
+            File.WriteAllText(Path.Combine(dir, "helper.cufe"), "Bind number to helper:\n    Return \"text\".\nDone.\n");
+            File.WriteAllText(Path.Combine(dir, "main.cufe"), "State cast helper.\n");
+
+            foreach (var verb in new[] { "run", "build" })
+            {
+                var (exit, _, err) = verb == "run"
+                    ? Run(Path.Combine(dir, "main.cufe"))
+                    : Run("build", Path.Combine(dir, "main.cufe"));
+                Assert.Equal(1, exit);
+                Assert.Contains("helper.cufe:", err);
+                Assert.Contains("Here on line 2", err);
+            }
+
+            // The file that was run needs no naming — it is the one the reader just typed.
+            File.WriteAllText(Path.Combine(dir, "helper.cufe"), "Bind number to helper, 1.\n");
+            File.WriteAllText(Path.Combine(dir, "main.cufe"), "State \"x\" + 1.\n");
+            var (ownExit, _, ownErr) = Run(Path.Combine(dir, "main.cufe"));
+            Assert.Equal(1, ownExit);
+            Assert.DoesNotContain("In ", ownErr.Split('\n')[0]);
+        }
+        finally { Directory.Delete(dir, recursive: true); }
+    }
+
     // ── Program arguments ─────────────────────────────────────────────────
     //
     // ★★ These have to live HERE rather than in an interpreter test, because the thing under test

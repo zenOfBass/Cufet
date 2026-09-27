@@ -38,6 +38,18 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   became `scanner.cufe`, which gives back tokens as objects, and `lexer.cufe` is the small program
   that prints them.
 
+### Fixed
+
+- **A refusal in a neighbouring file names that file** when a program is run or built. `cufet
+  main.cufe` refusing a line of `helper.cufe` printed "Here on line 2" and nothing else, which
+  points into the file that was run; it now opens `In helper.cufe:`. `cufet check` always named it.
+- **Refusals that read as expectations no longer do.** Eleven sentences went through the "expected
+  X, got Y" wording, so `Stop.` outside a loop said *"expected 'Stop' used outside a loop, got
+  Stop"*, a misplaced unmaker said *"expected — unmakers must be declared…"*, and three sentences
+  that began with "expected" said it twice. Each now says what it means.
+- **Shadowing `input` or `output` no longer says "It was defined on line 0".** Both are built into
+  every program and written nowhere; the refusal now says so.
+
 ## [0.26.0] — 2026-09-26
 
 ### Added

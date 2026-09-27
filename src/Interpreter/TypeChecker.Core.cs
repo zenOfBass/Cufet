@@ -1,4 +1,4 @@
-﻿using Cufet.Lexer;
+using Cufet.Lexer;
 using System.Globalization;
 
 namespace Cufet.Interpreter;
@@ -3249,7 +3249,12 @@ public sealed partial class TypeChecker
                 if (!define.Shadow)
                     throw TypeError(
                         $"'{define.Name}' already exists in an enclosing scope",
-                        $"It was defined on line {outer.EstablishingLine}",
+                        // ⚠ `input` and `output` are given to every program and written nowhere, so
+                        // their line is 0 — and "It was defined on line 0" sent a reader to look for
+                        // a line that does not exist.
+                        outer.EstablishingLine > 0
+                            ? $"It was defined on line {outer.EstablishingLine}"
+                            : $"'{define.Name}' is built into every program — it is not written anywhere, so no line defines it",
                         define.Line, define.Column,
                         $"declare '{define.Name}' in this block without shadowing the outer one",
                         $"To deliberately shadow it, write 'Define a shadow {define.Name} as ...'.");
