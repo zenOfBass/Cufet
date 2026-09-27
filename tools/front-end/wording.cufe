@@ -21,6 +21,27 @@ Pull a book on collections.
         Return "error\tThat doesn't work: {context}.{settled}\nHere on line {at-row}, you're trying to {action}.\n\n{fix}".
     Done.
 
+    /// A voidable used where only a value that is there will do — C#'s `VoidableMisuse`, the one
+    /// refusal every such site gives. `example` is the line written the way that works; `note`,
+    /// when not empty, is one more line of advice.
+    Bind text to void-misuse, given (the node said, the text needs, the text action, the text example,
+            the number at-row, the text note):
+        Define spoken as cast expression-words on (said).
+        Define fix as "Say what to use when it is void: {example}.".
+        If note is not "", the fix becomes "{fix}\n{note}".
+        If said's kind is "VariableReference", the fix becomes "{fix}\nOr check first, with 'If {spoken} is not void:'.".
+        Return cast refusal-of on ("'{spoken}' might be void, and {needs}", "", at-row, action, fix).
+    Done.
+
+    /// `<expr> but void is <a default>` — what a void-misuse example is built from.
+    Bind text to defaulted, given (the node said, the node inner):
+        Define fallback as "<a {cast type-words on (inner)}>".
+        If inner's kind is "NumberType", the fallback becomes "0".
+        If inner's kind is "TextType", the fallback becomes "\"\"".
+        If inner's kind is "FactType", the fallback becomes "false".
+        Return "{cast expression-words on (said)} but void is {fallback}".
+    Done.
+
     /// What the checker cannot judge yet, as a failure message.
     Bind text to not-judged, given (the text what):
         Return "unsupported\t{what}".
@@ -128,6 +149,10 @@ Pull a book on collections.
         If kind is "StringLiteral", return "\"{cast unquoted on (cast field-of on (said, 1))}\"".
         If kind is "VariableReference", return cast unquoted on (cast field-of on (said, 1)).
         If kind is "VoidLiteral", return "void".
+        If kind is "NumberConvert", return "{cast expression-words on (cast field-of on (said, 1))} converted to number".
+        // ⚠ Not yet: C# rebuilds a bits literal in its own base and width. Loud on purpose, so a
+        // message that quotes one shows up as a difference rather than passing by chance.
+        If kind is "BitsLiteral", return "<bits literal>".
         Return "<expression>".
     Done.
 

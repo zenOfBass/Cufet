@@ -16,13 +16,39 @@ Pull a book on collections.
         If kind is "VariableReference", return cast one's infer-name on (said) or pass the failure off.
         If kind is "UnaryExpression", return cast one's infer-unary on (said) or pass the failure off.
         If kind is "BinaryExpression", return cast one's infer-binary on (said) or pass the failure off.
+        If kind is "TextJoin", return cast one's infer-join on (said) or pass the failure off.
+        If kind is "TextConvert", return cast one's infer-text-convert on (said) or pass the failure off.
+        If kind is "NumberConvert", return cast one's infer-number-convert on (said) or pass the failure off.
+        If kind is "ButVoidDefault", return cast one's infer-but-void on (said) or pass the failure off.
+        If kind is "SeriesLiteral", return cast one's infer-series-literal on (said) or pass the failure off.
+        If kind is "SeriesAccess", return cast one's infer-series-access on (said) or pass the failure off.
+        If kind is "SeriesLength", return cast one's infer-series-length on (said) or pass the failure off.
         Return a failure (cast not-judged on (kind)).
+    Done.
+
+    Bind fact to is-none, given (the node shape):
+        Return shape's kind is "none".
+    Done.
+
+    /// A type this checker cannot weigh yet — held behind `unsupported` wherever it turns up.
+    Bind fact to beyond-types, given (the node shape):
+        Define kind as shape's kind.
+        If kind is "ObjectType" or kind is "UnionType" or kind is "RecordType" or kind is "FunctionType":
+            Return true.
+        Done.
+        For each inner in shape's children, repeat:
+            If inner's kind is not "atom" and inner's kind is not "list" and cast beyond-types on (inner), return true.
+        Done.
+        Return false.
     Done.
 
     // ── Names ─────────────────────────────────────────────────────────────
 
     Bind node or failure to infer-name unto checker, given (the node said):
         Define name as cast unquoted on (cast field-of on (said, 1)).
+        // ⚠ A narrowing is asked FIRST, before scope — C# keeps them by name, not by scope.
+        Define narrowing as the entry for name in one's narrowed.
+        If narrowing is not void, return narrowing.
         Define found as cast one's look-up on (name).
         If found is not void, return found's shape.
         Return cast one's unresolved on (said) or pass the failure off.
@@ -103,10 +129,10 @@ Pull a book on collections.
         Define lk as lhs's kind.
         Define rk as rhs's kind.
 
-        // What this checker cannot weigh yet: overloads and matrices, voidables, unions, rabbits.
-        For each seen in a series with (lk, rk), repeat:
-            If seen is "ObjectType" or seen is "MatrixType" or seen is "VoidableType" or seen is "UnionType":
-                Return a failure (cast not-judged on ("an operator on a {seen}")).
+        // What this checker cannot weigh yet: overloads and matrices, unions, rabbits.
+        For each seen in a series with (lhs, rhs), repeat:
+            If seen's kind is "MatrixType" or cast beyond-types on (seen):
+                Return a failure (cast not-judged on ("an operator on a {seen's kind}")).
             Done.
         Done.
 
@@ -116,6 +142,23 @@ Pull a book on collections.
         Define gate as op is "And" or op is "Or" or op is "Xor".
         Define equality as op is "Equal" or op is "NotEqual".
 
+        // A voidable number where a number goes, with a number on the other side too: say void.
+        Define left-number as lk is "NumberType" or cast is-voidable-of on (lhs, "NumberType").
+        Define right-number as rk is "NumberType" or cast is-voidable-of on (rhs, "NumberType").
+        If (arithmetic or ordering) and left-number and right-number and (lk is "VoidableType" or rk is "VoidableType"):
+            Define culprit as cast field-of on (said, 3).
+            If lk is "VoidableType", the culprit becomes cast field-of on (said, 1).
+            Define needs as "ordering needs a number that is there".
+            Define action as "order a voidable number".
+            If arithmetic:
+                The needs becomes "{symbol} needs a number that is there".
+                The action becomes "use {symbol} with a voidable number".
+            Done.
+            Return a failure (cast void-misuse on (culprit, needs, action,
+                "'({cast defaulted on (culprit, cast plain-type on ("NumberType"))})' in its place", at-row,
+                "Keep the brackets: without them, the default runs on to the end of the line.")).
+        Done.
+
         If arithmetic:
             If lk is "NumberType" and rk is "NumberType", return lhs.
             If lk is "BitsType" and rk is "BitsType", return lhs.
@@ -124,7 +167,18 @@ Pull a book on collections.
                 "If you meant arithmetic, both sides need to be numbers.\nIf you meant to join text, use 'joined to': \"hello\" joined to \" world\".")).
         Done.
         If equality:
-            If cast same-type on (lhs, rhs), return cast plain-type on ("FactType").
+            Define fact-type as cast plain-type on ("FactType").
+            // A voidable against void, or against a plain value of what it holds.
+            If (lk is "VoidableType" and rk is "VoidType") or (lk is "VoidType" and rk is "VoidableType"):
+                Return fact-type.
+            Done.
+            If lk is "VoidableType":
+                If cast same-type on (cast field-of on (lhs, 1), rhs), return fact-type.
+            Done.
+            If rk is "VoidableType":
+                If cast same-type on (cast field-of on (rhs, 1), lhs), return fact-type.
+            Done.
+            If cast same-type on (lhs, rhs), return fact-type.
             Return a failure (cast refusal-of on ("equality comparison requires matching types", "",
                 at-row, "compare a {cast type-words on (lhs)} to a {cast type-words on (rhs)}",
                 "A {cast type-words on (lhs)} and a {cast type-words on (rhs)} can never be equal — this is likely a mistake. Check which side has the wrong type.")).
@@ -150,5 +204,208 @@ Pull a book on collections.
                 "Both sides of '{symbol}' must be facts, or both must be bits. Did you mean to write a comparison like 'x is 0' rather than just 'x'?")).
         Done.
         Return cast unknown-type.
+    Done.
+
+    Bind fact to is-voidable-of, given (the node shape, the text inner-kind):
+        Return shape's kind is "VoidableType" and (cast field-of on (shape, 1))'s kind is inner-kind.
+    Done.
+
+    // ── Text ──────────────────────────────────────────────────────────────
+
+    /// What `converted to text` accepts — number, fact, text, bits and a chase.
+    Bind fact to text-convertible, given (the node shape):
+        Define kind as shape's kind.
+        Return kind is "NumberType" or kind is "FactType" or kind is "TextType" or kind is "BitsType" or kind is "ChaseType".
+    Done.
+
+    Bind node or failure to infer-join unto checker, given (the node said):
+        Define lhs as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
+        Define rhs as cast one's infer on (cast field-of on (said, 2)) or pass the failure off.
+        Define at-row as cast numeric on (cast field-of on (said, 3)).
+        Define place as 0.
+        For each side-type in a series with (lhs, rhs), repeat:
+            Increment place by 1.
+            Define side as cast field-of on (said, place).
+            If side-type's kind is "VoidableType":
+                Define inner as cast field-of on (side-type, 1).
+                If cast text-convertible on (inner):
+                    Define example as "'({cast defaulted on (side, inner)}) converted to text'".
+                    If inner's kind is "TextType", the example becomes "'{cast defaulted on (side, inner)}'".
+                    Return a failure (cast void-misuse on (side, "only text that is there can be joined",
+                        "join a {cast type-words on (side-type)}", example, at-row, "")).
+                Done.
+            Done.
+        Done.
+        If cast is-none on (lhs) is false and lhs's kind is not "TextType":
+            Return a failure (cast refusal-of on ("you can only join text to text", "", at-row,
+                "join a {cast type-words on (lhs)} to text",
+                "Convert the {cast type-words on (lhs)} first: use 'converted to text'.\nFor example: n converted to text joined to \" items\".")).
+        Done.
+        If cast is-none on (rhs) is false and rhs's kind is not "TextType":
+            Return a failure (cast refusal-of on ("you can only join text to text", "", at-row,
+                "join text to a {cast type-words on (rhs)}",
+                "Convert the {cast type-words on (rhs)} first: use 'converted to text'.\nFor example: \"score: \" joined to n converted to text.")).
+        Done.
+        Return cast plain-type on ("TextType").
+    Done.
+
+    Bind node or failure to infer-text-convert unto checker, given (the node said):
+        Define value as cast field-of on (said, 1).
+        Define operand as cast one's infer on (value) or pass the failure off.
+        Define at-row as cast numeric on (cast field-of on (said, 2)).
+        Define as-hole as cast truth-of on (cast field-of on (said, 4)).
+        Define text-type as cast plain-type on ("TextType").
+        If cast is-none on (operand) or cast text-convertible on (operand), return text-type.
+        If operand's kind is "VoidableType":
+            Define inner as cast field-of on (operand, 1).
+            If cast text-convertible on (inner):
+                Define action as "convert a {cast type-words on (operand)} to text".
+                Define example as "'({cast defaulted on (value, inner)}) converted to text'".
+                If as-hole:
+                    The action becomes "put a {cast type-words on (operand)} in a hole".
+                    The example becomes "'\{{cast defaulted on (value, inner)}\}'".
+                Done.
+                Return a failure (cast void-misuse on (value, "void has no text to convert to", action, example, at-row, "")).
+            Done.
+        Done.
+        If cast beyond-types on (operand), return a failure (cast not-judged on ("converting a {operand's kind} to text")).
+        Return a failure (cast refusal-of on ("'converted to text' doesn't work on {cast plural-words on (operand)}", "",
+            at-row, "convert a {cast type-words on (operand)} to text",
+            "Only numbers, facts, bits and a chase can be converted to text.")).
+    Done.
+
+    Bind node or failure to infer-number-convert unto checker, given (the node said):
+        Define operand as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
+        Define at-row as cast numeric on (cast field-of on (said, 2)).
+        If operand's kind is "BitsType", return cast plain-type on ("NumberType").
+        If cast is-none on (operand) is false and operand's kind is not "TextType":
+            If cast beyond-types on (operand), return a failure (cast not-judged on ("converting a {operand's kind} to number")).
+            Return a failure (cast refusal-of on ("'converted to number' expects text or bits", "", at-row,
+                "convert a {cast type-words on (operand)} to number",
+                "Text converts to a voidable number — void if it isn't a valid number. Bits convert to a plain number, since every bit pattern is some quantity.")).
+        Done.
+        Return cast wrapped on ("VoidableType", cast plain-type on ("NumberType")).
+    Done.
+
+    /// A type around another — `(VoidableType (NumberType))`.
+    Bind node to wrapped, given (the text kind, the node inner):
+        Define shape as cast plain-type on (kind).
+        Cast shape's add on (inner).
+        Return shape.
+    Done.
+
+    Bind node or failure to infer-but-void unto checker, given (the node said):
+        Define held as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
+        Define fallback as cast one's infer on (cast field-of on (said, 2)) or pass the failure off.
+        Define at-row as cast numeric on (cast field-of on (said, 3)).
+        If held's kind is "VoidableType":
+            Define inner as cast field-of on (held, 1).
+            If cast is-none on (fallback) is false and cast assignable on (inner, fallback) is false:
+                If cast beyond-types on (fallback) or cast beyond-types on (inner), return a failure (cast not-judged on ("a default of another kind")).
+                Return a failure (cast refusal-of on (
+                    "the default value is a {cast type-words on (fallback)}, but the voidable holds {cast plural-words on (inner)}", "",
+                    at-row, "use a {cast type-words on (fallback)} as the default for a voidable {cast type-words on (inner)}",
+                    "The default after 'but void is' must be a {cast type-words on (inner)}.")).
+            Done.
+            Return inner.
+        Done.
+        If held's kind is "VoidType", return fallback.
+        If cast is-none on (held) is false:
+            If cast beyond-types on (held), return a failure (cast not-judged on ("'but void is' on a {held's kind}")).
+            Return a failure (cast refusal-of on ("'{cast type-words on (held)}' can never be void", "", at-row,
+                "use 'but void is' on a {cast type-words on (held)} value",
+                "Only voidable values can be void. 'but void is' is only needed for voidable values.")).
+        Done.
+        Return held.
+    Done.
+
+    // ── Series ────────────────────────────────────────────────────────────
+
+    /// A written-out position that is not a whole number — C#'s `CheckIndex`.
+    Bind void or failure to check-index, given (the node index-said, the number at-row):
+        If index-said's kind is not "NumberLiteral", return.
+        Define written as (cast field-of on (index-said, 1))'s word.
+        Define amount as cast numeric on (cast field-of on (index-said, 1)).
+        If amount % 1 is not 0:
+            Return a failure (cast refusal-of on ("item positions must be whole numbers", "", at-row,
+                "use {written} as a position", "Positions are counted 1, 2, 3 and so on. Use a whole number.")).
+        Done.
+    Done.
+
+    Bind node or failure to infer-series-literal unto checker, given (the node said):
+        Define elements as cast field-of on (said, 1).
+        Define annotation as cast field-of on (said, 2).
+        Define at-row as cast numeric on (cast field-of on (said, 3)).
+        Define annotated as cast is-nothing on (annotation) is false.
+        If annotated and cast beyond-types on (annotation), return a failure (cast not-judged on ("a series annotated {annotation's kind}")).
+
+        Define inferred as cast unknown-type.
+        Define place as 0.
+        For each element in elements's children, repeat:
+            Increment place by 1.
+            Define element-type as cast one's infer on (element) or pass the failure off.
+            If cast is-none on (element-type) is false:
+                If cast is-none on (inferred):
+                    The inferred becomes element-type.
+                Done.
+                Otherwise if cast same-type on (inferred, element-type) is false:
+                    If cast beyond-types on (inferred) or cast beyond-types on (element-type):
+                        Return a failure (cast not-judged on ("a series of mixed kinds")).
+                    Done.
+                    Return a failure (cast refusal-of on ("every item in a series must be the same type",
+                        "The first item is a {cast type-words on (inferred)}, so all items must be {cast plural-words on (inferred)}",
+                        at-row, "make item {place} a {cast type-words on (element-type)}",
+                        "Remove the mismatched item, or define two separate series — one for {cast plural-words on (inferred)} and one for {cast plural-words on (element-type)}.")).
+                Done.
+            Done.
+        Done.
+
+        If annotated:
+            If cast is-none on (inferred) is false and cast same-type on (inferred, annotation) is false:
+                If cast beyond-types on (inferred), return a failure (cast not-judged on ("a series of {inferred's kind}")).
+                Return a failure (cast refusal-of on ("you said this is a series of {cast plural-words on (annotation)}",
+                    "That annotation fixes the element type as {cast type-words on (annotation)}",
+                    at-row, "put a {cast type-words on (inferred)} item in it",
+                    "Fix the annotation to match the elements, or change the elements to match the annotation.")).
+            Done.
+            Return cast wrapped on ("SeriesType", annotation).
+        Done.
+        If cast is-none on (inferred):
+            Return a failure (cast refusal-of on ("an empty series has no items to infer its type from", "",
+                at-row, "define an empty series without saying what type of items it will hold",
+                "Add an annotation to declare the element type: a series of numbers (), a series of text (), or a series of facts ().")).
+        Done.
+        Return cast wrapped on ("SeriesType", inferred).
+    Done.
+
+    Bind node or failure to infer-series-access unto checker, given (the node said):
+        Define index-said as cast field-of on (said, 2).
+        Define at-row as cast numeric on (cast field-of on (said, 3)).
+        If cast is-nothing on (index-said) is false:
+            Cast check-index on (index-said, at-row) or pass the failure off.
+        Done.
+        Define target as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
+        If target's kind is "SeriesType", return cast field-of on (target, 1).
+        If target's kind is "ChaseType", return cast plain-type on ("TextType").
+        If cast beyond-types on (target), return a failure (cast not-judged on ("an item of a {target's kind}")).
+        Return cast unknown-type.
+    Done.
+
+    Bind node or failure to infer-series-length unto checker, given (the node said):
+        Define counted as cast field-of on (said, 1).
+        Define container as cast one's infer on (counted) or pass the failure off.
+        Define at-row as cast numeric on (cast field-of on (said, 2)).
+        If container's kind is "RecordType", return a failure (cast not-judged on ("the number of a record")).
+        If container's kind is "MapType":
+            Return a failure (cast refusal-of on ("'the number of' works on series, not maps", "", at-row,
+                "get the number of entries in {cast expression-words on (counted)} (a map)",
+                "For maps, use 'the size of'. For text, use 'the length of'.")).
+        Done.
+        If container's kind is "TextType":
+            Return a failure (cast refusal-of on ("'the number of' works on series, not text", "", at-row,
+                "get the number of characters in {cast expression-words on (counted)} (a text)",
+                "For text, use 'the length of'. For maps, use 'the size of'.")).
+        Done.
+        Return cast plain-type on ("NumberType").
     Done.
 Done.

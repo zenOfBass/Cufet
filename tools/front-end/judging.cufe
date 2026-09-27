@@ -16,7 +16,8 @@ Pull a book on collections.
     Define object checker with (
         the series of map from text to binding scopes,
         the map from text to number ended-names,
-        the map from text to fact hoisted-constants).
+        the map from text to fact hoisted-constants,
+        the map from text to node narrowed).
 
     Bind node to unknown-type:
         Return cast shaped on ("none").
@@ -102,36 +103,41 @@ Pull a book on collections.
     /// declarations first: a refusal it gives while hoisting comes before any in the statements.
     Bind text to beyond-reach, given (the node statements):
         For each statement in statements's children, repeat:
-            Define kind as statement's kind.
-            If kind is "DefineStatement":
-                If cast is-nothing on (cast field-of on (statement, 7)) is false, return "a Define with a declared type".
-                If the number of statement's children is greater than 7, return "a Define given parameters".
-            Done.
-            Otherwise if kind is "IfStatement":
-                For each arm in (cast field-of on (statement, 1))'s children, repeat:
-                    Define inner as cast beyond-reach on (cast field-of on (arm, 2)).
-                    If inner is not "", return inner.
-                Done.
-                Define otherwise-body as cast field-of on (statement, 2).
-                If cast is-nothing on (otherwise-body) is false:
-                    Define inner as cast beyond-reach on (otherwise-body).
-                    If inner is not "", return inner.
-                Done.
-            Done.
-            Otherwise if kind is "WhileStatement":
-                Define inner as cast beyond-reach on (cast field-of on (statement, 2)).
-                If inner is not "", return inner.
-            Done.
-            Otherwise if kind is "RepeatUntilStatement":
-                Define inner as cast beyond-reach on (cast field-of on (statement, 1)).
-                If inner is not "", return inner.
-            Done.
-            Otherwise if kind is not "StateStatement" and kind is not "BecomesStatement"
-                    and kind is not "StopStatement" and kind is not "SkipStatement":
-                Return kind.
-            Done.
+            Define inner as cast statement-beyond-reach on (statement).
+            If inner is not "", return inner.
         Done.
         Return "".
+    Done.
+
+    Bind text to statement-beyond-reach, given (the node statement):
+        Define kind as statement's kind.
+        If kind is "DefineStatement":
+            Define declared as cast field-of on (statement, 7).
+            If cast is-nothing on (declared) is false:
+                If cast beyond-types on (declared) or declared's kind is "AxiomType" or declared's kind is "AddressType":
+                    Return "a Define declared as {declared's kind}".
+                Done.
+            Done.
+            If the number of statement's children is greater than 7, return "a Define given parameters".
+            Return "".
+        Done.
+        If kind is "IfStatement":
+            For each arm in (cast field-of on (statement, 1))'s children, repeat:
+                Define inner as cast beyond-reach on (cast field-of on (arm, 2)).
+                If inner is not "", return inner.
+            Done.
+            Define otherwise-body as cast field-of on (statement, 2).
+            If cast is-nothing on (otherwise-body), return "".
+            Return cast beyond-reach on (otherwise-body).
+        Done.
+        If kind is "WhileStatement", return cast beyond-reach on (cast field-of on (statement, 2)).
+        If kind is "RepeatUntilStatement", return cast beyond-reach on (cast field-of on (statement, 1)).
+        If kind is "ForEachStatement", return cast beyond-reach on (cast field-of on (statement, 3)).
+        For each known in a series with ("StateStatement", "BecomesStatement", "StopStatement", "SkipStatement",
+                "SeriesInsertStatement", "SeriesSetStatement", "SeriesRemoveAtStatement", "SeriesRemoveValueStatement"), repeat:
+            If kind is known, return "".
+        Done.
+        Return kind.
     Done.
 
     // ── The program ───────────────────────────────────────────────────────
@@ -151,13 +157,16 @@ Pull a book on collections.
             If statement's kind is "DefineStatement" and cast truth-of on (cast field-of on (statement, 3)):
                 Define name as cast unquoted on (cast field-of on (statement, 1)).
                 If (the entry for name in cast one's innermost) is void:
-                    Define value-type as cast unknown-type.
-                    Try to:
-                        The value-type becomes cast one's infer on (cast field-of on (statement, 2)).
-                    Done.
-                    In case of failure:
-                        Define said as the message of the failure.
-                        If (the first 12 characters of said) is "unsupported\t", return a failure said.
+                    Define value-type as cast field-of on (statement, 7).
+                    If cast is-nothing on (value-type):
+                        The value-type becomes cast unknown-type.
+                        Try to:
+                            The value-type becomes cast one's infer on (cast field-of on (statement, 2)).
+                        Done.
+                        In case of failure:
+                            Define said as the message of the failure.
+                            If (the first 12 characters of said) is "unsupported\t", return a failure said.
+                        Done.
                     Done.
                     If value-type's kind is not "none":
                         Cast one's bind-name on (name, a new binding {
@@ -172,10 +181,94 @@ Pull a book on collections.
         Done.
     Done.
 
+    /// The statements of a block, in order — and after a guard that leaves when its condition
+    /// holds, the rest of the block knows that condition was false.
     Bind void or failure to check-block unto checker, given (the node body):
+        Define guarded as a series of text.
+        Define before as a map from text to node.
+        Define first-seen as a map from text to fact.
         For each statement in body's children, repeat:
             Cast one's check-statement on (statement) or pass the failure off.
+            If statement's kind is "IfStatement" and cast is-nothing on (cast field-of on (statement, 2)):
+                Define arms as (cast field-of on (statement, 1))'s children.
+                If the number of arms is 1:
+                    Define arm-body as cast field-of on (item 1 of arms, 2).
+                    If cast definitely-returns on (arm-body) or cast leaves-the-block on (arm-body):
+                        Define found as a map from text to node.
+                        Define order as a series of text.
+                        Cast one's guard-narrowings on (cast field-of on (item 1 of arms, 1), found, order).
+                        For each name in order, repeat:
+                            // Only the value from before this block's FIRST guard on the name is kept.
+                            If (the entry for name in first-seen) is void:
+                                In first-seen, the entry for name becomes true.
+                                Define earlier as the entry for name in one's narrowed.
+                                If earlier is not void, in before, the entry for name becomes earlier.
+                            Done.
+                            Insert name into guarded.
+                            In one's narrowed, the entry for name becomes the entry for name in found but void is cast unknown-type.
+                        Done.
+                    Done.
+                Done.
+            Done.
         Done.
+        // Undone in reverse, so a narrowing never leaks into a sibling block.
+        Define back as the number of guarded.
+        While back is greater than 0, repeat:
+            Define name as item back of guarded.
+            Define earlier as the entry for name in before.
+            If earlier is not void, in one's narrowed, the entry for name becomes earlier.
+            Otherwise, cast one's forget-narrowing on (name).
+            Decrement back by 1.
+        Done.
+    Done.
+
+    Bind void to forget-narrowing unto checker, given (the text name):
+        If (the entry for name in one's narrowed) is not void, remove name from one's narrowed.
+    Done.
+
+    /// What the NEGATION of a guard's condition proves — `x is void` means x is not, past it.
+    Bind void to guard-narrowings unto checker, given (the node condition, the map from text to node found,
+            the series of text order):
+        If condition's kind is not "BinaryExpression", return.
+        Define op as (cast field-of on (condition, 2))'s word.
+        If op is "Or":
+            Cast one's guard-narrowings on (cast field-of on (condition, 1), found, order).
+            Cast one's guard-narrowings on (cast field-of on (condition, 3), found, order).
+            Return.
+        Done.
+        If op is not "Equal" or (cast field-of on (condition, 3))'s kind is not "VoidLiteral", return.
+        Define tested as cast field-of on (condition, 1).
+        If tested's kind is not "VariableReference", return.
+        Define name as cast unquoted on (cast field-of on (tested, 1)).
+        Define held as cast one's look-up on (name).
+        If held is void, return.
+        If held's shape's kind is not "VoidableType", return.
+        In found, the entry for name becomes cast field-of on (held's shape, 1).
+        Insert name into order.
+    Done.
+
+    /// Every path through these statements ends at a `Return` — C#'s `DefinitelyReturns`.
+    Bind fact to definitely-returns, given (the node body):
+        For each statement in body's children, repeat:
+            If statement's kind is "ReturnStatement", return true.
+            If statement's kind is "IfStatement" and cast is-nothing on (cast field-of on (statement, 2)) is false:
+                Define every-arm as true.
+                For each arm in (cast field-of on (statement, 1))'s children, repeat:
+                    If cast definitely-returns on (cast field-of on (arm, 2)) is false, the every-arm becomes false.
+                Done.
+                If every-arm and cast definitely-returns on (cast field-of on (statement, 2)), return true.
+            Done.
+        Done.
+        Return false.
+    Done.
+
+    /// The block is left without returning — a `Stop.`, `Skip.` or `Exit` among its own statements.
+    Bind fact to leaves-the-block, given (the node body):
+        For each statement in body's children, repeat:
+            Define kind as statement's kind.
+            If kind is "StopStatement" or kind is "SkipStatement" or kind is "ExitStatement", return true.
+        Done.
+        Return false.
     Done.
 
     Bind void or failure to check-statement unto checker, given (the node statement):
@@ -190,18 +283,7 @@ Pull a book on collections.
             Cast one's infer on (cast field-of on (statement, 1)) or pass the failure off.
         Done.
         Otherwise if kind is "IfStatement":
-            For each arm in (cast field-of on (statement, 1))'s children, repeat:
-                Cast one's infer on (cast field-of on (arm, 1)) or pass the failure off.
-                Cast one's enter-scope.
-                Cast one's check-block on (cast field-of on (arm, 2)) or pass the failure off.
-                Cast one's exit-scope.
-            Done.
-            Define otherwise-body as cast field-of on (statement, 2).
-            If cast is-nothing on (otherwise-body) is false:
-                Cast one's enter-scope.
-                Cast one's check-block on (otherwise-body) or pass the failure off.
-                Cast one's exit-scope.
-            Done.
+            Cast one's check-if on (statement) or pass the failure off.
         Done.
         Otherwise if kind is "WhileStatement":
             Cast one's infer on (cast field-of on (statement, 1)) or pass the failure off.
@@ -214,6 +296,230 @@ Pull a book on collections.
             Cast one's check-block on (cast field-of on (statement, 1)) or pass the failure off.
             Cast one's exit-scope.
             Cast one's infer on (cast field-of on (statement, 2)) or pass the failure off.
+        Done.
+        Otherwise if kind is "ForEachStatement":
+            Cast one's check-for-each on (statement) or pass the failure off.
+        Done.
+        Otherwise if kind is "SeriesInsertStatement":
+            Cast one's check-insert on (statement) or pass the failure off.
+        Done.
+        Otherwise if kind is "SeriesSetStatement":
+            Cast one's check-series-set on (statement) or pass the failure off.
+        Done.
+        Otherwise if kind is "SeriesRemoveAtStatement":
+            Cast one's check-remove-at on (statement) or pass the failure off.
+        Done.
+        Otherwise if kind is "SeriesRemoveValueStatement":
+            Cast one's check-remove-value on (statement) or pass the failure off.
+        Done.
+    Done.
+
+    // ── If, and what its arms narrow ──────────────────────────────────────
+
+    /// A narrowing held while one arm is checked, then put back as it was.
+    Bind void to narrow unto checker, given (the text name, the node shape, the map from text to node saved):
+        Define earlier as the entry for name in one's narrowed.
+        If earlier is not void, in saved, the entry for name becomes earlier.
+        In one's narrowed, the entry for name becomes shape.
+    Done.
+
+    Bind void to unnarrow unto checker, given (the text name, the map from text to node saved):
+        Define earlier as the entry for name in saved.
+        If earlier is not void, in one's narrowed, the entry for name becomes earlier.
+        Otherwise, cast one's forget-narrowing on (name).
+    Done.
+
+    /// The name `<name> is void` or `<name> is not void` tests, when `op` is the test — or "".
+    Bind text to void-tested, given (the node condition, the text op):
+        If condition's kind is not "BinaryExpression", return "".
+        If (cast field-of on (condition, 2))'s word is not op, return "".
+        If (cast field-of on (condition, 3))'s kind is not "VoidLiteral", return "".
+        Define tested as cast field-of on (condition, 1).
+        If tested's kind is not "VariableReference", return "".
+        Return cast unquoted on (cast field-of on (tested, 1)).
+    Done.
+
+    Bind void or failure to check-if unto checker, given (the node statement):
+        Define arms as (cast field-of on (statement, 1))'s children.
+        Define else-name as "".
+        Define else-type as cast unknown-type.
+        For each arm in arms, repeat:
+            Define condition as cast field-of on (arm, 1).
+            Cast one's infer on (condition) or pass the failure off.
+            Define narrowed-name as "".
+            Define narrowed-to as cast unknown-type.
+
+            // `If x is not void:` — x is what it holds, inside the arm.
+            Define present as cast void-tested on (condition, "NotEqual").
+            Define absent as cast void-tested on (condition, "Equal").
+            If present is not "":
+                Define held as cast one's look-up on (present).
+                If held is not void:
+                    If held's shape's kind is "VoidableType":
+                        The narrowed-name becomes present.
+                        The narrowed-to becomes cast field-of on (held's shape, 1).
+                    Done.
+                Done.
+            Done.
+            // `If x is void, … Otherwise, …` — a lone arm, and the Otherwise is where x is there.
+            Otherwise if absent is not "" and the number of arms is 1:
+                Define held as cast one's look-up on (absent).
+                If held is not void:
+                    Define seen as the entry for absent in one's narrowed but void is held's shape.
+                    If seen's kind is "VoidableType":
+                        The else-name becomes absent.
+                        The else-type becomes cast field-of on (seen, 1).
+                    Done.
+                Done.
+            Done.
+
+            Define saved as a map from text to node.
+            If narrowed-name is not "", cast one's narrow on (narrowed-name, narrowed-to, saved).
+            Cast one's enter-scope.
+            Cast one's check-block on (cast field-of on (arm, 2)) or pass the failure off.
+            Cast one's exit-scope.
+            If narrowed-name is not "", cast one's unnarrow on (narrowed-name, saved).
+        Done.
+        Define otherwise-body as cast field-of on (statement, 2).
+        If cast is-nothing on (otherwise-body), return.
+        Define saved as a map from text to node.
+        If else-name is not "", cast one's narrow on (else-name, else-type, saved).
+        Cast one's enter-scope.
+        Cast one's check-block on (otherwise-body) or pass the failure off.
+        Cast one's exit-scope.
+        If else-name is not "", cast one's unnarrow on (else-name, saved).
+    Done.
+
+    // ── Series ────────────────────────────────────────────────────────────
+
+    Bind void or failure to check-for-each unto checker, given (the node statement):
+        Define looped as cast field-of on (statement, 2).
+        Define at-row as cast numeric on (cast field-of on (statement, 4)).
+        Define looped-type as cast one's infer on (looped) or pass the failure off.
+        If cast is-none on (looped-type), return.
+        Define kind as looped-type's kind.
+        If kind is "ChaseType" or kind is "SetType" or kind is "MapType" or kind is "StashType":
+            Return a failure (cast not-judged on ("looping over a {kind}")).
+        Done.
+        If kind is not "SeriesType":
+            If cast beyond-types on (looped-type), return a failure (cast not-judged on ("looping over a {kind}")).
+            Define spoken as cast expression-words on (looped).
+            Define plural as cast plural-words on (looped-type).
+            Return a failure (cast refusal-of on ("{spoken} holds {plural}", "It evaluates to {plural}, not a series",
+                at-row, "loop over it as if it were a series",
+                "Only series, maps and stashes can be looped over. Define a series if that's what you need.")).
+        Done.
+        Define iterator as "it".
+        Define named as cast field-of on (statement, 1).
+        If cast is-nothing on (named) is false, the iterator becomes cast unquoted on (named).
+        Cast one's enter-scope.
+        Cast one's bind-name on (iterator, a new binding {
+            the shape cast field-of on (looped-type, 1), the established-by looped, the line at-row, the permanent false }).
+        Cast one's check-block on (cast field-of on (statement, 3)) or pass the failure off.
+        Cast one's exit-scope.
+    Done.
+
+    Bind void or failure to check-insert unto checker, given (the node statement):
+        Define value as cast field-of on (statement, 1).
+        Define target as cast field-of on (statement, 2).
+        Define after-said as cast field-of on (statement, 3).
+        Define at-row as cast numeric on (cast field-of on (statement, 5)).
+        If cast is-nothing on (after-said) is false, cast check-index on (after-said, at-row) or pass the failure off.
+        Define container as cast one's infer on (target) or pass the failure off.
+        If cast is-none on (container), return.
+        If container's kind is "SetType" or container's kind is "ChaseType":
+            Return a failure (cast not-judged on ("inserting into a {container's kind}")).
+        Done.
+        Define spoken as cast expression-words on (target).
+        If container's kind is not "SeriesType":
+            If cast beyond-types on (container), return a failure (cast not-judged on ("inserting into a {container's kind}")).
+            Return a failure (cast refusal-of on ("{spoken} is not a series",
+                "It evaluates to {cast plural-words on (container)}, which can't be inserted into",
+                at-row, "insert into a non-series expression",
+                "Only a series (like 'my-list' or 'one's cards') can be the target of 'Add ... to'.")).
+        Done.
+        Define element as cast field-of on (container, 1).
+        Define given-type as cast one's infer on (value) or pass the failure off.
+        If cast is-none on (given-type) is false and cast assignable on (element, given-type) is false:
+            If cast beyond-types on (given-type) or cast beyond-types on (element), return a failure (cast not-judged on ("inserting another kind")).
+            Define many as cast plural-words on (element).
+            Return a failure (cast refusal-of on ("{spoken} holds {many}",
+                "It is a series of {many}, so it can only accept {many}",
+                at-row, "add a {cast type-words on (given-type)} value to it",
+                "Change the value to a {cast type-words on (element)}, or define a separate series that holds {cast plural-words on (given-type)}.")).
+        Done.
+    Done.
+
+    Bind void or failure to check-series-set unto checker, given (the node statement):
+        Define target as cast field-of on (statement, 1).
+        Define index-said as cast field-of on (statement, 2).
+        Define at-row as cast numeric on (cast field-of on (statement, 4)).
+        If cast is-nothing on (index-said) is false, cast check-index on (index-said, at-row) or pass the failure off.
+        Define container as cast one's infer on (target) or pass the failure off.
+        If cast is-none on (container), return.
+        Define spoken as cast expression-words on (target).
+        If container's kind is "SeriesType":
+            Define element as cast field-of on (container, 1).
+            Define given-type as cast one's infer on (cast field-of on (statement, 3)) or pass the failure off.
+            If cast is-none on (given-type) is false and cast same-type on (given-type, element) is false:
+                If cast beyond-types on (given-type) or cast beyond-types on (element), return a failure (cast not-judged on ("setting an item to another kind")).
+                Define many as cast plural-words on (element).
+                Return a failure (cast refusal-of on ("{spoken} holds {many}",
+                    "It is a series of {many}, so its items can only be set to {many}",
+                    at-row, "set an item to a {cast type-words on (given-type)} value",
+                    "Change the new value to a {cast type-words on (element)}.")).
+            Done.
+            Return.
+        Done.
+        If container's kind is "ChaseType" or cast beyond-types on (container):
+            Return a failure (cast not-judged on ("setting an item of a {container's kind}")).
+        Done.
+        Return a failure (cast refusal-of on ("{spoken} is not a series, object, or record",
+            "It evaluates to {cast plural-words on (container)}, which can't have items assigned by position",
+            at-row, "set an item in a non-series expression",
+            "Only a series, object, or record can be the target of 'item N of ... becomes'.")).
+    Done.
+
+    Bind void or failure to check-remove-at unto checker, given (the node statement):
+        Define target as cast field-of on (statement, 1).
+        Define index-said as cast field-of on (statement, 2).
+        Define at-row as cast numeric on (cast field-of on (statement, 3)).
+        If cast is-nothing on (index-said) is false, cast check-index on (index-said, at-row) or pass the failure off.
+        Define container as cast one's infer on (target) or pass the failure off.
+        If cast is-none on (container) or container's kind is "ChaseType" or container's kind is "SeriesType", return.
+        If cast beyond-types on (container), return a failure (cast not-judged on ("removing from a {container's kind}")).
+        Return a failure (cast refusal-of on ("{cast expression-words on (target)} is not a series",
+            "It evaluates to {cast plural-words on (container)}, which can't have items removed by position",
+            at-row, "remove an item from a non-series expression",
+            "Only a series can be the target of 'Remove first/last/item N from'.")).
+    Done.
+
+    Bind void or failure to check-remove-value unto checker, given (the node statement):
+        Define target as cast field-of on (statement, 1).
+        Define value as cast field-of on (statement, 2).
+        Define at-row as cast numeric on (cast field-of on (statement, 3)).
+        Define container as cast one's infer on (target) or pass the failure off.
+        If cast is-none on (container), return.
+        Define spoken as cast expression-words on (target).
+        If container's kind is "MapType" or container's kind is "ChaseType":
+            Return a failure (cast not-judged on ("removing from a {container's kind}")).
+        Done.
+        If container's kind is not "SeriesType":
+            If cast beyond-types on (container), return a failure (cast not-judged on ("removing from a {container's kind}")).
+            Return a failure (cast refusal-of on ("{spoken} is not a series, chase or map",
+                "It evaluates to {cast plural-words on (container)}, which can't have items removed",
+                at-row, "remove from a non-series expression",
+                "Only a series, a chase or a map can be the target of 'Remove ... from'.")).
+        Done.
+        Define element as cast field-of on (container, 1).
+        Define given-type as cast one's infer on (value) or pass the failure off.
+        If cast is-none on (given-type) is false and cast same-type on (given-type, element) is false:
+            If cast beyond-types on (given-type) or cast beyond-types on (element), return a failure (cast not-judged on ("removing another kind")).
+            Define many as cast plural-words on (element).
+            Return a failure (cast refusal-of on ("{spoken} holds {many}",
+                "It is a series of {many}, so only {many} can be removed from it",
+                at-row, "remove a {cast type-words on (given-type)} value from it",
+                "Make sure the value you're removing is a {cast type-words on (element)}.")).
         Done.
     Done.
 
@@ -265,14 +571,29 @@ Pull a book on collections.
             Done.
         Done.
 
+        // An annotation is the binding's type; the value only has to fit into it.
+        Define declared as cast field-of on (statement, 7).
+        Define kept as value-type.
+        If cast is-nothing on (declared) is false:
+            If cast assignable on (declared, value-type) is false:
+                If cast beyond-types on (value-type), return a failure (cast not-judged on ("a {value-type's kind} into a declared type")).
+                Return a failure (cast refusal-of on (
+                    "'{name}' is declared as {cast type-words on (declared)}, but the value is a {cast type-words on (value-type)}", "",
+                    at-row, "start '{name}' with a value that isn't a {cast type-words on (declared)}",
+                    "Give it a {cast type-words on (declared)}, or change the declared type to match the value.")).
+            Done.
+            The kept becomes declared.
+        Done.
         Cast one's bind-name on (name, a new binding {
-            the shape value-type, the established-by value, the line at-row, the permanent permanent }).
+            the shape kept, the established-by value, the line at-row, the permanent permanent }).
     Done.
 
     Bind void or failure to check-becomes unto checker, given (the node statement):
         Define name as cast unquoted on (cast field-of on (statement, 1)).
         Define value as cast field-of on (statement, 2).
         Define at-row as cast numeric on (cast field-of on (statement, 3)).
+        // Reassigning ends whatever a test had narrowed the name to.
+        Cast one's forget-narrowing on (name).
         Define existing as cast one's look-up on (name).
         If existing is void, return.
 
@@ -286,8 +607,17 @@ Pull a book on collections.
         If given-type's kind is "none", return.
 
         If cast assignable on (existing's shape, given-type) is false:
-            If given-type's kind is "VoidableType" and cast assignable on (existing's shape, cast field-of on (given-type, 1)):
-                Return a failure (cast not-judged on ("a voidable value where a present one goes")).
+            If cast beyond-types on (given-type) or cast beyond-types on (existing's shape):
+                Return a failure (cast not-judged on ("reassigning a {existing's shape's kind}")).
+            Done.
+            If given-type's kind is "VoidableType":
+                Define present as cast field-of on (given-type, 1).
+                If cast assignable on (existing's shape, present):
+                    Return a failure (cast void-misuse on (value,
+                        "'{name}' holds {cast plural-words on (existing's shape)} that are there",
+                        "give it a {cast type-words on (given-type)} value",
+                        "'The {name} becomes {cast defaulted on (value, present)}'", at-row, "")).
+                Done.
             Done.
             Return a failure (cast refusal-of on ("'{name}' holds {cast plural-words on (existing's shape)}",
                 "You set it to {cast expression-words on (existing's established-by)} on line {existing's line}, so it can only ever hold {cast plural-words on (existing's shape)}",
@@ -325,7 +655,8 @@ Pull a book on collections.
         Define walker as a new checker {
             the scopes a series with (globals),
             the ended-names a map from text to number,
-            the hoisted-constants a map from text to fact }.
+            the hoisted-constants a map from text to fact,
+            the narrowed a map from text to node }.
         Cast walker's check-program on (program) or pass the failure off.
         Return "ok".
     Done.
