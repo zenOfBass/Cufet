@@ -540,7 +540,7 @@ public sealed partial class TypeChecker
                 null,
                 lit.Line, lit.Column,
                 "define an empty series without saying what type of items it will hold",
-                "Add an annotation to declare the element type: a series of numbers (), a series of text (), or a series of facts ().");
+                "Declare the element type: 'a series of numbers', 'a series of text', or 'a series of facts'.");
 
         return new SeriesType(inferred);
     }

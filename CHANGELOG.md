@@ -64,6 +64,9 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   added after a removal took the removed key's place: `a, b, c`, remove `a`, add `d` was visited
   `d, b, c`. It is now `b, c, d` on both backends, and REFERENCE says so. Found writing the type
   checker in Cufet.
+- **An empty series is told a spelling that works.** `a series with ()` was advised to write
+  `a series of numbers ()`, which does not parse; it is now told `a series of numbers`, `a series
+  of text` or `a series of facts`.
 
 ## [0.26.0] — 2026-09-26
 

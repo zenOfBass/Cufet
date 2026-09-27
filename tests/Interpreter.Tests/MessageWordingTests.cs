@@ -68,4 +68,18 @@ public class MessageWordingTests
         Assert.Contains("'input' is built into every program", message);
         Assert.DoesNotContain("line 0", message);
     }
+
+    [Theory]
+    [InlineData("numbers")]
+    [InlineData("text")]
+    [InlineData("facts")]
+    public void AnEmptySeries_IsToldASpellingThatWorks(string of)
+    {
+        // ⚠ The advice was "a series of numbers ()", which does not parse. Every spelling it
+        // offers now has to check clean when written as it says. Found writing the checker in Cufet.
+        var message = CheckFails("Define xs as a series with ().\n");
+        Assert.Contains($"'a series of {of}'", message);
+        var program = new Parser(new CufetLexer($"Define xs as a series of {of}.\n").Tokenize()).Parse();
+        new TypeChecker().Check(program);
+    }
 }
