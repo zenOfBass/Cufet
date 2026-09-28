@@ -150,6 +150,30 @@ Pull a book on collections.
         If kind is "VariableReference", return cast unquoted on (cast field-of on (said, 1)).
         If kind is "VoidLiteral", return "void".
         If kind is "NumberConvert", return "{cast expression-words on (cast field-of on (said, 1))} converted to number".
+        If kind is "PossessiveAccess":
+            Return "{cast expression-words on (cast field-of on (said, 1))}'s {cast unquoted on (cast field-of on (said, 2))}".
+        Done.
+        If kind is "MapLookup":
+            Return "the entry for {cast expression-words on (cast field-of on (said, 2))} in {cast expression-words on (cast field-of on (said, 1))}".
+        Done.
+        If kind is "CastExpression":
+            Define callee as cast field-of on (said, 1).
+            Define listing as a chase.
+            Define first-one as true.
+            For each argument in (cast field-of on (said, 2))'s children, repeat:
+                If first-one is false, insert ", " into listing.
+                The first-one becomes false.
+                Insert cast expression-words on (argument) into listing.
+            Done.
+            // A bundled book's member is written `math's square-root of (x)`, and quoted back so.
+            If callee's kind is "PossessiveAccess":
+                Define owner as cast field-of on (callee, 1).
+                If owner's kind is "VariableReference" and cast is-a-book on (cast unquoted on (cast field-of on (owner, 1))):
+                    Return "{cast expression-words on (callee)} of ({listing converted to text})".
+                Done.
+            Done.
+            Return "cast {cast expression-words on (callee)} on ({listing converted to text})".
+        Done.
         // ⚠ Not yet: C# rebuilds a bits literal in its own base and width. Loud on purpose, so a
         // message that quotes one shows up as a difference rather than passing by chance.
         If kind is "BitsLiteral", return "<bits literal>".

@@ -29,6 +29,10 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
     /// <summary>How many corpus files must agree. Raised as the checker grows; never lowered.</summary>
     private const int CorpusFloor = 13;
 
+    /// <summary>Where the bundled books' source is — the checker reads their layers with its own parser.</summary>
+    private static string[] PreludeArgs =>
+        ["--prelude", Path.Combine(RepoRoot, "src", "Interpreter", "Prelude").Replace('\\', '/')];
+
     // ── The comparison ──────────────────────────────────────────────────────
 
     private void Check(Dictionary<string, List<string>> got, IReadOnlyList<(string Name, string Source)> files,
@@ -71,7 +75,7 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
             var got = new Dictionary<string, List<string>>();
             // In batches: a Windows command line has a length limit.
             foreach (var batch in sources.Select(s => s.Name).Chunk(200))
-                foreach (var (k, v) in ByFile(Run(compiled.Exe, batch, dir))) got[k] = v;
+                foreach (var (k, v) in ByFile(Run(compiled.Exe, [.. PreludeArgs, .. batch], dir))) got[k] = v;
             return got;
         }
         finally { Directory.Delete(dir, recursive: true); }
@@ -284,6 +288,6 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
         var files = Corpus();
         Assert.True(files.Count >= 80, $"only {files.Count} Cufet files found under {RepoRoot}");
         var sources = Parsed(files.Select(n => (n, File.ReadAllText(Path.Combine(RepoRoot, n)))));
-        Check(ByFile(Run(compiled.Exe, files, RepoRoot)), sources, CorpusFloor, "on the corpus");
+        Check(ByFile(Run(compiled.Exe, [.. PreludeArgs, .. files], RepoRoot)), sources, CorpusFloor, "on the corpus");
     }
 }

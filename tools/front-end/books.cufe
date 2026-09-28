@@ -1,0 +1,148 @@
+/*  Books — `Pull a book on …`: `CheckPullStatement`, `ResolveModule` and the bundled books in
+    `src/Interpreter/TypeChecker.Book.cs`, and the prelude `TypeChecker.WithPrelude` puts in front
+    of every program.
+
+    ★ A bundled book with a Cufet layer — `math`, `collections`, `chance` — binds AT that layer, an
+    ordinary object defined in `src/Interpreter/Prelude/`, which this checker reads with its own
+    parser. The rest bind as a `(BookType "name")`: `blueprints` with its one native member, and the
+    language books with none.
+
+    ⚠ The prelude's own bodies are not checked here. C# checks them in every program and accepts
+    them in every program, so what they contribute is their declarations and nothing else.
+*/
+
+Pull a book on collections.
+    /// The prelude's object definitions — each bundled book's Cufet layer, and the rabbit.
+    Bind series of node to prelude-definitions, given (the text folder):
+        Define found as a series of node.
+        For each book in a series with ("blueprints", "chance", "collections", "math", "rabbit", "regex"), repeat:
+            Try to:
+                Define whole as read all from the file "{folder}/{book}.cufe".
+                Define parsed as cast program-tree on (whole).
+                For each statement in parsed's children, repeat:
+                    If statement's kind is "ObjectDefinition", insert statement into found.
+                Done.
+            Done.
+            In case of failure:
+                Define ignored as the message of the failure.
+            Done.
+        Done.
+        Return found.
+    Done.
+
+    /// Registers the prelude's definitions ahead of the program's, as C# does by putting them first.
+    Bind void to register-prelude unto checker, given (the series of node definitions):
+        For each definition in definitions, repeat:
+            Define name as cast def-name on (definition).
+            Insert name into one's def-order.
+            In one's defs, the entry for name becomes definition.
+            In one's bundled, the entry for name becomes true.
+        Done.
+    Done.
+
+    Bind node to book-type-named, given (the text name):
+        Return cast made on ("BookType", a series with (cast quoted on (name))).
+    Done.
+
+    /// The types a bundled book introduces for the length of its pull — by name, as C# keys them.
+    Bind series of text to introduced-types, given (the text book):
+        Define lowered as book in lowercase.
+        If lowered is "collections", return a series with ("matrix", "chase").
+        If lowered is "blueprints", return a series with ("step", "pin").
+        Return a series of text.
+    Done.
+
+    Bind node to introduced-type, given (the text name):
+        If name is "matrix", return cast plain-type on ("MatrixType").
+        If name is "chase", return cast plain-type on ("ChaseType").
+        // `step` and `pin` are shapes of record, which this checker does not hold yet.
+        Return cast plain-type on ("RecordType").
+    Done.
+
+    Bind void to register-scoped-type unto checker, given (the text name, the node shape):
+        Define innermost-types as item (the number of one's type-scopes) of one's type-scopes.
+        In innermost-types, the entry for name becomes shape.
+    Done.
+
+    Bind fact to has-scoped-type unto checker, given (the text name):
+        For each types in one's type-scopes, repeat:
+            If (the entry for name in types) is not void, return true.
+        Done.
+        Return false.
+    Done.
+
+    /// What `Pull … <name>` reaches — `ResolveModule` — or the refusal.
+    Bind node or failure to resolve-module unto checker, given (the text name, the fact via-book-form,
+            the number at-row):
+        Define lowered as name in lowercase.
+        If lowered is "rabbit":
+            Return a failure (cast refusal-of on ("a rabbit isn't a book",
+                "Pulling a rabbit opens its region, which the 'book on' spelling does not do",
+                at-row, "pull a rabbit as though it were a book",
+                "Write 'Pull a rabbit.' — or 'Pull a rabbit as <name>.' to give it a name.")).
+        Done.
+        If cast is-a-book on (name):
+            If via-book-form is false:
+                Return a failure (cast refusal-of on ("'{name}' is a book, so it is pulled as one",
+                    "The plain form is for a module you have one of; a book owns no lifetime, so it is consulted rather than held",
+                    at-row, "pull '{name}' with the plain form",
+                    "Write 'Pull a book on {name}.' — or 'Pull books on {name}, and <other>.' for several at once.")).
+            Done.
+            // A book with a Cufet layer binds at the layer; the rest are a native book.
+            If (the entry for lowered in one's defs) is not void, return cast object-type-named on (lowered).
+            Return cast book-type-named on (lowered).
+        Done.
+        If (the entry for name in one's defs) is not void:
+            // An object of the program's own: this checker judges none as a module yet, so it is not one.
+            Return a failure (cast refusal-of on ("'{name}' is not a module, so it can't be pulled",
+                "Pulling brings a module into scope, and '{name}' doesn't say it is one",
+                at-row, "pull '{name}'",
+                "Add 'and module' to its definition: 'Define object {name} with (...) and module:'.")).
+        Done.
+        Return a failure (cast refusal-of on ("there is nothing named '{name}' to pull", "",
+            at-row, "pull '{name}'",
+            "Pull one of the bundled books ('blueprints', 'c-language', 'chance', 'collections', 'cufet', 'math', 'regex'), or define an object named '{name}' as a module: 'Define object {name} with (...) and module:'.")).
+    Done.
+
+    Bind void or failure to check-pull unto checker, given (the node statement):
+        Define at-row as cast numeric on (cast field-of on (statement, 3)).
+        Define via-book-form as cast truth-of on (cast field-of on (statement, 5)).
+        Cast one's enter-scope.
+        For each pair in (cast field-of on (statement, 1))'s children, repeat:
+            Define book as cast unquoted on (cast field-of on (pair, 1)).
+            Define local as cast unquoted on (cast field-of on (pair, 2)).
+            Define bound as cast one's resolve-module on (book, via-book-form, at-row) or pass the failure off.
+            Cast one's bind-name on (local, a new binding {
+                the shape bound, the established-by cast placed-reference on (local, at-row, cast numeric on (cast field-of on (statement, 4))),
+                the line at-row, the permanent false, the module true }).
+            If cast is-a-book on (book):
+                For each introduced in cast introduced-types on (book), repeat:
+                    Cast one's register-scoped-type on (introduced, cast introduced-type on (introduced)).
+                Done.
+            Done.
+        Done.
+        Cast one's check-block on (cast field-of on (statement, 2)) or pass the failure off.
+        Cast one's exit-scope.
+    Done.
+
+    Bind node to placed-reference, given (the text name, the number at-row, the number at-column):
+        Return cast made on ("VariableReference", a series with (cast quoted on (name), cast numeral on (at-row), cast numeral on (at-column))).
+    Done.
+
+    /// `<book>'s member` on a native book — `blueprints'` one member, or none.
+    Bind node or failure to infer-book-member unto checker, given (the text book, the text member,
+            the number at-row):
+        If book is "blueprints" and member is "checksum":
+            Define parameters as cast listed.
+            Cast parameters's add on (cast plain-type on ("TextType")).
+            Define shape as cast plain-type on ("FunctionType").
+            Cast shape's add on (parameters).
+            Cast shape's add on (cast wrapped on ("VoidableType", cast plain-type on ("BitsType"))).
+            Return shape.
+        Done.
+        Define fix as "Book '{book}' has no members.".
+        If book is "blueprints", the fix becomes "Available: 'checksum'.".
+        Return a failure (cast refusal-of on ("book '{book}' has no member '{member}'", "",
+            at-row, "access '{member}' from book '{book}'", fix)).
+    Done.
+Done.

@@ -11,7 +11,8 @@
 
 Pull a book on collections.
     /// What a name stands for in a scope — C#'s `TypeInfo`.
-    Define object binding with (the node shape, the node established-by, the number line, the fact permanent).
+    Define object binding with (the node shape, the node established-by, the number line, the fact permanent,
+        the fact module).
 
     Define object checker with (
         the series of map from text to binding scopes,
@@ -24,7 +25,9 @@ Pull a book on collections.
         the map from text to fact hidden,
         the map from text to node defs,
         the series of text def-order,
-        the map from text to fact templates).
+        the map from text to fact templates,
+        the map from text to fact bundled,
+        the series of map from text to node type-scopes).
 
     Bind node to unknown-type:
         Return cast shaped on ("none").
@@ -70,9 +73,9 @@ Pull a book on collections.
         Cast writing's add on (cast plain-type on ("TextType")).
         Define scope as a map from text to binding.
         In scope, the entry for "input" becomes a new binding {
-            the shape reading, the established-by cast named-reference on ("input"), the line 0, the permanent false }.
+            the shape reading, the established-by cast named-reference on ("input"), the line 0, the permanent false, the module false }.
         In scope, the entry for "output" becomes a new binding {
-            the shape writing, the established-by cast named-reference on ("output"), the line 0, the permanent false }.
+            the shape writing, the established-by cast named-reference on ("output"), the line 0, the permanent false, the module false }.
         Return scope.
     Done.
 
@@ -82,6 +85,7 @@ Pull a book on collections.
 
     Bind void to enter-scope unto checker:
         Insert a map from text to binding into one's scopes.
+        Insert a map from text to node into one's type-scopes.
     Done.
 
     /// Leaving a block remembers what it held, to tell "never defined" from "its block ended".
@@ -94,6 +98,7 @@ Pull a book on collections.
             Done.
         Done.
         Remove item (the number of one's scopes) from one's scopes.
+        Remove item (the number of one's type-scopes) from one's type-scopes.
     Done.
 
     /// The binding a name has here, innermost first — or void.
@@ -180,6 +185,7 @@ Pull a book on collections.
         If kind is "RepeatUntilStatement", return cast beyond-reach on (cast field-of on (statement, 1)).
         If kind is "ForEachStatement", return cast beyond-reach on (cast field-of on (statement, 3)).
         If kind is "BindStatement", return cast bind-beyond-reach on (statement).
+        If kind is "PullStatement", return cast beyond-reach on (cast field-of on (statement, 2)).
         For each known in a series with ("StateStatement", "BecomesStatement", "StopStatement", "SkipStatement",
                 "ReturnStatement", "CastStatement", "PossessiveSetStatement", "RecordNamedSetStatement",
                 "SeriesInsertStatement", "SeriesSetStatement", "SeriesRemoveAtStatement", "SeriesRemoveValueStatement"), repeat:
@@ -190,12 +196,27 @@ Pull a book on collections.
 
     // ── The program ───────────────────────────────────────────────────────
 
+    /// Top-level statements and those inside a `Pull` — what hoisting is transparent to.
+    Bind series of node to hoistable, given (the node statements):
+        Define found as a series of node.
+        Cast gather-hoistable on (statements, found).
+        Return found.
+    Done.
+
+    Bind void to gather-hoistable, given (the node statements, the series of node found):
+        For each statement in statements's children, repeat:
+            Insert statement into found.
+            If statement's kind is "PullStatement", cast gather-hoistable on (cast field-of on (statement, 2), found).
+        Done.
+    Done.
+
     /// The same, where an object definition is at the top level — the one place it can be judged.
     Bind text to program-beyond-reach, given (the node program):
-        For each statement in program's children, repeat:
+        // Through Pull bodies statement by statement, since an object is judged there too.
+        For each statement in cast hoistable on (program), repeat:
             Define inner as "".
             If statement's kind is "ObjectDefinition", the inner becomes cast object-beyond-reach on (statement).
-            Otherwise, the inner becomes cast statement-beyond-reach on (statement).
+            Otherwise if statement's kind is not "PullStatement", the inner becomes cast statement-beyond-reach on (statement).
             If inner is not "", return inner.
         Done.
         Return "".
@@ -217,7 +238,7 @@ Pull a book on collections.
     /// may read one declared further down. A value that cannot be typed yet is left for the
     /// statement itself to refuse, in its own words.
     Bind void or failure to hoist-shared-constants unto checker, given (the node program):
-        For each statement in program's children, repeat:
+        For each statement in cast hoistable on (program), repeat:
             If statement's kind is "DefineStatement" and cast truth-of on (cast field-of on (statement, 3)):
                 Define name as cast unquoted on (cast field-of on (statement, 1)).
                 If (the entry for name in cast one's innermost) is void:
@@ -237,7 +258,7 @@ Pull a book on collections.
                             the shape value-type,
                             the established-by cast field-of on (statement, 2),
                             the line cast numeric on (cast field-of on (statement, 5)),
-                            the permanent true }).
+                            the permanent true, the module false }).
                         In one's hoisted-constants, the entry for name becomes true.
                     Done.
                 Done.
@@ -388,6 +409,9 @@ Pull a book on collections.
         Otherwise if kind is "ObjectDefinition":
             Cast one's check-object-definition on (statement) or pass the failure off.
         Done.
+        Otherwise if kind is "PullStatement":
+            Cast one's check-pull on (statement) or pass the failure off.
+        Done.
         Otherwise if kind is "PossessiveSetStatement":
             Cast one's check-possessive-set on (statement) or pass the failure off.
         Done.
@@ -496,7 +520,7 @@ Pull a book on collections.
         If cast is-nothing on (named) is false, the iterator becomes cast unquoted on (named).
         Cast one's enter-scope.
         Cast one's bind-name on (iterator, a new binding {
-            the shape cast field-of on (looped-type, 1), the established-by looped, the line at-row, the permanent false }).
+            the shape cast field-of on (looped-type, 1), the established-by looped, the line at-row, the permanent false, the module false }).
         Cast one's check-block on (cast field-of on (statement, 3)) or pass the failure off.
         Cast one's exit-scope.
     Done.
@@ -698,7 +722,7 @@ Pull a book on collections.
             The kept becomes declared.
         Done.
         Cast one's bind-name on (name, a new binding {
-            the shape kept, the established-by value, the line at-row, the permanent permanent }).
+            the shape kept, the established-by value, the line at-row, the permanent permanent, the module false }).
     Done.
 
     Bind void or failure to check-becomes unto checker, given (the node statement):
@@ -754,7 +778,7 @@ Pull a book on collections.
     // ── From outside ──────────────────────────────────────────────────────
 
     /// "ok", or the failure that says why not.
-    Bind text or failure to checked, given (the node program):
+    Bind text or failure to checked, given (the node program, the series of node prelude):
         Define walker as a new checker {
             the scopes a series with (cast builtin-scope),
             the ended-names a map from text to number,
@@ -766,7 +790,10 @@ Pull a book on collections.
             the hidden a map from text to fact,
             the defs a map from text to node,
             the def-order a series of text,
-            the templates a map from text to fact }.
+            the templates a map from text to fact,
+            the bundled a map from text to fact,
+            the type-scopes a series with (a map from text to node) }.
+        Cast walker's register-prelude on (prelude).
         Cast walker's check-program on (program) or pass the failure off.
         Return "ok".
     Done.

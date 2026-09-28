@@ -70,6 +70,19 @@ public class MessageWordingTests
     }
 
     [Theory]
+    [InlineData("remaining")]   // a local inside a block of `math`'s power method, line 217
+    [InlineData("count")]       // a local inside a block of another `math` method, line 183
+    public void AnUndefinedName_IsNotBlamedOnALocalOfABundledBook(string name)
+    {
+        // ⚠ The prelude is checked before the program, and ending one of its blocks recorded the
+        // block's locals as "ended" — so a program long enough to pass the local's line was told
+        // the name "was defined on line 217, inside a block that has ended".
+        var message = CheckFails(new string('\n', 300) + $"State {name}.\n");
+        Assert.Contains($"'{name}' isn't defined", message);
+        Assert.DoesNotContain("inside a block that has ended", message);
+    }
+
+    [Theory]
     [InlineData("numbers")]
     [InlineData("text")]
     [InlineData("facts")]

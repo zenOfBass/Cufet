@@ -194,7 +194,7 @@ Pull a book on collections.
     /// declared further down. Two with one name are refused, the second pointing at the first.
     Bind void or failure to hoist-functions unto checker, given (the node program):
         Define seen as a map from text to number.
-        For each statement in program's children, repeat:
+        For each statement in cast hoistable on (program), repeat:
             If statement's kind is "BindStatement":
                 Define name as cast unquoted on (cast field-of on (statement, 1)).
                 Define at-row as cast numeric on (cast field-of on (statement, 7)).
@@ -216,12 +216,31 @@ Pull a book on collections.
                 Done.
                 Cast one's bind-name on (name, a new binding {
                     the shape cast function-type-of on (statement),
-                    the established-by cast named-reference on (name), the line at-row, the permanent false }).
+                    the established-by cast named-reference on (name), the line at-row, the permanent false, the module false }).
             Done.
         Done.
     Done.
 
     // ── A function's body ─────────────────────────────────────────────────
+
+    /// A pulled module is a capability of the block it is pulled in, so a body written there has it.
+    Bind void to carry-modules, given (the series of map from text to binding saved, the map from text to binding fresh):
+        For each scope in saved, repeat:
+            For each pair in scope, repeat:
+                Define held as the value of pair.
+                If held's module or held's shape's kind is "BookType":
+                    In fresh, the entry for (the key of pair) becomes held.
+                Done.
+            Done.
+        Done.
+    Done.
+
+    /// The type scopes back to how many there were — a body's own scope is left, not exited.
+    Bind void to trim-type-scopes unto checker, given (the number kept):
+        While the number of one's type-scopes is greater than kept, repeat:
+            Remove item (the number of one's type-scopes) from one's type-scopes.
+        Done.
+    Done.
 
     Bind void or failure to check-bind-statement unto checker, given (the node statement):
         Define name as cast unquoted on (cast field-of on (statement, 1)).
@@ -231,7 +250,7 @@ Pull a book on collections.
         If (the entry for name in cast one's innermost) is void:
             Cast one's bind-name on (name, a new binding {
                 the shape cast function-type-of on (statement),
-                the established-by cast named-reference on (name), the line at-row, the permanent false }).
+                the established-by cast named-reference on (name), the line at-row, the permanent false, the module false }).
         Done.
         Cast one's check-bind-body on (statement) or pass the failure off.
     Done.
@@ -244,7 +263,9 @@ Pull a book on collections.
         Define at-row as cast numeric on (cast field-of on (statement, 7)).
 
         Define saved as one's scopes.
+        Define saved-types as the number of one's type-scopes.
         Define fresh as cast builtin-scope.
+        Cast carry-modules on (saved, fresh).
         Define earlier-hidden as one's hidden.
         Define nested as one's in-function.
         If nested:
@@ -276,7 +297,7 @@ Pull a book on collections.
             Cast one's check-resolves on (cast field-of on (parameter, 1)) or pass the failure off.
             Cast one's bind-name on (parameter-name, a new binding {
                 the shape cast field-of on (parameter, 1),
-                the established-by cast named-reference on (parameter-name), the line at-row, the permanent false }).
+                the established-by cast named-reference on (parameter-name), the line at-row, the permanent false, the module false }).
         Done.
 
         Define earlier-in-function as one's in-function.
@@ -294,6 +315,7 @@ Pull a book on collections.
         The one's function-line becomes earlier-line.
         The one's hidden becomes earlier-hidden.
         The one's scopes becomes saved.
+        Cast one's trim-type-scopes on (saved-types).
 
         If cast is-nothing on (returned) is false and cast definitely-returns on (cast field-of on (statement, 4)) is false:
             Return a failure (cast refusal-of on (

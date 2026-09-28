@@ -952,9 +952,15 @@ public sealed partial class TypeChecker
 
     private void ExitScope()
     {
-        foreach (var (name, info) in _scopes[^1])
-            if (info.EstablishingLine > 0)
-                _endedNames[name] = info.EstablishingLine;
+        // ⚠ Not while the PRELUDE is being checked. Its lines are its own file's, and it is
+        // checked first, so a local ended inside a bundled book used to answer for the writer's
+        // program: `State remaining.` on line 301 was told "'remaining' was defined on line 217,
+        // inside a block that has ended" — a local of `math`'s power method. Found writing the
+        // checker in Cufet, which never checks the prelude's bodies and so never saw the name.
+        if (!_inPrelude && !_checkingBookLayer)
+            foreach (var (name, info) in _scopes[^1])
+                if (info.EstablishingLine > 0)
+                    _endedNames[name] = info.EstablishingLine;
         _scopes.RemoveAt(_scopes.Count - 1);
         _typeScopes.RemoveAt(_typeScopes.Count - 1);
     }

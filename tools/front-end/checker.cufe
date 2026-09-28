@@ -22,7 +22,7 @@ Pull a book on collections.
     Done.
 
     /// The one line printed for a program.
-    Bind text to verdict, given (the text whole):
+    Bind text to verdict, given (the text whole, the series of node prelude):
         Define parsed as cast listed.
         Try to:
             The parsed becomes cast program-tree on (whole).
@@ -32,7 +32,7 @@ Pull a book on collections.
         Done.
         Define outcome as "ok".
         Try to:
-            The outcome becomes cast checked on (parsed).
+            The outcome becomes cast checked on (parsed, prelude).
         Done.
         In case of failure:
             Define said as the message of the failure.
@@ -44,10 +44,34 @@ Pull a book on collections.
         Return outcome.
     Done.
 
-    For each name in the arguments, repeat:
+    // `--prelude <folder>` says where the bundled books' source is; run from the repository, it is found.
+    Define prelude-folder as "src/Interpreter/Prelude".
+    Define files as a series of text.
+    Define taking-folder as false.
+    For each passed in the arguments, repeat:
+        If taking-folder:
+            The prelude-folder becomes passed.
+            The taking-folder becomes false.
+        Done.
+        Otherwise if passed is "--prelude":
+            The taking-folder becomes true.
+        Done.
+        Otherwise:
+            Insert passed into files.
+        Done.
+    Done.
+    Define prelude as cast prelude-definitions on (prelude-folder).
+    // ⚠ Loud, not empty: with no prelude every pull of a bundled book would be refused, in words
+    // that look like a real answer.
+    If the number of prelude is 0:
+        State "crash\tno bundled books were found in '{prelude-folder}' — pass --prelude <folder>".
+        Exit with 1.
+    Done.
+
+    For each name in files, repeat:
         State "file\t{name}".
         Try to:
-            State cast verdict on (read all from the file name).
+            State cast verdict on (read all from the file name, prelude).
         Done.
         In case of failure:
             State "crash\t{the message of the failure}".

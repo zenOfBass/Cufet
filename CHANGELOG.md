@@ -77,6 +77,10 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   both backends: interpreted, the field and the object written into it had stayed one object, so a
   later change to either showed through the other, where compiled it never did. Found writing the
   type checker in Cufet.
+- **An undefined name is no longer blamed on a bundled book's local.** A program more than about
+  200 lines long using an undefined `remaining` was told "'remaining' was defined on line 217,
+  inside a block that has ended" — a local inside `math`'s own source, checked before the program.
+  Found writing the type checker in Cufet.
 - **An empty series is told a spelling that works.** `a series with ()` was advised to write
   `a series of numbers ()`, which does not parse; it is now told `a series of numbers`, `a series
   of text` or `a series of facts`.

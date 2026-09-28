@@ -37,7 +37,7 @@ Pull a book on collections.
     /// A type this checker cannot weigh yet — held behind `unsupported` wherever it turns up.
     Bind fact to beyond-types, given (the node shape):
         Define kind as shape's kind.
-        If kind is "UnionType" or kind is "RecordType" or kind is "FunctionType" or kind is "InterfaceType":
+        If kind is "UnionType" or kind is "RecordType" or kind is "FunctionType" or kind is "InterfaceType" or kind is "BookType":
             Return true.
         Done.
         For each inner in shape's children, repeat:
@@ -98,6 +98,12 @@ Pull a book on collections.
 
         // A name that is a TYPE somewhere else is a different mistake from a missing variable.
         Define from-book as cast book-introducing on (name).
+        If from-book is not "" and cast one's has-scoped-type on (name in lowercase):
+            Return a failure (cast refusal-of on ("'{name}' is a type, and a type on its own isn't a value",
+                "The '{from-book}' book IS pulled here, so the name is in scope — what is missing is the rest of the construction",
+                at-row, "use '{name}' by itself where a value goes",
+                "Give it the rest of what it is built from — see the '{from-book}' book in docs/BOOKS.md.")).
+        Done.
         If from-book is not "":
             Return a failure (cast refusal-of on ("'{name}' is a type, and this program has not pulled it",
                 "The '{from-book}' book introduces it, and the name means the type only inside that pull",
