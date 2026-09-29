@@ -12,7 +12,7 @@
 Pull a book on collections.
     /// What a name stands for in a scope — C#'s `TypeInfo`.
     Define object binding with (the node shape, the node established-by, the number line, the fact permanent,
-        the fact module).
+        the fact module, the number depth, the fact parameter).
 
     Define object checker with (
         the series of map from text to binding scopes,
@@ -27,7 +27,14 @@ Pull a book on collections.
         the series of text def-order,
         the map from text to fact templates,
         the map from text to fact bundled,
-        the series of map from text to node type-scopes).
+        the series of map from text to node type-scopes,
+        the number rabbit-depth,
+        the number nesting,
+        the map from text to node untos,
+        the series of text unto-order,
+        the fact in-try,
+        the fact handled,
+        the fact in-exception-handler).
 
     Bind node to unknown-type:
         Return cast shaped on ("none").
@@ -73,9 +80,9 @@ Pull a book on collections.
         Cast writing's add on (cast plain-type on ("TextType")).
         Define scope as a map from text to binding.
         In scope, the entry for "input" becomes a new binding {
-            the shape reading, the established-by cast named-reference on ("input"), the line 0, the permanent false, the module false }.
+            the shape reading, the established-by cast named-reference on ("input"), the line 0, the permanent false, the module false, the depth 0, the parameter false }.
         In scope, the entry for "output" becomes a new binding {
-            the shape writing, the established-by cast named-reference on ("output"), the line 0, the permanent false, the module false }.
+            the shape writing, the established-by cast named-reference on ("output"), the line 0, the permanent false, the module false, the depth 0, the parameter false }.
         Return scope.
     Done.
 
@@ -186,8 +193,19 @@ Pull a book on collections.
         If kind is "ForEachStatement", return cast beyond-reach on (cast field-of on (statement, 3)).
         If kind is "BindStatement", return cast bind-beyond-reach on (statement).
         If kind is "PullStatement", return cast beyond-reach on (cast field-of on (statement, 2)).
+        If kind is "PullRabbitStatement", return cast beyond-reach on (cast field-of on (statement, 2)).
+        If kind is "TryStatement":
+            For each place in a series with (1, 2, 3), repeat:
+                Define handler as cast field-of on (statement, place).
+                If cast is-nothing on (handler) is false:
+                    Define inner as cast beyond-reach on (handler).
+                    If inner is not "", return inner.
+                Done.
+            Done.
+            Return "".
+        Done.
         For each known in a series with ("StateStatement", "BecomesStatement", "StopStatement", "SkipStatement",
-                "ReturnStatement", "CastStatement", "PossessiveSetStatement", "RecordNamedSetStatement",
+                "ReturnStatement", "CastStatement", "PossessiveSetStatement", "RecordNamedSetStatement", "SuppressStatement",
                 "SeriesInsertStatement", "SeriesSetStatement", "SeriesRemoveAtStatement", "SeriesRemoveValueStatement"), repeat:
             If kind is known, return "".
         Done.
@@ -206,7 +224,9 @@ Pull a book on collections.
     Bind void to gather-hoistable, given (the node statements, the series of node found):
         For each statement in statements's children, repeat:
             Insert statement into found.
-            If statement's kind is "PullStatement", cast gather-hoistable on (cast field-of on (statement, 2), found).
+            If statement's kind is "PullStatement" or statement's kind is "PullRabbitStatement":
+                Cast gather-hoistable on (cast field-of on (statement, 2), found).
+            Done.
         Done.
     Done.
 
@@ -216,7 +236,12 @@ Pull a book on collections.
         For each statement in cast hoistable on (program), repeat:
             Define inner as "".
             If statement's kind is "ObjectDefinition", the inner becomes cast object-beyond-reach on (statement).
-            Otherwise if statement's kind is not "PullStatement", the inner becomes cast statement-beyond-reach on (statement).
+            Otherwise if statement's kind is "BindStatement" and cast is-nothing on (cast field-of on (statement, 5)) is false:
+                The inner becomes cast unto-beyond-reach on (statement).
+            Done.
+            Otherwise if statement's kind is not "PullStatement" and statement's kind is not "PullRabbitStatement":
+                The inner becomes cast statement-beyond-reach on (statement).
+            Done.
             If inner is not "", return inner.
         Done.
         Return "".
@@ -228,6 +253,7 @@ Pull a book on collections.
         Cast check-versions on (program) or pass the failure off.
         Cast one's hoist-objects on (program) or pass the failure off.
         Cast one's check-method-blanks or pass the failure off.
+        Cast one's check-leftover-untos or pass the failure off.
         Cast one's hoist-functions on (program) or pass the failure off.
         Cast one's resolve-types or pass the failure off.
         Cast one's hoist-shared-constants on (program) or pass the failure off.
@@ -258,7 +284,7 @@ Pull a book on collections.
                             the shape value-type,
                             the established-by cast field-of on (statement, 2),
                             the line cast numeric on (cast field-of on (statement, 5)),
-                            the permanent true, the module false }).
+                            the permanent true, the module false, the depth 0, the parameter false }).
                         In one's hoisted-constants, the entry for name becomes true.
                     Done.
                 Done.
@@ -343,6 +369,16 @@ Pull a book on collections.
                 Done.
                 If every-arm and cast definitely-returns on (cast field-of on (statement, 2)), return true.
             Done.
+            If statement's kind is "TryStatement" and cast definitely-returns on (cast field-of on (statement, 1)):
+                Define all-handlers as true.
+                For each place in a series with (2, 3), repeat:
+                    Define handler as cast field-of on (statement, place).
+                    If cast is-nothing on (handler) is false and cast definitely-returns on (handler) is false:
+                        The all-handlers becomes false.
+                    Done.
+                Done.
+                If all-handlers, return true.
+            Done.
         Done.
         Return false.
     Done.
@@ -411,6 +447,15 @@ Pull a book on collections.
         Done.
         Otherwise if kind is "PullStatement":
             Cast one's check-pull on (statement) or pass the failure off.
+        Done.
+        Otherwise if kind is "PullRabbitStatement":
+            Cast one's check-pull-rabbit on (statement) or pass the failure off.
+        Done.
+        Otherwise if kind is "TryStatement":
+            Cast one's check-try on (statement) or pass the failure off.
+        Done.
+        Otherwise if kind is "SuppressStatement":
+            Cast one's check-suppress on (statement) or pass the failure off.
         Done.
         Otherwise if kind is "PossessiveSetStatement":
             Cast one's check-possessive-set on (statement) or pass the failure off.
@@ -518,9 +563,15 @@ Pull a book on collections.
         Define iterator as "it".
         Define named as cast field-of on (statement, 1).
         If cast is-nothing on (named) is false, the iterator becomes cast unquoted on (named).
+        Define iterator-depth as one's rabbit-depth.
+        If looped's kind is "VariableReference":
+            Define source as cast one's look-up on (cast unquoted on (cast field-of on (looped, 1))).
+            If source is not void, the iterator-depth becomes source's depth.
+        Done.
         Cast one's enter-scope.
         Cast one's bind-name on (iterator, a new binding {
-            the shape cast field-of on (looped-type, 1), the established-by looped, the line at-row, the permanent false, the module false }).
+            the shape cast field-of on (looped-type, 1), the established-by looped, the line at-row, the permanent false,
+            the module false, the depth iterator-depth, the parameter false }).
         Cast one's check-block on (cast field-of on (statement, 3)) or pass the failure off.
         Cast one's exit-scope.
     Done.
@@ -554,6 +605,8 @@ Pull a book on collections.
                 at-row, "add a {cast type-words on (given-type)} value to it",
                 "Change the value to a {cast type-words on (element)}, or define a separate series that holds {cast plural-words on (given-type)}.")).
         Done.
+        Cast one's check-region-store on (value, given-type, cast one's container-depth on (target), at-row,
+            "add a region-scoped value to a series in a longer-lived region") or pass the failure off.
     Done.
 
     Bind void or failure to check-series-set unto checker, given (the node statement):
@@ -575,6 +628,8 @@ Pull a book on collections.
                     at-row, "set an item to a {cast type-words on (given-type)} value",
                     "Change the new value to a {cast type-words on (element)}.")).
             Done.
+            Cast one's check-region-store on (cast field-of on (statement, 3), given-type, cast one's container-depth on (target), at-row,
+                "set an item in a series to a region-scoped value from a shorter-lived region") or pass the failure off.
             Return.
         Done.
         If container's kind is "ObjectType":
@@ -722,7 +777,8 @@ Pull a book on collections.
             The kept becomes declared.
         Done.
         Cast one's bind-name on (name, a new binding {
-            the shape kept, the established-by value, the line at-row, the permanent permanent, the module false }).
+            the shape kept, the established-by value, the line at-row, the permanent permanent, the module false,
+            the depth one's rabbit-depth, the parameter false }).
     Done.
 
     Bind void or failure to check-becomes unto checker, given (the node statement):
@@ -761,6 +817,8 @@ Pull a book on collections.
                 at-row, "give it a {cast type-words on (given-type)} value",
                 "Variables keep their type for life. If you need a {cast type-words on (given-type)} value here, define a new name for it instead.")).
         Done.
+        Cast one's check-region-store on (value, given-type, existing's depth, at-row,
+            "reassign '{name}' to a value from a shorter-lived region") or pass the failure off.
     Done.
 
     /// Does a value of type `source` fit where `target` is wanted — C#'s `IsAssignable`.
@@ -792,7 +850,14 @@ Pull a book on collections.
             the def-order a series of text,
             the templates a map from text to fact,
             the bundled a map from text to fact,
-            the type-scopes a series with (a map from text to node) }.
+            the type-scopes a series with (a map from text to node),
+            the rabbit-depth 0,
+            the nesting 0,
+            the untos a map from text to node,
+            the unto-order a series of text,
+            the in-try false,
+            the handled false,
+            the in-exception-handler false }.
         Cast walker's register-prelude on (prelude).
         Cast walker's check-program on (program) or pass the failure off.
         Return "ok".

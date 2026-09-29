@@ -24,6 +24,9 @@ Pull a book on collections.
         If kind is "SeriesAccess", return cast one's infer-series-access on (said) or pass the failure off.
         If kind is "SeriesLength", return cast one's infer-series-length on (said) or pass the failure off.
         If kind is "CastExpression", return cast one's check-call on (said, true) or pass the failure off.
+        If kind is "FailureLiteral", return cast one's infer-failure-literal on (said) or pass the failure off.
+        If kind is "FailureFallback", return cast one's infer-failure-fallback on (said) or pass the failure off.
+        If kind is "FailurePropagate", return cast one's infer-failure-propagate on (said) or pass the failure off.
         If kind is "ObjectLiteral", return cast one's infer-object-literal on (said) or pass the failure off.
         If kind is "PossessiveAccess", return cast one's infer-possessive on (said, false) or pass the failure off.
         If kind is "RecordNamedAccess", return cast one's infer-named-access on (said) or pass the failure off.
@@ -220,6 +223,12 @@ Pull a book on collections.
             Done.
             If rk is "VoidableType":
                 If cast same-type on (cast field-of on (rhs, 1), lhs), return fact-type.
+            Done.
+            If cast is-rabbit-type on (lhs) or cast is-rabbit-type on (rhs):
+                Return a failure (cast refusal-of on ("a rabbit can't be compared, not even to another rabbit",
+                    "A rabbit is a region with a lifetime of its own, not a value that can match another",
+                    at-row, "compare a rabbit",
+                    "Nothing tells one rabbit from another today. If you need that, it is worth asking for rather than working around.")).
             Done.
             If cast same-type on (lhs, rhs), return fact-type.
             Return a failure (cast refusal-of on ("equality comparison requires matching types", "",

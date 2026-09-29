@@ -1,0 +1,189 @@
+/*  Failures — `T or failure`, `Try`, `but on failure` and `or pass the failure off`:
+    `TypeChecker.Failures.cs`, with the fallible-call rules of `InferCastExpr` and `CheckStatement`.
+
+    ★ Two flags carry the whole of it, as they do in C#. Inside a `Try` that has a failure handler a
+    fallible call's result is its value, the failure branch having been left behind. And while the
+    operand of `but on failure` or `or pass the failure off` is typed, a fallible value may stand as
+    it is — for everything inside that operand, nested calls included.
+*/
+
+Pull a book on collections.
+    Bind fact to is-failure-type, given (the node shape):
+        Return shape's kind is "FailureType".
+    Done.
+
+    /// A failure being handed back — written, passed off, or `the failure` itself.
+    Bind fact to is-failure-expression, given (the node said):
+        If said's kind is "FailureLiteral" or said's kind is "FailurePropagate", return true.
+        If said's kind is "VariableReference", return cast unquoted on (cast field-of on (said, 1)) is "the failure".
+        Return false.
+    Done.
+
+    Bind node or failure to infer-failure-literal unto checker, given (the node said):
+        Define at-row as cast numeric on (cast field-of on (said, 3)).
+        Define message-type as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
+        If cast is-none on (message-type) is false and message-type's kind is not "TextType":
+            If cast beyond-types on (message-type), return a failure (cast not-judged on ("a failure message of a {message-type's kind}")).
+            Return a failure (cast refusal-of on ("a failure message must be text", "", at-row,
+                "use a {cast type-words on (message-type)} as the failure message",
+                "A message is any text — a literal, an interpolation naming what went wrong, or a variable holding one.")).
+        Done.
+        Define category-said as cast field-of on (said, 2).
+        If cast is-nothing on (category-said) is false:
+            Define category-type as cast one's infer on (category-said) or pass the failure off.
+            If cast is-none on (category-type) is false and category-type's kind is not "TextType":
+                If cast beyond-types on (category-type), return a failure (cast not-judged on ("a failure category of a {category-type's kind}")).
+                Return a failure (cast refusal-of on ("a failure category must be text", "", at-row,
+                    "use a {cast type-words on (category-type)} as the failure category",
+                    "Write the category as a text literal, e.g. of category \"bad-input\".")).
+            Done.
+        Done.
+        Return cast plain-type on ("FailureMarkerType").
+    Done.
+
+    /// Types the operand of `but on failure` or `or pass the failure off`, where a failure may stand.
+    Bind node or failure to infer-handled unto checker, given (the node operand):
+        Define earlier as one's handled.
+        The one's handled becomes true.
+        Define operand-type as cast unknown-type.
+        Try to:
+            The operand-type becomes cast one's infer on (operand).
+        Done.
+        In case of failure:
+            The one's handled becomes earlier.
+            Return a failure (the message of the failure).
+        Done.
+        The one's handled becomes earlier.
+        Return operand-type.
+    Done.
+
+    Bind node or failure to infer-failure-fallback unto checker, given (the node said):
+        Define fallible as cast one's infer-handled on (cast field-of on (said, 1)) or pass the failure off.
+        Define fallback as cast one's infer on (cast field-of on (said, 2)) or pass the failure off.
+        Define at-row as cast numeric on (cast field-of on (said, 3)).
+        If fallible's kind is "FailureType":
+            Define inner as cast field-of on (fallible, 1).
+            If cast is-none on (fallback) is false and cast assignable on (inner, fallback) is false:
+                If cast beyond-types on (fallback) or cast beyond-types on (inner), return a failure (cast not-judged on ("a default of another kind")).
+                Return a failure (cast refusal-of on (
+                    "the default value is a {cast type-words on (fallback)}, but the fallible holds {cast plural-words on (inner)}", "",
+                    at-row, "use a {cast type-words on (fallback)} as the default for a {cast type-words on (inner)} or failure",
+                    "The default after 'but on failure' must be a {cast type-words on (inner)}.")).
+            Done.
+            Return inner.
+        Done.
+        If fallible's kind is "FailureMarkerType", return fallback.
+        If cast is-none on (fallible) is false:
+            If cast beyond-types on (fallible), return a failure (cast not-judged on ("'but on failure' on a {fallible's kind}")).
+            Return a failure (cast refusal-of on ("'{cast type-words on (fallible)}' can never fail", "", at-row,
+                "use 'but on failure' on a {cast type-words on (fallible)} value",
+                "Only fallible values (declared as 'T or failure') can fail. 'but on failure' is only needed for fallible values.")).
+        Done.
+        Return fallible.
+    Done.
+
+    Bind node or failure to infer-failure-propagate unto checker, given (the node said):
+        Define fallible as cast one's infer-handled on (cast field-of on (said, 1)) or pass the failure off.
+        Define at-row as cast numeric on (cast field-of on (said, 2)).
+        Define kind as fallible's kind.
+        If kind is "FailureType" or kind is "FailureMarkerType":
+            If cast is-failure-type on (cast one's expected-return) is false:
+                Return a failure (cast refusal-of on ("you can only propagate a failure from a function declared as fallible", "",
+                    at-row, "propagate a failure from a non-fallible function",
+                    "Declare this function's return type as 'T or failure' to allow propagation, or handle the failure with 'but on failure' or a Try block instead.")).
+            Done.
+            If kind is "FailureType", return cast field-of on (fallible, 1).
+            Return cast unknown-type.
+        Done.
+        If cast is-none on (fallible) is false:
+            If cast beyond-types on (fallible), return a failure (cast not-judged on ("passing off a {kind}")).
+            Return a failure (cast refusal-of on ("'{cast type-words on (fallible)}' can never fail — nothing to propagate", "", at-row,
+                "propagate a failure from a {cast type-words on (fallible)} value",
+                "Only fallible values (declared as 'T or failure') can be propagated.")).
+        Done.
+        Return fallible.
+    Done.
+
+    /// What the function being checked gives back — `none` outside one, or for `void`.
+    Bind node to expected-return unto checker:
+        Return item (the number of one's expected-returns) of one's expected-returns.
+    Done.
+
+    /// `Cast … or pass the failure off.` as a statement — `CheckPassOffStatement`.
+    Bind void or failure to check-pass-off unto checker, given (the node gives, the text display, the number at-row):
+        If cast is-failure-type on (gives) is false:
+            Return a failure (cast refusal-of on ("{display} can never fail — there is no failure to pass off", "",
+                at-row, "pass off the failure of a call that cannot fail",
+                "Remove 'or pass the failure off' and end the line after the call.")).
+        Done.
+        If one's in-try:
+            Return a failure (cast refusal-of on ("inside 'Try to:', a failure already goes to 'In case of failure'", "",
+                at-row, "pass a failure off from inside a Try",
+                "Remove 'or pass the failure off' — the Try handles it — or move the call out of the Try.")).
+        Done.
+        If cast is-failure-type on (cast one's expected-return) is false:
+            Return a failure (cast refusal-of on ("you can only pass a failure off from a function that can fail", "",
+                at-row, "pass a failure off from a function that cannot fail",
+                "Declare the function so it can fail — 'Bind void or failure to …' when it gives nothing back, 'Bind number or failure to …' when it does — or handle the failure here with a 'Try to: / In case of failure:' block.")).
+        Done.
+    Done.
+
+    Bind void or failure to check-try unto checker, given (the node statement):
+        Define failure-handler as cast field-of on (statement, 2).
+        Define exception-handler as cast field-of on (statement, 3).
+        Define at-row as cast numeric on (cast field-of on (statement, 4)).
+        Define at-column as cast numeric on (cast field-of on (statement, 5)).
+        Define has-failure as cast is-nothing on (failure-handler) is false.
+        Define has-exception as cast is-nothing on (exception-handler) is false.
+        If has-failure is false and has-exception is false:
+            Return a failure (cast refusal-of on ("a 'Try' block must have at least one handler", "", at-row,
+                "write a Try block with no handlers",
+                "Add 'In case of failure:' and/or 'In case of exception (the exception):' after the Try body.")).
+        Done.
+
+        Define earlier-try as one's in-try.
+        The one's in-try becomes has-failure.
+        Cast one's enter-scope.
+        Cast one's check-block on (cast field-of on (statement, 1)) or pass the failure off.
+        Cast one's exit-scope.
+        The one's in-try becomes earlier-try.
+
+        If has-failure:
+            Cast one's enter-scope.
+            Cast one's bind-name on ("the failure", a new binding {
+                the shape cast plain-type on ("FailureMarkerType"),
+                the established-by cast placed-reference on ("the failure", at-row, at-column),
+                the line at-row, the permanent false, the module false, the depth 0, the parameter false }).
+            Cast one's check-block on (failure-handler) or pass the failure off.
+            Cast one's exit-scope.
+        Done.
+        If has-exception:
+            Define key as "the exception".
+            Define place as 5.
+            While place is less than the number of statement's children, repeat:
+                Increment place by 1.
+                If (item place of statement's children)'s word is ":ExceptionName":
+                    Define chosen as cast unquoted on (item (place + 1) of statement's children).
+                    If chosen is not "exception", the key becomes chosen.
+                Done.
+            Done.
+            Cast one's enter-scope.
+            Cast one's bind-name on (key, a new binding {
+                the shape cast plain-type on ("ExceptionMarkerType"),
+                the established-by cast placed-reference on (key, at-row, at-column),
+                the line at-row, the permanent false, the module false, the depth 0, the parameter false }).
+            Define earlier-handler as one's in-exception-handler.
+            The one's in-exception-handler becomes true.
+            Cast one's check-block on (exception-handler) or pass the failure off.
+            The one's in-exception-handler becomes earlier-handler.
+            Cast one's exit-scope.
+        Done.
+    Done.
+
+    Bind void or failure to check-suppress unto checker, given (the node statement):
+        If one's in-exception-handler, return.
+        Return a failure (cast refusal-of on ("'Suppress the exception.' is only valid inside an exception handler", "",
+            cast numeric on (cast field-of on (statement, 1)), "suppress an exception outside an exception handler",
+            "Move 'Suppress the exception.' inside an 'In case of exception' block.")).
+    Done.
+Done.

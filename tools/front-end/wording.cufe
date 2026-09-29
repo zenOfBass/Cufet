@@ -102,6 +102,8 @@ Pull a book on collections.
         If kind is "FactType", return "fact".
         If kind is "VoidType", return "void".
         If kind is "AddressType", return "address".
+        If kind is "FailureMarkerType", return "failure".
+        If kind is "ExceptionMarkerType", return "exception".
         If kind is "MatrixType", return "matrix".
         If kind is "ChaseType", return "chase".
         If kind is "VoidableType", return "voidable {cast type-words on (cast field-of on (shape, 1))}".
@@ -126,6 +128,8 @@ Pull a book on collections.
         If kind is "FactType", return "facts".
         If kind is "VoidType", return "void values".
         If kind is "MatrixType", return "matrices".
+        If kind is "FailureMarkerType", return "failures".
+        If kind is "ExceptionMarkerType", return "exceptions".
         If kind is "VoidableType", return "voidable {cast plural-words on (cast field-of on (shape, 1))}".
         If kind is "SeriesType", return "series of {cast plural-words on (cast field-of on (shape, 1))}".
         If kind is "StashType", return "stashes of {cast plural-words on (cast field-of on (shape, 1))}".

@@ -1,0 +1,85 @@
+/*  Regions — `Pull a rabbit` and the rule that keeps one sound: `CheckPullRabbit`,
+    `CheckRegionStore`, `ValueDepthOf` and `ContainerDepthOf` in
+    `src/Interpreter/TypeChecker.Rabbit.cs`.
+
+    ★ A region is a depth. Pulling a rabbit goes one deeper, a name remembers the depth it was made
+    at, and a value may not be stored anywhere that outlives it — somewhere shallower.
+
+    ⚠ C# knows the depth of what a CALL or a field read gives back, from a signature it works out
+    after checking each function's returns. This checker does not work that out yet, so such a value
+    stored somewhere longer-lived than the region it stands in is left `unsupported` rather than
+    guessed — at the same depth, or outside every region, it cannot be refused and needs no answer.
+*/
+
+Pull a book on collections.
+    /// What a series, a map, an object — anything held by reference — is; a value-typed one copies.
+    Bind fact to is-reference-type, given (the node shape):
+        Define kind as shape's kind.
+        Return kind is "SeriesType" or kind is "MapType" or kind is "ObjectType" or kind is "MatrixType"
+            or kind is "ChannelType" or kind is "AddressType".
+    Done.
+
+    Bind fact to is-rabbit-type, given (the node shape):
+        If shape's kind is not "ObjectType", return false.
+        Return (cast unquoted on (cast field-of on (shape, 1)) in lowercase) is "rabbit".
+    Done.
+
+    /// How deep a captured parameter is taken to be: deeper than anything, so it is stored nowhere.
+    Bind number to captured-parameter-depth:
+        Return 2147483647.
+    Done.
+
+    /// The depth of the container being written into — its name's, or where the write stands.
+    Bind number to container-depth unto checker, given (the node target):
+        If target's kind is "VariableReference":
+            Define found as cast one's look-up on (cast unquoted on (cast field-of on (target, 1))).
+            If found is not void, return found's depth.
+        Done.
+        Return one's rabbit-depth.
+    Done.
+
+    /// A value stored where it would outlive its region is refused.
+    Bind void or failure to check-region-store unto checker, given (the node value, the node value-type,
+            the number target-depth, the number at-row, the text action):
+        If cast is-reference-type on (value-type) is false, return.
+        Define kind as value's kind.
+        Define value-depth as 0.
+        If kind is "VariableReference":
+            Define found as cast one's look-up on (cast unquoted on (cast field-of on (value, 1))).
+            If found is not void, the value-depth becomes found's depth.
+        Done.
+        Otherwise if kind is "SeriesLiteral" or kind is "MapLiteral" or kind is "MatrixLiteral" or kind is "MatrixSized"
+                or kind is "ObjectLiteral" or kind is "RangeExpression" or kind is "ChannelCreation":
+            The value-depth becomes one's rabbit-depth.
+        Done.
+        Otherwise if kind is "CastExpression" or kind is "PossessiveAccess" or kind is "RecordNamedAccess":
+            If target-depth is less than one's rabbit-depth or one's nesting is greater than 1:
+                Return a failure (cast not-judged on ("the region of a value a call or a field hands back")).
+            Done.
+        Done.
+        If value-depth is greater than target-depth:
+            Return a failure (cast refusal-of on (
+                "this value lives in a shorter-lived region than its destination — it will be gone when that region ends", "",
+                at-row, action,
+                "Declare the container inside that region too, so both end at its 'Done.', or make the value before the region opens, so it lives as long as the container.")).
+        Done.
+    Done.
+
+    /// `Pull a rabbit [as <name>].` — one region deeper for the length of the block.
+    Bind void or failure to check-pull-rabbit unto checker, given (the node statement):
+        Define at-row as cast numeric on (cast field-of on (statement, 3)).
+        Increment one's rabbit-depth by 1.
+        Cast one's enter-scope.
+        Define named as cast field-of on (statement, 1).
+        If cast is-nothing on (named) is false:
+            Define name as cast unquoted on (named).
+            Cast one's bind-name on (name, a new binding {
+                the shape cast object-type-named on ("rabbit"),
+                the established-by cast placed-reference on (name, at-row, cast numeric on (cast field-of on (statement, 4))),
+                the line at-row, the permanent false, the module false, the depth one's rabbit-depth, the parameter false }).
+        Done.
+        Cast one's check-block on (cast field-of on (statement, 2)) or pass the failure off.
+        Cast one's exit-scope.
+        Decrement one's rabbit-depth by 1.
+    Done.
+Done.

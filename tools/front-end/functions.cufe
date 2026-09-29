@@ -46,7 +46,7 @@ Pull a book on collections.
         If the number of statement's children is greater than 8, return "a Bind with {(cast field-of on (statement, 9))'s word}".
         Define returned as cast field-of on (statement, 2).
         If cast is-nothing on (returned) is false:
-            If cast beyond-types on (returned) or returned's kind is "FailureType" or returned's kind is "AxiomType":
+            If cast beyond-types on (returned) or returned's kind is "AxiomType":
                 Return "a function giving back a {returned's kind}".
             Done.
         Done.
@@ -195,7 +195,7 @@ Pull a book on collections.
     Bind void or failure to hoist-functions unto checker, given (the node program):
         Define seen as a map from text to number.
         For each statement in cast hoistable on (program), repeat:
-            If statement's kind is "BindStatement":
+            If statement's kind is "BindStatement" and cast is-nothing on (cast field-of on (statement, 5)):
                 Define name as cast unquoted on (cast field-of on (statement, 1)).
                 Define at-row as cast numeric on (cast field-of on (statement, 7)).
                 Define earlier as the entry for name in seen.
@@ -216,7 +216,7 @@ Pull a book on collections.
                 Done.
                 Cast one's bind-name on (name, a new binding {
                     the shape cast function-type-of on (statement),
-                    the established-by cast named-reference on (name), the line at-row, the permanent false, the module false }).
+                    the established-by cast named-reference on (name), the line at-row, the permanent false, the module false, the depth 0, the parameter false }).
             Done.
         Done.
     Done.
@@ -244,13 +244,20 @@ Pull a book on collections.
 
     Bind void or failure to check-bind-statement unto checker, given (the node statement):
         Define name as cast unquoted on (cast field-of on (statement, 1)).
+        Define target as cast field-of on (statement, 5).
+        If cast is-nothing on (target) is false:
+            // The object is `one`, and the line it is said to be made on is the method's own.
+            Cast one's check-method-body on (statement, cast unquoted on (target),
+                cast numeric on (cast field-of on (statement, 7))) or pass the failure off.
+            Return.
+        Done.
         If (the entry for name in one's templates) is not void, return.
         Define at-row as cast numeric on (cast field-of on (statement, 7)).
         // A top-level function is in scope already, from the hoist; a nested one arrives here.
         If (the entry for name in cast one's innermost) is void:
             Cast one's bind-name on (name, a new binding {
                 the shape cast function-type-of on (statement),
-                the established-by cast named-reference on (name), the line at-row, the permanent false, the module false }).
+                the established-by cast named-reference on (name), the line at-row, the permanent false, the module false, the depth 0, the parameter false }).
         Done.
         Cast one's check-bind-body on (statement) or pass the failure off.
     Done.
@@ -271,7 +278,16 @@ Pull a book on collections.
         If nested:
             For each scope in saved, repeat:
                 For each pair in scope, repeat:
-                    In fresh, the entry for (the key of pair) becomes the value of pair.
+                    Define held as the value of pair.
+                    If held's parameter and cast is-reference-type on (held's shape):
+                        In fresh, the entry for (the key of pair) becomes a new binding {
+                            the shape held's shape, the established-by held's established-by, the line held's line,
+                            the permanent held's permanent, the module held's module,
+                            the depth cast captured-parameter-depth, the parameter true }.
+                    Done.
+                    Otherwise:
+                        In fresh, the entry for (the key of pair) becomes held.
+                    Done.
                 Done.
             Done.
         Done.
@@ -297,11 +313,14 @@ Pull a book on collections.
             Cast one's check-resolves on (cast field-of on (parameter, 1)) or pass the failure off.
             Cast one's bind-name on (parameter-name, a new binding {
                 the shape cast field-of on (parameter, 1),
-                the established-by cast named-reference on (parameter-name), the line at-row, the permanent false, the module false }).
+                the established-by cast named-reference on (parameter-name), the line at-row, the permanent false, the module false, the depth 0, the parameter true }).
         Done.
 
         Define earlier-in-function as one's in-function.
         Define earlier-line as one's function-line.
+        Define earlier-depth as one's rabbit-depth.
+        The one's rabbit-depth becomes 0.
+        Increment one's nesting by 1.
         The one's in-function becomes true.
         // One per body entered, so leaving it is taking the last one off.
         If cast is-nothing on (returned), insert cast unknown-type into one's expected-returns.
@@ -313,11 +332,14 @@ Pull a book on collections.
         The one's in-function becomes earlier-in-function.
         Remove item (the number of one's expected-returns) from one's expected-returns.
         The one's function-line becomes earlier-line.
+        The one's rabbit-depth becomes earlier-depth.
+        Decrement one's nesting by 1.
         The one's hidden becomes earlier-hidden.
         The one's scopes becomes saved.
         Cast one's trim-type-scopes on (saved-types).
 
-        If cast is-nothing on (returned) is false and cast definitely-returns on (cast field-of on (statement, 4)) is false:
+        If cast is-nothing on (returned) is false and cast is-void-or-failure on (returned) is false
+                and cast definitely-returns on (cast field-of on (statement, 4)) is false:
             Return a failure (cast refusal-of on (
                 "'{name}' is declared to give back a {cast type-words on (returned)}, but it can reach its end without returning one", "",
                 at-row, "define a function that might not return a value",
@@ -343,6 +365,18 @@ Pull a book on collections.
             Done.
             Return.
         Done.
+        If cast is-void-or-failure on (expected):
+            If gives-value:
+                Define handed as cast one's infer on (value) or pass the failure off.
+                If cast is-failure-expression on (value) is false and handed's kind is not "FailureMarkerType"
+                        and cast is-void-or-failure on (handed) is false:
+                    Return a failure (cast refusal-of on ("this function is declared 'void or failure' — when it works it gives nothing back",
+                        "You declared the return type on line {one's function-line}", at-row, "return a value from it",
+                        "Write 'Return.' for success, or 'Return a failure \"…\".' when it does not work.")).
+                Done.
+            Done.
+            Return.
+        Done.
         Define promised as cast type-words on (expected).
         Define declared-on as "You declared the return type as {promised} on line {one's function-line}".
         If gives-value is false:
@@ -350,6 +384,11 @@ Pull a book on collections.
                 at-row, "return without a value", "Provide a {promised} value to return.")).
         Done.
         Define value-type as cast one's infer on (value) or pass the failure off.
+        If cast is-rabbit-type on (value-type):
+            Return a failure (cast refusal-of on ("rabbits cannot be returned — they flow downward only", "",
+                at-row, "return a rabbit from a function",
+                "Pass the rabbit as an argument instead, or return a value that lives in it (a handle into the rabbit).")).
+        Done.
         If cast is-none on (value-type), return.
         If cast assignable on (expected, value-type), return.
         If cast beyond-types on (value-type), return a failure (cast not-judged on ("returning a {value-type's kind}")).
@@ -487,12 +526,13 @@ Pull a book on collections.
             Define target as cast one's infer on (cast field-of on (callee, 1)) or pass the failure off.
             If cast beyond-types on (target), return a failure (cast not-judged on ("named arguments to a method of a {target's kind}")).
             If target's kind is "ObjectType":
-                // Its own methods only — C# reads the type's own list here, not what it promotes.
+                // The type's own methods and its `unto` ones — not what it promotes.
                 Define owner as cast unquoted on (cast field-of on (target, 1)).
                 Define definition as cast one's definition-of on (owner).
                 If definition is not void:
-                    For each method in (cast field-of on (definition, 4))'s children, repeat:
-                        If known is false and cast unquoted on (cast field-of on (method, 1)) is member:
+                    For each method in cast one's all-methods on (definition), repeat:
+                        If known is false and cast unquoted on (cast field-of on (method, 1)) is member
+                                and cast one's is-nested-template on (method) is false:
                             The names becomes cast parameter-names-of on (cast function-type-of on (method)) but void is a series of text.
                             The known becomes true.
                         Done.
@@ -623,6 +663,7 @@ Pull a book on collections.
         Define call-args as cast field-of on (said, 2).
         Define at-row as cast numeric on (cast field-of on (said, 3)).
         // Named arguments first: everything after reads the arguments by position.
+        Define passes-off as false.
         Define place as 4.
         While place is less than the number of said's children, repeat:
             Increment place by 1.
@@ -632,20 +673,51 @@ Pull a book on collections.
                     item (place + 1) of said's children, at-row) or pass the failure off.
             Done.
             Otherwise if marker is ":PassesFailureOff":
-                Return a failure (cast not-judged on ("passing a failure off")).
+                The passes-off becomes true.
             Done.
         Done.
         Define reached as cast one's resolve-cast on (callee, call-args, at-row) or pass the failure off.
         If cast is-none on (reached's shape), return reached's shape.
         Cast one's check-arguments on (reached, call-args, at-row) or pass the failure off.
         Define gives as cast field-of on (reached's shape, 2).
-        If as-value and cast is-nothing on (gives):
-            Return a failure (cast refusal-of on ("{reached's display} gives nothing back — it can't be used as a value",
+        Define display as reached's display.
+        If as-value is false:
+            If passes-off:
+                Define passed as cast unknown-type.
+                If cast is-nothing on (gives) is false, the passed becomes gives.
+                Cast one's check-pass-off on (passed, display, at-row) or pass the failure off.
+            Done.
+            Otherwise if one's in-try is false and cast is-nothing on (gives) is false:
+                If cast is-failure-type on (gives):
+                    Define fix as "Wrap this call in a 'Try to: / In case of failure:' block.".
+                    If cast is-failure-type on (cast one's expected-return):
+                        The fix becomes "Hand the failure to this function's caller — end the line '… or pass the failure off.' — or wrap the call in a 'Try to: / In case of failure:' block.".
+                    Done.
+                    Return a failure (cast refusal-of on ("{display} can fail — you must handle the failure", "",
+                        at-row, "call a fallible function without handling the failure", fix)).
+                Done.
+            Done.
+            Return cast unknown-type.
+        Done.
+        If cast is-nothing on (gives):
+            Return a failure (cast refusal-of on ("{display} gives nothing back — it can't be used as a value",
                 "You declared it as void on line {reached's declared-on}", at-row, "use its result as a value",
                 "Cast it as a statement instead, or change its return type if you need a result.")).
         Done.
-        If cast is-nothing on (gives), return cast unknown-type.
-        If gives's kind is "FailureType", return a failure (cast not-judged on ("calling a function that can fail")).
+        If cast is-void-or-failure on (gives):
+            Return a failure (cast refusal-of on ("{display} gives nothing back — it can't be used as a value",
+                "You declared it as 'void or failure' on line {reached's declared-on}: it can fail, but when it works there is no result",
+                at-row, "use its result as a value",
+                "Cast it as a statement — inside 'Try to:', or ending '… or pass the failure off.' in a function that can fail.")).
+        Done.
+        If cast is-failure-type on (gives):
+            If one's in-try, return cast field-of on (gives, 1).
+            If one's handled is false:
+                Return a failure (cast refusal-of on ("{display} can fail — you must handle the failure", "",
+                    at-row, "use a fallible function's result without handling the failure",
+                    "Wrap the call in a 'Try to: / In case of failure:' block, use 'but on failure <default>', or use 'or pass the failure off'.")).
+            Done.
+        Done.
         Return gives.
     Done.
 Done.

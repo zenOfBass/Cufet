@@ -114,7 +114,7 @@ Pull a book on collections.
             Define bound as cast one's resolve-module on (book, via-book-form, at-row) or pass the failure off.
             Cast one's bind-name on (local, a new binding {
                 the shape bound, the established-by cast placed-reference on (local, at-row, cast numeric on (cast field-of on (statement, 4))),
-                the line at-row, the permanent false, the module true }).
+                the line at-row, the permanent false, the module true, the depth 0, the parameter false }).
             If cast is-a-book on (book):
                 For each introduced in cast introduced-types on (book), repeat:
                     Cast one's register-scoped-type on (introduced, cast introduced-type on (introduced)).
