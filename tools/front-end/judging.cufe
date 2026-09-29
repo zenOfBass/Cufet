@@ -34,7 +34,15 @@ Pull a book on collections.
         the series of text unto-order,
         the fact in-try,
         the fact handled,
-        the fact in-exception-handler).
+        the fact in-exception-handler,
+        the map from text to node interfaces,
+        the text checking-module,
+        the map from text to series of text module-needs,
+        the series of pending-pull pending-pulls).
+
+    /// A pull of a module, remembered with the names visible at it — its needs are verified once
+    /// every module's body has been checked, since one may be defined after the block that pulls it.
+    Define object pending-pull with (the text module, the number line, the series of text visible).
 
     Bind node to unknown-type:
         Return cast shaped on ("none").
@@ -206,6 +214,7 @@ Pull a book on collections.
         Done.
         For each known in a series with ("StateStatement", "BecomesStatement", "StopStatement", "SkipStatement",
                 "ReturnStatement", "CastStatement", "PossessiveSetStatement", "RecordNamedSetStatement", "SuppressStatement",
+                "MapSetStatement", "ExitStatement",
                 "SeriesInsertStatement", "SeriesSetStatement", "SeriesRemoveAtStatement", "SeriesRemoveValueStatement"), repeat:
             If kind is known, return "".
         Done.
@@ -236,6 +245,9 @@ Pull a book on collections.
         For each statement in cast hoistable on (program), repeat:
             Define inner as "".
             If statement's kind is "ObjectDefinition", the inner becomes cast object-beyond-reach on (statement).
+            Otherwise if statement's kind is "InterfaceDefinition":
+                The inner becomes cast interface-beyond-reach on (statement).
+            Done.
             Otherwise if statement's kind is "BindStatement" and cast is-nothing on (cast field-of on (statement, 5)) is false:
                 The inner becomes cast unto-beyond-reach on (statement).
             Done.
@@ -251,6 +263,7 @@ Pull a book on collections.
         Define reach as cast program-beyond-reach on (program).
         If reach is not "", return a failure (cast not-judged on (reach)).
         Cast check-versions on (program) or pass the failure off.
+        Cast one's hoist-interfaces on (program).
         Cast one's hoist-objects on (program) or pass the failure off.
         Cast one's check-method-blanks or pass the failure off.
         Cast one's check-leftover-untos or pass the failure off.
@@ -258,6 +271,7 @@ Pull a book on collections.
         Cast one's resolve-types or pass the failure off.
         Cast one's hoist-shared-constants on (program) or pass the failure off.
         Cast one's check-block on (program) or pass the failure off.
+        Cast one's check-pending-pulls or pass the failure off.
     Done.
 
     /// Every top-level `permanently` constant, registered before anything is checked — so a body
@@ -457,6 +471,13 @@ Pull a book on collections.
         Otherwise if kind is "SuppressStatement":
             Cast one's check-suppress on (statement) or pass the failure off.
         Done.
+        Otherwise if kind is "MapSetStatement":
+            Cast one's check-map-set on (statement) or pass the failure off.
+        Done.
+        Otherwise if kind is "ExitStatement":
+            Cast one's check-exit on (statement) or pass the failure off.
+        Done.
+        // An interface was gathered before anything was checked, and needs nothing more.
         Otherwise if kind is "PossessiveSetStatement":
             Cast one's check-possessive-set on (statement) or pass the failure off.
         Done.
@@ -549,7 +570,23 @@ Pull a book on collections.
         Define looped-type as cast one's infer on (looped) or pass the failure off.
         If cast is-none on (looped-type), return.
         Define kind as looped-type's kind.
-        If kind is "ChaseType" or kind is "SetType" or kind is "MapType" or kind is "StashType":
+        If kind is "MapType":
+            Define entry-type as cast plain-type on ("MappingType").
+            Cast entry-type's add on (cast field-of on (looped-type, 1)).
+            Cast entry-type's add on (cast field-of on (looped-type, 2)).
+            Define map-iterator as "it".
+            If cast is-nothing on (cast field-of on (statement, 1)) is false:
+                The map-iterator becomes cast unquoted on (cast field-of on (statement, 1)).
+            Done.
+            Cast one's enter-scope.
+            Cast one's bind-name on (map-iterator, a new binding {
+                the shape entry-type, the established-by looped, the line at-row, the permanent false,
+                the module false, the depth 0, the parameter false }).
+            Cast one's check-block on (cast field-of on (statement, 3)) or pass the failure off.
+            Cast one's exit-scope.
+            Return.
+        Done.
+        If kind is "ChaseType" or kind is "SetType" or kind is "StashType":
             Return a failure (cast not-judged on ("looping over a {kind}")).
         Done.
         If kind is not "SeriesType":
@@ -690,7 +727,19 @@ Pull a book on collections.
         Define container as cast one's infer on (target) or pass the failure off.
         If cast is-none on (container), return.
         Define spoken as cast expression-words on (target).
-        If container's kind is "MapType" or container's kind is "ChaseType":
+        If container's kind is "MapType":
+            Define removing as cast one's infer on (value) or pass the failure off.
+            Define wanted-key as cast field-of on (container, 1).
+            If cast is-none on (removing) is false and cast assignable on (wanted-key, removing) is false:
+                If cast beyond-types on (removing), return a failure (cast not-judged on ("a key of another kind")).
+                Return a failure (cast refusal-of on ("{spoken} uses {cast type-words on (wanted-key)} keys",
+                    "It is a map from {cast type-words on (wanted-key)} to {cast type-words on (cast field-of on (container, 2))}",
+                    at-row, "remove using a {cast type-words on (removing)} key",
+                    "Keys in this map are {cast plural-words on (wanted-key)}.")).
+            Done.
+            Return.
+        Done.
+        If container's kind is "ChaseType":
             Return a failure (cast not-judged on ("removing from a {container's kind}")).
         Done.
         If container's kind is not "SeriesType":
@@ -857,7 +906,11 @@ Pull a book on collections.
             the unto-order a series of text,
             the in-try false,
             the handled false,
-            the in-exception-handler false }.
+            the in-exception-handler false,
+            the interfaces a map from text to node,
+            the checking-module "",
+            the module-needs a map from text to series of text,
+            the pending-pulls a series of pending-pull }.
         Cast walker's register-prelude on (prelude).
         Cast walker's check-program on (program) or pass the failure off.
         Return "ok".

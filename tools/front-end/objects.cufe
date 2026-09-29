@@ -12,7 +12,7 @@ Pull a book on collections.
     // ── What this checker can judge in an object ──────────────────────────
 
     Bind text to object-beyond-reach, given (the node statement):
-        For each place in a series with (5, 6, 8, 12, 13, 14), repeat:
+        For each place in a series with (5, 6, 12, 13, 14), repeat:
             Define held as cast field-of on (statement, place).
             If held's kind is "list" and the number of held's children is greater than 0:
                 Return "an object with {cast object-part-name on (place)}".
@@ -111,7 +111,7 @@ Pull a book on collections.
         Define definition as cast one's definition-of on (name).
         If definition is void, return void.
         For each pair in (cast field-of on (definition, 3))'s children, repeat:
-            If cast unquoted on (cast field-of on (pair, 1)) is field, return cast field-of on (pair, 2).
+            If cast unquoted on (cast field-of on (pair, 1)) is field, return cast one's resolved on (cast field-of on (pair, 2)).
         Done.
         Define embedded as cast embedded-name on (definition).
         If embedded is "" or cast one's definition-of on (embedded) is void, return void.
@@ -304,6 +304,7 @@ Pull a book on collections.
                 Return a failure (cast not-judged on ("a filled-in type")).
             Done.
             If (the entry for name in one's defs) is not void, return.
+            If cast one's is-interface-name on (name), return.
             If cast is-bundled-module on (name) or cast book-introducing on (name) is not "":
                 Return a failure (cast not-judged on ("a type named for a book")).
             Done.
@@ -357,7 +358,7 @@ Pull a book on collections.
                 Define attached as the entry for target in one's untos but void is cast listed.
                 Define first as item 1 of attached's children.
                 Define reason as "'{target}' is not a defined object type".
-                If target is "module" or target is "book" or target is "region":
+                If cast one's is-interface-name on (target):
                     The reason becomes "'{target}' is an interface, not an object type — methods can't be attached to it with 'unto'".
                 Done.
                 Return a failure (cast refusal-of on (reason, "", cast numeric on (cast field-of on (first, 7)),
@@ -442,9 +443,16 @@ Pull a book on collections.
             Done.
         Done.
 
+        Cast one's check-conformance on (statement) or pass the failure off.
+
+        // A module's bodies may leave another module to their caller — recorded as they are checked.
+        Define earlier-module as one's checking-module.
+        The one's checking-module becomes "".
+        If cast is-module-definition on (statement), the one's checking-module becomes name.
         For each method in (cast field-of on (statement, 4))'s children, repeat:
             Cast one's check-method-body on (method, name, at-row) or pass the failure off.
         Done.
+        The one's checking-module becomes earlier-module.
     Done.
 
     /// A method's body: `one` is the object, and otherwise it sees what a top-level function sees.
@@ -539,6 +547,12 @@ Pull a book on collections.
             Return a failure (cast refusal-of on ("'{name}' is not a defined object type", "",
                 at-row, "create a new {name} object", "Define the object type first: Define object {name} with (...).")).
         Done.
+        If cast conforms-as on (cast one's definition-of on (name) but void is cast listed, "book"):
+            Return a failure (cast refusal-of on ("'{name}' is a book, and a book is pulled, not made",
+                "'{name}' says 'and book', so it owns no lifetime of its own — it is consulted rather than held",
+                at-row, "construct '{name}' with 'a new'",
+                "Write 'Pull a book on {name}.' and use its members inside that block.")).
+        Done.
 
         Define positionals as a series of node.
         Cast one's gather-positionals on (name, positionals).
@@ -606,6 +620,17 @@ Pull a book on collections.
         If target's kind is "BookType":
             Return cast one's infer-book-member on (cast unquoted on (cast field-of on (target, 1)), member, at-row) or pass the failure off.
         Done.
+        If target's kind is "InterfaceType":
+            Define interface-name as cast unquoted on (cast field-of on (target, 1)).
+            If (the entry for interface-name in one's interfaces) is void, return cast unknown-type.
+            Define reached-method as cast one's interface-method-named on (interface-name, member).
+            If reached-method is not void, return reached-method.
+            Define offered as cast one's interface-method-names on (interface-name).
+            Define fix as "Interface '{interface-name}' declares no methods.".
+            If the number of offered is greater than 0, the fix becomes "Available methods: {cast quoted-names on (offered, "")}.".
+            Return a failure (cast refusal-of on ("interface '{interface-name}' has no method named '{member}'", "",
+                at-row, "use 's to access '{member}' through interface '{interface-name}'", fix)).
+        Done.
         If target's kind is not "ObjectType":
             If cast beyond-types on (target), return a failure (cast not-judged on ("'s on a {target's kind}")).
             Return a failure (cast refusal-of on ("possessive access ('s) requires an object, but got a {cast type-words on (target)}", "",
@@ -613,6 +638,7 @@ Pull a book on collections.
         Done.
         Define owner as cast unquoted on (cast field-of on (target, 1)).
         If cast one's definition-of on (owner) is void, return a failure (cast not-judged on ("'s on a '{owner}'")).
+        Cast one's check-hands-out on (owner, member, cast field-of on (said, 1), at-row) or pass the failure off.
         If cast one's is-template-method on (owner, member):
             Return a failure (cast not-judged on ("a method that leaves blanks")).
         Done.
@@ -668,6 +694,12 @@ Pull a book on collections.
             If available is not "", the fix becomes "Available: {available}.".
             Return a failure (cast refusal-of on ("'{owner}' has no field or getter named '{field}'", "",
                 at-row, "access field '{field}'", fix)).
+        Done.
+        If kind is "MappingType":
+            If field is "key", return cast field-of on (target, 1).
+            If field is "value", return cast field-of on (target, 2).
+            Return a failure (cast refusal-of on ("a mapping only has 'key' and 'value' fields", "",
+                at-row, "access field '{field}' on a mapping", "Use 'the key of mapping' or 'the value of mapping'.")).
         Done.
         If kind is "ExceptionMarkerType":
             If field is "message", return cast plain-type on ("TextType").

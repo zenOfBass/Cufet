@@ -6,7 +6,26 @@
 */
 
 Pull a book on collections.
+    /// What an expression's type is — with any written name of an interface resolved to it, as
+    /// C#'s `InferType` resolves every type it hands back.
     Bind node or failure to infer unto checker, given (the node said):
+        Define found as cast one's infer-core on (said) or pass the failure off.
+        If cast one's mentions-interface on (found), return cast one's resolved on (found).
+        Return found.
+    Done.
+
+    Bind fact to mentions-interface unto checker, given (the node shape):
+        If shape's kind is "ObjectType":
+            Define name as cast unquoted on (cast field-of on (shape, 1)).
+            Return (the entry for name in one's defs) is void and cast one's is-interface-name on (name).
+        Done.
+        For each inner in shape's children, repeat:
+            If inner's kind is not "atom" and cast one's mentions-interface on (inner), return true.
+        Done.
+        Return false.
+    Done.
+
+    Bind node or failure to infer-core unto checker, given (the node said):
         Define kind as said's kind.
         If kind is "NumberLiteral", return cast plain-type on ("NumberType").
         If kind is "StringLiteral", return cast plain-type on ("TextType").
@@ -25,6 +44,9 @@ Pull a book on collections.
         If kind is "SeriesLength", return cast one's infer-series-length on (said) or pass the failure off.
         If kind is "CastExpression", return cast one's check-call on (said, true) or pass the failure off.
         If kind is "FailureLiteral", return cast one's infer-failure-literal on (said) or pass the failure off.
+        If kind is "MapLiteral", return cast one's infer-map-literal on (said) or pass the failure off.
+        If kind is "MapLookup", return cast one's infer-map-lookup on (said) or pass the failure off.
+        If kind is "MapHasKey" or kind is "MapHasEntry", return cast one's infer-map-has on (said) or pass the failure off.
         If kind is "FailureFallback", return cast one's infer-failure-fallback on (said) or pass the failure off.
         If kind is "FailurePropagate", return cast one's infer-failure-propagate on (said) or pass the failure off.
         If kind is "ObjectLiteral", return cast one's infer-object-literal on (said) or pass the failure off.
@@ -40,7 +62,7 @@ Pull a book on collections.
     /// A type this checker cannot weigh yet — held behind `unsupported` wherever it turns up.
     Bind fact to beyond-types, given (the node shape):
         Define kind as shape's kind.
-        If kind is "UnionType" or kind is "RecordType" or kind is "FunctionType" or kind is "InterfaceType" or kind is "BookType":
+        If kind is "UnionType" or kind is "RecordType" or kind is "FunctionType" or kind is "BookType":
             Return true.
         Done.
         For each inner in shape's children, repeat:
@@ -75,6 +97,11 @@ Pull a book on collections.
 
         // In a function body the scope is not final — but only a module may be left to the caller.
         If one's in-function:
+            If one's checking-module is not "" and (name in lowercase) is not (one's checking-module in lowercase):
+                Define needs as the entry for one's checking-module in one's module-needs but void is a series of text.
+                Insert name into needs.
+                In one's module-needs, the entry for one's checking-module becomes needs.
+            Done.
             Define receiver as cast one's look-up on ("one").
             If receiver is not void:
                 If receiver's shape's kind is "ObjectType":
@@ -87,12 +114,13 @@ Pull a book on collections.
                     Done.
                 Done.
             Done.
-            If cast is-bundled-module on (name) is false:
+            If cast one's is-module-name on (name) is false:
                 Return a failure (cast refusal-of on ("'{name}' isn't defined",
                     "A function or method uses the names it can see where it is WRITTEN — plus any module its caller pulled, and no module is named this",
                     at-row, "use '{name}' here",
                     "Define it first, take it as a parameter, or — if it is meant to be a module — declare it: 'Define object {name} with (...) and module:'.")).
             Done.
+            If one's checking-module is not "", return cast unknown-type.
             Return a failure (cast refusal-of on ("'{name}' isn't pulled here",
                 "'{name}' is a module, and a function reaches one only where it is WRITTEN — a module's methods inherit what their caller pulled, but a plain function has no caller to inherit from",
                 at-row, "use '{name}' inside this function without pulling it",

@@ -103,6 +103,7 @@ Pull a book on collections.
         If kind is "VoidType", return "void".
         If kind is "AddressType", return "address".
         If kind is "FailureMarkerType", return "failure".
+        If kind is "MappingType", return "mapping".
         If kind is "ExceptionMarkerType", return "exception".
         If kind is "MatrixType", return "matrix".
         If kind is "ChaseType", return "chase".
@@ -114,6 +115,7 @@ Pull a book on collections.
             Return "map from {cast type-words on (cast field-of on (shape, 1))} to {cast type-words on (cast field-of on (shape, 2))}".
         Done.
         If kind is "ObjectType", return cast unquoted on (cast field-of on (shape, 1)).
+        If kind is "InterfaceType", return cast unquoted on (cast field-of on (shape, 1)).
         If kind is "FailureType", return "{cast type-words on (cast field-of on (shape, 1))} or failure".
         If kind is "ReadableStreamType", return "readable stream of {cast plural-words on (cast field-of on (shape, 1))}".
         If kind is "WritableStreamType", return "writable stream of {cast plural-words on (cast field-of on (shape, 1))}".
@@ -129,6 +131,7 @@ Pull a book on collections.
         If kind is "VoidType", return "void values".
         If kind is "MatrixType", return "matrices".
         If kind is "FailureMarkerType", return "failures".
+        If kind is "MappingType", return "mappings".
         If kind is "ExceptionMarkerType", return "exceptions".
         If kind is "VoidableType", return "voidable {cast plural-words on (cast field-of on (shape, 1))}".
         If kind is "SeriesType", return "series of {cast plural-words on (cast field-of on (shape, 1))}".
@@ -138,6 +141,7 @@ Pull a book on collections.
             Return "maps from {cast type-words on (cast field-of on (shape, 1))} to {cast type-words on (cast field-of on (shape, 2))}".
         Done.
         If kind is "ObjectType", return "{cast unquoted on (cast field-of on (shape, 1))} objects".
+        If kind is "InterfaceType", return "{cast unquoted on (cast field-of on (shape, 1))} values".
         If kind is "FailureType", return "{cast plural-words on (cast field-of on (shape, 1))} or failures".
         If kind is "ReadableStreamType", return "readable streams of {cast plural-words on (cast field-of on (shape, 1))}".
         If kind is "WritableStreamType", return "writable streams of {cast plural-words on (cast field-of on (shape, 1))}".

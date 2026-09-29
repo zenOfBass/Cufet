@@ -1,0 +1,337 @@
+/*  Interfaces, and the objects that say what they are — `Pass1Hoist`'s interface loop,
+    `ValidateObjectConformance`, `ResolveParamType`'s interface arm, `HandsOutOnly`, and the module
+    rules of `TypeChecker.Book.cs`.
+
+    ★ `module`, `book` and `region` are interfaces too, with no methods: MARKERS saying what an
+    object is — something pulled, something consulted, something that opens a region. An interface
+    a program declares is a SURFACE: the methods a conforming object must have, and the only ones a
+    module hands out.
+*/
+
+Pull a book on collections.
+    Bind fact to is-marker-interface, given (the text name):
+        Define lowered as name in lowercase.
+        Return lowered is "module" or lowered is "book" or lowered is "region".
+    Done.
+
+    Bind fact to is-interface-name unto checker, given (the text name):
+        If cast is-marker-interface on (name), return true.
+        Return (the entry for name in one's interfaces) is not void.
+    Done.
+
+    /// The names an object says it conforms to.
+    Bind series of text to conformed-names, given (the node definition):
+        Define names as a series of text.
+        For each named in (cast field-of on (definition, 8))'s children, repeat:
+            Insert cast unquoted on (named) into names.
+        Done.
+        Return names.
+    Done.
+
+    Bind fact to conforms-as, given (the node definition, the text marker):
+        For each named in cast conformed-names on (definition), repeat:
+            If (named in lowercase) is marker, return true.
+        Done.
+        Return false.
+    Done.
+
+    /// Pullable at all — a module, a book or a region.
+    Bind fact to is-module-definition, given (the node definition):
+        Return cast conforms-as on (definition, "module") or cast conforms-as on (definition, "book")
+            or cast conforms-as on (definition, "region").
+    Done.
+
+    /// A name a body may leave to its caller: a bundled book, or an object that is pullable.
+    Bind fact to is-module-name unto checker, given (the text name):
+        If cast is-a-book on (name), return true.
+        Define definition as cast one's definition-of on (name).
+        If definition is void, return false.
+        Return cast is-module-definition on (definition).
+    Done.
+
+    Bind fact to is-book-name unto checker, given (the text name):
+        If cast is-a-book on (name), return true.
+        Define definition as cast one's definition-of on (name).
+        If definition is void, return false.
+        Return cast conforms-as on (definition, "book").
+    Done.
+
+    Bind node to interface-type-named, given (the text name):
+        Return cast made on ("InterfaceType", a series with (cast quoted on (name))).
+    Done.
+
+    /// A written type with every name of an interface turned into that interface — what C#'s
+    /// `ResolveParamType` does to a shell naming one.
+    Bind node to resolved unto checker, given (the node shape):
+        If shape's kind is "ObjectType":
+            Define name as cast unquoted on (cast field-of on (shape, 1)).
+            If (the entry for name in one's defs) is void and cast one's is-interface-name on (name):
+                Return cast interface-type-named on (name).
+            Done.
+            Return shape.
+        Done.
+        If shape's kind is "atom" or shape's kind is "list":
+            If shape's kind is "atom", return shape.
+            Define rebuilt as cast listed.
+            For each inner in shape's children, repeat:
+                Cast rebuilt's add on (cast one's resolved on (inner)).
+            Done.
+            Return rebuilt.
+        Done.
+        Define rebuilt as cast made on (shape's kind, a series of node).
+        For each inner in shape's children, repeat:
+            Cast rebuilt's add on (cast one's resolved on (inner)).
+        Done.
+        Return rebuilt.
+    Done.
+
+    /// An interface's methods, as `[name return [parameter types]]`, or void.
+    Bind voidable node to interface-methods unto checker, given (the text name):
+        Define found as the entry for name in one's interfaces.
+        If found is void, return void.
+        Return cast field-of on (found, 2).
+    Done.
+
+    /// An interface's method as a function type — no parameter names, since an interface has none.
+    Bind node to interface-method-type, given (the node entry):
+        Define shape as cast plain-type on ("FunctionType").
+        Cast shape's add on (cast field-of on (entry, 3)).
+        Cast shape's add on (cast field-of on (entry, 2)).
+        Return shape.
+    Done.
+
+    Bind voidable node to interface-method-named unto checker, given (the text name, the text method-name):
+        Define methods as cast one's interface-methods on (name).
+        If methods is void, return void.
+        For each entry in methods's children, repeat:
+            If cast unquoted on (cast field-of on (entry, 1)) is method-name, return cast interface-method-type on (entry).
+        Done.
+        Return void.
+    Done.
+
+    Bind series of text to interface-method-names unto checker, given (the text name):
+        Define names as a series of text.
+        Define methods as cast one's interface-methods on (name).
+        If methods is void, return names.
+        For each entry in methods's children, repeat:
+            Insert cast unquoted on (cast field-of on (entry, 1)) into names.
+        Done.
+        Return names.
+    Done.
+
+    // ── Gathering them ────────────────────────────────────────────────────
+
+    Bind void to hoist-interfaces unto checker, given (the node program):
+        For each statement in cast hoistable on (program), repeat:
+            If statement's kind is "InterfaceDefinition":
+                In one's interfaces, the entry for cast unquoted on (cast field-of on (statement, 1)) becomes statement.
+            Done.
+        Done.
+    Done.
+
+    /// An interface whose methods name another interface is beyond this checker yet: C# compares
+    /// such a signature unresolved against a resolved one.
+    Bind text to interface-beyond-reach, given (the node statement):
+        For each entry in (cast field-of on (statement, 2))'s children, repeat:
+            If cast beyond-types on (cast field-of on (entry, 2)) or cast beyond-types on (cast field-of on (entry, 3)):
+                Return "an interface method on a type this checker cannot weigh".
+            Done.
+        Done.
+        Return "".
+    Done.
+
+    // ── Conforming ────────────────────────────────────────────────────────
+
+    Bind text to function-type-words, given (the node shape):
+        Define gives as "void".
+        If cast is-nothing on (cast field-of on (shape, 2)) is false, the gives becomes cast type-words on (cast field-of on (shape, 2)).
+        Define takes as (cast field-of on (shape, 1))'s children.
+        If the number of takes is 0, return "{gives} function".
+        Define listing as a chase.
+        Define first-one as true.
+        For each taken in takes, repeat:
+            If first-one is false, insert ", " into listing.
+            The first-one becomes false.
+            Insert cast type-words on (taken) into listing.
+        Done.
+        Return "{gives} function given ({listing converted to text})".
+    Done.
+
+    /// `ValidateObjectConformance`: the claims an object makes, and the methods they require.
+    Bind void or failure to check-conformance unto checker, given (the node definition):
+        Define name as cast def-name on (definition).
+        Define at-row as cast numeric on (cast field-of on (definition, 9)).
+        If cast conforms-as on (definition, "book") and cast conforms-as on (definition, "module"):
+            Return a failure (cast refusal-of on ("'{name}' says both 'book' and 'module', and a book is already a module",
+                "'book' is the narrower kind: a module may own a lifetime and a book may not, so saying both adds nothing and claims two answers to one question",
+                at-row, "declare '{name}' as a book and a module at once",
+                "Say 'and book' on its own if '{name}' owns no lifetime, or 'and module' on its own if it owns one.")).
+        Done.
+        If cast conforms-as on (definition, "book") and cast conforms-as on (definition, "region"):
+            Return a failure (cast refusal-of on ("'{name}' says both 'book' and 'region', and a book owns no lifetime",
+                "A region IS a lifetime — pulling one opens a scope that its 'Done.' closes — so 'and book' and 'and region' are opposite claims",
+                at-row, "declare '{name}' as a book and a region at once",
+                "Say 'and region' on its own if pulling '{name}' should open a region, or 'and book' on its own if it is only exported code.")).
+        Done.
+        For each claimed in cast conformed-names on (definition), repeat:
+            If cast one's is-interface-name on (claimed) is false:
+                Return a failure (cast refusal-of on ("'{name}' claims to satisfy '{claimed}', but no such interface is defined", "",
+                    at-row, "conform to '{claimed}'",
+                    "Define the interface first: Define {claimed} as an interface for \{...\}.")).
+            Done.
+            Define methods as cast one's interface-methods on (claimed).
+            If methods is not void:
+                For each entry in methods's children, repeat:
+                    Define method-name as cast unquoted on (cast field-of on (entry, 1)).
+                    Define provided as cast one's method-type-of on (name, method-name).
+                    If provided is void:
+                        Return a failure (cast refusal-of on ("'{name}' claims to satisfy '{claimed}' but has no method '{method-name}'", "",
+                            at-row, "conform to interface '{claimed}'",
+                            "Add a method '{method-name}' to '{name}' (or embed an object that provides it).")).
+                    Done.
+                    Define wanted as cast interface-method-type on (entry).
+                    If cast type-key on (cast field-of on (provided, 1)) is not cast type-key on (cast field-of on (wanted, 1))
+                            or cast type-key on (cast field-of on (provided, 2)) is not cast type-key on (cast field-of on (wanted, 2)):
+                        Return a failure (cast refusal-of on ("'{name}'.'{method-name}' has the wrong signature for interface '{claimed}'", "",
+                            at-row, "conform to '{claimed}' with a mismatched '{method-name}'",
+                            "Interface '{claimed}' requires '{method-name}' to have signature: {cast function-type-words on (wanted)}.")).
+                    Done.
+                Done.
+            Done.
+        Done.
+    Done.
+
+    /// An argument where an interface is wanted: an object that says it conforms — or, for
+    /// `module`, one that is pullable at all, since a book is a module.
+    Bind void or failure to check-interface-argument unto checker, given (the node formal, the node argument-type,
+            the number place, the call reached, the number at-row):
+        Define wanted as cast unquoted on (cast field-of on (formal, 1)).
+        Define conforms as false.
+        If argument-type's kind is "ObjectType":
+            Define definition as cast one's definition-of on (cast unquoted on (cast field-of on (argument-type, 1))).
+            If definition is not void:
+                For each claimed in cast conformed-names on (definition), repeat:
+                    If claimed is wanted, the conforms becomes true.
+                Done.
+                If (wanted in lowercase) is "module" and cast is-module-definition on (definition), the conforms becomes true.
+            Done.
+        Done.
+        If conforms, return.
+        If cast beyond-types on (argument-type), return a failure (cast not-judged on ("a {argument-type's kind} for an interface")).
+        Define hint as "Only objects that conform to '{wanted}' can be passed here.".
+        If argument-type's kind is "ObjectType":
+            Define given-name as cast unquoted on (cast field-of on (argument-type, 1)).
+            The hint becomes "'{given-name}' does not declare conformance to '{wanted}'. Add 'and {wanted}' to its definition.".
+        Done.
+        Define display as reached's display.
+        Return a failure (cast refusal-of on (
+            "argument {place} of {display} must satisfy the '{wanted}' interface, but you passed a {cast type-words on (argument-type)}",
+            "You declared {display} on line {reached's declared-on} with a '{wanted}' parameter",
+            at-row, "pass a {cast type-words on (argument-type)} where a '{wanted}' is required", hint)).
+    Done.
+
+    // ── What a module hands out ───────────────────────────────────────────
+
+    /// The interfaces an object declares that are surfaces — every claim but `module` and `book`.
+    Bind series of text to declared-surfaces unto checker, given (the text owner):
+        Define found as a series of text.
+        Define definition as cast one's definition-of on (owner).
+        If definition is void, return found.
+        For each claimed in cast conformed-names on (definition), repeat:
+            Define lowered as claimed in lowercase.
+            If lowered is not "module" and lowered is not "book", insert claimed into found.
+        Done.
+        Return found.
+    Done.
+
+    /// `HandsOutOnly` — refused when a member is not part of what an object hands out.
+    Bind void or failure to check-hands-out unto checker, given (the text owner, the text member,
+            the node reached, the number at-row):
+        If reached's kind is "VariableReference":
+            If cast unquoted on (cast field-of on (reached, 1)) is "one", return.
+        Done.
+        Define surfaces as cast one's declared-surfaces on (owner).
+        If the number of surfaces is 0, return.
+        Define offered as a map from text to fact.
+        For each surface in surfaces, repeat:
+            For each method-name in cast one's interface-method-names on (surface), repeat:
+                In offered, the entry for method-name becomes true.
+            Done.
+        Done.
+        If (the entry for member in offered) is not void, return.
+        Define surface-words as cast quoted-names on (surfaces, "").
+        If the number of surfaces is greater than 1:
+            Define parts as a chase.
+            Define first-one as true.
+            For each surface in surfaces, repeat:
+                If first-one is false, insert " and " into parts.
+                The first-one becomes false.
+                Insert "'{surface}'" into parts.
+            Done.
+            The surface-words becomes parts converted to text.
+        Done.
+        Define fix as "'{owner}' hands out nothing at all.".
+        If the size of offered is greater than 0:
+            Define names as a series of text.
+            For each pair in offered, repeat:
+                Insert the key of pair into names.
+            Done.
+            The fix becomes "Available: {cast quoted-names on (cast sorted-ordinally on (names), "")}.".
+        Done.
+        Return a failure (cast refusal-of on ("'{member}' is not part of what '{owner}' hands out",
+            "'{owner}' declares {surface-words}, and only what that declares is reachable from outside",
+            at-row, "reach '{member}' on a {owner} from outside it", fix)).
+    Done.
+
+    /// Sorted by code point, as C#'s ordinal ordering is. ⚠ Cufet cannot order text, so this
+    /// compares a character at a time through the scanner's own measure of one.
+    Bind series of text to sorted-ordinally, given (the series of text names):
+        Define result as a series of text.
+        For each name in names, repeat:
+            Define rebuilt as a series of text.
+            Define slotted as false.
+            For each already in result, repeat:
+                If slotted is false and cast comes-before on (name, already):
+                    Insert name into rebuilt.
+                    The slotted becomes true.
+                Done.
+                Insert already into rebuilt.
+            Done.
+            If slotted is false, insert name into rebuilt.
+            The result becomes rebuilt.
+        Done.
+        Return result.
+    Done.
+
+    /// A character's code point, for the ASCII a name is written in; past it, larger than all of it.
+    /// ⚠ Cufet has no way to ask a character's code point, so the answer is where it sits in a
+    /// table of ASCII built by inserting code points into a chase — which Cufet CAN do.
+    Bind number to code-point-of, given (the text ch):
+        Define table as a chase.
+        Define point as 32.
+        While point is less than 127, repeat:
+            Insert point into table.
+            Increment point by 1.
+        Done.
+        Define spot as the position of ch in (table converted to text).
+        If spot is void, return 1000000.
+        Return spot + 31.
+    Done.
+
+    /// Does `first` come before `second`, a character's code point at a time?
+    Bind fact to comes-before, given (the text first, the text second):
+        Define first-letters as a chase.
+        Insert first into first-letters.
+        Define second-letters as a chase.
+        Insert second into second-letters.
+        Define spot as 1.
+        While spot is less than (the number of first-letters + 1) and spot is less than (the number of second-letters + 1), repeat:
+            Define a-point as cast code-point-of on (item spot of first-letters).
+            Define b-point as cast code-point-of on (item spot of second-letters).
+            If a-point is less than b-point, return true.
+            If a-point is greater than b-point, return false.
+            Increment spot by 1.
+        Done.
+        Return the number of first-letters is less than the number of second-letters.
+    Done.
+Done.

@@ -92,12 +92,27 @@ Pull a book on collections.
             If (the entry for lowered in one's defs) is not void, return cast object-type-named on (lowered).
             Return cast book-type-named on (lowered).
         Done.
-        If (the entry for name in one's defs) is not void:
-            // An object of the program's own: this checker judges none as a module yet, so it is not one.
-            Return a failure (cast refusal-of on ("'{name}' is not a module, so it can't be pulled",
-                "Pulling brings a module into scope, and '{name}' doesn't say it is one",
-                at-row, "pull '{name}'",
-                "Add 'and module' to its definition: 'Define object {name} with (...) and module:'.")).
+        Define written as the entry for name in one's defs.
+        If written is not void:
+            If cast is-module-definition on (written) is false:
+                Return a failure (cast refusal-of on ("'{name}' is not a module, so it can't be pulled",
+                    "Pulling brings a module into scope, and '{name}' doesn't say it is one",
+                    at-row, "pull '{name}'",
+                    "Add 'and module' to its definition: 'Define object {name} with (...) and module:'.")).
+            Done.
+            Define is-book as cast conforms-as on (written, "book").
+            If is-book and via-book-form is false:
+                Return a failure (cast refusal-of on ("'{name}' is a book, so it is pulled as one",
+                    "'{name}' says 'and book', so it owns no lifetime of its own — which is why it is consulted rather than held",
+                    at-row, "pull '{name}' as though you had one of it", "Write 'Pull a book on {name}.' instead.")).
+            Done.
+            If is-book is false and via-book-form:
+                Return a failure (cast refusal-of on ("'{name}' is not a book",
+                    "'{name}' is a module: it may own a lifetime of its own, so you have one of it rather than consulting it",
+                    at-row, "pull '{name}' as a book",
+                    "Write 'Pull a {name}.' instead — or add 'and book' to its definition if it owns no lifetime.")).
+            Done.
+            Return cast object-type-named on (name).
         Done.
         Return a failure (cast refusal-of on ("there is nothing named '{name}' to pull", "",
             at-row, "pull '{name}'",
@@ -121,8 +136,89 @@ Pull a book on collections.
                 Done.
             Done.
         Done.
+        // Its modules' needs are verified here, with what is visible here, once checking is done.
+        Define visible as a series of text.
+        For each scope in one's scopes, repeat:
+            For each pair in scope, repeat:
+                Insert the key of pair into visible.
+            Done.
+        Done.
+        Define opens-region as false.
+        For each pair in (cast field-of on (statement, 1))'s children, repeat:
+            Define book as cast unquoted on (cast field-of on (pair, 1)).
+            Insert a new pending-pull { the module book, the line at-row, the visible visible } into one's pending-pulls.
+            Define written as the entry for book in one's defs.
+            If written is not void:
+                If cast conforms-as on (written, "region") and (the entry for book in one's bundled) is void:
+                    The opens-region becomes true.
+                Done.
+            Done.
+        Done.
+        If opens-region, increment one's rabbit-depth by 1.
         Cast one's check-block on (cast field-of on (statement, 2)) or pass the failure off.
+        If opens-region, decrement one's rabbit-depth by 1.
         Cast one's exit-scope.
+    Done.
+
+    /// Each module pulled has what its bodies reached for, where it was pulled.
+    Bind void or failure to check-pending-pulls unto checker:
+        For each pending in one's pending-pulls, repeat:
+            Define needs as the entry for pending's module in one's module-needs.
+            If needs is not void:
+                Define seen as a map from text to fact.
+                For each name in pending's visible, repeat:
+                    In seen, the entry for name becomes true.
+                Done.
+                Define missing-set as a map from text to fact.
+                For each name in needs, repeat:
+                    If (the entry for name in seen) is void, in missing-set, the entry for name becomes true.
+                Done.
+                If the size of missing-set is greater than 0:
+                    Define missing as a series of text.
+                    For each pair in missing-set, repeat:
+                        Insert the key of pair into missing.
+                    Done.
+                    The missing becomes cast sorted-ordinally on (missing).
+                    Define names as cast quoted-names on (missing, "").
+                    Define every-name as a series of text.
+                    For each name in missing, repeat:
+                        Insert name into every-name.
+                    Done.
+                    Insert pending's module into every-name.
+                    Define all-books as true.
+                    For each name in every-name, repeat:
+                        If cast one's is-book-name on (name) is false, the all-books becomes false.
+                    Done.
+                    Define hint as "".
+                    If all-books:
+                        Define together as a chase.
+                        Define first-one as true.
+                        For each name in every-name, repeat:
+                            If first-one is false, insert ", and " into together.
+                            The first-one becomes false.
+                            Insert name into together.
+                        Done.
+                        The hint becomes "Pull them together: 'Pull books on {together converted to text}.'".
+                    Done.
+                    Otherwise:
+                        Define nested as a chase.
+                        Define first-one as true.
+                        For each name in every-name, repeat:
+                            If first-one is false, insert " around " into nested.
+                            The first-one becomes false.
+                            If cast one's is-book-name on (name), insert "'Pull a book on {name}.'" into nested.
+                            Otherwise, insert "'Pull a {name}.'" into nested.
+                        Done.
+                        The hint becomes "Each is pulled by its own kind, so they nest: {nested converted to text}".
+                    Done.
+                    Define verb as "aren't".
+                    If the number of missing is 1, the verb becomes "isn't".
+                    Return a failure (cast refusal-of on ("'{pending's module}' uses {names}, which {verb} pulled here",
+                        "A module's dependencies come from the block it is used in, not the one it is written in",
+                        pending's line, "pull '{pending's module}' without {names}", hint)).
+                Done.
+            Done.
+        Done.
     Done.
 
     Bind node to placed-reference, given (the text name, the number at-row, the number at-column):

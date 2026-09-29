@@ -1,0 +1,217 @@
+/*  Maps — `TypeChecker.Maps.cs`: what may be a key, a map written out, looked in, written to and
+    walked through — and `Exit`, from `TypeChecker.Failures.cs`, for being as small.
+
+    ★ A key is a scalar, or a record of scalars: something compared by what it holds and unable to
+    change underneath the map. Records and unions of keys are beyond this checker yet, and say so.
+*/
+
+Pull a book on collections.
+    /// A key this checker can weigh: a scalar, or a voidable one. Anything else is refused by C# —
+    /// except a record or a union, which this checker leaves `unsupported` before asking.
+    Bind fact to is-scalar-key, given (the node shape):
+        Define kind as shape's kind.
+        If kind is "NumberType" or kind is "TextType" or kind is "FactType" or kind is "BitsType", return true.
+        If kind is "VoidableType", return cast is-scalar-key on (cast field-of on (shape, 1)).
+        Return false.
+    Done.
+
+    Bind fact to mentions-record-or-union, given (the node shape):
+        If shape's kind is "RecordType" or shape's kind is "UnionType", return true.
+        For each inner in shape's children, repeat:
+            If inner's kind is not "atom" and cast mentions-record-or-union on (inner), return true.
+        Done.
+        Return false.
+    Done.
+
+    /// `RequireValidMapKeyType`.
+    Bind void or failure to require-map-key, given (the node key-type, the number at-row):
+        If cast mentions-record-or-union on (key-type), return a failure (cast not-judged on ("a key that is a record or a union")).
+        If cast is-scalar-key on (key-type), return.
+        Define spoken as cast type-words on (key-type).
+        Define kind as key-type's kind.
+        Define why as "only a scalar, or a record of scalars, can be compared as a key".
+        If kind is "SeriesType" or kind is "MapType" or kind is "MatrixType":
+            The why becomes "it can be changed after it is used as a key, and then the entry it was stored under could never be found again".
+        Done.
+        If kind is "ObjectType":
+            The why becomes "an object's fields can be written after it is used as a key, and then the entry it was stored under could never be found again".
+        Done.
+        Return a failure (cast refusal-of on ("'{spoken}' can't be a map key", why, at-row,
+            "use a '{spoken}' as a map key",
+            "A key is a number, text, a fact, a bit pattern, or a record of those. Key by a field that is one of them — a name, an id — or by a record of them, like a (row, column) pair.")).
+    Done.
+
+    Bind node to map-type-of, given (the node key-type, the node value-type):
+        Define shape as cast plain-type on ("MapType").
+        Cast shape's add on (key-type).
+        Cast shape's add on (value-type).
+        Return shape.
+    Done.
+
+    Bind node or failure to infer-map-literal unto checker, given (the node said):
+        Define key-written as cast field-of on (said, 1).
+        Define value-written as cast field-of on (said, 2).
+        Define pairs as (cast field-of on (said, 3))'s children.
+        Define at-row as cast numeric on (cast field-of on (said, 4)).
+        If the number of pairs is 0:
+            Cast require-map-key on (key-written, at-row) or pass the failure off.
+            Define empty-map as cast map-type-of on (key-written, value-written).
+            Cast one's check-resolves on (empty-map) or pass the failure off.
+            Return empty-map.
+        Done.
+        If cast is-nothing on (key-written) is false and cast is-nothing on (value-written) is false:
+            Cast require-map-key on (key-written, at-row) or pass the failure off.
+            If cast beyond-types on (value-written), return a failure (cast not-judged on ("a map of {value-written's kind}")).
+            For each pair in pairs, repeat:
+                Define key-type as cast one's infer on (cast field-of on (pair, 1)) or pass the failure off.
+                If cast is-none on (key-type) is false and cast assignable on (key-written, key-type) is false:
+                    Return a failure (cast refusal-of on ("this atlas uses {cast type-words on (key-written)} keys", "",
+                        at-row, "use a {cast type-words on (key-type)} as a key",
+                        "Keys in this atlas must be {cast plural-words on (key-written)}.")).
+                Done.
+                Define value-type as cast one's infer on (cast field-of on (pair, 2)) or pass the failure off.
+                If cast is-none on (value-type) is false and cast assignable on (value-written, value-type) is false:
+                    If cast beyond-types on (value-type), return a failure (cast not-judged on ("a {value-type's kind} in a map")).
+                    Return a failure (cast refusal-of on ("this atlas holds {cast plural-words on (value-written)}", "",
+                        at-row, "store a {cast type-words on (value-type)} in it",
+                        "Values in this atlas must be {cast plural-words on (value-written)}.")).
+                Done.
+            Done.
+            Define written-map as cast map-type-of on (key-written, value-written).
+            Cast one's check-resolves on (written-map) or pass the failure off.
+            Return written-map.
+        Done.
+
+        Define inferred-key as cast unknown-type.
+        Define inferred-value as cast unknown-type.
+        For each pair in pairs, repeat:
+            Define key-type as cast one's infer on (cast field-of on (pair, 1)) or pass the failure off.
+            Define value-type as cast one's infer on (cast field-of on (pair, 2)) or pass the failure off.
+            If cast is-none on (key-type) is false:
+                If cast is-none on (inferred-key):
+                    Cast require-map-key on (key-type, at-row) or pass the failure off.
+                    The inferred-key becomes key-type.
+                Done.
+                Otherwise if cast same-type on (inferred-key, key-type) is false:
+                    Return a failure (cast refusal-of on ("all keys in a map must be the same type",
+                        "The first key is a {cast type-words on (inferred-key)}, so all keys must be {cast plural-words on (inferred-key)}",
+                        at-row, "mix a {cast type-words on (key-type)} key with {cast type-words on (inferred-key)} keys",
+                        "Make all keys the same type.")).
+                Done.
+            Done.
+            If cast is-none on (value-type) is false:
+                If cast is-none on (inferred-value):
+                    The inferred-value becomes value-type.
+                Done.
+                Otherwise if cast same-type on (inferred-value, value-type) is false:
+                    If cast beyond-types on (value-type) or cast beyond-types on (inferred-value):
+                        Return a failure (cast not-judged on ("a map of mixed kinds")).
+                    Done.
+                    Return a failure (cast refusal-of on ("all values in a map must be the same type",
+                        "The first value is a {cast type-words on (inferred-value)}, so all values must be {cast plural-words on (inferred-value)}",
+                        at-row, "mix a {cast type-words on (value-type)} value with {cast type-words on (inferred-value)} values",
+                        "Make all values the same type.")).
+                Done.
+            Done.
+        Done.
+        If cast is-none on (inferred-key) or cast is-none on (inferred-value), return cast unknown-type.
+        Return cast map-type-of on (inferred-key, inferred-value).
+    Done.
+
+    /// A key where a map's key goes — `this map uses <K> keys` in the words each site gives.
+    Bind void or failure to check-map-key unto checker, given (the node map-shape, the node key-said,
+            the number at-row, the text action):
+        Define key-type as cast one's infer on (key-said) or pass the failure off.
+        Define wanted as cast field-of on (map-shape, 1).
+        If cast is-none on (key-type) is false and cast assignable on (wanted, key-type) is false:
+            If cast beyond-types on (key-type) or cast beyond-types on (wanted), return a failure (cast not-judged on ("a key of another kind")).
+            Return a failure (cast refusal-of on ("this map uses {cast type-words on (wanted)} keys", "",
+                at-row, "{action} a {cast type-words on (key-type)} key",
+                "Keys in this map are {cast plural-words on (wanted)}.")).
+        Done.
+    Done.
+
+    Bind node or failure to infer-map-lookup unto checker, given (the node said):
+        Define at-row as cast numeric on (cast field-of on (said, 3)).
+        Define map-shape as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
+        If cast is-none on (map-shape), return map-shape.
+        If map-shape's kind is not "MapType":
+            If cast beyond-types on (map-shape), return a failure (cast not-judged on ("an entry of a {map-shape's kind}")).
+            Return a failure (cast refusal-of on ("'the entry for ... in ...' requires a map", "",
+                at-row, "look up an entry in a {cast type-words on (map-shape)}",
+                "Only maps support entry lookup. Use 'the entry for key in map'.")).
+        Done.
+        Cast one's check-map-key on (map-shape, cast field-of on (said, 2), at-row, "look up using") or pass the failure off.
+        Define held as cast field-of on (map-shape, 2).
+        If held's kind is "VoidableType", return held.
+        Return cast wrapped on ("VoidableType", held).
+    Done.
+
+    /// `has a key for` and `has an entry for` — a fact, whatever it is asked of.
+    Bind node or failure to infer-map-has unto checker, given (the node said):
+        Define at-row as cast numeric on (cast field-of on (said, 3)).
+        Define map-shape as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
+        If map-shape's kind is "MapType":
+            Cast one's check-map-key on (map-shape, cast field-of on (said, 2), at-row, "check for") or pass the failure off.
+        Done.
+        Return cast plain-type on ("FactType").
+    Done.
+
+    Bind void or failure to check-map-set unto checker, given (the node statement):
+        Define target as cast field-of on (statement, 1).
+        Define at-row as cast numeric on (cast field-of on (statement, 4)).
+        Define map-shape as cast one's infer on (target) or pass the failure off.
+        If cast is-none on (map-shape), return.
+        If map-shape's kind is not "MapType":
+            If cast beyond-types on (map-shape), return a failure (cast not-judged on ("an entry of a {map-shape's kind}")).
+            Return a failure (cast refusal-of on ("the target of a map entry assignment must be a map", "",
+                at-row, "assign a map entry on a non-map value",
+                "Only maps support 'in map, the entry for key becomes value'.")).
+        Done.
+        Define key-type as cast one's infer on (cast field-of on (statement, 2)) or pass the failure off.
+        Define wanted-key as cast field-of on (map-shape, 1).
+        If cast is-none on (key-type) is false and cast assignable on (wanted-key, key-type) is false:
+            If cast beyond-types on (key-type), return a failure (cast not-judged on ("a key of another kind")).
+            Return a failure (cast refusal-of on ("this map uses {cast type-words on (wanted-key)} keys", "",
+                at-row, "use a {cast type-words on (key-type)} as a key",
+                "Keys in this map must be {cast plural-words on (wanted-key)}.")).
+        Done.
+        Define value as cast field-of on (statement, 3).
+        Define value-type as cast one's infer on (value) or pass the failure off.
+        Define wanted-value as cast field-of on (map-shape, 2).
+        If cast is-none on (value-type) is false and cast assignable on (wanted-value, value-type) is false:
+            If cast beyond-types on (value-type) or cast beyond-types on (wanted-value), return a failure (cast not-judged on ("a value of another kind")).
+            Return a failure (cast refusal-of on ("this map holds {cast plural-words on (wanted-value)}", "",
+                at-row, "store a {cast type-words on (value-type)} in it",
+                "Values in this map must be {cast plural-words on (wanted-value)}.")).
+        Done.
+        Cast one's check-region-store on (value, value-type, cast one's container-depth on (target), at-row,
+            "store a region-scoped value in a map that lives in a longer-lived region") or pass the failure off.
+    Done.
+
+    /// `Exit.` and `Exit with <status>.` — a whole number from 0 to 255 when it is written out.
+    Bind void or failure to check-exit unto checker, given (the node statement):
+        Define status as cast field-of on (statement, 1).
+        Define at-row as cast numeric on (cast field-of on (statement, 2)).
+        If cast is-nothing on (status), return.
+        Define status-type as cast one's infer on (status) or pass the failure off.
+        If status-type's kind is not "NumberType":
+            Define spoken as "void".
+            If cast is-none on (status-type) is false, the spoken becomes cast type-words on (status-type).
+            Return a failure (cast refusal-of on ("an exit status must be a number, not {spoken}", "",
+                at-row, "exit with something that is not a number", "Write 'Exit with 1.' — a whole number from 0 to 255.")).
+        Done.
+        If status's kind is not "NumberLiteral", return.
+        Define written as (cast field-of on (status, 1))'s word.
+        Define amount as cast numeric on (cast field-of on (status, 1)).
+        If amount % 1 is not 0:
+            Return a failure (cast refusal-of on ("{written} is not an exit status — a status is a whole number", "",
+                at-row, "exit with a status that is not whole", "Statuses run from 0 to 255 with nothing in between.")).
+        Done.
+        If amount is less than 0 or amount is greater than 255:
+            Return a failure (cast refusal-of on ("{written} is not an exit status — they run from 0 to 255", "",
+                at-row, "exit with a status outside 0 to 255",
+                "The operating system keeps only the low eight bits, so a wider number would leave with something else entirely.")).
+        Done.
+    Done.
+Done.

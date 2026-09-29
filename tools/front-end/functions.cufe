@@ -153,7 +153,7 @@ Pull a book on collections.
     /// Does this name already mean a type — an object, an interface, or one a book introduces?
     Bind fact to is-known-type-name unto checker, given (the text name):
         If (the entry for name in one's defs) is not void, return true.
-        If name is "module" or name is "book" or name is "region", return true.
+        If cast one's is-interface-name on (name), return true.
         Return cast book-introducing on (name) is not "".
     Done.
 
@@ -312,7 +312,7 @@ Pull a book on collections.
             Define parameter-name as cast unquoted on (cast field-of on (parameter, 2)).
             Cast one's check-resolves on (cast field-of on (parameter, 1)) or pass the failure off.
             Cast one's bind-name on (parameter-name, a new binding {
-                the shape cast field-of on (parameter, 1),
+                the shape cast one's resolved on (cast field-of on (parameter, 1)),
                 the established-by cast named-reference on (parameter-name), the line at-row, the permanent false, the module false, the depth 0, the parameter true }).
         Done.
 
@@ -324,7 +324,7 @@ Pull a book on collections.
         The one's in-function becomes true.
         // One per body entered, so leaving it is taking the last one off.
         If cast is-nothing on (returned), insert cast unknown-type into one's expected-returns.
-        Otherwise, insert returned into one's expected-returns.
+        Otherwise, insert cast one's resolved on (returned) into one's expected-returns.
         The one's function-line becomes at-row.
 
         Cast one's check-block on (cast field-of on (statement, 4)) or pass the failure off.
@@ -427,6 +427,29 @@ Pull a book on collections.
                     Define method as cast one's method-type-of on (owner, name).
                     If method is not void, the dispatched becomes method.
                 Done.
+                If first's kind is "InterfaceType":
+                    Define interface-name as cast unquoted on (cast field-of on (first, 1)).
+                    Define reached-method as cast one's interface-method-named on (interface-name, name).
+                    If reached-method is not void:
+                        Define found-too as cast one's look-up on (name).
+                        If found-too is not void:
+                            If found-too's shape's kind is "FunctionType":
+                                Return a failure (cast refusal-of on ("'{name}' is both a method and a free function — this is ambiguous", "",
+                                    at-row, "call '{name}' ambiguously",
+                                    "Use the possessive form to call the method explicitly: Cast <object>'s {name} on (args).")).
+                            Done.
+                        Done.
+                        Return a new call { the shape reached-method, the display "method '{name}' on interface '{interface-name}'",
+                            the declared-on at-row, the receivers 1 }.
+                    Done.
+                    If cast one's look-up on (name) is void:
+                        Define offered as cast one's interface-method-names on (interface-name).
+                        Define fix as "Interface '{interface-name}' declares no methods.".
+                        If the number of offered is greater than 0, the fix becomes "Available methods: {cast quoted-names on (offered, "")}.".
+                        Return a failure (cast refusal-of on ("interface '{interface-name}' has no method named '{name}'", "",
+                            at-row, "call method '{name}' through interface '{interface-name}'", fix)).
+                    Done.
+                Done.
             Done.
             Define found as cast one's look-up on (name).
             If cast is-none on (dispatched) is false:
@@ -504,6 +527,12 @@ Pull a book on collections.
                         The receivers becomes 1.
                         The names becomes cast parameter-names-of on (method) but void is a series of text.
                         The known becomes true.
+                    Done.
+                Done.
+                // Through an interface the parameters have no names, so none can be matched.
+                If first's kind is "InterfaceType":
+                    If cast one's interface-method-named on (cast unquoted on (cast field-of on (first, 1)), name) is not void:
+                        The dispatched becomes true.
                     Done.
                 Done.
             Done.
@@ -634,8 +663,11 @@ Pull a book on collections.
         For each argument in supplied, repeat:
             Increment place by 1.
             Define argument-type as cast one's infer on (argument) or pass the failure off.
-            Define formal as item place of formals.
-            If cast is-none on (argument-type) is false and cast assignable on (formal, argument-type) is false:
+            Define formal as cast one's resolved on (item place of formals).
+            If formal's kind is "InterfaceType" and cast is-none on (argument-type) is false:
+                Cast one's check-interface-argument on (formal, argument-type, place, reached, at-row) or pass the failure off.
+            Done.
+            Otherwise if cast is-none on (argument-type) is false and cast assignable on (formal, argument-type) is false:
                 If cast beyond-types on (argument-type) or cast beyond-types on (formal):
                     Return a failure (cast not-judged on ("passing a {argument-type's kind}")).
                 Done.
