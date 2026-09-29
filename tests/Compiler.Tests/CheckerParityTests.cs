@@ -27,7 +27,7 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
     : IClassFixture<CompiledCufetChecker>
 {
     /// <summary>How many corpus files must agree. Raised as the checker grows; never lowered.</summary>
-    private const int CorpusFloor = 18;
+    private const int CorpusFloor = 30;
 
     /// <summary>Where the bundled books' source is — the checker reads their layers with its own parser.</summary>
     private static string[] PreludeArgs =>
@@ -300,6 +300,66 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
         "Pull a book on math.\n    Define object leaf with (the number size):\n        Bind number to rounded:\n            Return cast math's round on (one's size).\n        Done.\n    Done.\n    Define x as a new leaf { the size 2.5 }.\n    State cast x's rounded.\nDone.",
         "Pull a book on math.\n    Define object leaf with (the number size).\nDone.\nDefine x as a new leaf { the size \"a\" }.",
         "Pull a book on math.\n    State math's pi + 1.\n    State the pi of math.\n    State the tau of math.\nDone.",
+        // Rabbits: a region's values may not be stored anywhere longer-lived, and a rabbit is never compared or returned.
+        "Pull a rabbit.\n    Define xs as a series with (1, 2).\n    State the number of xs.\nDone.",
+        "Define kept as a series of numbers.\nPull a rabbit.\n    Define xs as a series with (1, 2).\n    Insert 3 into kept.\n    For each x in xs, repeat:\n        Insert x into kept.\n    Done.\nDone.\nState kept.",
+        "Define kept as a series of series of numbers.\nPull a rabbit.\n    Define xs as a series with (1, 2).\n    Insert xs into kept.\nDone.",
+        "Define kept as a series of series of numbers.\nPull a rabbit.\n    Insert a series with (1, 2) into kept.\nDone.",
+        "Define kept as a series with (5).\nPull a rabbit.\n    Define xs as a series with (1, 2).\n    The kept becomes xs.\nDone.",
+        "Define kept as a series with (5).\nPull a rabbit.\n    Define xs as a series with (1, 2).\n    Pull a rabbit.\n        The xs becomes a series with (3).\n    Done.\nDone.",
+        "Pull a rabbit as hopper.\n    Pull a rabbit as grace.\n        State hopper is grace.\n    Done.\nDone.",
+        "Pull a rabbit as hopper.\n    State hopper.\nDone.\nState hopper.",
+        "Pull a rabbit.\n    Define xs as a series with (1).\nDone.\nState xs.",
+        "Define object box with (the series of number items).\nDefine b as a new box { the items a series with (1) }.\nPull a rabbit.\n    Define xs as a series with (2).\n    The b's items becomes xs.\nDone.",
+        "Define object box with (the series of number items).\nPull a rabbit.\n    Define b as a new box { the items a series with (1) }.\n    Define xs as a series with (2).\n    The b's items becomes xs.\nDone.",
+        "Define kept as a series of series of numbers.\nPull a rabbit.\n    Define xs as a series with (1, 2).\n    Define nested as a series of series of numbers.\n    Insert xs into nested.\n    For each inner in nested, repeat:\n        Insert inner into kept.\n    Done.\nDone.",
+        "Bind void to fill, given (the series of number xs):\n    Define kept as a series of series of numbers.\n    Insert xs into kept.\nDone.",
+        "Bind void to fill, given (the rabbit helper):\n    State 1.\nDone.\nPull a rabbit as hopper.\n    Cast fill on (hopper).\nDone.",
+        "Bind rabbit to make, given (the rabbit helper):\n    Return helper.\nDone.",
+        // Methods bound 'unto' a type: joining it, colliding, and a type that is not there.
+        "Define object leaf with (the text word).\nBind text to shout unto leaf, given (the number times):\n    Return one's word.\nDone.\nDefine x as a new leaf { the word \"a\" }.\nState cast x's shout on (2).\nState cast shout on (x, 3).",
+        "Define object leaf with (the text word).\nBind text to shout unto leaf:\n    Return one's colour.\nDone.",
+        "Define object leaf with (the text word).\nBind text to shout unto leaf:\n    Return word.\nDone.",
+        "Define object leaf with (the text word):\n    Bind text to shout:\n        Return one's word.\n    Done.\nDone.\nBind text to shout unto leaf:\n    Return \"x\".\nDone.",
+        "Define object leaf with (the text word).\nBind text to shout unto leaf:\n    Return \"x\".\nDone.\nBind text to shout unto leaf:\n    Return \"y\".\nDone.",
+        "Bind text to shout unto twig:\n    Return \"x\".\nDone.",
+        "Bind text to shout unto module:\n    Return \"x\".\nDone.",
+        "Bind number to twice unto math:\n    Return 2.\nDone.",
+        "Bind void to hop unto rabbit:\n    State 1.\nDone.",
+        "Bind text to shout unto leaf:\n    Return one's word.\nDone.\nDefine object leaf with (the text word).\nDefine x as a new leaf { the word \"a\" }.\nState cast x's shout.",
+        "Define object leaf with (the text word).\nBind number to shout unto leaf:\n    If true, return 1.\nDone.",
+        "Define object leaf with (the text word).\nBind text to shout unto leaf, given (the number times):\n    Return one's word.\nDone.\nDefine x as a new leaf { the word \"a\" }.\nState cast x's shout on (the times 2).\nState cast x's shout on (the loud 2).",
+        "Define object leaf with (the text word).\nBind text to shout unto leaf:\n    Return one's word.\nDone.\nDefine x as a new leaf { the word \"a\" }.\nState x's nothing.",
+        "Define object person with (the text name).\nDefine object customer with (the number id) and as a person.\nBind text to greet unto person:\n    Return one's name.\nDone.\nBind text to greet unto customer:\n    Return \"x\".\nDone.",
+        "Define object person with (the text name).\nBind text to greet unto person:\n    Return one's name.\nDone.\nDefine object customer with (the number id) and as a person.\nDefine c as a new customer { the id 1, the name \"a\" }.\nState cast c's greet.",
+        // Failures: handled in a Try, by 'but on failure', or passed off; 'void or failure'; the failure and the exception.
+        "Bind number or failure to half, given (the number n):\n    If n is 0, return a failure \"zero\".\n    Return n / 2.\nDone.\nState cast half on (4) but on failure 0.",
+        "Bind number or failure to half, given (the number n):\n    If n is 0, return a failure \"zero\".\n    Return n / 2.\nDone.\nState cast half on (4).",
+        "Bind number or failure to half, given (the number n):\n    Return n / 2.\nDone.\nCast half on (4).",
+        "Bind number or failure to half, given (the number n):\n    Return n / 2.\nDone.\nTry to:\n    State cast half on (4) + 1.\n    Cast half on (2).\nDone.\nIn case of failure:\n    State the message of the failure.\n    State the category of the failure but void is \"none\".\n    State the colour of the failure.\nDone.",
+        "Bind number or failure to half, given (the number n):\n    Return n / 2.\nDone.\nState cast half on (4) but on failure \"x\".",
+        "State 5 but on failure 0.",
+        "Bind number or failure to half, given (the number n):\n    Return n / 2.\nDone.\nBind number to whole:\n    Return cast half on (4) or pass the failure off.\nDone.",
+        "Bind number or failure to half, given (the number n):\n    Return n / 2.\nDone.\nBind number or failure to quarter, given (the number n):\n    Define h as cast half on (n) or pass the failure off.\n    Return cast half on (h) or pass the failure off.\nDone.\nState cast quarter on (8) but on failure 0.",
+        "Bind number to f:\n    Return 5 or pass the failure off.\nDone.",
+        "Bind number or failure to half, given (the number n):\n    Return n / 2.\nDone.\nBind void or failure to run-it:\n    Cast half on (2) or pass the failure off.\nDone.\nTry to:\n    Cast run-it.\nDone.\nIn case of failure:\n    State 1.\nDone.",
+        "Bind number to f:\n    Return 1.\nDone.\nBind void or failure to run-it:\n    Cast f or pass the failure off.\nDone.",
+        "Bind number or failure to half, given (the number n):\n    Return n / 2.\nDone.\nBind void to run-it:\n    Cast half on (2) or pass the failure off.\nDone.",
+        "Bind number or failure to half, given (the number n):\n    Return n / 2.\nDone.\nBind void or failure to run-it:\n    Try to:\n        Cast half on (2) or pass the failure off.\n    Done.\n    In case of failure:\n        State 1.\n    Done.\nDone.",
+        "Bind number or failure to half, given (the number n):\n    Return n / 2.\nDone.\nBind void or failure to run-it:\n    Cast half on (2).\nDone.",
+        "Bind void or failure to run-it:\n    Return 5.\nDone.",
+        "Bind void or failure to run-it:\n    Return a failure \"x\".\nDone.\nState cast run-it.",
+        "Bind void or failure to run-it:\n    State 1.\nDone.\nTry to:\n    Cast run-it.\nDone.\nIn case of failure:\n    State the message of the failure.\nDone.",
+        "Bind number to f:\n    Return a failure \"x\".\nDone.",
+        "Bind number or failure to f:\n    Return a failure \"x\" of category 5.\nDone.",
+        "Bind number or failure to f:\n    If true, return 1.\nDone.",
+        "Bind number or failure to f:\n    Try to:\n        Return 1.\n    Done.\n    In case of failure:\n        Return a failure \"x\".\n    Done.\nDone.\nState cast f but on failure 0.",
+        "Try to:\n    State 1.\nDone.\nIn case of exception:\n    State the message of the exception.\n    Suppress the exception.\nDone.",
+        "Try to:\n    State 1.\nDone.\nIn case of exception (the trouble):\n    State the message of trouble.\n    State the size of trouble.\nDone.",
+        "Suppress the exception.",
+        "Try to:\n    State 1.\nDone.\nIn case of failure:\n    Suppress the exception.\nDone.",
+        "Bind number or failure to half, given (the number n):\n    Return n / 2.\nDone.\nDefine h as cast half on (2).\nState h.",
+        "Bind number or failure to half, given (the number n):\n    Return n / 2.\nDone.\nTry to:\n    State 1.\nDone.\nIn case of exception:\n    State cast half on (2).\nDone.",
     ];
 
     [Fact]

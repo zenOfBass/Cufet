@@ -37,12 +37,13 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   and two interfaces supplying one default. A sweep of 7,637 such programs agreed on every one.
 - **The type checker, begun in Cufet** — `tools/front-end/checker.cufe`, the third piece. It says
   of each file what `TypeChecker.Check` says — accepted, or refused in the same words — and
-  `CheckerParityTests` holds it to that on 195 hand-written programs and on the corpus. It judges
+  `CheckerParityTests` holds it to that on 252 hand-written programs and on the corpus. It judges
   names and scopes, `Define` and `becomes`, operators, text, series, voidables and narrowing,
-  functions with named arguments, objects with their fields, methods and embedding, and pulling
-  the bundled books, whose source it reads with its own parser. Anything it cannot judge yet it
-  says so about, rather than accepting: 18 corpus files so far, the rest waiting on rabbits,
-  interfaces, `unto` and `Try`.
+  functions with named arguments, objects with their fields, methods, `unto` methods and
+  embedding, pulling the bundled books (whose source it reads with its own parser), rabbits and
+  the rule that keeps a region's values inside it, and failures — `Try`, `but on failure` and
+  `or pass the failure off`. Anything it cannot judge yet it says so about, rather than
+  accepting: 30 corpus files so far, the rest waiting on interfaces, maps and the rarer statements.
 
 ### Changed
 
