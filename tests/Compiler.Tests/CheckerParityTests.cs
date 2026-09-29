@@ -27,7 +27,7 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
     : IClassFixture<CompiledCufetChecker>
 {
     /// <summary>How many corpus files must agree. Raised as the checker grows; never lowered.</summary>
-    private const int CorpusFloor = 13;
+    private const int CorpusFloor = 18;
 
     /// <summary>Where the bundled books' source is — the checker reads their layers with its own parser.</summary>
     private static string[] PreludeArgs =>
@@ -269,6 +269,37 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
         "Bind series of thing to wrap, given (the thing x):\n    Return mystery.\nDone.\nState 1.",
         "Bind void to outer:\n    Bind void to inner, given (the twig t):\n        State 1.\n    Done.\nDone.",
         "Bind thing to wrap, given (the thing x):\n    Return x.\nDone.\nBind thing to wrap, given (the thing y):\n    Return y.\nDone.",
+        // Books: pulling one, its members and getters, the types it brings, and a body written inside the pull.
+        "Pull a book on math.\n    State cast math's floor on (2.5) + 1.\nDone.",
+        "Pull a book on math.\n    State cast math's floor on (\"a\").\nDone.",
+        "Pull a book on math.\n    State cast math's floor on ().\nDone.",
+        "Pull a book on math.\n    State cast math's square-root on (4) + 1.\nDone.",
+        "Pull a book on math.\n    State cast math's nothing on (4).\nDone.",
+        "Pull a book on math.\n    State math's floor.\nDone.",
+        "Pull a book on math.\n    State 1.\nDone.\nState cast math's floor on (1).",
+        "Pull a book on nothing.\n    State 1.\nDone.",
+        "Pull math.\n    State 1.\nDone.",
+        "Pull a book on rabbit.\n    State 1.\nDone.",
+        "Define object leaf with (the text word).\nPull a book on leaf.\n    State 1.\nDone.",
+        "Pull a book on collections.\n    Define xs as a series with (3, 1, 2).\n    State cast collections's minimum on (xs) but void is 0.\nDone.",
+        "Pull a book on collections.\n    State matrix.\nDone.",
+        "Pull a book on collections.\n    State 1.\nDone.\nState matrix.",
+        "Pull a book on math.\n    Bind number to lower, given (the number n):\n        Return cast math's floor on (n).\n    Done.\n    State cast lower on (2.5).\nDone.",
+        "Bind number to lower, given (the number n):\n    Return cast math's floor on (n).\nDone.",
+        "Pull a book on math.\n    Define x as 1.\nDone.\nState x.",
+        "Pull books on math, and collections.\n    State cast math's round on (2.5).\nDone.",
+        "Pull a book on math as m.\n    State cast m's round on (2.5).\nDone.",
+        "Pull a book on blueprints.\n    State cast blueprints's checksum on (\"a\").\nDone.",
+        "Pull a book on blueprints.\n    State cast blueprints's nothing on (\"a\").\nDone.",
+        "Pull a book on regex.\n    State regex's x.\nDone.",
+        "Pull a book on math.\n    Define math as 5.\nDone.",
+        "Pull a book on math.\n    Bind number to twice, given (the number n):\n        Return n * 2.\n    Done.\nDone.\nState cast twice on (2).",
+        "Pull a book on math.\n    State cast math's power on (2, 3) but void is 0.\nDone.",
+        "Pull a book on math.\n    State cast math's floor on (the x 2.5).\nDone.",
+        "Pull a book on math.\n    State cast math's floor on (the y 2.5).\nDone.",
+        "Pull a book on math.\n    Define object leaf with (the number size):\n        Bind number to rounded:\n            Return cast math's round on (one's size).\n        Done.\n    Done.\n    Define x as a new leaf { the size 2.5 }.\n    State cast x's rounded.\nDone.",
+        "Pull a book on math.\n    Define object leaf with (the number size).\nDone.\nDefine x as a new leaf { the size \"a\" }.",
+        "Pull a book on math.\n    State math's pi + 1.\n    State the pi of math.\n    State the tau of math.\nDone.",
     ];
 
     [Fact]
