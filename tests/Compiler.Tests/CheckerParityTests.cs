@@ -27,7 +27,7 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
     : IClassFixture<CompiledCufetChecker>
 {
     /// <summary>How many corpus files must agree. Raised as the checker grows; never lowered.</summary>
-    private const int CorpusFloor = 30;
+    private const int CorpusFloor = 44;
 
     /// <summary>Where the bundled books' source is — the checker reads their layers with its own parser.</summary>
     private static string[] PreludeArgs =>
@@ -360,6 +360,65 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
         "Try to:\n    State 1.\nDone.\nIn case of failure:\n    Suppress the exception.\nDone.",
         "Bind number or failure to half, given (the number n):\n    Return n / 2.\nDone.\nDefine h as cast half on (2).\nState h.",
         "Bind number or failure to half, given (the number n):\n    Return n / 2.\nDone.\nTry to:\n    State 1.\nDone.\nIn case of exception:\n    State cast half on (2).\nDone.",
+        // Interfaces and what objects say they are: conformance, dispatch, modules, books and regions of the program's own.
+        "Bind number or failure to half, given (the number n):\n    Return n / 2.\nDone.\nTry to:\n    State 1.\nDone.\nIn case of exception:\n    State cast half on (2).\nDone.",
+        "Define speaker as an interface for the text function speak.\nDefine object dog with (the text name) and speaker:\n    Bind text to speak, \"woof\".\nDone.\nBind text to relay, given (the speaker who), cast speak on (who).\nState cast relay on (a new dog { the name \"rex\" }).",
+        "Define speaker as an interface for the text function speak.\nDefine object dog with (the text name) and speaker.",
+        "Define speaker as an interface for the text function speak.\nDefine object dog with (the text name) and speaker:\n    Bind number to speak, 5.\nDone.",
+        "Define object dog with (the text name) and speaker.",
+        "Define speaker as an interface for the text function speak.\nDefine object cat with (the text name).\nBind text to relay, given (the speaker who), cast speak on (who).\nState cast relay on (a new cat { the name \"tom\" }).",
+        "Define speaker as an interface for the text function speak.\nBind text to relay, given (the speaker who), cast speak on (who).\nState cast relay on (5).",
+        "Define speaker as an interface for the text function speak.\nBind text to relay, given (the speaker who), cast shout on (who).",
+        "Define speaker as an interface for the text function speak.\nBind text to relay, given (the speaker who), cast who's shout.",
+        "Define speaker as an interface for the text function speak.\nBind text to relay, given (the speaker who), cast speak on (who, the loud 1).",
+        "Define speaker as an interface for the text function speak.\nBind text to shout unto speaker:\n    Return \"x\".\nDone.",
+        "Define speaker as an interface for {\n    The text function speak,\n    The number function volume, given (the number level)\n}.\nDefine object dog with (the text name) and speaker:\n    Bind text to speak, \"woof\".\n    Bind number to volume, given (the text level), 1.\nDone.",
+        "Define object tools with () and book:\n    Bind number to twice, given (the number n), n * 2.\nDone.\nPull a book on tools.\n    State cast tools's twice on (2).\nDone.",
+        "Define object tools with () and book:\n    Bind number to twice, given (the number n), n * 2.\nDone.\nPull tools.\n    State 1.\nDone.",
+        "Define object shop with () and module:\n    Bind number to twice, given (the number n), n * 2.\nDone.\nPull a book on shop.\n    State 1.\nDone.",
+        "Define object shop with () and module:\n    Bind number to twice, given (the number n), n * 2.\nDone.\nPull a shop.\n    State cast shop's twice on (2).\nDone.",
+        "Define object tools with () and book:\n    Bind number to twice, given (the number n), n * 2.\nDone.\nDefine t as a new tools { }.",
+        "Define object tools with () and book and module.",
+        "Define object tools with () and book and region.",
+        "Define object workshop with () and region.\nPull a workshop.\n    State 1.\nDone.",
+        "Define object workshop with () and region:\n    Bind number to size, 5.\nDone.\nPull a workshop.\n    State cast workshop's size.\nDone.",
+        "Define object stacks with () and module:\n    Bind number to lower, given (the number n):\n        Return cast math's floor on (n).\n    Done.\nDone.\nPull a stacks.\n    State cast stacks's lower on (2.5).\nDone.",
+        "Define object stacks with () and module:\n    Bind number to lower, given (the number n):\n        Return cast math's floor on (n).\n    Done.\nDone.\nPull books on math.\n    Pull a stacks.\n        State cast stacks's lower on (2.5).\n    Done.\nDone.",
+        "Define object stacks with () and module:\n    Bind number to lower, given (the number n):\n        Return mystery.\n    Done.\nDone.",
+        "Define object tools with () and book:\n    Bind number to twice, given (the number n), n * 2.\nDone.\nBind number to use-it:\n    Return cast tools's twice on (2).\nDone.",
+        "Define object crowd with () and module and speaker:\n    Bind text to speak, \"hi\".\n    Bind number to count-them, 5.\nDone.\nDefine speaker as an interface for the text function speak.\nPull a crowd.\n    State cast crowd's speak.\n    State cast crowd's count-them.\nDone.",
+        "Define object shop with () and module.\nBind void to take, given (the module m):\n    State 1.\nDone.\nPull a shop.\n    Cast take on (shop).\nDone.",
+        "Define object leaf with (the text word).\nBind void to take, given (the module m):\n    State 1.\nDone.\nCast take on (a new leaf { the word \"a\" }).",
+        // Maps: keys, lookups, writes, walking through one and removing from one; and Exit.
+        "Define ages as a map from text to number.\nIn ages, the entry for \"a\" becomes 3.\nState (the entry for \"a\" in ages but void is 0) + 1.\nState the size of ages.",
+        "Define ages as a map from text to number.\nIn ages, the entry for 5 becomes 3.",
+        "Define ages as a map from text to number.\nIn ages, the entry for \"a\" becomes \"x\".",
+        "Define ages as a map from text to number.\nState the entry for 5 in ages.",
+        "Define ages as a map from text to number.\nState the entry for \"a\" in ages + 1.",
+        "Define ages as a map from text to number.\nState ages has a key for 5.",
+        "Define ages as a map from text to number.\nState ages has an entry for \"a\" and true.",
+        "Define n as 5.\nState the entry for \"a\" in n.",
+        "Define n as 5.\nIn n, the entry for \"a\" becomes 1.",
+        "Define ages as a map with (\"a\" : 1, \"b\" : 2).\nState ages.",
+        "Define ages as a map with (\"a\" : 1, 2 : 2).",
+        "Define ages as a map with (\"a\" : 1, \"b\" : \"x\").",
+        "Define ages as a map from text to number with (\"a\" : \"x\").",
+        "Define ages as a map from text to number with (5 : 1).",
+        "Define bad as a map from series of number to number.",
+        "Define bad as a map with (a series with (1) : 1).",
+        "Define object leaf with (the text word).\nDefine bad as a map from leaf to number.",
+        "Define ages as a map from text to twig.",
+        "Define ages as a map from text to number.\nFor each pair in ages, repeat:\n    State the key of pair joined to \"!\".\n    State the value of pair + 1.\n    State the colour of pair.\nDone.",
+        "Define ages as a map from text to number.\nRemove \"a\" from ages.\nRemove 5 from ages.",
+        "Define ages as a map from text to number.\nState the number of ages.",
+        "Define kept as a map from text to series of numbers.\nPull a rabbit.\n    Define xs as a series with (1).\n    In kept, the entry for \"a\" becomes xs.\nDone.",
+        "Exit.",
+        "Exit with 2.",
+        "Exit with \"a\".",
+        "Exit with 2.5.",
+        "Exit with 300.",
+        "Define code as 3.\nExit with code.",
+        "Define n as 5.\nWhile true, repeat:\n    If n is 5, exit with 1.\nDone.",
     ];
 
     [Fact]
