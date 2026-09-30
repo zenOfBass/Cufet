@@ -37,7 +37,7 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   and two interfaces supplying one default. A sweep of 7,637 such programs agreed on every one.
 - **The type checker, begun in Cufet** — `tools/front-end/checker.cufe`, the third piece. It says
   of each file what `TypeChecker.Check` says — accepted, or refused in the same words — and
-  `CheckerParityTests` holds it to that on 427 hand-written programs and on the corpus. It judges
+  `CheckerParityTests` holds it to that on 439 hand-written programs and on the corpus. It judges
   names and scopes, `Define` and `becomes`, operators, text, series, records, maps, voidables,
   unions and narrowing, `Judge`, `when … otherwise`, functions with named arguments, objects
   with their fields, methods, `unto` methods and embedding, interfaces and conformance, modules,
@@ -99,6 +99,12 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   interpreted but would not compile, and neither would comparing two unions with different cases
   or a union with a voidable. Each now gives the interpreter's answer: equal when both hold the
   same kind of value and those values are equal.
+- **A union used where one of its cases is needed is told how to check which it is.** `x + 1` on
+  a `(number or text)` said only that arithmetic needs numbers, where REFERENCE promised the
+  refusal would name the narrowing to write; it now ends `'x' could be any of (number or text).
+  Check which it is first: 'If x is a number:'.` The same goes for ordering, unary minus, `the
+  length of` and `joined to`, and a value that is not a plain name is pointed at `Judge`. For
+  `joined to` the old advice, `converted to text`, was refused in turn.
 
 ## [0.26.0] — 2026-09-26
 

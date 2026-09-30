@@ -3112,8 +3112,8 @@ Define the (number or text or fact) y as 42.
 
 **Type-agnostic operations** — without narrowing, only operations that work on
 every case are allowed: assignment, `becomes`, passing to a union-typed parameter,
-storing into a catalogue or atlas, and equality comparison (`is`/`is not`) between
-two values of the same union type.
+storing into a catalogue or atlas, and equality comparison (`is`/`is not`) with
+any value — equal when both hold the same kind of value and those values are equal.
 
 **Type-specific operations** — arithmetic, `the length of`, and anything that
 only makes sense for one type — require narrowing first. Using them on an
