@@ -1727,7 +1727,9 @@ static const char* cufet_str_lower(const char* s) {
             }
             if (unions.TryGetValue(cname, out var uDef))
             {
-                var payload = string.Join(" ", uDef.Cases!.Select((c, k) => $"{EmitCType(c)} c{k};"));
+                // ⚠ A `void` case carries nothing, and C has no void member — a byte stands in, the
+                // way it does in `void or failure`, so `.val.c<k>` still names something.
+                var payload = string.Join(" ", uDef.Cases!.Select((c, k) => $"{(c is VoidType ? "char" : EmitCType(c))} c{k};"));
                 sb.AppendLine($"typedef struct {{ int tag; union {{ {payload} }} val; }} {cname};");
                 continue;
             }
@@ -1761,7 +1763,9 @@ static const char* cufet_str_lower(const char* s) {
             if (unions.TryGetValue(cname, out var uW))
             {
                 // A union value prints as its underlying value (the interpreter stores the raw value).
-                var arms = uW.Cases!.Select((c, k) => $"if (v.tag == {k}) {{ {WriteCall($"v.val.c{k}", c)}; return; }}");
+                var arms = uW.Cases!.Select((c, k) => c is VoidType
+                    ? $"if (v.tag == {k}) {{ printf(\"void\"); return; }}"
+                    : $"if (v.tag == {k}) {{ {WriteCall($"v.val.c{k}", c)}; return; }}");
                 sb.AppendLine($"static void {cname}_write({cname} v) {{ {string.Join(" ", arms)} }}");
                 continue;
             }
@@ -1796,7 +1800,10 @@ static const char* cufet_str_lower(const char* s) {
             {
                 // Different cases are different types ⇒ never equal (matches the interpreter comparing
                 // the underlying values); same case ⇒ compare that case's payload.
-                var arms = uE.Cases!.Select((c, k) => $"if (a.tag == {k}) return {EqCall($"a.val.c{k}", $"b.val.c{k}", c)};");
+                // Two voids are equal: the tags already agree, and there is no payload to compare.
+                var arms = uE.Cases!.Select((c, k) => c is VoidType
+                    ? $"if (a.tag == {k}) return 1;"
+                    : $"if (a.tag == {k}) return {EqCall($"a.val.c{k}", $"b.val.c{k}", c)};");
                 sb.AppendLine($"static int {cname}_eq({cname} a, {cname} b) {{ if (a.tag != b.tag) return 0; {string.Join(" ", arms)} return 1; }}");
                 continue;
             }

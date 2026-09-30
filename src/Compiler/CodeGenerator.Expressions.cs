@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using Cufet.Interpreter;
 using Cufet.Lexer;
 
@@ -1128,6 +1128,18 @@ public sealed partial class CodeGenerator
         if (b.Left is VoidLiteral || b.Right is VoidLiteral)
         {
             var side = b.Left is VoidLiteral ? b.Right : b.Left;
+            // Narrowed to the `void` case of a union (`A void` in a judgement): always void. The
+            // value is the placeholder byte, so it is evaluated for its effects and then ignored.
+            if (TypeOf(side) is VoidType)
+                return $"((void)({EmitExpr(side)}), {(eq ? 1 : 0)})";
+            // A UNION is void when its tag is the void case's — or never, when it has no such case.
+            if (TypeOf(side) is UnionType { Cases: not null } sideUnion)
+            {
+                int voidCase = UnionMatchCase(sideUnion, CufetType.Void);
+                string held = EmitExpr(side);
+                string isVoid = voidCase < 0 ? $"((void)({held}), 0)" : $"(({held}).tag == {voidCase})";
+                return eq ? $"({isVoid})" : $"(!{isVoid})";
+            }
             string v = EmitExpr(side);            // evaluated once; only .has is read
             return eq ? $"(!({v}).has)" : $"(({v}).has)";
         }

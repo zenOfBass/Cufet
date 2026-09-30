@@ -493,4 +493,88 @@ public class PipelineUnionBreadthTests : PipelineTestBase
             """;
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
+
+    // ── A union with `void` as one of its cases ───────────────────────────
+    //
+    // `(number or void)` is a voidable, but `(number or text or void)` stays a union, and the
+    // compiler could not build one at all: "the compiler cannot represent a void yet". The void case
+    // carries no payload, so it is a placeholder byte and its tag alone says it is void.
+
+    [Fact]
+    public void UnionWithAVoidCase_WidensTestsJudgesAndPrints()
+    {
+        const string src = """
+            Bind text to kind-of, given (the (number or text or void) x):
+                Judge x, where it is:
+                    A number, return "number {it + 1}".
+                    A text, return "text of {the length of it}".
+                    A void, return "nothing".
+                Done.
+            Done.
+            State cast kind-of on (4).
+            State cast kind-of on ("abc").
+            State cast kind-of on (void).
+            Define the (number or text or void) held as 4.
+            State held.
+            The held becomes void.
+            State held.
+            If held is void, state "is void".
+            If held is not void, state "is not void".
+            If held is a void, state "is a void".
+            If held is a number, state "a number".
+            Otherwise, state "not a number".
+            The held becomes "back".
+            If held is void, state "void again".
+            Otherwise, state "not void".
+            Define the (number or text or void) other as void.
+            The held becomes void.
+            If held is other, state "two voids are equal".
+            The other becomes 4.
+            If held is not other, state "void is not 4".
+            Define items as a catalogue of (number or text or void) with (1, void, "x").
+            For each item in items, repeat:
+                State item.
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
+    public void UnionWithAVoidCase_TravelsThroughReturnsArgumentsMapsAndRecords()
+    {
+        const string src = """
+            Bind (number or text or void) to pick, given (the number n):
+                If n is 1, return 7.
+                If n is 2, return "seven".
+                Return void.
+            Done.
+            Bind void to show, given (the (number or text or void) x):
+                State x.
+            Done.
+            Bind void to pass-on, given (the (number or text or void) x):
+                Cast show on (x).
+            Done.
+            Cast pass-on on (cast pick on (1)).
+            Cast pass-on on (cast pick on (2)).
+            Cast pass-on on (cast pick on (3)).
+            Define mp as an atlas from text to (number or text or void).
+            In mp, the entry for "a" becomes void.
+            In mp, the entry for "b" becomes 2.
+            For each pair in mp, repeat:
+                State the key of pair.
+                State the value of pair.
+            Done.
+            Judge cast pick on (3), where it is:
+                A void, state "judged: {it is void}".
+                Otherwise, state "something".
+            Done.
+            Judge cast pick on (3), where it is:
+                A void, state it.
+                Otherwise, state "something".
+            Done.
+            Define box as a record with (the held cast pick on (3)).
+            State the held of box is void.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
 }

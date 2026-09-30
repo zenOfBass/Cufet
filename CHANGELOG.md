@@ -91,6 +91,10 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   `(number or text or void)` with `A number`, `A text` and `A void` was refused as leaving
   "voidable text" uncovered: once one case was taken, the other two folded into a single voidable
   that neither remaining arm could take anything out of. Found writing the type checker in Cufet.
+- **A union with `void` as one of its cases builds.** `(number or text or void)` ran interpreted
+  but would not compile — "the compiler cannot represent a void yet" — wherever it appeared, in a
+  variable, a parameter, a return type, a catalogue or an atlas. `is a void`, `is void`, `Judge`,
+  printing and comparing it now give the same answers compiled as interpreted.
 
 ## [0.26.0] — 2026-09-26
 

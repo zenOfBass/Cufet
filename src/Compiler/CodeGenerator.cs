@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using Cufet.Interpreter;
 using Cufet.Lexer;
 
@@ -1131,7 +1131,9 @@ public sealed partial class CodeGenerator
         MatrixType => t is MatrixType,
         ChaseType => t is ChaseType,
         ObjectType ot => t is ObjectType o2 && o2.Name == ot.Name,   // nominal
-        VoidType   => false,                  // a non-voidable value is never void
+        // A non-voidable value is never void — but a union may have `void` as one of its CASES, and
+        // `is a void` has to find that case's tag.
+        VoidType   => t is VoidType,
         // ISA.2b — `is a voidable X` as the TESTED type had NO arm (it fell through to false) while
         // the interpreter answered true for a void value and for a concrete value matching X. That
         // was a PRE-EXISTING divergence, independent of containers. A concrete value satisfies
@@ -1401,6 +1403,8 @@ public sealed partial class CodeGenerator
         // builds a string and hands it back, so bare it computed the line and threw it away —
         // a blank line where the interpreter printed the buffer. The oracle caught it.
         ChaseType => $"cufet_write_text(cufet_chase_show({valExpr}))",
+        // A union's `void` case, narrowed (`A void, state it.`): its value is a placeholder byte.
+        VoidType => $"((void)({valExpr}), printf(\"void\"))",
         FunctionType => $"printf(\"<function>\")",   // matches the interpreter's Format for a FunctionValue
         AxiomType    => $"printf(\"<axiom>\")",      // and the same for the other kind of callable
         // ★ Never the pointer itself — see the interpreter's Format. Two backends are two

@@ -3152,6 +3152,8 @@ public sealed partial class CodeGenerator
             if (k < 0)
                 throw new CompilerException(
                     $"a value of type '{(et0 == null ? "unknown" : FormatTypeName(et0))}' is not one of this catalogue's declared cases.");
+            // `void` into a union with a void case: the tag says it all, and `void` has no C value.
+            if (et0 is VoidType) return $"(({cun}){{ .tag = {k} }})";
             return $"(({cun}){{ .tag = {k}, .val.c{k} = {EmitExpr(expr)} }})";
         }
         if (target is VoidableType vt)
