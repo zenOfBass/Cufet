@@ -1,0 +1,155 @@
+/*  Text operations — `TypeChecker.Text.cs`: splitting, searching, taking characters, replacing,
+    changing case and trimming. Each wants text where text goes and a number where a position or a
+    count goes, and refuses anything else in words of its own.
+
+    ⚠ A voidable text is refused here like any other non-text, in the operation's own words — C#
+    compares with `!= Text` and names no void. Only joining says void.
+*/
+
+Pull a book on collections.
+    /// Refused unless `shape` is the wanted kind; nothing to go on (`none`) passes.
+    Bind void or failure to require-kind, given (the node shape, the text wanted-kind, the text context,
+            the number at-row, the text action, the text fix):
+        If cast is-none on (shape) or shape's kind is wanted-kind, return.
+        If cast beyond-types on (shape), return a failure (cast not-judged on ("{context} on a {shape's kind}")).
+        Return a failure (cast refusal-of on (context, "", at-row, action, fix)).
+    Done.
+
+    /// A number written out, or its negation — C#'s `TryGetLiteralNumber`.
+    Bind voidable number to literal-number, given (the node said):
+        If said's kind is "NumberLiteral", return cast numeric on (cast field-of on (said, 1)).
+        If said's kind is "UnaryExpression" and (cast field-of on (said, 1))'s word is "Minus":
+            Define operand as cast field-of on (said, 2).
+            If operand's kind is "NumberLiteral", return 0 - cast numeric on (cast field-of on (operand, 1)).
+        Done.
+        Return void.
+    Done.
+
+    /// `<text> split by <text>`.
+    Bind node or failure to infer-text-split unto checker, given (the node said):
+        Define at-row as cast numeric on (cast field-of on (said, 3)).
+        Define text-type as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
+        Cast require-kind on (text-type, "TextType", "'split by' works on text only", at-row,
+            "split a {cast type-words on (text-type)}", "Only text can be split. Convert the value to text first if needed.") or pass the failure off.
+        Define delimiter as cast field-of on (said, 2).
+        Define delimiter-type as cast one's infer on (delimiter) or pass the failure off.
+        Cast require-kind on (delimiter-type, "TextType", "the delimiter in 'split by' must be text", at-row,
+            "split by a {cast type-words on (delimiter-type)}", "Use a text value as the delimiter, e.g. \",\".") or pass the failure off.
+        If delimiter's kind is "StringLiteral" and cast unquoted on (cast field-of on (delimiter, 1)) is "":
+            Return a failure (cast refusal-of on ("'split by' needs a non-empty delimiter", "", at-row,
+                "split by an empty piece of text", "Use a delimiter with at least one character.")).
+        Done.
+        Return cast wrapped on ("SeriesType", cast plain-type on ("TextType")).
+    Done.
+
+    /// `<text> contains <text>`.
+    Bind node or failure to infer-text-contains unto checker, given (the node said):
+        Define at-row as cast numeric on (cast field-of on (said, 3)).
+        Define text-type as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
+        Cast require-kind on (text-type, "TextType", "'contains' works on text only", at-row,
+            "check whether a {cast type-words on (text-type)} contains something",
+            "Only text values support 'contains'. Convert the value to text first if needed.") or pass the failure off.
+        Define piece-type as cast one's infer on (cast field-of on (said, 2)) or pass the failure off.
+        Cast require-kind on (piece-type, "TextType", "'contains' checks for text only", at-row,
+            "check whether text contains a {cast type-words on (piece-type)}", "Convert the value to text first if needed.") or pass the failure off.
+        Return cast plain-type on ("FactType").
+    Done.
+
+    /// `the position of <text> in <text>` — void when it is not there.
+    Bind node or failure to infer-text-find unto checker, given (the node said):
+        Define at-row as cast numeric on (cast field-of on (said, 3)).
+        Define piece-type as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
+        Cast require-kind on (piece-type, "TextType", "'the position of ... in ...' looks for text only", at-row,
+            "look for a {cast type-words on (piece-type)}", "Convert the value to text first if needed.") or pass the failure off.
+        Define text-type as cast one's infer on (cast field-of on (said, 2)) or pass the failure off.
+        Cast require-kind on (text-type, "TextType", "'the position of ... in ...' searches text only", at-row,
+            "search in a {cast type-words on (text-type)}", "Convert the value to text first if needed.") or pass the failure off.
+        Return cast wrapped on ("VoidableType", cast plain-type on ("NumberType")).
+    Done.
+
+    /// `the characters from <n> [to <n> | to the end] of <text>`.
+    Bind node or failure to infer-text-range unto checker, given (the node said):
+        Define at-row as cast numeric on (cast field-of on (said, 4)).
+        Define text-type as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
+        Cast require-kind on (text-type, "TextType", "'the characters ... of' works on text only", at-row,
+            "take characters from a {cast type-words on (text-type)}",
+            "Only text has characters to take. Convert the value to text first if needed.") or pass the failure off.
+        Define opening as cast field-of on (said, 2).
+        Define start-type as cast one's infer on (opening) or pass the failure off.
+        Cast require-kind on (start-type, "NumberType", "a character position must be a number", at-row,
+            "use a {cast type-words on (start-type)} as a character position",
+            "Positions are counted starting at 1, like series ordinals.") or pass the failure off.
+        Define finish as cast field-of on (said, 3).
+        If cast is-nothing on (finish) is false:
+            Define finish-type as cast one's infer on (finish) or pass the failure off.
+            Cast require-kind on (finish-type, "NumberType", "a character position must be a number", at-row,
+                "use a {cast type-words on (finish-type)} as a character position",
+                "Positions are counted starting at 1, like series ordinals.") or pass the failure off.
+        Done.
+        Define written as cast literal-number on (opening).
+        If written is not void:
+            // ⚠ Zero or below, as C# tests it — so a fraction like 0.5 passes here.
+            If written is less than 0 or written is 0:
+                Return a failure (cast refusal-of on ("a character position must be 1 or greater", "", at-row,
+                    "start at position {written}", "Positions are counted starting at 1, like series ordinals — not 0.")).
+            Done.
+        Done.
+        Return cast plain-type on ("TextType").
+    Done.
+
+    /// `the first|last <n> characters of <text>`.
+    Bind node or failure to infer-text-edge unto checker, given (the node said):
+        Define at-row as cast numeric on (cast field-of on (said, 4)).
+        Define text-type as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
+        Cast require-kind on (text-type, "TextType", "'the first/last ... characters of' works on text only", at-row,
+            "take characters from a {cast type-words on (text-type)}",
+            "Only text has characters to take. Convert the value to text first if needed.") or pass the failure off.
+        Define count-type as cast one's infer on (cast field-of on (said, 2)) or pass the failure off.
+        Cast require-kind on (count-type, "NumberType", "a character count must be a number", at-row,
+            "use a {cast type-words on (count-type)} as a character count",
+            "Use a number of characters, e.g. 'the first 3 characters of greeting'.") or pass the failure off.
+        Return cast plain-type on ("TextType").
+    Done.
+
+    /// `replace <text> with <text> in <text>`.
+    Bind node or failure to infer-text-replace unto checker, given (the node said):
+        Define at-row as cast numeric on (cast field-of on (said, 4)).
+        Define text-type as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
+        Cast require-kind on (text-type, "TextType", "'replace ... with ... in ...' works on text only", at-row,
+            "replace inside a {cast type-words on (text-type)}",
+            "Only text can be searched and replaced. Convert the value to text first if needed.") or pass the failure off.
+        Define target as cast field-of on (said, 2).
+        Define target-type as cast one's infer on (target) or pass the failure off.
+        Cast require-kind on (target-type, "TextType", "the text being replaced must be text", at-row,
+            "replace a {cast type-words on (target-type)}", "Use a text value as the target, e.g. \"a\".") or pass the failure off.
+        Define swap-type as cast one's infer on (cast field-of on (said, 3)) or pass the failure off.
+        Cast require-kind on (swap-type, "TextType", "the replacement must be text", at-row,
+            "replace with a {cast type-words on (swap-type)}",
+            "Use a text value as the replacement, e.g. \"X\" (or \"\" to delete).") or pass the failure off.
+        If target's kind is "StringLiteral" and cast unquoted on (cast field-of on (target, 1)) is "":
+            Return a failure (cast refusal-of on ("'replace' needs a non-empty target", "", at-row,
+                "replace an empty piece of text", "Use a target with at least one character.")).
+        Done.
+        Return cast plain-type on ("TextType").
+    Done.
+
+    /// `<text> in uppercase|lowercase`.
+    Bind node or failure to infer-text-case unto checker, given (the node said):
+        Define at-row as cast numeric on (cast field-of on (said, 3)).
+        Define text-type as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
+        Cast require-kind on (text-type, "TextType", "'in uppercase'/'in lowercase' work on text only", at-row,
+            "change the case of a {cast type-words on (text-type)}",
+            "Only text has a case to change. Convert the value to text first if needed.") or pass the failure off.
+        Return cast plain-type on ("TextType").
+    Done.
+
+    /// `<text> trimmed`.
+    Bind node or failure to infer-text-trim unto checker, given (the node said):
+        Define at-row as cast numeric on (cast field-of on (said, 2)).
+        Define text-type as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
+        Cast require-kind on (text-type, "TextType", "'trimmed' works on text only", at-row,
+            "trim a {cast type-words on (text-type)}",
+            "Only text has surrounding whitespace to trim. Convert the value to text first if needed.") or pass the failure off.
+        Return cast plain-type on ("TextType").
+    Done.
+Done.

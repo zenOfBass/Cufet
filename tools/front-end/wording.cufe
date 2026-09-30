@@ -186,9 +186,11 @@ Pull a book on collections.
             Done.
             Return "cast {cast expression-words on (callee)} on ({listing converted to text})".
         Done.
-        // ⚠ Not yet: C# rebuilds a bits literal in its own base and width. Loud on purpose, so a
-        // message that quotes one shows up as a difference rather than passing by chance.
-        If kind is "BitsLiteral", return "<bits literal>".
+        If kind is "TextFind":
+            Return "the position of {cast expression-words on (cast field-of on (said, 1))} in {cast expression-words on (cast field-of on (said, 2))}".
+        Done.
+        // In its own base and width, as it was written.
+        If kind is "BitsLiteral", return cast bits-words on (said).
         Return "<expression>".
     Done.
 

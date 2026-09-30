@@ -1,0 +1,136 @@
+/*  Matrices — the matrix arms of `TypeChecker.Book.cs`, `rows`/`columns` from
+    `InferRecordNamedAccess`, and matrix arithmetic from `InferBinary` in `TypeChecker.Core.cs`.
+
+    ★ A matrix holds numbers and nothing else. Adding, subtracting or multiplying two of them can
+    FAIL — the dimensions may disagree — so it is handled like a fallible call. Scaling by a number
+    cannot fail, and is a plain matrix.
+*/
+
+Pull a book on collections.
+    Bind void or failure to matrix-available unto checker, given (the number at-row):
+        If cast one's has-scoped-type on ("matrix"), return.
+        Return a failure (cast refusal-of on ("'matrix' is not available in this scope", "", at-row,
+            "construct a matrix without pulling the 'collections' book first", "Add 'Pull a book on collections.' before this line.")).
+    Done.
+
+    /// `a matrix with ((…), (…))` — at least one row, every row as long as the first, all numbers.
+    Bind node or failure to infer-matrix-literal unto checker, given (the node said):
+        Define at-row as cast numeric on (cast field-of on (said, 2)).
+        Cast one's matrix-available on (at-row) or pass the failure off.
+        Define rows as (cast field-of on (said, 1))'s children.
+        If the number of rows is 0:
+            Return a failure (cast refusal-of on ("a matrix must have at least one row", "", at-row,
+                "create a matrix with no rows", "Provide at least one row: 'a matrix with ((1, 2), (3, 4))'.")).
+        Done.
+        Define width as the number of (item 1 of rows)'s children.
+        If width is 0:
+            Return a failure (cast refusal-of on ("each matrix row must have at least one element", "", at-row,
+                "create a matrix row with no elements", "Provide at least one number in each row.")).
+        Done.
+        Define place as 0.
+        For each row in rows, repeat:
+            Increment place by 1.
+            Define length-here as the number of row's children.
+            If place is greater than 1 and length-here is not width:
+                Return a failure (cast refusal-of on (
+                    "matrix rows must be equal length; row {place} has {length-here} element(s), expected {width}",
+                    "Row 1 has {width} element(s)", at-row,
+                    "create a matrix with unequal row lengths", "Make all rows the same length to form a rectangle.")).
+            Done.
+        Done.
+        For each row in rows, repeat:
+            For each cell in row's children, repeat:
+                Define cell-type as cast one's infer on (cell) or pass the failure off.
+                Cast require-kind on (cell-type, "NumberType", "matrix elements must be numbers, but found a {cast type-words on (cell-type)}", at-row,
+                    "put a {cast type-words on (cell-type)} inside a matrix", "All matrix elements must be numbers.") or pass the failure off.
+            Done.
+        Done.
+        Return cast plain-type on ("MatrixType").
+    Done.
+
+    /// A row or column count: a number, and a positive whole one when it is written out.
+    Bind void or failure to check-matrix-dimension unto checker, given (the node count-said, the text which, the number at-row):
+        Define count-type as cast one's infer on (count-said) or pass the failure off.
+        Cast require-kind on (count-type, "NumberType", "matrix {which} count must be a number, but found a {cast type-words on (count-type)}", at-row,
+            "use a {cast type-words on (count-type)} as a matrix {which} count", "Row and column counts must be numbers (e.g. 3, 4).") or pass the failure off.
+        Define written as cast literal-number on (count-said).
+        If written is void, return.
+        If written % 1 is not 0 or written is less than 1:
+            Define plural as "rows".
+            If which is "column", the plural becomes "columns".
+            Return a failure (cast refusal-of on ("matrix dimensions must be positive whole numbers; got {written} for {plural}", "", at-row,
+                "use {written} as a matrix {which} count", "Use a positive whole number like 1, 2, 3.")).
+        Done.
+    Done.
+
+    /// `a matrix with <rows> by <columns> [filled with <number>]`.
+    Bind node or failure to infer-matrix-sized unto checker, given (the node said):
+        Define at-row as cast numeric on (cast field-of on (said, 4)).
+        Cast one's matrix-available on (at-row) or pass the failure off.
+        Cast one's check-matrix-dimension on (cast field-of on (said, 1), "row", at-row) or pass the failure off.
+        Cast one's check-matrix-dimension on (cast field-of on (said, 2), "column", at-row) or pass the failure off.
+        Define fill as cast field-of on (said, 3).
+        If cast is-nothing on (fill) is false:
+            Define fill-type as cast one's infer on (fill) or pass the failure off.
+            Cast require-kind on (fill-type, "NumberType", "matrix fill value must be a number, but found a {cast type-words on (fill-type)}", at-row,
+                "use a {cast type-words on (fill-type)} as a matrix fill value", "The fill value must be a number (e.g. 0, 1, -1.5).") or pass the failure off.
+        Done.
+        Return cast plain-type on ("MatrixType").
+    Done.
+
+    /// `the item at (<row>, <column>) of <matrix>` — the checks the write shares.
+    Bind void or failure to check-matrix-index unto checker, given (the node matrix-said, the node row-said,
+            the node column-said, the number at-row):
+        Define held as cast one's infer on (matrix-said) or pass the failure off.
+        Cast require-kind on (held, "MatrixType", "'the item at (row, column) of' requires a matrix, but found a {cast type-words on (held)}", at-row,
+            "index a {cast type-words on (held)} with matrix indexing syntax", "Use 'the item at (row, column) of' with a matrix value.") or pass the failure off.
+        Define row-type as cast one's infer on (row-said) or pass the failure off.
+        Cast require-kind on (row-type, "NumberType", "matrix row index must be a number, but found a {cast type-words on (row-type)}", at-row,
+            "use a {cast type-words on (row-type)} as a matrix row index", "Row and column indices must be numbers (e.g. 1, 2, 3).") or pass the failure off.
+        Define column-type as cast one's infer on (column-said) or pass the failure off.
+        Cast require-kind on (column-type, "NumberType", "matrix column index must be a number, but found a {cast type-words on (column-type)}", at-row,
+            "use a {cast type-words on (column-type)} as a matrix column index", "Row and column indices must be numbers (e.g. 1, 2, 3).") or pass the failure off.
+    Done.
+
+    Bind node or failure to infer-matrix-access unto checker, given (the node said):
+        Cast one's check-matrix-index on (cast field-of on (said, 1), cast field-of on (said, 2), cast field-of on (said, 3),
+            cast numeric on (cast field-of on (said, 4))) or pass the failure off.
+        Return cast plain-type on ("NumberType").
+    Done.
+
+    /// `The item at (<row>, <column>) of <matrix> becomes <number>.`
+    Bind void or failure to check-matrix-set unto checker, given (the node statement):
+        Define at-row as cast numeric on (cast field-of on (statement, 5)).
+        Cast one's check-matrix-index on (cast field-of on (statement, 1), cast field-of on (statement, 2), cast field-of on (statement, 3),
+            at-row) or pass the failure off.
+        Define value-type as cast one's infer on (cast field-of on (statement, 4)) or pass the failure off.
+        If cast is-none on (value-type) or value-type's kind is "NumberType", return.
+        If cast beyond-types on (value-type), return a failure (cast not-judged on ("a {value-type's kind} in a matrix cell")).
+        Return a failure (cast refusal-of on ("a matrix holds numbers, but found a {cast type-words on (value-type)}",
+            "Every cell of a matrix is a number — that is what makes its arithmetic exact", at-row,
+            "store a {cast type-words on (value-type)} in a matrix cell", "Change the new value to a number.")).
+    Done.
+
+    /// Matrix arithmetic, or `none` when the operands are not a matrix pair this answers for.
+    /// Scaling is a plain matrix; `+`, `-` and `*` on two matrices can fail.
+    Bind node or failure to matrix-arithmetic unto checker, given (the text op, the node lhs, the node rhs,
+            the number at-row, the text symbol):
+        Define lk as lhs's kind.
+        Define rk as rhs's kind.
+        If op is "Star":
+            If (lk is "MatrixType" and rk is "NumberType") or (lk is "NumberType" and rk is "MatrixType"):
+                Return cast plain-type on ("MatrixType").
+            Done.
+        Done.
+        If lk is "MatrixType" and rk is "MatrixType" and (op is "Plus" or op is "Minus" or op is "Star"):
+            If one's in-try, return cast plain-type on ("MatrixType").
+            If one's handled is false:
+                Return a failure (cast refusal-of on ("matrix '{symbol}' can fail — you must handle the failure", "",
+                    at-row, "use '{symbol}' on matrices without handling the potential failure",
+                    "Wrap this in a 'Try to: / In case of failure:' block, or use 'but on failure <default>'.")).
+            Done.
+            Return cast wrapped on ("FailureType", cast plain-type on ("MatrixType")).
+        Done.
+        Return cast unknown-type.
+    Done.
+Done.

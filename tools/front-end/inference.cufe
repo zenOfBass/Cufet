@@ -55,6 +55,29 @@ Pull a book on collections.
         If kind is "RecordLiteral", return cast one's infer-record-literal on (said) or pass the failure off.
         If kind is "IsTypeCheck", return cast one's infer-type-test on (said) or pass the failure off.
         If kind is "ConditionalExpression", return cast one's infer-conditional on (said) or pass the failure off.
+        If kind is "TextSplit", return cast one's infer-text-split on (said) or pass the failure off.
+        If kind is "TextContains", return cast one's infer-text-contains on (said) or pass the failure off.
+        If kind is "TextFind", return cast one's infer-text-find on (said) or pass the failure off.
+        If kind is "TextSubstringRange", return cast one's infer-text-range on (said) or pass the failure off.
+        If kind is "TextSubstringEdge", return cast one's infer-text-edge on (said) or pass the failure off.
+        If kind is "TextReplace", return cast one's infer-text-replace on (said) or pass the failure off.
+        If kind is "TextCase", return cast one's infer-text-case on (said) or pass the failure off.
+        If kind is "TextTrim", return cast one's infer-text-trim on (said) or pass the failure off.
+        If kind is "BitsConvert", return cast one's infer-bits-convert on (said) or pass the failure off.
+        If kind is "BitsShift", return cast one's infer-bits-shift on (said) or pass the failure off.
+        If kind is "BitsAtWidth", return cast one's infer-bits-width on (said) or pass the failure off.
+        If kind is "RangeExpression", return cast one's infer-range on (said) or pass the failure off.
+        If kind is "SortExpression", return cast one's infer-sort on (said) or pass the failure off.
+        If kind is "RandomNumber", return cast one's infer-random-number on (said) or pass the failure off.
+        If kind is "RandomItem", return cast one's infer-random-item on (said) or pass the failure off.
+        If kind is "RandomlyShuffled", return cast one's infer-random-shuffled on (said) or pass the failure off.
+        If kind is "RandomGuess", return cast one's infer-random-guess on (said) or pass the failure off.
+        If kind is "ChaseLiteral", return cast one's infer-chase-literal on (said) or pass the failure off.
+        If kind is "SetLiteral", return cast one's infer-set-literal on (said) or pass the failure off.
+        If kind is "SetHasMember", return cast one's infer-set-has on (said) or pass the failure off.
+        If kind is "MatrixLiteral", return cast one's infer-matrix-literal on (said) or pass the failure off.
+        If kind is "MatrixSized", return cast one's infer-matrix-sized on (said) or pass the failure off.
+        If kind is "MatrixAccess", return cast one's infer-matrix-access on (said) or pass the failure off.
         Return a failure (cast not-judged on (kind)).
     Done.
 
@@ -210,9 +233,15 @@ Pull a book on collections.
         Define lk as lhs's kind.
         Define rk as rhs's kind.
 
-        // What this checker cannot weigh yet: overloads and matrices, unions, rabbits.
+        // Matrix arithmetic comes first, as C# asks it before anything else.
+        If op is "Plus" or op is "Minus" or op is "Star" or op is "Slash":
+            Define matrix-result as cast one's matrix-arithmetic on (op, lhs, rhs, at-row, cast operator-words on (op)) or pass the failure off.
+            If cast is-none on (matrix-result) is false, return matrix-result.
+        Done.
+
+        // What this checker cannot weigh yet.
         For each seen in a series with (lhs, rhs), repeat:
-            If seen's kind is "MatrixType" or cast beyond-types on (seen):
+            If cast beyond-types on (seen):
                 Return a failure (cast not-judged on ("an operator on a {seen's kind}")).
             Done.
         Done.

@@ -1,0 +1,134 @@
+/*  Chases and sets — the two collections the `collections` book adds beside a series. From
+    `InferChaseLiteral` in `TypeChecker.Book.cs`, the chase and set arms of `TypeChecker.Series.cs`,
+    and `InferSetLiteral`/`InferSetHasMember` in `TypeChecker.Maps.cs`.
+
+    ★ A chase holds characters, each spelled as a one-character text; a number inserted into one is
+    a CODE POINT. A set holds each thing once, and what may be in one is what may key a map.
+*/
+
+Pull a book on collections.
+    /// `a chase` — only where the `collections` book is pulled.
+    Bind node or failure to infer-chase-literal unto checker, given (the node said):
+        If cast one's has-scoped-type on ("chase") is false:
+            Return a failure (cast refusal-of on ("'chase' is not available in this scope",
+                "It is introduced by the 'collections' book", cast numeric on (cast field-of on (said, 1)),
+                "build a chase without pulling the 'collections' book first",
+                "Wrap it in 'Pull a book on collections. … Done.'")).
+        Done.
+        Return cast plain-type on ("ChaseType").
+    Done.
+
+    /// A WRITTEN-OUT code point that is not one — `CheckLiteralCodePoint`.
+    Bind void or failure to check-code-point, given (the node value, the number at-row):
+        Define point as cast literal-number on (value).
+        If point is void, return.
+        If point % 1 is not 0:
+            Return a failure (cast refusal-of on ("'{point}' is not a code point, because it is not a whole number",
+                "a code point counts characters, so it has no fractional part", at-row,
+                "insert a fractional number as a character", "Write a whole number, or '<value> converted to text' for the digits.")).
+        Done.
+        If point is less than 0 or point is greater than 1114111:
+            Return a failure (cast refusal-of on ("'{point}' is outside the range of a code point",
+                "code points run from 0 to U+10FFFF", at-row,
+                "insert a number outside that range as a character",
+                "Write a code point in range, or '<value> converted to text' for the digits.")).
+        Done.
+        If point is greater than 55295 and point is less than 57344:
+            Return a failure (cast refusal-of on ("'{point}' is half of a character, not one",
+                "the values from 55296 to 57343 are surrogates — they only mean anything in pairs", at-row,
+                "insert a surrogate as a character",
+                "Write the code point of the character itself; a character beyond U+FFFF has one.")).
+        Done.
+    Done.
+
+    /// `Insert <text or code point> into <chase>.`
+    Bind void or failure to check-chase-insert unto checker, given (the node value, the node target, the number at-row):
+        Define appended as cast one's infer on (value) or pass the failure off.
+        If appended's kind is "NumberType":
+            Cast check-code-point on (value, at-row) or pass the failure off.
+            Return.
+        Done.
+        If cast is-none on (appended) or appended's kind is "TextType", return.
+        If cast beyond-types on (appended), return a failure (cast not-judged on ("inserting a {appended's kind} into a chase")).
+        Return a failure (cast refusal-of on ("{cast expression-words on (target)} holds characters",
+            "A chase is a buffer of characters, so what goes in is a text or a code point", at-row,
+            "insert a {cast type-words on (appended)} into a chase", "Convert it first: '<value> converted to text'.")).
+    Done.
+
+    /// A chase's character, removed by value or set by position, is a text. The action is said
+    /// with the type between `lead-in` and `tail`.
+    Bind void or failure to check-chase-text unto checker, given (the node value, the node target, the number at-row,
+            the text said, the text lead-in, the text tail, the text fix):
+        Define offered as cast one's infer on (value) or pass the failure off.
+        If cast is-none on (offered) or offered's kind is "TextType", return.
+        If cast beyond-types on (offered), return a failure (cast not-judged on ("a {offered's kind} in a chase")).
+        Return a failure (cast refusal-of on ("{cast expression-words on (target)} holds characters", said, at-row,
+            "{lead-in}{cast type-words on (offered)}{tail}", fix)).
+    Done.
+
+    // ── Sets ──────────────────────────────────────────────────────────────
+
+    /// `a set of <type> [with (…)]` — the element type is always written.
+    Bind node or failure to infer-set-literal unto checker, given (the node said):
+        Define element as cast field-of on (said, 1).
+        Define at-row as cast numeric on (cast field-of on (said, 3)).
+        Cast require-map-key on (element, at-row) or pass the failure off.
+        For each value in (cast field-of on (said, 2))'s children, repeat:
+            Define actual as cast one's infer on (value) or pass the failure off.
+            If cast is-none on (actual) is false and cast assignable on (element, actual) is false:
+                If cast beyond-types on (actual), return a failure (cast not-judged on ("a {actual's kind} in a set")).
+                Return a failure (cast refusal-of on ("this set holds {cast plural-words on (element)}", "", at-row,
+                    "put a {cast type-words on (actual)} in it", "Everything in this set must be {cast plural-words on (element)}.")).
+            Done.
+        Done.
+        Return cast wrapped on ("SetType", element).
+    Done.
+
+    /// `<set> has <value>`.
+    Bind node or failure to infer-set-has unto checker, given (the node said):
+        Define holder as cast field-of on (said, 1).
+        Define at-row as cast numeric on (cast field-of on (said, 3)).
+        Define target as cast one's infer on (holder) or pass the failure off.
+        If cast is-none on (target), return cast plain-type on ("FactType").
+        Define spoken as cast expression-words on (holder).
+        If target's kind is "MapType":
+            Return a failure (cast refusal-of on ("{spoken} is a map, so ask it about a key",
+                "`has` on its own asks a SET whether it holds something; a map is asked whether it has a key", at-row,
+                "ask a map what it has", "Write '{spoken} has a key for <key>' instead.")).
+        Done.
+        If target's kind is not "SetType":
+            If cast beyond-types on (target), return a failure (cast not-judged on ("asking a {target's kind} what it has")).
+            Return a failure (cast refusal-of on ("{spoken} is {cast type-words on (target)}, and only a set is asked what it has", "",
+                at-row, "ask a {cast type-words on (target)} whether it holds something", "Use a set, or `has a key for` on a map.")).
+        Done.
+        Define element as cast field-of on (target, 1).
+        Define asked as cast one's infer on (cast field-of on (said, 2)) or pass the failure off.
+        If cast is-none on (asked) is false and cast assignable on (element, asked) is false:
+            If cast beyond-types on (asked), return a failure (cast not-judged on ("asking a set about a {asked's kind}")).
+            Return a failure (cast refusal-of on ("{spoken} holds {cast plural-words on (element)}",
+                "Asking whether it holds a {cast type-words on (asked)} could only ever answer no", at-row,
+                "ask whether it holds a {cast type-words on (asked)}", "Ask about {cast plural-words on (element)}.")).
+        Done.
+        Return cast plain-type on ("FactType").
+    Done.
+
+    /// `Insert <value> into <set>.` — no position, because a set has none.
+    Bind void or failure to check-set-insert unto checker, given (the node shape, the node statement):
+        Define value as cast field-of on (statement, 1).
+        Define target as cast field-of on (statement, 2).
+        Define at-row as cast numeric on (cast field-of on (statement, 5)).
+        Define spoken as cast expression-words on (target).
+        If cast is-nothing on (cast field-of on (statement, 3)) is false:
+            Return a failure (cast refusal-of on ("{spoken} is a set, and a set has no positions",
+                "Nothing is inserted `after` anything in a set — it either holds a value or it does not", at-row,
+                "insert at a position in a set", "Write 'Insert <value> into {spoken}.' with no position.")).
+        Done.
+        Define element as cast field-of on (shape, 1).
+        Define inserted as cast one's infer on (value) or pass the failure off.
+        If cast is-none on (inserted) is false and cast assignable on (element, inserted) is false:
+            If cast beyond-types on (inserted), return a failure (cast not-judged on ("a {inserted's kind} in a set")).
+            Return a failure (cast refusal-of on ("{spoken} holds {cast plural-words on (element)}", "", at-row,
+                "insert a {cast type-words on (inserted)} into it", "Everything in this set must be {cast plural-words on (element)}.")).
+        Done.
+    Done.
+Done.

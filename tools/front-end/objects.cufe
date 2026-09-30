@@ -713,7 +713,20 @@ Pull a book on collections.
                 at-row, "access field '{field}' on a failure",
                 "Use 'the message of the failure' or 'the category of the failure'.")).
         Done.
-        If kind is "MatrixType" or kind is "SetType" or cast beyond-types on (target):
+        // ⚠ Before the map's `size`: a set is stored as a map and reads like a collection.
+        If kind is "SetType" and field is "size":
+            Return a failure (cast refusal-of on ("'the size of' works on maps, and this is a set", "",
+                at-row, "get the size of {cast expression-words on (reached)}",
+                "Write 'the number of {cast expression-words on (reached)}' instead.")).
+        Done.
+        // `rows` and `columns` are counts on a matrix, and ordinary field names everywhere else.
+        If kind is "MatrixType":
+            If field is "rows" or field is "columns", return cast plain-type on ("NumberType").
+            Return a failure (cast refusal-of on ("a matrix only has 'rows' and 'columns'", "",
+                at-row, "access field '{field}' on a matrix",
+                "Use 'the rows of m' or 'the columns of m'. For an element, use 'the item at (row, column) of m'.")).
+        Done.
+        If cast beyond-types on (target):
             Return a failure (cast not-judged on ("the {field} of a {kind}")).
         Done.
         If kind is "RecordType", return cast record-field-access on (target, field, at-row) or pass the failure off.

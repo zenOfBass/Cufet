@@ -1,0 +1,287 @@
+/*  Ranges, the `chance` book and sorting — `InferRangeExpr` in `TypeChecker.Series.cs`, the chance
+    arms of `TypeChecker.Book.cs`, and `TypeChecker.Sort.cs`.
+
+    ★ A range counts UP. Both ends written out and the end below the start is refused, because
+    that range is empty and used to mean counting down — a change nobody would notice otherwise.
+*/
+
+Pull a book on collections.
+    /// A number the way C# writes one with `0.############`: no trailing zeros, no exponent.
+    Bind text to plain-number, given (the number amount):
+        Return amount converted to text.
+    Done.
+
+    /// `range <n> to <n> [counting by <n>]`.
+    Bind node or failure to infer-range unto checker, given (the node said):
+        Define at-row as cast numeric on (cast field-of on (said, 4)).
+        Define lower as cast field-of on (said, 1).
+        Define upper as cast field-of on (said, 2).
+        Define lower-type as cast one's infer on (lower) or pass the failure off.
+        Define upper-type as cast one's infer on (upper) or pass the failure off.
+        Cast require-kind on (lower-type, "NumberType", "range start must be a number", at-row,
+            "use a {cast type-words on (lower-type)} as the start of a range",
+            "Both ends of a range must be numbers. For example: range 1 to 100.") or pass the failure off.
+        Cast require-kind on (upper-type, "NumberType", "range end must be a number", at-row,
+            "use a {cast type-words on (upper-type)} as the end of a range",
+            "Both ends of a range must be numbers. For example: range 1 to 100.") or pass the failure off.
+        Define written-lower as cast literal-number on (lower).
+        Define written-upper as cast literal-number on (upper).
+        // ⚠ Nested, not joined with `and`: narrowing does not see through `and`.
+        If written-lower is not void:
+            If written-upper is not void:
+                If written-upper is less than written-lower:
+                    Define low-words as cast plain-number on (written-lower).
+                    Define high-words as cast plain-number on (written-upper).
+                    Return a failure (cast refusal-of on ("'range {low-words} to {high-words}' is empty, because it ends below where it starts",
+                        "a range counts up; it does not turn around when the end is lower", at-row,
+                        "count down by writing the ends the other way round",
+                        "Write 'range {high-words} to {low-words} sorted in reverse' for the numbers in descending order.")).
+                Done.
+            Done.
+        Done.
+        Define stride as cast field-of on (said, 3).
+        If cast is-nothing on (stride) is false:
+            Define stride-type as cast one's infer on (stride) or pass the failure off.
+            Cast require-kind on (stride-type, "NumberType", "range step must be a number", at-row,
+                "count by a {cast type-words on (stride-type)}",
+                "The step in 'counting by <step>' must be a number. For example: range 1 to 10 counting by 2.") or pass the failure off.
+            Define written-stride as cast literal-number on (stride).
+            If written-stride is not void:
+                If written-stride is 0:
+                    Return a failure (cast refusal-of on ("'counting by 0' never makes progress", "", at-row, "count by 0",
+                        "Use a step greater than 0. A range counts up; the step only says by how much.")).
+                Done.
+                If written-stride is less than 0:
+                    Return a failure (cast refusal-of on ("the step in 'counting by' must be positive", "", at-row,
+                        "count by {written-stride}",
+                        "A range counts up, so there is no direction for a sign to set. Use a positive step, and reverse the range if you want the numbers in descending order.")).
+                Done.
+            Done.
+        Done.
+        Return cast wrapped on ("SeriesType", cast plain-type on ("NumberType")).
+    Done.
+
+    // ── The chance book ───────────────────────────────────────────────────
+
+    /// Is a book named `chance` bound anywhere in scope — C#'s `IsChancePulled`, by name.
+    Bind fact to chance-pulled unto checker:
+        For each scope in one's scopes, repeat:
+            For each pair in scope, repeat:
+                Define shape as (the value of pair)'s shape.
+                If shape's kind is "ObjectType" or shape's kind is "BookType":
+                    If (cast unquoted on (cast field-of on (shape, 1)) in lowercase) is "chance", return true.
+                Done.
+            Done.
+        Done.
+        Return false.
+    Done.
+
+    Bind void or failure to require-chance unto checker, given (the number at-row, the text construct):
+        If cast one's chance-pulled, return.
+        Return a failure (cast refusal-of on ("the chance book is not in scope", "", at-row,
+            "use '{construct}' without pulling the chance book", "Add 'Pull a book on chance.' before this line.")).
+    Done.
+
+    Bind node or failure to infer-random-number unto checker, given (the node said):
+        Define at-row as cast numeric on (cast field-of on (said, 3)).
+        Cast one's require-chance on (at-row, "a random number from ... to ...") or pass the failure off.
+        Define low-type as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
+        Cast require-kind on (low-type, "NumberType",
+            "the lower bound of a random number range must be a number, but found a {cast type-words on (low-type)}", at-row,
+            "use a {cast type-words on (low-type)} as a range bound",
+            "Use numbers for both bounds (e.g. 'a random number from 1 to 6').") or pass the failure off.
+        Define high-type as cast one's infer on (cast field-of on (said, 2)) or pass the failure off.
+        Cast require-kind on (high-type, "NumberType",
+            "the upper bound of a random number range must be a number, but found a {cast type-words on (high-type)}", at-row,
+            "use a {cast type-words on (high-type)} as a range bound",
+            "Use numbers for both bounds (e.g. 'a random number from 1 to 6').") or pass the failure off.
+        Return cast plain-type on ("NumberType").
+    Done.
+
+    /// `a random item from <series>` — void when the series is empty.
+    Bind node or failure to infer-random-item unto checker, given (the node said):
+        Define at-row as cast numeric on (cast field-of on (said, 2)).
+        Cast one's require-chance on (at-row, "a random item from ...") or pass the failure off.
+        Define source as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
+        If cast is-none on (source), return cast wrapped on ("VoidableType", cast plain-type on ("NumberType")).
+        If source's kind is "SeriesType", return cast wrapped on ("VoidableType", cast field-of on (source, 1)).
+        If cast beyond-types on (source), return a failure (cast not-judged on ("a random item from a {source's kind}")).
+        Return a failure (cast refusal-of on ("'a random item from' requires a series, but found a {cast type-words on (source)}", "",
+            at-row, "pick a random item from a {cast type-words on (source)}", "'a random item from' works on any series or catalogue.")).
+    Done.
+
+    Bind node or failure to infer-random-shuffled unto checker, given (the node said):
+        Define at-row as cast numeric on (cast field-of on (said, 2)).
+        Cast one's require-chance on (at-row, "randomly shuffled ...") or pass the failure off.
+        Define source as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
+        If cast is-none on (source), return cast wrapped on ("SeriesType", cast plain-type on ("NumberType")).
+        If source's kind is "SeriesType", return source.
+        If cast beyond-types on (source), return a failure (cast not-judged on ("shuffling a {source's kind}")).
+        Return a failure (cast refusal-of on ("'randomly shuffled' requires a series, but found a {cast type-words on (source)}", "",
+            at-row, "shuffle a {cast type-words on (source)}", "'randomly shuffled' works on any series or catalogue.")).
+    Done.
+
+    Bind node or failure to infer-random-guess unto checker, given (the node said):
+        Cast one's require-chance on (cast numeric on (cast field-of on (said, 1)), "a random guess") or pass the failure off.
+        Return cast plain-type on ("FactType").
+    Done.
+
+    /// `Seed the chance with <number>.`
+    Bind void or failure to check-seed unto checker, given (the node statement):
+        Define at-row as cast numeric on (cast field-of on (statement, 2)).
+        Cast one's require-chance on (at-row, "Seed the chance with ...") or pass the failure off.
+        Define seed-type as cast one's infer on (cast field-of on (statement, 1)) or pass the failure off.
+        Cast require-kind on (seed-type, "NumberType", "the seed must be a number, but found a {cast type-words on (seed-type)}", at-row,
+            "seed chance with a {cast type-words on (seed-type)}", "Use a whole number as the seed (e.g. 'Seed the chance with 42.').") or pass the failure off.
+    Done.
+
+    // ── Sorting ───────────────────────────────────────────────────────────
+
+    /// `<type> function given (<types>)` — C#'s `FormatFunctionType`.
+    Bind text to function-words, given (the node shape):
+        Define gives as "void".
+        Define returned as cast field-of on (shape, 2).
+        If cast is-nothing on (returned) is false, the gives becomes cast type-words on (returned).
+        Define taken as (cast field-of on (shape, 1))'s children.
+        If the number of taken is 0, return "{gives} function".
+        Define listing as a chase.
+        Define first-one as true.
+        For each one-taken in taken, repeat:
+            If first-one is false, insert ", " into listing.
+            The first-one becomes false.
+            Insert cast type-words on (one-taken) into listing.
+        Done.
+        Return "{gives} function given ({listing converted to text})".
+    Done.
+
+    /// A key function takes exactly one element and gives back a number or text.
+    Bind void or failure to check-sort-key, given (the node shape, the text what, the node element, the number at-row):
+        Define taken as (cast field-of on (shape, 1))'s children.
+        If the number of taken is not 1 or cast same-type on (item 1 of taken, element) is false:
+            If cast beyond-types on (element), return a failure (cast not-judged on ("sorting {element's kind} elements")).
+            Return a failure (cast refusal-of on ("a key function must take exactly one {cast type-words on (element)}", "", at-row,
+                "sort a series of {cast plural-words on (element)} by {what}, which is a {cast function-words on (shape)}",
+                "Give it one parameter of type {cast type-words on (element)}: it is called once on each element.")).
+        Done.
+        Define returned as cast field-of on (shape, 2).
+        Define gives as "nothing".
+        If cast is-nothing on (returned) is false:
+            If returned's kind is "NumberType" or returned's kind is "TextType", return.
+            The gives becomes cast type-words on (returned).
+        Done.
+        Return a failure (cast refusal-of on ("a key function must give back a number or text", "", at-row,
+            "sort by {what}, which gives back {gives}", "Sort keys must be numbers (ascending) or text (alphabetical).")).
+    Done.
+
+    /// `<series> sorted [in reverse] [by <field or function> | by a function …]`.
+    Bind node or failure to infer-sort unto checker, given (the node said):
+        Define sorted-said as cast field-of on (said, 1).
+        Define by-name as cast field-of on (said, 2).
+        Define at-row as cast numeric on (cast field-of on (said, 4)).
+        Define by-lambda as cast field-of on (said, 6).
+        Define source as cast one's infer on (sorted-said) or pass the failure off.
+        If cast is-none on (source), return source.
+        If source's kind is "ChaseType":
+            If cast is-nothing on (by-name) is false or cast is-nothing on (by-lambda) is false:
+                Define action as "sort a chase by a function".
+                If cast is-nothing on (by-name) is false, the action becomes "sort a chase by '{cast unquoted on (by-name)}'".
+                Return a failure (cast refusal-of on ("a chase sorts its characters in their natural order only", "", at-row,
+                    action, "Write '{cast expression-words on (sorted-said)} sorted' for the characters in order.")).
+            Done.
+            Return source.
+        Done.
+        If source's kind is not "SeriesType":
+            If cast beyond-types on (source), return a failure (cast not-judged on ("sorting a {source's kind}")).
+            Return a failure (cast refusal-of on ("'sorted' works on series and chases only", "", at-row,
+                "sort a {cast type-words on (source)}", "Only a series or a chase can be sorted. Maps, records, and other types cannot.")).
+        Done.
+        Define element as cast field-of on (source, 1).
+        If cast is-nothing on (by-lambda) is false:
+            Define lambda-type as cast one's infer on (by-lambda) or pass the failure off.
+            If lambda-type's kind is not "FunctionType":
+                Return a failure (cast refusal-of on ("the function is not a function", "", at-row, "sort by the function",
+                    "Sort by a field of the elements, or by a function that takes one element.")).
+            Done.
+            Cast check-sort-key on (lambda-type, "the function", element, at-row) or pass the failure off.
+            Return source.
+        Done.
+        Define spoken as cast expression-words on (sorted-said).
+        If cast is-nothing on (by-name):
+            If element's kind is "NumberType" or element's kind is "TextType", return source.
+            If cast beyond-types on (element), return a failure (cast not-judged on ("sorting {element's kind} elements")).
+            Return a failure (cast refusal-of on ("a series of {cast plural-words on (element)} has no natural order", "", at-row,
+                "sort a series of {cast plural-words on (element)} without specifying a field",
+                "Sort by a named field instead: '{spoken} sorted by the <field-name>', or by a function that gives back a number or text: '{spoken} sorted by <function-name>'.")).
+        Done.
+
+        // By a NAME: a field of the element, or a function in scope — and both is refused.
+        Define name as cast unquoted on (by-name).
+        Define field-type as cast unknown-type.
+        If element's kind is "RecordType":
+            Define record-field as cast record-field-type on (element, name).
+            If record-field is not void, the field-type becomes record-field.
+        Done.
+        Otherwise if element's kind is "ObjectType":
+            Define owner as cast unquoted on (cast field-of on (element, 1)).
+            If cast one's definition-of on (owner) is void, return a failure (cast not-judged on ("sorting '{owner}' objects")).
+            Define object-field as cast one's field-type-of on (owner, name).
+            If object-field is not void, the field-type becomes object-field.
+        Done.
+        Define bound as cast one's look-up on (name).
+        Define function-type as cast unknown-type.
+        If bound is not void:
+            If bound's shape's kind is "FunctionType", the function-type becomes bound's shape.
+        Done.
+        If cast is-none on (field-type) is false and cast is-none on (function-type) is false:
+            Return a failure (cast refusal-of on ("'{name}' is both a field of {cast plural-words on (element)} and a function, so 'sorted by {name}' could mean either", "",
+                at-row, "sort by '{name}'",
+                "Rename one of them. Or, to sort by the function, write it out: 'sorted by a function given (the {cast type-words on (element)} value): Return cast {name} on (value). Done'.")).
+        Done.
+        If cast is-none on (field-type) is false:
+            If field-type's kind is "NumberType" or field-type's kind is "TextType", return source.
+            If cast beyond-types on (field-type), return a failure (cast not-judged on ("sorting by a {field-type's kind} field")).
+            Return a failure (cast refusal-of on ("field '{name}' has type {cast type-words on (field-type)}, which has no natural order", "",
+                at-row, "sort by a {cast type-words on (field-type)} field",
+                "Sort keys must be numbers (ascending) or text (alphabetical). Use a different field.")).
+        Done.
+        If cast is-none on (function-type) is false:
+            Cast check-sort-key on (function-type, "'{name}'", element, at-row) or pass the failure off.
+            Return source.
+        Done.
+        If element's kind is "RecordType":
+            Define names as cast record-field-names on (element).
+            Define fix as "This record has no named fields.".
+            If the number of names is greater than 0, the fix becomes "Available named fields: {cast comma-listed on (names)}.".
+            Return a failure (cast refusal-of on ("this record has no field named '{name}', and there is no function by that name", "",
+                at-row, "sort by '{name}'", fix)).
+        Done.
+        If element's kind is "ObjectType":
+            Define owner as cast unquoted on (cast field-of on (element, 1)).
+            Define names as cast one's field-names on (owner).
+            Define fix as "'{owner}' has no named fields.".
+            If the number of names is greater than 0, the fix becomes "Available named fields: {cast comma-listed on (names)}.".
+            Return a failure (cast refusal-of on ("'{owner}' has no field named '{name}', and there is no function by that name", "",
+                at-row, "sort by '{name}'", fix)).
+        Done.
+        If cast beyond-types on (element), return a failure (cast not-judged on ("sorting {element's kind} elements")).
+        Define what as "there is no function named '{name}'".
+        If bound is not void:
+            If cast beyond-types on (bound's shape), return a failure (cast not-judged on ("sorting by a {bound's shape's kind}")).
+            The what becomes "'{name}' is a {cast type-words on (bound's shape)}, not a function".
+        Done.
+        Return a failure (cast refusal-of on ("{what}, and a series of {cast plural-words on (element)} has no fields to sort by", "",
+            at-row, "sort a series of {cast plural-words on (element)} by '{name}'",
+            "Name a function that takes one element and gives back a number or text, or write one in place: 'sorted by a function given (the {cast type-words on (element)} value): … Done'.")).
+    Done.
+
+    Bind text to comma-listed, given (the series of text names):
+        Define listing as a chase.
+        Define first-one as true.
+        For each name in names, repeat:
+            If first-one is false, insert ", " into listing.
+            The first-one becomes false.
+            Insert name into listing.
+        Done.
+        Return listing converted to text.
+    Done.
+Done.

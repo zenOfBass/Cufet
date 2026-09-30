@@ -1,0 +1,120 @@
+/*  Bit patterns — `converted to hex|octal|binary`, `shifted left|right by`, `at <n> bits`, from
+    `TypeChecker.Text.cs` and `TypeChecker.Core.cs`, and a bits literal quoted back the way it was
+    written: C#'s `FormatBitsLiteral`.
+
+    ★ A bits literal in the tree is `(BitsLiteral <value> "<base>" <width> line column)`, the value
+    in decimal. Its base and width are what make `0x00FF` quote back as `0x00FF` and not `0xFF`.
+*/
+
+Pull a book on collections.
+    // `base-name` — hex, octal, binary — is the scanner's; the tree only ever holds x, o or b.
+
+    /// How many bits a value needs — 0 for zero.
+    Bind number to bit-length, given (the number amount):
+        Define left as amount.
+        Define counted as 0.
+        While left is greater than 0, repeat:
+            The left becomes (left - (left % 2)) / 2.
+            Increment counted by 1.
+        Done.
+        Return counted.
+    Done.
+
+    /// `0x00FF`, `0o755`, `0b1010` — the digits in the literal's own base, as many as its width needs.
+    Bind text to bits-words, given (the node said):
+        Define amount as cast numeric on (cast field-of on (said, 1)).
+        Define written-base as cast unquoted on (cast field-of on (said, 2)).
+        Define width as cast numeric on (cast field-of on (said, 3)).
+        Define per-digit as 1.
+        Define radix as 2.
+        If written-base is "x":
+            The per-digit becomes 4.
+            The radix becomes 16.
+        Done.
+        Otherwise if written-base is "o":
+            The per-digit becomes 3.
+            The radix becomes 8.
+        Done.
+        Define symbols as a series with ("0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "A", "B", "C", "D", "E", "F").
+        // Least significant first, then read back the other way.
+        Define reversed as a series of text.
+        Define left as amount.
+        While left is greater than 0, repeat:
+            Define digit as left % radix.
+            Insert item (digit + 1) of symbols into reversed.
+            The left becomes (left - digit) / radix.
+        Done.
+        If the number of reversed is 0, insert "0" into reversed.
+        Define declared as (width + per-digit - 1 - ((width + per-digit - 1) % per-digit)) / per-digit.
+        While the number of reversed is less than declared, repeat:
+            Insert "0" into reversed.
+        Done.
+        Define digits as a chase.
+        Define spot as the number of reversed.
+        While spot is greater than 0, repeat:
+            Insert item spot of reversed into digits.
+            Decrement spot by 1.
+        Done.
+        Return "0{written-base}{digits converted to text}".
+    Done.
+
+    /// `<number> converted to hex|octal|binary` — a quantity becomes a pattern.
+    Bind node or failure to infer-bits-convert unto checker, given (the node said):
+        Define at-row as cast numeric on (cast field-of on (said, 3)).
+        Define named-base as cast base-name on (cast unquoted on (cast field-of on (said, 2))).
+        Define operand as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
+        Define fix as "Only a number can be converted to a bit pattern.".
+        If operand's kind is "BitsType":
+            The fix becomes "This is already a bit pattern. To show it in another base, convert it to a number first: 'x converted to number converted to binary'.".
+        Done.
+        Cast require-kind on (operand, "NumberType", "'converted to {named-base}' expects a number", at-row,
+            "convert a {cast type-words on (operand)} to {named-base}", fix) or pass the failure off.
+        Return cast plain-type on ("BitsType").
+    Done.
+
+    /// `<bits> shifted left|right by <number>` — the amount is a count of positions.
+    Bind node or failure to infer-bits-shift unto checker, given (the node said):
+        Define at-row as cast numeric on (cast field-of on (said, 4)).
+        Define target as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
+        Define amount as cast one's infer on (cast field-of on (said, 3)) or pass the failure off.
+        Define fix as "Only a bits value can be shifted.".
+        If target's kind is "NumberType":
+            The fix becomes "A number is a quantity, and has no bit positions to move. Write the value as a bit pattern (0xFF, 0b1010, 0o755) if that is what you meant.".
+        Done.
+        Cast require-kind on (target, "BitsType", "shifting works on bits", at-row,
+            "shift a {cast type-words on (target)}", fix) or pass the failure off.
+        Cast require-kind on (amount, "NumberType", "the shift amount counts positions, so it is a number", at-row,
+            "shift by a {cast type-words on (amount)}",
+            "Write how many places to move as an ordinary number — 'flags shifted left by 3' — not as a bit pattern. It is a count, like the 3 in 'item 3 of s'.") or pass the failure off.
+        Return cast plain-type on ("BitsType").
+    Done.
+
+    /// `<bits> at <n> bits` — a stated width, which may not drop a set bit.
+    Bind node or failure to infer-bits-width unto checker, given (the node said):
+        Define at-row as cast numeric on (cast field-of on (said, 3)).
+        Define held as cast field-of on (said, 1).
+        Define stated as cast field-of on (said, 2).
+        Define target as cast one's infer on (held) or pass the failure off.
+        Cast require-kind on (target, "BitsType", "'at ... bits' states the width of a bits value, but this is a {cast type-words on (target)}", at-row,
+            "state a width on something that is not a bits value",
+            "Only a bits value carries a width, as in '0b0 at 3 bits'.") or pass the failure off.
+        Define width-type as cast one's infer on (stated) or pass the failure off.
+        Cast require-kind on (width-type, "NumberType", "a stated width must be a number, but this is a {cast type-words on (width-type)}", at-row,
+            "state a width that is not a number", "Write the count of bits, as in '0b0 at 3 bits'.") or pass the failure off.
+        If held's kind is "BitsLiteral" and stated's kind is "NumberLiteral":
+            Define written as (cast field-of on (stated, 1))'s word.
+            Define count as cast numeric on (cast field-of on (stated, 1)).
+            If count is less than 0 or count % 1 is not 0:
+                Return a failure (cast refusal-of on ("a stated width must be a whole number of bits, not {written}", "", at-row,
+                    "state a fractional or negative width", "Write a whole count, as in '0b0 at 3 bits'.")).
+            Done.
+            Define needed as cast bit-length on (cast numeric on (cast field-of on (held, 1))).
+            If count is less than needed:
+                Return a failure (cast refusal-of on ("{count} bits cannot hold this value - it needs {needed}", "", at-row,
+                    "narrow a value to {count} bits",
+                    "Widening is always fine; narrowing is refused when it would drop a set bit, because a packer that loses its high bits writes data that decodes to garbage. Mask with 'and' if dropping them is what you meant.")).
+            Done.
+        Done.
+        Return cast plain-type on ("BitsType").
+    Done.
+Done.

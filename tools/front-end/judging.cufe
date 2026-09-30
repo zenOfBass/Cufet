@@ -223,7 +223,7 @@ Pull a book on collections.
         Done.
         For each known in a series with ("StateStatement", "BecomesStatement", "StopStatement", "SkipStatement",
                 "ReturnStatement", "CastStatement", "PossessiveSetStatement", "RecordNamedSetStatement", "SuppressStatement",
-                "MapSetStatement", "ExitStatement",
+                "MapSetStatement", "ExitStatement", "SeedChanceStatement", "MatrixSetStatement",
                 "SeriesInsertStatement", "SeriesSetStatement", "SeriesRemoveAtStatement", "SeriesRemoveValueStatement"), repeat:
             If kind is known, return "".
         Done.
@@ -519,6 +519,12 @@ Pull a book on collections.
         Otherwise if kind is "JudgeStatement":
             Cast one's check-judge on (statement) or pass the failure off.
         Done.
+        Otherwise if kind is "SeedChanceStatement":
+            Cast one's check-seed on (statement) or pass the failure off.
+        Done.
+        Otherwise if kind is "MatrixSetStatement":
+            Cast one's check-matrix-set on (statement) or pass the failure off.
+        Done.
     Done.
 
     // ── If, and what its arms narrow ──────────────────────────────────────
@@ -692,7 +698,23 @@ Pull a book on collections.
             Cast one's exit-scope.
             Return.
         Done.
-        If kind is "ChaseType" or kind is "SetType" or kind is "StashType":
+        // A chase gives one-character texts; a set gives its elements.
+        If kind is "ChaseType" or kind is "SetType":
+            Define element-type as cast plain-type on ("TextType").
+            If kind is "SetType", the element-type becomes cast field-of on (looped-type, 1).
+            Define each-name as "it".
+            If cast is-nothing on (cast field-of on (statement, 1)) is false:
+                The each-name becomes cast unquoted on (cast field-of on (statement, 1)).
+            Done.
+            Cast one's enter-scope.
+            Cast one's bind-name on (each-name, a new binding {
+                the shape element-type, the established-by looped, the line at-row, the permanent false,
+                the module false, the depth 0, the parameter false }).
+            Cast one's check-block on (cast field-of on (statement, 3)) or pass the failure off.
+            Cast one's exit-scope.
+            Return.
+        Done.
+        If kind is "StashType":
             Return a failure (cast not-judged on ("looping over a {kind}")).
         Done.
         If kind is not "SeriesType":
@@ -727,8 +749,13 @@ Pull a book on collections.
         If cast is-nothing on (after-said) is false, cast check-index on (after-said, at-row) or pass the failure off.
         Define container as cast one's infer on (target) or pass the failure off.
         If cast is-none on (container), return.
-        If container's kind is "SetType" or container's kind is "ChaseType":
-            Return a failure (cast not-judged on ("inserting into a {container's kind}")).
+        If container's kind is "SetType":
+            Cast one's check-set-insert on (container, statement) or pass the failure off.
+            Return.
+        Done.
+        If container's kind is "ChaseType":
+            Cast one's check-chase-insert on (value, target, at-row) or pass the failure off.
+            Return.
         Done.
         Define spoken as cast expression-words on (target).
         If container's kind is not "SeriesType":
@@ -807,7 +834,13 @@ Pull a book on collections.
             Cast one's check-record-item-set on (container, statement) or pass the failure off.
             Return.
         Done.
-        If container's kind is "ChaseType" or cast beyond-types on (container):
+        If container's kind is "ChaseType":
+            Cast one's check-chase-text on (cast field-of on (statement, 3), target, at-row,
+                "A chase is a buffer of characters, so a position can only be set to text",
+                "set a position to a ", " value", "Convert it first: '<value> converted to text'.") or pass the failure off.
+            Return.
+        Done.
+        If cast beyond-types on (container):
             Return a failure (cast not-judged on ("setting an item of a {container's kind}")).
         Done.
         Return a failure (cast refusal-of on ("{spoken} is not a series, object, or record",
@@ -850,7 +883,10 @@ Pull a book on collections.
             Return.
         Done.
         If container's kind is "ChaseType":
-            Return a failure (cast not-judged on ("removing from a {container's kind}")).
+            Cast one's check-chase-text on (value, target, at-row,
+                "A chase holds characters, so only a one-character text can be removed from it",
+                "remove a ", " from it", "Remove a one-character text, as in 'Remove \",\" from <chase>'.") or pass the failure off.
+            Return.
         Done.
         If container's kind is not "SeriesType":
             If cast beyond-types on (container), return a failure (cast not-judged on ("removing from a {container's kind}")).
