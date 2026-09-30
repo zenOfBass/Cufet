@@ -196,6 +196,10 @@ Pull a book on collections.
             Otherwise:
                 Define cases as (cast field-of on (arm, 1))'s children.
                 For each one-case in cases, repeat:
+                    // A voidable left over is its two cases again, or neither could be taken out of it.
+                    If remaining's kind is "VoidableType":
+                        The remaining becomes cast union-of on (a series with (cast field-of on (remaining, 1), cast plain-type on ("VoidType"))).
+                    Done.
                     // The last case left is retired here: removing it from itself leaves it standing.
                     If cast is-none on (remaining) is false and cast same-type on (remaining, one-case):
                         The remaining becomes cast unknown-type.
