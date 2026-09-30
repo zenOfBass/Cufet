@@ -577,4 +577,64 @@ public class PipelineUnionBreadthTests : PipelineTestBase
             """;
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
+
+    // ── A union compared with something other than the same union ─────────
+    //
+    // `x is 4` on a `(number or text)` type-checked and ran interpreted, but compiled it handed a
+    // number to the union's own `_eq`, which takes two unions, and gcc refused the C. Every pairing
+    // here — a plain value on either side, another union, a voidable, a call — now builds, and the
+    // calls print once each, which is what shows each side is evaluated once.
+
+    [Fact]
+    public void AUnion_ComparedWithAPlainValueAnotherUnionOrAVoidable_MatchesInterpreter()
+    {
+        const string src = """
+            Bind (number or text) to pick, given (the number n):
+                State "picked {n}".
+                If n is 1, return 4.
+                Return "four".
+            Done.
+
+            Define the (number or text) x as 4.
+            If x is 4, state "x is 4".
+            If x is not 4, state "x is not 4".
+            If 4 is x, state "4 is x".
+            If x is "four", state "wrong".
+            Otherwise, state "x is not four".
+            If x is true, state "wrong".
+            Otherwise, state "a number is never a fact".
+            The x becomes "four".
+            If x is "four", state "x is four".
+            If "four" is x, state "four is x".
+            If x is 4, state "wrong".
+            Otherwise, state "x is not 4 now".
+
+            // Each side is evaluated once, however the comparison reads it.
+            If cast pick on (1) is 4, state "a call compared".
+            If cast pick on (2) is 4, state "wrong".
+            Otherwise, state "a call compared again".
+
+            // Two unions with different cases.
+            Define the (text or number) y as 4.
+            The x becomes 4.
+            If x is y, state "same value, different unions".
+            Define the (number or text or fact) z as true.
+            If x is z, state "wrong".
+            Otherwise, state "a number is not a fact".
+
+            // Beside a voidable.
+            Define maybe as the entry for "a" in a map with ("a" : 4).
+            If x is maybe, state "voidable present and equal".
+            Define missing as the entry for "b" in a map with ("a" : 4).
+            If x is missing, state "wrong".
+            Otherwise, state "absent is not 4".
+            Define the (number or text or void) w as void.
+            If w is missing, state "absent matches the void case".
+
+            // A catalogue's item.
+            Define items as a catalogue with (1, "two").
+            If item 2 of items is "two", state "open catalogue item compared".
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
 }

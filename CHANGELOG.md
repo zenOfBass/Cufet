@@ -95,6 +95,10 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   but would not compile — "the compiler cannot represent a void yet" — wherever it appeared, in a
   variable, a parameter, a return type, a catalogue or an atlas. `is a void`, `is void`, `Judge`,
   printing and comparing it now give the same answers compiled as interpreted.
+- **A union compared with a plain value builds.** `x is 4` on a `(number or text)` ran
+  interpreted but would not compile, and neither would comparing two unions with different cases
+  or a union with a voidable. Each now gives the interpreter's answer: equal when both hold the
+  same kind of value and those values are equal.
 
 ## [0.26.0] — 2026-09-26
 
