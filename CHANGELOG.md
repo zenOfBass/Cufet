@@ -87,6 +87,10 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 - **An empty series is told a spelling that works.** `a series with ()` was advised to write
   `a series of numbers ()`, which does not parse; it is now told `a series of numbers`, `a series
   of text` or `a series of facts`.
+- **A `Judge` naming every case of a union with `void` in it is accepted.** Judging a
+  `(number or text or void)` with `A number`, `A text` and `A void` was refused as leaving
+  "voidable text" uncovered: once one case was taken, the other two folded into a single voidable
+  that neither remaining arm could take anything out of. Found writing the type checker in Cufet.
 
 ## [0.26.0] — 2026-09-26
 

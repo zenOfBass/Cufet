@@ -2663,6 +2663,13 @@ public sealed partial class TypeChecker
 
                     foreach (var oneCase in arm.Cases)
                     {
+                        // ★ A voidable left over is split back into its two cases first.
+                        // RemoveFromUnion folds `(T or void)` into `voidable T`, so a three-case
+                        // union with void in it became ONE opaque case after its first arm, and
+                        // neither `A text` nor `A void` could take anything out of it — a judgement
+                        // naming every case was refused as leaving "voidable text" uncovered.
+                        if (remaining is VoidableType leftVoidable)
+                            remaining = new UnionType([leftVoidable.Inner, CufetType.Void]);
                         // RemoveFromUnion collapses a two-case union to the bare survivor, and
                         // then declines to remove anything from it because it is no longer a
                         // UnionType. The last case therefore has to be retired here, or a

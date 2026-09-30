@@ -67,6 +67,33 @@ public class JudgeTests
     }
 
     [Fact]
+    public void AUnionWithVoidInIt_IsCoveredByNamingEveryCase()
+    {
+        // Regression: after `A number`, the rest of `(number or text or void)` folded into ONE
+        // `voidable text`, and neither `A text` nor `A void` could take anything out of it — so a
+        // judgement naming all three cases was refused as leaving "voidable text" uncovered.
+        // Every arm order is walked, since the fold happens wherever void is one of the last two.
+        const string subject = "Define the (number or text or void) x as void.\n";
+        string[] arms = ["    A number, state \"n\".\n", "    A text, state \"t\".\n", "    A void, state \"v\".\n"];
+        int[][] orders = [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]];
+        foreach (var order in orders)
+            Assert.Equal("v", Run(subject + "Judge x, where it is:\n" + string.Concat(order.Select(i => arms[i])) + "Done."));
+    }
+
+    [Fact]
+    public void AUnionWithVoidInIt_StillRefusesAMissingCase()
+    {
+        // The other side of the fix above: splitting the voidable back apart must not make a case
+        // that really is missing look covered.
+        var ex = Assert.Throws<TypeException>(() => Run("Define the (number or text or void) x as 4.\n" +
+            "Judge x, where it is:\n" +
+            "    A number, state \"n\".\n" +
+            "    A text, state \"t\".\n" +
+            "Done."));
+        Assert.Contains("does not cover void", ex.Message);
+    }
+
+    [Fact]
     public void Otherwise_CoversTheRest()
     {
         Assert.Equal("not a number", Run(Union + "\"hi\".\n" +
