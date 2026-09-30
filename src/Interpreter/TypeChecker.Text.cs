@@ -28,7 +28,8 @@ public sealed partial class TypeChecker
                 null,
                 tj.Line, tj.Column,
                 $"join a {FormatType(left)} to text",
-                $"Convert the {FormatType(left)} first: use 'converted to text'.\nFor example: n converted to text joined to \" items\".");
+                UnionNarrowingFix(tj.Left, left, CufetType.Text)
+                ?? $"Convert the {FormatType(left)} first: use 'converted to text'.\nFor example: n converted to text joined to \" items\".");
 
         if (right != null && right != CufetType.Text)
             throw TypeError(
@@ -36,7 +37,8 @@ public sealed partial class TypeChecker
                 null,
                 tj.Line, tj.Column,
                 $"join text to a {FormatType(right)}",
-                $"Convert the {FormatType(right)} first: use 'converted to text'.\nFor example: \"score: \" joined to n converted to text.");
+                UnionNarrowingFix(tj.Right, right, CufetType.Text)
+                ?? $"Convert the {FormatType(right)} first: use 'converted to text'.\nFor example: \"score: \" joined to n converted to text.");
 
         return CufetType.Text;
     }

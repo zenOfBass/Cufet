@@ -539,6 +539,19 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
         "Define mp as a map from (number or series of numbers) to text.",
         "Define mp as a map from record like (number, (number or text)) to text.",
         "Define mp as a map from record like (number, (number or series of numbers)) to text.",
+        // A union where one of its cases is needed: the refusal says how to check which it holds.
+        "Define the (number or text) x as 4.\nState 1 + x.",
+        "Define the (number or text) x as 4.\nIf x is greater than 3, state \"big\".",
+        "Define the (number or text) x as 4.\nState -x.",
+        "Define the (number or text) x as 4.\nState the length of x.",
+        "Define the (number or text) x as 4.\nState x joined to \"!\".",
+        "Define the (number or text) x as 4.\nState \"!\" joined to x.",
+        "Define items as a catalogue of (number or text) with (1, \"a\").\nState (item 1 of items) + 1.",
+        "Define items as a catalogue of (number or text) with (1, \"a\").\nState the length of item 1 of items.",
+        "Define the (number or text) x as 4.\nState x + \"a\".",
+        "Define the (text or fact) x as true.\nState x + 1.",
+        "Define the (number or text) x as 4.\nDefine the (number or fact) y as 4.\nState x + y.",
+        "Define the (text or fact) x as true.\nState -x.",
     ];
 
     [Fact]

@@ -95,4 +95,40 @@ public class MessageWordingTests
         var program = new Parser(new CufetLexer($"Define xs as a series of {of}.\n").Tokenize()).Parse();
         new TypeChecker().Check(program);
     }
+
+    // ⚠ REFERENCE promised that using an un-narrowed union where one of its cases is needed "names
+    // the expected narrowing form", and the refusal never did — `x + 1` on a `(number or text)` said
+    // only that arithmetic needs numbers. The fix line now says how to find out which case it holds.
+    [Theory]
+    [InlineData("State x + 1.", "'If x is a number:'")]
+    [InlineData("State 1 + x.", "'If x is a number:'")]
+    [InlineData("If x is greater than 3, state \"big\".", "'If x is a number:'")]
+    [InlineData("State -x.", "'If x is a number:'")]
+    [InlineData("State the length of x.", "'If x is a text:'")]
+    [InlineData("State x joined to \"!\".", "'If x is a text:'")]
+    [InlineData("State \"!\" joined to x.", "'If x is a text:'")]
+    public void AUnionWhereOneCaseIsNeeded_IsToldToCheckWhichItIs(string use, string check)
+    {
+        var message = CheckFails("Define the (number or text) x as 4.\n" + use);
+        Assert.Contains("'x' could be any of (number or text). Check which it is first: " + check + ".", message);
+    }
+
+    [Fact]
+    public void AUnionThatIsNotANamedVariable_IsPointedAtJudge()
+    {
+        // Narrowing reaches variables alone, so an `If` would not help here.
+        var message = CheckFails("Define items as a catalogue of (number or text) with (1, \"a\").\nState (item 1 of items) + 1.");
+        Assert.Contains("This value could be any of (number or text). Check which it is first: 'Judge …, where it is:' with an arm for 'A number'.", message);
+    }
+
+    // Narrowing has to be able to make the line valid, or the advice sends the writer nowhere.
+    [Theory]
+    [InlineData("Define the (number or text) x as 4.\nState x + \"a\".")]
+    [InlineData("Define the (text or fact) x as true.\nState x + 1.")]
+    public void AUnionNarrowingCannotHelp_KeepsTheUsualAdvice(string source)
+    {
+        var message = CheckFails(source);
+        Assert.DoesNotContain("Check which it is first", message);
+        Assert.Contains("If you meant arithmetic, both sides need to be numbers.", message);
+    }
 }

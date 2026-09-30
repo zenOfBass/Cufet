@@ -3840,7 +3840,8 @@ public sealed partial class TypeChecker
             operand == CufetType.Bits
                 ? "Bits are unsigned — a bit pattern has no negative. Did you mean 'not', " +
                 "which flips every bit within the value's width?"
-                : "Make sure the value you're negating is a number.");
+                : UnionNarrowingFix(unary.Operand, operand, CufetType.Number)
+                  ?? "Make sure the value you're negating is a number.");
     }
 
     private CufetType? InferBinary(BinaryExpression bin)
@@ -3954,7 +3955,8 @@ public sealed partial class TypeChecker
                     null,
                     bin.Line, bin.Column,
                     $"use {FormatOp(bin.Op)} with {FormatType(l)} and {FormatType(r)}",
-                    "If you meant arithmetic, both sides need to be numbers.\nIf you meant to join text, use 'joined to': \"hello\" joined to \" world\"."),
+                    UnionNarrowingFix(bin.Left, l, bin.Right, r, CufetType.Number)
+                    ?? "If you meant arithmetic, both sides need to be numbers.\nIf you meant to join text, use 'joined to': \"hello\" joined to \" world\"."),
             // is void / is not void: voidable T compared to void
             TokenType.Equal or TokenType.NotEqual
                 when (l is VoidableType && r is VoidType) || (l is VoidType && r is VoidableType)
@@ -4004,7 +4006,8 @@ public sealed partial class TypeChecker
                     null,
                     bin.Line, bin.Column,
                     $"order a {FormatType(l)} and a {FormatType(r)}",
-                    "Ordering comparisons (>, <, >=, <=) need both sides to be numbers, or " +
+                    UnionNarrowingFix(bin.Left, l, bin.Right, r, CufetType.Number)
+                    ?? "Ordering comparisons (>, <, >=, <=) need both sides to be numbers, or " +
                     "both to be bits."),
             // The gates. A 32-bit AND *is* 32 AND gates side by side, so the same words work at
             // both widths: a fact is one bit, a bits value is N. They stay off `number`
@@ -4412,6 +4415,39 @@ public sealed partial class TypeChecker
             $"Say what to use when it is void: {example}."
           + (note is null ? "" : $"\n{note}")
           + check);
+    }
+
+    /// <summary>
+    /// When a UNION is what stopped an operation one of its cases would allow, the fix line that
+    /// says how to find out which case it holds. Null otherwise, and the refusal keeps its own.
+    /// </summary>
+    /// <remarks>
+    /// ★ REFERENCE promised this — "a static type error that names the expected narrowing form" —
+    /// and the refusal never did: `x + 1` on a `(number or text)` said only that arithmetic needs
+    /// numbers, which the writer knew. The `If` is offered for a plain name alone, because
+    /// narrowing reaches variables alone; anything else is pointed at `Judge`, which names it.
+    /// An OPEN union is left alone: it could be anything, so there is no case to name.
+    /// </remarks>
+    private static string? UnionNarrowingFix(IExpression expr, CufetType? type, CufetType wanted)
+    {
+        if (type is not UnionType { Cases: { } cases } || !cases.Any(c => c.Equals(wanted))) return null;
+        string union = FormatType(type);
+        string needed = FormatType(wanted);
+        return expr is VariableReference { Name: var name }
+            ? $"'{name}' could be any of {union}. Check which it is first: 'If {name} is a {needed}:'."
+            : $"This value could be any of {union}. Check which it is first: 'Judge …, where it is:' with an arm for 'A {needed}'.";
+    }
+
+    /// <summary>The union-narrowing fix for whichever side of a pair needs it, the left first.</summary>
+    /// <remarks>
+    /// Only when BOTH sides could be the wanted type — a union that has it, or the type itself — so
+    /// narrowing would really make the line valid. `(number or text) + "a"` stays a plain mismatch.
+    /// </remarks>
+    private static string? UnionNarrowingFix(IExpression left, CufetType l, IExpression right, CufetType r, CufetType wanted)
+    {
+        bool Could(CufetType t) => t.Equals(wanted) || t is UnionType { Cases: { } cs } && cs.Any(c => c.Equals(wanted));
+        if (!Could(l) || !Could(r)) return null;
+        return UnionNarrowingFix(left, l, wanted) ?? UnionNarrowingFix(right, r, wanted);
     }
 
     /// <summary>`<expr> but void is <a default>` — the defaulted form an example is built from.</summary>

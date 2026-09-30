@@ -247,7 +247,8 @@ public sealed partial class TypeChecker
                 "'the length of' works on text only",
                 null, rna.Line, rna.Column,
                 $"get the length of a {FormatType(recordType)}",
-                "Only text values have a character length. For series, use 'the number of series'.");
+                UnionNarrowingFix(rna.Record, recordType, CufetType.Text)
+                ?? "Only text values have a character length. For series, use 'the number of series'.");
         if (rna.FieldName == "size" && recordType is not (RecordType or ObjectType))
             throw TypeError(
                 "'the size of' works on maps",
