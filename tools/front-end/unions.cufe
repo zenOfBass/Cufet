@@ -1,0 +1,258 @@
+/*  Unions — `(A or B)`, and the three ways a program learns which case it holds: `is a <type>`, the
+    arms of an `If` that test it, and `Judge`. From `TypeChecker.Core.cs`: `IsAssignable`'s union
+    arm, `RemoveFromUnion`, `TryGetTypeCheckNarrowing`, `TryGetDisjunctionNarrowing`, the
+    `JudgeStatement` case, and `InferConditional`, which is where a union is most often made.
+
+    ★ A union TYPE is `(UnionType [<cases>])`, or `(UnionType _)` for the OPEN union — the one whose
+    cases are discovered, not declared, and which holds anything.
+
+    ⚠ An `If` narrows by the name's DECLARED type, not by what an enclosing test already narrowed it
+    to — C# asks the scope, not the narrowings, and so does this.
+*/
+
+Pull a book on collections.
+    Bind fact to is-open-union, given (the node shape):
+        Return shape's kind is "UnionType" and (cast field-of on (shape, 1))'s kind is not "list".
+    Done.
+
+    /// A closed union's cases; an open union and anything else have none to list.
+    Bind series of node to union-cases, given (the node shape):
+        If shape's kind is not "UnionType" or cast is-open-union on (shape), return a series of node.
+        Return (cast field-of on (shape, 1))'s children.
+    Done.
+
+    Bind node to union-of, given (the series of node cases):
+        Define listing as cast listed.
+        For each one-case in cases, repeat:
+            Cast listing's add on (one-case).
+        Done.
+        Return cast made on ("UnionType", a series with (listing)).
+    Done.
+
+    /// What is left of a union once one case is ruled out — `RemoveFromUnion`. Anything but a closed
+    /// union comes back as it was; nothing left is `none`, one case left is that case, and a case
+    /// beside `void` is a voidable one.
+    Bind node to remove-from-union, given (the node shape, the node removed):
+        If shape's kind is not "UnionType" or cast is-open-union on (shape), return shape.
+        Define remaining as a series of node.
+        For each one-case in cast union-cases on (shape), repeat:
+            If cast same-type on (one-case, removed) is false, insert one-case into remaining.
+        Done.
+        If the number of remaining is 0, return cast unknown-type.
+        If the number of remaining is 1, return item 1 of remaining.
+        If the number of remaining is 2:
+            If (item 1 of remaining)'s kind is "VoidType", return cast wrapped on ("VoidableType", item 2 of remaining).
+            If (item 2 of remaining)'s kind is "VoidType", return cast wrapped on ("VoidableType", item 1 of remaining).
+        Done.
+        Return cast union-of on (remaining).
+    Done.
+
+    /// `(number or text)`, or `open union`.
+    Bind text to union-words, given (the node shape):
+        If cast is-open-union on (shape), return "open union".
+        Define listing as a chase.
+        Define first-one as true.
+        For each one-case in cast union-cases on (shape), repeat:
+            If first-one is false, insert " or " into listing.
+            The first-one becomes false.
+            Insert cast type-words on (one-case) into listing.
+        Done.
+        Return "({listing converted to text})".
+    Done.
+
+    /// Does a union take this value — one of its cases does, or every case of a smaller union does.
+    Bind fact to union-takes, given (the node target, the node source):
+        If cast is-open-union on (target), return true.
+        For each one-case in cast union-cases on (target), repeat:
+            If cast assignable on (one-case, source), return true.
+        Done.
+        If source's kind is not "UnionType" or cast is-open-union on (source), return false.
+        For each given-case in cast union-cases on (source), repeat:
+            Define fits as false.
+            For each one-case in cast union-cases on (target), repeat:
+                If cast assignable on (one-case, given-case), the fits becomes true.
+            Done.
+            If fits is false, return false.
+        Done.
+        Return true.
+    Done.
+
+    // ── `is a` ────────────────────────────────────────────────────────────
+
+    /// `x is a <type>` — always a fact; the value tested is typed for its own refusals.
+    Bind node or failure to infer-type-test unto checker, given (the node said):
+        Cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
+        Return cast plain-type on ("FactType").
+    Done.
+
+    /// The name `<name> is a <type>` tests, or "" — `TryGetTypeCheckNarrowing`.
+    Bind text to type-tested, given (the node condition):
+        If condition's kind is not "IsTypeCheck", return "".
+        Define tested as cast field-of on (condition, 1).
+        If tested's kind is not "VariableReference", return "".
+        Return cast unquoted on (cast field-of on (tested, 1)).
+    Done.
+
+    /// `x is a A or x is a B or …`: every part a POSITIVE test of the SAME name — the name, with
+    /// the types gathered into `types`; anything else narrows nothing and gives back "".
+    Bind text to group-tested, given (the node condition, the series of node types):
+        If condition's kind is not "BinaryExpression" or (cast field-of on (condition, 2))'s word is not "Or", return "".
+        Define parts as a series of node.
+        Cast gather-group on (condition, parts).
+        Define name as "".
+        For each part in parts, repeat:
+            If part's kind is not "IsTypeCheck" or cast truth-of on (cast field-of on (part, 3)), return "".
+            Define one-name as cast type-tested on (part).
+            If one-name is "", return "".
+            If name is "", the name becomes one-name.
+            Otherwise if name is not one-name, return "".
+            Insert cast field-of on (part, 2) into types.
+        Done.
+        If the number of types is less than 2, return "".
+        Return name.
+    Done.
+
+    Bind void to gather-group, given (the node condition, the series of node parts):
+        If condition's kind is "BinaryExpression" and (cast field-of on (condition, 2))'s word is "Or":
+            Cast gather-group on (cast field-of on (condition, 1), parts).
+            Cast gather-group on (cast field-of on (condition, 3), parts).
+            Return.
+        Done.
+        Insert condition into parts.
+    Done.
+
+    /// A name's type as its scope holds it — `none` when there is no such name.
+    Bind node to declared-type unto checker, given (the text name):
+        Define held as cast one's look-up on (name).
+        If held is void, return cast unknown-type.
+        Return held's shape.
+    Done.
+
+    // ── Judge ─────────────────────────────────────────────────────────────
+
+    Bind fact to is-value-arm, given (the node arm):
+        Return (cast field-of on (arm, 5))'s kind is "list".
+    Done.
+
+    /// `it`, for one arm: the subject, at the type the arm says it is.
+    Bind void or failure to check-arm-body unto checker, given (the node body, the node shape,
+            the node subject, the number at-row):
+        Cast one's enter-scope.
+        If cast is-none on (shape) is false:
+            Cast one's bind-name on ("it", a new binding {
+                the shape shape, the established-by subject, the line at-row, the permanent false,
+                the module false, the depth 0, the parameter false }).
+        Done.
+        Cast one's check-block on (body) or pass the failure off.
+        Cast one's exit-scope.
+    Done.
+
+    Bind void or failure to check-judge unto checker, given (the node statement):
+        Define subject as cast field-of on (statement, 1).
+        Define arms as (cast field-of on (statement, 2))'s children.
+        Define otherwise-body as cast field-of on (statement, 3).
+        Define at-row as cast numeric on (cast field-of on (statement, 4)).
+        Define subject-type as cast one's infer on (subject) or pass the failure off.
+
+        // ⚠ One kind of arm per judgement — the one that differs from the FIRST is to blame.
+        Define value-judgement as false.
+        If the number of arms is greater than 0, the value-judgement becomes cast is-value-arm on (item 1 of arms).
+        For each arm in arms, repeat:
+            If cast is-value-arm on (arm) is not value-judgement:
+                Define said as "The first arm matches a type, so every arm in this judgement has to".
+                If value-judgement, the said becomes "The first arm matches a value, so every arm in this judgement has to".
+                Return a failure (cast refusal-of on ("this judgement mixes arms that match a type with arms that match a value",
+                    said, cast numeric on (cast field-of on (arm, 3)), "match a type and a value in one judgement",
+                    "Split it into two judgements, or test the odd case with an 'If' inside the arm it belongs to.")).
+            Done.
+        Done.
+
+        // What is still unaccounted for. A voidable is judged as the two cases it is.
+        Define remaining as subject-type.
+        If subject-type's kind is "VoidableType" and value-judgement is false:
+            The remaining becomes cast union-of on (a series with (cast field-of on (subject-type, 1), cast plain-type on ("VoidType"))).
+        Done.
+
+        For each arm in arms, repeat:
+            Define arm-row as cast numeric on (cast field-of on (arm, 3)).
+            If cast is-value-arm on (arm):
+                For each value in (cast field-of on (arm, 5))'s children, repeat:
+                    Define value-type as cast one's infer on (value) or pass the failure off.
+                    If cast is-none on (value-type) is false and cast is-none on (subject-type) is false:
+                        If cast assignable on (subject-type, value-type) is false:
+                            If cast beyond-types on (value-type) or cast beyond-types on (subject-type):
+                                Return a failure (cast not-judged on ("an arm naming a {value-type's kind}")).
+                            Done.
+                            Return a failure (cast refusal-of on (
+                                "this arm names {cast type-words on (value-type)} where the subject is {cast type-words on (subject-type)}",
+                                "An arm names a value the subject could be, and {cast type-words on (value-type)} is never {cast type-words on (subject-type)}",
+                                arm-row, "match a value of a different type", "Name a value the subject could actually be.")).
+                        Done.
+                    Done.
+                Done.
+                // A value arm narrows nothing: `it` reads at the subject's own type.
+                Cast one's check-arm-body on (cast field-of on (arm, 2), subject-type, subject, arm-row) or pass the failure off.
+            Done.
+            Otherwise:
+                Define cases as (cast field-of on (arm, 1))'s children.
+                For each one-case in cases, repeat:
+                    // The last case left is retired here: removing it from itself leaves it standing.
+                    If cast is-none on (remaining) is false and cast same-type on (remaining, one-case):
+                        The remaining becomes cast unknown-type.
+                    Done.
+                    Otherwise, the remaining becomes cast remove-from-union on (remaining, one-case).
+                Done.
+                Define arm-type as cast union-of on (cases).
+                If the number of cases is 1, the arm-type becomes item 1 of cases.
+                Cast one's check-arm-body on (cast field-of on (arm, 2), arm-type, subject, arm-row) or pass the failure off.
+            Done.
+        Done.
+
+        If cast is-nothing on (otherwise-body) is false:
+            Define left-over as remaining.
+            If cast is-none on (remaining), the left-over becomes subject-type.
+            Cast one's check-arm-body on (otherwise-body, left-over, subject, at-row) or pass the failure off.
+            Return.
+        Done.
+        If cast is-none on (remaining), return.
+        If cast beyond-types on (remaining), return a failure (cast not-judged on ("a judgement leaving a {remaining's kind}")).
+        If value-judgement:
+            Return a failure (cast refusal-of on ("this judgement has no 'Otherwise'",
+                "No set of values can be proved to exhaust {cast type-words on (remaining)}, so a judgement that matches values has to say what happens to the rest",
+                at-row, "leave the remaining values unhandled", "End it with 'Otherwise, ...'.")).
+        Done.
+        Return a failure (cast refusal-of on ("this judgement does not cover {cast type-words on (remaining)}",
+            "Every case has to be handled, and {cast type-words on (remaining)} is left over",
+            at-row, "leave a case unhandled",
+            "Add an arm for it, or end with 'Otherwise, ...' to say what happens to everything else.")).
+    Done.
+
+    // ── `X when C, otherwise Y` ───────────────────────────────────────────
+
+    /// The type both arms agree on, the wider of the two, or the union of them — `InferConditional`.
+    Bind node or failure to infer-conditional unto checker, given (the node said):
+        Define condition-type as cast one's infer on (cast field-of on (said, 2)) or pass the failure off.
+        If cast is-none on (condition-type) is false and condition-type's kind is not "FactType":
+            If cast beyond-types on (condition-type), return a failure (cast not-judged on ("a 'when' condition of a {condition-type's kind}")).
+            // ⚠ Not in the usual four parts: C# throws this one bare.
+            Return a failure "error\tA 'when' condition must be true or false, but this one is {cast type-words on (condition-type)}.".
+        Done.
+        Define value-type as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
+        Define other-type as cast one's infer on (cast field-of on (said, 3)) or pass the failure off.
+        If cast is-none on (value-type), return other-type.
+        If cast is-none on (other-type), return value-type.
+        If cast assignable on (value-type, other-type), return value-type.
+        If cast assignable on (other-type, value-type), return other-type.
+        // Both sides flattened, so a union on either side does not nest inside the new one.
+        Define cases as a series of node.
+        For each side in a series with (value-type, other-type), repeat:
+            If side's kind is "UnionType" and cast is-open-union on (side) is false:
+                For each one-case in cast union-cases on (side), repeat:
+                    Insert one-case into cases.
+                Done.
+            Done.
+            Otherwise, insert side into cases.
+        Done.
+        Return cast union-of on (cases).
+    Done.
+Done.

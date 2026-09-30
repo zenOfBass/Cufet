@@ -52,6 +52,9 @@ Pull a book on collections.
         If kind is "ObjectLiteral", return cast one's infer-object-literal on (said) or pass the failure off.
         If kind is "PossessiveAccess", return cast one's infer-possessive on (said, false) or pass the failure off.
         If kind is "RecordNamedAccess", return cast one's infer-named-access on (said) or pass the failure off.
+        If kind is "RecordLiteral", return cast one's infer-record-literal on (said) or pass the failure off.
+        If kind is "IsTypeCheck", return cast one's infer-type-test on (said) or pass the failure off.
+        If kind is "ConditionalExpression", return cast one's infer-conditional on (said) or pass the failure off.
         Return a failure (cast not-judged on (kind)).
     Done.
 
@@ -62,7 +65,7 @@ Pull a book on collections.
     /// A type this checker cannot weigh yet — held behind `unsupported` wherever it turns up.
     Bind fact to beyond-types, given (the node shape):
         Define kind as shape's kind.
-        If kind is "UnionType" or kind is "RecordType" or kind is "FunctionType" or kind is "BookType":
+        If kind is "FunctionType" or kind is "BookType":
             Return true.
         Done.
         For each inner in shape's children, repeat:
@@ -259,6 +262,8 @@ Pull a book on collections.
                     "Nothing tells one rabbit from another today. If you need that, it is worth asking for rather than working around.")).
             Done.
             If cast same-type on (lhs, rhs), return fact-type.
+            // A union is compared with anything — legal before it is narrowed.
+            If lk is "UnionType" or rk is "UnionType", return fact-type.
             Return a failure (cast refusal-of on ("equality comparison requires matching types", "",
                 at-row, "compare a {cast type-words on (lhs)} to a {cast type-words on (rhs)}",
                 "A {cast type-words on (lhs)} and a {cast type-words on (rhs)} can never be equal — this is likely a mistake. Check which side has the wrong type.")).
@@ -419,6 +424,21 @@ Pull a book on collections.
         Define annotated as cast is-nothing on (annotation) is false.
         If annotated and cast beyond-types on (annotation), return a failure (cast not-judged on ("a series annotated {annotation's kind}")).
 
+        // A catalogue: its items need only fit the union, not match each other.
+        If annotated and annotation's kind is "UnionType":
+            For each element in elements's children, repeat:
+                Define element-type as cast one's infer on (element) or pass the failure off.
+                If cast is-none on (element-type) is false and cast assignable on (annotation, element-type) is false:
+                    If cast beyond-types on (element-type), return a failure (cast not-judged on ("a catalogue item of a {element-type's kind}")).
+                    Return a failure (cast refusal-of on ("this item doesn't fit in a {cast type-words on (annotation)} collection",
+                        "{cast type-words on (element-type)} is not one of the allowed types",
+                        at-row, "add a {cast type-words on (element-type)} item",
+                        "Only {cast type-words on (annotation)} values are allowed in this collection.")).
+                Done.
+            Done.
+            Return cast wrapped on ("SeriesType", annotation).
+        Done.
+
         Define inferred as cast unknown-type.
         Define place as 0.
         For each element in elements's children, repeat:
@@ -468,6 +488,9 @@ Pull a book on collections.
         Define target as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
         If target's kind is "SeriesType", return cast field-of on (target, 1).
         If target's kind is "ChaseType", return cast plain-type on ("TextType").
+        If target's kind is "RecordType":
+            Return cast record-item on (target, cast field-of on (said, 1), index-said, at-row) or pass the failure off.
+        Done.
         If target's kind is "ObjectType":
             Return cast one's object-item on (target, index-said, at-row, "access position") or pass the failure off.
         Done.
@@ -479,7 +502,11 @@ Pull a book on collections.
         Define counted as cast field-of on (said, 1).
         Define container as cast one's infer on (counted) or pass the failure off.
         Define at-row as cast numeric on (cast field-of on (said, 2)).
-        If container's kind is "RecordType", return a failure (cast not-judged on ("the number of a record")).
+        If container's kind is "RecordType":
+            Return a failure (cast refusal-of on ("'the number of' works on series, not records", "", at-row,
+                "get the number of items in {cast expression-words on (counted)} (a record)",
+                "Records don't have a length. Access individual fields by name or position.")).
+        Done.
         If container's kind is "MapType":
             Return a failure (cast refusal-of on ("'the number of' works on series, not maps", "", at-row,
                 "get the number of entries in {cast expression-words on (counted)} (a map)",

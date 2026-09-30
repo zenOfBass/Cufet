@@ -713,9 +713,10 @@ Pull a book on collections.
                 at-row, "access field '{field}' on a failure",
                 "Use 'the message of the failure' or 'the category of the failure'.")).
         Done.
-        If kind is "MatrixType" or kind is "SetType" or kind is "RecordType" or cast beyond-types on (target):
+        If kind is "MatrixType" or kind is "SetType" or cast beyond-types on (target):
             Return a failure (cast not-judged on ("the {field} of a {kind}")).
         Done.
+        If kind is "RecordType", return cast record-field-access on (target, field, at-row) or pass the failure off.
         If kind is "BitsType" and field is "width", return cast plain-type on ("NumberType").
         If kind is "TextType" and field is "length", return cast plain-type on ("NumberType").
         If kind is "MapType" and field is "size", return cast plain-type on ("NumberType").
@@ -836,7 +837,11 @@ Pull a book on collections.
                 "set field '{field}' to a value from a shorter-lived region") or pass the failure off.
             Return.
         Done.
-        If target's kind is "RecordType" or cast beyond-types on (target):
+        If target's kind is "RecordType":
+            Cast one's check-record-set on (target, statement) or pass the failure off.
+            Return.
+        Done.
+        If cast beyond-types on (target):
             Return a failure (cast not-judged on ("setting the {field} of a {target's kind}")).
         Done.
         Return a failure (cast refusal-of on ("you're trying to set field '{field}' on something that isn't a record or object", "",

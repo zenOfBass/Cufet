@@ -2,32 +2,70 @@
     walked through — and `Exit`, from `TypeChecker.Failures.cs`, for being as small.
 
     ★ A key is a scalar, or a record of scalars: something compared by what it holds and unable to
-    change underneath the map. Records and unions of keys are beyond this checker yet, and say so.
+    change underneath the map.
 */
 
 Pull a book on collections.
-    /// A key this checker can weigh: a scalar, or a voidable one. Anything else is refused by C# —
-    /// except a record or a union, which this checker leaves `unsupported` before asking.
-    Bind fact to is-scalar-key, given (the node shape):
+    /// `IsValidMapKeyType`: a scalar, a record of keys, or a voidable or closed union of them.
+    Bind fact to is-valid-key, given (the node shape):
         Define kind as shape's kind.
         If kind is "NumberType" or kind is "TextType" or kind is "FactType" or kind is "BitsType", return true.
-        If kind is "VoidableType", return cast is-scalar-key on (cast field-of on (shape, 1)).
-        Return false.
-    Done.
-
-    Bind fact to mentions-record-or-union, given (the node shape):
-        If shape's kind is "RecordType" or shape's kind is "UnionType", return true.
-        For each inner in shape's children, repeat:
-            If inner's kind is not "atom" and cast mentions-record-or-union on (inner), return true.
+        If kind is "VoidableType", return cast is-valid-key on (cast field-of on (shape, 1)).
+        If kind is "RecordType":
+            For each positional in (cast field-of on (shape, 1))'s children, repeat:
+                If cast is-valid-key on (positional) is false, return false.
+            Done.
+            For each pair in (cast field-of on (shape, 2))'s children, repeat:
+                If cast is-valid-key on (item 2 of pair's children) is false, return false.
+            Done.
+            Return true.
+        Done.
+        If kind is "UnionType":
+            Define cases as cast field-of on (shape, 1).
+            If cases's kind is not "list", return false.
+            For each one-case in cases's children, repeat:
+                If cast is-valid-key on (one-case) is false, return false.
+            Done.
+            Return true.
         Done.
         Return false.
     Done.
 
+    Bind text to ordinal-word, given (the number place):
+        Define words as a series with ("first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth").
+        If place is less than 10, return item place of words.
+        Return "{place}th".
+    Done.
+
     /// `RequireValidMapKeyType`.
     Bind void or failure to require-map-key, given (the node key-type, the number at-row):
-        If cast mentions-record-or-union on (key-type), return a failure (cast not-judged on ("a key that is a record or a union")).
-        If cast is-scalar-key on (key-type), return.
+        If cast is-valid-key on (key-type), return.
+        If cast beyond-types on (key-type), return a failure (cast not-judged on ("a key that is a {key-type's kind}")).
         Define spoken as cast type-words on (key-type).
+        // A record is refused for what is INSIDE it, so the message names that part.
+        If key-type's kind is "RecordType":
+            Define bad-name as "a field".
+            Define bad-type as key-type.
+            Define place as 0.
+            For each positional in (cast field-of on (key-type, 1))'s children, repeat:
+                Increment place by 1.
+                If bad-name is "a field" and cast is-valid-key on (positional) is false:
+                    The bad-name becomes "the {cast ordinal-word on (place)} field".
+                    The bad-type becomes positional.
+                Done.
+            Done.
+            For each pair in (cast field-of on (key-type, 2))'s children, repeat:
+                If bad-name is "a field" and cast is-valid-key on (item 2 of pair's children) is false:
+                    The bad-name becomes "'{cast unquoted on (item 1 of pair's children)}'".
+                    The bad-type becomes item 2 of pair's children.
+                Done.
+            Done.
+            Define held as cast type-words on (bad-type).
+            Return a failure (cast refusal-of on ("a key has to be a scalar or a record of scalars, and this record holds {held}",
+                "a {held} can be changed after it is used as a key, and then the entry it was stored under could never be found again",
+                at-row, "use '{spoken}' as a map key",
+                "Leave {bad-name} out of the key — a record of numbers, text, facts or bit patterns is fine, and those are what can be compared and cannot change underneath the map.")).
+        Done.
         Define kind as key-type's kind.
         Define why as "only a scalar, or a record of scalars, can be compared as a key".
         If kind is "SeriesType" or kind is "MapType" or kind is "MatrixType":

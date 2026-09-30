@@ -196,6 +196,15 @@ Pull a book on collections.
             If cast is-nothing on (otherwise-body), return "".
             Return cast beyond-reach on (otherwise-body).
         Done.
+        If kind is "JudgeStatement":
+            For each arm in (cast field-of on (statement, 2))'s children, repeat:
+                Define inner as cast beyond-reach on (cast field-of on (arm, 2)).
+                If inner is not "", return inner.
+            Done.
+            Define rest as cast field-of on (statement, 3).
+            If cast is-nothing on (rest), return "".
+            Return cast beyond-reach on (rest).
+        Done.
         If kind is "WhileStatement", return cast beyond-reach on (cast field-of on (statement, 2)).
         If kind is "RepeatUntilStatement", return cast beyond-reach on (cast field-of on (statement, 1)).
         If kind is "ForEachStatement", return cast beyond-reach on (cast field-of on (statement, 3)).
@@ -354,6 +363,17 @@ Pull a book on collections.
     /// What the NEGATION of a guard's condition proves — `x is void` means x is not, past it.
     Bind void to guard-narrowings unto checker, given (the node condition, the map from text to node found,
             the series of text order):
+        // `x is a T`: past the guard, x is whatever else its declared union held.
+        Define tested-name as cast type-tested on (condition).
+        If tested-name is not "" and cast truth-of on (cast field-of on (condition, 3)) is false:
+            Define declared as cast one's declared-type on (tested-name).
+            If cast is-none on (declared), return.
+            Define left-over as cast remove-from-union on (declared, cast field-of on (condition, 2)).
+            If cast is-none on (left-over), return.
+            In found, the entry for tested-name becomes left-over.
+            Insert tested-name into order.
+            Return.
+        Done.
         If condition's kind is not "BinaryExpression", return.
         Define op as (cast field-of on (condition, 2))'s word.
         If op is "Or":
@@ -392,6 +412,18 @@ Pull a book on collections.
                     Done.
                 Done.
                 If all-handlers, return true.
+            Done.
+            // A judgement that reached here is total, so every arm returning is enough.
+            If statement's kind is "JudgeStatement":
+                Define every-arm as true.
+                For each arm in (cast field-of on (statement, 2))'s children, repeat:
+                    If cast definitely-returns on (cast field-of on (arm, 2)) is false, the every-arm becomes false.
+                Done.
+                Define rest as cast field-of on (statement, 3).
+                If every-arm and (cast is-nothing on (rest) or cast definitely-returns on (rest)), return true.
+            Done.
+            If statement's kind is "PullStatement" or statement's kind is "PullRabbitStatement":
+                If cast definitely-returns on (cast field-of on (statement, 2)), return true.
             Done.
         Done.
         Return false.
@@ -484,6 +516,9 @@ Pull a book on collections.
         Otherwise if kind is "RecordNamedSetStatement":
             Cast one's check-named-set on (statement) or pass the failure off.
         Done.
+        Otherwise if kind is "JudgeStatement":
+            Cast one's check-judge on (statement) or pass the failure off.
+        Done.
     Done.
 
     // ── If, and what its arms narrow ──────────────────────────────────────
@@ -513,6 +548,11 @@ Pull a book on collections.
 
     Bind void or failure to check-if unto checker, given (the node statement):
         Define arms as (cast field-of on (statement, 1))'s children.
+        // The Otherwise narrows by elimination while every arm tests the same name against a type.
+        Define union-name as "".
+        Define remaining-union as cast unknown-type.
+        Define can-exhaust as true.
+        // Or the other way round, after a lone arm testing that a name is NOT something.
         Define else-name as "".
         Define else-type as cast unknown-type.
         For each arm in arms, repeat:
@@ -524,37 +564,103 @@ Pull a book on collections.
             // `If x is not void:` — x is what it holds, inside the arm.
             Define present as cast void-tested on (condition, "NotEqual").
             Define absent as cast void-tested on (condition, "Equal").
-            If present is not "":
-                Define held as cast one's look-up on (present).
-                If held is not void:
-                    If held's shape's kind is "VoidableType":
-                        The narrowed-name becomes present.
-                        The narrowed-to becomes cast field-of on (held's shape, 1).
-                    Done.
-                Done.
-            Done.
-            // `If x is void, … Otherwise, …` — a lone arm, and the Otherwise is where x is there.
-            Otherwise if absent is not "" and the number of arms is 1:
-                Define held as cast one's look-up on (absent).
-                If held is not void:
-                    Define seen as the entry for absent in one's narrowed but void is held's shape.
-                    If seen's kind is "VoidableType":
-                        The else-name becomes absent.
-                        The else-type becomes cast field-of on (seen, 1).
-                    Done.
+            Define tested-name as cast type-tested on (condition).
+            Define group as a series of node.
+            Define group-name as cast group-tested on (condition, group).
+            Define present-held as cast unknown-type.
+            If present is not "", the present-held becomes cast one's declared-type on (present).
+            Define absent-seen as cast unknown-type.
+            If absent is not "" and the number of arms is 1:
+                Define absent-held as cast one's look-up on (absent).
+                If absent-held is not void:
+                    The absent-seen becomes the entry for absent in one's narrowed but void is absent-held's shape.
                 Done.
             Done.
 
+            If present-held's kind is "VoidableType":
+                The narrowed-name becomes present.
+                The narrowed-to becomes cast field-of on (present-held, 1).
+                The can-exhaust becomes false.
+            Done.
+            // `If x is void, … Otherwise, …` — a lone arm, and the Otherwise is where x is there.
+            Otherwise if absent-seen's kind is "VoidableType":
+                The else-name becomes absent.
+                The else-type becomes cast field-of on (absent-seen, 1).
+                The can-exhaust becomes false.
+            Done.
+            Otherwise if tested-name is not "":
+                The narrowed-name becomes tested-name.
+                Define tested-type as cast field-of on (condition, 2).
+                If cast truth-of on (cast field-of on (condition, 3)) is false:
+                    The narrowed-to becomes tested-type.
+                    If can-exhaust:
+                        If union-name is "":
+                            The union-name becomes tested-name.
+                            The remaining-union becomes cast one's declared-type on (tested-name).
+                        Done.
+                        Otherwise if union-name is not tested-name:
+                            The can-exhaust becomes false.
+                        Done.
+                        If can-exhaust, the remaining-union becomes cast remove-from-union on (remaining-union, tested-type).
+                    Done.
+                Done.
+                // Negated: the arm holds everything else, and a lone arm's Otherwise holds the type.
+                Otherwise:
+                    Define declared as cast one's declared-type on (tested-name).
+                    The narrowed-to becomes cast remove-from-union on (declared, tested-type).
+                    The can-exhaust becomes false.
+                    If the number of arms is 1 and declared's kind is "UnionType":
+                        For each one-case in cast union-cases on (declared), repeat:
+                            If cast same-type on (one-case, tested-type):
+                                The else-name becomes tested-name.
+                                The else-type becomes tested-type.
+                            Done.
+                        Done.
+                    Done.
+                Done.
+            Done.
+            // A group narrows to the sub-union it names, and removes all of it for the Otherwise.
+            Otherwise if group-name is not "":
+                The narrowed-name becomes group-name.
+                The narrowed-to becomes cast union-of on (group).
+                If can-exhaust:
+                    If union-name is "":
+                        The union-name becomes group-name.
+                        The remaining-union becomes cast one's declared-type on (group-name).
+                    Done.
+                    Otherwise if union-name is not group-name:
+                        The can-exhaust becomes false.
+                    Done.
+                    If can-exhaust:
+                        For each grouped-case in group, repeat:
+                            If cast is-none on (remaining-union) is false and cast same-type on (remaining-union, grouped-case):
+                                The remaining-union becomes cast unknown-type.
+                            Done.
+                            Otherwise, the remaining-union becomes cast remove-from-union on (remaining-union, grouped-case).
+                        Done.
+                    Done.
+                Done.
+            Done.
+            Otherwise:
+                The can-exhaust becomes false.
+            Done.
+
             Define saved as a map from text to node.
-            If narrowed-name is not "", cast one's narrow on (narrowed-name, narrowed-to, saved).
+            Define narrowing as narrowed-name is not "" and cast is-none on (narrowed-to) is false.
+            If narrowing, cast one's narrow on (narrowed-name, narrowed-to, saved).
             Cast one's enter-scope.
             Cast one's check-block on (cast field-of on (arm, 2)) or pass the failure off.
             Cast one's exit-scope.
-            If narrowed-name is not "", cast one's unnarrow on (narrowed-name, saved).
+            If narrowing, cast one's unnarrow on (narrowed-name, saved).
         Done.
         Define otherwise-body as cast field-of on (statement, 2).
         If cast is-nothing on (otherwise-body), return.
         Define saved as a map from text to node.
+        If can-exhaust and union-name is not "" and cast is-none on (remaining-union) is false:
+            The else-name becomes union-name.
+            The else-type becomes remaining-union.
+        Done.
+        If cast is-none on (else-type), the else-name becomes "".
         If else-name is not "", cast one's narrow on (else-name, else-type, saved).
         Cast one's enter-scope.
         Cast one's check-block on (otherwise-body) or pass the failure off.
@@ -695,6 +801,10 @@ Pull a book on collections.
                     at-row, "set position {whole} to a {cast type-words on (given-type)}",
                     "Position {whole} has type {cast type-words on (wanted)}.")).
             Done.
+            Return.
+        Done.
+        If container's kind is "RecordType":
+            Cast one's check-record-item-set on (container, statement) or pass the failure off.
             Return.
         Done.
         If container's kind is "ChaseType" or cast beyond-types on (container):
@@ -879,6 +989,7 @@ Pull a book on collections.
         If target's kind is "FailureType":
             Return cast assignable on (cast field-of on (target, 1), source) or source's kind is "FailureMarkerType".
         Done.
+        If target's kind is "UnionType", return cast union-takes on (target, source).
         Return false.
     Done.
 

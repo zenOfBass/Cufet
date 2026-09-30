@@ -1,0 +1,231 @@
+/*  Records — `TypeChecker.Records.cs`: a record written out, a field read or written by name, and
+    the positional arms `InferSeriesAccess` and `CheckSeriesSet` give a record in
+    `TypeChecker.Series.cs`.
+
+    ★ A record TYPE is its shape, `(RecordType [<positional types>] [["name" <type>] …])`, with the
+    named fields sorted by name — so two records are the same type whatever order their fields were
+    written in, and `type-key` compares them as it compares anything else.
+*/
+
+Pull a book on collections.
+    /// `a record with (…)` — its shape, read off the values.
+    Bind node or failure to infer-record-literal unto checker, given (the node said):
+        Define at-row as cast numeric on (cast field-of on (said, 3)).
+        Define positional as cast listed.
+        For each value in (cast field-of on (said, 1))'s children, repeat:
+            Define value-type as cast one's infer on (value) or pass the failure off.
+            If cast is-none on (value-type):
+                Return a failure (cast refusal-of on ("the type of a positional record field can't be determined", "",
+                    at-row, "use an expression whose type can't be inferred as a record field",
+                    "Start with a literal value or a defined variable so the field type is clear.")).
+            Done.
+            Cast positional's add on (value-type).
+        Done.
+        Define named as cast listed.
+        Define seen as a map from text to fact.
+        For each pair in (cast field-of on (said, 2))'s children, repeat:
+            Define label as item 1 of pair's children.
+            Define name as cast unquoted on (label).
+            If (the entry for name in seen) is not void:
+                Return a failure (cast refusal-of on ("the record has two fields both named '{name}'", "",
+                    at-row, "define a record with duplicate field name '{name}'", "Each named field must have a unique name.")).
+            Done.
+            In seen, the entry for name becomes true.
+            Define value-type as cast one's infer on (item 2 of pair's children) or pass the failure off.
+            If cast is-none on (value-type):
+                Return a failure (cast refusal-of on ("the type of field '{name}' can't be determined", "",
+                    at-row, "use an expression whose type can't be inferred as a record field",
+                    "Start with a literal value or a defined variable so the field type is clear.")).
+            Done.
+            Define field as cast listed.
+            Cast field's add on (label).
+            Cast field's add on (value-type).
+            Cast named's add on (field).
+        Done.
+        Return cast made on ("RecordType", a series with (positional, cast sorted-by-name on (named))).
+    Done.
+
+    /// A record type's named field, or void.
+    Bind voidable node to record-field-type, given (the node shape, the text name):
+        For each pair in (cast field-of on (shape, 2))'s children, repeat:
+            If cast unquoted on (item 1 of pair's children) is name, return item 2 of pair's children.
+        Done.
+        Return void.
+    Done.
+
+    Bind series of text to record-field-names, given (the node shape):
+        Define names as a series of text.
+        For each pair in (cast field-of on (shape, 2))'s children, repeat:
+            Insert cast unquoted on (item 1 of pair's children) into names.
+        Done.
+        Return names.
+    Done.
+
+    /// `the <field> of <record>`, with the nearest field suggested when there is none by that name.
+    Bind node or failure to record-field-access, given (the node shape, the text name, the number at-row):
+        Define found as cast record-field-type on (shape, name).
+        If found is not void, return found.
+        Define names as cast record-field-names on (shape).
+        // The nearest name within two edits, the first of the nearest when several tie.
+        Define suggestion as "".
+        Define nearest as 3.
+        For each candidate in names, repeat:
+            Define distance as cast edit-distance on (candidate, name).
+            If distance is less than nearest:
+                The suggestion becomes candidate.
+                The nearest becomes distance.
+            Done.
+        Done.
+        Define available as " This record has no named fields.".
+        If the number of names is greater than 0:
+            The available becomes " Named fields: {cast quoted-names on (names, "")}.".
+        Done.
+        Define fix as available.
+        If suggestion is not "", the fix becomes "Did you mean '{suggestion}'?{available}".
+        Return a failure (cast refusal-of on ("this record has no field named '{name}'", "",
+            at-row, "access field '{name}'", fix)).
+    Done.
+
+    /// `the <field> of <record> becomes …`.
+    Bind void or failure to check-record-set unto checker, given (the node shape, the node statement):
+        Define name as cast unquoted on (cast field-of on (statement, 1)).
+        Define at-row as cast numeric on (cast field-of on (statement, 4)).
+        Define wanted as cast record-field-type on (shape, name).
+        If wanted is void:
+            Define names as cast record-field-names on (shape).
+            Define fix as "This record has no named fields.".
+            If the number of names is greater than 0:
+                Define listing as a chase.
+                Define first-one as true.
+                For each field in names, repeat:
+                    If first-one is false, insert ", " into listing.
+                    The first-one becomes false.
+                    Insert field into listing.
+                Done.
+                The fix becomes "Available named fields: {listing converted to text}.".
+            Done.
+            Return a failure (cast refusal-of on ("this record has no field named '{name}'", "",
+                at-row, "set field '{name}'", fix)).
+        Done.
+        Define value as cast field-of on (statement, 3).
+        Define value-type as cast one's infer on (value) or pass the failure off.
+        If cast is-none on (value-type) is false and cast assignable on (wanted, value-type) is false:
+            If cast beyond-types on (value-type), return a failure (cast not-judged on ("a {value-type's kind} in a field")).
+            Return a failure (cast refusal-of on ("field '{name}' holds a {cast type-words on (wanted)}, not a {cast type-words on (value-type)}", "",
+                at-row, "set field '{name}' to a {cast type-words on (value-type)}",
+                "Field '{name}' has type {cast type-words on (wanted)}.")).
+        Done.
+        Cast one's check-region-store on (value, value-type, cast one's container-depth on (cast field-of on (statement, 2)), at-row,
+            "set field '{name}' to a value from a shorter-lived region") or pass the failure off.
+    Done.
+
+    /// `item N of <record>` — its Nth positional field; a position that is not written out is
+    /// only known when the program runs.
+    Bind node or failure to record-item, given (the node shape, the node target, the node index-said, the number at-row):
+        If cast is-nothing on (index-said):
+            Return a failure (cast refusal-of on ("'last' doesn't work on records", "", at-row,
+                "use 'last' on a record", "Use a position like 'the first of ...' or a field name like 'the city of ...'.")).
+        Done.
+        If index-said's kind is not "NumberLiteral", return cast unknown-type.
+        Define positionals as (cast field-of on (shape, 1))'s children.
+        Define spot as cast numeric on (cast field-of on (index-said, 1)).
+        // C# truncates toward zero, as a cast to int does.
+        Define whole as spot - (spot % 1).
+        If whole is less than 1 or whole is greater than the number of positionals:
+            Define shown as "this record".
+            If target's kind is "VariableReference", the shown becomes "'{cast unquoted on (cast field-of on (target, 1))}'".
+            Define said as "{shown} has {the number of positionals} positional field(s) — there is no position {whole}".
+            Define fix as "Positions run 1 through {the number of positionals}.".
+            If the number of positionals is 0:
+                The said becomes "{shown} has no positional fields".
+                The fix becomes "This record has no positional fields. Access fields by name instead.".
+            Done.
+            Return a failure (cast refusal-of on (said, "", at-row, "access position {whole}", fix)).
+        Done.
+        Return item whole of positionals.
+    Done.
+
+    /// `item N of <record> becomes …` — the value has to be exactly the field's type.
+    Bind void or failure to check-record-item-set unto checker, given (the node shape, the node statement):
+        Define target as cast field-of on (statement, 1).
+        Define index-said as cast field-of on (statement, 2).
+        Define at-row as cast numeric on (cast field-of on (statement, 4)).
+        If cast is-nothing on (index-said):
+            Return a failure (cast refusal-of on ("'last' doesn't work on records", "", at-row,
+                "use 'last' on a record", "Use a position like 'the first of ...' or a field name like 'the city of ...'.")).
+        Done.
+        If index-said's kind is not "NumberLiteral", return.
+        Define spoken as cast expression-words on (target).
+        Define positionals as (cast field-of on (shape, 1))'s children.
+        Define spot as cast numeric on (cast field-of on (index-said, 1)).
+        Define whole as spot - (spot % 1).
+        If whole is less than 1 or whole is greater than the number of positionals:
+            Define said as "{spoken} has {the number of positionals} positional field(s) — there is no position {whole}".
+            Define fix as "Positions run 1 through {the number of positionals}.".
+            If the number of positionals is 0:
+                The said becomes "{spoken} has no positional fields".
+                The fix becomes "This record has no positional fields.".
+            Done.
+            Return a failure (cast refusal-of on (said, "", at-row, "set position {whole}", fix)).
+        Done.
+        Define wanted as item whole of positionals.
+        Define given-type as cast one's infer on (cast field-of on (statement, 3)) or pass the failure off.
+        If cast is-none on (given-type) is false and cast same-type on (given-type, wanted) is false:
+            If cast beyond-types on (given-type), return a failure (cast not-judged on ("setting a position to a {given-type's kind}")).
+            Return a failure (cast refusal-of on (
+                "position {whole} of {spoken} holds a {cast type-words on (wanted)}, not a {cast type-words on (given-type)}", "",
+                at-row, "set position {whole} to a {cast type-words on (given-type)}",
+                "Position {whole} has type {cast type-words on (wanted)}.")).
+        Done.
+    Done.
+
+    /// How a record type is written in a message: `record (number, make: text)`.
+    Bind text to record-words, given (the node shape):
+        Define listing as a chase.
+        Define first-one as true.
+        For each positional in (cast field-of on (shape, 1))'s children, repeat:
+            If first-one is false, insert ", " into listing.
+            The first-one becomes false.
+            Insert cast type-words on (positional) into listing.
+        Done.
+        For each pair in (cast field-of on (shape, 2))'s children, repeat:
+            If first-one is false, insert ", " into listing.
+            The first-one becomes false.
+            Insert "{cast unquoted on (item 1 of pair's children)}: {cast type-words on (item 2 of pair's children)}" into listing.
+        Done.
+        Return "record ({listing converted to text})".
+    Done.
+
+    /// The edits — insert, delete or change one character — between two names. C#'s `Levenshtein`.
+    Bind number to edit-distance, given (the text first, the text second):
+        Define first-letters as a chase.
+        Insert first into first-letters.
+        Define second-letters as a chase.
+        Insert second into second-letters.
+        Define width as the number of second-letters.
+        // One row of the table at a time: `above` is the row before, `current` the one being filled.
+        Define above as a series of numbers.
+        Define across as 0.
+        While across is less than width + 1, repeat:
+            Insert across into above.
+            Increment across by 1.
+        Done.
+        Define down as 1.
+        While down is less than (the number of first-letters) + 1, repeat:
+            Define current as a series with (down).
+            Define along as 1.
+            While along is less than width + 1, repeat:
+                Define best as (item (along + 1) of above) + 1.
+                If (item along of current) + 1 is less than best, the best becomes (item along of current) + 1.
+                Define diagonal as item along of above.
+                If item down of first-letters is not item along of second-letters, the diagonal becomes diagonal + 1.
+                If diagonal is less than best, the best becomes diagonal.
+                Insert best into current.
+                Increment along by 1.
+            Done.
+            The above becomes current.
+            Increment down by 1.
+        Done.
+        Return item (width + 1) of above.
+    Done.
+Done.

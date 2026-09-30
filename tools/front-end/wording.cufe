@@ -116,6 +116,8 @@ Pull a book on collections.
         Done.
         If kind is "ObjectType", return cast unquoted on (cast field-of on (shape, 1)).
         If kind is "InterfaceType", return cast unquoted on (cast field-of on (shape, 1)).
+        If kind is "RecordType", return cast record-words on (shape).
+        If kind is "UnionType", return cast union-words on (shape).
         If kind is "FailureType", return "{cast type-words on (cast field-of on (shape, 1))} or failure".
         If kind is "ReadableStreamType", return "readable stream of {cast plural-words on (cast field-of on (shape, 1))}".
         If kind is "WritableStreamType", return "writable stream of {cast plural-words on (cast field-of on (shape, 1))}".
@@ -142,6 +144,8 @@ Pull a book on collections.
         Done.
         If kind is "ObjectType", return "{cast unquoted on (cast field-of on (shape, 1))} objects".
         If kind is "InterfaceType", return "{cast unquoted on (cast field-of on (shape, 1))} values".
+        If kind is "RecordType", return cast record-words on (shape).
+        If kind is "UnionType", return "{cast union-words on (shape)} values".
         If kind is "FailureType", return "{cast plural-words on (cast field-of on (shape, 1))} or failures".
         If kind is "ReadableStreamType", return "readable streams of {cast plural-words on (cast field-of on (shape, 1))}".
         If kind is "WritableStreamType", return "writable streams of {cast plural-words on (cast field-of on (shape, 1))}".
