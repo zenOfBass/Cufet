@@ -1812,7 +1812,71 @@ static const char* cufet_str_lower(const char* s) {
                 : string.Join(" && ", fields.Select(fs => EqCall($"a.{fs.CField}", $"b.{fs.CField}", fs.Type)));
             sb.AppendLine($"static int {cname}_eq({cname} a, {cname} b) {{ return {cond}; }}");
         }
+        EmitUnionCrossEqs(sb);
         sb.AppendLine();
+    }
+
+    // ── A union compared with something that is not the same union ──────────
+    //
+    // `x is 4` on a `(number or text)`, or two unions with different cases. The checker allows it
+    // — a union is compared with anything — and the interpreter compares the values underneath. The
+    // compiler used to hand both sides to the union's own `_eq`, which takes two of the SAME union,
+    // so gcc refused the C. Each pairing gets a function of its own: a function, so each side is
+    // evaluated exactly once however many times the body reads it.
+    private readonly Dictionary<string, string> _crossEqNames = new();
+    private readonly List<(string Name, UnionType Left, CufetType Right)> _crossEqs = new();
+
+    private string RegisterUnionCrossEq(UnionType left, CufetType right)
+    {
+        string key = TypeSig(left) + "|" + TypeSig(right);
+        if (_crossEqNames.TryGetValue(key, out var name)) return name;
+        name = $"cueq_{_crossEqs.Count}";
+        _crossEqNames[key] = name;
+        _crossEqs.Add((name, left, right));
+        EmitCType(left);    // registers the structs both sides are passed as
+        EmitCType(right);
+        return name;
+    }
+
+    private void EmitUnionCrossEqs(StringBuilder sb)
+    {
+        foreach (var (name, left, right) in _crossEqs)
+        {
+            var lCases = UnionCases(left);
+            int VoidCase(IReadOnlyList<CufetType> cs) { for (int i = 0; i < cs.Count; i++) if (cs[i] is VoidType) return i; return -1; }
+            int CaseOf(CufetType t) => UnionCaseIndex(left, t);
+            string Arm(int k, string payload) => lCases[k] is VoidType
+                ? $"a.tag == {k}"
+                : $"a.tag == {k} && {EqCall($"a.val.c{k}", payload, lCases[k])}";
+            string body;
+            if (right is UnionType ru)
+            {
+                // Equal when both hold the same kind of value and those values are equal.
+                var rCases = UnionCases(ru);
+                var arms = new List<string>();
+                for (int i = 0; i < lCases.Count; i++)
+                    for (int j = 0; j < rCases.Count; j++)
+                        if (TypeSig(lCases[i]) == TypeSig(rCases[j]))
+                            arms.Add(lCases[i] is VoidType
+                                ? $"if (a.tag == {i} && b.tag == {j}) return 1;"
+                                : $"if (a.tag == {i} && b.tag == {j}) return {EqCall($"a.val.c{i}", $"b.val.c{j}", lCases[i])};");
+                body = string.Join(" ", arms) + " return 0;";
+            }
+            else if (right is VoidableType rv)
+            {
+                // Absent matches the union's void case; present matches the case of what it holds.
+                int vk = VoidCase(lCases), k = CaseOf(rv.Inner);
+                string absent = vk < 0 ? "0" : $"a.tag == {vk}";
+                string present = k < 0 ? "0" : Arm(k, "b.val");
+                body = $"if (!b.has) return {absent}; return {present};";
+            }
+            else
+            {
+                int k = CaseOf(right);
+                body = $"return {(k < 0 ? "0" : Arm(k, "b"))};";
+            }
+            sb.AppendLine($"static int {name}({EmitCType(left)} a, {EmitCType(right)} b) {{ {body} }}");
+        }
     }
 
     // Forward-declares each series container (`typedef struct cser_N_s cser_N;`) so record/object

@@ -1160,6 +1160,19 @@ public sealed partial class CodeGenerator
         return null;
     }
 
+    // A union beside anything but the SAME union — see RegisterUnionCrossEq. Null when neither side
+    // is a union, or both are the same one and its own `_eq` applies.
+    private string? UnionCrossEq(BinaryExpression b, string L, string R)
+    {
+        var lt = TypeOf(b.Left);
+        var rt = TypeOf(b.Right);
+        if (lt is null || rt is null) return null;
+        if (lt is UnionType && rt is UnionType && TypeSig(lt) == TypeSig(rt)) return null;
+        if (lt is UnionType left) return $"{RegisterUnionCrossEq(left, rt)}({L}, {R})";
+        if (rt is UnionType right) return $"{RegisterUnionCrossEq(right, lt)}({R}, {L})";
+        return null;
+    }
+
     // A voidable equals a plain T iff it's present and the value matches.
     private string VoidableVsInner(string voidableExpr, string tExpr, CufetType inner, bool eq)
     {
@@ -1238,6 +1251,10 @@ public sealed partial class CodeGenerator
         }
 
         // Comparison / equality. Numbers via cufet_cmp; text via strcmp; facts are ints.
+        // A union on either side goes first: `4 is x` has a NUMBER on the left, and the number arm
+        // below would hand the union to cufet_cmp.
+        if (b.Op is TokenType.Equal or TokenType.NotEqual && UnionCrossEq(b, L, R) is { } crossEq)
+            return b.Op == TokenType.Equal ? $"({crossEq})" : $"(!({crossEq}))";
         var lt = TypeOf(b.Left);
 
         // Bit patterns compare on VALUE ALONE, ignoring base and width: 0xFF, 0x00FF and

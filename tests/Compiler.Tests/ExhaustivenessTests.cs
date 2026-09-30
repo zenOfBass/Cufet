@@ -154,9 +154,11 @@ public class ExhaustivenessTests
     {
         // Nothing holds a `void`: it is the absence of a value, and `voidable T` is how absence is
         // carried. A C declaration for it would be a slot for something that never arrives.
+        // ★ A union's `void` CASE is the one exception, and it goes round these rather than through
+        // them: a placeholder byte in the payload, and a tag compare. Narrowed to that case, a value
+        // does print — `void` — so WriteCall has an arm.
         [("EmitCType", typeof(VoidType))] = "void is not a value a slot can hold",
         [("EqCall", typeof(VoidType))] = "nothing to compare",
-        [("WriteCall", typeof(VoidType))] = "nothing to print",
 
         // A `stash of T` is rewritten to its closure form before any of these see it — NoStashes
         // does that on the way in — so a raw StashType reaching one is a bug in the rewrite, not a
