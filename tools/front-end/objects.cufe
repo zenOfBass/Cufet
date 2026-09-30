@@ -721,9 +721,11 @@ Pull a book on collections.
         If kind is "TextType" and field is "length", return cast plain-type on ("NumberType").
         If kind is "MapType" and field is "size", return cast plain-type on ("NumberType").
         If field is "length":
+            Define fix as "Only text values have a character length. For series, use 'the number of series'.".
+            Define union-fix as cast narrowing-fix on (reached, target, "TextType").
+            If union-fix is not "", the fix becomes union-fix.
             Return a failure (cast refusal-of on ("'the length of' works on text only", "",
-                at-row, "get the length of a {cast type-words on (target)}",
-                "Only text values have a character length. For series, use 'the number of series'.")).
+                at-row, "get the length of a {cast type-words on (target)}", fix)).
         Done.
         If field is "size":
             Return a failure (cast refusal-of on ("'the size of' works on maps", "",

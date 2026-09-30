@@ -77,6 +77,38 @@ Pull a book on collections.
         Return true.
     Done.
 
+    /// Is this the wanted type, or a closed union with it among its cases?
+    Bind fact to could-be, given (the node shape, the text wanted-kind):
+        If shape's kind is wanted-kind, return true.
+        For each one-case in cast union-cases on (shape), repeat:
+            If one-case's kind is wanted-kind, return true.
+        Done.
+        Return false.
+    Done.
+
+    /// When a union holding the wanted type is what stopped an operation, the fix line that says
+    /// how to find out which case it holds — `UnionNarrowingFix`. "" otherwise.
+    Bind text to narrowing-fix, given (the node said, the node shape, the text wanted-kind):
+        If shape's kind is not "UnionType" or cast is-open-union on (shape), return "".
+        If cast could-be on (shape, wanted-kind) is false, return "".
+        Define union as cast union-words on (shape).
+        Define needed as cast type-words on (cast plain-type on (wanted-kind)).
+        If said's kind is "VariableReference":
+            Define name as cast unquoted on (cast field-of on (said, 1)).
+            Return "'{name}' could be any of {union}. Check which it is first: 'If {name} is a {needed}:'.".
+        Done.
+        Return "This value could be any of {union}. Check which it is first: 'Judge …, where it is:' with an arm for 'A {needed}'.".
+    Done.
+
+    /// The same for a pair, the left first — only when narrowing could make BOTH sides fit.
+    Bind text to pair-narrowing-fix, given (the node left, the node lhs, the node right, the node rhs,
+            the text wanted-kind):
+        If cast could-be on (lhs, wanted-kind) is false or cast could-be on (rhs, wanted-kind) is false, return "".
+        Define fix as cast narrowing-fix on (left, lhs, wanted-kind).
+        If fix is not "", return fix.
+        Return cast narrowing-fix on (right, rhs, wanted-kind).
+    Done.
+
     // ── `is a` ────────────────────────────────────────────────────────────
 
     /// `x is a <type>` — always a fact; the value tested is typed for its own refusals.

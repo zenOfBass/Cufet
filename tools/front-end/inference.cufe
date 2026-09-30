@@ -193,6 +193,10 @@ Pull a book on collections.
         If operand-kind is "BitsType":
             The advice becomes "Bits are unsigned — a bit pattern has no negative. Did you mean 'not', which flips every bit within the value's width?".
         Done.
+        Otherwise:
+            Define union-fix as cast narrowing-fix on (cast field-of on (said, 2), operand, "NumberType").
+            If union-fix is not "", the advice becomes union-fix.
+        Done.
         Return a failure (cast refusal-of on ("unary minus works on numbers only", "",
             at-row, "negate a {cast type-words on (operand)} value", advice)).
     Done.
@@ -236,12 +240,15 @@ Pull a book on collections.
                 "Keep the brackets: without them, the default runs on to the end of the line.")).
         Done.
 
+        // A union where a number is needed: say how to find out which case it holds.
+        Define number-fix as cast pair-narrowing-fix on (cast field-of on (said, 1), lhs, cast field-of on (said, 3), rhs, "NumberType").
         If arithmetic:
             If lk is "NumberType" and rk is "NumberType", return lhs.
             If lk is "BitsType" and rk is "BitsType", return lhs.
+            Define fix as "If you meant arithmetic, both sides need to be numbers.\nIf you meant to join text, use 'joined to': \"hello\" joined to \" world\".".
+            If number-fix is not "", the fix becomes number-fix.
             Return a failure (cast refusal-of on ("arithmetic requires numbers on both sides", "",
-                at-row, "use {symbol} with {cast type-words on (lhs)} and {cast type-words on (rhs)}",
-                "If you meant arithmetic, both sides need to be numbers.\nIf you meant to join text, use 'joined to': \"hello\" joined to \" world\".")).
+                at-row, "use {symbol} with {cast type-words on (lhs)} and {cast type-words on (rhs)}", fix)).
         Done.
         If equality:
             Define fact-type as cast plain-type on ("FactType").
@@ -272,9 +279,10 @@ Pull a book on collections.
             If (lk is "NumberType" and rk is "NumberType") or (lk is "BitsType" and rk is "BitsType"):
                 Return cast plain-type on ("FactType").
             Done.
+            Define fix as "Ordering comparisons (>, <, >=, <=) need both sides to be numbers, or both to be bits.".
+            If number-fix is not "", the fix becomes number-fix.
             Return a failure (cast refusal-of on ("ordering works on numbers and on bits", "",
-                at-row, "order a {cast type-words on (lhs)} and a {cast type-words on (rhs)}",
-                "Ordering comparisons (>, <, >=, <=) need both sides to be numbers, or both to be bits.")).
+                at-row, "order a {cast type-words on (lhs)} and a {cast type-words on (rhs)}", fix)).
         Done.
         If gate:
             If lk is "FactType" and rk is "FactType", return lhs.
@@ -322,11 +330,21 @@ Pull a book on collections.
             Done.
         Done.
         If cast is-none on (lhs) is false and lhs's kind is not "TextType":
+            Define left-fix as cast narrowing-fix on (cast field-of on (said, 1), lhs, "TextType").
+            If left-fix is not "":
+                Return a failure (cast refusal-of on ("you can only join text to text", "", at-row,
+                    "join a {cast type-words on (lhs)} to text", left-fix)).
+            Done.
             Return a failure (cast refusal-of on ("you can only join text to text", "", at-row,
                 "join a {cast type-words on (lhs)} to text",
                 "Convert the {cast type-words on (lhs)} first: use 'converted to text'.\nFor example: n converted to text joined to \" items\".")).
         Done.
         If cast is-none on (rhs) is false and rhs's kind is not "TextType":
+            Define right-fix as cast narrowing-fix on (cast field-of on (said, 2), rhs, "TextType").
+            If right-fix is not "":
+                Return a failure (cast refusal-of on ("you can only join text to text", "", at-row,
+                    "join text to a {cast type-words on (rhs)}", right-fix)).
+            Done.
             Return a failure (cast refusal-of on ("you can only join text to text", "", at-row,
                 "join text to a {cast type-words on (rhs)}",
                 "Convert the {cast type-words on (rhs)} first: use 'converted to text'.\nFor example: \"score: \" joined to n converted to text.")).
