@@ -105,8 +105,7 @@ they are large, not because they are waiting — the order among them means noth
    - **Four stages**, mapping onto the language's taxonomy: *it won't run* (a refusal) → *it runs
      and is wrong* (a failure) → *fill in the hole* → *blank page*. The lessons so far are stage one.
    - **Shape:** a branching tree was DECLINED (2^N paths, and it fights the prerequisite order); a
-     **navigable map with gates** survives — a locked door is a puzzle you cannot yet solve. ⚠ That is
-     a small GAME, none of it Cufet work, and the spine must be decided before rooms are written.
+     **navigable map with gates** survives — a locked door is a puzzle you cannot yet solve. ⚠ That is a small GAME, none of it Cufet work, and the spine must be decided before rooms are written.
 
    ★ **A REPL page, the cheapest thing here.** `tools/repl.cufe` keeps state by REPLAY — it re-runs
    the accumulated lines and shows only what the new run added — and that gets SIMPLER in the
@@ -237,8 +236,7 @@ rather than the operators `bits` already shipped.
 
 - **A series can be stated but not `converted to text`.** `State words.` prints `(pear, fig)`, but
   `words converted to text` is refused — *"Only numbers, facts, bits and a chase can be converted to
-  text"* — so a series cannot go in a hole. Met writing `examples/parsing/precedence.cufe`, which built
-  its own joining helper instead. *Blocker:* none known.
+  text"* — so a series cannot go in a hole. Met writing `examples/parsing/precedence.cufe`, which built its own joining helper instead. *Blocker:* none known.
 
 - **Expression-level flow-narrowing.** Narrowing works on *variables* today
   (`If maybe-x is not void: … maybe-x`). Narrowing a value produced by an *expression* — say
