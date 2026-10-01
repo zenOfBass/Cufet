@@ -403,7 +403,7 @@ public class ExampleOracleTests
         //  it must COMPILE, and `cufet` must decline to run it.
         if (Runnable.NothingToRun(program, checker.PreludeStatements))
         {
-            CompileAndRun(program);
+            CompileLibrary(file, program);
             Assert.Equal(2, Interpret(file).Exit);
             return;
         }
@@ -636,10 +636,48 @@ public class ExampleOracleTests
     /// became unreachable without being freed — a channel or buffer whose last pointer was dropped.
     /// </para>
     /// </remarks>
-    private static (string Output, int Exit) CompileAndRun(Program program)
+    /// <summary>
+    /// A library's half of the oracle: it must compile. Built once per distinct program.
+    /// </summary>
+    /// <remarks>
+    /// ★★ MEASURED, and the reason this exists. A directory is one program, so every library file
+    /// in it builds the SAME program — its own declarations first, then its neighbours'. The 34
+    /// files of `tools/front-end/` were 34 gcc builds of one front end: 12.3 of this class's 15.6
+    /// minutes (2026-09-30, from a `--logger trx` run), and this class runs its cases one after
+    /// another, so it set the floor for the whole suite.
+    ///
+    /// ⚠ Keyed on the DIRECTORY and the contents of every `.cufe` in it — the program itself —
+    /// and not on the generated C. Keying on the C was tried first and MEASURED to never hit: the
+    /// C encodes source positions with a file index (`500140` from one entry, `600140` from
+    /// another), and the index follows which file is the entry, so the same program emits
+    /// different C from each of its files. What this gives up is said here so it is a decision
+    /// rather than an accident: the program is compiled from its first library file only, so a C
+    /// bug that appeared only when one particular file's declarations came first would not be
+    /// re-checked for its siblings. Each library file still gets its own "`cufet` declines to run
+    /// it" check below, and runnable programs never take this path.
+    /// </remarks>
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> CompiledLibraries = new();
+
+    private static void CompileLibrary(string file, Program program)
     {
-        // The SPLIT path, because that is what `cufet build` does — see PipelineTestBase.CompileRaw.
-        var (header, runtimeSource, programSource) = new CodeGenerator().GenerateSplit(program);
+        var folder = Path.GetDirectoryName(Resolve(file))!;
+        var whole = new System.Text.StringBuilder(folder);
+        foreach (var neighbour in Directory.GetFiles(folder, "*.cufe").Order(StringComparer.Ordinal))
+            whole.Append('\u0000').Append(Path.GetFileName(neighbour)).Append('\u0000').Append(File.ReadAllText(neighbour));
+        var key = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes(whole.ToString())));
+        if (CompiledLibraries.ContainsKey(key)) return;
+        CompileAndRun(program);
+        CompiledLibraries[key] = true;
+    }
+
+    // The SPLIT path, because that is what `cufet build` does — see PipelineTestBase.CompileRaw.
+    private static (string Output, int Exit) CompileAndRun(Program program) =>
+        CompileAndRun(new CodeGenerator().GenerateSplit(program));
+
+    private static (string Output, int Exit) CompileAndRun((string Header, string Runtime, string Program) generated)
+    {
+        var (header, runtimeSource, programSource) = generated;
 
         // A unique stem WITHOUT creating a file: GetTempFileName is unique only while its file exists,
         // and deleting it to reuse the stem releases the name for another thread to be handed.
