@@ -1,4 +1,4 @@
-﻿using System.Linq;
+using System.Linq;
 using Cufet.Lexer;
 
 namespace Cufet.Interpreter;
@@ -1302,6 +1302,11 @@ public static class Runnable
             .Where(s => spliced is null || !spliced.Contains(s))
             .All(IsDeclaration);
 
+    // ★ A `Pull` whose body only declares is a declaration too. A file written inside
+    // `Pull a book on collections. … Done.` — so its functions can use the book — runs nothing,
+    // and used to be taken for a program: `cufet` ran it, printed nothing and exited 0, where the
+    // same declarations written without the pull were refused as a library. `Pull a rabbit` is
+    // not here on purpose: it opens a region, which is something the program does.
     private static bool IsDeclaration(IStatement statement) => statement
         is ObjectDefinition
         or InterfaceDefinition
@@ -1310,7 +1315,8 @@ public static class Runnable
         or UnmakerDeclaration
         or OperatorOverloadDeclaration
         or CufetAxiomDefinition
-        or BindStatement;
+        or BindStatement
+        || statement is PullStatement pull && pull.Body.All(IsDeclaration);
 }
 
 /// <summary>Statement identity by REFERENCE, for a set that must not merge two lookalikes.</summary>

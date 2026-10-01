@@ -483,6 +483,31 @@ public class CommandLineTests
     }
 
     [Fact]
+    public void Running_DeclarationsInsideAPull_IsRefusedToo()
+    {
+        // The same file written inside `Pull a book on … Done.` so its functions can use the book.
+        // It was taken for a program — it ran, printed nothing and exited 0 — which is how every
+        // file of `tools/front-end/` came to be built and run as a whole program by the oracle.
+        string file = WriteProgram("Pull a book on collections.\n" + NothingToRun + "Done.\n");
+        try
+        {
+            var (exit, _, err) = Run(file);
+            Assert.Equal(2, exit);
+            Assert.Contains("there is nothing to run", err);
+        }
+        finally { File.Delete(file); }
+    }
+
+    [Fact]
+    public void Running_APullThatDoesSomething_StillRuns()
+    {
+        // The other side of it: one statement inside the pull makes it a program.
+        string file = WriteProgram("Pull a book on collections.\n" + NothingToRun + "    State 4.\nDone.\n");
+        try { Assert.Equal(0, Run(file).Exit); }
+        finally { File.Delete(file); }
+    }
+
+    [Fact]
     public void Check_AFileWithNothingToRun_IsAccepted()
     {
         // ★★ The half that makes the rule right. Checking a library is exactly what a library

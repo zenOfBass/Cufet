@@ -23,8 +23,7 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   ★ Found by the Cufet lexer, which bound 13 throwaway names only to reach the expression form and
   returned a meaningless `fact` from every scanning method; rewritten in the new forms it lost
   every throwaway name and every `Return true.` that meant only "it worked".
-- **The Cufet parser, written in Cufet** — `tools/front-end/`, the second piece of the compiler in its
-  own language. `cufet tools/front-end/parser.cufe <files…>` prints each file's syntax tree, one
+- **The Cufet parser, written in Cufet** — `tools/front-end/`, the second piece of the compiler in its own language. `cufet tools/front-end/parser.cufe <files…>` prints each file's syntax tree, one
   top-level statement per line, and `ParserParityTests` holds it to `src/Interpreter/Parser.cs`
   tree for tree — every node, field, name and position — over all 100 `.cufe` files in the
   repository, its own included. It covers the whole language the corpus uses: patterns compiled
@@ -50,9 +49,11 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Changed
 
-- **The lexer moved from `tools/lexer/` to `tools/front-end/`**, where the parser reads it: its scanning
-  became `scanner.cufe`, which gives back tokens as objects, and `lexer.cufe` is the small program
-  that prints them.
+- **The lexer moved from `tools/lexer/` to `tools/front-end/`**, where the parser reads it: its scanning became `scanner.cufe`, which gives back tokens as objects, and `lexer.cufe` is the small program that prints them.
+- **A file whose declarations sit inside a `Pull` is a library, not a program.** Written inside
+  `Pull a book on collections. … Done.` so its functions can use the book, such a file ran,
+  printed nothing and exited 0; `cufet` and `cufet build` now refuse it as having nothing to run,
+  the same as the declarations written without the pull. `cufet check` accepts it as before.
 
 ### Fixed
 
