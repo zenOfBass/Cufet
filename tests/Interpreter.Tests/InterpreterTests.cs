@@ -11547,6 +11547,22 @@ public class InterpreterTests
             "b's value becomes \"oops\"."));
     }
 
+    // A getter named like one of its object's stored fields is refused, as REFERENCE says. It was
+    // accepted, and the getter won every read: the field could be set and never read back.
+    [Fact]
+    public void Getter_NamedLikeAStoredField_IsRefused()
+    {
+        var ex = Assert.Throws<TypeException>(() => Run(
+            "Define object circle with (the number radius):\n" +
+            "    Get radius as number:\n" +
+            "        Return 5.\n" +
+            "    Done.\n" +
+            "Done.\n" +
+            "Define c as a new circle { the radius 2 }.\n" +
+            "State c's radius."));
+        Assert.Contains("'circle' getter 'radius' has the same name as one of its stored fields", ex.Message);
+    }
+
     // Getter that doesn't return is caught by the type-checker.
     [Fact]
     public void Getter_TypeError_NoReturn()

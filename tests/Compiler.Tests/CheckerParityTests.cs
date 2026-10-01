@@ -27,7 +27,7 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
     : IClassFixture<CompiledCufetChecker>
 {
     /// <summary>How many corpus files must agree. Raised as the checker grows; never lowered.</summary>
-    private const int CorpusFloor = 77;
+    private const int CorpusFloor = 87;
 
     /// <summary>Where the bundled books' source is — the checker reads their layers with its own parser.</summary>
     private static string[] PreludeArgs =>
@@ -674,6 +674,55 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
         "Pull a book on collections.\n    Define m as a matrix with 2 by 3.\n    If m is greater than m, state \"x\".\nDone.",
         "Pull a book on collections.\n    Define m as a matrix with 2 by 3.\n    Define n as m * m but on failure m.\n    State the rows of n.\nDone.",
         "Pull a book on collections.\n    Bind matrix or failure to twice, given (the matrix a-grid):\n        Return a-grid + a-grid or pass the failure off.\n    Done.\nDone.",
+        // Input and output: files, directories and paths, streams, running programs and pipes of them, the environment.
+        "Try to:\n    Define whole as read all from the file \"a.txt\".\n    State the length of whole.\n    Define lines as read all lines from the file \"a.txt\".\n    State the number of lines.\n    Define names as the contents of the directory \".\".\n    State the number of names.\n    Define result as run \"ls\" with arguments (\"-l\", \"x\").\n    State the output of result joined to the errors of result.\n    State the exit-code of result + 1.\n    Define piped as run \"ls\" | run \"sort\".\n    State the output of piped.\n    Run \"ls\".\n    Run \"ls\" with arguments (\"-a\").\n    Run \"ls\" | run \"sort\".\nDone.\nIn case of failure:\n    State \"bad\".\nDone.",
+        "Define whole as read all from the file \"a.txt\".",
+        "Define whole as read all from the file \"a.txt\" but on failure \"none\".\nState the length of whole.",
+        "Bind text or failure to load:\n    Return read all from the file \"a.txt\" or pass the failure off.\nDone.",
+        "Try to:\n    Define whole as read all from the file 5.\nDone.\nIn case of failure:\n    State \"bad\".\nDone.",
+        "Define names as the contents of the directory \".\".",
+        "Define names as the contents of the directory \".\" but on failure a series of text.\nState the number of names.",
+        "Try to:\n    Define names as the contents of the directory true.\nDone.\nIn case of failure:\n    State \"bad\".\nDone.",
+        "If the path \"a\" exists, state \"yes\".\nIf the path \"a\" is a directory, state \"dir\".\nIf the path \"a\" is a file, state \"file\".",
+        "If the path 5 exists, state \"yes\".",
+        "Write \"hi\" to the file \"b.txt\".\nAppend \"hi\" to the file \"b.txt\".",
+        "Write 5 to the file \"b.txt\".",
+        "Write \"hi\" to the file 5.",
+        "Make the directory \"d\".\nRemove the file \"b.txt\".\nRemove the directory \"d\".",
+        "Make the directory 5.",
+        "The current directory becomes \"..\".\nState (the current directory) but void is \"?\".",
+        "The current directory becomes 5.",
+        "State (the environment variable \"HOME\") but void is \"none\".\nFor each piece in the arguments, repeat:\n    State the length of piece.\nDone.",
+        "State the environment variable 5.",
+        "State the length of the environment variable \"HOME\".",
+        "With the file \"c.txt\" open for writing as sink:\n    Write \"x\" to sink.\nDone.\nWith the file \"c.txt\" open for reading as source:\n    State (read a line from source) but void is \"\".\n    State the length of read all from source.\n    State the number of read all lines from source.\nDone.",
+        "With the file 5 open for writing as sink:\n    Write \"x\" to sink.\nDone.",
+        "With the file \"c.txt\" open for writing as sink:\n    Write 5 to sink.\nDone.",
+        "With the file \"c.txt\" open for reading as source:\n    Write \"x\" to source.\nDone.",
+        "Write \"x\" to \"notes.txt\".",
+        "Define n as 5.\nWrite \"x\" to n.",
+        "State read all from \"notes.txt\".",
+        "State read all lines from \"notes.txt\".",
+        "State read a line from \"notes.txt\".",
+        "State read a line from 5.",
+        "State the length of read a line from the input.",
+        "Write \"x\" to the output.",
+        "If an interrupt is requested, state \"stop\".\nAcknowledge the interrupt.",
+        "Define r as run \"ls\".",
+        "Run \"ls\".",
+        "Try to:\n    Define r as run 5.\nDone.\nIn case of failure:\n    State \"x\".\nDone.",
+        "Try to:\n    Define r as run \"ls\" with arguments (5).\nDone.\nIn case of failure:\n    State \"x\".\nDone.",
+        "Define xs as a series with (\"a\").\nTry to:\n    Define r as run \"ls\" with arguments (xs).\nDone.\nIn case of failure:\n    State \"x\".\nDone.",
+        "Define xs as a series with (\"a\").\nTry to:\n    Define r as run \"ls\" with arguments xs.\n    Run \"ls\" with arguments xs.\nDone.\nIn case of failure:\n    State \"x\".\nDone.",
+        "Define xs as a series with (1).\nTry to:\n    Define r as run \"ls\" with arguments xs.\nDone.\nIn case of failure:\n    State \"x\".\nDone.",
+        "Try to:\n    Define r as run \"cat\" with input \"hi\".\nDone.\nIn case of failure:\n    State \"x\".\nDone.",
+        "Try to:\n    Define r as run \"cat\" with input 5.\nDone.\nIn case of failure:\n    State \"x\".\nDone.",
+        "Try to:\n    Define r as run \"ls\" with the terminal | run \"sort\".\nDone.\nIn case of failure:\n    State \"x\".\nDone.",
+        "Try to:\n    Define r as run \"ls\" | run \"sort\" with input \"x\".\nDone.\nIn case of failure:\n    State \"x\".\nDone.",
+        "Define r as run \"ls\" | run \"sort\".",
+        "Define r as (run \"ls\" | run \"sort\") but on failure 5.",
+        "Run \"ls\" | run \"sort\".",
+        "Run 5 | run \"sort\".",
     ];
 
     [Fact]

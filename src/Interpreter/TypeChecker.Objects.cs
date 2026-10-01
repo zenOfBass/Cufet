@@ -1,4 +1,4 @@
-﻿using Cufet.Lexer;
+using Cufet.Lexer;
 
 namespace Cufet.Interpreter;
 
@@ -518,7 +518,9 @@ public sealed partial class TypeChecker
     }
 
     // Validates own-type getter/setter name uniqueness and no clashes with methods.
-    // (Getter + setter of the same name = valid pair. Getter/setter vs. field = valid backing-field pattern.)
+    // (Getter + setter of the same name = valid pair. SETTER vs. field = valid backing-field
+    // pattern — `one's <name> becomes X` inside the setter writes the stored field. A GETTER vs. a
+    // field is refused: see below.)
     private void ValidateGetterSetterNames(ObjectDefinition od, ObjectType objType)
     {
         var seenGetters = new HashSet<string>();
@@ -530,6 +532,16 @@ public sealed partial class TypeChecker
                     null, od.Line, od.Column,
                     $"define duplicate getter '{g.GetterName}'",
                     "Each getter name must be unique. Rename one of them.");
+            // ⚠ REFERENCE has always said this is a static error, and it was not: the getter won
+            // every read, so the stored field could be written and never read back — `a new circle
+            // { the radius 2 }` then `circle's radius` gave whatever the getter computed.
+            if (objType.NamedFields.Any(f => f.FieldName == g.GetterName))
+                throw TypeError(
+                    $"'{od.Name}' getter '{g.GetterName}' has the same name as one of its stored fields",
+                    "Every read of that name would reach the getter, so the field could be set but never read back",
+                    od.Line, od.Column,
+                    $"define getter '{g.GetterName}' beside a field of the same name",
+                    "Rename the getter or the field.");
             if (objType.Methods.Any(m => m.MethodName == g.GetterName))
                 throw TypeError(
                     $"'{od.Name}' getter '{g.GetterName}' clashes with a method of the same name",
