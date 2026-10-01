@@ -206,6 +206,12 @@ Pull a book on collections.
             Return cast beyond-reach on (rest).
         Done.
         If kind is "WhileStatement", return cast beyond-reach on (cast field-of on (statement, 2)).
+        If kind is "WithOpenStatement", return cast beyond-reach on (cast field-of on (statement, 4)).
+        // A pipe of functions is the tasks slice; a pipe of programs is judged.
+        If kind is "PipeExpression":
+            If cast is-program-pipe on (statement), return "".
+            Return "a pipe of functions".
+        Done.
         If kind is "RepeatUntilStatement", return cast beyond-reach on (cast field-of on (statement, 1)).
         If kind is "ForEachStatement", return cast beyond-reach on (cast field-of on (statement, 3)).
         If kind is "BindStatement", return cast bind-beyond-reach on (statement).
@@ -224,6 +230,8 @@ Pull a book on collections.
         For each known in a series with ("StateStatement", "BecomesStatement", "StopStatement", "SkipStatement",
                 "ReturnStatement", "CastStatement", "PossessiveSetStatement", "RecordNamedSetStatement", "SuppressStatement",
                 "MapSetStatement", "ExitStatement", "SeedChanceStatement", "MatrixSetStatement",
+                "FileWriteStatement", "PathActionStatement", "CurrentDirectorySetStatement", "WriteToStreamStatement",
+                "RunStatement", "AcknowledgeInterruptStatement",
                 "SeriesInsertStatement", "SeriesSetStatement", "SeriesRemoveAtStatement", "SeriesRemoveValueStatement"), repeat:
             If kind is known, return "".
         Done.
@@ -524,6 +532,27 @@ Pull a book on collections.
         Done.
         Otherwise if kind is "MatrixSetStatement":
             Cast one's check-matrix-set on (statement) or pass the failure off.
+        Done.
+        Otherwise if kind is "FileWriteStatement":
+            Cast one's check-file-write on (statement) or pass the failure off.
+        Done.
+        Otherwise if kind is "PathActionStatement":
+            Cast one's check-path-action on (statement) or pass the failure off.
+        Done.
+        Otherwise if kind is "CurrentDirectorySetStatement":
+            Cast one's check-directory-set on (statement) or pass the failure off.
+        Done.
+        Otherwise if kind is "WithOpenStatement":
+            Cast one's check-with-open on (statement) or pass the failure off.
+        Done.
+        Otherwise if kind is "WriteToStreamStatement":
+            Cast one's check-stream-write on (statement) or pass the failure off.
+        Done.
+        Otherwise if kind is "RunStatement":
+            Cast one's check-run-statement on (statement) or pass the failure off.
+        Done.
+        Otherwise if kind is "PipeExpression":
+            Cast one's check-pipe-statement on (statement) or pass the failure off.
         Done.
     Done.
 

@@ -78,6 +78,16 @@ Pull a book on collections.
         If kind is "MatrixLiteral", return cast one's infer-matrix-literal on (said) or pass the failure off.
         If kind is "MatrixSized", return cast one's infer-matrix-sized on (said) or pass the failure off.
         If kind is "MatrixAccess", return cast one's infer-matrix-access on (said) or pass the failure off.
+        If kind is "FileReadExpression", return cast one's infer-file-read on (said) or pass the failure off.
+        If kind is "DirectoryContentsExpression", return cast one's infer-directory-contents on (said) or pass the failure off.
+        If kind is "PathCheckExpression", return cast one's infer-path-check on (said) or pass the failure off.
+        If kind is "RunExpression", return cast one's infer-run on (said) or pass the failure off.
+        If kind is "PipeExpression", return cast one's infer-pipe on (said) or pass the failure off.
+        If kind is "ReadExpression", return cast one's infer-read on (said) or pass the failure off.
+        If kind is "EnvironmentVariableExpression", return cast one's infer-env-var on (said) or pass the failure off.
+        If kind is "CurrentDirectoryExpression", return cast wrapped on ("VoidableType", cast plain-type on ("TextType")).
+        If kind is "ProgramArgumentsExpression", return cast wrapped on ("SeriesType", cast plain-type on ("TextType")).
+        If kind is "InterruptRequestedExpression", return cast plain-type on ("FactType").
         Return a failure (cast not-judged on (kind)).
     Done.
 
