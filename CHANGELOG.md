@@ -122,6 +122,10 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 - **A maker written `unto` a type is refused**, as the checker always meant it to be. The refusal
   sat where an `unto` Bind never reached it, so `Bind making a point to origin unto point` passed
   `check` as a free function, and `cast origin` then failed at run time: `'origin' is not defined`.
+- **A type a module carries is named as it was written in every refusal.** Only refusals that
+  described a type in general said `span`; the many that named one themselves said `span in
+  spans`, the name it is lifted to — `field 'high' of 'span in spans' must be a number`. Every
+  refusal now passes through one place that puts the written name back.
 
 ## [0.26.0] — 2026-09-26
 

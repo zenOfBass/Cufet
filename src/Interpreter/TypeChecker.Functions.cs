@@ -1189,18 +1189,18 @@ public sealed partial class TypeChecker
         if (_objectDefs.TryGetValue(name, out var already)) return already;
 
         if (!_genericObjectDefs.TryGetValue(filled.Name, out var template))
-            throw new TypeException(
+            throw new TypeException(ShowWrittenNames(
                 $"That doesn't work: '{filled.Name}' does not take a filling.\n\n" +
                 (_objectDefs.ContainsKey(filled.Name)
                     ? $"'{filled.Name}' is an ordinary type, so write it on its own — '{filled.Name}', not '{name}'."
-                    : $"Define 'object {filled.Name} of <name>' before filling it in, or check the spelling."));
+                    : $"Define 'object {filled.Name} of <name>' before filling it in, or check the spelling.")));
 
         var blanks = template.TypeParameters!;
         if (blanks.Count != arguments.Count)
-            throw new TypeException(
+            throw new TypeException(ShowWrittenNames(
                 $"That doesn't work: '{filled.Name}' leaves {blanks.Count} blank(s) to fill, " +
                 $"and {arguments.Count} were given.\n\n" +
-                $"It is written 'object {filled.Name} {string.Join(" ", blanks.Select(b => "of " + b))}'.");
+                $"It is written 'object {filled.Name} {string.Join(" ", blanks.Select(b => "of " + b))}'."));
 
         var concrete = GenericInstantiation.Fill(
             template, name,
@@ -1227,11 +1227,11 @@ public sealed partial class TypeChecker
                 if (concrete.Methods.Any(m => m.Name == member)
                     || concrete.Getters.Any(g => g.Name == member)
                     || concrete.Setters.Any(t => t.Name == member))
-                    throw new TypeException(
+                    throw new TypeException(ShowWrittenNames(
                         $"That doesn't work: '{name}' already has a member '{member}'."
                       + Environment.NewLine + Environment.NewLine
                       + $"'{template.Name}' declares '{member}' for every filling, so "
-                      + $"'{name}' has it already. Rename the one written unto '{name}'.");
+                      + $"'{name}' has it already. Rename the one written unto '{name}'."));
             }
             concrete = concrete with
             {

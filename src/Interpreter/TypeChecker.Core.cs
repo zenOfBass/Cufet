@@ -1182,7 +1182,33 @@ public sealed partial class TypeChecker
         // baffling thing to find in a trace.
         || string.Equals(name, RabbitModuleName, StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>The checker whose program is being checked on this flow, for <see cref="TypeError"/>.</summary>
+    /// <remarks>
+    /// ★ Saved and restored rather than set and cleared: a generic's filling is checked by a fresh
+    /// checker INSIDE this one's `Check`, and the outer refusals after it must still see the outer.
+    /// AsyncLocal because `dotnet test` checks many programs at once, one per flow.
+    /// </remarks>
+    private static readonly AsyncLocal<TypeChecker?> CheckingNow = new();
+
     public Program Check(Program program)
+    {
+        var outer = CheckingNow.Value;
+        CheckingNow.Value = this;
+        try { return CheckProgram(program); }
+        finally { CheckingNow.Value = outer; }
+    }
+
+    /// <summary>
+    /// Every type name this checker made that nobody wrote — a carried type lifted out of its module,
+    /// a book file's private type — longest first, so a name that ends another is replaced after it.
+    /// </summary>
+    private List<string> SynthesizedTypeNames() =>
+        [.. _objectDefs.Keys.Concat(_interfaceDefs.Keys)
+            .Where(n => n.Contains(" in ", StringComparison.Ordinal))
+            .Distinct(StringComparer.Ordinal)
+            .OrderByDescending(n => n.Length)];
+
+    private Program CheckProgram(Program program)
     {
         _scopes[0]["input"]  = BuiltinInput;
         _scopes[0]["output"] = BuiltinOutput;
@@ -4396,9 +4422,26 @@ public sealed partial class TypeChecker
     {
         var est = established != null ? $"\n{established}." : "";
         return new TypeException(
-            SourceMap.Rewrite($"That doesn't work: {context}.{est}\nHere on line {SourceMap.Display(violationLine)}, you're trying to {action}.\n\n{fix}"),
+            ShowWrittenNames(SourceMap.Rewrite($"That doesn't work: {context}.{est}\nHere on line {SourceMap.Display(violationLine)}, you're trying to {action}.\n\n{fix}")),
             violationLine,
             violationColumn);
+    }
+
+    /// <summary>A message with every synthesized type name put back to the name its author wrote.</summary>
+    /// <remarks>
+    /// ★★ One funnel, for the reason <see cref="SourceMap.Rewrite"/> gives: some 170 refusals put a
+    /// type's name into prose, and FormatType alone went through DisplayName — so `field 'high' of
+    /// 'span in spans' must be a number` named a type nobody can write. MEASURED 2026-10-02, four
+    /// refusals in twelve probes of one carried type.
+    /// ⚠ Only names this checker MADE are touched. Each has a space in it, so a written name cannot
+    /// be one, and ordinary prose — "in the literal" — is never matched by a pattern.
+    /// </remarks>
+    private static string ShowWrittenNames(string message)
+    {
+        if (CheckingNow.Value is not { } checker) return message;
+        foreach (var name in checker.SynthesizedTypeNames())
+            message = message.Replace(name, ModuleTypeLifting.DisplayName(name), StringComparison.Ordinal);
+        return message;
     }
 
     /// <summary>

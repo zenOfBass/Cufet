@@ -174,6 +174,21 @@ public class ModuleCarriedTypeTests : IDisposable
         Assert.DoesNotContain(" in kinds", ex.Message);
     }
 
+    // ⚠ And a THIRD half: a refusal that names its type itself rather than through FormatType —
+    // about 170 of them put a name into prose. Each of these said 'point in shapes' until every
+    // refusal's message was passed through one funnel. Found by the checker written in Cufet.
+    [Theory]
+    [InlineData("Define here as a new point { the across 1, the up \"x\" }.", "field 'up' of 'point' must be a number")]
+    [InlineData("Define here as a new point { the across 1 }.", "field 'up' of 'point' is missing")]
+    [InlineData("Define here as a new point { the across 1, the up 2 }.\n    State here's middle.", "'point' has no field, getter, or method named 'middle'")]
+    [InlineData("Define here as a new point { the across 1, the up 2 }.\n    State here's sum.", "'sum' is a method of 'point'")]
+    public void TheLiftedNameNeverShowsInARefusalThatNamesItsType(string line, string expected)
+    {
+        var ex = Refused(Shapes + "Pull a shapes.\n    " + line + "\nDone.\n");
+        Assert.Contains(expected, ex.Message);
+        Assert.DoesNotContain(" in shapes", ex.Message);
+    }
+
     [Fact]
     public void AUnionOfCarriedTypesNarrowsWithJudge()
     {
