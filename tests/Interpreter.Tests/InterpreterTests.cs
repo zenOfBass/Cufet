@@ -11736,6 +11736,20 @@ public class InterpreterTests
             "State p's age."));
     }
 
+    // A maker written `unto` a type is refused. It used to check clean — registered as a free
+    // function — and then the run failed with "'origin' is not defined", since it was only a method.
+    [Fact]
+    public void Constructor_WrittenUntoAType_IsRefused()
+    {
+        var ex = Assert.Throws<TypeException>(() => Run(
+            "Define object point with (the number x).\n" +
+            "Bind making a point to origin unto point:\n" +
+            "    Return a new point { the x 7 }.\n" +
+            "Done.\n" +
+            "State (cast origin)'s x."));
+        Assert.Contains("a maker can't also be an 'unto' method", ex.Message);
+    }
+
     // Constructor result is usable as a normal object (field access, method calls).
     [Fact]
     public void Constructor_Result_FieldsAccessible()

@@ -185,15 +185,9 @@ public sealed partial class TypeChecker
 
     // Validates a named constructor ('Bind making a <type> to <name>, given (...): ...').
     // Resolves the return type to the canonical ObjectType instance, then delegates to CheckBind.
+    // A maker written `unto` a type never reaches here — it is refused where makers are hoisted.
     private void CheckConstructor(BindStatement ctor)
     {
-        if (ctor.UntoType != null)
-            throw TypeError(
-                $"a maker can't also be an 'unto' method",
-                null, ctor.Line, ctor.Column,
-                $"declare 'Bind making a {ctor.ConstructsTypeName} to {ctor.Name} unto ...'",
-                "Constructors are free functions — they can't be attached to a type with 'unto'.");
-
         if (!_objectDefs.TryGetValue(ctor.ConstructsTypeName!, out var objType))
             throw TypeError(
                 $"'{ctor.ConstructsTypeName}' is not a defined object type",

@@ -2504,6 +2504,15 @@ public sealed partial class TypeChecker
         foreach (var stmt in AstSearch.EveryStatement(program.Statements))
         {
             if (stmt is not BindStatement bind || bind.ConstructsTypeName == null) continue;
+            // ★ HERE, before it is registered as a free function below — CheckStatement sends every
+            // `unto` Bind to CheckUntoMethod, so a refusal at the body was never reached, and the
+            // maker checked clean as a free function that the interpreter never defines.
+            if (bind.UntoType != null)
+                throw TypeError(
+                    $"a maker can't also be an 'unto' method",
+                    null, bind.Line, bind.Column,
+                    $"declare 'Bind making a {bind.ConstructsTypeName} to {bind.Name} unto ...'",
+                    "Constructors are free functions — they can't be attached to a type with 'unto'.");
             if (!ctorsByType.TryGetValue(bind.ConstructsTypeName, out var cList))
                 ctorsByType[bind.ConstructsTypeName] = cList = [];
             cList.Add(bind);

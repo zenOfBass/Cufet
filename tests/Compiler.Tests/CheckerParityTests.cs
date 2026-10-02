@@ -27,7 +27,7 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
     : IClassFixture<CompiledCufetChecker>
 {
     /// <summary>How many corpus files must agree. Raised as the checker grows; never lowered.</summary>
-    private const int CorpusFloor = 90;
+    private const int CorpusFloor = 92;
 
     /// <summary>Where the bundled books' source is — the checker reads their layers with its own parser.</summary>
     private static string[] PreludeArgs =>
@@ -771,6 +771,28 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
         "Define object person with (the number age with default 1, the number age2 with default the age).",
         "Define object person with (the number age with default 1) and as a ghost.",
         "Define object person with (the voidable number age with default void).\nDefine bo as a new person { }.\nState bo's age but void is 0.",
+        // Makers and unmakers: hoisted as functions, registered per type (one unmaker each, never 'unto'); an unmaker body sees 'one'.
+        "Define object point with (the number x, the number y).\nBind making a point to origin:\n    Return a new point { the x 0, the y 0 }.\nDone.\nBind making a point or failure to from-pair, given (the text s):\n    If s is \"\", return a failure \"empty\".\n    Return a new point { the x 1, the y 2 }.\nDone.\nBind unmaking a point to forget:\n    State one's x.\nDone.\nDefine origin-pt as cast origin.\nState origin-pt's x + 1.\nTry to:\n    Define p as cast from-pair on (\"3,4\").\n    State p's y.\nDone.\nIn case of failure:\n    State \"no\".\nDone.",
+        "Define object point with (the number x, the number y).\nBind making a point or failure to from-pair, given (the text s):\n    Return a new point { the x 1, the y 2 }.\nDone.\nDefine p as cast from-pair on (\"3,4\").",
+        "Bind making a ghost to spook:\n    Return 1.\nDone.",
+        "Define object point with (the number x).\nBind making a point to origin:\n    Return 5.\nDone.",
+        "Define object point with (the number x).\nBind making a point to origin:\n    State 5.\nDone.",
+        "Define object point with (the number x).\nBind making a point to origin:\n    Return a new point { the x 0 }.\nDone.\nBind making a point to origin:\n    Return a new point { the x 1 }.\nDone.",
+        "Define object point with (the number x).\nBind making a point to origin:\n    Return a failure \"no\".\nDone.",
+        "Define object point with (the number x).\nBind making a point to origin, given (the number n):\n    Return a new point { the x n }.\nDone.\nDefine p as cast origin on (\"x\").",
+        "Define object point with (the number x).\nBind making a point to origin, given (the number n):\n    Return a new point { the x n }.\nDone.\nDefine q as cast origin on (2).\nState q's x + 1.\nState q's y.",
+        "Define object point with (the number x).\nBind unmaking a point to forget:\n    State one's x.\nDone.\nBind unmaking a point to drop:\n    State 1.\nDone.",
+        "Bind unmaking a ghost to forget:\n    State 1.\nDone.",
+        "Define object point with (the number x).\nBind unmaking a point to forget:\n    Return a failure \"no\".\nDone.",
+        "Define object point with (the number x).\nDefine total as 4.\nBind unmaking a point to forget:\n    State total.\nDone.",
+        "Define object point with (the number x).\nBind unmaking a point to forget:\n    State one's x + \"a\".\nDone.",
+        "Define object point with (the number x).\nBind unmaking a point to forget:\n    State one's y.\nDone.",
+        "Bind unmaking a point to forget:\n    State one's x.\nDone.\nDefine object point with (the number x).\nBind making a point to origin:\n    Return a new point { the x 0 }.\nDone.\nState (cast origin)'s x.",
+        "Define object point with (the number x).\nBind making a point to origin unto point:\n    Return a new point { the x 0 }.\nDone.",
+        "Define object point with (the number x).\nBind number to f:\n    Bind making a point to origin:\n        Return a new point { the x 0 }.\n    Done.\n    Return 1.\nDone.\nBind making a point to origin:\n    Return a new point { the x 0 }.\nDone.",
+        "Define object point with (the number x).\nBind making a ghost to spook:\n    Return 1.\nDone.\nBind unmaking a ghost to forget:\n    State 1.\nDone.",
+        "Define object point with (the number x).\nBind unmaking a ghost to forget:\n    State 1.\nDone.\nBind unmaking a ghost to forget-again:\n    State 1.\nDone.",
+        "Define object point with (the number x).\nDefine total as 4 permanently.\nBind unmaking a point to forget:\n    State total + one's x.\n    Define total as 2.\n    State total.\nDone.",
     ];
 
     [Fact]
