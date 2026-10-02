@@ -12,7 +12,7 @@ Pull a book on collections.
     // ── What this checker can judge in an object ──────────────────────────
 
     Bind text to object-beyond-reach, given (the node statement):
-        For each place in a series with (5, 6, 12, 13, 14), repeat:
+        For each place in a series with (12, 13, 14), repeat:
             Define held as cast field-of on (statement, place).
             If held's kind is "list" and the number of held's children is greater than 0:
                 Return "an object with {cast object-part-name on (place)}".
@@ -21,6 +21,12 @@ Pull a book on collections.
         For each method in (cast field-of on (statement, 4))'s children, repeat:
             Define inner as cast bind-beyond-reach on (method).
             If inner is not "", return inner.
+        Done.
+        For each place in a series with (5, 6), repeat:
+            For each declaration in (cast field-of on (statement, place))'s children, repeat:
+                Define inner as cast property-beyond-reach on (declaration).
+                If inner is not "", return inner.
+            Done.
         Done.
         For each positional in (cast field-of on (statement, 2))'s children, repeat:
             If cast beyond-types on (positional), return "an object with a {positional's kind} field".
@@ -234,22 +240,43 @@ Pull a book on collections.
     /// the language ships is refused; a second definition of any other name replaces the first.
     Bind void or failure to hoist-objects unto checker, given (the node program):
         For each statement in cast hoistable on (program), repeat:
-            If statement's kind is "BindStatement" and cast is-nothing on (cast field-of on (statement, 5)) is false:
-                Define target as cast unquoted on (cast field-of on (statement, 5)).
-                If cast is-bundled-module on (target) or (target in lowercase) is "rabbit":
-                    Return a failure (cast refusal-of on ("'{target}' comes with the language, so 'unto' can't add members to it", "",
-                        cast numeric on (cast field-of on (statement, 7)), "attach a member unto '{target}'",
-                        "Define your own module object and pull it alongside the book instead.")).
-                Done.
-                Define attached as the entry for target in one's untos.
-                If attached is void:
-                    Define fresh-list as cast listed.
-                    In one's untos, the entry for target becomes fresh-list.
-                    Insert target into one's unto-order.
-                    Cast fresh-list's add on (statement).
-                Done.
-                Otherwise:
-                    Cast attached's add on (statement).
+            // A method is filed under its type's name; a getter under `get <type>`, a setter under `set <type>`.
+            Define unto-place as 0.
+            Define unto-row as 0.
+            Define unto-key-lead as "".
+            If statement's kind is "BindStatement":
+                The unto-place becomes 5.
+                The unto-row becomes cast numeric on (cast field-of on (statement, 7)).
+            Done.
+            Otherwise if statement's kind is "GetterDeclaration":
+                The unto-place becomes 4.
+                The unto-row becomes cast getter-row on (statement).
+                The unto-key-lead becomes "get ".
+            Done.
+            Otherwise if statement's kind is "SetterDeclaration":
+                The unto-place becomes 5.
+                The unto-row becomes cast setter-row on (statement).
+                The unto-key-lead becomes "set ".
+            Done.
+            If unto-place is greater than 0:
+                If cast is-nothing on (cast field-of on (statement, unto-place)) is false:
+                    Define target as cast unquoted on (cast field-of on (statement, unto-place)).
+                    If cast is-bundled-module on (target) or (target in lowercase) is "rabbit":
+                        Return a failure (cast refusal-of on ("'{target}' comes with the language, so 'unto' can't add members to it", "",
+                            unto-row, "attach a member unto '{target}'",
+                            "Define your own module object and pull it alongside the book instead.")).
+                    Done.
+                    Define filed-under as "{unto-key-lead}{target}".
+                    Define attached as the entry for filed-under in one's untos.
+                    If attached is void:
+                        Define fresh-list as cast listed.
+                        In one's untos, the entry for filed-under becomes fresh-list.
+                        Insert filed-under into one's unto-order.
+                        Cast fresh-list's add on (statement).
+                    Done.
+                    Otherwise:
+                        Cast attached's add on (statement).
+                    Done.
                 Done.
             Done.
         Done.
@@ -264,13 +291,15 @@ Pull a book on collections.
                 Done.
                 If (the entry for name in one's defs) is void, insert name into one's def-order.
                 In one's defs, the entry for name becomes statement.
-                // Its `unto` methods join it, and a name it already has is refused.
+                // Its `unto` members join it, and a name it already has is refused.
                 Define attached as the entry for name in one's untos.
-                If attached is not void:
+                If attached is not void or (the entry for "get {name}" in one's untos) is not void or (the entry for "set {name}" in one's untos) is not void:
                     If (the entry for name in claimed) is not void:
-                        Return a failure (cast not-judged on ("'unto' methods on a type defined twice")).
+                        Return a failure (cast not-judged on ("'unto' members on a type defined twice")).
                     Done.
                     In claimed, the entry for name becomes true.
+                Done.
+                If attached is not void:
                     Define taken as a map from text to fact.
                     For each method in (cast field-of on (statement, 4))'s children, repeat:
                         In taken, the entry for cast unquoted on (cast field-of on (method, 1)) becomes true.
@@ -285,6 +314,8 @@ Pull a book on collections.
                         In taken, the entry for method-name becomes true.
                     Done.
                 Done.
+                Cast one's check-unto-property-names on (statement, "get ", 5, "getter", "Getter names must be unique per type. Rename one of them.") or pass the failure off.
+                Cast one's check-unto-property-names on (statement, "set ", 6, "setter", "Setter names must be unique per type. Rename one of them.") or pass the failure off.
             Done.
         Done.
     Done.
@@ -319,7 +350,7 @@ Pull a book on collections.
     Bind voidable node to getter-type-of unto checker, given (the text name, the text getter-name):
         Define definition as cast one's definition-of on (name).
         If definition is void, return void.
-        For each getter in (cast field-of on (definition, 5))'s children, repeat:
+        For each getter in cast one's all-getters on (definition), repeat:
             If cast unquoted on (cast field-of on (getter, 1)) is getter-name, return cast field-of on (getter, 2).
         Done.
         Define embedded as cast embedded-name on (definition).
@@ -331,7 +362,7 @@ Pull a book on collections.
         Define names as a series of text.
         Define definition as cast one's definition-of on (name).
         If definition is void, return names.
-        For each getter in (cast field-of on (definition, 5))'s children, repeat:
+        For each getter in cast one's all-getters on (definition), repeat:
             Insert cast unquoted on (cast field-of on (getter, 1)) into names.
         Done.
         Return names.
@@ -354,7 +385,8 @@ Pull a book on collections.
     /// `unto` methods whose type never turned up: an interface, or nothing at all.
     Bind void or failure to check-leftover-untos unto checker:
         For each target in one's unto-order, repeat:
-            If (the entry for target in one's defs) is void:
+            Define lead as the first 4 characters of target.
+            If lead is not "get " and lead is not "set " and (the entry for target in one's defs) is void:
                 Define attached as the entry for target in one's untos but void is cast listed.
                 Define first as item 1 of attached's children.
                 Define reason as "'{target}' is not a defined object type".
@@ -365,6 +397,47 @@ Pull a book on collections.
                     "declare a method unto '{target}'",
                     "'unto' only attaches methods to object types defined in this program. Define 'object {target}' first, or check the spelling.")).
             Done.
+        Done.
+        // Then getters, then setters — C#'s order — and for these an interface gets no words of its own.
+        For each lead in a series with ("get ", "set "), repeat:
+            Define kind-word as "getter".
+            If lead is "set ", the kind-word becomes "setter".
+            For each filed-under in one's unto-order, repeat:
+                If (the first 4 characters of filed-under) is lead:
+                    Define target as the characters from 5 to the end of filed-under.
+                    If (the entry for target in one's defs) is void:
+                        Define attached as the entry for filed-under in one's untos but void is cast listed.
+                        Define first as item 1 of attached's children.
+                        Define first-row as cast getter-row on (first).
+                        If lead is "set ", the first-row becomes cast setter-row on (first).
+                        Return a failure (cast refusal-of on ("'{target}' is not a defined object type", "", first-row,
+                            "declare a {kind-word} unto '{target}'",
+                            "'unto' only attaches {kind-word}s to object types defined in this program. Define 'object {target}' first, or check the spelling.")).
+                    Done.
+                Done.
+            Done.
+        Done.
+    Done.
+
+    /// `unto` getters (or setters) joining a type: none may share a name with one it already has.
+    Bind void or failure to check-unto-property-names unto checker, given (the node definition, the text lead,
+            the number place, the text kind-word, the text fix):
+        Define name as cast def-name on (definition).
+        Define attached as the entry for "{lead}{name}" in one's untos.
+        If attached is void, return.
+        Define taken as a map from text to fact.
+        For each declaration in (cast field-of on (definition, place))'s children, repeat:
+            In taken, the entry for cast unquoted on (cast field-of on (declaration, 1)) becomes true.
+        Done.
+        For each declaration in attached's children, repeat:
+            Define declared-name as cast unquoted on (cast field-of on (declaration, 1)).
+            If (the entry for declared-name in taken) is not void:
+                Define at-row as cast getter-row on (declaration).
+                If lead is "set ", the at-row becomes cast setter-row on (declaration).
+                Return a failure (cast refusal-of on ("'{name}' already has a {kind-word} '{declared-name}'", "",
+                    at-row, "declare another {kind-word} named '{declared-name}' for '{name}'", fix)).
+            Done.
+            In taken, the entry for declared-name becomes true.
         Done.
     Done.
 
@@ -392,6 +465,12 @@ Pull a book on collections.
             For each method in cast one's all-methods on (definition), repeat:
                 Cast one's check-resolves on (cast field-of on (method, 3)) or pass the failure off.
                 Cast one's check-resolves on (cast field-of on (method, 2)) or pass the failure off.
+            Done.
+            For each getter in cast one's all-getters on (definition), repeat:
+                Cast one's check-resolves on (cast field-of on (getter, 2)) or pass the failure off.
+            Done.
+            For each setter in cast one's all-setters on (definition), repeat:
+                Cast one's check-resolves on (cast field-of on (setter, 2)) or pass the failure off.
             Done.
         Done.
         For each pair in item 1 of one's scopes, repeat:
@@ -444,6 +523,7 @@ Pull a book on collections.
         Done.
 
         Cast one's check-conformance on (statement) or pass the failure off.
+        Cast one's check-property-names on (statement) or pass the failure off.
 
         // A module's bodies may leave another module to their caller — recorded as they are checked.
         Define earlier-module as one's checking-module.
@@ -451,6 +531,12 @@ Pull a book on collections.
         If cast is-module-definition on (statement), the one's checking-module becomes name.
         For each method in (cast field-of on (statement, 4))'s children, repeat:
             Cast one's check-method-body on (method, name, at-row) or pass the failure off.
+        Done.
+        For each getter in (cast field-of on (statement, 5))'s children, repeat:
+            Cast one's check-getter-body on (getter, name, at-row) or pass the failure off.
+        Done.
+        For each setter in (cast field-of on (statement, 6))'s children, repeat:
+            Cast one's check-setter-body on (setter, name, at-row) or pass the failure off.
         Done.
         The one's checking-module becomes earlier-module.
     Done.
@@ -461,7 +547,23 @@ Pull a book on collections.
         Define method-name as cast unquoted on (cast field-of on (method, 1)).
         Define returned as cast field-of on (method, 2).
         Define at-row as cast numeric on (cast field-of on (method, 7)).
+        Cast one's check-member-body on (owner, owner-row, cast field-of on (method, 3), at-row, true, returned,
+            cast field-of on (method, 4)) or pass the failure off.
+        If cast is-nothing on (returned) is false and cast is-void-or-failure on (returned) is false
+                and cast definitely-returns on (cast field-of on (method, 4)) is false:
+            Return a failure (cast refusal-of on (
+                "method '{method-name}' is declared to give back a {cast type-words on (returned)}, but it can reach its end without returning one", "",
+                at-row, "define a method that might not return a value",
+                "Make sure every path through the method ends with a return statement.")).
+        Done.
+    Done.
 
+    /// The body of a method, a getter or a setter: `one` is the object, the parameters are bound,
+    /// and otherwise it sees what a top-level function sees — functions and `permanently`
+    /// constants. `parameters` is a list of `[<type> <name>]`; `resolving` says whether each type is
+    /// checked to name something, which a method's are and a setter's is not.
+    Bind void or failure to check-member-body unto checker, given (the text owner, the number owner-row,
+            the node parameters, the number at-row, the fact resolving, the node returned, the node body):
         Define saved as one's scopes.
         Define saved-types as the number of one's type-scopes.
         Define fresh as cast builtin-scope.
@@ -485,9 +587,9 @@ Pull a book on collections.
         Cast one's bind-name on ("one", a new binding {
             the shape cast object-type-named on (owner),
             the established-by cast named-reference on ("one"), the line owner-row, the permanent false, the module false, the depth 0, the parameter true }).
-        For each parameter in (cast field-of on (method, 3))'s children, repeat:
+        For each parameter in parameters's children, repeat:
             Define parameter-name as cast unquoted on (cast field-of on (parameter, 2)).
-            Cast one's check-resolves on (cast field-of on (parameter, 1)) or pass the failure off.
+            If resolving, cast one's check-resolves on (cast field-of on (parameter, 1)) or pass the failure off.
             Cast one's bind-name on (parameter-name, a new binding {
                 the shape cast field-of on (parameter, 1),
                 the established-by cast named-reference on (parameter-name), the line at-row, the permanent false, the module false, the depth 0, the parameter true }).
@@ -503,15 +605,7 @@ Pull a book on collections.
         Otherwise, insert returned into one's expected-returns.
         The one's function-line becomes at-row.
 
-        Cast one's check-block on (cast field-of on (method, 4)) or pass the failure off.
-
-        If cast is-nothing on (returned) is false and cast is-void-or-failure on (returned) is false
-                and cast definitely-returns on (cast field-of on (method, 4)) is false:
-            Return a failure (cast refusal-of on (
-                "method '{method-name}' is declared to give back a {cast type-words on (returned)}, but it can reach its end without returning one", "",
-                at-row, "define a method that might not return a value",
-                "Make sure every path through the method ends with a return statement.")).
-        Done.
+        Cast one's check-block on (body) or pass the failure off.
 
         The one's in-function becomes earlier-in-function.
         Remove item (the number of one's expected-returns) from one's expected-returns.
@@ -834,6 +928,13 @@ Pull a book on collections.
                 at-row, "change '{member}' after the {owner} was made",
                 "Give '{member}' its value in the 'a new {owner}' literal. If it has to change later, declare the field without 'permanently'.")).
         Done.
+        Define setter as cast one's setter-of on (owner, member).
+        If setter is not void:
+            Cast one's check-setter-write on (setter, member, cast field-of on (statement, 3), at-row,
+                cast one's container-depth on (cast field-of on (statement, 1)),
+                "set '{member}' to a value from a shorter-lived region than the object") or pass the failure off.
+            Return.
+        Done.
         Cast one's check-field-write on (owner, member, cast field-of on (statement, 3), at-row,
             cast one's container-depth on (cast field-of on (statement, 1)),
             "set '{member}' to a value from a shorter-lived region than the object") or pass the failure off.
@@ -847,6 +948,14 @@ Pull a book on collections.
         If target's kind is "ObjectType":
             Define owner as cast unquoted on (cast field-of on (target, 1)).
             If cast one's definition-of on (owner) is void, return a failure (cast not-judged on ("the fields of a '{owner}'")).
+            // ⚠ The setter before `permanently` here, where the possessive write asks the other way round — as C# does.
+            Define setter as cast one's setter-of on (owner, field).
+            If setter is not void:
+                Cast one's check-setter-write on (setter, field, cast field-of on (statement, 3), at-row,
+                    cast one's container-depth on (cast field-of on (statement, 2)),
+                    "set field '{field}' to a value from a shorter-lived region") or pass the failure off.
+                Return.
+            Done.
             Cast one's check-field-write on (owner, field, cast field-of on (statement, 3), at-row,
                 cast one's container-depth on (cast field-of on (statement, 2)),
                 "set field '{field}' to a value from a shorter-lived region") or pass the failure off.

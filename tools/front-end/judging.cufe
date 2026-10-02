@@ -207,6 +207,7 @@ Pull a book on collections.
         Done.
         If kind is "WhileStatement", return cast beyond-reach on (cast field-of on (statement, 2)).
         If kind is "WithOpenStatement", return cast beyond-reach on (cast field-of on (statement, 4)).
+        If kind is "GetterDeclaration" or kind is "SetterDeclaration", return cast property-beyond-reach on (statement).
         // A pipe of functions is the tasks slice; a pipe of programs is judged.
         If kind is "PipeExpression":
             If cast is-program-pipe on (statement), return "".
@@ -553,6 +554,17 @@ Pull a book on collections.
         Done.
         Otherwise if kind is "PipeExpression":
             Cast one's check-pipe-statement on (statement) or pass the failure off.
+        Done.
+        // A getter or setter written inside its object was checked with it.
+        Otherwise if kind is "GetterDeclaration":
+            If cast is-nothing on (cast field-of on (statement, 4)) is false:
+                Cast one's check-getter-body on (statement, cast unquoted on (cast field-of on (statement, 4)), cast getter-row on (statement)) or pass the failure off.
+            Done.
+        Done.
+        Otherwise if kind is "SetterDeclaration":
+            If cast is-nothing on (cast field-of on (statement, 5)) is false:
+                Cast one's check-setter-body on (statement, cast unquoted on (cast field-of on (statement, 5)), cast setter-row on (statement)) or pass the failure off.
+            Done.
         Done.
     Done.
 

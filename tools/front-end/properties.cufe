@@ -1,0 +1,162 @@
+/*  Getters and setters — a property read or written like a field. From `CheckGetterBody`,
+    `CheckSetterBody`, `ValidateGetterSetterNames` and `FindSetterInOtOrPromoted` in
+    `TypeChecker.Objects.cs`, and the getter and setter halves of `Pass1Hoist`.
+
+    ★ In the tree: `(GetterDeclaration "name" <type> [body] <unto or _> line column)` and
+    `(SetterDeclaration "name" <type> "parameter" [body] <unto or _> line column)`. One written
+    inside its object is in the definition; one written `unto` a type is gathered into the checker's
+    `untos` under `get <type>` or `set <type>`, beside that type's `unto` methods under its name.
+
+    ⚠ A getter may not share a name with one of its object's stored fields; a setter may, and that
+    is how a field gets a write hook.
+*/
+
+Pull a book on collections.
+    Bind number to getter-row, given (the node getter):
+        Return cast numeric on (cast field-of on (getter, 5)).
+    Done.
+
+    Bind number to setter-row, given (the node setter):
+        Return cast numeric on (cast field-of on (setter, 6)).
+    Done.
+
+    /// Every getter an object has: its own, then those written `unto` it.
+    Bind series of node to all-getters unto checker, given (the node definition):
+        Define found as a series of node.
+        For each getter in (cast field-of on (definition, 5))'s children, repeat:
+            Insert getter into found.
+        Done.
+        Define attached as the entry for "get {cast def-name on (definition)}" in one's untos.
+        If attached is not void:
+            For each getter in attached's children, repeat:
+                Insert getter into found.
+            Done.
+        Done.
+        Return found.
+    Done.
+
+    Bind series of node to all-setters unto checker, given (the node definition):
+        Define found as a series of node.
+        For each setter in (cast field-of on (definition, 6))'s children, repeat:
+            Insert setter into found.
+        Done.
+        Define attached as the entry for "set {cast def-name on (definition)}" in one's untos.
+        If attached is not void:
+            For each setter in attached's children, repeat:
+                Insert setter into found.
+            Done.
+        Done.
+        Return found.
+    Done.
+
+    /// The setter for a name — its own or an embedded object's — or void.
+    Bind voidable node to setter-of unto checker, given (the text name, the text setter-name):
+        Define definition as cast one's definition-of on (name).
+        If definition is void, return void.
+        For each setter in cast one's all-setters on (definition), repeat:
+            If cast unquoted on (cast field-of on (setter, 1)) is setter-name, return setter.
+        Done.
+        Define embedded as cast embedded-name on (definition).
+        If embedded is "", return void.
+        Return cast one's setter-of on (embedded, setter-name).
+    Done.
+
+    /// A write that a setter intercepts: the value must fit what the setter takes.
+    Bind void or failure to check-setter-write unto checker, given (the node setter, the text member,
+            the node value, the number at-row, the number target-depth, the text region-action):
+        Define taken as cast field-of on (setter, 2).
+        Define value-type as cast one's infer on (value) or pass the failure off.
+        If cast is-none on (value-type) is false and cast assignable on (taken, value-type) is false:
+            If cast beyond-types on (value-type) or cast beyond-types on (taken):
+                Return a failure (cast not-judged on ("a {value-type's kind} through a setter")).
+            Done.
+            Return a failure (cast refusal-of on ("setter for '{member}' expects a {cast type-words on (taken)}, not a {cast type-words on (value-type)}", "",
+                at-row, "set '{member}' to a {cast type-words on (value-type)}",
+                "The setter for '{member}' accepts a {cast type-words on (taken)}.")).
+        Done.
+        Cast one's check-region-store on (value, value-type, target-depth, at-row, region-action) or pass the failure off.
+    Done.
+
+    /// `ValidateGetterSetterNames`: no two getters or setters share a name, none shares a method's,
+    /// and no getter shares one of the object's own stored fields.
+    Bind void or failure to check-property-names unto checker, given (the node definition):
+        Define name as cast def-name on (definition).
+        Define at-row as cast numeric on (cast field-of on (definition, 9)).
+        Define method-names as a map from text to fact.
+        For each method in cast one's all-methods on (definition), repeat:
+            In method-names, the entry for cast unquoted on (cast field-of on (method, 1)) becomes true.
+        Done.
+        Define field-names as a map from text to fact.
+        For each pair in (cast field-of on (definition, 3))'s children, repeat:
+            In field-names, the entry for cast unquoted on (cast field-of on (pair, 1)) becomes true.
+        Done.
+        Define seen as a map from text to fact.
+        For each getter in cast one's all-getters on (definition), repeat:
+            Define getter-name as cast unquoted on (cast field-of on (getter, 1)).
+            If (the entry for getter-name in seen) is not void:
+                Return a failure (cast refusal-of on ("'{name}' has two getters both named '{getter-name}'", "",
+                    at-row, "define duplicate getter '{getter-name}'", "Each getter name must be unique. Rename one of them.")).
+            Done.
+            In seen, the entry for getter-name becomes true.
+            If (the entry for getter-name in method-names) is not void:
+                Return a failure (cast refusal-of on ("'{name}' getter '{getter-name}' clashes with a method of the same name", "",
+                    at-row, "define getter '{getter-name}' when a method of the same name exists",
+                    "Rename the getter or the method — getters and methods can't share a name.")).
+            Done.
+            If (the entry for getter-name in field-names) is not void:
+                Return a failure (cast refusal-of on ("'{name}' getter '{getter-name}' has the same name as one of its stored fields",
+                    "Every read of that name would reach the getter, so the field could be set but never read back",
+                    at-row, "define getter '{getter-name}' beside a field of the same name", "Rename the getter or the field.")).
+            Done.
+        Done.
+        Define seen-setters as a map from text to fact.
+        For each setter in cast one's all-setters on (definition), repeat:
+            Define setter-name as cast unquoted on (cast field-of on (setter, 1)).
+            If (the entry for setter-name in seen-setters) is not void:
+                Return a failure (cast refusal-of on ("'{name}' has two setters both named '{setter-name}'", "",
+                    at-row, "define duplicate setter '{setter-name}'", "Each setter name must be unique. Rename one of them.")).
+            Done.
+            In seen-setters, the entry for setter-name becomes true.
+            If (the entry for setter-name in method-names) is not void:
+                Return a failure (cast refusal-of on ("'{name}' setter '{setter-name}' clashes with a method of the same name", "",
+                    at-row, "define setter '{setter-name}' when a method of the same name exists",
+                    "Rename the setter or the method — setters and methods can't share a name.")).
+            Done.
+        Done.
+    Done.
+
+    /// A getter's body: no parameters, and every path gives back what it says it does.
+    Bind void or failure to check-getter-body unto checker, given (the node getter, the text owner, the number self-row):
+        Define getter-name as cast unquoted on (cast field-of on (getter, 1)).
+        Define returned as cast field-of on (getter, 2).
+        Define body as cast field-of on (getter, 3).
+        Define at-row as cast getter-row on (getter).
+        Cast one's check-member-body on (owner, self-row, cast listed, at-row, false, returned, body) or pass the failure off.
+        If cast definitely-returns on (body) is false:
+            Return a failure (cast refusal-of on (
+                "getter '{getter-name}' is declared to give back a {cast type-words on (returned)}, but it can reach its end without returning one", "",
+                at-row, "define a getter that might not return a value",
+                "Make sure every path through the getter ends with a return statement.")).
+        Done.
+    Done.
+
+    /// A setter's body: the incoming value is its one parameter, and it gives back nothing.
+    Bind void or failure to check-setter-body unto checker, given (the node setter, the text owner, the number self-row):
+        Define parameter as cast listed.
+        Cast parameter's add on (cast field-of on (setter, 2)).
+        Cast parameter's add on (cast field-of on (setter, 3)).
+        Define parameters as cast listed.
+        Cast parameters's add on (parameter).
+        Cast one's check-member-body on (owner, self-row, parameters, cast setter-row on (setter), false, cast nothing,
+            cast field-of on (setter, 4)) or pass the failure off.
+    Done.
+
+    /// What a getter or setter written outside its object says this checker cannot judge yet, or "".
+    Bind text to property-beyond-reach, given (the node declaration):
+        Define typed as cast field-of on (declaration, 2).
+        Define body as cast field-of on (declaration, 3).
+        If declaration's kind is "SetterDeclaration", the body becomes cast field-of on (declaration, 4).
+        If cast beyond-types on (typed), return "a {declaration's kind} of a {typed's kind}".
+        Return cast beyond-reach on (body).
+    Done.
+Done.
