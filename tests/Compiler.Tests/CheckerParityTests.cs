@@ -27,7 +27,7 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
     : IClassFixture<CompiledCufetChecker>
 {
     /// <summary>How many corpus files must agree. Raised as the checker grows; never lowered.</summary>
-    private const int CorpusFloor = 92;
+    private const int CorpusFloor = 95;
 
     /// <summary>Where the bundled books' source is — the checker reads their layers with its own parser.</summary>
     private static string[] PreludeArgs =>
@@ -793,6 +793,19 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
         "Define object point with (the number x).\nBind making a ghost to spook:\n    Return 1.\nDone.\nBind unmaking a ghost to forget:\n    State 1.\nDone.",
         "Define object point with (the number x).\nBind unmaking a ghost to forget:\n    State 1.\nDone.\nBind unmaking a ghost to forget-again:\n    State 1.\nDone.",
         "Define object point with (the number x).\nDefine total as 4 permanently.\nBind unmaking a point to forget:\n    State total + one's x.\n    Define total as 2.\n    State total.\nDone.",
+        // Carried types: lifted out of their module under 'X in module', and rewritten back inside a pull of it.
+        "Define object spans with () and module:\n    Define object span with (the number low, the number high):\n        Bind number to width:\n            Return one's high - one's low.\n        Done.\n    Done.\n    Bind span to between, given (the number lo, the number hi):\n        Return a new span { the low lo, the high hi }.\n    Done.\nDone.\nPull a spans.\n    Define s as cast spans's between on (1, 3).\n    State cast s's width.\n    Define t as a new span { the low 1, the high 2 }.\n    State t's low + s's high.\nDone.",
+        "Define object spans with () and module:\n    Define object span with (the number low, the number high):\n        Bind number to width:\n            Return one's high - one's low.\n        Done.\n    Done.\nDone.\nPull a spans.\n    Define t as a new span { the low 1, the high 2 }.\n    State t's width.\nDone.",
+        "Define object spans with () and module:\n    Define object span with (the number low, the number high).\nDone.\nPull a spans.\n    Define t as a new span { the low 1, the high \"x\" }.\nDone.",
+        "Define object spans with () and module:\n    Define object span with (the number low, the number high).\nDone.\nDefine t as a new span { the low 1, the high 2 }.",
+        "Define object spans with () and module:\n    Define object span with (the number low, the number high).\nDone.\nPull a spans.\n    Define t as a new span { the low 1, the high 2 }.\n    The t becomes 5.\nDone.",
+        "Define object spans with () and module:\n    Define object span with (the number low, the number high).\nDone.\nPull a spans.\n    Bind number to width-of, given (the span s):\n        Return s's high - s's low.\n    Done.\n    State cast width-of on (a new span { the low 1, the high 4 }).\n    State cast width-of on (3).\nDone.",
+        "Define object spans with () and module:\n    Define object span with (the number low, the number high).\nDone.\nDefine object ranges with () and module:\n    Define object span with (the text label).\nDone.\nPull a spans.\n    Define t as a new span { the low 1, the high 2 }.\nDone.\nPull a ranges.\n    Define u as a new span { the label \"x\" }.\n    State u's label.\n    Define v as a new span { the low 1, the high 2 }.\nDone.",
+        "Define object span with (the text label).\nDefine object spans with () and module:\n    Define object span with (the number low, the number high).\nDone.\nDefine top as a new span { the label \"top\" }.\nPull a spans.\n    Define t as a new span { the low 1, the high 2 }.\n    State t's low.\nDone.",
+        "Define object spans with () and module:\n    Define object span with (the number low, the number high):\n        Bind number to width:\n            Return one's high - \"x\".\n        Done.\n    Done.\nDone.",
+        "Define object spans with () and module:\n    Define object span with (the number low, the number high).\n    Bind span to between, given (the number lo):\n        Return 5.\n    Done.\nDone.",
+        "Define object spans with () and module:\n    Define object span with (the number low, the number high).\nDone.\nPull a spans.\n    Define spans-list as a series of span.\n    Insert a new span { the low 1, the high 2 } into spans-list.\n    Insert 4 into spans-list.\nDone.",
+        "Define object spans with () and module:\n    Define object span with (the number low, the number high).\nDone.\nPull a spans.\n    Define t as a new span { the low 1, the high 2 }.\n    State t's middle.\nDone.",
     ];
 
     [Fact]
