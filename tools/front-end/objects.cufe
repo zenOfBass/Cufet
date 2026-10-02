@@ -948,7 +948,11 @@ Pull a book on collections.
         If target's kind is "ObjectType":
             Define owner as cast unquoted on (cast field-of on (target, 1)).
             If cast one's definition-of on (owner) is void, return a failure (cast not-judged on ("the fields of a '{owner}'")).
-            // ⚠ The setter before `permanently` here, where the possessive write asks the other way round — as C# does.
+            If cast one's is-permanent-field on (owner, field):
+                Return a failure (cast refusal-of on ("'{field}' is permanent — it is set when the {owner} is made, and never changes after", "",
+                    at-row, "change '{field}' after the {owner} was made",
+                    "Give '{field}' its value in the 'a new {owner}' literal. If it has to change later, declare the field without 'permanently'.")).
+            Done.
             Define setter as cast one's setter-of on (owner, field).
             If setter is not void:
                 Cast one's check-setter-write on (setter, field, cast field-of on (statement, 3), at-row,
