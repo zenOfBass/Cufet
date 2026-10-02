@@ -9,6 +9,16 @@ public sealed partial class TypeChecker
 
         if (recordType is ObjectType ot)
         {
+            // ★ Before the setter, as in CheckPossessiveSet: a setter must not become a way
+            // around `permanently` (see the comment there).
+            if (IsPermanentInOtOrPromoted(ot, stmt.FieldName))
+                throw TypeError(
+                    $"'{stmt.FieldName}' is permanent — it is set when the {ot.Name} is made, and never changes after",
+                    null, stmt.Line, stmt.Column,
+                    $"change '{stmt.FieldName}' after the {ot.Name} was made",
+                    $"Give '{stmt.FieldName}' its value in the 'a new {ot.Name}' literal. If it has to change later, " +
+                    $"declare the field without 'permanently'.");
+
             // Setter intercepts the write if one is defined.
             var setterSig = FindSetterInOtOrPromoted(ot, stmt.FieldName);
             if (setterSig != null)

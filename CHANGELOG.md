@@ -112,6 +112,9 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   said. It was accepted, and the getter won every read, so the field could be set and never read
   back: `a new circle { the radius 2 }` then `circle's radius` gave the getter's value. A setter
   named like its field is still how a field gets a write hook.
+- **A setter no longer lets a write past `permanently`.** With a setter on a permanent field,
+  `c's radius becomes 2` was refused but `The radius of c becomes 2` was accepted and ran the
+  setter. Both spellings are now refused.
 
 ## [0.26.0] — 2026-09-26
 

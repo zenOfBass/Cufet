@@ -11563,6 +11563,24 @@ public class InterpreterTests
         Assert.Contains("'circle' getter 'radius' has the same name as one of its stored fields", ex.Message);
     }
 
+    // A setter on a permanent field must not open a way around `permanently` — in either spelling
+    // of the write. The named one (`The radius of c becomes 2.`) once asked for the setter first.
+    [Theory]
+    [InlineData("c's radius becomes 2.")]
+    [InlineData("The radius of c becomes 2.")]
+    public void Setter_OnAPermanentField_DoesNotLetAWriteThrough(string write)
+    {
+        var ex = Assert.Throws<TypeException>(() => Run(
+            "Define object circle with (the number radius permanently):\n" +
+            "    Set radius given (the number r):\n" +
+            "        State r.\n" +
+            "    Done.\n" +
+            "Done.\n" +
+            "Define c as a new circle { the radius 1 }.\n" +
+            write));
+        Assert.Contains("'radius' is permanent", ex.Message);
+    }
+
     // Getter that doesn't return is caught by the type-checker.
     [Fact]
     public void Getter_TypeError_NoReturn()
