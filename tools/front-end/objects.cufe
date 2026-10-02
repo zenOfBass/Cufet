@@ -12,7 +12,7 @@ Pull a book on collections.
     // ── What this checker can judge in an object ──────────────────────────
 
     Bind text to object-beyond-reach, given (the node statement):
-        For each place in a series with (12, 13, 14), repeat:
+        For each place in a series with (12, 13), repeat:
             Define held as cast field-of on (statement, place).
             If held's kind is "list" and the number of held's children is greater than 0:
                 Return "an object with {cast object-part-name on (place)}".
@@ -492,6 +492,23 @@ Pull a book on collections.
         If cast shown-tree on (winner) is not cast shown-tree on (statement), return.
         Define at-row as cast numeric on (cast field-of on (statement, 9)).
 
+        // A default is checked here, where it is written, not at each `a new` that leaves its field out.
+        For each pair in (cast field-of on (statement, 14))'s children, repeat:
+            Define field as cast unquoted on (cast field-of on (pair, 1)).
+            Define declared as cast one's field-type-of on (name, field).
+            If declared is not void:
+                Define given-type as cast one's infer on (cast field-of on (pair, 2)) or pass the failure off.
+                If cast is-none on (given-type) is false and cast assignable on (declared, given-type) is false:
+                    If cast beyond-types on (given-type) or cast beyond-types on (declared):
+                        Return a failure (cast not-judged on ("a {given-type's kind} default")).
+                    Done.
+                    Return a failure (cast refusal-of on ("the default for '{field}' is a {cast type-words on (given-type)}, but the field holds a {cast type-words on (declared)}", "",
+                        at-row, "give '{field}' a {cast type-words on (given-type)} default",
+                        "Change the default to a {cast type-words on (declared)}, or change the field's type.")).
+                Done.
+            Done.
+        Done.
+
         Define embedded as cast embedded-name on (statement).
         If embedded is not "":
             If cast one's definition-of on (embedded) is void:
@@ -619,6 +636,26 @@ Pull a book on collections.
 
     // ── Making one ────────────────────────────────────────────────────────
 
+    /// `DefaultsFor`: the defaults a type's literal may lean on, down its embed chain — the nearer one wins.
+    Bind series of node to defaults-for unto checker, given (the text name):
+        Define found as a series of node.
+        Define taken as a map from text to fact.
+        Define current as name.
+        While current is not "", repeat:
+            Define definition as cast one's definition-of on (current).
+            If definition is void, return found.
+            For each pair in (cast field-of on (definition, 14))'s children, repeat:
+                Define field as cast unquoted on (cast field-of on (pair, 1)).
+                If (the entry for field in taken) is void:
+                    In taken, the entry for field becomes true.
+                    Insert pair into found.
+                Done.
+            Done.
+            The current becomes cast embedded-name on (definition).
+        Done.
+        Return found.
+    Done.
+
     Bind node or failure to infer-object-literal unto checker, given (the node said):
         Define name as cast unquoted on (cast field-of on (said, 1)).
         Define positional-values as (cast field-of on (said, 2))'s children.
@@ -670,16 +707,29 @@ Pull a book on collections.
         Done.
 
         Define all-fields as cast one's field-names on (name).
+        Define defaults as cast one's defaults-for on (name).
+        Define filled as a series of node.
         For each required in all-fields, repeat:
             Define present as false.
             For each pair in named-values, repeat:
                 If cast unquoted on (cast field-of on (pair, 1)) is required, the present becomes true.
             Done.
             If present is false:
+                For each pair in defaults, repeat:
+                    If present is false and cast unquoted on (cast field-of on (pair, 1)) is required:
+                        Insert pair into filled.
+                        The present becomes true.
+                    Done.
+                Done.
+            Done.
+            If present is false:
                 Return a failure (cast refusal-of on ("field '{required}' of '{name}' is missing", "",
                     at-row, "create a {name} without field '{required}'",
                     "Add 'the {required} <value>' to the object literal, or give the field a default where '{name}' is defined: 'the ... {required} with default <value>'.")).
             Done.
+        Done.
+        For each pair in filled, repeat:
+            Cast one's infer on (cast field-of on (pair, 2)) or pass the failure off.
         Done.
         For each pair in named-values, repeat:
             Define field as cast unquoted on (cast field-of on (pair, 1)).
