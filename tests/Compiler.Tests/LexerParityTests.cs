@@ -154,13 +154,21 @@ public class LexerParityTests
 
     // ── The tests ───────────────────────────────────────────────────────────
 
+    /// <remarks>
+    /// ⚠ A SAMPLE, every fifth file, the same trade `TheInterpretedParser_BuildsTheSameTree_
+    /// OnASampleOfTheCorpus` makes. Interpreted over every file this was the single slowest test in
+    /// the suite — 8.2 minutes MEASURED on 2026-10-01, and growing with every file the corpus
+    /// gains — while `TheCompiledLexer_AgreesWithCSharpToo` covers every file in about a minute.
+    /// What this one adds is the other backend running the same lexer, and a fifth of the corpus
+    /// says that as well as all of it.
+    /// </remarks>
     [Fact]
-    public void EveryFileInTheRepository_LexesTheSameInCufetAsInCSharp()
+    public void TheInterpretedLexer_LexesTheSameAsCSharp_OnASampleOfTheCorpus()
     {
-        var files = Corpus();
+        var files = Corpus().Where((_, i) => i % 5 == 0).ToList();
         // ★ A floor, not an exact count — the corpus grows. It is here so that an empty listing
         // (a wrong root, a moved folder) fails rather than comparing nothing and passing.
-        Assert.True(files.Count >= 80, $"only {files.Count} Cufet files found under {RepoRoot}");
+        Assert.True(files.Count >= 16, $"only {files.Count} Cufet files in the sample");
 
         var got = ByFile(Run(CufetExe, ["tools/front-end/lexer.cufe", .. files], RepoRoot));
         var problems = Differences(WithSources(files), got);
