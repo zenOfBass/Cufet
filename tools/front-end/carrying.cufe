@@ -39,6 +39,28 @@ Pull a book on collections.
         Return kept converted to text.
     Done.
 
+    /// `ShowWrittenNames`: a refusal with every lifted type name put back to the one its author
+    /// wrote — longest first, so a name that ends another is replaced after it.
+    Bind text to written-names unto checker, given (the text message):
+        Define lifted as a series of text.
+        For each pair in one's defs, repeat:
+            If the key of pair contains " in ", insert the key of pair into lifted.
+        Done.
+        Define shown as message.
+        While the number of lifted is greater than 0, repeat:
+            Define longest as 1.
+            Define place as 0.
+            For each name in lifted, repeat:
+                Increment place by 1.
+                If the length of name is greater than the length of item longest of lifted, the longest becomes place.
+            Done.
+            Define name as item longest of lifted.
+            The shown becomes replace name with cast display-name on (name) in shown.
+            Remove item longest from lifted.
+        Done.
+        Return shown.
+    Done.
+
     /// A copy of `whole` with its `place`th field replaced.
     Bind node to with-field, given (the node whole, the number place, the node value):
         Define copy as a new node { the kind whole's kind, the word whole's word, the children a series of node }.

@@ -1109,7 +1109,13 @@ Pull a book on collections.
             the pending-pulls a series of pending-pull,
             the carried-types a map from text to map from text to text }.
         Cast walker's register-prelude on (prelude).
-        Cast walker's check-program on (program) or pass the failure off.
+        // Every refusal leaves through here, so a lifted type name is put back once, for all of them.
+        Try to:
+            Cast walker's check-program on (program).
+        Done.
+        In case of failure:
+            Return a failure (cast walker's written-names on (the message of the failure)).
+        Done.
         Return "ok".
     Done.
 Done.
