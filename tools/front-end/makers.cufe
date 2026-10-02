@@ -1,0 +1,102 @@
+/*  Makers and unmakers — the end of `Pass1Hoist` (named constructors, then destructors),
+    `CheckConstructor` in `TypeChecker.Functions.cs` and `CheckUnmake` in `TypeChecker.Objects.cs`.
+
+    ★ In the tree a maker is an ordinary `(BindStatement …)` whose place 6 names the type it makes,
+    with that type as its return: `Bind making a point to origin` gives back `(ObjectType "point")`.
+    So it is hoisted, called and checked as a function; only its registration is its own. An
+    unmaker is `(UnmakerDeclaration "name" "type" [body] line column)`.
+
+    ⚠ Both are gathered from EVERY statement, at any depth (`AstSearch.EveryStatement`), not only
+    the hoistable ones — so `gather-kind` walks the whole tree.
+*/
+
+Pull a book on collections.
+    /// Every node of one kind, anywhere under `shape`, in the order they are written.
+    Bind void to gather-kind, given (the node shape, the text wanted, the series of node found):
+        If shape's kind is wanted, insert shape into found.
+        For each inner in shape's children, repeat:
+            If inner's kind is not "atom", cast gather-kind on (inner, wanted, found).
+        Done.
+    Done.
+
+    /// The makers registered on each type, then the one unmaker each type may have.
+    Bind void or failure to hoist-makers unto checker, given (the node program):
+        Define binds as a series of node.
+        Cast gather-kind on (program, "BindStatement", binds).
+        Define type-order as a series of text.
+        Define makers as a map from text to node.
+        For each declaration in binds, repeat:
+            Define made-type as cast field-of on (declaration, 6).
+            If cast is-nothing on (made-type) is false:
+                Define type-name as cast unquoted on (made-type).
+                Define group as the entry for type-name in makers.
+                If group is void:
+                    Define fresh-group as cast listed.
+                    In makers, the entry for type-name becomes fresh-group.
+                    Insert type-name into type-order.
+                    Cast fresh-group's add on (declaration).
+                Done.
+                Otherwise:
+                    Cast group's add on (declaration).
+                Done.
+            Done.
+        Done.
+        For each type-name in type-order, repeat:
+            Define group as (the entry for type-name in makers but void is cast listed)'s children.
+            If cast one's definition-of on (type-name) is void:
+                Return a failure (cast refusal-of on ("'{type-name}' is not a defined object type — 'making a {type-name}' has no type to register on", "",
+                    cast numeric on (cast field-of on (item 1 of group, 7)), "declare a maker for '{type-name}'",
+                    "Define 'object {type-name}' before declaring makers for it, or check the spelling.")).
+            Done.
+            Define names as a map from text to fact.
+            For each maker in group, repeat:
+                Define maker-name as cast unquoted on (cast field-of on (maker, 1)).
+                If (the entry for maker-name in names) is not void:
+                    Return a failure (cast refusal-of on ("'{type-name}' already has a maker named '{maker-name}'", "",
+                        cast numeric on (cast field-of on (maker, 7)), "declare another maker named '{maker-name}' for '{type-name}'",
+                        "Constructor names must be unique per type. Rename one of them.")).
+                Done.
+                In names, the entry for maker-name becomes true.
+            Done.
+        Done.
+
+        Define unmakers as a series of node.
+        Cast gather-kind on (program, "UnmakerDeclaration", unmakers).
+        Define unmade as a map from text to node.
+        Define unmade-order as a series of text.
+        For each unmaker in unmakers, repeat:
+            Define type-name as cast unquoted on (cast field-of on (unmaker, 2)).
+            If (the entry for type-name in unmade) is not void:
+                Return a failure (cast refusal-of on ("'{type-name}' already has an unmaker — 'Bind unmaking a {type-name}' appeared twice", "",
+                    cast numeric on (cast field-of on (unmaker, 4)), "declare a second unmaker for '{type-name}'",
+                    "Remove the duplicate. Each type has exactly one unmaker — one way to die.")).
+            Done.
+            In unmade, the entry for type-name becomes unmaker.
+            Insert type-name into unmade-order.
+        Done.
+        For each type-name in unmade-order, repeat:
+            If cast one's definition-of on (type-name) is void:
+                Define unmaker as the entry for type-name in unmade.
+                If unmaker is not void:
+                    Return a failure (cast refusal-of on ("'{type-name}' is not a defined object type — 'unmaking a {type-name}' has no type to register on", "",
+                        cast numeric on (cast field-of on (unmaker, 4)), "declare an unmaker for '{type-name}'",
+                        "Define 'object {type-name}' before declaring an unmaker for it, or check the spelling.")).
+                Done.
+            Done.
+        Done.
+    Done.
+
+    /// `CheckUnmake`: the body sees its object as `one`, takes nothing and gives nothing back — so a
+    /// `return a failure` in it is already refused, as a value returned from a void body.
+    Bind void or failure to check-unmaker unto checker, given (the node statement):
+        Define type-name as cast unquoted on (cast field-of on (statement, 2)).
+        Define at-row as cast numeric on (cast field-of on (statement, 4)).
+        If cast one's definition-of on (type-name) is void:
+            Return a failure (cast refusal-of on ("'{type-name}' is not a defined object type", "",
+                at-row, "declare an unmaker for '{type-name}'",
+                "Define 'object {type-name}' before declaring an unmaker for it.")).
+        Done.
+        Cast one's check-member-body on (type-name, at-row, cast listed, at-row, false, cast nothing,
+            cast field-of on (statement, 3)) or pass the failure off.
+    Done.
+Done.

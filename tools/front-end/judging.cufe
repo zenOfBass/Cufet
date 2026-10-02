@@ -216,6 +216,7 @@ Pull a book on collections.
         If kind is "RepeatUntilStatement", return cast beyond-reach on (cast field-of on (statement, 1)).
         If kind is "ForEachStatement", return cast beyond-reach on (cast field-of on (statement, 3)).
         If kind is "BindStatement", return cast bind-beyond-reach on (statement).
+        If kind is "UnmakerDeclaration", return cast beyond-reach on (cast field-of on (statement, 3)).
         If kind is "PullStatement", return cast beyond-reach on (cast field-of on (statement, 2)).
         If kind is "PullRabbitStatement", return cast beyond-reach on (cast field-of on (statement, 2)).
         If kind is "TryStatement":
@@ -286,6 +287,7 @@ Pull a book on collections.
         Cast one's check-method-blanks or pass the failure off.
         Cast one's check-leftover-untos or pass the failure off.
         Cast one's hoist-functions on (program) or pass the failure off.
+        Cast one's hoist-makers on (program) or pass the failure off.
         Cast one's resolve-types or pass the failure off.
         Cast one's hoist-shared-constants on (program) or pass the failure off.
         Cast one's check-block on (program) or pass the failure off.
@@ -490,6 +492,9 @@ Pull a book on collections.
         Done.
         Otherwise if kind is "BindStatement":
             Cast one's check-bind-statement on (statement) or pass the failure off.
+        Done.
+        Otherwise if kind is "UnmakerDeclaration":
+            Cast one's check-unmaker on (statement) or pass the failure off.
         Done.
         Otherwise if kind is "ReturnStatement":
             Cast one's check-return on (statement) or pass the failure off.

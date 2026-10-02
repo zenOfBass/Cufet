@@ -42,7 +42,6 @@ Pull a book on collections.
     /// Why this `Bind` is beyond reach yet, or "".
     Bind text to bind-beyond-reach, given (the node statement):
         If cast is-nothing on (cast field-of on (statement, 5)) is false, return "a method bound 'unto' a type".
-        If cast is-nothing on (cast field-of on (statement, 6)) is false, return "a maker".
         If the number of statement's children is greater than 8, return "a Bind with {(cast field-of on (statement, 9))'s word}".
         Define returned as cast field-of on (statement, 2).
         If cast is-nothing on (returned) is false:
