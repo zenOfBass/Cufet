@@ -27,7 +27,7 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
     : IClassFixture<CompiledCufetChecker>
 {
     /// <summary>How many corpus files must agree. Raised as the checker grows; never lowered.</summary>
-    private const int CorpusFloor = 89;
+    private const int CorpusFloor = 90;
 
     /// <summary>Where the bundled books' source is — the checker reads their layers with its own parser.</summary>
     private static string[] PreludeArgs =>
@@ -754,6 +754,23 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
         "Define object circle with (the number radius permanently):\n    Set radius given (the number r):\n        State r.\n    Done.\nDone.\nDefine c as a new circle { the radius 1 }.\nThe radius of c becomes 2.",
         "Define object circle with (the number radius):\n    Get area as blob:\n        Return 1.\n    Done.\nDone.",
         "Define object circle with (the number radius):\n    Get area as number:\n        Define r as one's radius.\n        If r is greater than 3, return 3.\n        Return r.\n    Done.\nDone.",
+        // Field defaults: checked where written, filled where left out, down the embed chain; a redefinition keeps only its own.
+        "Define object person with (the text name, the number age with default 0, the text city with default \"nowhere\").\nDefine bo as a new person { the name \"Bo\" }.\nState bo's age + 1.\nState \"{bo's city}!\".",
+        "Define object person with (the text name, the number age with default \"old\").",
+        "Define object person with (the text name, the number age with default mystery).",
+        "Define object person with (the text name, the number age with default 0).\nDefine bo as a new person { the age 3 }.",
+        "Define object person with (the text name, the number age with default 0).\nDefine bo as a new person { the name \"Bo\", the age \"x\" }.",
+        "Define object basket with (the text label, the series of number items with default a series of number).\nDefine one-basket as a new basket { the label \"a\" }.\nInsert 7 into one-basket's items.\nState the number of one-basket's items.",
+        "Define object basket with (the text label, the series of number items with default a series of text).",
+        "Define object animal with (the number legs with default 4).\nDefine object dog with (the text name) and as an animal.\nDefine d as a new dog { the name \"rex\" }.\nState d's legs + 1.",
+        "Define object animal with (the number legs with default \"four\").\nDefine object dog with (the text name) and as an animal.\nDefine d as a new dog { the name \"rex\" }.",
+        "Define object person with (the number age with default \"x\").\nDefine object person with (the number age).\nDefine bo as a new person { the age 3 }.",
+        "Define object person with (the number age with default \"x\").\nDefine object person with (the number age).\nDefine bo as a new person { }.",
+        "Define object person with (the number age with default 1 / 0).\nDefine bo as a new person { }.\nState bo's age.",
+        "Define object person with (the number age with default 2 + \"x\").",
+        "Define object person with (the number age with default 1, the number age2 with default the age).",
+        "Define object person with (the number age with default 1) and as a ghost.",
+        "Define object person with (the voidable number age with default void).\nDefine bo as a new person { }.\nState bo's age but void is 0.",
     ];
 
     [Fact]

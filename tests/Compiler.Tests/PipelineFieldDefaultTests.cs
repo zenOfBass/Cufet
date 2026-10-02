@@ -88,6 +88,21 @@ public class PipelineFieldDefaultTests : PipelineTestBase
     }
 
     [Fact]
+    public void ARedefinition_DoesNotKeepTheDefaultsOfTheOneItReplaced()
+    {
+        // The last definition wins, and this one gives 'age' no default. The first one's "x" used
+        // to stay on file, unchecked (a superseded definition is not checked), and filled the
+        // number field — `check` passed and the run died at the `+`.
+        var ex = Assert.Throws<TypeException>(() => InterpretRaw("""
+            Define object person with (the number age with default "x").
+            Define object person with (the number age).
+            Define bo as a new person { }.
+            State bo's age + 1.
+            """));
+        Assert.Contains("field 'age' of 'person' is missing", ex.Message);
+    }
+
+    [Fact]
     public void ADefaultOnAVoidableField_Works()
     {
         // The entry's own motivating case: a voidable field had to be supplied anyway, so

@@ -2364,7 +2364,10 @@ public sealed partial class TypeChecker
             if (stmt is not ObjectDefinition od || od.TypeParameters is { Count: > 0 }) continue;
             if (!_objectDefs.TryGetValue(od.Name, out var ot)) continue;
 
-            if (od.FieldDefaults is { Count: > 0 } defaults) _fieldDefaults[od.Name] = defaults;
+            // ⚠ Only the WINNER's defaults. A superseded definition is never checked, so its
+            // defaults leaked into the winner unchecked: a text default filled a number field.
+            bool superseded = _winningDefinition.TryGetValue(od.Name, out var winner) && !ReferenceEquals(winner, od);
+            if (!superseded && od.FieldDefaults is { Count: > 0 } defaults) _fieldDefaults[od.Name] = defaults;
 
             foreach (var method in od.Methods)
             {
