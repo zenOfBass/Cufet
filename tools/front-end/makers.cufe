@@ -29,6 +29,13 @@ Pull a book on collections.
             Define made-type as cast field-of on (declaration, 6).
             If cast is-nothing on (made-type) is false:
                 Define type-name as cast unquoted on (made-type).
+                If cast is-nothing on (cast field-of on (declaration, 5)) is false:
+                    Define maker-name as cast unquoted on (cast field-of on (declaration, 1)).
+                    Return a failure (cast refusal-of on ("a maker can't also be an 'unto' method", "",
+                        cast numeric on (cast field-of on (declaration, 7)),
+                        "declare 'Bind making a {type-name} to {maker-name} unto ...'",
+                        "Constructors are free functions — they can't be attached to a type with 'unto'.")).
+                Done.
                 Define group as the entry for type-name in makers.
                 If group is void:
                     Define fresh-group as cast listed.

@@ -43,7 +43,6 @@ Pull a book on collections.
         Define reach as cast bind-beyond-reach on (statement).
         If reach is not "a method bound 'unto' a type", return reach.
         // Its own checks, without the `unto` itself.
-        If cast is-nothing on (cast field-of on (statement, 6)) is false, return "a maker".
         If the number of statement's children is greater than 8, return "a Bind with {(cast field-of on (statement, 9))'s word}".
         Define returned as cast field-of on (statement, 2).
         If cast is-nothing on (returned) is false:
