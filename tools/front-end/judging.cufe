@@ -38,7 +38,8 @@ Pull a book on collections.
         the map from text to node interfaces,
         the text checking-module,
         the map from text to series of text module-needs,
-        the series of pending-pull pending-pulls).
+        the series of pending-pull pending-pulls,
+        the map from text to map from text to text carried-types).
 
     /// A pull of a module, remembered with the names visible at it — its needs are verified once
     /// every module's body has been checked, since one may be defined after the block that pulls it.
@@ -278,7 +279,9 @@ Pull a book on collections.
         Return "".
     Done.
 
-    Bind void or failure to check-program unto checker, given (the node program):
+    Bind void or failure to check-program unto checker, given (the node written):
+        // A module's carried types become ordinary top-level objects before anything else.
+        Define program as cast one's lift-carried-types on (written).
         Define reach as cast program-beyond-reach on (program).
         If reach is not "", return a failure (cast not-judged on (reach)).
         Cast check-versions on (program) or pass the failure off.
@@ -1103,7 +1106,8 @@ Pull a book on collections.
             the interfaces a map from text to node,
             the checking-module "",
             the module-needs a map from text to series of text,
-            the pending-pulls a series of pending-pull }.
+            the pending-pulls a series of pending-pull,
+            the carried-types a map from text to map from text to text }.
         Cast walker's register-prelude on (prelude).
         Cast walker's check-program on (program) or pass the failure off.
         Return "ok".

@@ -1,0 +1,176 @@
+/*  Types a module carries — `ModuleTypeLifting` in `src/Interpreter/ModuleTypeLifting.cs`.
+
+    ★ A front-end pass, run before anything else is checked. Each type a module carries is moved
+    out to the top level under a name nobody can write — `span in spans`, unwritable for its space
+    — and every reference to the short name inside the module and its carried types is rewritten
+    to match. So the hoist meets an ordinary top-level object, and only a `Pull` of the module puts
+    the short name back in scope, as a scoped type, for the length of its block.
+
+    ★ Inside a `Pull` of such a module the short name is rewritten too, so a DECLARATION in the
+    block can name the type in its signature — unless the block declares a type of that name
+    itself, which then wins.
+
+    ⚠ Only the program's top-level statements are lifted, and only top-level pulls (and the pulls
+    inside them) are rewritten, as C# does.
+*/
+
+Pull a book on collections.
+    /// The name to SHOW for a type: the one its author wrote, any owner appended taken back off —
+    /// trimmed at the LAST ` in `, so a carried generic keeps the part that is really its name.
+    Bind text to display-name, given (the text name):
+        Define letters as a chase.
+        Insert name into letters.
+        Define at as 0.
+        Define place as 1.
+        While place + 3 is not greater than the number of letters, repeat:
+            If item place of letters is " " and item (place + 1) of letters is "i" and item (place + 2) of letters is "n"
+                    and item (place + 3) of letters is " ":
+                The at becomes place.
+            Done.
+            Increment place by 1.
+        Done.
+        If at is not greater than 1, return name.
+        Define kept as a chase.
+        Define index as 1.
+        While index is less than at, repeat:
+            Insert item index of letters into kept.
+            Increment index by 1.
+        Done.
+        Return kept converted to text.
+    Done.
+
+    /// A copy of `whole` with its `place`th field replaced.
+    Bind node to with-field, given (the node whole, the number place, the node value):
+        Define copy as a new node { the kind whole's kind, the word whole's word, the children a series of node }.
+        Define index as 0.
+        For each child in whole's children, repeat:
+            Increment index by 1.
+            If index is place, cast copy's add on (value).
+            Otherwise, cast copy's add on (child).
+        Done.
+        Return copy.
+    Done.
+
+    /// A copy of `shape` with every object type and object literal named in `names` renamed.
+    Bind node to renamed-deep, given (the node shape, the map from text to text names):
+        If shape's kind is "atom", return shape.
+        Define copy as a new node { the kind shape's kind, the word shape's word, the children a series of node }.
+        Define index as 0.
+        Define renames as shape's kind is "ObjectType" or shape's kind is "ObjectLiteral".
+        For each child in shape's children, repeat:
+            Increment index by 1.
+            Define replaced as false.
+            If renames and index is 1:
+                Define lifted as the entry for (cast unquoted on (child) in lowercase) in names.
+                If lifted is not void:
+                    Cast copy's add on (cast quoted on (lifted)).
+                    The replaced becomes true.
+                Done.
+            Done.
+            If replaced is false, cast copy's add on (cast renamed-deep on (child, names)).
+        Done.
+        Return copy.
+    Done.
+
+    /// `ModuleTypeLifting.Expand`: the program with every carried type lifted to the top level.
+    Bind node to lift-carried-types unto checker, given (the node program):
+        Define rewritten as cast listed.
+        Define any as false.
+        For each statement in program's children, repeat:
+            Define held as cast listed.
+            If statement's kind is "ObjectDefinition", the held becomes cast field-of on (statement, 13).
+            If held's kind is "list" and the number of held's children is greater than 0:
+                The any becomes true.
+                Define module-name as cast unquoted on (cast field-of on (statement, 1)).
+                Define names as a map from text to text.
+                For each type in held's children, repeat:
+                    Define short as cast unquoted on (cast field-of on (type, 1)).
+                    In names, the entry for (short in lowercase) becomes "{short} in {module-name}".
+                Done.
+                For each type in held's children, repeat:
+                    Define renamed as cast renamed-deep on (cast with-field on (type, 13, cast listed), names).
+                    Define short as cast unquoted on (cast field-of on (type, 1)).
+                    Cast rewritten's add on (cast with-field on (renamed, 1, cast quoted on ("{short} in {module-name}"))).
+                Done.
+                Cast rewritten's add on (cast renamed-deep on (cast with-field on (statement, 13, cast listed), names)).
+                In one's carried-types, the entry for (module-name in lowercase) becomes names.
+            Done.
+            Otherwise:
+                Cast rewritten's add on (statement).
+            Done.
+        Done.
+        If any is false, return program.
+        Return cast one's rewrite-inside-pulls on (rewritten).
+    Done.
+
+    /// Inside `Pull <module>. … Done.`, the module's carried short names are rewritten to their
+    /// lifted ones — except a name the block declares a type of itself.
+    Bind node to rewrite-inside-pulls unto checker, given (the node statements):
+        Define result as cast listed.
+        For each statement in statements's children, repeat:
+            If statement's kind is not "PullStatement":
+                Cast result's add on (statement).
+            Done.
+            Otherwise:
+                Define own as a series of node.
+                Cast gather-kind on (cast field-of on (statement, 2), "ObjectDefinition", own).
+                Define declared as a map from text to fact.
+                For each definition in own, repeat:
+                    In declared, the entry for (cast unquoted on (cast field-of on (definition, 1)) in lowercase) becomes true.
+                Done.
+                Define names as a map from text to text.
+                Define count as 0.
+                For each pair in (cast field-of on (statement, 1))'s children, repeat:
+                    Define book as cast unquoted on (cast field-of on (pair, 1)).
+                    Define mine as the entry for (book in lowercase) in one's carried-types.
+                    If mine is not void:
+                        For each entry in mine, repeat:
+                            If (the entry for (the key of entry) in declared) is void:
+                                In names, the entry for (the key of entry) becomes the value of entry.
+                                Increment count by 1.
+                            Done.
+                        Done.
+                    Done.
+                Done.
+                Define body as cast field-of on (statement, 2).
+                If count is greater than 0, the body becomes cast renamed-deep on (body, names).
+                The body becomes cast one's rewrite-inside-pulls on (body).
+                Cast result's add on (cast with-field on (statement, 2, body)).
+            Done.
+        Done.
+        Return result.
+    Done.
+
+    /// "", or why this pull is beyond reach: C# also puts a carried type's short name in SCOPE for
+    /// the block, which reaches a pull the rewrite above did not — one inside an `If`, say. This
+    /// checker resolves only the rewritten names, so a short name still standing is not judged.
+    Bind text to carried-beyond-reach unto checker, given (the node statement):
+        Define names as a map from text to fact.
+        For each pair in (cast field-of on (statement, 1))'s children, repeat:
+            Define mine as the entry for (cast unquoted on (cast field-of on (pair, 1)) in lowercase) in one's carried-types.
+            If mine is not void:
+                For each entry in mine, repeat:
+                    In names, the entry for (the key of entry) becomes true.
+                Done.
+            Done.
+        Done.
+        If the size of names is 0, return "".
+        Define own as a series of node.
+        Cast gather-kind on (cast field-of on (statement, 2), "ObjectDefinition", own).
+        For each definition in own, repeat:
+            If (the entry for (cast unquoted on (cast field-of on (definition, 1)) in lowercase) in names) is not void:
+                Return "a block declaring a type its pull carries".
+            Done.
+        Done.
+        For each wanted in a series with ("ObjectType", "ObjectLiteral"), repeat:
+            Define found as a series of node.
+            Cast gather-kind on (cast field-of on (statement, 2), wanted, found).
+            For each reference in found, repeat:
+                If (the entry for (cast unquoted on (cast field-of on (reference, 1)) in lowercase) in names) is not void:
+                    Return "a carried type named inside a pull that is not at the top level".
+                Done.
+            Done.
+        Done.
+        Return "".
+    Done.
+Done.

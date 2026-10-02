@@ -121,6 +121,8 @@ Pull a book on collections.
 
     Bind void or failure to check-pull unto checker, given (the node statement):
         Define at-row as cast numeric on (cast field-of on (statement, 3)).
+        Define carried-reach as cast one's carried-beyond-reach on (statement).
+        If carried-reach is not "", return a failure (cast not-judged on (carried-reach)).
         Define via-book-form as cast truth-of on (cast field-of on (statement, 5)).
         Cast one's enter-scope.
         For each pair in (cast field-of on (statement, 1))'s children, repeat:
