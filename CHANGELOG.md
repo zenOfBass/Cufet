@@ -34,18 +34,18 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   a token, and with a token deleted) and on a hand-written list for what no cut reaches: the
   lexer's refusals, a reserved word in a name's place, blocks left open, patterns, a `cufet` block
   and two interfaces supplying one default. A sweep of 7,637 such programs agreed on every one.
-- **The type checker, begun in Cufet** — `tools/front-end/checker.cufe`, the third piece. It says
-  of each file what `TypeChecker.Check` says — accepted, or refused in the same words — and
-  `CheckerParityTests` holds it to that on 606 hand-written programs and on the corpus. It judges
+- **The type checker, begun in Cufet** — `tools/front-end/checker.cufe`, the third piece. It says of
+  each file what `TypeChecker.Check` says — accepted, or refused in the same words — and
+  `CheckerParityTests` holds it to that on 636 hand-written programs and on the corpus. It judges
   names and scopes, `Define` and `becomes`, operators, text and its operations, bit patterns,
   series, ranges, sorting, records, maps, sets, chases, matrices, the `chance` book, voidables,
-  unions and narrowing, `Judge`, `when … otherwise`, functions with named arguments, objects
-  with their fields, methods, `unto` methods and embedding, interfaces and conformance, modules,
-  books and regions — the bundled books read with its own parser — the rule that keeps a
-  region's values inside it, failures — `Try`, `but on failure` and `or pass the failure off` —
-  and input and output: files, directories, streams, running programs and piping them.
-  Anything it cannot judge yet it says so about, rather than accepting: 87 corpus files so far,
-  the rest waiting on the rarer constructs.
+  unions and narrowing, `Judge`, `when … otherwise`, functions with named arguments, objects with
+  their fields, methods, getters and setters, `unto` members and embedding, interfaces and
+  conformance, modules, books and regions — the bundled books read with its own parser — the rule
+  that keeps a region's values inside it, failures — `Try`, `but on failure` and `or pass the
+  failure off` — and input and output: files, directories, streams, running programs and piping
+  them. Anything it cannot judge yet it says so about, rather than accepting: 89 corpus files so
+  far, the rest waiting on the rarer constructs.
 
 ### Changed
 

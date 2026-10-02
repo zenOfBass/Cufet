@@ -27,7 +27,7 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
     : IClassFixture<CompiledCufetChecker>
 {
     /// <summary>How many corpus files must agree. Raised as the checker grows; never lowered.</summary>
-    private const int CorpusFloor = 87;
+    private const int CorpusFloor = 89;
 
     /// <summary>Where the bundled books' source is — the checker reads their layers with its own parser.</summary>
     private static string[] PreludeArgs =>
@@ -723,6 +723,37 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
         "Define r as (run \"ls\" | run \"sort\") but on failure 5.",
         "Run \"ls\" | run \"sort\".",
         "Run 5 | run \"sort\".",
+        // Getters and setters: inside an object and unto one, their names, their bodies, and writes a setter intercepts.
+        "Define object temp-sensor with (the number celsius):\n    Get fahrenheit as number:\n        Return one's celsius * 1.8 + 32.\n    Done.\n    Set fahrenheit given (the number f):\n        One's celsius becomes (f - 32) / 1.8.\n    Done.\nDone.\nDefine sensor as a new temp-sensor { the celsius 100 }.\nState sensor's fahrenheit + 1.\nState the fahrenheit of sensor.\nThe fahrenheit of sensor becomes 32.\nsensor's fahrenheit becomes 50.",
+        "Define object box with (the number value):\n    Set value given (the number v):\n        One's value becomes v.\n    Done.\nDone.\nDefine b as a new box { the value 0 }.\nb's value becomes 5.\nThe value of b becomes 6.\nState b's value.",
+        "Define object circle with (the number radius):\n    Get radius as number:\n        Return 5.\n    Done.\nDone.",
+        "Define object circle with (the number radius):\n    Get area as number:\n        State \"no return\".\n    Done.\nDone.",
+        "Define object circle with (the number radius):\n    Get area as number:\n        Return \"big\".\n    Done.\nDone.",
+        "Define object circle with (the number radius):\n    Get area as number:\n        Return 1.\n    Done.\n    Get area as number:\n        Return 2.\n    Done.\nDone.",
+        "Define object circle with (the number radius):\n    Bind number to area:\n        Return 1.\n    Done.\n    Get area as number:\n        Return 2.\n    Done.\nDone.",
+        "Define object circle with (the number radius):\n    Set size given (the number s):\n        One's radius becomes s.\n    Done.\n    Set size given (the number s):\n        One's radius becomes s.\n    Done.\nDone.",
+        "Define object circle with (the number radius):\n    Bind number to size:\n        Return 1.\n    Done.\n    Set size given (the number s):\n        One's radius becomes s.\n    Done.\nDone.",
+        "Define object circle with (the number radius):\n    Set size given (the number s):\n        One's radius becomes \"x\".\n    Done.\nDone.",
+        "Define object circle with (the number radius):\n    Set size given (the number s):\n        One's radius becomes s.\n    Done.\nDone.\nDefine c as a new circle { the radius 1 }.\nc'ssize becomes \"big\".",
+        "Define object circle with (the number radius):\n    Set size given (the number s):\n        One's radius becomes s.\n    Done.\nDone.\nDefine c as a new circle { the radius 1 }.\nThe size of c becomes \"big\".",
+        "Define object circle with (the number radius):\n    Set size given (the number s):\n        One's radius becomes s.\n    Done.\nDone.\nDefine c as a new circle { the radius 1 }.\nState c's size.",
+        "Define object circle with (the number radius):\n    Get area as number:\n        Return one's radius * 3.\n    Done.\nDone.\nDefine c as a new circle { the radius 1 }.\nc'sarea becomes 5.",
+        "Define object circle with (the number radius):\n    Get area as number:\n        Return one's radius * 3.\n    Done.\nDone.\nDefine c as a new circle { the radius 1 }.\nState the colour of c.",
+        "Define object circle with (the number radius):\n    Get area as number:\n        Return one's radius * 3.\n    Done.\nDone.\nDefine c as a new circle { the radius 1 }.\nState c's colour.",
+        "Define object circle with (the number radius):\n    Get area as number:\n        Return one's radius * mystery.\n    Done.\nDone.",
+        "Define object circle with (the number radius).\nGet doubled unto circle as number:\n    Return one's radius * 2.\nDone.\nSet halved unto circle given (the number h):\n    One's radius becomes h * 2.\nDone.\nDefine c as a new circle { the radius 1 }.\nState c's doubled + 1.\nc'shalved becomes 4.",
+        "Get doubled unto circle as number:\n    Return 2.\nDone.",
+        "Set halved unto circle given (the number h):\n    State h.\nDone.",
+        "Define object circle with (the number radius):\n    Get area as number:\n        Return 1.\n    Done.\nDone.\nGet area unto circle as number:\n    Return 2.\nDone.",
+        "Define object circle with (the number radius):\n    Set size given (the number s):\n        One's radius becomes s.\n    Done.\nDone.\nSet size unto circle given (the number s):\n    One's radius becomes s.\nDone.",
+        "Define object circle with (the number radius).\nGet doubled unto circle as number:\n    State \"x\".\nDone.",
+        "Define object circle with (the number radius).\nGet radius unto circle as number:\n    Return 2.\nDone.",
+        "Get doubled unto math as number:\n    Return 2.\nDone.",
+        "Define object shape with (the text name):\n    Get label as text:\n        Return one's name.\n    Done.\n    Set label given (the text t):\n        One's name becomes t.\n    Done.\nDone.\nDefine object square with (the number side) and as a shape.\nDefine s as a new square { the side 2, the name \"sq\" }.\nState s's label.\ns's label becomes \"x\".\nThe label of s becomes 5.",
+        "Define object circle with (the number radius permanently):\n    Set radius given (the number r):\n        State r.\n    Done.\nDone.\nDefine c as a new circle { the radius 1 }.\nc'sradius becomes 2.",
+        "Define object circle with (the number radius permanently):\n    Set radius given (the number r):\n        State r.\n    Done.\nDone.\nDefine c as a new circle { the radius 1 }.\nThe radius of c becomes 2.",
+        "Define object circle with (the number radius):\n    Get area as blob:\n        Return 1.\n    Done.\nDone.",
+        "Define object circle with (the number radius):\n    Get area as number:\n        Define r as one's radius.\n        If r is greater than 3, return 3.\n        Return r.\n    Done.\nDone.",
     ];
 
     [Fact]
