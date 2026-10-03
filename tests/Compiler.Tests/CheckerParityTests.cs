@@ -27,7 +27,7 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
     : IClassFixture<CompiledCufetChecker>
 {
     /// <summary>How many corpus files must agree. Raised as the checker grows; never lowered.</summary>
-    private const int CorpusFloor = 96;
+    private const int CorpusFloor = 97;
 
     /// <summary>Where the bundled books' source is — the checker reads their layers with its own parser.</summary>
     private static string[] PreludeArgs =>
@@ -839,6 +839,34 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
         "Define object box with (the number size):\n    Bind element to echo, given (the element x):\n        Return x.\n    Done.\nDone.\nDefine b as a new box { the size 1 }.\nState b's echo.",
         "Bind element to echo, given (the element x):\n    Return x.\nDone.\nBind number to first-user, given (the number n):\n    Return cast echo on (n).\nDone.\nBind number to second-user, given (the number n):\n    Return cast echo on (n) + 1.\nDone.\nState cast first-user on (1) + cast second-user on (2).\nState cast echo on (\"x\") + 1.",
         "Bind element to pick, given (the fact first-one, the element yes, the element no):\n    If first-one, return yes.\n    Return no.\nDone.\nState cast pick on (the no 2, the yes 1, the first-one false) + 10.\nState cast pick on (the no 2, the yes \"a\", the first-one false).",
+        // Blanks in objects: filled where a type is written or made, 'unto' a template or one filling, self-reference through the blank, a filled object passed to a generic.
+        "Define object stack of element with (the series of element items):\n    Bind void to push, given (the element value):\n        Insert value into one's items.\n    Done.\n    Bind number to how-many:\n        Return the number of one's items.\n    Done.\nDone.\nDefine counts as a new stack of number { the items a series of number }.\nCast push on (counts, 5).\nDefine names as a new stack of text { the items a series of text }.\nCast push on (names, \"Ada\").\nState cast how-many on counts + 1.\nState the first of names's items joined to \"!\".",
+        "Define object stack of element with (the series of element items).\nDefine counts as a new stack of number { the items a series of number }.\nInsert \"x\" into counts's items.",
+        "Define object stack of element with (the series of element items).\nDefine counts as a new stack of number { the items a series of text }.",
+        "Define object stack of element with (the series of element items).\nDefine counts as a new stack { the items a series of number }.",
+        "Define object stack of element with (the series of element items).\nDefine counts as a new stack of number of text { the items a series of number }.",
+        "Define object box with (the number size).\nDefine b as a new box of number { the size 1 }.",
+        "Define object stack of element with (the series of element items):\n    Bind element to top:\n        Return item 1 of one's items + 1.\n    Done.\nDone.\nDefine counts as a new stack of number { the items a series of number }.\nDefine names as a new stack of text { the items a series of text }.",
+        "Define object pair of left-thing of right-thing with (the left-thing one-side, the right-thing other-side).\nDefine labelled as a new pair of number of text { the one-side 7, the other-side \"seven\" }.\nState labelled's one-side + 1.\nState labelled's other-side + 1.",
+        "Define object stack of element with (the series of element items).\nBind number to size-of, given (the stack of number s):\n    Return the number of s's items.\nDone.\nDefine counts as a new stack of number { the items a series of number }.\nState cast size-of on (counts) + 1.\nDefine names as a new stack of text { the items a series of text }.\nState cast size-of on (names).",
+        "Define object stack of element with (the series of element items).\nBind number to peek unto stack of number:\n    Return the number of one's items.\nDone.\nDefine counts as a new stack of number { the items a series of number }.\nState cast peek on counts + 1.\nDefine names as a new stack of text { the items a series of text }.\nState cast peek on names.",
+        "Define object stack of element with (the series of element items).\nBind element to first-item unto stack:\n    Return item 1 of one's items.\nDone.\nDefine counts as a new stack of number { the items a series of number }.\nState cast first-item on counts + 1.\nDefine names as a new stack of text { the items a series of text }.\nState cast first-item on names + 1.",
+        "Define object stack of element with (the series of element items):\n    Bind number to peek:\n        Return 1.\n    Done.\nDone.\nBind number to peek unto stack of number:\n    Return 2.\nDone.\nDefine counts as a new stack of number { the items a series of number }.",
+        "Define object stack of element with (the series of element items).\nDefine nested as a series of stack of text.\nInsert a new stack of text { the items a series of text } into nested.\nInsert 5 into nested.",
+        "Define object stack of element with (the series of element items).\nBind number to size-of, given (the stack of mystery s):\n    Return 1.\nDone.",
+        "Define object holder of element with (the element held, the voidable holder of element next).\nDefine h as a new holder of number { the held 1, the next void }.\nState h's held + 1.",
+        "Define object stack of element with (the series of element items).\nDefine counts as a new stack of number { the items a series of number }.\nDefine other as a new stack of number { the items a series of number }.\nThe counts becomes other.\nDefine names as a new stack of text { the items a series of text }.\nThe counts becomes names.",
+        "Define object stack of element with (the series of element items).\nDefine s as a new stack of number { the items a series of number }.\nState s's missing.",
+        "Define object stack of element with (the series of element items).\nBind element to first-of, given (the stack of element s):\n    Return item 1 of s's items.\nDone.\nDefine s as a new stack of number { the items a series of number with (4) }.\nState cast first-of on (s) + 1.",
+        "Define object holder of element with (the element held, the series of holder of element children).\nDefine leaf as a new holder of number { the held 2, the children a series of holder of number }.\nDefine root as a new holder of number { the held 1, the children a series of holder of number }.\nInsert leaf into root's children.\nState (the first of root's children)'s held + root's held.\nInsert \"x\" into root's children.",
+        "Define object stack of element with (the series of element items).\nBind element to first-of, given (the stack of element s):\n    Return item 1 of s's items.\nDone.\nDefine counts as a new stack of number { the items a series of number with (4) }.\nDefine words as a new stack of text { the items a series of text with (\"w\") }.\nState cast first-of on (counts) + 1.\nState cast first-of on (words) + 1.",
+        "Define object stack of element with (the series of element items).\nBind fact to same-top, given (the stack of element first-stack, the element candidate):\n    Return item 1 of first-stack's items is candidate.\nDone.\nDefine counts as a new stack of number { the items a series of number with (4) }.\nState cast same-top on (counts, \"x\").",
+        "Define object stack of element with (the series of element items).\nDefine object box with (the number size).\nBind element to first-of, given (the stack of element s):\n    Return item 1 of s's items.\nDone.\nDefine b as a new box { the size 1 }.\nState cast first-of on (b).",
+        "Define object stack of element with (the series of element items).\nBind element to first-of, given (the stack of element s):\n    Return item 1 of s's items + 1.\nDone.\nDefine words as a new stack of text { the items a series of text with (\"w\") }.\nState cast first-of on (words).",
+        // Looping over what cannot be looped over: a text is pointed at the chase.
+        "Define word as \"abc\".\nFor each letter in word, repeat:\n    State letter.\nDone.",
+        "For each letter in \"abc\", repeat:\n    State letter.\nDone.",
+        "Define count as 3.\nFor each n in count, repeat:\n    State n.\nDone.",
     ];
 
     [Fact]

@@ -459,6 +459,20 @@ public class ChaseTests
             "    State seen.")));
     }
 
+    // A TEXT is not looped over, and the refusal points at the chase — which is what a chase is
+    // for. It used to list "series, maps and stashes" only, and advise defining a series.
+    [Fact]
+    public void LoopingOverAText_IsPointedAtAChase()
+    {
+        var ex = Assert.Throws<TypeException>(() => Run(
+            "Define word as \"abc\".\n" +
+            "For each letter in word, repeat:\n" +
+            "    State letter.\n" +
+            "Done."));
+        Assert.Contains("Only series, maps, sets, chases and stashes can be looped over", ex.Message);
+        Assert.Contains("'Insert word into letters.'", ex.Message);
+    }
+
     [Fact]
     public void ReachingPastTheEnd_SaysWhatASeriesWouldSay()
     {

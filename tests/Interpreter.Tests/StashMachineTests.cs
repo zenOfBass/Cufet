@@ -942,7 +942,7 @@ public class StashMachineTests
     [Fact]
     public void LoopingOverSomethingThatIsNeitherSeriesMapNorStash_SaysSo()
     {
-        Assert.Contains("Only series, maps and stashes", Assert.Throws<TypeException>(() => Run("""
+        Assert.Contains("Only series, maps, sets, chases and stashes", Assert.Throws<TypeException>(() => Run("""
             Define count as 3.
             For each value in count, repeat:
                 State value.

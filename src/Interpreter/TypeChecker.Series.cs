@@ -71,7 +71,14 @@ public sealed partial class TypeChecker
                 $"It evaluates to {FormatTypePlural(inferred)}, not a series",
                 forEach.Line, forEach.Column,
                 "loop over it as if it were a series",
-                "Only series, maps and stashes can be looped over. Define a series if that's what you need.");
+                // ⚠ A chase and a set can be looped over too, and this used to leave both out — so a
+                // TEXT, which is what a chase is for, was told to define a series instead.
+                "Only series, maps, sets, chases and stashes can be looped over. "
+              + (inferred is TextType
+                    ? "To go through a text one character at a time, put it in a chase — inside "
+                    + "'Pull a book on collections.': 'Define letters as a chase.', "
+                    + $"'Insert {FormatExpr(forEach.Series)} into letters.', then loop over letters."
+                    : "Define a series if that's what you need."));
 
         var iterKey2 = forEach.IteratorName ?? "it";
         // What StashTransform needs to rewrite this loop into an indexed one: the source's type (to
