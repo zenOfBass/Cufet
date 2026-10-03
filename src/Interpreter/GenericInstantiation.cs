@@ -47,7 +47,7 @@ internal static class GenericInstantiation
                 ? filling
                 : type;
 
-        var filled = AstRebuilder.Rebuild(template, Substitute);
+        var filled = FilledCopy(template, Substitute);
 
         // The name and the blank list are the two things the rebuild cannot supply: one is a string,
         // and the other has to be EMPTIED or the result would look like a template again.
@@ -68,6 +68,28 @@ internal static class GenericInstantiation
                 ? filling
                 : leaf);
 
-        return AstRebuilder.Rebuild(template, Substitute) with { Name = filledName };
+        return FilledCopy(template, Substitute) with { Name = filledName };
+    }
+
+    /// <summary>The template rebuilt with its blanks substituted, and every CALL in it a fresh node.</summary>
+    /// <remarks>
+    /// ⚠⚠ A rebuild hands back the ORIGINAL node wherever nothing under it changed, so every
+    /// filling used to share the template's calls — and the checker writes the filling a call
+    /// reaches ONTO the call (<c>ResolvedFunctionName</c>). Two fillings of a generic that calls a
+    /// generic then shared one answer, and the last one checked won: `echo-twice of text` was
+    /// compiled calling `echo of number`. MEASURED 2026-10-02 as C that gcc refused.
+    /// </remarks>
+    private static T FilledCopy<T>(T template, Func<CufetType, CufetType> substitute) where T : class
+    {
+        // A copy is never copied again: the rebuilder offers the replacement back to the hook.
+        var fresh = new HashSet<object>(ReferenceEqualityComparer.Instance);
+        TNode Remember<TNode>(TNode made) where TNode : class { fresh.Add(made); return made; }
+        IExpression? Call(IExpression expression) =>
+            expression is CastExpression call && !fresh.Contains(call) ? Remember(call with { }) : null;
+        IStatement? CallStatement(IStatement statement) =>
+            statement is CastStatement call && !fresh.Contains(call) ? Remember(call with { }) : null;
+        return AstRebuilder.TryRebuild(template, substitute, out var rebuilt, CallStatement, null, Call)
+            ? (T)rebuilt!
+            : template;
     }
 }

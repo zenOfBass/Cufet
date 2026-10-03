@@ -1358,14 +1358,15 @@ public sealed partial class TypeChecker
             spliced.AddRange(WithFilledMethods(
                 WithoutTemplates(program.Statements, _genericFunctions.Keys.ToHashSet(StringComparer.Ordinal),
                                  UntoAbsorbedTargets())));
-            return new TypeChecker
-                   {
-                       _instantiationDepth = _instantiationDepth + 1,
-                       // ⚠ Without this the child reports a filled body's refusal at the body's own
-                       // line, having never seen the call that filled it.
-                       _instantiationOrigin = _instantiationOrigin,
-                   }
-                .Check(new Program(spliced));
+            var child = new TypeChecker
+            {
+                _instantiationDepth = _instantiationDepth + 1,
+                // ⚠ Without this the child reports a filled body's refusal at the body's own
+                // line, having never seen the call that filled it.
+                _instantiationOrigin = _instantiationOrigin,
+            };
+            child.InheritTemplates(this);
+            return child.Check(new Program(spliced));
         }
 
         // ★ Templates are dropped even when NOTHING filled them. The splice branch above strips
@@ -1953,6 +1954,27 @@ public sealed partial class TypeChecker
         return new Program(statements);
     }
 
+    /// <summary>The templates, handed to the checker that re-checks the spliced program.</summary>
+    /// <remarks>
+    /// ⚠⚠ The splice DROPS the templates — no backend may meet one — so a child that was not told
+    /// about them could not fill anything. A call written at the top level is safe either way: it
+    /// carries the filling this checker worked out. A call INSIDE a filled body is a fresh copy of
+    /// the template's call and carries nothing, so `cast echo on (x)` in a generic that calls
+    /// another generic was refused with "'echo' isn't defined". MEASURED 2026-10-02.
+    /// ★ It still terminates: a filling that already exists is found, not rebuilt, so the child
+    /// splices again only for one that is genuinely new — and the depth guard catches a template
+    /// whose fillings never stop making new ones.
+    /// </remarks>
+    private void InheritTemplates(TypeChecker parent)
+    {
+        foreach (var (name, held) in parent._genericFunctions) _genericFunctions[name] = held;
+        foreach (var (key, held) in parent._genericMethods) _genericMethods[key] = held;
+        foreach (var (name, held) in parent._genericObjectDefs) _genericObjectDefs[name] = held;
+        foreach (var (name, held) in parent._untoFillingMethods) _untoFillingMethods[name] = held;
+        foreach (var (name, held) in parent._untoFillingGetters) _untoFillingGetters[name] = held;
+        foreach (var (name, held) in parent._untoFillingSetters) _untoFillingSetters[name] = held;
+    }
+
     /// <summary>
     /// Puts each filled-in method onto its owning definition, and drops the template it came from.
     /// </summary>
@@ -1974,14 +1996,18 @@ public sealed partial class TypeChecker
                     rebuilt.Add(pull with { Body = WithFilledMethods(pull.Body) });
                     continue;
 
+                // ⚠ Or a definition that holds NO template any more but has new fillings: in a
+                // re-check the templates were dropped already, and a filled body may still fill
+                // the method again with another type.
                 case ObjectDefinition od
-                    when od.Methods.Any(m => _genericMethods.ContainsKey((od.Name, m.Name))):
+                    when od.Methods.Any(m => _genericMethods.ContainsKey((od.Name, m.Name)))
+                         || _instantiatedMethods.ContainsKey(od.Name):
                 {
                     var kept = od.Methods
                         .Where(m => !_genericMethods.ContainsKey((od.Name, m.Name)))
                         .ToList();
                     if (_instantiatedMethods.TryGetValue(od.Name, out var filled))
-                        kept.AddRange(filled.Values);
+                        kept.AddRange(filled.Values.Where(f => !kept.Any(k => k.Name == f.Name)));
                     rebuilt.Add(od with { Methods = kept });
                     continue;
                 }

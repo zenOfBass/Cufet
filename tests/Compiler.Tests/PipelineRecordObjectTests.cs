@@ -110,6 +110,91 @@ public class PipelineRecordObjectTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
+    /// <summary>A generic that calls a generic — from a function body and from a method body.</summary>
+    /// <remarks>
+    /// ⚠ Refused until 2026-10-02 with "'echo' isn't defined": a filled body is checked again on
+    /// the spliced program, where the templates are gone, and a call inside it carried no filling of
+    /// its own. Here `echo of text` is made ONLY from inside other fillings, never at the top level.
+    /// </remarks>
+    [Fact]
+    public void AGenericCallingAGeneric_FillsFromInsideTheFilling()
+    {
+        const string src = """
+            Bind element to echo, given (the element x):
+                Return x.
+            Done.
+
+            Bind element to echo-twice, given (the element x):
+                Return cast echo on (cast echo on (x)).
+            Done.
+
+            Define object box with (the number size):
+                Bind element to pass-along, given (the element x):
+                    Return cast echo-twice on (x).
+                Done.
+            Done.
+
+            State cast echo-twice on (5) + 1.
+            Define b as a new box { the size 1 }.
+            State cast b's pass-along on ("passed") joined to "!".
+            """;
+        Assert.Equal("6\npassed!\n", InterpretRaw(src).ReplaceLineEndings("\n"));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    /// <summary>A filling first made inside a function body, asked for again outside it.</summary>
+    /// <remarks>
+    /// ⚠ "'echo' isn't defined" until 2026-10-02: the filling was entered in the body's scope only,
+    /// so the second call found it already built and could not see it.
+    /// </remarks>
+    [Fact]
+    public void AFillingMadeInsideABody_IsStillThereOutsideIt()
+    {
+        const string src = """
+            Bind element to echo, given (the element x):
+                Return x.
+            Done.
+
+            Bind number to user, given (the number n):
+                Return cast echo on (n) + 1.
+            Done.
+
+            State cast user on (2).
+            State cast echo on (7) + 1.
+            """;
+        Assert.Equal("3\n8\n", InterpretRaw(src).ReplaceLineEndings("\n"));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    /// <summary>A generic called with named arguments — function and method alike.</summary>
+    /// <remarks>
+    /// ⚠ Refused until 2026-10-02 as reaching its function "through a value": the template's name
+    /// is not in scope before it is filled, though its parameters are declared and named.
+    /// </remarks>
+    [Fact]
+    public void AGeneric_TakesNamedArguments()
+    {
+        const string src = """
+            Bind element to pick, given (the fact first-one, the element yes, the element no):
+                If first-one, return yes.
+                Return no.
+            Done.
+
+            Define object box with (the number size):
+                Bind element to echo, given (the element x):
+                    Return x.
+                Done.
+            Done.
+
+            State cast pick on (the no 2, the yes 1, the first-one false) + 10.
+            Define b as a new box { the size 1 }.
+            State cast b's echo on (the x "named") joined to "!".
+            State cast echo on (b, the x 3) + 1.
+            """;
+        Assert.Equal("12\nnamed!\n4\n", InterpretRaw(src).ReplaceLineEndings("\n"));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
     // ── A definition that leaves a blank ──
     //
     // ★★ Filling happens in the FRONT END: `a stack of number` becomes an ordinary definition named

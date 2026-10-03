@@ -575,6 +575,16 @@ public sealed partial class TypeChecker
                 return (md.funcType.ParameterNames, 1);
             if (TryLookup(called, out var info) && info!.Type is FunctionType ft)
                 return (ft.ParameterNames, 0);
+            // ⚠ A TEMPLATE is reached before it is filled — the filling is read off these very
+            // arguments, so it cannot exist yet. Its parameters are DECLARED, so their names are
+            // known; without this a generic called with `the x 5` was told it was reached
+            // "through a value". The free-cast spelling of a generic METHOD is the same case.
+            if (resolvedName is null && _genericFunctions.TryGetValue(vr.Name, out var heldFunction))
+                return (heldFunction.Bind.Parameters.Select(p => p.Name).ToList(), 0);
+            if (resolvedName is null && positional.Count > 0
+                && MemberOwnerType(InferType(positional[0])) is ObjectType freeOwner
+                && _genericMethods.TryGetValue((freeOwner.Name, vr.Name), out var heldFree))
+                return (heldFree.Bind.Parameters.Select(p => p.Name).ToList(), 1);
             return (null, 0);
         }
 
@@ -584,6 +594,8 @@ public sealed partial class TypeChecker
             foreach (var (methodName, signature) in owner.Methods)
                 if (string.Equals(methodName, member, StringComparison.Ordinal))
                     return (signature.ParameterNames, 0);
+            if (resolvedName is null && _genericMethods.TryGetValue((owner.Name, pa.Member), out var heldMethod))
+                return (heldMethod.Bind.Parameters.Select(p => p.Name).ToList(), 0);
         }
 
         return (null, 0);
@@ -1028,7 +1040,19 @@ public sealed partial class TypeChecker
                 "The blank is worked out from the arguments, so it has to appear in one of them.");
 
         string filled = name + string.Concat(blankNames.Select(b => " of " + FormatType(found[b])));
-        if (_instantiatedFunctions.ContainsKey(filled) || Scope.ContainsKey(filled)) return filled;
+        // ⚠ ANY scope, not the innermost. The re-check meets a filling as an ordinary top-level
+        // Bind, and a call from inside a body sees it only through the body's imports — asking the
+        // innermost scope alone built it a second time, which then collided with the first.
+        if (TryLookup(filled, out _)) return filled;
+        // ⚠⚠ Built already but not visible from HERE. A filling first made inside a function body
+        // was registered in that body's scope, which is gone once the body is checked, so the same
+        // filling asked for again further down was "not defined". MEASURED 2026-10-02. So it is
+        // entered again wherever it is asked for and cannot be seen.
+        if (_instantiatedFunctions.TryGetValue(filled, out var made))
+        {
+            RegisterFilledFunction(filled, made, line, column);
+            return filled;
+        }
 
         // ★★ Where this filling came FROM. The body is checked by a different TypeChecker, on a
         // spliced program, and that checker has never heard of this call — so an error in the body
@@ -1040,13 +1064,20 @@ public sealed partial class TypeChecker
         var concrete = GenericInstantiation.FillFunction(template, filled, found);
         _instantiatedFunctions[filled] = concrete;
         _freeBinds[filled] = concrete;
-        Scope[filled] = new TypeInfo(
+        RegisterFilledFunction(filled, concrete, line, column);
+        return filled;
+    }
+
+    /// <summary>A filling, in scope where it is called from.</summary>
+    private void RegisterFilledFunction(string filled, BindStatement concrete, int line, int column)
+    {
+        var info = new TypeInfo(
             new FunctionType(concrete.Parameters.Select(p => ResolveParamType(p.Type)).ToList(),
                              concrete.ReturnType is null ? null : ResolveParamType(concrete.ReturnType))
             { ParameterNames = concrete.Parameters.Select(p => p.Name).ToList() },
             new VariableReference(filled, line, column),
             concrete.Line);
-        return filled;
+        Scope[filled] = info;
     }
 
     /// <summary>

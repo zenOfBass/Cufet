@@ -126,6 +126,15 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   described a type in general said `span`; the many that named one themselves said `span in
   spans`, the name it is lifted to — `field 'high' of 'span in spans' must be a number`. Every
   refusal now passes through one place that puts the written name back.
+- **A generic may call a generic.** `Return cast echo on (x).` inside a function that left a blank
+  was refused once filled — "'echo' isn't defined" — because the filled body is checked again
+  without the templates. It now fills as any other call does, in a method body as well. And two
+  fillings of such a function no longer share one answer about which filling they call: the
+  compiled `echo-twice of text` was calling `echo of number`.
+- **A filling made inside a function body is still there outside it.** Calling a generic from a
+  body and then again, the same way, further down was refused: "'echo' isn't defined".
+- **A generic takes named arguments.** `cast echo on (the x 5)` was refused as reaching its
+  function "through a value"; a template's parameters are declared, and now they are matched.
 
 ## [0.26.0] — 2026-09-26
 
