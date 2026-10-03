@@ -12,11 +12,13 @@
 
 Pull a book on collections.
     Bind text to op-symbol, given (the text op):
-        If op is "Plus", return "+".
-        If op is "Minus", return "-".
-        If op is "Star", return "*".
-        If op is "Slash", return "/".
-        Return op.
+        Judge op, where it is:
+            It is "Plus", return "+".
+            It is "Minus", return "-".
+            It is "Star", return "*".
+            It is "Slash", return "/".
+            Otherwise, return op.
+        Done.
     Done.
 
     /// `OperandTypeName`: the name an operand is looked up under, or "" for a shape that has none.
@@ -33,13 +35,17 @@ Pull a book on collections.
     Bind node or failure to overload-operand unto checker, given (the text name, the number at-row):
         If cast one's definition-of on (name) is not void, return cast object-type-named on (name).
         Define lowered as name in lowercase.
-        If lowered is "number", return cast plain-type on ("NumberType").
-        If lowered is "text", return cast plain-type on ("TextType").
-        If lowered is "fact", return cast plain-type on ("FactType").
-        If lowered is "bits", return cast plain-type on ("BitsType").
-        Return a failure (cast refusal-of on ("'{name}' is not a defined object type — an operator overload has no type to register on", "",
-            at-row, "declare an overload for '{name}'",
-            "Define 'object {name}' before declaring operator overloads for it, or check the spelling.")).
+        Judge lowered, where it is:
+            It is "number", return cast plain-type on ("NumberType").
+            It is "text", return cast plain-type on ("TextType").
+            It is "fact", return cast plain-type on ("FactType").
+            It is "bits", return cast plain-type on ("BitsType").
+            Otherwise:
+                Return a failure (cast refusal-of on ("'{name}' is not a defined object type — an operator overload has no type to register on", "",
+                    at-row, "declare an overload for '{name}'",
+                    "Define 'object {name}' before declaring operator overloads for it, or check the spelling.")).
+            Done.
+        Done.
     Done.
 
     /// `HasDirectFailureReturn`: a `return a failure` anywhere in the body but a nested one's.

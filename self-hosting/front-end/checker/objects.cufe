@@ -853,73 +853,77 @@ Pull a book on collections.
         Define target as cast one's infer on (reached) or pass the failure off.
         If cast is-none on (target), return target.
         Define kind as target's kind.
-        If kind is "ObjectType":
-            Define owner as cast unquoted on (cast field-of on (target, 1)).
-            If cast one's definition-of on (owner) is void, return a failure (cast not-judged on ("the fields of a '{owner}'")).
-            Define getter as cast one's getter-type-of on (owner, field).
-            If getter is not void, return getter.
-            Define found as cast one's field-type-of on (owner, field).
-            If found is not void, return found.
-            Define available as cast comma-joined on (a series with (
-                cast quoted-names on (cast one's field-names on (owner), ""),
-                cast quoted-names on (cast one's own-getter-names on (owner), " (getter)"))).
-            Define fix as "'{owner}' has no named fields or getters.".
-            If available is not "", the fix becomes "Available: {available}.".
-            Return a failure (cast refusal-of on ("'{owner}' has no field or getter named '{field}'", "",
-                at-row, "access field '{field}'", fix)).
+        Judge kind, where it is:
+            It is "ObjectType":
+                Define owner as cast unquoted on (cast field-of on (target, 1)).
+                If cast one's definition-of on (owner) is void, return a failure (cast not-judged on ("the fields of a '{owner}'")).
+                Define getter as cast one's getter-type-of on (owner, field).
+                If getter is not void, return getter.
+                Define found as cast one's field-type-of on (owner, field).
+                If found is not void, return found.
+                Define available as cast comma-joined on (a series with (
+                    cast quoted-names on (cast one's field-names on (owner), ""),
+                    cast quoted-names on (cast one's own-getter-names on (owner), " (getter)"))).
+                Define fix as "'{owner}' has no named fields or getters.".
+                If available is not "", the fix becomes "Available: {available}.".
+                Return a failure (cast refusal-of on ("'{owner}' has no field or getter named '{field}'", "",
+                    at-row, "access field '{field}'", fix)).
+            Done.
+            It is "MappingType":
+                If field is "key", return cast field-of on (target, 1).
+                If field is "value", return cast field-of on (target, 2).
+                Return a failure (cast refusal-of on ("a mapping only has 'key' and 'value' fields", "",
+                    at-row, "access field '{field}' on a mapping", "Use 'the key of mapping' or 'the value of mapping'.")).
+            Done.
+            It is "ExceptionMarkerType":
+                If field is "message", return cast plain-type on ("TextType").
+                Return a failure (cast refusal-of on ("an exception only has a 'message' field", "",
+                    at-row, "access field '{field}' on an exception", "Use 'the message of the exception'.")).
+            Done.
+            It is "FailureMarkerType":
+                If field is "message", return cast plain-type on ("TextType").
+                If field is "category", return cast wrapped on ("VoidableType", cast plain-type on ("TextType")).
+                Return a failure (cast refusal-of on ("a failure only has 'message' and 'category' fields", "",
+                    at-row, "access field '{field}' on a failure",
+                    "Use 'the message of the failure' or 'the category of the failure'.")).
+            Done.
+            Otherwise:
+                // ⚠ Before the map's `size`: a set is stored as a map and reads like a collection.
+                If kind is "SetType" and field is "size":
+                    Return a failure (cast refusal-of on ("'the size of' works on maps, and this is a set", "",
+                        at-row, "get the size of {cast expression-words on (reached)}",
+                        "Write 'the number of {cast expression-words on (reached)}' instead.")).
+                Done.
+                // `rows` and `columns` are counts on a matrix, and ordinary field names everywhere else.
+                If kind is "MatrixType":
+                    If field is "rows" or field is "columns", return cast plain-type on ("NumberType").
+                    Return a failure (cast refusal-of on ("a matrix only has 'rows' and 'columns'", "",
+                        at-row, "access field '{field}' on a matrix",
+                        "Use 'the rows of m' or 'the columns of m'. For an element, use 'the item at (row, column) of m'.")).
+                Done.
+                If cast beyond-types on (target):
+                    Return a failure (cast not-judged on ("the {field} of a {kind}")).
+                Done.
+                If kind is "RecordType", return cast record-field-access on (target, field, at-row) or pass the failure off.
+                If kind is "BitsType" and field is "width", return cast plain-type on ("NumberType").
+                If kind is "TextType" and field is "length", return cast plain-type on ("NumberType").
+                If kind is "MapType" and field is "size", return cast plain-type on ("NumberType").
+                If field is "length":
+                    Define fix as "Only text values have a character length. For series, use 'the number of series'.".
+                    Define union-fix as cast narrowing-fix on (reached, target, "TextType").
+                    If union-fix is not "", the fix becomes union-fix.
+                    Return a failure (cast refusal-of on ("'the length of' works on text only", "",
+                        at-row, "get the length of a {cast type-words on (target)}", fix)).
+                Done.
+                If field is "size":
+                    Return a failure (cast refusal-of on ("'the size of' works on maps", "",
+                        at-row, "get the size of a {cast type-words on (target)}",
+                        "For series, use 'the number of'. For text, use 'the length of'.")).
+                Done.
+                Return a failure (cast refusal-of on ("you're trying to access field '{field}' on something that isn't a record or object", "",
+                    at-row, "access a named field of a {cast type-words on (target)}", "Only records and objects have named fields.")).
+            Done.
         Done.
-        If kind is "MappingType":
-            If field is "key", return cast field-of on (target, 1).
-            If field is "value", return cast field-of on (target, 2).
-            Return a failure (cast refusal-of on ("a mapping only has 'key' and 'value' fields", "",
-                at-row, "access field '{field}' on a mapping", "Use 'the key of mapping' or 'the value of mapping'.")).
-        Done.
-        If kind is "ExceptionMarkerType":
-            If field is "message", return cast plain-type on ("TextType").
-            Return a failure (cast refusal-of on ("an exception only has a 'message' field", "",
-                at-row, "access field '{field}' on an exception", "Use 'the message of the exception'.")).
-        Done.
-        If kind is "FailureMarkerType":
-            If field is "message", return cast plain-type on ("TextType").
-            If field is "category", return cast wrapped on ("VoidableType", cast plain-type on ("TextType")).
-            Return a failure (cast refusal-of on ("a failure only has 'message' and 'category' fields", "",
-                at-row, "access field '{field}' on a failure",
-                "Use 'the message of the failure' or 'the category of the failure'.")).
-        Done.
-        // ⚠ Before the map's `size`: a set is stored as a map and reads like a collection.
-        If kind is "SetType" and field is "size":
-            Return a failure (cast refusal-of on ("'the size of' works on maps, and this is a set", "",
-                at-row, "get the size of {cast expression-words on (reached)}",
-                "Write 'the number of {cast expression-words on (reached)}' instead.")).
-        Done.
-        // `rows` and `columns` are counts on a matrix, and ordinary field names everywhere else.
-        If kind is "MatrixType":
-            If field is "rows" or field is "columns", return cast plain-type on ("NumberType").
-            Return a failure (cast refusal-of on ("a matrix only has 'rows' and 'columns'", "",
-                at-row, "access field '{field}' on a matrix",
-                "Use 'the rows of m' or 'the columns of m'. For an element, use 'the item at (row, column) of m'.")).
-        Done.
-        If cast beyond-types on (target):
-            Return a failure (cast not-judged on ("the {field} of a {kind}")).
-        Done.
-        If kind is "RecordType", return cast record-field-access on (target, field, at-row) or pass the failure off.
-        If kind is "BitsType" and field is "width", return cast plain-type on ("NumberType").
-        If kind is "TextType" and field is "length", return cast plain-type on ("NumberType").
-        If kind is "MapType" and field is "size", return cast plain-type on ("NumberType").
-        If field is "length":
-            Define fix as "Only text values have a character length. For series, use 'the number of series'.".
-            Define union-fix as cast narrowing-fix on (reached, target, "TextType").
-            If union-fix is not "", the fix becomes union-fix.
-            Return a failure (cast refusal-of on ("'the length of' works on text only", "",
-                at-row, "get the length of a {cast type-words on (target)}", fix)).
-        Done.
-        If field is "size":
-            Return a failure (cast refusal-of on ("'the size of' works on maps", "",
-                at-row, "get the size of a {cast type-words on (target)}",
-                "For series, use 'the number of'. For text, use 'the length of'.")).
-        Done.
-        Return a failure (cast refusal-of on ("you're trying to access field '{field}' on something that isn't a record or object", "",
-            at-row, "access a named field of a {cast type-words on (target)}", "Only records and objects have named fields.")).
     Done.
 
     /// `item N of <object>` — its Nth positional field, own first and then the embedded object's.

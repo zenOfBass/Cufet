@@ -9,26 +9,28 @@ Pull a book on collections.
     /// `IsValidMapKeyType`: a scalar, a record of keys, or a voidable or closed union of them.
     Bind fact to is-valid-key, given (the node shape):
         Define kind as shape's kind.
-        If kind is "NumberType" or kind is "TextType" or kind is "FactType" or kind is "BitsType", return true.
-        If kind is "VoidableType", return cast is-valid-key on (cast field-of on (shape, 1)).
-        If kind is "RecordType":
-            For each positional in (cast field-of on (shape, 1))'s children, repeat:
-                If cast is-valid-key on (positional) is false, return false.
+        Judge kind, where it is:
+            It is "NumberType" or "TextType" or "FactType" or "BitsType", return true.
+            It is "VoidableType", return cast is-valid-key on (cast field-of on (shape, 1)).
+            It is "RecordType":
+                For each positional in (cast field-of on (shape, 1))'s children, repeat:
+                    If cast is-valid-key on (positional) is false, return false.
+                Done.
+                For each pair in (cast field-of on (shape, 2))'s children, repeat:
+                    If cast is-valid-key on (item 2 of pair's children) is false, return false.
+                Done.
+                Return true.
             Done.
-            For each pair in (cast field-of on (shape, 2))'s children, repeat:
-                If cast is-valid-key on (item 2 of pair's children) is false, return false.
+            It is "UnionType":
+                Define cases as cast field-of on (shape, 1).
+                If cases's kind is not "list", return false.
+                For each one-case in cases's children, repeat:
+                    If cast is-valid-key on (one-case) is false, return false.
+                Done.
+                Return true.
             Done.
-            Return true.
+            Otherwise, return false.
         Done.
-        If kind is "UnionType":
-            Define cases as cast field-of on (shape, 1).
-            If cases's kind is not "list", return false.
-            For each one-case in cases's children, repeat:
-                If cast is-valid-key on (one-case) is false, return false.
-            Done.
-            Return true.
-        Done.
-        Return false.
     Done.
 
     Bind text to ordinal-word, given (the number place):

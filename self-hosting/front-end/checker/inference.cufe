@@ -27,73 +27,75 @@ Pull a book on collections.
 
     Bind node or failure to infer-core unto checker, given (the node said):
         Define kind as said's kind.
-        If kind is "NumberLiteral", return cast plain-type on ("NumberType").
-        If kind is "StringLiteral", return cast plain-type on ("TextType").
-        If kind is "BooleanLiteral", return cast plain-type on ("FactType").
-        If kind is "BitsLiteral", return cast plain-type on ("BitsType").
-        If kind is "VoidLiteral", return cast plain-type on ("VoidType").
-        If kind is "VariableReference", return cast one's infer-name on (said) or pass the failure off.
-        If kind is "UnaryExpression", return cast one's infer-unary on (said) or pass the failure off.
-        If kind is "BinaryExpression", return cast one's infer-binary on (said) or pass the failure off.
-        If kind is "TextJoin", return cast one's infer-join on (said) or pass the failure off.
-        If kind is "TextConvert", return cast one's infer-text-convert on (said) or pass the failure off.
-        If kind is "NumberConvert", return cast one's infer-number-convert on (said) or pass the failure off.
-        If kind is "ButVoidDefault", return cast one's infer-but-void on (said) or pass the failure off.
-        If kind is "SeriesLiteral", return cast one's infer-series-literal on (said) or pass the failure off.
-        If kind is "SeriesAccess", return cast one's infer-series-access on (said) or pass the failure off.
-        If kind is "SeriesLength", return cast one's infer-series-length on (said) or pass the failure off.
-        If kind is "CastExpression", return cast one's check-call on (said, true) or pass the failure off.
-        If kind is "FailureLiteral", return cast one's infer-failure-literal on (said) or pass the failure off.
-        If kind is "MapLiteral", return cast one's infer-map-literal on (said) or pass the failure off.
-        If kind is "MapLookup", return cast one's infer-map-lookup on (said) or pass the failure off.
-        If kind is "MapHasKey" or kind is "MapHasEntry", return cast one's infer-map-has on (said) or pass the failure off.
-        If kind is "FailureFallback", return cast one's infer-failure-fallback on (said) or pass the failure off.
-        If kind is "FailurePropagate", return cast one's infer-failure-propagate on (said) or pass the failure off.
-        If kind is "ObjectLiteral", return cast one's infer-object-literal on (said) or pass the failure off.
-        If kind is "PossessiveAccess", return cast one's infer-possessive on (said, false) or pass the failure off.
-        If kind is "RecordNamedAccess", return cast one's infer-named-access on (said) or pass the failure off.
-        If kind is "RecordLiteral", return cast one's infer-record-literal on (said) or pass the failure off.
-        If kind is "IsTypeCheck", return cast one's infer-type-test on (said) or pass the failure off.
-        If kind is "ConditionalExpression", return cast one's infer-conditional on (said) or pass the failure off.
-        If kind is "TextSplit", return cast one's infer-text-split on (said) or pass the failure off.
-        If kind is "TextContains", return cast one's infer-text-contains on (said) or pass the failure off.
-        If kind is "LambdaLiteral", return cast one's infer-lambda on (said) or pass the failure off.
-        If kind is "TextAffixTest", return cast one's infer-text-affix on (said) or pass the failure off.
-        If kind is "TextFind", return cast one's infer-text-find on (said) or pass the failure off.
-        If kind is "TextSubstringRange", return cast one's infer-text-range on (said) or pass the failure off.
-        If kind is "TextSubstringEdge", return cast one's infer-text-edge on (said) or pass the failure off.
-        If kind is "TextReplace", return cast one's infer-text-replace on (said) or pass the failure off.
-        If kind is "TextCase", return cast one's infer-text-case on (said) or pass the failure off.
-        If kind is "TextTrim", return cast one's infer-text-trim on (said) or pass the failure off.
-        If kind is "BitsConvert", return cast one's infer-bits-convert on (said) or pass the failure off.
-        If kind is "BitsShift", return cast one's infer-bits-shift on (said) or pass the failure off.
-        If kind is "BitsAtWidth", return cast one's infer-bits-width on (said) or pass the failure off.
-        If kind is "RangeExpression", return cast one's infer-range on (said) or pass the failure off.
-        If kind is "SortExpression", return cast one's infer-sort on (said) or pass the failure off.
-        If kind is "RandomNumber", return cast one's infer-random-number on (said) or pass the failure off.
-        If kind is "RandomItem", return cast one's infer-random-item on (said) or pass the failure off.
-        If kind is "RandomlyShuffled", return cast one's infer-random-shuffled on (said) or pass the failure off.
-        If kind is "RandomGuess", return cast one's infer-random-guess on (said) or pass the failure off.
-        If kind is "ChaseLiteral", return cast one's infer-chase-literal on (said) or pass the failure off.
-        If kind is "SetLiteral", return cast one's infer-set-literal on (said) or pass the failure off.
-        If kind is "SetHasMember", return cast one's infer-set-has on (said) or pass the failure off.
-        If kind is "MatrixLiteral", return cast one's infer-matrix-literal on (said) or pass the failure off.
-        If kind is "MatrixSized", return cast one's infer-matrix-sized on (said) or pass the failure off.
-        If kind is "MatrixAccess", return cast one's infer-matrix-access on (said) or pass the failure off.
-        If kind is "FileReadExpression", return cast one's infer-file-read on (said) or pass the failure off.
-        If kind is "DirectoryContentsExpression", return cast one's infer-directory-contents on (said) or pass the failure off.
-        If kind is "PathCheckExpression", return cast one's infer-path-check on (said) or pass the failure off.
-        If kind is "RunExpression", return cast one's infer-run on (said) or pass the failure off.
-        If kind is "PipeExpression", return cast one's infer-pipe on (said) or pass the failure off.
-        If kind is "ReadExpression", return cast one's infer-read on (said) or pass the failure off.
-        If kind is "EnvironmentVariableExpression", return cast one's infer-env-var on (said) or pass the failure off.
-        If kind is "ChannelCreation", return cast one's infer-channel-creation on (said).
-        If kind is "DeliveryExpression", return cast one's infer-delivery on (said) or pass the failure off.
-        If kind is "AwaitedResultExpression", return cast one's infer-awaited on (said) or pass the failure off.
-        If kind is "CurrentDirectoryExpression", return cast wrapped on ("VoidableType", cast plain-type on ("TextType")).
-        If kind is "ProgramArgumentsExpression", return cast wrapped on ("SeriesType", cast plain-type on ("TextType")).
-        If kind is "InterruptRequestedExpression", return cast plain-type on ("FactType").
-        Return a failure (cast not-judged on (kind)).
+        Judge kind, where it is:
+            It is "NumberLiteral", return cast plain-type on ("NumberType").
+            It is "StringLiteral", return cast plain-type on ("TextType").
+            It is "BooleanLiteral", return cast plain-type on ("FactType").
+            It is "BitsLiteral", return cast plain-type on ("BitsType").
+            It is "VoidLiteral", return cast plain-type on ("VoidType").
+            It is "VariableReference", return cast one's infer-name on (said) or pass the failure off.
+            It is "UnaryExpression", return cast one's infer-unary on (said) or pass the failure off.
+            It is "BinaryExpression", return cast one's infer-binary on (said) or pass the failure off.
+            It is "TextJoin", return cast one's infer-join on (said) or pass the failure off.
+            It is "TextConvert", return cast one's infer-text-convert on (said) or pass the failure off.
+            It is "NumberConvert", return cast one's infer-number-convert on (said) or pass the failure off.
+            It is "ButVoidDefault", return cast one's infer-but-void on (said) or pass the failure off.
+            It is "SeriesLiteral", return cast one's infer-series-literal on (said) or pass the failure off.
+            It is "SeriesAccess", return cast one's infer-series-access on (said) or pass the failure off.
+            It is "SeriesLength", return cast one's infer-series-length on (said) or pass the failure off.
+            It is "CastExpression", return cast one's check-call on (said, true) or pass the failure off.
+            It is "FailureLiteral", return cast one's infer-failure-literal on (said) or pass the failure off.
+            It is "MapLiteral", return cast one's infer-map-literal on (said) or pass the failure off.
+            It is "MapLookup", return cast one's infer-map-lookup on (said) or pass the failure off.
+            It is "MapHasKey" or "MapHasEntry", return cast one's infer-map-has on (said) or pass the failure off.
+            It is "FailureFallback", return cast one's infer-failure-fallback on (said) or pass the failure off.
+            It is "FailurePropagate", return cast one's infer-failure-propagate on (said) or pass the failure off.
+            It is "ObjectLiteral", return cast one's infer-object-literal on (said) or pass the failure off.
+            It is "PossessiveAccess", return cast one's infer-possessive on (said, false) or pass the failure off.
+            It is "RecordNamedAccess", return cast one's infer-named-access on (said) or pass the failure off.
+            It is "RecordLiteral", return cast one's infer-record-literal on (said) or pass the failure off.
+            It is "IsTypeCheck", return cast one's infer-type-test on (said) or pass the failure off.
+            It is "ConditionalExpression", return cast one's infer-conditional on (said) or pass the failure off.
+            It is "TextSplit", return cast one's infer-text-split on (said) or pass the failure off.
+            It is "TextContains", return cast one's infer-text-contains on (said) or pass the failure off.
+            It is "LambdaLiteral", return cast one's infer-lambda on (said) or pass the failure off.
+            It is "TextAffixTest", return cast one's infer-text-affix on (said) or pass the failure off.
+            It is "TextFind", return cast one's infer-text-find on (said) or pass the failure off.
+            It is "TextSubstringRange", return cast one's infer-text-range on (said) or pass the failure off.
+            It is "TextSubstringEdge", return cast one's infer-text-edge on (said) or pass the failure off.
+            It is "TextReplace", return cast one's infer-text-replace on (said) or pass the failure off.
+            It is "TextCase", return cast one's infer-text-case on (said) or pass the failure off.
+            It is "TextTrim", return cast one's infer-text-trim on (said) or pass the failure off.
+            It is "BitsConvert", return cast one's infer-bits-convert on (said) or pass the failure off.
+            It is "BitsShift", return cast one's infer-bits-shift on (said) or pass the failure off.
+            It is "BitsAtWidth", return cast one's infer-bits-width on (said) or pass the failure off.
+            It is "RangeExpression", return cast one's infer-range on (said) or pass the failure off.
+            It is "SortExpression", return cast one's infer-sort on (said) or pass the failure off.
+            It is "RandomNumber", return cast one's infer-random-number on (said) or pass the failure off.
+            It is "RandomItem", return cast one's infer-random-item on (said) or pass the failure off.
+            It is "RandomlyShuffled", return cast one's infer-random-shuffled on (said) or pass the failure off.
+            It is "RandomGuess", return cast one's infer-random-guess on (said) or pass the failure off.
+            It is "ChaseLiteral", return cast one's infer-chase-literal on (said) or pass the failure off.
+            It is "SetLiteral", return cast one's infer-set-literal on (said) or pass the failure off.
+            It is "SetHasMember", return cast one's infer-set-has on (said) or pass the failure off.
+            It is "MatrixLiteral", return cast one's infer-matrix-literal on (said) or pass the failure off.
+            It is "MatrixSized", return cast one's infer-matrix-sized on (said) or pass the failure off.
+            It is "MatrixAccess", return cast one's infer-matrix-access on (said) or pass the failure off.
+            It is "FileReadExpression", return cast one's infer-file-read on (said) or pass the failure off.
+            It is "DirectoryContentsExpression", return cast one's infer-directory-contents on (said) or pass the failure off.
+            It is "PathCheckExpression", return cast one's infer-path-check on (said) or pass the failure off.
+            It is "RunExpression", return cast one's infer-run on (said) or pass the failure off.
+            It is "PipeExpression", return cast one's infer-pipe on (said) or pass the failure off.
+            It is "ReadExpression", return cast one's infer-read on (said) or pass the failure off.
+            It is "EnvironmentVariableExpression", return cast one's infer-env-var on (said) or pass the failure off.
+            It is "ChannelCreation", return cast one's infer-channel-creation on (said).
+            It is "DeliveryExpression", return cast one's infer-delivery on (said) or pass the failure off.
+            It is "AwaitedResultExpression", return cast one's infer-awaited on (said) or pass the failure off.
+            It is "CurrentDirectoryExpression", return cast wrapped on ("VoidableType", cast plain-type on ("TextType")).
+            It is "ProgramArgumentsExpression", return cast wrapped on ("SeriesType", cast plain-type on ("TextType")).
+            It is "InterruptRequestedExpression", return cast plain-type on ("FactType").
+            Otherwise, return a failure (cast not-judged on (kind)).
+        Done.
     Done.
 
     Bind fact to is-none, given (the node shape):

@@ -198,66 +198,67 @@ Pull a book on collections.
 
     Bind text to statement-beyond-reach, given (the node statement):
         Define kind as statement's kind.
-        If kind is "DefineStatement":
-            Define declared as cast field-of on (statement, 7).
-            If cast is-nothing on (declared) is false:
-                If cast beyond-types on (declared) or declared's kind is "AxiomType" or declared's kind is "AddressType":
-                    Return "a Define declared as {declared's kind}".
+        Judge kind, where it is:
+            It is "DefineStatement":
+                Define declared as cast field-of on (statement, 7).
+                If cast is-nothing on (declared) is false:
+                    If cast beyond-types on (declared) or declared's kind is "AxiomType" or declared's kind is "AddressType":
+                        Return "a Define declared as {declared's kind}".
+                    Done.
                 Done.
+                If the number of statement's children is greater than 7, return "a Define given parameters".
+                Return "".
             Done.
-            If the number of statement's children is greater than 7, return "a Define given parameters".
-            Return "".
-        Done.
-        If kind is "IfStatement":
-            For each arm in (cast field-of on (statement, 1))'s children, repeat:
-                Define inner as cast beyond-reach on (cast field-of on (arm, 2)).
-                If inner is not "", return inner.
-            Done.
-            Define otherwise-body as cast field-of on (statement, 2).
-            If cast is-nothing on (otherwise-body), return "".
-            Return cast beyond-reach on (otherwise-body).
-        Done.
-        If kind is "JudgeStatement":
-            For each arm in (cast field-of on (statement, 2))'s children, repeat:
-                Define inner as cast beyond-reach on (cast field-of on (arm, 2)).
-                If inner is not "", return inner.
-            Done.
-            Define rest as cast field-of on (statement, 3).
-            If cast is-nothing on (rest), return "".
-            Return cast beyond-reach on (rest).
-        Done.
-        If kind is "WhileStatement", return cast beyond-reach on (cast field-of on (statement, 2)).
-        If kind is "WithOpenStatement", return cast beyond-reach on (cast field-of on (statement, 4)).
-        If kind is "GetterDeclaration" or kind is "SetterDeclaration", return cast property-beyond-reach on (statement).
-        If kind is "ForEachFromInputStatement", return cast beyond-reach on (cast field-of on (statement, 2)).
-        If kind is "RepeatUntilStatement", return cast beyond-reach on (cast field-of on (statement, 1)).
-        If kind is "ForEachStatement", return cast beyond-reach on (cast field-of on (statement, 3)).
-        If kind is "BindStatement", return cast bind-beyond-reach on (statement).
-        If kind is "UnmakerDeclaration", return cast beyond-reach on (cast field-of on (statement, 3)).
-        If kind is "OperatorOverloadDeclaration", return cast beyond-reach on (cast field-of on (statement, 6)).
-        If kind is "PullStatement", return cast beyond-reach on (cast field-of on (statement, 2)).
-        If kind is "PullRabbitStatement", return cast beyond-reach on (cast field-of on (statement, 2)).
-        If kind is "LaunchTaskStatement", return cast beyond-reach on (cast field-of on (statement, 2)).
-        If kind is "TryStatement":
-            For each place in a series with (1, 2, 3), repeat:
-                Define handler as cast field-of on (statement, place).
-                If cast is-nothing on (handler) is false:
-                    Define inner as cast beyond-reach on (handler).
+            It is "IfStatement":
+                For each arm in (cast field-of on (statement, 1))'s children, repeat:
+                    Define inner as cast beyond-reach on (cast field-of on (arm, 2)).
                     If inner is not "", return inner.
                 Done.
+                Define otherwise-body as cast field-of on (statement, 2).
+                If cast is-nothing on (otherwise-body), return "".
+                Return cast beyond-reach on (otherwise-body).
             Done.
-            Return "".
+            It is "JudgeStatement":
+                For each arm in (cast field-of on (statement, 2))'s children, repeat:
+                    Define inner as cast beyond-reach on (cast field-of on (arm, 2)).
+                    If inner is not "", return inner.
+                Done.
+                Define rest as cast field-of on (statement, 3).
+                If cast is-nothing on (rest), return "".
+                Return cast beyond-reach on (rest).
+            Done.
+            It is "WhileStatement", return cast beyond-reach on (cast field-of on (statement, 2)).
+            It is "WithOpenStatement", return cast beyond-reach on (cast field-of on (statement, 4)).
+            It is "GetterDeclaration" or "SetterDeclaration", return cast property-beyond-reach on (statement).
+            It is "ForEachFromInputStatement", return cast beyond-reach on (cast field-of on (statement, 2)).
+            It is "RepeatUntilStatement", return cast beyond-reach on (cast field-of on (statement, 1)).
+            It is "ForEachStatement", return cast beyond-reach on (cast field-of on (statement, 3)).
+            It is "BindStatement", return cast bind-beyond-reach on (statement).
+            It is "UnmakerDeclaration", return cast beyond-reach on (cast field-of on (statement, 3)).
+            It is "OperatorOverloadDeclaration", return cast beyond-reach on (cast field-of on (statement, 6)).
+            It is "PullStatement", return cast beyond-reach on (cast field-of on (statement, 2)).
+            It is "PullRabbitStatement", return cast beyond-reach on (cast field-of on (statement, 2)).
+            It is "LaunchTaskStatement", return cast beyond-reach on (cast field-of on (statement, 2)).
+            It is "TryStatement":
+                For each place in a series with (1, 2, 3), repeat:
+                    Define handler as cast field-of on (statement, place).
+                    If cast is-nothing on (handler) is false:
+                        Define inner as cast beyond-reach on (handler).
+                        If inner is not "", return inner.
+                    Done.
+                Done.
+                Return "".
+            Done.
+            It is "StateStatement" or "BecomesStatement" or "StopStatement" or "SkipStatement"
+                    or "ReturnStatement" or "CastStatement" or "PossessiveSetStatement" or "RecordNamedSetStatement"
+                    or "SuppressStatement" or "MapSetStatement" or "ExitStatement" or "SeedChanceStatement"
+                    or "MatrixSetStatement" or "FileWriteStatement" or "PathActionStatement"
+                    or "CurrentDirectorySetStatement" or "WriteToStreamStatement" or "RunStatement"
+                    or "AcknowledgeInterruptStatement" or "SendStatement" or "CloseStatement" or "YieldStatement"
+                    or "OutputStatement" or "PipeExpression" or "SeriesInsertStatement" or "SeriesSetStatement"
+                    or "SeriesRemoveAtStatement" or "SeriesRemoveValueStatement", return "".
+            Otherwise, return kind.
         Done.
-        For each known in a series with ("StateStatement", "BecomesStatement", "StopStatement", "SkipStatement",
-                "ReturnStatement", "CastStatement", "PossessiveSetStatement", "RecordNamedSetStatement", "SuppressStatement",
-                "MapSetStatement", "ExitStatement", "SeedChanceStatement", "MatrixSetStatement",
-                "FileWriteStatement", "PathActionStatement", "CurrentDirectorySetStatement", "WriteToStreamStatement",
-                "RunStatement", "AcknowledgeInterruptStatement", "SendStatement", "CloseStatement", "YieldStatement",
-                "OutputStatement", "PipeExpression",
-                "SeriesInsertStatement", "SeriesSetStatement", "SeriesRemoveAtStatement", "SeriesRemoveValueStatement"), repeat:
-            If kind is known, return "".
-        Done.
-        Return kind.
     Done.
 
     // ── The program ───────────────────────────────────────────────────────
@@ -477,140 +478,143 @@ Pull a book on collections.
 
     Bind void or failure to check-statement unto checker, given (the node statement):
         Define kind as statement's kind.
-        If kind is "DefineStatement":
-            Cast one's check-define on (statement) or pass the failure off.
-        Done.
-        Otherwise if kind is "BecomesStatement":
-            Cast one's check-becomes on (statement) or pass the failure off.
-        Done.
-        Otherwise if kind is "StateStatement":
-            Cast one's infer on (cast field-of on (statement, 1)) or pass the failure off.
-        Done.
-        Otherwise if kind is "IfStatement":
-            Cast one's check-if on (statement) or pass the failure off.
-        Done.
-        Otherwise if kind is "WhileStatement":
-            Cast one's infer on (cast field-of on (statement, 1)) or pass the failure off.
-            Cast one's enter-scope.
-            Cast one's check-block on (cast field-of on (statement, 2)) or pass the failure off.
-            Cast one's exit-scope.
-        Done.
-        Otherwise if kind is "RepeatUntilStatement":
-            Cast one's enter-scope.
-            Cast one's check-block on (cast field-of on (statement, 1)) or pass the failure off.
-            Cast one's exit-scope.
-            Cast one's infer on (cast field-of on (statement, 2)) or pass the failure off.
-        Done.
-        Otherwise if kind is "ForEachStatement":
-            Cast one's check-for-each on (statement) or pass the failure off.
-        Done.
-        Otherwise if kind is "SeriesInsertStatement":
-            Cast one's check-insert on (statement) or pass the failure off.
-        Done.
-        Otherwise if kind is "SeriesSetStatement":
-            Cast one's check-series-set on (statement) or pass the failure off.
-        Done.
-        Otherwise if kind is "SeriesRemoveAtStatement":
-            Cast one's check-remove-at on (statement) or pass the failure off.
-        Done.
-        Otherwise if kind is "SeriesRemoveValueStatement":
-            Cast one's check-remove-value on (statement) or pass the failure off.
-        Done.
-        Otherwise if kind is "BindStatement":
-            Cast one's check-bind-statement on (statement) or pass the failure off.
-        Done.
-        Otherwise if kind is "UnmakerDeclaration":
-            Cast one's check-unmaker on (statement) or pass the failure off.
-        Done.
-        Otherwise if kind is "ReturnStatement":
-            Cast one's check-return on (statement) or pass the failure off.
-        Done.
-        Otherwise if kind is "CastStatement":
-            Cast one's check-call on (statement, false) or pass the failure off.
-        Done.
-        Otherwise if kind is "ObjectDefinition":
-            Cast one's check-object-definition on (statement) or pass the failure off.
-        Done.
-        Otherwise if kind is "PullStatement":
-            Cast one's check-pull on (statement) or pass the failure off.
-        Done.
-        Otherwise if kind is "PullRabbitStatement":
-            Cast one's check-pull-rabbit on (statement) or pass the failure off.
-        Done.
-        Otherwise if kind is "LaunchTaskStatement":
-            Cast one's check-launch-task on (statement) or pass the failure off.
-        Done.
-        Otherwise if kind is "SendStatement":
-            Cast one's check-send on (statement) or pass the failure off.
-        Done.
-        Otherwise if kind is "CloseStatement":
-            Cast one's check-close on (statement) or pass the failure off.
-        Done.
-        Otherwise if kind is "OutputStatement":
-            Cast one's check-output on (statement) or pass the failure off.
-        Done.
-        Otherwise if kind is "ForEachFromInputStatement":
-            Cast one's check-from-input on (statement) or pass the failure off.
-        Done.
-        Otherwise if kind is "TryStatement":
-            Cast one's check-try on (statement) or pass the failure off.
-        Done.
-        Otherwise if kind is "SuppressStatement":
-            Cast one's check-suppress on (statement) or pass the failure off.
-        Done.
-        Otherwise if kind is "MapSetStatement":
-            Cast one's check-map-set on (statement) or pass the failure off.
-        Done.
-        Otherwise if kind is "ExitStatement":
-            Cast one's check-exit on (statement) or pass the failure off.
-        Done.
-        // An interface was gathered before anything was checked, and needs nothing more.
-        Otherwise if kind is "PossessiveSetStatement":
-            Cast one's check-possessive-set on (statement) or pass the failure off.
-        Done.
-        Otherwise if kind is "RecordNamedSetStatement":
-            Cast one's check-named-set on (statement) or pass the failure off.
-        Done.
-        Otherwise if kind is "JudgeStatement":
-            Cast one's check-judge on (statement) or pass the failure off.
-        Done.
-        Otherwise if kind is "SeedChanceStatement":
-            Cast one's check-seed on (statement) or pass the failure off.
-        Done.
-        Otherwise if kind is "MatrixSetStatement":
-            Cast one's check-matrix-set on (statement) or pass the failure off.
-        Done.
-        Otherwise if kind is "FileWriteStatement":
-            Cast one's check-file-write on (statement) or pass the failure off.
-        Done.
-        Otherwise if kind is "PathActionStatement":
-            Cast one's check-path-action on (statement) or pass the failure off.
-        Done.
-        Otherwise if kind is "CurrentDirectorySetStatement":
-            Cast one's check-directory-set on (statement) or pass the failure off.
-        Done.
-        Otherwise if kind is "WithOpenStatement":
-            Cast one's check-with-open on (statement) or pass the failure off.
-        Done.
-        Otherwise if kind is "WriteToStreamStatement":
-            Cast one's check-stream-write on (statement) or pass the failure off.
-        Done.
-        Otherwise if kind is "RunStatement":
-            Cast one's check-run-statement on (statement) or pass the failure off.
-        Done.
-        Otherwise if kind is "PipeExpression":
-            Cast one's check-pipe-statement on (statement) or pass the failure off.
-        Done.
-        // A getter or setter written inside its object was checked with it.
-        Otherwise if kind is "GetterDeclaration":
-            If cast is-nothing on (cast field-of on (statement, 4)) is false and cast one's is-absorbed on (cast unquoted on (cast field-of on (statement, 4))) is false:
-                Cast one's check-getter-body on (statement, cast unquoted on (cast field-of on (statement, 4)), cast getter-row on (statement)) or pass the failure off.
+        Judge kind, where it is:
+            It is "DefineStatement":
+                Cast one's check-define on (statement) or pass the failure off.
             Done.
-        Done.
-        Otherwise if kind is "SetterDeclaration":
-            If cast is-nothing on (cast field-of on (statement, 5)) is false and cast one's is-absorbed on (cast unquoted on (cast field-of on (statement, 5))) is false:
-                Cast one's check-setter-body on (statement, cast unquoted on (cast field-of on (statement, 5)), cast setter-row on (statement)) or pass the failure off.
+            It is "BecomesStatement":
+                Cast one's check-becomes on (statement) or pass the failure off.
             Done.
+            It is "StateStatement":
+                Cast one's infer on (cast field-of on (statement, 1)) or pass the failure off.
+            Done.
+            It is "IfStatement":
+                Cast one's check-if on (statement) or pass the failure off.
+            Done.
+            It is "WhileStatement":
+                Cast one's infer on (cast field-of on (statement, 1)) or pass the failure off.
+                Cast one's enter-scope.
+                Cast one's check-block on (cast field-of on (statement, 2)) or pass the failure off.
+                Cast one's exit-scope.
+            Done.
+            It is "RepeatUntilStatement":
+                Cast one's enter-scope.
+                Cast one's check-block on (cast field-of on (statement, 1)) or pass the failure off.
+                Cast one's exit-scope.
+                Cast one's infer on (cast field-of on (statement, 2)) or pass the failure off.
+            Done.
+            It is "ForEachStatement":
+                Cast one's check-for-each on (statement) or pass the failure off.
+            Done.
+            It is "SeriesInsertStatement":
+                Cast one's check-insert on (statement) or pass the failure off.
+            Done.
+            It is "SeriesSetStatement":
+                Cast one's check-series-set on (statement) or pass the failure off.
+            Done.
+            It is "SeriesRemoveAtStatement":
+                Cast one's check-remove-at on (statement) or pass the failure off.
+            Done.
+            It is "SeriesRemoveValueStatement":
+                Cast one's check-remove-value on (statement) or pass the failure off.
+            Done.
+            It is "BindStatement":
+                Cast one's check-bind-statement on (statement) or pass the failure off.
+            Done.
+            It is "UnmakerDeclaration":
+                Cast one's check-unmaker on (statement) or pass the failure off.
+            Done.
+            It is "ReturnStatement":
+                Cast one's check-return on (statement) or pass the failure off.
+            Done.
+            It is "CastStatement":
+                Cast one's check-call on (statement, false) or pass the failure off.
+            Done.
+            It is "ObjectDefinition":
+                Cast one's check-object-definition on (statement) or pass the failure off.
+            Done.
+            It is "PullStatement":
+                Cast one's check-pull on (statement) or pass the failure off.
+            Done.
+            It is "PullRabbitStatement":
+                Cast one's check-pull-rabbit on (statement) or pass the failure off.
+            Done.
+            It is "LaunchTaskStatement":
+                Cast one's check-launch-task on (statement) or pass the failure off.
+            Done.
+            It is "SendStatement":
+                Cast one's check-send on (statement) or pass the failure off.
+            Done.
+            It is "CloseStatement":
+                Cast one's check-close on (statement) or pass the failure off.
+            Done.
+            It is "OutputStatement":
+                Cast one's check-output on (statement) or pass the failure off.
+            Done.
+            It is "ForEachFromInputStatement":
+                Cast one's check-from-input on (statement) or pass the failure off.
+            Done.
+            It is "TryStatement":
+                Cast one's check-try on (statement) or pass the failure off.
+            Done.
+            It is "SuppressStatement":
+                Cast one's check-suppress on (statement) or pass the failure off.
+            Done.
+            It is "MapSetStatement":
+                Cast one's check-map-set on (statement) or pass the failure off.
+            Done.
+            It is "ExitStatement":
+                Cast one's check-exit on (statement) or pass the failure off.
+            Done.
+            // An interface was gathered before anything was checked, and needs nothing more.
+            It is "PossessiveSetStatement":
+                Cast one's check-possessive-set on (statement) or pass the failure off.
+            Done.
+            It is "RecordNamedSetStatement":
+                Cast one's check-named-set on (statement) or pass the failure off.
+            Done.
+            It is "JudgeStatement":
+                Cast one's check-judge on (statement) or pass the failure off.
+            Done.
+            It is "SeedChanceStatement":
+                Cast one's check-seed on (statement) or pass the failure off.
+            Done.
+            It is "MatrixSetStatement":
+                Cast one's check-matrix-set on (statement) or pass the failure off.
+            Done.
+            It is "FileWriteStatement":
+                Cast one's check-file-write on (statement) or pass the failure off.
+            Done.
+            It is "PathActionStatement":
+                Cast one's check-path-action on (statement) or pass the failure off.
+            Done.
+            It is "CurrentDirectorySetStatement":
+                Cast one's check-directory-set on (statement) or pass the failure off.
+            Done.
+            It is "WithOpenStatement":
+                Cast one's check-with-open on (statement) or pass the failure off.
+            Done.
+            It is "WriteToStreamStatement":
+                Cast one's check-stream-write on (statement) or pass the failure off.
+            Done.
+            It is "RunStatement":
+                Cast one's check-run-statement on (statement) or pass the failure off.
+            Done.
+            It is "PipeExpression":
+                Cast one's check-pipe-statement on (statement) or pass the failure off.
+            Done.
+            // A getter or setter written inside its object was checked with it.
+            It is "GetterDeclaration":
+                If cast is-nothing on (cast field-of on (statement, 4)) is false and cast one's is-absorbed on (cast unquoted on (cast field-of on (statement, 4))) is false:
+                    Cast one's check-getter-body on (statement, cast unquoted on (cast field-of on (statement, 4)), cast getter-row on (statement)) or pass the failure off.
+                Done.
+            Done.
+            It is "SetterDeclaration":
+                If cast is-nothing on (cast field-of on (statement, 5)) is false and cast one's is-absorbed on (cast unquoted on (cast field-of on (statement, 5))) is false:
+                    Cast one's check-setter-body on (statement, cast unquoted on (cast field-of on (statement, 5)), cast setter-row on (statement)) or pass the failure off.
+                Done.
+            Done.
+            Otherwise, return.
         Done.
     Done.
 
@@ -769,67 +773,71 @@ Pull a book on collections.
         Define looped-type as cast one's infer on (looped) or pass the failure off.
         If cast is-none on (looped-type), return.
         Define kind as looped-type's kind.
-        If kind is "MapType":
-            Define entry-type as cast plain-type on ("MappingType").
-            Cast entry-type's add on (cast field-of on (looped-type, 1)).
-            Cast entry-type's add on (cast field-of on (looped-type, 2)).
-            Define map-iterator as "it".
-            If cast is-nothing on (cast field-of on (statement, 1)) is false:
-                The map-iterator becomes cast unquoted on (cast field-of on (statement, 1)).
+        Judge kind, where it is:
+            It is "MapType":
+                Define entry-type as cast plain-type on ("MappingType").
+                Cast entry-type's add on (cast field-of on (looped-type, 1)).
+                Cast entry-type's add on (cast field-of on (looped-type, 2)).
+                Define map-iterator as "it".
+                If cast is-nothing on (cast field-of on (statement, 1)) is false:
+                    The map-iterator becomes cast unquoted on (cast field-of on (statement, 1)).
+                Done.
+                Cast one's enter-scope.
+                Cast one's bind-name on (map-iterator, a new binding {
+                    the shape entry-type, the established-by looped, the line at-row, the permanent false,
+                    the module false, the depth 0, the parameter false }).
+                Cast one's check-block on (cast field-of on (statement, 3)) or pass the failure off.
+                Cast one's exit-scope.
+                Return.
             Done.
-            Cast one's enter-scope.
-            Cast one's bind-name on (map-iterator, a new binding {
-                the shape entry-type, the established-by looped, the line at-row, the permanent false,
-                the module false, the depth 0, the parameter false }).
-            Cast one's check-block on (cast field-of on (statement, 3)) or pass the failure off.
-            Cast one's exit-scope.
-            Return.
-        Done.
-        // A chase gives one-character texts; a set gives its elements.
-        If kind is "ChaseType" or kind is "SetType":
-            Define element-type as cast plain-type on ("TextType").
-            If kind is "SetType", the element-type becomes cast field-of on (looped-type, 1).
-            Define each-name as "it".
-            If cast is-nothing on (cast field-of on (statement, 1)) is false:
-                The each-name becomes cast unquoted on (cast field-of on (statement, 1)).
+            // A chase gives one-character texts; a set gives its elements.
+            It is "ChaseType" or "SetType":
+                Define element-type as cast plain-type on ("TextType").
+                If kind is "SetType", the element-type becomes cast field-of on (looped-type, 1).
+                Define each-name as "it".
+                If cast is-nothing on (cast field-of on (statement, 1)) is false:
+                    The each-name becomes cast unquoted on (cast field-of on (statement, 1)).
+                Done.
+                Cast one's enter-scope.
+                Cast one's bind-name on (each-name, a new binding {
+                    the shape element-type, the established-by looped, the line at-row, the permanent false,
+                    the module false, the depth 0, the parameter false }).
+                Cast one's check-block on (cast field-of on (statement, 3)) or pass the failure off.
+                Cast one's exit-scope.
+                Return.
             Done.
-            Cast one's enter-scope.
-            Cast one's bind-name on (each-name, a new binding {
-                the shape element-type, the established-by looped, the line at-row, the permanent false,
-                the module false, the depth 0, the parameter false }).
-            Cast one's check-block on (cast field-of on (statement, 3)) or pass the failure off.
-            Cast one's exit-scope.
-            Return.
-        Done.
-        If kind is "StashType":
-            Return a failure (cast not-judged on ("looping over a {kind}")).
-        Done.
-        If kind is not "SeriesType":
-            If cast beyond-types on (looped-type), return a failure (cast not-judged on ("looping over a {kind}")).
-            Define spoken as cast expression-words on (looped).
-            Define plural as cast plural-words on (looped-type).
-            Define advice as "Define a series if that's what you need.".
-            If kind is "TextType":
-                The advice becomes "To go through a text one character at a time, put it in a chase — inside 'Pull a book on collections.': 'Define letters as a chase.', 'Insert {spoken} into letters.', then loop over letters.".
+            It is "StashType":
+                Return a failure (cast not-judged on ("looping over a {kind}")).
             Done.
-            Return a failure (cast refusal-of on ("{spoken} holds {plural}", "It evaluates to {plural}, not a series",
-                at-row, "loop over it as if it were a series",
-                "Only series, maps, sets, chases and stashes can be looped over. {advice}")).
+            Otherwise:
+                If kind is not "SeriesType":
+                    If cast beyond-types on (looped-type), return a failure (cast not-judged on ("looping over a {kind}")).
+                    Define spoken as cast expression-words on (looped).
+                    Define plural as cast plural-words on (looped-type).
+                    Define advice as "Define a series if that's what you need.".
+                    If kind is "TextType":
+                        The advice becomes "To go through a text one character at a time, put it in a chase — inside 'Pull a book on collections.': 'Define letters as a chase.', 'Insert {spoken} into letters.', then loop over letters.".
+                    Done.
+                    Return a failure (cast refusal-of on ("{spoken} holds {plural}", "It evaluates to {plural}, not a series",
+                        at-row, "loop over it as if it were a series",
+                        "Only series, maps, sets, chases and stashes can be looped over. {advice}")).
+                Done.
+                Define iterator as "it".
+                Define named as cast field-of on (statement, 1).
+                If cast is-nothing on (named) is false, the iterator becomes cast unquoted on (named).
+                Define iterator-depth as one's rabbit-depth.
+                If looped's kind is "VariableReference":
+                    Define source as cast one's look-up on (cast unquoted on (cast field-of on (looped, 1))).
+                    If source is not void, the iterator-depth becomes source's depth.
+                Done.
+                Cast one's enter-scope.
+                Cast one's bind-name on (iterator, a new binding {
+                    the shape cast field-of on (looped-type, 1), the established-by looped, the line at-row, the permanent false,
+                    the module false, the depth iterator-depth, the parameter false }).
+                Cast one's check-block on (cast field-of on (statement, 3)) or pass the failure off.
+                Cast one's exit-scope.
+            Done.
         Done.
-        Define iterator as "it".
-        Define named as cast field-of on (statement, 1).
-        If cast is-nothing on (named) is false, the iterator becomes cast unquoted on (named).
-        Define iterator-depth as one's rabbit-depth.
-        If looped's kind is "VariableReference":
-            Define source as cast one's look-up on (cast unquoted on (cast field-of on (looped, 1))).
-            If source is not void, the iterator-depth becomes source's depth.
-        Done.
-        Cast one's enter-scope.
-        Cast one's bind-name on (iterator, a new binding {
-            the shape cast field-of on (looped-type, 1), the established-by looped, the line at-row, the permanent false,
-            the module false, the depth iterator-depth, the parameter false }).
-        Cast one's check-block on (cast field-of on (statement, 3)) or pass the failure off.
-        Cast one's exit-scope.
     Done.
 
     Bind void or failure to check-insert unto checker, given (the node statement):
