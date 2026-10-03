@@ -271,11 +271,18 @@ Pull a book on collections.
 
     // ── Declarations beside objects ───────────────────────────────────────
 
-    /// `unto <type>` — a filled generic target is not taught yet.
+    /// `unto <type>` — `ParseUntoTargetName`. A filling may be named: `unto stack of number` gives
+    /// the name the checker gives that filling, `stack of number`.
     Bind node or failure to unto-target unto parser:
         Define target-tok as cast one's consume on ("Identifier") or pass the failure off.
-        If cast one's peek-kind is "Of", return a failure (cast one's not-yet on ("unto a filled generic")).
-        Return cast quoted on (target-tok's lexeme).
+        Define fillings as cast listed.
+        While cast one's peek-kind is "Of", repeat:
+            Cast one's advance.
+            Cast one's skip-noise-before-type.
+            Cast fillings's add on (cast one's type-annotation or pass the failure off).
+        Done.
+        If the number of fillings's children is 0, return cast quoted on (target-tok's lexeme).
+        Return cast quoted on (cast filled-type-name on (cast made on ("ObjectType", a series with (cast quoted on (target-tok's lexeme), fillings)))).
     Done.
 
     Bind node or failure to getter-declaration unto parser:

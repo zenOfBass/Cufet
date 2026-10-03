@@ -152,6 +152,7 @@ Pull a book on collections.
     /// Does this name already mean a type — an object, an interface, or one a book introduces?
     Bind fact to is-known-type-name unto checker, given (the text name):
         If (the entry for name in one's defs) is not void, return true.
+        If (the entry for name in one's generic-defs) is not void, return true.
         If cast one's is-interface-name on (name), return true.
         Return cast book-introducing on (name) is not "".
     Done.
@@ -246,6 +247,8 @@ Pull a book on collections.
         Define name as cast unquoted on (cast field-of on (statement, 1)).
         Define target as cast field-of on (statement, 5).
         If cast is-nothing on (target) is false:
+            // Aimed at a template or a filling, it was folded into that type and is checked there.
+            If cast one's is-absorbed on (cast unquoted on (target)), return.
             // The object is `one`, and the line it is said to be made on is the method's own.
             Cast one's check-method-body on (statement, cast unquoted on (target),
                 cast numeric on (cast field-of on (statement, 7))) or pass the failure off.

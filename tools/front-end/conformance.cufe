@@ -63,6 +63,7 @@ Pull a book on collections.
     /// A written type with every name of an interface turned into that interface — what C#'s
     /// `ResolveParamType` does to a shell naming one.
     Bind node to resolved unto checker, given (the node shape):
+        If cast is-filled-type on (shape), return cast object-type-named on (cast filled-type-name on (shape)).
         If shape's kind is "ObjectType":
             Define name as cast unquoted on (cast field-of on (shape, 1)).
             If (the entry for name in one's defs) is void and cast one's is-interface-name on (name):

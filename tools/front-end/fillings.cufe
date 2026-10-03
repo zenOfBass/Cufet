@@ -299,6 +299,189 @@ Pull a book on collections.
         Return "error\tThat doesn't work: '{source's name}' does not work when it fills {source's filled-with}.\nHere on line {source's line}, you're trying to {source's verb} '{source's name}' with those types.\n\nIts body is what refuses them:\n\n{indented converted to text}".
     Done.
 
+    // ── Objects that leave a blank ────────────────────────────────────────
+
+    /// `stack of number` — a filled object type's name: the template's, then what fills each blank,
+    /// as C#'s `GenericInstantiation.NameFor` writes it. A written filling and a resolved one share it.
+    Bind text to filled-type-name, given (the node shape):
+        Define out as a chase.
+        Insert cast unquoted on (cast field-of on (shape, 1)) into out.
+        For each argument in (cast field-of on (shape, 2))'s children, repeat:
+            Insert " of {cast type-words on (argument)}" into out.
+        Done.
+        Return out converted to text.
+    Done.
+
+    /// Is this an object type written with a filling — `stack of number`?
+    Bind fact to is-filled-type, given (the node shape):
+        If shape's kind is not "ObjectType", return false.
+        Define arguments-given as cast field-of on (shape, 2).
+        Return arguments-given's kind is "list" and the number of arguments-given's children is greater than 0.
+    Done.
+
+    /// An `unto` target folded into a type elsewhere — a template (each filling carries its copy)
+    /// or a filling of one (it holds its own). `UntoAbsorbedTargets`.
+    Bind fact to is-absorbed unto checker, given (the text target):
+        If (the entry for target in one's generic-defs) is not void, return true.
+        Define at as the position of " of " in target.
+        If at is void, return false.
+        If at is less than 2, return false.
+        Return (the entry for (the first (at - 1) characters of target) in one's generic-defs) is not void.
+    Done.
+
+    /// A member with its `unto` taken off — once merged it is a nested one.
+    Bind node to without-unto, given (the node member):
+        If member's kind is "GetterDeclaration", return cast with-field on (member, 4, cast nothing).
+        Return cast with-field on (member, 5, cast nothing).
+    Done.
+
+    /// A template with the `unto` members written for it merged in — so each filling carries them.
+    Bind node to merged-template unto checker, given (the node definition):
+        Define methods as cast listed.
+        For each method in cast one's all-methods on (definition), repeat:
+            Cast methods's add on (cast without-unto on (method)).
+        Done.
+        Define getters as cast listed.
+        For each getter in cast one's all-getters on (definition), repeat:
+            Cast getters's add on (cast without-unto on (getter)).
+        Done.
+        Define setters as cast listed.
+        For each setter in cast one's all-setters on (definition), repeat:
+            Cast setters's add on (cast without-unto on (setter)).
+        Done.
+        Return cast with-field on (cast with-field on (cast with-field on (definition, 4, methods), 5, getters), 6, setters).
+    Done.
+
+    /// The names in a list of members, as a set.
+    Bind map from text to fact to member-names, given (the node members):
+        Define names as a map from text to fact.
+        For each member in members's children, repeat:
+            In names, the entry for cast unquoted on (cast field-of on (member, 1)) becomes true.
+        Done.
+        Return names.
+    Done.
+
+    /// `Instantiate`: the filled object a written filling names, made the first time it is asked
+    /// for. `site` is the line of the `a new …` that asked, or 0 when a written type did.
+    Bind text or failure to instantiate-object unto checker, given (the node shape, the number site):
+        Define template-name as cast unquoted on (cast field-of on (shape, 1)).
+        Define arguments-given as (cast field-of on (shape, 2))'s children.
+        For each argument in arguments-given, repeat:
+            Cast one's check-resolves on (argument) or pass the failure off.
+        Done.
+        Define name as cast filled-type-name on (shape).
+        If (the entry for name in one's defs) is not void, return name.
+        Define template as the entry for template-name in one's generic-defs.
+        If template is void:
+            Define advice as "Define 'object {template-name} of <name>' before filling it in, or check the spelling.".
+            If (the entry for template-name in one's defs) is not void:
+                The advice becomes "'{template-name}' is an ordinary type, so write it on its own — '{template-name}', not '{name}'.".
+            Done.
+            Return a failure "error\tThat doesn't work: '{template-name}' does not take a filling.\n\n{advice}".
+        Done.
+        Define blanks as a series of text.
+        For each blank in (cast field-of on (template, 12))'s children, repeat:
+            Insert cast unquoted on (blank) into blanks.
+        Done.
+        If the number of blanks is not the number of arguments-given:
+            Define written as a chase.
+            For each blank in blanks, repeat:
+                Insert " of {blank}" into written.
+            Done.
+            Return a failure "error\tThat doesn't work: '{template-name}' leaves {the number of blanks} blank(s) to fill, and {the number of arguments-given} were given.\n\nIt is written 'object {template-name}{written converted to text}'.".
+        Done.
+        Define found as a map from text to node.
+        Define place as 0.
+        For each blank in blanks, repeat:
+            Increment place by 1.
+            In found, the entry for blank becomes cast one's resolved on (item place of arguments-given).
+        Done.
+        Define concrete as cast with-field on (cast with-field on (cast filled-deep on (template, found), 1, cast quoted on (name)), 12, cast listed).
+
+        // Members written `unto` this filling alone join it — none may share a name with one every
+        // filling already has.
+        Define own-methods as cast member-names on (cast field-of on (concrete, 4)).
+        Define own-getters as cast member-names on (cast field-of on (concrete, 5)).
+        Define own-setters as cast member-names on (cast field-of on (concrete, 6)).
+        Define extra-methods as (the entry for name in one's untos) but void is cast listed.
+        Define extra-getters as (the entry for "get {name}" in one's untos) but void is cast listed.
+        Define extra-setters as (the entry for "set {name}" in one's untos) but void is cast listed.
+        For each extras in a series with (extra-methods, extra-getters, extra-setters), repeat:
+            For each member in extras's children, repeat:
+                Define member-name as cast unquoted on (cast field-of on (member, 1)).
+                If (the entry for member-name in own-methods) is not void or (the entry for member-name in own-getters) is not void
+                        or (the entry for member-name in own-setters) is not void:
+                    Return a failure "error\tThat doesn't work: '{name}' already has a member '{member-name}'.\n\n'{template-name}' declares '{member-name}' for every filling, so '{name}' has it already. Rename the one written unto '{name}'.".
+                Done.
+            Done.
+        Done.
+        Define spliced-methods as cast listed.
+        For each method in (cast field-of on (concrete, 4))'s children, repeat:
+            Cast spliced-methods's add on (method).
+        Done.
+        For each method in extra-methods's children, repeat:
+            Cast spliced-methods's add on (cast without-unto on (method)).
+        Done.
+        Define spliced-getters as cast listed.
+        For each getter in (cast field-of on (concrete, 5))'s children, repeat:
+            Cast spliced-getters's add on (getter).
+        Done.
+        For each getter in extra-getters's children, repeat:
+            Cast spliced-getters's add on (cast without-unto on (getter)).
+        Done.
+        Define spliced-setters as cast listed.
+        For each setter in (cast field-of on (concrete, 6))'s children, repeat:
+            Cast spliced-setters's add on (setter).
+        Done.
+        For each setter in extra-setters's children, repeat:
+            Cast spliced-setters's add on (cast without-unto on (setter)).
+        Done.
+        Define spliced as cast with-field on (cast with-field on (cast with-field on (concrete, 4, spliced-methods), 5, spliced-getters), 6, spliced-setters).
+
+        // Every method of it refuses, if it does, because of the filling — reported at the literal.
+        If site is greater than 0:
+            For each method in spliced-methods's children, repeat:
+                In one's origins, the entry for "{name}'s {cast unquoted on (cast field-of on (method, 1))}" becomes a new origin {
+                    the line site, the name template-name, the filled-with cast filled-with on (blanks, found), the verb "create" }.
+            Done.
+        Done.
+
+        // Registered BEFORE its own types are resolved, so a template that mentions itself finds it.
+        In one's defs, the entry for name becomes concrete.
+        Insert spliced into one's instantiated-objects.
+        For each positional in (cast field-of on (concrete, 2))'s children, repeat:
+            Cast one's check-resolves on (positional) or pass the failure off.
+        Done.
+        For each pair in (cast field-of on (concrete, 3))'s children, repeat:
+            Cast one's check-resolves on (cast field-of on (pair, 2)) or pass the failure off.
+        Done.
+        For each method in spliced-methods's children, repeat:
+            Cast one's check-resolves on (cast field-of on (method, 3)) or pass the failure off.
+            Cast one's check-resolves on (cast field-of on (method, 2)) or pass the failure off.
+        Done.
+        For each getter in spliced-getters's children, repeat:
+            Cast one's check-resolves on (cast field-of on (getter, 2)) or pass the failure off.
+        Done.
+        For each setter in spliced-setters's children, repeat:
+            Cast one's check-resolves on (cast field-of on (setter, 2)) or pass the failure off.
+        Done.
+        Return name.
+    Done.
+
+    /// `a new stack { … }` — a template named with nothing filling it.
+    Bind text to unfilled-template-refusal, given (the text name, the node template, the number at-row):
+        Define written as a chase.
+        Define wanted as a chase.
+        For each blank in (cast field-of on (template, 12))'s children, repeat:
+            Insert " of {cast unquoted on (blank)}" into written.
+            Insert " of <type>" into wanted.
+        Done.
+        Return cast refusal-of on ("'{name}' needs its blank filled in",
+            "'{name}' is written 'object {name}{written converted to text}'",
+            at-row, "create a new {name} without saying what it holds",
+            "Say what fills it: 'a new {name}{wanted converted to text} \{ ... \}'.").
+    Done.
+
     // ── The re-check ──────────────────────────────────────────────────────
 
     /// `WithoutTemplates`: the program with every function template taken out, through pulls.
@@ -307,6 +490,19 @@ Pull a book on collections.
         For each statement in statements's children, repeat:
             If statement's kind is "BindStatement" and (the entry for cast unquoted on (cast field-of on (statement, 1)) in one's generic-binds) is not void:
                 Skip.
+            Done.
+            If statement's kind is "ObjectDefinition" and the number of (cast field-of on (statement, 12))'s children is greater than 0:
+                Skip.
+            Done.
+            // An `unto` member aimed at a template or a filling is already part of it.
+            Define unto-place as 0.
+            If statement's kind is "BindStatement", the unto-place becomes 5.
+            If statement's kind is "GetterDeclaration", the unto-place becomes 4.
+            If statement's kind is "SetterDeclaration", the unto-place becomes 5.
+            If unto-place is greater than 0:
+                If cast is-nothing on (cast field-of on (statement, unto-place)) is false:
+                    If cast one's is-absorbed on (cast unquoted on (cast field-of on (statement, unto-place))), skip.
+                Done.
             Done.
             If statement's kind is "PullStatement":
                 Cast kept's add on (cast with-field on (statement, 2, cast one's without-templates on (cast field-of on (statement, 2)))).
@@ -360,11 +556,15 @@ Pull a book on collections.
     /// After everything is checked: the fillings' bodies, checked by a fresh checker on the program
     /// with them spliced in front and the templates taken out. Nothing to do when nothing was filled.
     Bind void or failure to check-fillings unto checker, given (the node program):
-        If the number of one's instantiated-functions is 0 and the number of one's filled-methods is 0, return.
+        If the number of one's instantiated-functions is 0 and the number of one's filled-methods is 0
+                and the number of one's instantiated-objects is 0, return.
         If one's instantiation-depth is not less than 16:
             Return a failure "error\tThat doesn't work: filling in these types never finishes.\n\nA type that fills itself in — directly or through another — has no end. Break the cycle, or hold the inner one behind a 'voidable'.".
         Done.
         Define spliced as cast listed.
+        For each filled-object in one's instantiated-objects, repeat:
+            Cast spliced's add on (filled-object).
+        Done.
         For each filled-function in one's instantiated-functions, repeat:
             Cast spliced's add on (filled-function).
         Done.
@@ -382,6 +582,20 @@ Pull a book on collections.
         Done.
         For each pair in one's generic-methods, repeat:
             In child's generic-methods, the entry for (the key of pair) becomes the value of pair.
+        Done.
+        For each pair in one's generic-defs, repeat:
+            In child's generic-defs, the entry for (the key of pair) becomes the value of pair.
+        Done.
+        // Members written for a filling not made yet go too, for a filled body that makes it.
+        For each pair in one's untos, repeat:
+            Define target as the key of pair.
+            Define lead as the first 4 characters of target.
+            If lead is "get " or lead is "set ", the target becomes the characters from 5 to the end of target.
+            If (the entry for target in one's generic-defs) is void and cast one's is-absorbed on (target)
+                    and (the entry for target in one's defs) is void:
+                In child's untos, the entry for (the key of pair) becomes the value of pair.
+                Insert the key of pair into child's unto-order.
+            Done.
         Done.
         Cast child's check-program on (spliced) or pass the failure off.
     Done.

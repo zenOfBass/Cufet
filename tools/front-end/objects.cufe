@@ -12,7 +12,7 @@ Pull a book on collections.
     // ── What this checker can judge in an object ──────────────────────────
 
     Bind text to object-beyond-reach, given (the node statement):
-        For each place in a series with (12, 13), repeat:
+        For each place in a series with (13), repeat:
             Define held as cast field-of on (statement, place).
             If held's kind is "list" and the number of held's children is greater than 0:
                 Return "an object with {cast object-part-name on (place)}".
@@ -290,8 +290,12 @@ Pull a book on collections.
                         cast numeric on (cast field-of on (statement, 9)), "define an object named '{name}'",
                         "Pick another name — 'Pull {name}.' always finds the one the language ships.")).
                 Done.
-                If (the entry for name in one's defs) is void, insert name into one's def-order.
-                In one's defs, the entry for name becomes statement.
+                // A definition that leaves a blank is a template: not a type, filled per use.
+                Define is-template as the number of (cast field-of on (statement, 12))'s children is greater than 0.
+                If is-template is false:
+                    If (the entry for name in one's defs) is void, insert name into one's def-order.
+                    In one's defs, the entry for name becomes statement.
+                Done.
                 // Its `unto` members join it, and a name it already has is refused.
                 Define attached as the entry for name in one's untos.
                 If attached is not void or (the entry for "get {name}" in one's untos) is not void or (the entry for "set {name}" in one's untos) is not void:
@@ -317,6 +321,7 @@ Pull a book on collections.
                 Done.
                 Cast one's check-unto-property-names on (statement, "get ", 5, "getter", "Getter names must be unique per type. Rename one of them.") or pass the failure off.
                 Cast one's check-unto-property-names on (statement, "set ", 6, "setter", "Setter names must be unique per type. Rename one of them.") or pass the failure off.
+                If is-template, in one's generic-defs, the entry for name becomes cast one's merged-template on (statement).
             Done.
         Done.
     Done.
@@ -332,8 +337,9 @@ Pull a book on collections.
         Done.
         If shape's kind is "ObjectType":
             Define name as cast unquoted on (cast field-of on (shape, 1)).
-            If (cast field-of on (shape, 2))'s kind is "list" and the number of (cast field-of on (shape, 2))'s children is greater than 0:
-                Return a failure (cast not-judged on ("a filled-in type")).
+            If cast is-filled-type on (shape):
+                Cast one's instantiate-object on (shape, 0) or pass the failure off.
+                Return.
             Done.
             If (the entry for name in one's defs) is not void, return.
             If cast one's is-interface-name on (name), return.
@@ -387,7 +393,8 @@ Pull a book on collections.
     Bind void or failure to check-leftover-untos unto checker:
         For each target in one's unto-order, repeat:
             Define lead as the first 4 characters of target.
-            If lead is not "get " and lead is not "set " and (the entry for target in one's defs) is void:
+            If lead is not "get " and lead is not "set " and (the entry for target in one's defs) is void
+                    and cast one's is-absorbed on (target) is false:
                 Define attached as the entry for target in one's untos but void is cast listed.
                 Define first as item 1 of attached's children.
                 Define reason as "'{target}' is not a defined object type".
@@ -406,7 +413,7 @@ Pull a book on collections.
             For each filed-under in one's unto-order, repeat:
                 If (the first 4 characters of filed-under) is lead:
                     Define target as the characters from 5 to the end of filed-under.
-                    If (the entry for target in one's defs) is void:
+                    If (the entry for target in one's defs) is void and cast one's is-absorbed on (target) is false:
                         Define attached as the entry for filed-under in one's untos but void is cast listed.
                         Define first as item 1 of attached's children.
                         Define first-row as cast getter-row on (first).
@@ -693,14 +700,19 @@ Pull a book on collections.
             Return a failure (cast refusal-of on ("'{name}' comes with the language — 'Pull' is how you get one", settled,
                 at-row, "construct '{name}' with 'a new'", fix)).
         Done.
+        // The name written is the template's, and every message says it; the filling is what is looked up.
+        Define looked-up as name.
         If the number of (cast field-of on (said, 6))'s children is greater than 0:
-            Return a failure (cast not-judged on ("a filled-in object")).
+            The looked-up becomes cast one's instantiate-object on (cast made on ("ObjectType",
+                a series with (cast field-of on (said, 1), cast field-of on (said, 6))), at-row) or pass the failure off.
         Done.
-        If cast one's definition-of on (name) is void:
+        If cast one's definition-of on (looked-up) is void:
+            Define template as the entry for name in one's generic-defs.
+            If template is not void, return a failure (cast unfilled-template-refusal on (name, template, at-row)).
             Return a failure (cast refusal-of on ("'{name}' is not a defined object type", "",
                 at-row, "create a new {name} object", "Define the object type first: Define object {name} with (...).")).
         Done.
-        If cast conforms-as on (cast one's definition-of on (name) but void is cast listed, "book"):
+        If cast conforms-as on (cast one's definition-of on (looked-up) but void is cast listed, "book"):
             Return a failure (cast refusal-of on ("'{name}' is a book, and a book is pulled, not made",
                 "'{name}' says 'and book', so it owns no lifetime of its own — it is consulted rather than held",
                 at-row, "construct '{name}' with 'a new'",
@@ -708,7 +720,7 @@ Pull a book on collections.
         Done.
 
         Define positionals as a series of node.
-        Cast one's gather-positionals on (name, positionals).
+        Cast one's gather-positionals on (looked-up, positionals).
         If the number of positional-values is not the number of positionals:
             Return a failure (cast refusal-of on (
                 "'{name}' expects {the number of positionals} positional field(s) (including promoted), but you provided {the number of positional-values}", "",
@@ -728,8 +740,8 @@ Pull a book on collections.
             Done.
         Done.
 
-        Define all-fields as cast one's field-names on (name).
-        Define defaults as cast one's defaults-for on (name).
+        Define all-fields as cast one's field-names on (looked-up).
+        Define defaults as cast one's defaults-for on (looked-up).
         Define filled as a series of node.
         For each required in all-fields, repeat:
             Define present as false.
@@ -755,7 +767,7 @@ Pull a book on collections.
         Done.
         For each pair in named-values, repeat:
             Define field as cast unquoted on (cast field-of on (pair, 1)).
-            Define wanted as cast one's field-type-of on (name, field).
+            Define wanted as cast one's field-type-of on (looked-up, field).
             If wanted is void:
                 Define listing as "'{name}' has no named fields.".
                 If the number of all-fields is greater than 0:
@@ -772,7 +784,7 @@ Pull a book on collections.
                     "Change the value to a {cast type-words on (wanted)}.")).
             Done.
         Done.
-        Return cast object-type-named on (name).
+        Return cast object-type-named on (looked-up).
     Done.
 
     // ── Reaching into one ─────────────────────────────────────────────────

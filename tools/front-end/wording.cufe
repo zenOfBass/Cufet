@@ -114,6 +114,7 @@ Pull a book on collections.
         If kind is "MapType":
             Return "map from {cast type-words on (cast field-of on (shape, 1))} to {cast type-words on (cast field-of on (shape, 2))}".
         Done.
+        If cast is-filled-type on (shape), return cast filled-type-name on (shape).
         If kind is "ObjectType", return cast display-name on (cast unquoted on (cast field-of on (shape, 1))).
         If kind is "InterfaceType", return cast unquoted on (cast field-of on (shape, 1)).
         If kind is "RecordType", return cast record-words on (shape).
@@ -142,6 +143,7 @@ Pull a book on collections.
         If kind is "MapType":
             Return "maps from {cast type-words on (cast field-of on (shape, 1))} to {cast type-words on (cast field-of on (shape, 2))}".
         Done.
+        If cast is-filled-type on (shape), return "{cast filled-type-name on (shape)} objects".
         If kind is "ObjectType", return "{cast display-name on (cast unquoted on (cast field-of on (shape, 1)))} objects".
         If kind is "InterfaceType", return "{cast unquoted on (cast field-of on (shape, 1))} values".
         If kind is "RecordType", return cast record-words on (shape).
