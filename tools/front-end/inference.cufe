@@ -57,6 +57,7 @@ Pull a book on collections.
         If kind is "ConditionalExpression", return cast one's infer-conditional on (said) or pass the failure off.
         If kind is "TextSplit", return cast one's infer-text-split on (said) or pass the failure off.
         If kind is "TextContains", return cast one's infer-text-contains on (said) or pass the failure off.
+        If kind is "LambdaLiteral", return cast one's infer-lambda on (said) or pass the failure off.
         If kind is "TextAffixTest", return cast one's infer-text-affix on (said) or pass the failure off.
         If kind is "TextFind", return cast one's infer-text-find on (said) or pass the failure off.
         If kind is "TextSubstringRange", return cast one's infer-text-range on (said) or pass the failure off.
@@ -99,7 +100,7 @@ Pull a book on collections.
     /// A type this checker cannot weigh yet — held behind `unsupported` wherever it turns up.
     Bind fact to beyond-types, given (the node shape):
         Define kind as shape's kind.
-        If kind is "FunctionType" or kind is "BookType":
+        If kind is "BookType":
             Return true.
         Done.
         For each inner in shape's children, repeat:

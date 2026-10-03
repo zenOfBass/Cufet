@@ -52,7 +52,7 @@ Pull a book on collections.
         Done.
         For each parameter in (cast field-of on (statement, 3))'s children, repeat:
             Define taken as cast field-of on (parameter, 1).
-            If cast beyond-types on (taken) or taken's kind is "AxiomType" or taken's kind is "FunctionType":
+            If cast beyond-types on (taken) or taken's kind is "AxiomType":
                 Return "a function taking a {taken's kind}".
             Done.
         Done.
