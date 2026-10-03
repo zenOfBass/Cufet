@@ -1,0 +1,425 @@
+/*  Tasks and channels — `Have rabbit start a task`, `Send … through`, `Close`, `the delivery from`
+    and `the awaited result of`: `CheckLaunchTask` in `src/Interpreter/TypeChecker.Rabbit.cs`, with
+    `TypeChecker.Channels.cs`, `TypeChecker.Tasks.cs` and the walks of `TaskCaptures.cs`.
+
+    ★ A task's result type is worked out the way a lambda's is — from its first `Return` — and a
+    task that returns on one path has to return on every path.
+
+    ★ A task may not CHANGE a name it captured when something outside the task reads that name
+    afterwards: the interpreter writes the enclosing binding, a compiled task its own copy.
+*/
+
+Pull a book on collections.
+    // ── Channels ──────────────────────────────────────────────────────────
+
+    /// `a channel of T`.
+    Bind node to infer-channel-creation unto checker, given (the node said):
+        Return cast made on ("ChannelType", a series with (cast one's resolved on (cast field-of on (said, 1)))).
+    Done.
+
+    /// `Send <value> through <channel>.`
+    Bind void or failure to check-send unto checker, given (the node statement):
+        Define at-row as cast numeric on (cast field-of on (statement, 3)).
+        Define carrier as cast one's infer on (cast field-of on (statement, 2)) or pass the failure off.
+        If carrier's kind is not "ChannelType":
+            If cast is-none on (carrier), return.
+            Return a failure (cast refusal-of on ("'Send through' requires a channel", "",
+                at-row, "send through a {cast type-words on (carrier)}",
+                "Use 'Send <value> through <channel of T>.'. The expression after 'through' must be a channel.")).
+        Done.
+        Define element as cast field-of on (carrier, 1).
+        Define sent as cast one's infer on (cast field-of on (statement, 1)) or pass the failure off.
+        If cast is-none on (sent) is false and cast assignable on (element, sent) is false:
+            Return a failure (cast refusal-of on (
+                "this channel carries {cast plural-words on (element)}, but you're sending a {cast type-words on (sent)}", "",
+                at-row, "send a {cast type-words on (sent)} through a channel of {cast type-words on (element)}",
+                "The sent value must be a {cast type-words on (element)} to match this channel's type.")).
+        Done.
+    Done.
+
+    /// `the delivery from <channel>` — the next value, or void once the channel is closed and empty.
+    Bind node or failure to infer-delivery unto checker, given (the node said):
+        Define at-row as cast numeric on (cast field-of on (said, 2)).
+        Define carrier as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
+        If carrier's kind is not "ChannelType":
+            If cast is-none on (carrier), return cast wrapped on ("VoidableType", cast plain-type on ("NumberType")).
+            Return a failure (cast refusal-of on ("'the delivery from' requires a channel", "",
+                at-row, "take a delivery from a {cast type-words on (carrier)}",
+                "Use 'the delivery from <channel of T>'. The expression after 'from' must be a channel.")).
+        Done.
+        Return cast wrapped on ("VoidableType", cast field-of on (carrier, 1)).
+    Done.
+
+    /// `Close <channel>.`
+    Bind void or failure to check-close unto checker, given (the node statement):
+        Define at-row as cast numeric on (cast field-of on (statement, 2)).
+        Define carrier as cast one's infer on (cast field-of on (statement, 1)) or pass the failure off.
+        If carrier's kind is not "ChannelType" and cast is-none on (carrier) is false:
+            Return a failure (cast refusal-of on ("'Close' requires a channel", "",
+                at-row, "close a {cast type-words on (carrier)}",
+                "Use 'Close <channel>.' The expression must be a channel.")).
+        Done.
+    Done.
+
+    // ── Awaiting ──────────────────────────────────────────────────────────
+
+    /// `the awaited result of <task>`.
+    Bind node or failure to infer-awaited unto checker, given (the node said):
+        Define at-row as cast numeric on (cast field-of on (said, 2)).
+        Define handle as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
+        If handle's kind is not "TaskHandleType":
+            If cast is-none on (handle), return handle.
+            Return a failure (cast refusal-of on ("'the awaited result of' requires a task handle", "",
+                at-row, "await the result of a {cast type-words on (handle)}",
+                "Use 'the awaited result of <name>' where <name> was declared with 'Have rabbit start a task as <name>:'.")).
+        Done.
+        Define result as cast field-of on (handle, 1).
+        If cast is-nothing on (result):
+            Return a failure (cast refusal-of on ("this task has no return value — there is no result to await", "",
+                at-row, "await the result of a task that never returns a value",
+                "Add 'return <value>.' to the task body, or use 'Have rabbit start a task:' (no name) for fire-and-forget tasks.")).
+        Done.
+        If result's kind is "FailureType":
+            If one's in-try, return cast field-of on (result, 1).
+            If one's handled is false:
+                Return a failure (cast refusal-of on ("this task can fail — you must handle the failure at the await site", "",
+                    at-row, "use a fallible task's result without handling the failure",
+                    "Wrap with 'but on failure <default>', use a 'Try to:' block, or 'or pass the failure off'.")).
+            Done.
+        Done.
+        Return result.
+    Done.
+
+    // ── Starting a task ───────────────────────────────────────────────────
+
+    /// `Have <rabbit> start a task [as <name>]: … Done.`
+    Bind void or failure to check-launch-task unto checker, given (the node statement):
+        Define at-row as cast numeric on (cast field-of on (statement, 3)).
+        Define body as cast field-of on (statement, 2).
+        If one's rabbit-depth is 0:
+            Return a failure (cast refusal-of on ("'Have rabbit start a task' requires an active rabbit", "",
+                at-row, "spawning a task outside any rabbit scope",
+                "Wrap the task spawn in 'Pull a rabbit. ... Done.'")).
+        Done.
+        // A named rabbit has to be one, and the one that will join the task at its `Done.`.
+        Define given-rabbit as cast field-of on (statement, 5).
+        If cast is-nothing on (given-rabbit) is false:
+            Define named as cast unquoted on (given-rabbit).
+            Define found as cast one's look-up on (named).
+            Define is-one as false.
+            Define its-depth as 0.
+            If found is not void:
+                The is-one becomes cast is-rabbit-type on (found's shape).
+                The its-depth becomes found's depth.
+            Done.
+            If is-one is false:
+                Return a failure (cast refusal-of on ("'{named}' is not a rabbit", "Only a rabbit can be given a task",
+                    at-row, "give a task to '{named}'",
+                    "Name a rabbit pulled with 'Pull a rabbit as {named}.', or write 'Have rabbit start a task' for the enclosing one.")).
+            Done.
+            If its-depth is not one's rabbit-depth:
+                Return a failure (cast refusal-of on ("'{named}' is not the rabbit this block belongs to",
+                    "A task is joined by its rabbit's 'Done.', so '{named}' would have to outlive this block",
+                    at-row, "give work to a rabbit pulled further out",
+                    "Give the task to the rabbit pulled in this block, or move the work out to where '{named}' was pulled.")).
+            Done.
+        Done.
+
+        For each carried in cast one's task-captures on (body), repeat:
+            If cast may-mutate on (body, carried):
+                If cast one's write-is-observable on (statement, carried):
+                    Return a failure (cast refusal-of on ("this task changes '{carried}', which it captured from outside the task",
+                        "A task gets its own copy of everything it captures, because captures cross a thread boundary — so the change would not be visible outside, and two tasks changing it at once would race",
+                        at-row, "change '{carried}' from inside a task",
+                        "Send the result back through a channel, or return it from a named task and await it.")).
+                Done.
+            Done.
+        Done.
+
+        Define fallible as cast has-direct-failure-return on (body).
+        Define earlier-in-function as one's in-function.
+        Define earlier-line as one's function-line.
+        Define earlier-inferring as one's inferring-lambda.
+        Define earlier-fallible as one's overload-fallible.
+        The one's in-function becomes true.
+        The one's inferring-lambda becomes true.
+        The one's overload-fallible becomes fallible.
+        Insert cast unknown-type into one's expected-returns.
+        The one's function-line becomes at-row.
+        Cast one's enter-scope.
+        Cast one's check-block on (body) or pass the failure off.
+        Cast one's exit-scope.
+        Define inferred as item (the number of one's expected-returns) of one's expected-returns.
+        Remove item (the number of one's expected-returns) from one's expected-returns.
+        The one's in-function becomes earlier-in-function.
+        The one's inferring-lambda becomes earlier-inferring.
+        The one's overload-fallible becomes earlier-fallible.
+        The one's function-line becomes earlier-line.
+
+        If cast is-none on (inferred) is false and cast definitely-returns on (body) is false:
+            Return a failure (cast refusal-of on (
+                "this task is inferred to give back a {cast type-words on (inferred)}, but it can reach its end without returning one", "",
+                at-row, "start a task that might not return a value",
+                "Make sure every path through the task ends with a return statement — or remove the returns to make it fire-and-forget.")).
+        Done.
+
+        Define given-name as cast field-of on (statement, 1).
+        If cast is-nothing on (given-name), return.
+        Define name as cast unquoted on (given-name).
+        Define handle as cast plain-type on ("TaskHandleType").
+        If cast is-none on (inferred), cast handle's add on (cast nothing).
+        Otherwise, cast handle's add on (inferred).
+        Cast one's bind-name on (name, a new binding {
+            the shape handle,
+            the established-by cast placed-reference on (name, at-row, cast numeric on (cast field-of on (statement, 4))),
+            the line at-row, the permanent false, the module false, the depth 0, the parameter false }).
+    Done.
+
+    // ── What a task captures (`TaskCaptures`) ─────────────────────────────
+
+    /// The names a task body uses but does not define and that are in scope, in ordinal order.
+    Bind series of text to task-captures unto checker, given (the node body):
+        Define refs as a map from text to fact.
+        Define defs as a map from text to fact.
+        Cast refs-and-defs on (body, refs, defs).
+        Define names as a series of text.
+        For each mapping in refs, repeat:
+            Define name as the key of mapping.
+            If (the entry for name in defs) is void and cast one's look-up on (name) is not void, insert name into names.
+        Done.
+        Return cast sorted-ordinally on (names).
+    Done.
+
+    /// The names of a lambda's or a function's parameters.
+    Bind series of text to bound-names-of, given (the node parameters):
+        Define names as a series of text.
+        For each parameter in parameters's children, repeat:
+            Insert cast unquoted on (cast field-of on (parameter, 2)) into names.
+        Done.
+        Return names.
+    Done.
+
+    /// `CollectRefsDefs`: every name read or written, and every name defined, through the whole tree.
+    Bind void to refs-and-defs, given (the node tree, the map from text to fact refs, the map from text to fact defs):
+        Define kind as tree's kind.
+        If kind is "atom", return.
+        If kind is "VariableReference":
+            In refs, the entry for cast unquoted on (cast field-of on (tree, 1)) becomes true.
+            Return.
+        Done.
+        // An assignment's target is a bare name, invisible to the walk below.
+        If kind is "BecomesStatement":
+            In refs, the entry for cast unquoted on (cast field-of on (tree, 1)) becomes true.
+            Cast refs-and-defs on (cast field-of on (tree, 2), refs, defs).
+            Return.
+        Done.
+        If kind is "DefineStatement":
+            In defs, the entry for cast unquoted on (cast field-of on (tree, 1)) becomes true.
+            Cast refs-and-defs on (cast field-of on (tree, 2), refs, defs).
+            Return.
+        Done.
+        // A binding form binds its own names for its own body only.
+        If kind is "ForEachStatement":
+            Cast refs-and-defs on (cast field-of on (tree, 2), refs, defs).
+            Define iterated as a series of text.
+            If cast is-nothing on (cast field-of on (tree, 1)) is false, insert cast unquoted on (cast field-of on (tree, 1)) into iterated.
+            Cast refs-in-nested on (iterated, cast field-of on (tree, 3), refs, defs).
+            Return.
+        Done.
+        If kind is "ForEachFromInputStatement":
+            Cast refs-in-nested on (a series with (cast unquoted on (cast field-of on (tree, 1))), cast field-of on (tree, 2), refs, defs).
+            Return.
+        Done.
+        If kind is "LambdaLiteral":
+            Cast refs-in-nested on (cast bound-names-of on (cast field-of on (tree, 1)), cast field-of on (tree, 2), refs, defs).
+            Return.
+        Done.
+        If kind is "BindStatement":
+            In defs, the entry for cast unquoted on (cast field-of on (tree, 1)) becomes true.
+            Cast refs-in-nested on (cast bound-names-of on (cast field-of on (tree, 3)), cast field-of on (tree, 4), refs, defs).
+            Return.
+        Done.
+        // An object's members are bound by the member — `one`, and each one's own parameters.
+        If kind is "ObjectDefinition":
+            For each method in (cast field-of on (tree, 4))'s children, repeat:
+                Define bound as cast bound-names-of on (cast field-of on (method, 3)).
+                Insert "one" into bound.
+                Cast refs-in-nested on (bound, cast field-of on (method, 4), refs, defs).
+            Done.
+            For each getter in (cast field-of on (tree, 5))'s children, repeat:
+                Cast refs-in-nested on (a series with ("one"), cast field-of on (getter, 3), refs, defs).
+            Done.
+            For each setter in (cast field-of on (tree, 6))'s children, repeat:
+                Cast refs-in-nested on (a series with ("one", cast unquoted on (cast field-of on (setter, 3))), cast field-of on (setter, 4), refs, defs).
+            Done.
+            Return.
+        Done.
+        For each child in tree's children, repeat:
+            Cast refs-and-defs on (child, refs, defs).
+        Done.
+    Done.
+
+    /// A nested body walked with its own names bound, keeping only what is still free.
+    Bind void to refs-in-nested, given (the series of text bound, the node body, the map from text to fact refs,
+            the map from text to fact defs):
+        Define inner-defs as a map from text to fact.
+        For each mapping in defs, repeat:
+            In inner-defs, the entry for the key of mapping becomes true.
+        Done.
+        For each name in bound, repeat:
+            In inner-defs, the entry for name becomes true.
+        Done.
+        Define inner-refs as a map from text to fact.
+        Cast refs-and-defs on (body, inner-refs, inner-defs).
+        For each mapping in inner-refs, repeat:
+            If (the entry for the key of mapping in inner-defs) is void, in refs, the entry for the key of mapping becomes true.
+        Done.
+    Done.
+
+    /// Whether an expression reads (or writes) the name anywhere in it.
+    Bind fact to mentions-name, given (the node said, the text name):
+        Define refs as a map from text to fact.
+        Cast refs-and-defs on (said, refs, a map from text to fact).
+        Return (the entry for name in refs) is not void.
+    Done.
+
+    /// `MayMutate`: the tree rebinds the name, writes into it, or hands it to a function. It
+    /// over-approximates on purpose — a missed write ships a divergence, an extra one only a refusal.
+    Bind fact to may-mutate, given (the node tree, the text name):
+        Define kind as tree's kind.
+        If kind is "atom", return false.
+        If kind is "BecomesStatement" and cast unquoted on (cast field-of on (tree, 1)) is name, return true.
+        Define written-into as 0.
+        If kind is "SeriesInsertStatement", the written-into becomes 2.
+        If kind is "SeriesRemoveAtStatement" or kind is "SeriesRemoveValueStatement" or kind is "SeriesSetStatement", the written-into becomes 1.
+        If kind is "MatrixSetStatement" or kind is "PossessiveSetStatement" or kind is "MapSetStatement", the written-into becomes 1.
+        If kind is "RecordNamedSetStatement", the written-into becomes 2.
+        If written-into is greater than 0:
+            If cast mentions-name on (cast field-of on (tree, written-into), name), return true.
+        Done.
+        If kind is "CastExpression" or kind is "CastStatement":
+            For each argument in (cast field-of on (tree, 2))'s children, repeat:
+                If cast mentions-name on (argument, name), return true.
+            Done.
+        Done.
+        For each child in tree's children, repeat:
+            If cast may-mutate on (child, name), return true.
+        Done.
+        Return false.
+    Done.
+
+    /// `WriteIsObservable`: does anything outside this task — anywhere in the program, the prelude
+    /// included — read the name, or write it?
+    Bind fact to write-is-observable unto checker, given (the node launched, the text name):
+        For each definition in one's prelude-defs, repeat:
+            If cast observed-in on (definition, launched, name), return true.
+        Done.
+        Return cast observed-in on (one's whole-program, launched, name).
+    Done.
+
+    Bind fact to observed-in, given (the node tree, the node launched, the text name):
+        Define kind as tree's kind.
+        If kind is "atom", return false.
+        // The task's own body is not "outside" it.
+        If kind is "LaunchTaskStatement":
+            If (cast field-of on (tree, 3))'s word is (cast field-of on (launched, 3))'s word:
+                If (cast field-of on (tree, 4))'s word is (cast field-of on (launched, 4))'s word, return false.
+            Done.
+        Done.
+        If kind is "VariableReference", return cast unquoted on (cast field-of on (tree, 1)) is name.
+        If kind is "BecomesStatement":
+            If cast unquoted on (cast field-of on (tree, 1)) is name, return true.
+            Return cast observed-in on (cast field-of on (tree, 2), launched, name).
+        Done.
+        For each child in tree's children, repeat:
+            If cast observed-in on (child, launched, name), return true.
+        Done.
+        Return false.
+    Done.
+
+    // ── Pipes of functions (`TypeChecker.Pipes.cs`) ───────────────────────
+
+    /// The line a stage is said to be on — only the shapes C#'s `GetExprLine` knows; 0 otherwise.
+    Bind number to stage-row, given (the node stage):
+        Define kind as stage's kind.
+        If kind is "VariableReference", return cast numeric on (cast field-of on (stage, 2)).
+        If kind is "LambdaLiteral" or kind is "PipeExpression", return cast numeric on (cast field-of on (stage, 3)).
+        If kind is "RunExpression", return cast numeric on (cast field-of on (stage, 4)).
+        Return 0.
+    Done.
+
+    /// `A | B | C` with a function at every stage: each must be one, and what each stage emits is
+    /// what the next one's `for each … from the input` reads — so a named stage's body is checked
+    /// again with that bound.
+    Bind void or failure to check-task-pipe unto checker, given (the series of node stages):
+        For each stage in stages, repeat:
+            Define staged as cast one's infer on (stage) or pass the failure off.
+            If cast is-none on (staged) is false and staged's kind is not "FunctionType":
+                Return a failure (cast refusal-of on ("a pipe stage must be a function", "",
+                    cast stage-row on (stage), "use a {cast type-words on (staged)} as a pipe stage",
+                    "Pipe stages must be Bind'd functions or lambdas. Did you mean to use '|' between function names?")).
+            Done.
+        Done.
+        // Nothing flows into the first stage.
+        Define flowing as cast unknown-type.
+        For each stage in stages, repeat:
+            Define stage-function as cast unknown-type.
+            If stage's kind is "VariableReference":
+                Define found as the entry for cast unquoted on (cast field-of on (stage, 1)) in one's free-binds.
+                If found is not void, the stage-function becomes found.
+            Done.
+            If cast is-none on (stage-function):
+                The flowing becomes cast unknown-type.
+            Done.
+            Otherwise:
+                Define name as cast unquoted on (cast field-of on (stage, 1)).
+                If cast is-none on (flowing) is false:
+                    Define settled as the entry for name in one's pipe-stage-elem.
+                    If settled is not void:
+                        If cast same-type on (settled, flowing) is false:
+                            Return a failure (cast refusal-of on ("'{name}' already reads {cast plural-words on (settled)} from its input", "",
+                                cast stage-row on (stage), "also use it on a pipe carrying {cast plural-words on (flowing)}",
+                                "A pipe stage reads one kind of value. Write a separate function for the other pipe.")).
+                        Done.
+                    Done.
+                    In one's pipe-stage-elem, the entry for name becomes flowing.
+                Done.
+                The flowing becomes cast one's check-stage-body on (stage-function, flowing) or pass the failure off.
+            Done.
+        Done.
+    Done.
+
+    /// One stage's body checked with `incoming` read from its input; gives back what it emits first.
+    Bind node or failure to check-stage-body unto checker, given (the node stage-function, the node incoming):
+        Define earlier-input as one's pipe-input.
+        Define earlier-output as one's pipe-output.
+        The one's pipe-input becomes incoming.
+        The one's pipe-output becomes cast unknown-type.
+        Cast one's check-bind-body on (stage-function) or pass the failure off.
+        Define emitted as one's pipe-output.
+        The one's pipe-input becomes earlier-input.
+        The one's pipe-output becomes earlier-output.
+        Return emitted.
+    Done.
+
+    /// `output <value>` — the first one a stage reaches says what it emits.
+    Bind void or failure to check-output unto checker, given (the node statement):
+        Define emitted as cast one's infer on (cast field-of on (statement, 1)) or pass the failure off.
+        If cast is-none on (one's pipe-output) and cast is-none on (emitted) is false, the one's pipe-output becomes emitted.
+    Done.
+
+    /// `for each <name> from the input:` — judged only when a pipe says what flows in; until then
+    /// its body waits for the pipe site.
+    Bind void or failure to check-from-input unto checker, given (the node statement):
+        If cast is-none on (one's pipe-input), return.
+        Define name as cast unquoted on (cast field-of on (statement, 1)).
+        Define at-row as cast numeric on (cast field-of on (statement, 3)).
+        Cast one's enter-scope.
+        Cast one's bind-name on (name, a new binding {
+            the shape cast one's resolved on (one's pipe-input),
+            the established-by cast named-reference on (name), the line at-row,
+            the permanent false, the module false, the depth 0, the parameter false }).
+        Cast one's check-block on (cast field-of on (statement, 2)) or pass the failure off.
+        Cast one's exit-scope.
+    Done.
+Done.

@@ -111,6 +111,11 @@ Pull a book on collections.
         If kind is "SeriesType", return "series of {cast plural-words on (cast field-of on (shape, 1))}".
         If kind is "StashType", return "stash of {cast plural-words on (cast field-of on (shape, 1))}".
         If kind is "SetType", return "set of {cast type-words on (cast field-of on (shape, 1))}".
+        If kind is "ChannelType", return "channel of {cast type-words on (cast field-of on (shape, 1))}".
+        If kind is "TaskHandleType":
+            If cast is-nothing on (cast field-of on (shape, 1)), return "void task".
+            Return "task (result: {cast type-words on (cast field-of on (shape, 1))})".
+        Done.
         If kind is "MapType":
             Return "map from {cast type-words on (cast field-of on (shape, 1))} to {cast type-words on (cast field-of on (shape, 2))}".
         Done.
@@ -141,6 +146,11 @@ Pull a book on collections.
         If kind is "SeriesType", return "series of {cast plural-words on (cast field-of on (shape, 1))}".
         If kind is "StashType", return "stashes of {cast plural-words on (cast field-of on (shape, 1))}".
         If kind is "SetType", return "sets of {cast type-words on (cast field-of on (shape, 1))}".
+        If kind is "ChannelType", return "channels of {cast plural-words on (cast field-of on (shape, 1))}".
+        If kind is "TaskHandleType":
+            If cast is-nothing on (cast field-of on (shape, 1)), return "void task handles".
+            Return "task handles (result: {cast plural-words on (cast field-of on (shape, 1))})".
+        Done.
         If kind is "MapType":
             Return "maps from {cast type-words on (cast field-of on (shape, 1))} to {cast type-words on (cast field-of on (shape, 2))}".
         Done.

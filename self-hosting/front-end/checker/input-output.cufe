@@ -8,8 +8,8 @@
     and removing are fallible STATEMENTS instead — an enclosing `Try` catches them, and nothing is
     asked of the line itself.
 
-    ⚠ A pipe of FUNCTIONS is the tasks slice: its stages' bodies are checked again with what flows
-    into them. Only a pipe of `run`s is judged here.
+    ⚠ A pipe of FUNCTIONS is in `tasks.cufe`: its stages' bodies are checked again with what flows
+    into them.
 */
 
 Pull a book on collections.
@@ -314,6 +314,10 @@ Pull a book on collections.
     Bind void or failure to check-pipe-statement unto checker, given (the node said):
         Define stages as cast pipe-stages on (said).
         Cast refuse-terminal-in-pipe on (stages) or pass the failure off.
+        If cast is-program-pipe on (said) is false:
+            Cast one's check-task-pipe on (stages) or pass the failure off.
+            Return.
+        Done.
         Cast one's check-pipe-stages on (stages) or pass the failure off.
     Done.
 

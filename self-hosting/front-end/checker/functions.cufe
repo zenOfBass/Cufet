@@ -223,6 +223,8 @@ Pull a book on collections.
                 Cast one's bind-name on (name, a new binding {
                     the shape cast function-type-of on (statement),
                     the established-by cast named-reference on (name), the line at-row, the permanent false, the module false, the depth 0, the parameter false }).
+                // So a pipe can check this body again once it knows what flows into it.
+                In one's free-binds, the entry for name becomes statement.
             Done.
         Done.
     Done.

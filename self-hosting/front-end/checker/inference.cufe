@@ -87,6 +87,9 @@ Pull a book on collections.
         If kind is "PipeExpression", return cast one's infer-pipe on (said) or pass the failure off.
         If kind is "ReadExpression", return cast one's infer-read on (said) or pass the failure off.
         If kind is "EnvironmentVariableExpression", return cast one's infer-env-var on (said) or pass the failure off.
+        If kind is "ChannelCreation", return cast one's infer-channel-creation on (said).
+        If kind is "DeliveryExpression", return cast one's infer-delivery on (said) or pass the failure off.
+        If kind is "AwaitedResultExpression", return cast one's infer-awaited on (said) or pass the failure off.
         If kind is "CurrentDirectoryExpression", return cast wrapped on ("VoidableType", cast plain-type on ("TextType")).
         If kind is "ProgramArgumentsExpression", return cast wrapped on ("SeriesType", cast plain-type on ("TextType")).
         If kind is "InterruptRequestedExpression", return cast plain-type on ("FactType").

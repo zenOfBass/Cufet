@@ -53,7 +53,12 @@ Pull a book on collections.
         the map from text to node filling-parts,
         the fact inferring-lambda,
         the map from text to node overloads,
-        the fact overload-fallible).
+        the fact overload-fallible,
+        the node whole-program,
+        the map from text to node free-binds,
+        the node pipe-input,
+        the node pipe-output,
+        the map from text to node pipe-stage-elem).
 
     /// A pull of a module, remembered with the names visible at it — its needs are verified once
     /// every module's body has been checked, since one may be defined after the block that pulls it.
@@ -224,11 +229,7 @@ Pull a book on collections.
         If kind is "WhileStatement", return cast beyond-reach on (cast field-of on (statement, 2)).
         If kind is "WithOpenStatement", return cast beyond-reach on (cast field-of on (statement, 4)).
         If kind is "GetterDeclaration" or kind is "SetterDeclaration", return cast property-beyond-reach on (statement).
-        // A pipe of functions is the tasks slice; a pipe of programs is judged.
-        If kind is "PipeExpression":
-            If cast is-program-pipe on (statement), return "".
-            Return "a pipe of functions".
-        Done.
+        If kind is "ForEachFromInputStatement", return cast beyond-reach on (cast field-of on (statement, 2)).
         If kind is "RepeatUntilStatement", return cast beyond-reach on (cast field-of on (statement, 1)).
         If kind is "ForEachStatement", return cast beyond-reach on (cast field-of on (statement, 3)).
         If kind is "BindStatement", return cast bind-beyond-reach on (statement).
@@ -236,6 +237,7 @@ Pull a book on collections.
         If kind is "OperatorOverloadDeclaration", return cast beyond-reach on (cast field-of on (statement, 6)).
         If kind is "PullStatement", return cast beyond-reach on (cast field-of on (statement, 2)).
         If kind is "PullRabbitStatement", return cast beyond-reach on (cast field-of on (statement, 2)).
+        If kind is "LaunchTaskStatement", return cast beyond-reach on (cast field-of on (statement, 2)).
         If kind is "TryStatement":
             For each place in a series with (1, 2, 3), repeat:
                 Define handler as cast field-of on (statement, place).
@@ -250,7 +252,8 @@ Pull a book on collections.
                 "ReturnStatement", "CastStatement", "PossessiveSetStatement", "RecordNamedSetStatement", "SuppressStatement",
                 "MapSetStatement", "ExitStatement", "SeedChanceStatement", "MatrixSetStatement",
                 "FileWriteStatement", "PathActionStatement", "CurrentDirectorySetStatement", "WriteToStreamStatement",
-                "RunStatement", "AcknowledgeInterruptStatement",
+                "RunStatement", "AcknowledgeInterruptStatement", "SendStatement", "CloseStatement", "YieldStatement",
+                "OutputStatement", "PipeExpression",
                 "SeriesInsertStatement", "SeriesSetStatement", "SeriesRemoveAtStatement", "SeriesRemoveValueStatement"), repeat:
             If kind is known, return "".
         Done.
@@ -298,6 +301,8 @@ Pull a book on collections.
     Bind void or failure to check-program unto checker, given (the node written):
         // A module's carried types become ordinary top-level objects before anything else.
         Define program as cast one's lift-carried-types on (written).
+        // Held for the question a task's captured write asks: does anything outside it read the name?
+        The one's whole-program becomes program.
         Define reach as cast program-beyond-reach on (program).
         If reach is not "", return a failure (cast not-judged on (reach)).
         Cast check-versions on (program) or pass the failure off.
@@ -531,6 +536,21 @@ Pull a book on collections.
         Done.
         Otherwise if kind is "PullRabbitStatement":
             Cast one's check-pull-rabbit on (statement) or pass the failure off.
+        Done.
+        Otherwise if kind is "LaunchTaskStatement":
+            Cast one's check-launch-task on (statement) or pass the failure off.
+        Done.
+        Otherwise if kind is "SendStatement":
+            Cast one's check-send on (statement) or pass the failure off.
+        Done.
+        Otherwise if kind is "CloseStatement":
+            Cast one's check-close on (statement) or pass the failure off.
+        Done.
+        Otherwise if kind is "OutputStatement":
+            Cast one's check-output on (statement) or pass the failure off.
+        Done.
+        Otherwise if kind is "ForEachFromInputStatement":
+            Cast one's check-from-input on (statement) or pass the failure off.
         Done.
         Otherwise if kind is "TryStatement":
             Cast one's check-try on (statement) or pass the failure off.
@@ -1143,7 +1163,12 @@ Pull a book on collections.
             the filling-parts a map from text to node,
             the inferring-lambda false,
             the overloads a map from text to node,
-            the overload-fallible false }.
+            the overload-fallible false,
+            the whole-program cast listed,
+            the free-binds a map from text to node,
+            the pipe-input cast unknown-type,
+            the pipe-output cast unknown-type,
+            the pipe-stage-elem a map from text to node }.
         Cast walker's register-prelude on (prelude).
         Return walker.
     Done.
