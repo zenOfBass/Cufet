@@ -27,7 +27,7 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
     : IClassFixture<CompiledCufetChecker>
 {
     /// <summary>How many corpus files must agree. Raised as the checker grows; never lowered.</summary>
-    private const int CorpusFloor = 95;
+    private const int CorpusFloor = 96;
 
     /// <summary>Where the bundled books' source is — the checker reads their layers with its own parser.</summary>
     private static string[] PreludeArgs =>
@@ -806,6 +806,39 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
         "Define object spans with () and module:\n    Define object span with (the number low, the number high).\n    Bind span to between, given (the number lo):\n        Return 5.\n    Done.\nDone.",
         "Define object spans with () and module:\n    Define object span with (the number low, the number high).\nDone.\nPull a spans.\n    Define spans-list as a series of span.\n    Insert a new span { the low 1, the high 2 } into spans-list.\n    Insert 4 into spans-list.\nDone.",
         "Define object spans with () and module:\n    Define object span with (the number low, the number high).\nDone.\nPull a spans.\n    Define t as a new span { the low 1, the high 2 }.\n    State t's middle.\nDone.",
+        // Blanks in functions and methods: filled per call, the filled bodies checked again with the templates gone, a refusal reported at the call.
+        "Bind element to first-of, given (the series of element items):\n    Return item 1 of items.\nDone.\nState cast first-of on (a series of number with (1, 2)) + 1.\nState cast first-of on (a series of text with (\"a\")) joined to \"b\".",
+        "Bind element to first-of, given (the series of element items):\n    Return item 1 of items.\nDone.\nState cast first-of on (a series of text with (\"a\")) + 1.",
+        "Bind element to doubled, given (the element x):\n    Return x + x.\nDone.\nState cast doubled on (2).\nState cast doubled on (\"a\").",
+        "Bind fact to same-one, given (the element first-one, the element second-one):\n    Return first-one is second-one.\nDone.\nState cast same-one on (1, \"x\").",
+        "Bind map from element to element to blank-map, given (the number n):\n    Define out as a map from element to element.\n    Return out.\nDone.\nDefine m as cast blank-map on (3).",
+        "Bind element to doubled, given (the element x):\n    Return x + x.\nDone.\nState cast doubled on (2).\nState cast doubled on (3) + 1.",
+        "Bind element to bad, given (the element x):\n    Return 5.\nDone.\nState cast bad on (\"a\").",
+        "Bind element to bad, given (the element x):\n    Return 5.\nDone.\nState cast bad on (4).",
+        "Bind element to bad, given (the element x):\n    Return 5.\nDone.\nState 1.",
+        "Bind element to echo, given (the element x):\n    Return x.\nDone.\nBind element to echo-twice, given (the element x):\n    Return cast echo on (cast echo on (x)).\nDone.\nState cast echo-twice on (5) + 1.",
+        "Bind element to echo, given (the element x):\n    Return x.\nDone.\nState cast echo on (5, 6).",
+        "Bind element to echo, given (the element x):\n    Return x.\nDone.\nState cast echo on ().",
+        "Define object box with (the number size):\n    Bind element to echo, given (the element x):\n        Return x.\n    Done.\nDone.\nDefine b as a new box { the size 1 }.\nState cast b's echo on (5) + 1.\nState cast echo on (b, \"a\") joined to \"!\".",
+        "Define object box with (the number size):\n    Bind element to grow, given (the element x):\n        Return x + one's size.\n    Done.\nDone.\nDefine b as a new box { the size 1 }.\nState cast b's grow on (5).\nState cast b's grow on (\"a\").",
+        "Define object box with (the number size):\n    Bind fact to same-one, given (the element first-one, the element second-one):\n        Return first-one is second-one.\n    Done.\nDone.\nDefine b as a new box { the size 1 }.\nState cast b's same-one on (1, \"x\").",
+        "Define xs as cast unique on (a series of number with (1, 1, 2)).\nState the number of xs + 1.\nDefine ys as cast unique on (a series of text with (\"a\")).\nState item 1 of ys joined to \"!\".",
+        "Bind voidable element to first-or-none, given (the series of element xs):\n    If the number of xs is 0, return void.\n    Return item 1 of xs.\nDone.\nDefine found as (cast first-or-none on (a series of number with (3))) but void is 0.\nState found + 1.\nDefine missing as (cast first-or-none on (a series of text)) but void is 2.",
+        "Bind element to echo, given (the element x):\n    Return x.\nDone.\nBind number to user, given (the number n):\n    Return cast echo on (n) + 1.\nDone.\nState cast user on (2).",
+        "Bind element to echo, given (the element x):\n    Define y as x.\n    Return y + mystery.\nDone.\nBind number to user, given (the number n):\n    Return cast echo on (n).\nDone.\nState cast user on (2).",
+        "Bind element to echo, given (the element x):\n    Return x.\nDone.\nBind number to user, given (the number n):\n    Return cast echo on (n) + 1.\nDone.\nState cast user on (2).\nState cast echo on (7) + 1.",
+        "Pull a book on collections.\n    Define xs as cast unique on (a series of number with (1, 1, 2)).\n    State the number of xs + 1.\n    Define ys as cast unique on (a series of text with (\"a\")).\n    State item 1 of ys + 1.\nDone.",
+        "Bind element to echo, given (the element x):\n    Return x.\nDone.\nState cast echo on (the x 5) + 1.",
+        "Bind map from key-kind to value-kind to swap-pair, given (the key-kind k, the value-kind v, the map from key-kind to value-kind m):\n    Return m.\nDone.\nDefine m as a map from text to number.\nDefine out as cast swap-pair on (\"a\", 1, m).\nState the size of out + \"x\".",
+        "Define object box with (the number size):\n    Bind element to echo, given (the element x):\n        Return x.\n    Done.\nDone.\nDefine b as a new box { the size 1 }.\nState cast echo on (b, 5, 6).",
+        "Define object box with (the number size):\n    Bind element to echo, given (the element x):\n        Return x.\n    Done.\nDone.\nDefine b as a new box { the size 1 }.\nState cast b's echo on (5) + 1.\nState cast b's missing on (5).",
+        "Bind element to inner-add, given (the element x):\n    Return x + 1.\nDone.\nBind element to outer, given (the element x):\n    Return cast inner-add on (x).\nDone.\nState cast outer on (2) + 1.\nState cast outer on (\"a\").",
+        "Define object box with (the number size):\n    Bind element to echo, given (the element x):\n        Return x.\n    Done.\nDone.\nDefine b as a new box { the size 1 }.\nState cast b's echo on (the x \"named\") joined to \"!\".\nState cast echo on (b, the x 3) + 1.\nState cast b's echo on (the y 3).",
+        "Bind number to grow, given (the element x, the element y):\n    Define wrapped as a series of element.\n    Insert x into wrapped.\n    Return cast grow on (wrapped, wrapped).\nDone.\nState cast grow on (1, 2).",
+        "Define object box with (the number size):\n    Bind element to echo, given (the element x):\n        Return x.\n    Done.\n    Bind element to echo-again, given (the element x):\n        Return cast one's echo on (x).\n    Done.\nDone.\nDefine b as a new box { the size 1 }.\nState cast b's echo-again on (5) + 1.\nState cast b's echo-again on (\"a\") + 1.",
+        "Define object box with (the number size):\n    Bind element to echo, given (the element x):\n        Return x.\n    Done.\nDone.\nDefine b as a new box { the size 1 }.\nState b's echo.",
+        "Bind element to echo, given (the element x):\n    Return x.\nDone.\nBind number to first-user, given (the number n):\n    Return cast echo on (n).\nDone.\nBind number to second-user, given (the number n):\n    Return cast echo on (n) + 1.\nDone.\nState cast first-user on (1) + cast second-user on (2).\nState cast echo on (\"x\") + 1.",
+        "Bind element to pick, given (the fact first-one, the element yes, the element no):\n    If first-one, return yes.\n    Return no.\nDone.\nState cast pick on (the no 2, the yes 1, the first-one false) + 10.\nState cast pick on (the no 2, the yes \"a\", the first-one false).",
     ];
 
     [Fact]
