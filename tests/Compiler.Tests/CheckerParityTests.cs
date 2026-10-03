@@ -7,7 +7,7 @@ namespace Cufet.Compiler.Tests;
 public sealed class CompiledCufetChecker() : CompiledFrontEnd("checker");
 
 /// <summary>
-/// The checker written in Cufet (`tools/front-end/checker.cufe`) accepts what the one in C# accepts,
+/// The checker written in Cufet (`self-hosting/front-end/checker/checker.cufe`) accepts what the one in C# accepts,
 /// and refuses what it refuses in the same words.
 /// </summary>
 /// <remarks>
@@ -27,7 +27,7 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
     : IClassFixture<CompiledCufetChecker>
 {
     /// <summary>How many corpus files must agree. Raised as the checker grows; never lowered.</summary>
-    private const int CorpusFloor = 101;
+    private const int CorpusFloor = 102;
 
     /// <summary>Where the bundled books' source is — the checker reads their layers with its own parser.</summary>
     private static string[] PreludeArgs =>

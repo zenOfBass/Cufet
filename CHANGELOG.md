@@ -34,7 +34,7 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   ★ Found by the Cufet lexer, which bound 13 throwaway names only to reach the expression form and
   returned a meaningless `fact` from every scanning method; rewritten in the new forms it lost
   every throwaway name and every `Return true.` that meant only "it worked".
-- **The Cufet parser, written in Cufet** — `tools/front-end/`, the second piece of the compiler in its own language. `cufet tools/front-end/parser.cufe <files…>` prints each file's syntax tree, one
+- **The Cufet parser, written in Cufet** — `self-hosting/front-end/parser/`, the second piece of the compiler in its own language. `cufet self-hosting/front-end/parser/parser.cufe <files…>` prints each file's syntax tree, one
   top-level statement per line, and `ParserParityTests` holds it to `src/Interpreter/Parser.cs`
   tree for tree — every node, field, name and position — over all 100 `.cufe` files in the
   repository, its own included. It covers the whole language the corpus uses: patterns compiled
@@ -45,7 +45,7 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   a token, and with a token deleted) and on a hand-written list for what no cut reaches: the
   lexer's refusals, a reserved word in a name's place, blocks left open, patterns, a `cufet` block
   and two interfaces supplying one default. A sweep of 7,637 such programs agreed on every one.
-- **The type checker, begun in Cufet** — `tools/front-end/checker.cufe`, the third piece. It says of
+- **The type checker, begun in Cufet** — `self-hosting/front-end/checker/checker.cufe`, the third piece. It says of
   each file what `TypeChecker.Check` says — accepted, or refused in the same words — and
   `CheckerParityTests` holds it to that on 796 hand-written programs and on the corpus. It judges
   names and scopes, `Define` and `becomes`, operators, text and its operations, bit patterns,
@@ -61,7 +61,11 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Changed
 
-- **The lexer moved from `tools/lexer/` to `tools/front-end/`**, where the parser reads it: its scanning became `scanner.cufe`, which gives back tokens as objects, and `lexer.cufe` is the small program that prints them.
+- **The front end written in Cufet lives in `self-hosting/`**, a project of its own, as one namespace
+  in three folders — `front-end/lexer/`, `front-end/parser/` and `front-end/checker/`, with the tree
+  they share in `front-end/` — which its blueprint draws. The lexer came from `tools/lexer/`: its
+  scanning became `scanner.cufe`, which gives back tokens as objects, and `lexer.cufe` is the small
+  program that prints them.
 - **A file whose declarations sit inside a `Pull` is a library, not a program.** Written inside
   `Pull a book on collections. … Done.` so its functions can use the book, such a file ran,
   printed nothing and exited 0; `cufet` and `cufet build` now refuse it as having nothing to run,

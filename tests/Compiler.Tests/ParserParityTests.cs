@@ -4,7 +4,7 @@ using static Cufet.Compiler.Tests.LexerParityTests;
 
 namespace Cufet.Compiler.Tests;
 
-/// <summary>One program of `tools/front-end/`, built once for every test that runs it compiled.</summary>
+/// <summary>One program of `self-hosting/front-end/`, built once for every test that runs it compiled.</summary>
 public abstract class CompiledFrontEnd : IDisposable
 {
     private readonly string _dir;
@@ -13,13 +13,7 @@ public abstract class CompiledFrontEnd : IDisposable
     protected CompiledFrontEnd(string entry)
     {
         _dir = Directory.CreateTempSubdirectory($"cufet-{entry}-build-").FullName;
-        foreach (var f in Directory.GetFiles(Path.Combine(RepoRoot, "tools", "front-end"), "*.cufe"))
-            File.Copy(f, Path.Combine(_dir, Path.GetFileName(f)));
-        // A blueprint marks the directory as a project, so the files see each other as they do in
-        // tools/front-end/.
-        File.WriteAllText(Path.Combine(_dir, "blueprint.cufe"), "");
-        Run(CufetExe, ["build", $"{entry}.cufe"], _dir);
-        Exe = Path.Combine(_dir, entry + (OperatingSystem.IsWindows() ? ".exe" : ""));
+        Exe = BuildCopy(entry, _dir);
     }
 
     public void Dispose()
@@ -31,7 +25,7 @@ public abstract class CompiledFrontEnd : IDisposable
 public sealed class CompiledCufetParser() : CompiledFrontEnd("parser");
 
 /// <summary>
-/// The parser written in Cufet (`tools/front-end/parser.cufe`) builds the same tree as the one in
+/// The parser written in Cufet (`self-hosting/front-end/parser/parser.cufe`) builds the same tree as the one in
 /// C#, and refuses what it refuses in the same words at the same place.
 /// </summary>
 /// <remarks>
@@ -159,7 +153,7 @@ public class ParserParityTests(ITestOutputHelper output, CompiledCufetParser com
         var files = Corpus().Where((_, i) => i % 5 == 0).ToList();
         Assert.True(files.Count >= 16, $"only {files.Count} Cufet files in the sample");
 
-        var got = ByFile(Run(CufetExe, ["tools/front-end/parser.cufe", .. files], RepoRoot));
+        var got = ByFile(Run(CufetExe, [EntryPath("parser"), .. files], RepoRoot));
         Check(got, WithSources(files), SampleFloor, "interpreted");
     }
 

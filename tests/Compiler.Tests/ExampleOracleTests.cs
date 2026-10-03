@@ -49,7 +49,7 @@ public class ExampleOracleTests
     /// under. The REPL is not an example of anything, but it is a real program on both backends,
     /// and that is what everything below actually tests.
     /// </remarks>
-    private static string[] Roots => [ExampleDir, Path.Combine(RepoRoot, "tools")];
+    private static string[] Roots => [ExampleDir, Path.Combine(RepoRoot, "tools"), Path.Combine(RepoRoot, "self-hosting")];
 
     // Pinned outputs live in their own directory rather than beside the programs. `examples/` is
     // read by people looking for programs, and interleaving a fixture with every example halves
@@ -661,9 +661,14 @@ public class ExampleOracleTests
     private static void CompileLibrary(string file, Program program)
     {
         var folder = Path.GetDirectoryName(Resolve(file))!;
-        var whole = new System.Text.StringBuilder(folder);
-        foreach (var neighbour in Directory.GetFiles(folder, "*.cufe").Order(StringComparer.Ordinal))
-            whole.Append('\u0000').Append(Path.GetFileName(neighbour)).Append('\u0000').Append(File.ReadAllText(neighbour));
+        // ★ Keyed on the NAMESPACE: a folder the project's tree folds into another is one program
+        // with it, and building it once per folder would build one front end three times.
+        string[] folders = [folder];
+        if (BookLoading.ProjectRoot(folder) is { } root && ProjectTree.Read(root, new SourceMap()) is { } tree)
+            folders = [.. tree.Folders(tree.NamespaceOf(folder))];
+        var whole = new System.Text.StringBuilder(string.Join("|", folders));
+        foreach (var neighbour in folders.SelectMany(f => Directory.GetFiles(f, "*.cufe")).Order(StringComparer.Ordinal))
+            whole.Append('\u0000').Append(neighbour).Append('\u0000').Append(File.ReadAllText(neighbour));
         var key = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
             System.Text.Encoding.UTF8.GetBytes(whole.ToString())));
         if (CompiledLibraries.ContainsKey(key)) return;

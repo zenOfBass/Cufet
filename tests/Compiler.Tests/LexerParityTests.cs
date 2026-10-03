@@ -6,7 +6,7 @@ using Xunit;
 namespace Cufet.Compiler.Tests;
 
 /// <summary>
-/// The lexer written in Cufet (`tools/front-end/`) gives the same tokens as the one in C#.
+/// The lexer written in Cufet (`self-hosting/front-end/lexer/`) gives the same tokens as the one in C#.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -42,11 +42,36 @@ public class LexerParityTests
         RepoRoot, "src", "App", "bin", "Debug", "net10.0",
         "Cufet.App" + (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? ".exe" : ""));
 
-    private static string LexerDir => Path.Combine(RepoRoot, "tools", "front-end");
+    /// <summary>The project the front end written in Cufet lives in — its blueprint draws the tree.</summary>
+    internal static string SelfHostingDir => Path.Combine(RepoRoot, "self-hosting");
+
+    /// <summary>One entry of the front end, relative to the repository root.</summary>
+    internal static string EntryPath(string entry) => $"self-hosting/front-end/{entry}/{entry}.cufe";
+
+    /// <summary>
+    /// Copies the self-hosting project — its blueprint AND its folders — into <paramref name="dir"/>,
+    /// builds one entry there, and gives back the executable.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ The blueprint is copied, not faked: it draws the tree that folds `lexer/`, `parser/` and
+    /// `checker/` into one namespace, and without it the copy would be three walls.
+    /// </remarks>
+    internal static string BuildCopy(string entry, string dir)
+    {
+        foreach (var f in Directory.GetFiles(SelfHostingDir, "*.cufe", SearchOption.AllDirectories))
+        {
+            var to = Path.Combine(dir, Path.GetRelativePath(SelfHostingDir, f));
+            Directory.CreateDirectory(Path.GetDirectoryName(to)!);
+            File.Copy(f, to);
+        }
+        Run(CufetExe, ["build", Path.Combine("front-end", entry, entry + ".cufe")], dir);
+        return Path.Combine(dir, "front-end", entry,
+            entry + (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? ".exe" : ""));
+    }
 
     /// <summary>Every Cufet file in the repository, relative to its root, with forward slashes.</summary>
     internal static List<string> Corpus() =>
-        new[] { "examples", "tools", Path.Combine("src", "Interpreter", "Prelude") }
+        new[] { "examples", "tools", "self-hosting", Path.Combine("src", "Interpreter", "Prelude") }
             .Select(d => Path.Combine(RepoRoot, d))
             .Where(Directory.Exists)
             .SelectMany(d => Directory.GetFiles(d, "*.cufe", SearchOption.AllDirectories))
@@ -170,7 +195,7 @@ public class LexerParityTests
         // (a wrong root, a moved folder) fails rather than comparing nothing and passing.
         Assert.True(files.Count >= 16, $"only {files.Count} Cufet files in the sample");
 
-        var got = ByFile(Run(CufetExe, ["tools/front-end/lexer.cufe", .. files], RepoRoot));
+        var got = ByFile(Run(CufetExe, [EntryPath("lexer"), .. files], RepoRoot));
         var problems = Differences(WithSources(files), got);
         Assert.True(problems.Count == 0,
             $"{problems.Count} of {files.Count} files lex differently:\n{string.Join("\n", problems)}");
@@ -219,7 +244,7 @@ public class LexerParityTests
                 files.Add((name, Refused[i]));
             }
 
-            var lexer = Path.Combine(LexerDir, "lexer.cufe");
+            var lexer = Path.Combine(RepoRoot, EntryPath("lexer"));
             var got = ByFile(Run(CufetExe, [lexer, .. files.Select(f => f.Name)], dir));
             var problems = Differences(files, got);
             Assert.True(problems.Count == 0, string.Join("\n", problems));
@@ -235,16 +260,10 @@ public class LexerParityTests
         var dir = Directory.CreateTempSubdirectory("cufet-lexer-build-").FullName;
         try
         {
-            foreach (var f in Directory.GetFiles(LexerDir, "*.cufe"))
-                File.Copy(f, Path.Combine(dir, Path.GetFileName(f)));
-            // A blueprint marks the directory as a project, so the files see each other as they do
-            // in tools/front-end/.
-            File.WriteAllText(Path.Combine(dir, "blueprint.cufe"), "");
-            Run(CufetExe, ["build", "lexer.cufe"], dir);
+            string exe = BuildCopy("lexer", dir);
 
             var files = Corpus();
             Assert.True(files.Count >= 80, $"only {files.Count} Cufet files found under {RepoRoot}");
-            string exe = Path.Combine(dir, "lexer" + (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? ".exe" : ""));
             var got = ByFile(Run(exe, files, RepoRoot));
             var problems = Differences(WithSources(files), got);
             Assert.True(problems.Count == 0,

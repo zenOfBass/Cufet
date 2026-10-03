@@ -19,7 +19,7 @@ version, and 1.0.0 will mark the point at which the language is considered stabl
 
 The ordering is not ceremonial: this tier's real blocker is stated below as **ergonomic rather than capability**, and the only way to find ergonomic blockers is to write large Cufet programs. They are the instrument as much as they are the goal — better to meet the gaps one program at a time than to meet all of them at once inside a compiler.
 
-1. **The type checker, written in Cufet — in progress.** `tools/front-end/checker.cufe` says of
+1. **The type checker, written in Cufet — in progress.** `self-hosting/front-end/checker/checker.cufe` says of
     each program what `TypeChecker.Check` says: accepted, or refused in the same words, held there
     by `CheckerParityTests`. The lexer and parser it reads are done (see CHANGELOG). Left to judge:
     tasks and channels, axioms, `when` dispatch, operator overloads, function-typed fields and
@@ -133,8 +133,7 @@ they are large, not because they are waiting — the order among them means noth
    front end (why it is shaped this way: DESIGN.md, *The tree the blueprint draws*). Left: the
    editor's maintenance — rewrite an entry when a folder moves or is renamed, ask "own namespace, or part of
    its parent?" when one is created, offer the edit that fixes a reference broken by the choice,
-   every write confirmed; then the checker written in Cufet moves out of `tools/`, split into
-   folded folders. ⚠ Cross-folder TYPES stay a gap for folders that remain walls — `snake` cannot
+   every write confirmed. ⚠ Cross-folder TYPES stay a gap for folders that remain walls — `snake` cannot
    name a `terminals` type. ⚠ The Cufet front end checks one file alone and loads no project,
    so it needs a reader of its own only once it does.
 
@@ -219,7 +218,7 @@ the calling: these wait only for a turn.
 
 - **Names run short across a directory.** A local may not share a name with any function in the
   program, and a directory is one program — `made` is a function in `types.cufe`, so no file beside
-  it may name a local `made`. With 20+ files in `tools/front-end/` the taken pool keeps growing, and
+  it may name a local `made`. With 20+ files in one namespace the taken pool keeps growing, and
   reserved words add to it (`bind`, `skip`, `through`, `one` in one session). The one-namespace rule
   is deliberate; this records what it costs at that size. *Blocker:* none known.
 
