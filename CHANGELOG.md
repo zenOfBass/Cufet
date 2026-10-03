@@ -10,6 +10,10 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+- **`starts with` and `ends with`** — a text asked about one end, the same way `contains` asks
+  about the middle: `If name ends with ".cufe", …`. Both sides are text and the answer is a fact.
+  Neither word is reserved; each is recognised only between a text and `with`. The checker written
+  in Cufet used it at once, in place of eight prefix tests done by counting characters.
 - **`void or failure` — a call made for its effect can fail.** A close, a flush, a check:
   `Bind void or failure to withdraw unto ledger, …` gives nothing back when it works and a failure
   when it does not; a bare `Return.` or reaching `Done.` is success. Its result is not a value on
@@ -36,7 +40,7 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   and two interfaces supplying one default. A sweep of 7,637 such programs agreed on every one.
 - **The type checker, begun in Cufet** — `tools/front-end/checker.cufe`, the third piece. It says of
   each file what `TypeChecker.Check` says — accepted, or refused in the same words — and
-  `CheckerParityTests` holds it to that on 743 hand-written programs and on the corpus. It judges
+  `CheckerParityTests` holds it to that on 748 hand-written programs and on the corpus. It judges
   names and scopes, `Define` and `becomes`, operators, text and its operations, bit patterns,
   series, ranges, sorting, records, maps, sets, chases, matrices, the `chance` book, voidables,
   unions and narrowing, `Judge`, `when … otherwise`, functions with named arguments and blanks,

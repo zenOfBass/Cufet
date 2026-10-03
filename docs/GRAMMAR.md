@@ -380,8 +380,8 @@ storage units instead made the same program answer differently depending on the 
 
 ⚠ A code point is not a grapheme. `e` followed by a combining accent is **2**, though a reader
 sees one character. Grapheme segmentation needs the Unicode tables and is not carried into the
-emitted C. Operations that neither count nor return a position — `contains`, `split`, `replace`,
-`joined to` — are unaffected, because UTF-8 is self-synchronising and a byte-wise match is
+emitted C. Operations that neither count nor return a position — `contains`, `starts with`,
+`ends with`, `split`, `replace`, `joined to` — are unaffected, because UTF-8 is self-synchronising and a byte-wise match is
 therefore a character-wise match.
 
 ### Records and maps
@@ -568,6 +568,11 @@ why `make` appears in `CapitalisableStatementWords` rather than in the keyword t
 `)` after a name, so the word is decidable in that one position and `Define default as 5.` stays
 legal. It sits in the same trailing slot as `permanently`, so the rule stays one rule: a modifier
 follows the thing it modifies.
+
+**`starts`, `ends`** — contextual, recognised only between a value and `with`: `line starts with
+"error"`, `name ends with ".cufe"`, at the same tier as `contains`. ★ They cost no reserved word —
+no value is ever followed by a bare name and `with`, so the pair is decidable in that one place and
+`Define starts as 3.` stays legal.
 
 **`region`** — contextual, a name in a conformance list: `Define object workspace with () and
 region.` Pulling one opens an arena scope its `Done.` closes. ★ It costs no reserved word, exactly

@@ -199,11 +199,6 @@ the calling: these wait only for a turn.
   writes long unions in full in six places. Idiomatic rather than a mistake, but six members is
   where it starts to hurt. *Blocker:* none known.
 
-- **There is no `starts with` or `ends with`.** A prefix test is written by counting —
-  `the first 6 characters of line is "error\t"` — eight times in the checker written in Cufet.
-  Proposed, not agreed: `line starts with "error\t"`, shaped like `contains`, with neither word
-  reserved (recognised only after a text, as `default` is only after `with`). *Blocker:* none known.
-
 - **Narrowing does not see through `and`.** `If known is false and held is not void:` leaves `held`
   voidable inside, so the checker written in Cufet nests two `If`s instead, again and again.
   *Blocker:* none known.

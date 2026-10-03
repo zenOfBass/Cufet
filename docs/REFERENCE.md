@@ -1226,6 +1226,14 @@ trimmed automatically. An empty delimiter (`split by ""`) is a static error.
 If "hello" contains "ell", state "yes".          → yes
 ```
 
+**Starts with / ends with** — the same question, asked of one end:
+```cufet
+If "notes.cufe" ends with ".cufe", state "a Cufet file".     → a Cufet file
+If "error: no file" starts with "warn", state "a warning".   → (nothing)
+```
+Both sides are text, and the answer is a `fact`. Neither word is reserved — each is recognised only
+between a text and `with` — so `starts` and `ends` stay free as names.
+
 **Finding a position** — `the position of <substring> in <text>`, **1-based**:
 ```cufet
 Define p as the position of "ell" in "hello".    → 2
