@@ -235,6 +235,55 @@ public class PipelineRecordObjectTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
+    /// <summary>A template that names itself through its blank — a linked list.</summary>
+    /// <remarks>
+    /// ⚠ Refused until 2026-10-03 with "'element' is not a defined type": filling never looked
+    /// inside `holder of element`, and the end of the check resolved the template's own fields.
+    /// The children sit in a series because a type holding itself INLINE is the compiler's own
+    /// refusal, blank or no blank.
+    /// </remarks>
+    [Fact]
+    public void ATemplateMayNameItselfThroughItsBlank()
+    {
+        const string src = """
+            Define object holder of element with (the element held, the series of holder of element children).
+
+            Define leaf as a new holder of number { the held 2, the children a series of holder of number }.
+            Define root as a new holder of number { the held 1, the children a series of holder of number }.
+            Insert leaf into root's children.
+            State (the first of root's children)'s held + root's held.
+            Define word as a new holder of text { the held "w", the children a series of holder of text }.
+            State word's held.
+            """;
+        Assert.Equal("3\nw\n", InterpretRaw(src).ReplaceLineEndings("\n"));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    /// <summary>A function whose blank sits inside a filled object — `the stack of element s`.</summary>
+    /// <remarks>
+    /// ⚠ Refused until 2026-10-03: `element` was counted once, so it was no blank at all; and a
+    /// resolved `stack of number` kept nothing of what filled it, so no call could read `element`
+    /// off one. Now each filling remembers its parts.
+    /// </remarks>
+    [Fact]
+    public void AGenericFunction_MayTakeAFilledObject()
+    {
+        const string src = """
+            Define object stack of element with (the series of element items).
+
+            Bind element to first-of, given (the stack of element s):
+                Return item 1 of s's items.
+            Done.
+
+            Define counts as a new stack of number { the items a series of number with (4) }.
+            Define words as a new stack of text { the items a series of text with ("w") }.
+            State cast first-of on (counts) + 1.
+            State cast first-of on (words) joined to "!".
+            """;
+        Assert.Equal("5\nw!\n", InterpretRaw(src).ReplaceLineEndings("\n"));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
     [Fact]
     public void Record_PositionalAccess_MatchesInterpreter()
     {

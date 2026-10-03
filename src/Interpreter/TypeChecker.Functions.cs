@@ -1173,7 +1173,7 @@ public sealed partial class TypeChecker
     /// the authority, and a second opinion here would only produce a worse-worded version of the
     /// same error.
     /// </remarks>
-    private static bool Unify(
+    private bool Unify(
         CufetType pattern, CufetType actual, HashSet<string> blanks, Dictionary<string, CufetType> found)
     {
         if (pattern is ObjectType { TypeArguments.Count: 0 } shell && blanks.Contains(shell.Name))
@@ -1199,6 +1199,16 @@ public sealed partial class TypeChecker
             (WritableStreamType p, WritableStreamType a) => Unify(p.ElementType, a.ElementType, blanks, found),
             (MapType p, MapType a)                       => Unify(p.KeyType, a.KeyType, blanks, found)
                                                           & Unify(p.ValueType, a.ValueType, blanks, found),
+            // ★ `stack of element` against a `stack of number`: the filling is looked up by its
+            // name, and its arguments matched one for one. A different template, or a type that is
+            // no filling at all, answers "matched" like any other shape — the argument check owns it.
+            (ObjectType { TypeArguments.Count: > 0 } p, ObjectType a)
+                when _fillingArguments.TryGetValue(a.Name, out var made)
+                     && string.Equals(made.Template, p.Name, StringComparison.Ordinal)
+                     && made.Arguments.Count == p.TypeArguments.Count
+                => p.TypeArguments.Zip(made.Arguments)
+                       .Select(pair => Unify(pair.First, pair.Second, blanks, found))
+                       .Aggregate(true, (all, one) => all & one),
             _ => true
         };
     }
@@ -1287,6 +1297,7 @@ public sealed partial class TypeChecker
         // Registered BEFORE its own field types are resolved, so a template that mentions itself
         // (`the voidable stack of number next`) finds the entry instead of filling forever.
         _instantiated[name] = concrete;
+        _fillingArguments[name] = (filled.Name, arguments);
         _objectDefs[name] = new ObjectType(
             name, concrete.PositionalTypes, concrete.NamedFields,
             concrete.Methods.Select(m => (m.Name,

@@ -797,6 +797,15 @@ public sealed partial class TypeChecker
     /// </remarks>
     private readonly Dictionary<string, ObjectDefinition> _genericObjectDefs = new(StringComparer.Ordinal);
 
+    /// <summary>What each filling was filled FROM — `stack of number` is `stack` with `number`.</summary>
+    /// <remarks>
+    /// ★ A resolved filling is just a type with a long name, so this is the only way back to its
+    /// parts — which a call needs when a function takes `the stack of element s` and has to read
+    /// `element` off a `stack of number`.
+    /// </remarks>
+    private readonly Dictionary<string, (string Template, IReadOnlyList<CufetType> Arguments)> _fillingArguments =
+        new(StringComparer.Ordinal);
+
     /// <summary>Instantiations already built, keyed by their filled-in name (`stack of number`).</summary>
     private readonly Dictionary<string, ObjectDefinition> _instantiated = new(StringComparer.Ordinal);
 
@@ -1321,6 +1330,15 @@ public sealed partial class TypeChecker
         // same trick RegisterPulledBookTypes plays for signature resolution, and safe for the same
         // reason PLUS a stronger one: CheckBlock has already run, so a program that named a book
         // type outside its pull was refused before this line. Nothing here can widen what is legal.
+        // ⚠⚠ The templates come out FIRST. The walk below resolves every filled shell it meets, and
+        // a template's own body is full of them — `the voidable holder of element next`, a function
+        // taking `the stack of element s` — whose `element` names nothing outside the template. It
+        // was resolved anyway and refused: "'element' is not a defined type". MEASURED 2026-10-03.
+        // Dropping them here changes nothing below: both branches drop them again, idempotently.
+        if (_genericMethods.Count > 0 || _genericFunctions.Count > 0 || _genericObjectDefs.Count > 0)
+            program = new Program(WithFilledMethods(
+                WithoutTemplates(program.Statements, _genericFunctions.Keys.ToHashSet(StringComparer.Ordinal),
+                                 UntoAbsorbedTargets())));
         var shellNames = RegisterPulledBookTypes(program);
         if (_genericObjectDefs.Count > 0 || shellNames.Count > 0)
             program = new Program(AstRebuilder.Apply(program.Statements,
@@ -1970,6 +1988,7 @@ public sealed partial class TypeChecker
         foreach (var (name, held) in parent._genericFunctions) _genericFunctions[name] = held;
         foreach (var (key, held) in parent._genericMethods) _genericMethods[key] = held;
         foreach (var (name, held) in parent._genericObjectDefs) _genericObjectDefs[name] = held;
+        foreach (var (name, held) in parent._fillingArguments) _fillingArguments[name] = held;
         foreach (var (name, held) in parent._untoFillingMethods) _untoFillingMethods[name] = held;
         foreach (var (name, held) in parent._untoFillingGetters) _untoFillingGetters[name] = held;
         foreach (var (name, held) in parent._untoFillingSetters) _untoFillingSetters[name] = held;

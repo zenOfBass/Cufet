@@ -105,6 +105,23 @@ internal static class AstRebuilder
                         ParameterNames = function.ParameterNames,
                     };
             }
+            // ★ A WRITTEN filling — `holder of element` — has its filling looked into, and nothing
+            // else of an ObjectType is. Only a shell the parser made carries type arguments; a
+            // resolved type carries none, so this never reaches a nominal type's fields (which is
+            // what would not terminate for a recursive one).
+            //
+            // ⚠ Without it a blank inside a filling stayed a blank after the filling: a template
+            // could not name itself through its blank (`the voidable holder of element next`), and
+            // a function taking `the stack of element s` counted `element` once and so never saw a
+            // blank in it at all. Both were refused with "'element' is not a defined type".
+            // MEASURED 2026-10-03.
+            case ObjectType { TypeArguments.Count: > 0 } filled:
+            {
+                var arguments = filled.TypeArguments.Select(Inner).ToList();
+                return arguments.Zip(filled.TypeArguments).All(p => ReferenceEquals(p.First, p.Second))
+                    ? filled
+                    : new ObjectType(filled.Name, [], [], [], typeArguments: arguments);
+            }
             default:
                 return type;   // scalars, ObjectType, InterfaceType, matrices, markers
         }

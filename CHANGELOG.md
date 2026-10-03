@@ -136,6 +136,12 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   body and then again, the same way, further down was refused: "'echo' isn't defined".
 - **A generic takes named arguments.** `cast echo on (the x 5)` was refused as reaching its
   function "through a value"; a template's parameters are declared, and now they are matched.
+- **A template may name itself through its blank, and a generic may take a filled object.**
+  `the series of holder of element children` inside `holder of element`, and a function taking
+  `the stack of element s`, were both refused: "'element' is not a defined type". Filling never
+  looked inside `holder of element`, the end of the check resolved the template's own fields as
+  though they were real, and a `stack of number` kept nothing of what filled it, so no call could
+  read `element` off one. It now does all three.
 
 ## [0.26.0] — 2026-09-26
 
