@@ -783,9 +783,13 @@ Pull a book on collections.
             If cast beyond-types on (looped-type), return a failure (cast not-judged on ("looping over a {kind}")).
             Define spoken as cast expression-words on (looped).
             Define plural as cast plural-words on (looped-type).
+            Define advice as "Define a series if that's what you need.".
+            If kind is "TextType":
+                The advice becomes "To go through a text one character at a time, put it in a chase — inside 'Pull a book on collections.': 'Define letters as a chase.', 'Insert {spoken} into letters.', then loop over letters.".
+            Done.
             Return a failure (cast refusal-of on ("{spoken} holds {plural}", "It evaluates to {plural}, not a series",
                 at-row, "loop over it as if it were a series",
-                "Only series, maps and stashes can be looped over. Define a series if that's what you need.")).
+                "Only series, maps, sets, chases and stashes can be looped over. {advice}")).
         Done.
         Define iterator as "it".
         Define named as cast field-of on (statement, 1).
