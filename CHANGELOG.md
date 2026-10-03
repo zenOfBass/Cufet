@@ -45,19 +45,20 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   a token, and with a token deleted) and on a hand-written list for what no cut reaches: the
   lexer's refusals, a reserved word in a name's place, blocks left open, patterns, a `cufet` block
   and two interfaces supplying one default. A sweep of 7,637 such programs agreed on every one.
-- **The type checker, begun in Cufet** — `self-hosting/front-end/checker/checker.cufe`, the third piece. It says of
-  each file what `TypeChecker.Check` says — accepted, or refused in the same words — and
-  `CheckerParityTests` holds it to that on 796 hand-written programs and on the corpus. It judges
-  names and scopes, `Define` and `becomes`, operators, text and its operations, bit patterns,
+- **The type checker, begun in Cufet** — `self-hosting/front-end/checker/checker.cufe`, the third
+  piece. It says of each file what `TypeChecker.Check` says — accepted, or refused in the same words
+  — and `CheckerParityTests` holds it to that on 836 hand-written programs and on the corpus. It
+  judges names and scopes, `Define` and `becomes`, operators, text and its operations, bit patterns,
   series, ranges, sorting, records, maps, sets, chases, matrices, the `chance` book, voidables,
   unions and narrowing, `Judge`, `when … otherwise`, functions with named arguments and blanks,
   lambdas and function values, objects with their fields, defaults and blanks, methods, getters and
   setters, makers and unmakers, operator overloads, `unto` members and embedding, interfaces and
-  conformance, modules and the types they carry, books and regions — the bundled books read with its
-  own parser — the rule that keeps a region's values inside it, failures — `Try`, `but on failure`
-  and `or pass the failure off` — and input and output: files, directories, streams, running
-  programs and piping them. Anything it cannot judge yet it says so about, rather than accepting:
-  101 corpus files so far, the rest waiting on the rarer constructs.
+  conformance, modules and the types they carry, books, regions, tasks and channels — the bundled
+  books read with its own parser — the rule that keeps a region's values inside it, failures —
+  `Try`, `but on failure` and `or pass the failure off` — and input and output: files, directories,
+  streams, running programs and piping them, and pipes of functions. Anything it cannot judge yet it
+  says so about, rather than accepting: 110 corpus files so far, the rest waiting on the rarer
+  constructs.
 
 ### Changed
 
