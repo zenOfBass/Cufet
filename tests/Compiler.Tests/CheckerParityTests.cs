@@ -27,7 +27,7 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
     : IClassFixture<CompiledCufetChecker>
 {
     /// <summary>How many corpus files must agree. Raised as the checker grows; never lowered.</summary>
-    private const int CorpusFloor = 99;
+    private const int CorpusFloor = 101;
 
     /// <summary>Where the bundled books' source is — the checker reads their layers with its own parser.</summary>
     private static string[] PreludeArgs =>
@@ -905,6 +905,24 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
         "Define counter as 0.\nDefine bump as a function: The counter becomes counter + 1. Done.\nCast bump on ().\nState counter.",
         "Bind number to outer:\n    Define total as 4.\n    Define f as a function: Return total + 1. Done.\n    Return cast f on ().\nDone.\nState cast outer on ().",
         "Define f as a function given (the number x, the text y): Return y. Done.\nState cast f on (1, \"a\") joined to \"!\".\nState cast f on (the x 1, the y \"b\").",
+        // Operator overloads: keyed on the ordered pair, built-in pairs refused, the body's first Return says what it gives back, a fallible one must be handled.
+        "Define object vec2 with (the number x, the number y).\nBind overloading +, given (the lhs is a vec2, the rhs is a vec2):\n    Return a new vec2 { the x lhs's x + rhs's x, the y lhs's y + rhs's y }.\nDone.\nBind overloading *, given (the lhs is a vec2, the rhs is a vec2):\n    Return lhs's x * rhs's x + lhs's y * rhs's y.\nDone.\nDefine u as a new vec2 { the x 1, the y 2 }.\nDefine w as a new vec2 { the x 3, the y 4 }.\nState u + w.\nState u * w + 1.\nState (u + w)'s x.",
+        "Define object vec2 with (the number x, the number y).\nDefine u as a new vec2 { the x 1, the y 2 }.\nState u + u.",
+        "Define object vec2 with (the number x, the number y).\nBind overloading *, given (the lhs is a vec2, the rhs is a number):\n    Return a new vec2 { the x lhs's x * rhs, the y lhs's y * rhs }.\nDone.\nDefine u as a new vec2 { the x 1, the y 2 }.\nState (u * 3)'s x.\nState 3 * u.",
+        "Bind overloading +, given (the lhs is a number, the rhs is a number):\n    Return lhs.\nDone.",
+        "Define object vec2 with (the number x).\nBind overloading +, given (the lhs is a vec2, the rhs is a vec2):\n    Return lhs.\nDone.\nBind overloading +, given (the lhs is a vec2, the rhs is a vec2):\n    Return rhs.\nDone.",
+        "Bind overloading +, given (the lhs is a ghost, the rhs is a number):\n    Return 1.\nDone.",
+        "Bind overloading *, given (the lhs is a text, the rhs is a number):\n    Return lhs joined to \"!\".\nDone.\nState \"ab\" * 3 joined to \"?\".",
+        "Define object vec2 with (the number x).\nBind overloading /, given (the lhs is a vec2, the rhs is a number):\n    If rhs is 0, return a failure \"division by zero\".\n    Return a new vec2 { the x lhs's x / rhs }.\nDone.\nDefine u as a new vec2 { the x 4 }.\nState u / 2.",
+        "Define object vec2 with (the number x).\nBind overloading /, given (the lhs is a vec2, the rhs is a number):\n    If rhs is 0, return a failure \"division by zero\".\n    Return a new vec2 { the x lhs's x / rhs }.\nDone.\nDefine u as a new vec2 { the x 4 }.\nTry to:\n    Define half as u / 2.\n    State half's x.\nDone.\nIn case of failure:\n    State \"no\".\nDone.",
+        "Define object vec2 with (the number x).\nBind overloading -, given (the lhs is a vec2, the rhs is a vec2):\n    If lhs's x is 0, return lhs.\nDone.",
+        "Define object vec2 with (the number x).\nDefine u as a new vec2 { the x 4 }.\nState (u - u)'s x.\nBind overloading -, given (the lhs is a vec2, the rhs is a vec2):\n    Return a new vec2 { the x lhs's x - rhs's x }.\nDone.",
+        "Define object vec2 with (the number x).\nBind overloading -, given (the lhs is a vec2, the rhs is a vec2):\n    Return lhs's x + \"a\".\nDone.",
+        "Define object vec2 with (the number x).\nBind overloading -, given (the lhs is a vec2, the rhs is a vec2):\n    If lhs's x is 0, return 1.\n    Return \"two\".\nDone.",
+        "Bind overloading +, given (the lhs is a bits, the rhs is a bits):\n    Return lhs.\nDone.",
+        "Define total as 5.\nDefine object vec2 with (the number x).\nBind overloading +, given (the lhs is a vec2, the rhs is a vec2):\n    Return lhs's x + total.\nDone.",
+        "Define total as 5 permanently.\nDefine object vec2 with (the number x).\nBind overloading +, given (the lhs is a vec2, the rhs is a vec2):\n    Return lhs's x + total.\nDone.\nDefine u as a new vec2 { the x 4 }.\nState u + u + 1.",
+        "Define object vec2 with (the number x).\nBind overloading /, given (the lhs is a vec2, the rhs is a number):\n    If rhs is 0, return a failure \"zero\".\n    Return lhs's x / rhs.\nDone.\nDefine u as a new vec2 { the x 4 }.\nDefine half as (u / 2) but on failure 0.\nState half + 1.",
     ];
 
     [Fact]
