@@ -95,6 +95,10 @@ public class PipelineTextFailureTests : PipelineTestBase
             State true converted to text.
             State the length of "hello".
             If "hello world" contains "world", state "yes". Otherwise, state "no".
+            If "hello world" starts with "hello", state "starts". Otherwise, state "does not start".
+            If "hello world" ends with "hello", state "ends". Otherwise, state "does not end".
+            If "wörld" ends with "örld", state "ends". Otherwise, state "does not end".
+            If "hi" starts with "high", state "starts". Otherwise, state "does not start".
             State the characters from 2 to 4 of "hello".
             State the first 3 characters of "hello".
             State the last 2 characters of "hello".

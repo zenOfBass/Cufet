@@ -1141,6 +1141,16 @@ static const char* cufet_str_trim(const char* s) {
     char* r = (char*)cufet_arena_alloc(n + 1);
     memcpy(r, start, n); r[n] = '\0'; return r;
 }
+/* Byte-wise, and correct for the same reason the search below is: UTF-8 is self-synchronising,
+   so a byte prefix (or suffix) of a valid text that is itself valid is a character one. */
+static int cufet_str_starts(const char* text, const char* affix) {
+    size_t n = strlen(affix);
+    return strncmp(text, affix, n) == 0;
+}
+static int cufet_str_ends(const char* text, const char* affix) {
+    size_t t = strlen(text), n = strlen(affix);
+    return n <= t && memcmp(text + (t - n), affix, n) == 0;
+}
 static int cufet_str_find(const char* text, const char* sub) {
     /* The SEARCH is byte-wise and that is correct — UTF-8 is self-synchronising, so one
        character's bytes can never occur inside another and a byte match is a character match.

@@ -2318,6 +2318,7 @@ public sealed partial class CodeGenerator
         NumberConvert or TextFind => new VoidableType(TNumber),
         ForeignTextAt         => new VoidableType(TText),
         TextContains          => TFact,
+        TextAffixTest         => TFact,
         // A file read is fallible; its post-check VALUE type is the inner success type (the
         // raw `T or failure` is only seen by FallibleReturnType, for Try / but-on-failure / propagate).
         FileReadExpression fr => FileReadSuccessType(fr),
@@ -3066,6 +3067,7 @@ public sealed partial class CodeGenerator
         NumberConvert nc      => EmitNumberConvert(nc),
         ForeignTextAt fta     => EmitForeignTextAt(fta),
         TextContains tcn      => $"(strstr({EmitExpr(tcn.Text)}, {EmitExpr(tcn.Substring)}) != NULL)",
+        TextAffixTest tat     => $"{(tat.AtEnd ? "cufet_str_ends" : "cufet_str_starts")}({EmitExpr(tat.Text)}, {EmitExpr(tat.Affix)})",
         TextFind tf           => EmitTextFind(tf),
         TextSubstringRange r  => $"cufet_str_range({EmitExpr(r.Text)}, cufet_to_int({EmitExpr(r.From)}), {(r.To != null ? $"cufet_to_int({EmitExpr(r.To)})" : "-1")}, {r.Line})",
         TextSubstringEdge e   => $"cufet_str_edge({EmitExpr(e.Text)}, cufet_to_int({EmitExpr(e.Count)}), {(e.FromStart ? "1" : "0")})",

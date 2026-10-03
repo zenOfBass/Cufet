@@ -718,6 +718,13 @@ public sealed record TextSplit(IExpression Text, IExpression Delimiter, int Line
 // <text> contains <substring> — fact
 public sealed record TextContains(IExpression Text, IExpression Substring, int Line, int Column) : IExpression;
 
+// <text> starts with <affix>   — AtEnd false
+// <text> ends with <affix>     — AtEnd true
+// A fact, and a sibling of `contains`: the same question asked of one end. ★ Neither word is
+// reserved — `starts` and `ends` are recognised only right after a text and right before `with`,
+// a place nothing else can stand, so no program loses either as a name.
+public sealed record TextAffixTest(IExpression Text, IExpression Affix, bool AtEnd, int Line, int Column) : IExpression;
+
 // the position of <substring> in <text> — voidable number; 1-based, first occurrence, void if absent
 public sealed record TextFind(IExpression Substring, IExpression Text, int Line, int Column) : IExpression;
 

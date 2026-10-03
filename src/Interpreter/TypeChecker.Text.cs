@@ -179,6 +179,28 @@ public sealed partial class TypeChecker
         return CufetType.Fact;
     }
 
+    private CufetType InferTextAffixTest(TextAffixTest test)
+    {
+        var phrase = test.AtEnd ? "ends with" : "starts with";
+        var textType = InferType(test.Text);
+        if (textType != null && textType != CufetType.Text)
+            throw TypeError(
+                $"'{phrase}' works on text only",
+                null, test.Line, test.Column,
+                $"check whether a {FormatType(textType)} {phrase} something",
+                $"Only text values support '{phrase}'. Convert the value to text first if needed.");
+
+        var affixType = InferType(test.Affix);
+        if (affixType != null && affixType != CufetType.Text)
+            throw TypeError(
+                $"'{phrase}' checks for text only",
+                null, test.Line, test.Column,
+                $"check whether text {phrase} a {FormatType(affixType)}",
+                "Convert the value to text first if needed.");
+
+        return CufetType.Fact;
+    }
+
     private CufetType InferTextFind(TextFind find)
     {
         var subType = InferType(find.Substring);

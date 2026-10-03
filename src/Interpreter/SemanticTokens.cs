@@ -994,6 +994,7 @@ public sealed class SemanticTokenizer
             case NumberConvert nc:       Walk(nc.Value); break;
             case TextSplit tsp:          Walk(tsp.Text); Walk(tsp.Delimiter); break;
             case TextContains tct:       Walk(tct.Text); Walk(tct.Substring); break;
+            case TextAffixTest tat:      Walk(tat.Text); Walk(tat.Affix); break;
             case TextFind tf:            Walk(tf.Substring); Walk(tf.Text); break;
             case TextSubstringRange tsr: Walk(tsr.Text); Walk(tsr.From); Walk(tsr.To); break;
             case TextSubstringEdge tse:  Walk(tse.Text); Walk(tse.Count); break;

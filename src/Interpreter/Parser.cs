@@ -3161,6 +3161,21 @@ public sealed class Parser
     {
         var left = ParseAddition();
         SkipNoise();
+        // '<text> starts with <affix>' / '<text> ends with <affix>' — the same tier as contains.
+        // ★ Contextual: the word must be a plain identifier with `with` right after it, a place no
+        // value can stand, so neither word is reserved.
+        if (Peek().Type == TokenType.Identifier && (IsWord("starts") || IsWord("ends"))
+            && PeekAfterCurrent() == TokenType.With)
+        {
+            var edgeTok = Advance(); // consume 'starts' / 'ends'
+            SkipNoise();
+            Consume(TokenType.With);
+            SkipNoise();
+            var affix = ParseAddition();
+            return new TextAffixTest(left, affix,
+                edgeTok.Lexeme.Equals("ends", StringComparison.OrdinalIgnoreCase),
+                edgeTok.Line, edgeTok.Column);
+        }
         if (Peek().Type != TokenType.Contains) return left;
         var lineTok = Advance(); // consume 'contains'
         var line = lineTok.Line;

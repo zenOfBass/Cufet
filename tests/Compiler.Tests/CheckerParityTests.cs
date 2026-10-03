@@ -867,6 +867,12 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
         "Define word as \"abc\".\nFor each letter in word, repeat:\n    State letter.\nDone.",
         "For each letter in \"abc\", repeat:\n    State letter.\nDone.",
         "Define count as 3.\nFor each n in count, repeat:\n    State n.\nDone.",
+        // starts with / ends with: text at either end, a fact, neither word reserved.
+        "Define line as \"error: bad\".\nIf line starts with \"error\", state \"yes\".\nIf line ends with \"bad\", state \"yes\".\nDefine starts as 3.\nDefine ends as starts + 1.\nState ends.",
+        "State 5 starts with \"5\".",
+        "State \"5\" ends with 5.",
+        "Define line as \"x\".\nDefine n as line starts with \"x\".\nState n + 1.",
+        "Define line as \"x\".\nState (line joined to \"!\") ends with \"!\" and line starts with \"x\".",
     ];
 
     [Fact]

@@ -3774,6 +3774,7 @@ public sealed partial class TypeChecker
         ForeignTextAt fta                                                                                => InferForeignTextAt(fta),
         TextSplit split                                                                                  => InferTextSplit(split),
         TextContains contains                                                                            => InferTextContains(contains),
+        TextAffixTest affixTest                                                                          => InferTextAffixTest(affixTest),
         TextFind find                                                                                    => InferTextFind(find),
         TextSubstringRange range                                                                         => InferTextSubstringRange(range),
         TextSubstringEdge edge                                                                           => InferTextSubstringEdge(edge),

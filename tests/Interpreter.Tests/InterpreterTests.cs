@@ -4989,6 +4989,35 @@ public class InterpreterTests
         Assert.Throws<TypeException>(() => Run("State 5 contains \"ell\"."));
     }
 
+    // `starts with` / `ends with` — contains's siblings, asked of one end.
+    [Theory]
+    [InlineData("\"hello\" starts with \"he\"", "yes")]
+    [InlineData("\"hello\" starts with \"lo\"", "no")]
+    [InlineData("\"hello\" ends with \"lo\"", "yes")]
+    [InlineData("\"hello\" ends with \"he\"", "no")]
+    [InlineData("\"hi\" ends with \"ohi\"", "no")]
+    [InlineData("\"anything\" starts with \"\"", "yes")]
+    [InlineData("\"wörld\" ends with \"rld\"", "yes")]
+    public void TextAffixTest_AnswersForEachEnd(string test, string expected)
+    {
+        Assert.Equal(expected, Run($"If {test}, state \"yes\". Otherwise, state \"no\"."));
+    }
+
+    [Theory]
+    [InlineData("State 5 starts with \"5\".", "'starts with' works on text only")]
+    [InlineData("State \"5\" ends with 5.", "'ends with' checks for text only")]
+    public void TextAffixTest_TakesTextOnly(string program, string expected)
+    {
+        Assert.Contains(expected, Assert.Throws<TypeException>(() => Run(program)).Message);
+    }
+
+    // ★ Neither word is reserved: it is recognised only between a text and `with`.
+    [Fact]
+    public void TextAffixTest_LeavesStartsAndEndsFreeAsNames()
+    {
+        Assert.Equal("7", Run("Define starts as 3. Define ends as starts + 4. State ends."));
+    }
+
     [Fact]
     public void TextFind_Present_OneBased()
     {

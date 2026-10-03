@@ -1728,6 +1728,7 @@ public sealed partial class Interpreter
         },
         TextSplit        split => EvaluateTextSplit(split),
         TextContains     tc2   => EvaluateTextContains(tc2),
+        TextAffixTest    tat   => EvaluateTextAffixTest(tat),
         TextFind         find  => EvaluateTextFind(find),
         TextSubstringRange tsr => EvaluateTextSubstringRange(tsr),
         TextSubstringEdge  tse => EvaluateTextSubstringEdge(tse),
@@ -2060,6 +2061,17 @@ public sealed partial class Interpreter
         var text = (string)Evaluate(contains.Text);
         var sub  = (string)Evaluate(contains.Substring);
         return (object)text.Contains(sub, StringComparison.Ordinal);
+    }
+
+    // Ordinal, so a prefix of code units is a prefix of code points: a valid UTF-16 text cannot
+    // begin with half of a surrogate pair that another valid text ends with.
+    private object EvaluateTextAffixTest(TextAffixTest test)
+    {
+        var text  = (string)Evaluate(test.Text);
+        var affix = (string)Evaluate(test.Affix);
+        return (object)(test.AtEnd
+            ? text.EndsWith(affix, StringComparison.Ordinal)
+            : text.StartsWith(affix, StringComparison.Ordinal));
     }
 
     private object EvaluateTextFind(TextFind find)
