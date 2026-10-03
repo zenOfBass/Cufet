@@ -19,7 +19,15 @@ version, and 1.0.0 will mark the point at which the language is considered stabl
 
 The ordering is not ceremonial: this tier's real blocker is stated below as **ergonomic rather than capability**, and the only way to find ergonomic blockers is to write large Cufet programs. They are the instrument as much as they are the goal — better to meet the gaps one program at a time than to meet all of them at once inside a compiler.
 
-1. **The compiler, written in Cufet.** The blockers are ergonomic rather than capability: the
+1. **The type checker, written in Cufet — in progress.** `tools/front-end/checker.cufe` says of
+    each program what `TypeChecker.Check` says: accepted, or refused in the same words, held there
+    by `CheckerParityTests`. The lexer and parser it reads are done (see CHANGELOG). Left to judge:
+    tasks and channels, axioms, `when` dispatch, operator overloads, function-typed fields and
+    lambdas, book types — then the checked TREE, which needs the lowering passes, then warnings.
+    ★ It is the instrument this tier's introduction asks for: what it costs to write is recorded
+    under *Deferred* as it is met.
+
+2. **The compiler, written in Cufet.** The blockers are ergonomic rather than capability: the
     data model, text handling and I/O are already sufficient, and emitting C is a route a
     Cufet-written compiler can take too.
 
@@ -48,8 +56,8 @@ The ordering is not ceremonial: this tier's real blocker is stated below as **er
     ★ Nothing is privileged in the meantime — `and region` gives every region the same `bury` the
     rabbit gets — so this is a self-hosting debt, not an asymmetry.
 
-2. **Compile-time macros — the `cufet` tag's expander.** Not a third program. It is here 
-    rather than in *Deferred* because its blocker is now a numbered item above, which is the one rule that section states about itself.
+3. **Compile-time macros — the `cufet` tag's expander.** Not a third program. It is here 
+    rather than in *Deferred* because its blocker is a numbered item above, not something off the list.
 
     Hygienic, expanding to Cufet AST before the checker runs — *not* fexprs, which are first-class and runtime. It is one tag of the BLOCKS type rather than a feature of its own: quoted Cufet and
     embedded foreign source live under one type name, and a macro is what consumes the `cufet` tag. See [DESIGN.md](DESIGN.md#foreign-interoperability) — including why hygiene and SQL injection turn out to be the same problem, which is what makes the unification real rather than cosmetic.
@@ -72,7 +80,7 @@ The ordering is not ceremonial: this tier's real blocker is stated below as **er
     ⚠ **Open, to settle on paper first:** typed holes want types checked BEFORE expansion (as Nim's
     typed macros do), and this entry says the expander runs before the checker.
 
-    ⚠ **Its blocker is item 1 above.** An expander generates Cufet AST, so building one in C# now means building it again in Cufet later. Macro errors are the worst part of every language that has them, and clear errors are this language's distinguishing feature — that tax is still paid deliberately, not early.
+    ⚠ **Its blocker is item 2 above.** An expander generates Cufet AST, so building one in C# now means building it again in Cufet later. Macro errors are the worst part of every language that has them, and clear errors are this language's distinguishing feature — that tax is still paid deliberately, not early.
 
     ★ Fexprs stay out, but the recorded reason was the weaker one. Wand's result (no two expressions
     ever equivalent, taking out `check` and monomorphization) is true; the **decisive** reason is that a compiled Cufet binary is standalone C, so running a Cufet block at run time needs a Cufet
@@ -166,77 +174,63 @@ caught was `tools/snake/snake.cufe`, on the day it was written.
 `put` is an axiom at all. A newline-free output form would remove the hole rather than route
 around it. Nobody has asked for one.
 
-**Composition modes for rabbits** — `sequential` / `parallel` / `automatic`, an optional adjective
-in the type-annotation slot: `Pull an automatic rabbit as dispatcher.` The mode governs how a
-rabbit's TASKS compose, never its ordinary statements, which stay sequential imperative code.
-
-- ★ **`automatic` is the only new capability, and the gap is real:** `the delivery from <channel>`
-  blocks on ONE channel, so nothing today can wait on several and take whichever arrives first.
-  Occam's ALT, Go's select.
-
-- **`parallel` is the default**, which is what a task-spawning rabbit already does. All three stay
-  sayable: a default is a voiceable choice, not an inferred silence. A rabbit that spawns no tasks
-  has no mode at all.
-- **One discipline per rabbit.** Mixed needs nest, as composition does everywhere else here.
-- ⚠ Inherit the existing concurrency caveat rather than restating it: cooperative interpreted, real
-  threads compiled, no interleaving promised.
-
-Open: whether `sequential` and `parallel` are thin labels over the join behaviour that exists, or
-need machinery of their own. `automatic` is the real build — a guarded multi-input wait, now
-waiting on a witness rather than on a design.
-
-**Exponent literals** — `6.022e23` on `number`. A lexer feature; today `1.5e3` fails with
-`expected Dot, got Identifier "e3"`.
-
-- ⚠ **Notation, not scientific RANGE.** Capped by decimal (~7.9e28), so `1e50` stays
-  unrepresentable. Anything wider is floats, which decimal was chosen over.
-
-**A logic-gates book** — circuit composition over `bits`: gates as components you wire together,
-rather than the operators `bits` already shipped.
-
-- **Its signal is four-valued, because hardware is.** Verilog uses `0`/`1`/`X`/`Z`; a two-valued
-  signal cannot model an uninitialised line, a tri-state bus, or two drivers contending. The
-  tetralemma maps onto it exactly — *both* is contention, *neither* is floating — which is why
-  four-valued logic is rejected in core (a rival spelling of "not exactly true") and right here
-  (the state of a wire). ⚠ **Truth tables come from Verilog, not the philosophy:** `0 & X` is `0`,
-  which naive four-valued logic gets wrong.
-- ✅ **SETTLED 2026-09-23 — a circuit is a VALUE.** `examples/circuits/` is a working
-  four-valued simulator, and the thing that decides it is FEEDBACK. A latch is two gates wired
-  into each other's inputs, so there is no "one end" to push from; a pipeline cannot express a
-  cycle. What works is holding the whole state, recomputing every gate from it AT ONCE, and
-  repeating to a fixed point — cycles are then not a special case, just a circuit that takes
-  more rounds, or never settles, and never settling is a real behaviour (a ring oscillator) that
-  has to be reportable rather than a hang.
-- ★ **The four-valued signal earned its place, and `z` earned it twice.** A tri-state bus needs a
-  driver able to say "not me"; with two values, two drivers on one wire are always contention and
-  the ordinary way to build a multiplexer is unwriteable.
-- ⚠ **What the witness did NOT need: any of the book.** The simulator is ordinary Cufet — a closed
-  union of gate kinds, a map of wires, and a loop. So the book's remaining question is what it
-  would ADD over that, which is a different and smaller question than the one above.
-
 ---
 
-## Deferred — blocked on something that is not itself on the list
+## Measured needs — met writing a real program, and nothing blocking them
+
+Each was hit by a program someone was actually writing, with the workaround it took. That is
+the calling: these wait only for a turn.
 
 ### Language
 
 - **A character cannot be classified.** There is no "is a letter", "is a digit", or code point of a
   one-character text — only patterns (`regex`) and case conversion, so `c in lowercase is not c in
-  uppercase` stands in for "is a cased letter". Met writing the tutorial; the Cufet lexer (next on the
-  self-hosting path) needs `char.IsLetter`/`IsDigit`/`IsWhiteSpace` equivalents and will MEASURE how
-  far the workarounds reach. *Blocker:* none known; wait for that measurement before designing.
+  uppercase` stands in for "is a cased letter". Met writing the tutorial, then MEASURED writing the
+  Cufet lexer: a map for ASCII, that case test for other letters, and `\v`, `\f` and the Unicode
+  spaces inserted into a chase by code point, since no escape spells them. *Blocker:* none known —
+  the measurement is in hand, so it can be designed.
 
-- **A series cannot be reversed.** Only `sorted in reverse` exists; `nums in reverse` fails to parse
-  (GRAMMAR once listed it, and was corrected 2026-09-24). *Blocker:* none known.
+- **A series can be stated but not `converted to text`.** `State words.` prints `(pear, fig)`, but
+  `words converted to text` is refused — *"Only numbers, facts, bits and a chase can be converted to
+  text"* — so a series cannot go in a hole. Met writing `examples/parsing/precedence.cufe`, which built its own joining helper instead. *Blocker:* none known.
 
 - **A type cannot be given a name.** `examples/circuits/` spells
   `(and-gate or or-gate or xor-gate or nand-gate or not-gate or tri-gate)` out 20 times; the corpus
   writes long unions in full in six places. Idiomatic rather than a mistake, but six members is
   where it starts to hurt. *Blocker:* none known.
 
-- **A series can be stated but not `converted to text`.** `State words.` prints `(pear, fig)`, but
-  `words converted to text` is refused — *"Only numbers, facts, bits and a chase can be converted to
-  text"* — so a series cannot go in a hole. Met writing `examples/parsing/precedence.cufe`, which built its own joining helper instead. *Blocker:* none known.
+- **There is no `starts with` or `ends with`.** A prefix test is written by counting —
+  `the first 6 characters of line is "error\t"` — eight times in the checker written in Cufet.
+  Proposed, not agreed: `line starts with "error\t"`, shaped like `contains`, with neither word
+  reserved (recognised only after a text, as `default` is only after `with`). *Blocker:* none known.
+
+- **Narrowing does not see through `and`.** `If known is false and held is not void:` leaves `held`
+  voidable inside, so the checker written in Cufet nests two `If`s instead, again and again.
+  *Blocker:* none known.
+
+- **A failure is handed on at nearly every call.** `… or pass the failure off` ends most calls in the
+  checker written in Cufet, and a `void or failure` call cannot be returned — it is called, and
+  `Return.` follows. Correct and explicit, and the bulk of that program's line noise.
+  *Blocker:* none known.
+
+- **Names run short across a directory.** A local may not share a name with any function in the
+  program, and a directory is one program — `made` is a function in `types.cufe`, so no file beside
+  it may name a local `made`. With 20+ files in `tools/front-end/` the taken pool keeps growing, and
+  reserved words add to it (`bind`, `skip`, `through`, `one` in one session). The one-namespace rule
+  is deliberate; this records what it costs at that size. *Blocker:* none known.
+
+### Tooling
+
+- **The checker written in Cufet is slow to hold against C#.** Comparing it on ~750 hand-written
+  programs and the corpus takes over ten minutes, and one that fills a generic is checked twice,
+  as C# checks it. Not profiled — where the time goes is not known. *Blocker:* none known.
+
+## Deferred — blocked, or waiting for a program that needs it
+
+### Language
+
+- **A series cannot be reversed.** Only `sorted in reverse` exists; `nums in reverse` fails to parse
+  (GRAMMAR once listed it, and was corrected 2026-09-24). *Blocker:* none known.
 
 - **Expression-level flow-narrowing.** Narrowing works on *variables* today
   (`If maybe-x is not void: … maybe-x`). Narrowing a value produced by an *expression* — say
@@ -244,6 +238,12 @@ rather than the operators `bits` already shipped.
   it — is not supported. *Blocker:* the checker would have to track which expression was
   checked and invalidate on mutation, which is unsound against mutable maps unless done very
   carefully. "Name your lookups" covers the need meanwhile.
+
+- **Exponent literals** — `6.022e23` on `number`. A lexer feature; today `1.5e3` fails with
+  `expected Dot, got Identifier "e3"`.
+
+  - ⚠ **Notation, not scientific RANGE.** Capped by decimal (~7.9e28), so `1e50` stays
+    unrepresentable. Anything wider is floats, which decimal was chosen over.
 
 ### Types and object
 
@@ -292,3 +292,47 @@ rather than the operators `bits` already shipped.
   sound, and it is what keeps the two threads' arenas disentangled, but it is not free. A move
   — transferring ownership and invalidating the sender's binding — would avoid the copy.
   *Blocker:* the language has no way to express "this binding is spent."
+
+- **Composition modes for rabbits** — `sequential` / `parallel` / `automatic`, an optional adjective
+  in the type-annotation slot: `Pull an automatic rabbit as dispatcher.` The mode governs how a
+  rabbit's TASKS compose, never its ordinary statements, which stay sequential imperative code.
+
+  - ★ **`automatic` is the only new capability, and the gap is real:** `the delivery from <channel>`
+    blocks on ONE channel, so nothing today can wait on several and take whichever arrives first.
+    Occam's ALT, Go's select.
+
+  - **`parallel` is the default**, which is what a task-spawning rabbit already does. All three stay
+    sayable: a default is a voiceable choice, not an inferred silence. A rabbit that spawns no tasks
+    has no mode at all.
+  - **One discipline per rabbit.** Mixed needs nest, as composition does everywhere else here.
+  - ⚠ Inherit the existing concurrency caveat rather than restating it: cooperative interpreted, real
+    threads compiled, no interleaving promised.
+
+  Open: whether `sequential` and `parallel` are thin labels over the join behaviour that exists, or
+  need machinery of their own. `automatic` is the real build — a guarded multi-input wait, now
+  waiting on a witness rather than on a design.
+
+### Books
+
+- **A logic-gates book** — circuit composition over `bits`: gates as components you wire together,
+  rather than the operators `bits` already shipped.
+
+  - **Its signal is four-valued, because hardware is.** Verilog uses `0`/`1`/`X`/`Z`; a two-valued
+    signal cannot model an uninitialised line, a tri-state bus, or two drivers contending. The
+    tetralemma maps onto it exactly — *both* is contention, *neither* is floating — which is why
+    four-valued logic is rejected in core (a rival spelling of "not exactly true") and right here
+    (the state of a wire). ⚠ **Truth tables come from Verilog, not the philosophy:** `0 & X` is `0`,
+    which naive four-valued logic gets wrong.
+  - ✅ **SETTLED 2026-09-23 — a circuit is a VALUE.** `examples/circuits/` is a working
+    four-valued simulator, and the thing that decides it is FEEDBACK. A latch is two gates wired
+    into each other's inputs, so there is no "one end" to push from; a pipeline cannot express a
+    cycle. What works is holding the whole state, recomputing every gate from it AT ONCE, and
+    repeating to a fixed point — cycles are then not a special case, just a circuit that takes
+    more rounds, or never settles, and never settling is a real behaviour (a ring oscillator) that
+    has to be reportable rather than a hang.
+  - ★ **The four-valued signal earned its place, and `z` earned it twice.** A tri-state bus needs a
+    driver able to say "not me"; with two values, two drivers on one wire are always contention and
+    the ordinary way to build a multiplexer is unwriteable.
+  - ⚠ **What the witness did NOT need: any of the book.** The simulator is ordinary Cufet — a closed
+    union of gate kinds, a map of wires, and a loop. So the book's remaining question is what it
+    would ADD over that, which is a different and smaller question than the one above.

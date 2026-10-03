@@ -2051,16 +2051,18 @@ rather than a judgement-specific one. Bind the inner subject to a name of its ow
 | `Define a shadow` anywhere in the body | Every scope in the body flattens into one, so the shadow would land on the name it was written to hide. |
 | One name used at two types in the body | Sibling blocks become one place to store it, and one place holds one type. Legal everywhere else in the language. |
 
-### `For each` takes three kinds of source
+### `For each` takes five kinds of source
 
 | Source | Iterator holds | Ends when |
 |---|---|---|
 | a series | the element type | the last item is done |
 | a map | a `mapping` (`the key of`/`the value of`) | the last entry is done |
+| a set | the element type | the last element is done |
+| a chase | each character, as a one-character text | the last character is done |
 | a stash | the **buried type**, not `voidable` of it | the stash answers `void` |
 
-Anything else is a static error: *"Only series, maps and stashes can be looped
-over."*
+Anything else is a static error: *"Only series, maps, sets, chases and stashes can be looped
+over."* A text is not one of them — put it in a chase to go through it a character at a time.
 
 The stash form is a **front-end rewrite**, not a third loop. This:
 
