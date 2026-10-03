@@ -129,6 +129,29 @@ they are large, not because they are waiting — the order among them means noth
    never just "it ran"; and everything stays pinned by the doc fences — a lesson whose code stops
    working is worse than no lesson.
 
+2. **The project tree, declared in the blueprint.** A folder is two things today — how files are
+   organised, and a namespace wall — and at the size of the checker written in Cufet they pull
+   apart. Kept in one folder, its 38 files share one namespace and names run short; split into
+   folders, `node` would be written `tree's node` about 490 times and the shared helpers qualified
+   about 1,370 times, and a type cannot cross a folder at all.
+
+   ✅ **DECIDED 2026-10-03:** the blueprint declares the project's tree as DATA, which the tools
+   read and never run — so resolving a name still executes nothing, the reason a file list was kept
+   out of the blueprint before. For each folder the tree says one thing: it is **its own
+   namespace**, or **part of its parent's** (organising files, no wall). The programmer is
+   responsible for the tree being right.
+
+   ★ **Human-declared, tool-maintained.** The editor must not INFER the tree — fold or wall is a
+   decision about intent, and an inferred tree is a cache of a guess. It may MAINTAIN it: rewrite
+   an entry when a folder is moved or renamed, ask "part of its parent, or its own namespace?" when
+   one is created, and offer the edit that fixes a reference broken by the choice. Every write is
+   confirmed, or follows from a move the person made.
+
+   **Open:** how the tree is spelled; the default (proposed, not agreed: a folder the tree does
+   not mention stays its own namespace, as today, so the tree records only folds and nothing has to
+   migrate); how `check` and the editor find and read it. ⚠ Cross-folder TYPES stay a gap for
+   folders that remain walls — `snake` cannot name a `terminals` type.
+
 ## Ongoing, no fixed slot
 
 A formal soundness proof or a fresh-eyes red-team · a periodic error-message audit for internal
