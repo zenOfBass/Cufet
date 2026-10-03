@@ -219,6 +219,13 @@ the calling: these wait only for a turn.
   reserved words add to it (`bind`, `skip`, `through`, `one` in one session). The one-namespace rule
   is deliberate; this records what it costs at that size. *Blocker:* none known.
 
+- **A nested function cannot call a sibling declared after it.** Two functions inside a third
+  cannot call each other, so closures cannot be mutually recursive: `even-step` calling an
+  `odd-step` written below it is refused — *"'odd-step' isn't defined … no declaration of this name
+  was found"*, though there is one four lines down. Top-level functions are hoisted and do not have
+  this. Met writing the Cufet lexer, which moved its state into an object and its helpers into
+  `unto` methods to get the hoisting. *Blocker:* none known.
+
 ### Tooling
 
 - **The checker written in Cufet is slow to hold against C#.** Comparing it on ~750 hand-written
