@@ -166,6 +166,11 @@ Pull a book on collections.
                     In counts, the entry for name becomes (the entry for name in counts but void is 0) + 1.
                 Done.
             Done.
+            If arguments-given's kind is "list":
+                For each inner in arguments-given's children, repeat:
+                    Cast one's count-unknown-names on (inner, counts).
+                Done.
+            Done.
             Return.
         Done.
         For each inner in shape's children, repeat:

@@ -40,9 +40,27 @@ Pull a book on collections.
     /// `Unify`: matches a signature's type against an argument's, learning what each blank is.
     /// A shape it does not understand matches — the ordinary argument check is the authority there.
     Bind fact to unify, given (the node pattern, the node actual, the map from text to fact blanks,
-            the map from text to node found):
+            the map from text to node found, the map from text to node fillings):
         If pattern's kind is "ObjectType":
             Define arguments-given as cast field-of on (pattern, 2).
+            // `stack of element` against a `stack of number`: matched by what that was filled from.
+            If arguments-given's kind is "list" and the number of arguments-given's children is greater than 0
+                    and actual's kind is "ObjectType":
+                Define parts as the entry for cast unquoted on (cast field-of on (actual, 1)) in fillings.
+                If parts is not void:
+                    Define filled-from as (cast field-of on (parts, 2))'s children.
+                    If cast unquoted on (cast field-of on (parts, 1)) is cast unquoted on (cast field-of on (pattern, 1))
+                            and the number of filled-from is the number of arguments-given's children:
+                        Define all-agree as true.
+                        Define place as 0.
+                        For each written in arguments-given's children, repeat:
+                            Increment place by 1.
+                            If cast unify on (written, item place of filled-from, blanks, found, fillings) is false, the all-agree becomes false.
+                        Done.
+                        Return all-agree.
+                    Done.
+                Done.
+            Done.
             If arguments-given's kind is "list" and the number of arguments-given's children is 0:
                 Define name as cast unquoted on (cast field-of on (pattern, 1)).
                 If (the entry for name in blanks) is not void:
@@ -57,12 +75,12 @@ Pull a book on collections.
         For each wrapper in a series with ("SeriesType", "StashType", "VoidableType", "FailureType", "ChannelType",
                 "ReadableStreamType", "WritableStreamType"), repeat:
             If pattern's kind is wrapper:
-                Return cast unify on (cast field-of on (pattern, 1), cast field-of on (actual, 1), blanks, found).
+                Return cast unify on (cast field-of on (pattern, 1), cast field-of on (actual, 1), blanks, found, fillings).
             Done.
         Done.
         If pattern's kind is "MapType":
-            Define keys-agree as cast unify on (cast field-of on (pattern, 1), cast field-of on (actual, 1), blanks, found).
-            Define values-agree as cast unify on (cast field-of on (pattern, 2), cast field-of on (actual, 2), blanks, found).
+            Define keys-agree as cast unify on (cast field-of on (pattern, 1), cast field-of on (actual, 1), blanks, found, fillings).
+            Define values-agree as cast unify on (cast field-of on (pattern, 2), cast field-of on (actual, 2), blanks, found, fillings).
             Return keys-agree and values-agree.
         Done.
         Return true.
@@ -129,7 +147,7 @@ Pull a book on collections.
             Define actual as cast one's infer on (item place of supplied) or pass the failure off.
             If cast is-none on (actual) is false:
                 Define pattern as cast field-of on (item place of formals, 1).
-                If cast unify on (pattern, actual, blank-set, found) is false:
+                If cast unify on (pattern, actual, blank-set, found, one's filling-parts) is false:
                     If for-method:
                         Return a failure (cast refusal-of on ("'{name}' can't take two different types for the same blank",
                             "'{name}' uses one name in more than one place in its signature, so those places have to agree",
@@ -449,6 +467,11 @@ Pull a book on collections.
         // Registered BEFORE its own types are resolved, so a template that mentions itself finds it.
         In one's defs, the entry for name becomes concrete.
         Insert spliced into one's instantiated-objects.
+        Define parts as cast listed.
+        For each blank in blanks, repeat:
+            Cast parts's add on ((the entry for blank in found) but void is cast unknown-type).
+        Done.
+        In one's filling-parts, the entry for name becomes cast made on ("ObjectType", a series with (cast quoted on (template-name), parts)).
         For each positional in (cast field-of on (concrete, 2))'s children, repeat:
             Cast one's check-resolves on (positional) or pass the failure off.
         Done.
@@ -585,6 +608,9 @@ Pull a book on collections.
         Done.
         For each pair in one's generic-defs, repeat:
             In child's generic-defs, the entry for (the key of pair) becomes the value of pair.
+        Done.
+        For each pair in one's filling-parts, repeat:
+            In child's filling-parts, the entry for (the key of pair) becomes the value of pair.
         Done.
         // Members written for a filling not made yet go too, for a filled body that makes it.
         For each pair in one's untos, repeat:

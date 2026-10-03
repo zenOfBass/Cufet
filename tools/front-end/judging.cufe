@@ -49,7 +49,8 @@ Pull a book on collections.
         the number instantiation-depth,
         the series of node prelude-defs,
         the map from text to node generic-defs,
-        the series of node instantiated-objects).
+        the series of node instantiated-objects,
+        the map from text to node filling-parts).
 
     /// A pull of a module, remembered with the names visible at it — its needs are verified once
     /// every module's body has been checked, since one may be defined after the block that pulls it.
@@ -1129,7 +1130,8 @@ Pull a book on collections.
             the instantiation-depth 0,
             the prelude-defs prelude,
             the generic-defs a map from text to node,
-            the instantiated-objects a series of node }.
+            the instantiated-objects a series of node,
+            the filling-parts a map from text to node }.
         Cast walker's register-prelude on (prelude).
         Return walker.
     Done.
