@@ -411,10 +411,12 @@ Pull a book on collections.
         Define earlier-line as one's function-line.
         Define earlier-depth as one's rabbit-depth.
         Define earlier-inferring as one's inferring-lambda.
+        Define earlier-fallible as one's overload-fallible.
         The one's rabbit-depth becomes 0.
         Increment one's nesting by 1.
         The one's in-function becomes true.
         The one's inferring-lambda becomes true.
+        The one's overload-fallible becomes false.
         Insert cast unknown-type into one's expected-returns.
         The one's function-line becomes at-row.
 
@@ -424,6 +426,7 @@ Pull a book on collections.
         Remove item (the number of one's expected-returns) from one's expected-returns.
         The one's in-function becomes earlier-in-function.
         The one's inferring-lambda becomes earlier-inferring.
+        The one's overload-fallible becomes earlier-fallible.
         The one's function-line becomes earlier-line.
         The one's rabbit-depth becomes earlier-depth.
         Decrement one's nesting by 1.
@@ -451,6 +454,17 @@ Pull a book on collections.
         If one's inferring-lambda:
             Define handed as cast unknown-type.
             If cast is-nothing on (value) is false, the handed becomes cast one's infer on (value) or pass the failure off.
+            If one's overload-fallible:
+                If handed's kind is "FailureMarkerType", return.
+                If cast is-nothing on (value) is false:
+                    If cast is-failure-expression on (value), return.
+                Done.
+                If cast is-none on (handed) is false:
+                    Define as-fallible as cast plain-type on ("FailureType").
+                    Cast as-fallible's add on (handed).
+                    The handed becomes as-fallible.
+                Done.
+            Done.
             The item (the number of one's expected-returns) of one's expected-returns becomes handed.
             The one's inferring-lambda becomes false.
             Return.

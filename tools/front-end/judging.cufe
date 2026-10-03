@@ -51,7 +51,9 @@ Pull a book on collections.
         the map from text to node generic-defs,
         the series of node instantiated-objects,
         the map from text to node filling-parts,
-        the fact inferring-lambda).
+        the fact inferring-lambda,
+        the map from text to node overloads,
+        the fact overload-fallible).
 
     /// A pull of a module, remembered with the names visible at it — its needs are verified once
     /// every module's body has been checked, since one may be defined after the block that pulls it.
@@ -231,6 +233,7 @@ Pull a book on collections.
         If kind is "ForEachStatement", return cast beyond-reach on (cast field-of on (statement, 3)).
         If kind is "BindStatement", return cast bind-beyond-reach on (statement).
         If kind is "UnmakerDeclaration", return cast beyond-reach on (cast field-of on (statement, 3)).
+        If kind is "OperatorOverloadDeclaration", return cast beyond-reach on (cast field-of on (statement, 6)).
         If kind is "PullStatement", return cast beyond-reach on (cast field-of on (statement, 2)).
         If kind is "PullRabbitStatement", return cast beyond-reach on (cast field-of on (statement, 2)).
         If kind is "TryStatement":
@@ -306,6 +309,7 @@ Pull a book on collections.
         Cast one's hoist-makers on (program) or pass the failure off.
         Cast one's resolve-types or pass the failure off.
         Cast one's hoist-shared-constants on (program) or pass the failure off.
+        Cast one's check-overloads on (program) or pass the failure off.
         Cast one's check-block on (program) or pass the failure off.
         Cast one's check-pending-pulls or pass the failure off.
         Cast one's check-fillings on (program) or pass the failure off.
@@ -1137,7 +1141,9 @@ Pull a book on collections.
             the generic-defs a map from text to node,
             the instantiated-objects a series of node,
             the filling-parts a map from text to node,
-            the inferring-lambda false }.
+            the inferring-lambda false,
+            the overloads a map from text to node,
+            the overload-fallible false }.
         Cast walker's register-prelude on (prelude).
         Return walker.
     Done.

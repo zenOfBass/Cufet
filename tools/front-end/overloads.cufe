@@ -1,0 +1,203 @@
+/*  Operator overloads — `Pass2CheckOverloads`, `ResolveOperandType`, `CheckOperatorOverload` and
+    `HasDirectFailureReturn` in `TypeChecker.Objects.cs`, and the lookup at the top of `InferBinary`.
+
+    ★ In the tree: `(OperatorOverloadDeclaration <op> "lhs" "rhs" "left type" "right type" [body]
+    line column)`. Keyed on the ORDERED pair of type names as written, so `vec2 * number` and
+    `number * vec2` are two declarations, and a pair that is built-in arithmetic is refused.
+
+    ★ Checked in a pass of their own, after the shared constants and before any statement, so a
+    use above its declaration already knows what it gives back — read off the body's first
+    `Return`, as a lambda's is. A body that can return a failure gives back `T or failure`.
+*/
+
+Pull a book on collections.
+    Bind text to op-symbol, given (the text op):
+        If op is "Plus", return "+".
+        If op is "Minus", return "-".
+        If op is "Star", return "*".
+        If op is "Slash", return "/".
+        Return op.
+    Done.
+
+    /// `OperandTypeName`: the name an operand is looked up under, or "" for a shape that has none.
+    Bind text to operand-type-name, given (the node shape):
+        If shape's kind is "ObjectType", return cast display-name on (cast unquoted on (cast field-of on (shape, 1))).
+        If shape's kind is "NumberType", return "number".
+        If shape's kind is "TextType", return "text".
+        If shape's kind is "FactType", return "fact".
+        If shape's kind is "BitsType", return "bits".
+        Return "".
+    Done.
+
+    /// `ResolveOperandType`: an object the program defined, or a built-in scalar.
+    Bind node or failure to overload-operand unto checker, given (the text name, the number at-row):
+        If cast one's definition-of on (name) is not void, return cast object-type-named on (name).
+        Define lowered as name in lowercase.
+        If lowered is "number", return cast plain-type on ("NumberType").
+        If lowered is "text", return cast plain-type on ("TextType").
+        If lowered is "fact", return cast plain-type on ("FactType").
+        If lowered is "bits", return cast plain-type on ("BitsType").
+        Return a failure (cast refusal-of on ("'{name}' is not a defined object type — an operator overload has no type to register on", "",
+            at-row, "declare an overload for '{name}'",
+            "Define 'object {name}' before declaring operator overloads for it, or check the spelling.")).
+    Done.
+
+    /// `HasDirectFailureReturn`: a `return a failure` anywhere in the body but a nested one's.
+    Bind fact to has-direct-failure-return, given (the node statements):
+        For each statement in statements's children, repeat:
+            Define kind as statement's kind.
+            If kind is "ReturnStatement":
+                Define value as cast field-of on (statement, 1).
+                If cast is-nothing on (value) is false and cast is-failure-expression on (value), return true.
+            Done.
+            Define inner as a series of node.
+            If kind is "WhileStatement" or kind is "PullStatement" or kind is "PullRabbitStatement":
+                Insert cast field-of on (statement, 2) into inner.
+            Done.
+            If kind is "RepeatUntilStatement", insert cast field-of on (statement, 1) into inner.
+            If kind is "ForEachStatement", insert cast field-of on (statement, 3) into inner.
+            If kind is "WithOpenStatement", insert cast field-of on (statement, 4) into inner.
+            If kind is "IfStatement":
+                For each arm in (cast field-of on (statement, 1))'s children, repeat:
+                    Insert cast field-of on (arm, 2) into inner.
+                Done.
+                If cast is-nothing on (cast field-of on (statement, 2)) is false, insert cast field-of on (statement, 2) into inner.
+            Done.
+            If kind is "TryStatement":
+                For each place in a series with (1, 2, 3), repeat:
+                    If cast is-nothing on (cast field-of on (statement, place)) is false, insert cast field-of on (statement, place) into inner.
+                Done.
+            Done.
+            For each block in inner, repeat:
+                If cast has-direct-failure-return on (block), return true.
+            Done.
+        Done.
+        Return false.
+    Done.
+
+    /// `Pass2CheckOverloads`: every overload, refused or checked, in the order written.
+    Bind void or failure to check-overloads unto checker, given (the node program):
+        Define seen as a map from text to fact.
+        For each statement in cast hoistable on (program), repeat:
+            If statement's kind is "OperatorOverloadDeclaration":
+                Define op as (cast field-of on (statement, 1))'s word.
+                Define left-name as cast unquoted on (cast field-of on (statement, 4)).
+                Define right-name as cast unquoted on (cast field-of on (statement, 5)).
+                Define at-row as cast numeric on (cast field-of on (statement, 7)).
+                Define symbol as cast op-symbol on (op).
+                Define left as cast one's overload-operand on (left-name, at-row) or pass the failure off.
+                Define right as cast one's overload-operand on (right-name, at-row) or pass the failure off.
+                If left's kind is right's kind and (left's kind is "NumberType" or left's kind is "BitsType"):
+                    Return a failure (cast refusal-of on ("'{left-name} {symbol} {right-name}' already means something, so it cannot be overloaded",
+                        "That is built-in arithmetic, and a built-in cannot be shadowed — otherwise '{symbol}' would mean one thing here and another everywhere else",
+                        at-row, "overload '{symbol}' for '{left-name}' and '{right-name}'",
+                        "Overload a pair that has no meaning yet — one with an object type in it, or something like 'text * number'.")).
+                Done.
+                Define key as "{left-name} {op} {right-name}".
+                If (the entry for key in seen) is not void:
+                    Return a failure (cast refusal-of on ("'{left-name} {symbol} {right-name}' already has an overload", "",
+                        at-row, "declare a second '{symbol}' overload for that pair",
+                        "Each operator can only be overloaded once per ORDERED pair of types. '{right-name} {symbol} {left-name}' is a different pair and may be declared separately.")).
+                Done.
+                In seen, the entry for key becomes true.
+                Cast one's check-overload on (statement, left, right) or pass the failure off.
+            Done.
+        Done.
+    Done.
+
+    /// `CheckOperatorOverload`: the body sees what a top-level function sees, plus its two operands;
+    /// what it gives back is read off its first `Return`.
+    Bind void or failure to check-overload unto checker, given (the node statement, the node left, the node right):
+        Define op as (cast field-of on (statement, 1))'s word.
+        Define left-name as cast unquoted on (cast field-of on (statement, 4)).
+        Define right-name as cast unquoted on (cast field-of on (statement, 5)).
+        Define body as cast field-of on (statement, 6).
+        Define at-row as cast numeric on (cast field-of on (statement, 7)).
+        Define fallible as cast has-direct-failure-return on (body).
+
+        Define saved as one's scopes.
+        Define saved-types as the number of one's type-scopes.
+        Define fresh as cast builtin-scope.
+        Cast carry-modules on (saved, fresh).
+        Define earlier-hidden as one's hidden.
+        Define hiding as a map from text to fact.
+        For each scope in saved, repeat:
+            For each pair in scope, repeat:
+                Define held as the value of pair.
+                If held's shape's kind is "FunctionType" or held's permanent:
+                    In fresh, the entry for (the key of pair) becomes held.
+                Done.
+                Otherwise:
+                    In hiding, the entry for (the key of pair) becomes true.
+                Done.
+            Done.
+        Done.
+        The one's hidden becomes hiding.
+        The one's scopes becomes a series with (fresh).
+        Cast one's enter-scope.
+        For each operand in a series with (2, 3), repeat:
+            Define operand-name as cast unquoted on (cast field-of on (statement, operand)).
+            Define operand-type as left.
+            If operand is 3, the operand-type becomes right.
+            Cast one's bind-name on (operand-name, a new binding {
+                the shape operand-type, the established-by cast named-reference on (operand-name), the line at-row,
+                the permanent false, the module false, the depth 0, the parameter false }).
+        Done.
+
+        Define earlier-in-function as one's in-function.
+        Define earlier-line as one's function-line.
+        Define earlier-depth as one's rabbit-depth.
+        Define earlier-inferring as one's inferring-lambda.
+        Define earlier-fallible as one's overload-fallible.
+        The one's rabbit-depth becomes 0.
+        Increment one's nesting by 1.
+        The one's in-function becomes true.
+        The one's inferring-lambda becomes true.
+        The one's overload-fallible becomes fallible.
+        Insert cast unknown-type into one's expected-returns.
+        The one's function-line becomes at-row.
+
+        Cast one's check-block on (body) or pass the failure off.
+        If cast definitely-returns on (body) is false:
+            Return a failure (cast refusal-of on ("the '{left-name} {cast op-symbol on (op)} {right-name}' overload can reach its end without returning a value", "",
+                at-row, "define an operator overload that might not return a value",
+                "Make sure every path through the overload ends with a return statement.")).
+        Done.
+
+        Define inferred as item (the number of one's expected-returns) of one's expected-returns.
+        Remove item (the number of one's expected-returns) from one's expected-returns.
+        The one's in-function becomes earlier-in-function.
+        The one's inferring-lambda becomes earlier-inferring.
+        The one's overload-fallible becomes earlier-fallible.
+        The one's function-line becomes earlier-line.
+        The one's rabbit-depth becomes earlier-depth.
+        Decrement one's nesting by 1.
+        The one's hidden becomes earlier-hidden.
+        The one's scopes becomes saved.
+        Cast one's trim-type-scopes on (saved-types).
+        If cast is-none on (inferred) is false:
+            In one's overloads, the entry for "{left-name} {op} {right-name}" becomes inferred.
+        Done.
+    Done.
+
+    /// The top of `InferBinary`: an operand pair with an overload takes it, ahead of anything else.
+    /// Gives back what it gives, or `none` for a pair with no overload.
+    Bind node or failure to overload-result unto checker, given (the text op, the node lhs, the node rhs, the number at-row):
+        If op is not "Plus" and op is not "Minus" and op is not "Star" and op is not "Slash", return cast unknown-type.
+        Define left-name as cast operand-type-name on (lhs).
+        Define right-name as cast operand-type-name on (rhs).
+        If left-name is "" or right-name is "", return cast unknown-type.
+        Define found as the entry for "{left-name} {op} {right-name}" in one's overloads.
+        If found is void, return cast unknown-type.
+        If found's kind is "FailureType":
+            Define symbol as cast op-symbol on (op).
+            If one's in-try is false and one's handled is false:
+                Return a failure (cast refusal-of on ("'{left-name} {symbol} {right-name}' can fail — you must handle the failure", "",
+                    at-row, "use '{symbol}' on '{left-name}' and '{right-name}' without handling the potential failure",
+                    "Wrap this in a 'Try to: / In case of failure:' block, or use 'but on failure <default>'.")).
+            Done.
+            If one's in-try, return cast field-of on (found, 1).
+        Done.
+        Return found.
+    Done.
+Done.

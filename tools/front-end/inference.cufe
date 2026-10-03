@@ -245,7 +245,11 @@ Pull a book on collections.
         Define lk as lhs's kind.
         Define rk as rhs's kind.
 
-        // Matrix arithmetic comes first, as C# asks it before anything else.
+        // An overloaded pair takes its overload, ahead of anything else.
+        Define overloaded as cast one's overload-result on (op, lhs, rhs, at-row) or pass the failure off.
+        If cast is-none on (overloaded) is false, return overloaded.
+
+        // Matrix arithmetic comes next.
         If op is "Plus" or op is "Minus" or op is "Star" or op is "Slash":
             Define matrix-result as cast one's matrix-arithmetic on (op, lhs, rhs, at-row, cast operator-words on (op)) or pass the failure off.
             If cast is-none on (matrix-result) is false, return matrix-result.
