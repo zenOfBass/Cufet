@@ -27,7 +27,7 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
     : IClassFixture<CompiledCufetChecker>
 {
     /// <summary>How many corpus files must agree. Raised as the checker grows; never lowered.</summary>
-    private const int CorpusFloor = 97;
+    private const int CorpusFloor = 99;
 
     /// <summary>Where the bundled books' source is — the checker reads their layers with its own parser.</summary>
     private static string[] PreludeArgs =>
@@ -873,6 +873,38 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
         "State \"5\" ends with 5.",
         "Define line as \"x\".\nDefine n as line starts with \"x\".\nState n + 1.",
         "Define line as \"x\".\nState (line joined to \"!\") ends with \"!\" and line starts with \"x\".",
+        // Lambdas and function values: a lambda captures all it can see and gives back what its first Return does; function types are fields, parameters, returns and elements.
+        "Define double as a function given (the number x): Return x * 2. Done.\nState cast double on (5) + 1.",
+        "Define double as a function given (the number x): Return x * 2. Done.\nState cast double on (\"a\").",
+        "Define double as a function given (the number x): Return x * 2. Done.\nState cast double on (5) joined to \"!\".",
+        "Define greet as a function: State \"hi\". Done.\nCast greet on ().\nState cast greet on ().",
+        "Define bad as a function given (the number x):\n    If x is 1, return 2.\nDone.",
+        "Define bad as a function given (the number x):\n    If x is 1, return 2.\n    Return \"a\".\nDone.",
+        "Bind number to apply, given (the number value, the number function transform given (the number)):\n    Return cast transform on (value).\nDone.\nState cast apply on (10, a function given (the number x): Return x * 2. Done) + 1.\nState cast apply on (10, a function given (the text x): Return 2. Done).",
+        "Bind number to double, given (the number n): Return n * 2. Done.\nBind number function given (the number) to get-doubler:\n    Return double.\nDone.\nDefine fn as cast get-doubler on ().\nState cast fn on (5) + 1.\nState cast fn on (\"x\").",
+        "Bind number function given (the number) to make-adder, given (the number n):\n    Return a function given (the number x):\n        Return x + n.\n    Done.\nDone.\nDefine add-five as cast make-adder on (5).\nState cast add-five on (10).",
+        "Bind number function given (the number) to make-adder, given (the number n):\n    Return a function given (the text x):\n        Return 1.\n    Done.\nDone.",
+        "Bind number to double, given (the number n): Return n * 2. Done.\nBind number to triple, given (the number n): Return n * 3. Done.\nDefine ops as a series of number function given (the number) with (double, triple).\nState cast the first of ops on (5) + 1.\nFor each op in ops, repeat:\n    State cast op on (5).\nDone.",
+        "Bind text to shout, given (the text t): Return t. Done.\nDefine ops as a series of number function given (the number) with (shout).",
+        "Define object box with (the number function twice given (a number), the void function log).\nDefine b as a new box {\n    the twice a function given (the number x): Return x * 2. Done,\n    the log a function: State \"logged\". Done\n}.\nDefine t as the twice of b.\nState cast t on (6) + 1.\nCast b's log on ().",
+        "Define object box with (the number function twice given (a number)).\nDefine b as a new box { the twice a function given (the text x): Return 2. Done }.",
+        "Define nums as a series of number with (1, 2).\nDefine counter as a function: Return the number of nums. Done.\nState cast counter on () + 1.",
+        "Bind number to outer, given (the number n):\n    Define f as a function given (the number x): Return x + n. Done.\n    Return cast f on (1).\nDone.\nState cast outer on (2).",
+        "Define f as a function given (the number x): Return x + mystery. Done.",
+        "Define f as 5.\nState cast f on (1).",
+        "Define f as a function given (the number x): Return x. Done.\nDefine g as a function given (the number y): Return y + 1. Done.\nThe f becomes g.\nDefine h as a function given (the text y): Return 1. Done.\nThe f becomes h.",
+        "Define words as a series of text with (\"pear\", \"fig\").\nState words sorted by a function given (the text word): Return the length of word. Done in reverse.",
+        "Define object box with (the number function twice given (a number)).\nDefine b as a new box { the twice a function given (the number x): Return x * 2. Done }.\nState cast b's twice on (6) + 1.\nState cast the twice of b on (6) + 1.",
+        "Define make as a function given (the number n):\n    Return a function given (the number x): Return x + n. Done.\nDone.\nDefine add-two as cast make on (2).\nState cast add-two on (3) + 1.\nState cast add-two on (\"x\").",
+        "Define f as a function given (the number x):\n    If x is 1, return 1.\n    Return \"two\".\nDone.",
+        "Define f as a function given (the number x): Return x. Done.\nDefine g as a function given (the number x): Return x. Done.\nState f is g.",
+        "Define f as a function given (the number x): Return x. Done.\nState f.",
+        "Define f as a function given (the number x): Return x. Done.\nState f + 1.",
+        "Define loop-forever as a function:\n    While true is true, repeat:\n        State 1.\n    Done.\nDone.\nCast loop-forever on ().",
+        "Bind void to run-twice, given (the void function action):\n    Cast action on ().\n    Cast action on ().\nDone.\nCast run-twice on (a function: State \"hi\". Done).\nCast run-twice on (a function: Return 5. Done).",
+        "Define counter as 0.\nDefine bump as a function: The counter becomes counter + 1. Done.\nCast bump on ().\nState counter.",
+        "Bind number to outer:\n    Define total as 4.\n    Define f as a function: Return total + 1. Done.\n    Return cast f on ().\nDone.\nState cast outer on ().",
+        "Define f as a function given (the number x, the text y): Return y. Done.\nState cast f on (1, \"a\") joined to \"!\".\nState cast f on (the x 1, the y \"b\").",
     ];
 
     [Fact]
