@@ -1,0 +1,21 @@
+/*  The project of Cufet written in Cufet — and the first to draw its tree.
+
+    ★★ `front-end` is ONE namespace spread over three folders. The lexer, the parser and the
+    checker share their types and helpers — `node`, `token`, `field-of` — by their plain names, so a
+    wall between them would mean qualifying nearly every line. The drawing folds the three folders
+    into `front-end`: organised apart, named together.
+
+    ⚠ Once a project draws its tree it draws every folder with Cufet source in it. A new folder
+    here needs a line before anything in it can be checked.
+*/
+
+Pull a book on blueprints.
+    Bind text to tree:
+        Return <<
+front-end
+    lexer
+    parser
+    checker
+>>.
+    Done.
+Done.

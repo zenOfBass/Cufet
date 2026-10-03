@@ -1,6 +1,6 @@
 /*  The Cufet lexer, written in Cufet.
 
-        cufet tools/front-end/lexer.cufe <file.cufe> [more…]
+        cufet self-hosting/front-end/lexer/lexer.cufe <file.cufe> [more…]
 
     Prints every token of every file named, one per line:
 

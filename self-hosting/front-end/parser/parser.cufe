@@ -1,6 +1,6 @@
 /*  The Cufet parser, written in Cufet.
 
-        cufet tools/front-end/parser.cufe <file.cufe> [more…]
+        cufet self-hosting/front-end/parser/parser.cufe <file.cufe> [more…]
 
     Prints each file's tree, one line per top-level statement:
 
