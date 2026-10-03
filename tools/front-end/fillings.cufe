@@ -294,9 +294,22 @@ Pull a book on collections.
                     cast unquoted on (cast field-of on (callee, 1)), call-args, 1, at-row) or pass the failure off.
             Done.
         Done.
-        If reached is not "" and marked is "":
-            Cast said's add on (cast atom on (":Filled")).
-            Cast said's add on (cast quoted on (reached)).
+        // The mark is written every time a function is filled, as C# writes the answer — a method's
+        // only when the call has none, which the branches above already arrange.
+        If reached is not "":
+            Define mark-place as 0.
+            Define place as 0.
+            For each child in said's children, repeat:
+                Increment place by 1.
+                If place is greater than 4 and child's kind is "atom" and child's word is ":Filled", the mark-place becomes place.
+            Done.
+            If mark-place is 0:
+                Cast said's add on (cast atom on (":Filled")).
+                Cast said's add on (cast quoted on (reached)).
+            Done.
+            Otherwise:
+                The item (mark-place + 1) of said's children becomes cast quoted on (reached).
+            Done.
         Done.
         If reached is "", return marked.
         Return reached.

@@ -134,28 +134,24 @@ Pull a book on collections.
                 Cast result's add on (statement).
             Done.
             Otherwise:
-                Define own as a series of node.
-                Cast gather-kind on (cast field-of on (statement, 2), "ObjectDefinition", own).
-                Define declared as a map from text to fact.
-                For each definition in own, repeat:
-                    In declared, the entry for (cast unquoted on (cast field-of on (definition, 1)) in lowercase) becomes true.
-                Done.
                 Define names as a map from text to text.
-                Define count as 0.
                 For each pair in (cast field-of on (statement, 1))'s children, repeat:
                     Define book as cast unquoted on (cast field-of on (pair, 1)).
                     Define mine as the entry for (book in lowercase) in one's carried-types.
                     If mine is not void:
                         For each entry in mine, repeat:
-                            If (the entry for (the key of entry) in declared) is void:
-                                In names, the entry for (the key of entry) becomes the value of entry.
-                                Increment count by 1.
-                            Done.
+                            In names, the entry for (the key of entry) becomes the value of entry.
                         Done.
                     Done.
                 Done.
+                // A type the block declares for itself wins over the pulled one.
+                Define own as a series of node.
+                Cast gather-kind on (cast field-of on (statement, 2), "ObjectDefinition", own).
+                For each definition in own, repeat:
+                    Remove (cast unquoted on (cast field-of on (definition, 1)) in lowercase) from names.
+                Done.
                 Define body as cast field-of on (statement, 2).
-                If count is greater than 0, the body becomes cast renamed-deep on (body, names).
+                If the size of names is greater than 0, the body becomes cast renamed-deep on (body, names).
                 The body becomes cast one's rewrite-inside-pulls on (body).
                 Cast result's add on (cast with-field on (statement, 2, body)).
             Done.
