@@ -431,4 +431,107 @@ public class DirectoryNamespaceTests : IDisposable
         var refusal = Refuses(blueprint);
         Assert.Contains("'doubled' isn't defined", refusal.Message);
     }
+
+    // ── The tree the blueprint draws ─────────────────────────────────────────
+    //
+    // ★★ A folder is two things without a tree — how files are organised, and a namespace wall.
+    // The drawing says which: a folder at the left edge is its own namespace, one indented under
+    // another is PART of it. Read, never run.
+
+    private void DrawTree(string drawing, string body = null!)
+    {
+        var blueprint = body ?? "Pull a book on blueprints.\n"
+                              + "    Bind text to tree:\n"
+                              + "        Return <<\n" + drawing + "\n>>.\n"
+                              + "    Done.\n"
+                              + "Done.\n";
+        File.WriteAllText(Path.Combine(_root, BookLoading.BlueprintFile), blueprint);
+    }
+
+    private const string TwoKinds = """
+        Define object point with (the number across).
+
+        Bind point to origin:
+            Return a new point { the across 0 }.
+        Done.
+        """;
+
+    [Fact]
+    public void AFoldedFolder_IsPartOfTheNamespaceAboveIt()
+    {
+        // ★ The case the checker written in Cufet needs: a type and a function shared across
+        // subfolders by their plain names — no qualifier, and no cross-folder type to need one.
+        Write("front-end/parser", "shapes", TwoKinds);
+        Write("front-end", "tree", Helper);
+        var main = Write("front-end/checker", "main", """
+            Define spot as cast origin.
+            Bind number to across-of, given (the point which):
+                Return which's across.
+            Done.
+            State "{cast doubled on (cast across-of on (spot) + 21)}".
+            """);
+        DrawTree("front-end\n    parser\n    checker");
+        Assert.Equal("42", Run(main));
+    }
+
+    [Fact]
+    public void AFoldedNamespace_IsReachedByTheFolderItWasFoldedInto()
+    {
+        Write("front-end/parser", "helper", Helper);
+        var main = Write("game", "main", """State "{cast front-end's doubled on (21)}".""");
+        DrawTree("front-end\n    parser\ngame");
+        Assert.Equal("42", Run(main));
+    }
+
+    [Fact]
+    public void AFolderAtTheLeftEdge_IsStillAWall()
+    {
+        Write("tools", "helper", Helper);
+        var main = Write("game", "main", UsesHelper);
+        DrawTree("tools\ngame");
+        Assert.Contains("'doubled' isn't defined", Refuses(main).Message);
+    }
+
+    [Fact]
+    public void TwoFoldedFolders_DeclaringOneName_AreRefused()
+    {
+        Write("front-end/parser", "one", Helper);
+        Write("front-end/checker", "two", Helper);
+        var main = Write("front-end", "main", UsesHelper);
+        DrawTree("front-end\n    parser\n    checker");
+        var refusal = Refuses(main);
+        Assert.Contains("'doubled' is declared in two files of one namespace", refusal.Message);
+        Assert.Contains("draw one of the two folders at the left edge", refusal.Message);
+    }
+
+    [Theory]
+    [InlineData("front-end\n    parser\n\tchecker", "the tree's drawing mixes tabs and spaces")]
+    [InlineData("front-end\n    parser\n  checker", "'checker' is indented to a depth no folder above it has")]
+    [InlineData("    front-end", "'front-end' is indented, but there is no folder above it to belong to")]
+    [InlineData("front-end\n    parser\n    lexer", "the tree draws 'front-end/lexer', but there is no such folder")]
+    [InlineData("front-end\n    parser\n    parser", "the tree draws 'front-end/parser' twice")]
+    [InlineData("front-end", "the folder 'front-end/checker' holds Cufet source, and the tree does not draw it")]
+    public void ABadDrawing_IsRefusedAndNeverGuessed(string drawing, string expected)
+    {
+        Write("front-end/parser", "helper", Helper);
+        Directory.CreateDirectory(Path.Combine(_root, "front-end", "checker"));
+        Write("front-end/checker", "other", "Define unused as 1.");
+        var main = Write("front-end", "main", UsesHelper);
+        DrawTree(drawing);
+        Assert.Contains(expected, Refuses(main).Message);
+    }
+
+    [Fact]
+    public void ATreeThatIsWorkedOut_IsRefused()
+    {
+        // ★ Read, never run: a computed tree would have to be RUN to be read.
+        var main = Write("", "main", UsesHelper);
+        Write("", "helper", Helper);
+        DrawTree("", "Pull a book on blueprints.\n"
+                   + "    Bind text to tree:\n"
+                   + "        Return \"front-end\" joined to \"\".\n"
+                   + "    Done.\n"
+                   + "Done.\n");
+        Assert.Contains("the blueprint's 'tree' has to be written out, not worked out", Refuses(main).Message);
+    }
 }

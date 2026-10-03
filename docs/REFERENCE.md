@@ -4564,6 +4564,42 @@ own names are already in scope, so write `put` rather than `terminals's put`.
 ⚠ **No blueprint above a file means no project**, and everything above is then exactly as it was:
 a loose `.cufe` has no neighbours and pulls its books beside itself.
 
+#### Drawing the tree
+
+A folder is two things by default: how files are organised, and a namespace wall. **The blueprint
+may draw the project's tree** to say which, for every folder with Cufet source in it:
+
+```cufet-fragment
+Pull a book on blueprints.
+    Bind text to tree:
+        Return <<
+front-end
+    lexer
+    parser
+    checker
+snake
+terminals
+>>.
+    Done.
+Done.
+```
+
+**A folder at the left edge is its own namespace; one indented under another is PART of it.** The
+files of `front-end/lexer/`, `front-end/parser/` and `front-end/checker/` count as if they sat in
+`front-end/` — one set of names, nothing qualified between them — and from outside they are reached
+as `front-end's …`. `snake` and `terminals` stay walls, as before.
+
+- **Folders only.** The filesystem lists the files; a file joins its folder by being there.
+- **Every folder, once there is a tree** — every folder with Cufet source in it or beneath it, so
+  the drawing can be trusted to be the whole project. Folders with no Cufet source (build output,
+  `.git`) are not drawn, and `books/` belongs to the pins.
+- **Read, never run.** `tree` must be `Return` of a written-out text; anything else in its body is
+  refused, because resolving a name executes nothing.
+- ⚠ **The drawing is read strictly**, since it is the one place indentation means something: tabs
+  mixed with spaces, an indent matching no level above it, a folder that is not there, a folder drawn
+  twice and a source folder left out are each refused, on the drawing's line.
+- **No tree, no change** — every folder is its own namespace.
+
 #### What a module carries
 
 **A module may hold TYPE declarations as well as members**, and that is the only way a type crosses

@@ -739,6 +739,29 @@ A blueprint step shells out to the `cufet` on the PATH, so `cufet build` in `too
 *"'spot' is not a defined type"* against 0.24.0 while the local build compiled the same files. An
 ordinary bootstrap gap, recorded so nobody reads it as a defect.
 
+#### The tree the blueprint draws — BUILT 2026-10-03
+
+**A folder is two things — how files are organised, and a namespace wall — and at size they pull
+apart.** The checker written in Cufet showed it from both ends: kept in one folder, its 38 files
+shared one namespace and names ran short; split into folders, `node` would have been written
+`tree's node` about 490 times and the shared helpers qualified about 1,370 times, and a type cannot
+cross a folder at all. So the blueprint may draw the tree, and the drawing says which each folder is:
+at the left edge, its own namespace; indented under another, part of it.
+
+★★ **Data, read and never run — which is what reconciles it with the measurement above.** The file
+list was kept out of the blueprint because resolving a name must not execute a build description.
+The tree is not executed: `tree`'s body must be one `Return` of a written-out text, PARSED and read as
+a drawing. A computed tree is refused rather than run.
+
+- **A drawing rather than a list of paths**, because it looks like what it describes. The cost is
+  that it is the one place indentation means something, so its reader never guesses.
+- **Folders only** — the filesystem already lists the files, and listing them again would drift.
+- **Every source folder, once there is a tree.** A partial drawing would be read as the whole
+  project and be wrong; a drawing you can trust is the reason to have one. No tree, no change.
+- **The programmer is responsible for it being right.** ★ The editor may MAINTAIN it — update it on
+  a move or rename, prompt "own namespace, or part of its parent?" on a new folder — but must not
+  INFER it: fold or wall is intent, and an inferred tree is a cache of a guess.
+
 ---
 
 ## Teaching the language

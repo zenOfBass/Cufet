@@ -259,6 +259,12 @@ public static class BookLoading
         var directory = Path.GetDirectoryName(self);
         if (directory is null || ProjectRoot(directory) is not { } root) return statements;
 
+        // ★ The tree the blueprint draws, if it draws one: a folder folded into the one above it is
+        // part of THAT namespace, so this file's namespace may be a folder further up. No drawing,
+        // and every folder is its own namespace, as before the tree existed.
+        var tree = ProjectTree.Read(root, map);
+        var namespaceFolder = tree?.NamespaceOf(directory) ?? directory;
+
         // ── Its own directory: one flat scope, nothing renamed ───────────────
         //
         // The file being checked claims its own names first, so a collision is always reported
@@ -266,16 +272,16 @@ public static class BookLoading
         var claimed = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var (name, _, _) in TopLevelNames(statements)) claimed[name] = self;
 
-        var here = Gathered(directory, map, self, claimed);
+        var here = GatheredNamespace(namespaceFolder, tree, map, self, claimed);
 
         // ── The directories this program QUALIFIES, and the ones they do ─────
         //
         // ★ Loaded ON DEMAND rather than wholesale, the same way a pull is: a project may hold a
         // hundred directories, and a program naming none of them must pay for none of them. The
         // loop runs to a fixpoint because a loaded namespace may qualify a third.
-        var everyNamespace = Namespaces(root);
+        var everyNamespace = Namespaces(root, tree);
         var loaded = new Dictionary<string, IReadOnlyList<IStatement>>(StringComparer.OrdinalIgnoreCase);
-        var ownName = Path.GetFileName(directory);
+        var ownName = Path.GetFileName(namespaceFolder);
 
         var frontier = new List<IReadOnlyList<IStatement>> { statements, here };
         while (frontier.Count > 0)
@@ -307,8 +313,8 @@ public static class BookLoading
                         "Rename one of them. A qualifier reaches one directory, and which one has "
                       + "to be decidable from the name alone.");
 
-                var gathered = Gathered(
-                    directories[0], map, skipFile: null,
+                var gathered = GatheredNamespace(
+                    directories[0], tree, map, skipFile: null,
                     claimed: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
                 loaded[name] = gathered;
                 frontier.Add(gathered);
@@ -508,7 +514,7 @@ public static class BookLoading
     /// a directory already refuses, one level up.
     /// </para>
     /// </remarks>
-    internal static IReadOnlyDictionary<string, IReadOnlyList<string>> Namespaces(string root)
+    internal static IReadOnlyDictionary<string, IReadOnlyList<string>> Namespaces(string root, ProjectTree? tree = null)
     {
         var found = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
         var books = Path.Combine(root, SharedFolder);
@@ -530,8 +536,14 @@ public static class BookLoading
             }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return; }
 
-            if (here.Any(f => !string.Equals(Path.GetFileName(f), BlueprintFile,
-                                             StringComparison.OrdinalIgnoreCase)))
+            // ★ A folder the tree folds is part of the namespace above it, and no namespace itself —
+            // and a namespace folder holding no source of its own still is one when a folder folded
+            // into it does: `front-end/` with only `parser/` and `checker/` beneath it.
+            bool ownSource = here.Any(f => !string.Equals(Path.GetFileName(f), BlueprintFile,
+                                                         StringComparison.OrdinalIgnoreCase));
+            bool foldedSource = tree is not null && tree.Folders(directory).Skip(1)
+                .Any(folder => Directory.Exists(folder) && Directory.GetFiles(folder, "*.cufe").Length > 0);
+            if (tree?.IsFolded(directory) != true && (ownSource || foldedSource))
             {
                 // ⚠ RECORDED, NOT REFUSED. Two directories of one name is only a problem for
                 // somebody who writes that qualifier, and refusing here would break every
@@ -546,6 +558,22 @@ public static class BookLoading
             Array.Sort(below, StringComparer.Ordinal);
             foreach (var child in below) Walk(child);
         }
+    }
+
+    /// <summary>The statements a NAMESPACE contributes: its folder's, then each folded folder's.</summary>
+    /// <remarks>
+    /// One claim table across all of them, so two files in two folded folders declaring one name is
+    /// the same refusal as two files in one folder — they ARE one namespace.
+    /// </remarks>
+    private static IReadOnlyList<IStatement> GatheredNamespace(
+        string namespaceFolder, ProjectTree? tree, SourceMap map, string? skipFile,
+        Dictionary<string, string> claimed)
+    {
+        if (tree is null) return Gathered(namespaceFolder, map, skipFile, claimed);
+        var all = new List<IStatement>();
+        foreach (var folder in tree.Folders(namespaceFolder))
+            all.AddRange(Gathered(folder, map, skipFile, claimed));
+        return all;
     }
 
     /// <summary>The statements a directory contributes, as one group, before they are renamed.</summary>
@@ -578,7 +606,18 @@ public static class BookLoading
                 { claimed[name] = path; continue; }
 
                 throw TypeChecker.TypeError(
-                    $"'{name}' is declared in two files of one directory",
+                    // ⚠ Two FOLDERS folded into one namespace by the tree: say so, and where the fix is.
+                    !string.Equals(Path.GetDirectoryName(already), Path.GetDirectoryName(path),
+                                   StringComparison.OrdinalIgnoreCase)
+                        ? throw TypeChecker.TypeError(
+                            $"'{name}' is declared in two files of one namespace",
+                            $"'{Path.GetFileName(Path.GetDirectoryName(already))}/{Path.GetFileName(already)}' "
+                          + "declares it too, and the project's tree folds their folders into one namespace",
+                            line, column,
+                            $"declare '{name}' in '{Path.GetFileName(Path.GetDirectoryName(path))}/{Path.GetFileName(path)}' as well",
+                            "Rename one of them, or draw one of the two folders at the left edge of the "
+                          + "tree, so it is a namespace of its own.")
+                        : $"'{name}' is declared in two files of one directory",
                     $"'{Path.GetFileName(already)}' declares it too, and a directory is one "
                   + "namespace — its files share a single set of names, with nothing between them "
                   + "to keep two apart",

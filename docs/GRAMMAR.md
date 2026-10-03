@@ -3318,6 +3318,15 @@ sharing a directory is ordinary.
 ⚠ **`blueprint.cufe` is in no namespace**, in either direction: never a neighbour, and checking it
 brings in nobody.
 
+★ **The tree, when the blueprint draws one, decides what a namespace IS** — read by `ProjectTree`
+before any neighbour is gathered. The blueprint is PARSED, never run: a `Bind text to tree` whose
+body is one `Return` of a written-out text, read as a drawing of folders. A folder at the left edge
+is a namespace; one indented under another is folded into it, so gathering a namespace takes its
+folder's files and then each folded folder's, under one claim table, and a folded folder is never
+offered as a qualifier. Its refusals point at the blueprint's own lines: tabs mixed with spaces, an
+indent matching no level above it, a missing folder, a folder drawn twice, an undrawn source
+folder, a body that is not a written-out text, and one name declared in two folded folders.
+
 ⚠ **Refusals:** a repeated top-level name within one directory (naming both files); a member the
 directory does not declare (listing what it does); a declaration taking a directory's name; two
 directories of one name, refused at the qualification rather than where they were found.

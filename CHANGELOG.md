@@ -10,6 +10,13 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
+- **A project's blueprint may draw its tree.** `Bind text to tree:` returning a drawing of the
+  project's folders says which are namespaces and which are only for organising files: a folder at
+  the left edge is its own namespace, and one indented under another is part of it, so its files
+  share that namespace's names with nothing qualified between them. The drawing is read, never run,
+  and read strictly — tabs mixed with spaces, an indent matching no level, a folder that is not there
+  or is drawn twice, and a source folder left out are each refused on the drawing's line. Once a
+  project draws its tree it draws every folder with Cufet source; a project with no tree is unchanged.
 - **`starts with` and `ends with`** — a text asked about one end, the same way `contains` asks
   about the middle: `If name ends with ".cufe", …`. Both sides are text and the answer is a fact.
   Neither word is reserved; each is recognised only between a text and `with`. The checker written
