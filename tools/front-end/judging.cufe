@@ -326,7 +326,7 @@ Pull a book on collections.
                         Done.
                         In case of failure:
                             Define said as the message of the failure.
-                            If (the first 12 characters of said) is "unsupported\t", return a failure said.
+                            If said starts with "unsupported\t", return a failure said.
                         Done.
                     Done.
                     If value-type's kind is not "none":

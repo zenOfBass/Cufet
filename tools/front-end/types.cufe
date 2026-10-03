@@ -237,7 +237,7 @@ Pull a book on collections.
                 Cast one's skip-noise.
             Done.
             In case of failure:
-                If (the first 11 characters of the message of the failure) is "unsupported":
+                If (the message of the failure) starts with "unsupported":
                     Return a failure (the message of the failure).
                 Done.
                 One's at becomes before-result.
@@ -484,7 +484,7 @@ Pull a book on collections.
             Done.
         Done.
         In case of failure:
-            If (the first 11 characters of the message of the failure) is "unsupported":
+            If (the message of the failure) starts with "unsupported":
                 Return a failure (the message of the failure).
             Done.
         Done.

@@ -55,6 +55,21 @@ Pull a book on collections.
         Return cast plain-type on ("FactType").
     Done.
 
+    /// `<text> starts with <text>` / `ends with` — the same question as `contains`, of one end.
+    Bind node or failure to infer-text-affix unto checker, given (the node said):
+        Define at-row as cast numeric on (cast field-of on (said, 4)).
+        Define phrase as "starts with".
+        If cast truth-of on (cast field-of on (said, 3)), the phrase becomes "ends with".
+        Define text-type as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
+        Cast require-kind on (text-type, "TextType", "'{phrase}' works on text only", at-row,
+            "check whether a {cast type-words on (text-type)} {phrase} something",
+            "Only text values support '{phrase}'. Convert the value to text first if needed.") or pass the failure off.
+        Define affix-type as cast one's infer on (cast field-of on (said, 2)) or pass the failure off.
+        Cast require-kind on (affix-type, "TextType", "'{phrase}' checks for text only", at-row,
+            "check whether text {phrase} a {cast type-words on (affix-type)}", "Convert the value to text first if needed.") or pass the failure off.
+        Return cast plain-type on ("FactType").
+    Done.
+
     /// `the position of <text> in <text>` — void when it is not there.
     Bind node or failure to infer-text-find unto checker, given (the node said):
         Define at-row as cast numeric on (cast field-of on (said, 3)).

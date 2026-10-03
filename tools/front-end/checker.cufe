@@ -37,7 +37,7 @@ Pull a book on collections.
         In case of failure:
             Define said as the message of the failure.
             The outcome becomes said.
-            If (the first 6 characters of said) is "error\t":
+            If said starts with "error\t":
                 The outcome becomes "error\t{cast one-line on (the characters from 7 to the end of said)}".
             Done.
         Done.

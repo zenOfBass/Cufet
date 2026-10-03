@@ -57,6 +57,7 @@ Pull a book on collections.
         If kind is "ConditionalExpression", return cast one's infer-conditional on (said) or pass the failure off.
         If kind is "TextSplit", return cast one's infer-text-split on (said) or pass the failure off.
         If kind is "TextContains", return cast one's infer-text-contains on (said) or pass the failure off.
+        If kind is "TextAffixTest", return cast one's infer-text-affix on (said) or pass the failure off.
         If kind is "TextFind", return cast one's infer-text-find on (said) or pass the failure off.
         If kind is "TextSubstringRange", return cast one's infer-text-range on (said) or pass the failure off.
         If kind is "TextSubstringEdge", return cast one's infer-text-edge on (said) or pass the failure off.

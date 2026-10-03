@@ -317,9 +317,9 @@ Pull a book on collections.
 
     /// `FilledBodyRefused`: a filled body's refusal, reported at the call that filled it.
     Bind text to filled-body-refused, given (the origin source, the text inner):
-        If the first 12 characters of inner is "unsupported\t", return inner.
+        If inner starts with "unsupported\t", return inner.
         Define body as inner.
-        If the first 6 characters of inner is "error\t", the body becomes the characters from 7 to the end of inner.
+        If inner starts with "error\t", the body becomes the characters from 7 to the end of inner.
         Define indented as a chase.
         Define first-line as true.
         For each line in body split by "\n", repeat:
@@ -628,8 +628,7 @@ Pull a book on collections.
         // Members written for a filling not made yet go too, for a filled body that makes it.
         For each pair in one's untos, repeat:
             Define target as the key of pair.
-            Define lead as the first 4 characters of target.
-            If lead is "get " or lead is "set ", the target becomes the characters from 5 to the end of target.
+            If target starts with "get " or target starts with "set ", the target becomes the characters from 5 to the end of target.
             If (the entry for target in one's generic-defs) is void and cast one's is-absorbed on (target)
                     and (the entry for target in one's defs) is void:
                 In child's untos, the entry for (the key of pair) becomes the value of pair.

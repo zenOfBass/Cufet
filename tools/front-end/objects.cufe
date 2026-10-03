@@ -392,8 +392,7 @@ Pull a book on collections.
     /// `unto` methods whose type never turned up: an interface, or nothing at all.
     Bind void or failure to check-leftover-untos unto checker:
         For each target in one's unto-order, repeat:
-            Define lead as the first 4 characters of target.
-            If lead is not "get " and lead is not "set " and (the entry for target in one's defs) is void
+            If (target starts with "get ") is false and (target starts with "set ") is false and (the entry for target in one's defs) is void
                     and cast one's is-absorbed on (target) is false:
                 Define attached as the entry for target in one's untos but void is cast listed.
                 Define first as item 1 of attached's children.
@@ -411,7 +410,7 @@ Pull a book on collections.
             Define kind-word as "getter".
             If lead is "set ", the kind-word becomes "setter".
             For each filed-under in one's unto-order, repeat:
-                If (the first 4 characters of filed-under) is lead:
+                If filed-under starts with lead:
                     Define target as the characters from 5 to the end of filed-under.
                     If (the entry for target in one's defs) is void and cast one's is-absorbed on (target) is false:
                         Define attached as the entry for filed-under in one's untos but void is cast listed.

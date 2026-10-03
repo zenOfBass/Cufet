@@ -28,7 +28,7 @@ Pull a book on collections.
         Define at-row as item 1 of parts.
         Define at-column as item 2 of parts.
         Define reason as the characters from (the length of at-row + the length of at-column + 3) to the end of raw.
-        If (the first 22 characters of reason) is "unexpected character '":
+        If reason starts with "unexpected character '":
             Return "error\tUnexpected character {the characters from 22 to the end of reason} on line {at-row}, column {at-column}.".
         Done.
         Return "error\tLine {at-row}, column {at-column}: {reason}.".

@@ -307,6 +307,18 @@ Pull a book on collections.
     Bind node or failure to text-contains unto parser:
         Define left as cast one's addition or pass the failure off.
         Cast one's skip-noise.
+        // `<text> starts with <affix>` / `ends with` — contextual: a plain word with `with` right after.
+        If cast one's peek-kind is "Identifier" and cast one's kind-after is "With":
+            If cast one's is-word on ("starts") or cast one's is-word on ("ends"):
+                Define edge-tok as cast one's advance.
+                Cast one's skip-noise.
+                Cast one's consume on ("With") or pass the failure off.
+                Cast one's skip-noise.
+                Define affix as cast one's addition or pass the failure off.
+                Return cast placed on ("TextAffixTest", a series with (left, affix,
+                    cast flag on ((edge-tok's lexeme in lowercase) is "ends")), edge-tok).
+            Done.
+        Done.
         If cast one's peek-kind is not "Contains", return left.
         Define contains-tok as cast one's advance.
         Cast one's skip-noise.
