@@ -1,0 +1,388 @@
+/*  Blanks in functions and methods — `InstantiateFunction`, `InstantiateMethod`, `Unify`,
+    `Disagreeing` and `FilledBodyRefused` in `TypeChecker.Functions.cs`, `SignatureBlanks`,
+    `WithoutTemplates`, `WithFilledMethods` and the re-check at the end of `Check` in
+    `TypeChecker.Core.cs`.
+
+    ★ A function or method whose signature names a type nobody declared, at least twice, is a
+    TEMPLATE: set aside, never checked itself. Each call fills it from its arguments — `echo` called
+    on a number reaches `echo of number`, a copy with every blank replaced — and the call remembers
+    which filling it reached (the `:Filled` mark on the call), because the re-check will meet the
+    same call with the template gone.
+
+    ★★ The fillings' BODIES are checked by a second, fresh checker, on the program with the
+    fillings spliced in front and the templates taken out — as C# does. Everything else in it was
+    already checked once, so what that pass refuses is a filled body; and a refusal there is
+    reported at the call that made the filling, with the body's own refusal underneath.
+*/
+
+Pull a book on collections.
+    /// A method filled for one owner.
+    Define object filling with (the text owner, the node method).
+
+    /// The call that made a filling: where, what it reached, with what, and how.
+    Define object origin with (the number line, the text name, the text filled-with, the text verb).
+
+    /// `SignatureBlanks`: the unknown type names a signature writes at least twice, in order.
+    Bind series of text to signature-blanks unto checker, given (the node statement):
+        Define counts as a map from text to number.
+        For each parameter in (cast field-of on (statement, 3))'s children, repeat:
+            Cast one's count-unknown-names on (cast field-of on (parameter, 1), counts).
+        Done.
+        Define returned as cast field-of on (statement, 2).
+        If cast is-nothing on (returned) is false, cast one's count-unknown-names on (returned, counts).
+        Define names as a series of text.
+        For each pair in counts, repeat:
+            If the value of pair is greater than 1, insert the key of pair into names.
+        Done.
+        Return cast sorted-ordinally on (names).
+    Done.
+
+    /// `Unify`: matches a signature's type against an argument's, learning what each blank is.
+    /// A shape it does not understand matches — the ordinary argument check is the authority there.
+    Bind fact to unify, given (the node pattern, the node actual, the map from text to fact blanks,
+            the map from text to node found):
+        If pattern's kind is "ObjectType":
+            Define arguments-given as cast field-of on (pattern, 2).
+            If arguments-given's kind is "list" and the number of arguments-given's children is 0:
+                Define name as cast unquoted on (cast field-of on (pattern, 1)).
+                If (the entry for name in blanks) is not void:
+                    Define already as the entry for name in found.
+                    If already is not void, return cast same-type on (already, actual).
+                    In found, the entry for name becomes actual.
+                Done.
+            Done.
+            Return true.
+        Done.
+        If pattern's kind is not actual's kind, return true.
+        For each wrapper in a series with ("SeriesType", "StashType", "VoidableType", "FailureType", "ChannelType",
+                "ReadableStreamType", "WritableStreamType"), repeat:
+            If pattern's kind is wrapper:
+                Return cast unify on (cast field-of on (pattern, 1), cast field-of on (actual, 1), blanks, found).
+            Done.
+        Done.
+        If pattern's kind is "MapType":
+            Define keys-agree as cast unify on (cast field-of on (pattern, 1), cast field-of on (actual, 1), blanks, found).
+            Define values-agree as cast unify on (cast field-of on (pattern, 2), cast field-of on (actual, 2), blanks, found).
+            Return keys-agree and values-agree.
+        Done.
+        Return true.
+    Done.
+
+    /// `Disagreeing`: the first blank written in `pattern`, for the message.
+    Bind text to disagreeing, given (the node pattern, the map from text to fact blanks):
+        If pattern's kind is "ObjectType":
+            Define arguments-given as cast field-of on (pattern, 2).
+            If arguments-given's kind is "list" and the number of arguments-given's children is 0:
+                Define name as cast unquoted on (cast field-of on (pattern, 1)).
+                If (the entry for name in blanks) is not void, return name.
+            Done.
+        Done.
+        For each inner in pattern's children, repeat:
+            If inner's kind is not "atom":
+                Define hit as cast disagreeing on (inner, blanks).
+                If hit is not "", return hit.
+            Done.
+        Done.
+        Return "".
+    Done.
+
+    /// A copy of `shape` with each blank — an object type of that name, filled with nothing —
+    /// replaced by what fills it. Every node is a fresh one.
+    Bind node to filled-deep, given (the node shape, the map from text to node found):
+        If shape's kind is "atom", return shape.
+        If shape's kind is "ObjectType":
+            Define arguments-given as cast field-of on (shape, 2).
+            If arguments-given's kind is "list" and the number of arguments-given's children is 0:
+                Define filling-type as the entry for (cast unquoted on (cast field-of on (shape, 1))) in found.
+                If filling-type is not void, return filling-type.
+            Done.
+        Done.
+        Define copy as a new node { the kind shape's kind, the word shape's word, the children a series of node }.
+        For each child in shape's children, repeat:
+            Cast copy's add on (cast filled-deep on (child, found)).
+        Done.
+        Return copy.
+    Done.
+
+    /// What the blanks are, read off a call's arguments — the first `skip` of them being the
+    /// receiver of a method called in the free form.
+    Bind map from text to node or failure to read-blanks unto checker, given (the node template,
+            the series of text blanks, the node call-args, the number receivers, the text name, the number at-row,
+            the fact for-method):
+        Define blank-set as a map from text to fact.
+        For each blank in blanks, repeat:
+            In blank-set, the entry for blank becomes true.
+        Done.
+        Define found as a map from text to node.
+        Define formals as (cast field-of on (template, 3))'s children.
+        Define supplied as a series of node.
+        Define skipping as receivers.
+        For each passed in call-args's children, repeat:
+            If skipping is greater than 0, decrement skipping by 1.
+            Otherwise, insert passed into supplied.
+        Done.
+        Define shared as the number of supplied.
+        If the number of formals is less than shared, the shared becomes the number of formals.
+        Define place as 0.
+        While place is less than shared, repeat:
+            Increment place by 1.
+            Define actual as cast one's infer on (item place of supplied) or pass the failure off.
+            If cast is-none on (actual) is false:
+                Define pattern as cast field-of on (item place of formals, 1).
+                If cast unify on (pattern, actual, blank-set, found) is false:
+                    If for-method:
+                        Return a failure (cast refusal-of on ("'{name}' can't take two different types for the same blank",
+                            "'{name}' uses one name in more than one place in its signature, so those places have to agree",
+                            at-row, "call '{name}' with arguments that disagree",
+                            "Pass values whose types line up, or write a separate method for the other shape.")).
+                    Done.
+                    Define held as (the entry for cast disagreeing on (pattern, blank-set) in found) but void is cast unknown-type.
+                    Return a failure (cast refusal-of on (
+                        "'{name}' can't take both a {cast type-words on (held)} and a {cast type-words on (actual)} for the same blank",
+                        "'{name}' uses one name in more than one place in its signature, so those places have to agree",
+                        at-row, "call '{name}' with arguments that disagree",
+                        "Pass values whose types line up, or write a separate function for the other shape.")).
+                Done.
+            Done.
+        Done.
+        For each blank in blanks, repeat:
+            If (the entry for blank in found) is void:
+                Return a failure (cast refusal-of on ("'{name}' can't tell what '{blank}' is here",
+                    "'{blank}' is a blank in '{name}', and nothing passed in says what fills it",
+                    at-row, "call '{name}' without saying what '{blank}' is",
+                    "The blank is worked out from the arguments, so it has to appear in one of them.")).
+            Done.
+        Done.
+        Return found.
+    Done.
+
+    /// `echo of number` — the template's name, then what fills each blank.
+    Bind text to filled-name, given (the text name, the series of text blanks, the map from text to node found):
+        Define out as a chase.
+        Insert name into out.
+        For each blank in blanks, repeat:
+            Insert " of {cast type-words on ((the entry for blank in found) but void is cast unknown-type)}" into out.
+        Done.
+        Return out converted to text.
+    Done.
+
+    /// `'element' with number`, for the refusal a filled body earns.
+    Bind text to filled-with, given (the series of text blanks, the map from text to node found):
+        Define out as a chase.
+        Define first-one as true.
+        For each blank in blanks, repeat:
+            If first-one is false, insert ", " into out.
+            The first-one becomes false.
+            Insert "'{blank}' with {cast type-words on ((the entry for blank in found) but void is cast unknown-type)}" into out.
+        Done.
+        Return out converted to text.
+    Done.
+
+    /// A filling, in scope where it is asked for.
+    Bind void to bind-filled-function unto checker, given (the text filled, the node concrete):
+        Cast one's bind-name on (filled, a new binding {
+            the shape cast one's resolved on (cast function-type-of on (concrete)),
+            the established-by cast named-reference on (filled),
+            the line cast numeric on (cast field-of on (concrete, 7)), the permanent false, the module false,
+            the depth 0, the parameter false }).
+    Done.
+
+    /// `InstantiateFunction`: the filling this call reaches, made if it is new.
+    Bind text or failure to instantiate-function unto checker, given (the text name, the node call-args,
+            the number at-row):
+        Define template as (the entry for name in one's generic-binds) but void is cast listed.
+        Define blanks as cast one's signature-blanks on (template).
+        Define found as cast one's read-blanks on (template, blanks, call-args, 0, name, at-row, false) or pass the failure off.
+        Define filled as cast filled-name on (name, blanks, found).
+        If cast one's look-up on (filled) is not void, return filled.
+        // Made already, out of sight from here — a body's scope is gone once the body is checked.
+        Define already-made as the entry for filled in one's made-functions.
+        If already-made is not void:
+            Cast one's bind-filled-function on (filled, already-made).
+            Return filled.
+        Done.
+        In one's origins, the entry for filled becomes a new origin {
+            the line at-row, the name name, the filled-with cast filled-with on (blanks, found), the verb "call" }.
+        Define concrete as cast with-field on (cast filled-deep on (template, found), 1, cast quoted on (filled)).
+        Insert concrete into one's instantiated-functions.
+        In one's made-functions, the entry for filled becomes concrete.
+        Cast one's bind-filled-function on (filled, concrete).
+        Return filled.
+    Done.
+
+    /// A method already filled for this owner, or void.
+    Bind voidable node to filled-method-of unto checker, given (the text owner, the text name):
+        For each each-filling in one's filled-methods, repeat:
+            If each-filling's owner is owner and cast unquoted on (cast field-of on (each-filling's method, 1)) is name, return each-filling's method.
+        Done.
+        Return void.
+    Done.
+
+    /// `InstantiateMethod`: the filling of a method this call reaches, or "" for a method that left
+    /// no blank — ordinary dispatch handles that one.
+    Bind text or failure to instantiate-method unto checker, given (the text owner, the text member,
+            the node call-args, the number receivers, the number at-row):
+        Define template as the entry for "{owner}'s {member}" in one's generic-methods.
+        If template is void, return "".
+        If (the entry for owner in one's bundled) is not void:
+            Return a failure (cast not-judged on ("filling a blank in a book's own member")).
+        Done.
+        Define blanks as cast one's signature-blanks on (template).
+        Define found as cast one's read-blanks on (template, blanks, call-args, receivers, member, at-row, true) or pass the failure off.
+        Define filled as cast filled-name on (member, blanks, found).
+        If cast one's filled-method-of on (owner, filled) is not void, return filled.
+        In one's origins, the entry for "{owner}'s {filled}" becomes a new origin {
+            the line at-row, the name member, the filled-with cast filled-with on (blanks, found), the verb "call" }.
+        Define concrete as cast with-field on (cast filled-deep on (template, found), 1, cast quoted on (filled)).
+        Insert a new filling { the owner owner, the method concrete } into one's filled-methods.
+        Return filled.
+    Done.
+
+    /// The filling a call reached, as its `:Filled` mark says — or "".
+    Bind text to filled-mark, given (the node said):
+        Define place as 0.
+        Define marked as false.
+        For each child in said's children, repeat:
+            Increment place by 1.
+            If marked, return cast unquoted on (child).
+            If place is greater than 4 and child's kind is "atom" and child's word is ":Filled", the marked becomes true.
+        Done.
+        Return "".
+    Done.
+
+    /// Which filling this call reaches, worked out before anything is resolved — and marked on the
+    /// call, the first time, so the re-check meets an answer where it will not find the template.
+    Bind text or failure to call-filling unto checker, given (the node said, the node callee, the node call-args,
+            the number at-row):
+        Define marked as cast filled-mark on (said).
+        Define reached as "".
+        If callee's kind is "VariableReference" and (the entry for cast unquoted on (cast field-of on (callee, 1)) in one's generic-binds) is not void:
+            The reached becomes cast one's instantiate-function on (cast unquoted on (cast field-of on (callee, 1)), call-args, at-row) or pass the failure off.
+        Done.
+        Otherwise if marked is not "":
+            Return marked.
+        Done.
+        Otherwise if callee's kind is "PossessiveAccess":
+            Define target as cast one's infer on (cast field-of on (callee, 1)) or pass the failure off.
+            If target's kind is "ObjectType":
+                The reached becomes cast one's instantiate-method on (cast unquoted on (cast field-of on (target, 1)),
+                    cast unquoted on (cast field-of on (callee, 2)), call-args, 0, at-row) or pass the failure off.
+            Done.
+        Done.
+        Otherwise if callee's kind is "VariableReference" and the number of call-args's children is greater than 0:
+            Define first as cast one's infer on (item 1 of call-args's children) or pass the failure off.
+            If first's kind is "ObjectType":
+                The reached becomes cast one's instantiate-method on (cast unquoted on (cast field-of on (first, 1)),
+                    cast unquoted on (cast field-of on (callee, 1)), call-args, 1, at-row) or pass the failure off.
+            Done.
+        Done.
+        If reached is not "" and marked is "":
+            Cast said's add on (cast atom on (":Filled")).
+            Cast said's add on (cast quoted on (reached)).
+        Done.
+        If reached is "", return marked.
+        Return reached.
+    Done.
+
+    /// `FilledBodyRefused`: a filled body's refusal, reported at the call that filled it.
+    Bind text to filled-body-refused, given (the origin source, the text inner):
+        If the first 12 characters of inner is "unsupported\t", return inner.
+        Define body as inner.
+        If the first 6 characters of inner is "error\t", the body becomes the characters from 7 to the end of inner.
+        Define indented as a chase.
+        Define first-line as true.
+        For each line in body split by "\n", repeat:
+            If first-line is false, insert "\n" into indented.
+            The first-line becomes false.
+            If line is not "", insert "  {line}" into indented.
+        Done.
+        Return "error\tThat doesn't work: '{source's name}' does not work when it fills {source's filled-with}.\nHere on line {source's line}, you're trying to {source's verb} '{source's name}' with those types.\n\nIts body is what refuses them:\n\n{indented converted to text}".
+    Done.
+
+    // ── The re-check ──────────────────────────────────────────────────────
+
+    /// `WithoutTemplates`: the program with every function template taken out, through pulls.
+    Bind node to without-templates unto checker, given (the node statements):
+        Define kept as cast listed.
+        For each statement in statements's children, repeat:
+            If statement's kind is "BindStatement" and (the entry for cast unquoted on (cast field-of on (statement, 1)) in one's generic-binds) is not void:
+                Skip.
+            Done.
+            If statement's kind is "PullStatement":
+                Cast kept's add on (cast with-field on (statement, 2, cast one's without-templates on (cast field-of on (statement, 2)))).
+                Skip.
+            Done.
+            Cast kept's add on (statement).
+        Done.
+        Return kept.
+    Done.
+
+    /// `WithFilledMethods`: each object's template methods taken off and its fillings put on.
+    Bind node to with-filled-methods unto checker, given (the node statements):
+        Define rebuilt as cast listed.
+        For each statement in statements's children, repeat:
+            If statement's kind is "PullStatement":
+                Cast rebuilt's add on (cast with-field on (statement, 2, cast one's with-filled-methods on (cast field-of on (statement, 2)))).
+                Skip.
+            Done.
+            If statement's kind is not "ObjectDefinition":
+                Cast rebuilt's add on (statement).
+                Skip.
+            Done.
+            Define owner as cast def-name on (statement).
+            Define touched as false.
+            Define kept as cast listed.
+            For each method in (cast field-of on (statement, 4))'s children, repeat:
+                If (the entry for "{owner}'s {cast unquoted on (cast field-of on (method, 1))}" in one's generic-methods) is not void:
+                    The touched becomes true.
+                Done.
+                Otherwise:
+                    Cast kept's add on (method).
+                Done.
+            Done.
+            For each each-filling in one's filled-methods, repeat:
+                If each-filling's owner is owner:
+                    The touched becomes true.
+                    Define name as cast unquoted on (cast field-of on (each-filling's method, 1)).
+                    Define present as false.
+                    For each method in kept's children, repeat:
+                        If cast unquoted on (cast field-of on (method, 1)) is name, the present becomes true.
+                    Done.
+                    If present is false, cast kept's add on (each-filling's method).
+                Done.
+            Done.
+            If touched, cast rebuilt's add on (cast with-field on (statement, 4, kept)).
+            Otherwise, cast rebuilt's add on (statement).
+        Done.
+        Return rebuilt.
+    Done.
+
+    /// After everything is checked: the fillings' bodies, checked by a fresh checker on the program
+    /// with them spliced in front and the templates taken out. Nothing to do when nothing was filled.
+    Bind void or failure to check-fillings unto checker, given (the node program):
+        If the number of one's instantiated-functions is 0 and the number of one's filled-methods is 0, return.
+        If one's instantiation-depth is not less than 16:
+            Return a failure "error\tThat doesn't work: filling in these types never finishes.\n\nA type that fills itself in — directly or through another — has no end. Break the cycle, or hold the inner one behind a 'voidable'.".
+        Done.
+        Define spliced as cast listed.
+        For each filled-function in one's instantiated-functions, repeat:
+            Cast spliced's add on (filled-function).
+        Done.
+        For each statement in (cast one's with-filled-methods on (cast one's without-templates on (program)))'s children, repeat:
+            Cast spliced's add on (statement).
+        Done.
+        Define child as cast fresh-checker on (one's prelude-defs).
+        The child's instantiation-depth becomes one's instantiation-depth + 1.
+        The child's origins becomes one's origins.
+        // ⚠ The templates go with it: a call inside a filled body is a fresh copy of the template's,
+        // carries no mark, and is filled there.
+        For each pair in one's generic-binds, repeat:
+            In child's generic-binds, the entry for (the key of pair) becomes the value of pair.
+            In child's templates, the entry for (the key of pair) becomes true.
+        Done.
+        For each pair in one's generic-methods, repeat:
+            In child's generic-methods, the entry for (the key of pair) becomes the value of pair.
+        Done.
+        Cast child's check-program on (spliced) or pass the failure off.
+    Done.
+Done.

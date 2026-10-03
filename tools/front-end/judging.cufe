@@ -39,7 +39,15 @@ Pull a book on collections.
         the text checking-module,
         the map from text to series of text module-needs,
         the series of pending-pull pending-pulls,
-        the map from text to map from text to text carried-types).
+        the map from text to map from text to text carried-types,
+        the map from text to node generic-binds,
+        the map from text to node generic-methods,
+        the series of node instantiated-functions,
+        the map from text to node made-functions,
+        the series of filling filled-methods,
+        the map from text to origin origins,
+        the number instantiation-depth,
+        the series of node prelude-defs).
 
     /// A pull of a module, remembered with the names visible at it — its needs are verified once
     /// every module's body has been checked, since one may be defined after the block that pulls it.
@@ -295,6 +303,7 @@ Pull a book on collections.
         Cast one's hoist-shared-constants on (program) or pass the failure off.
         Cast one's check-block on (program) or pass the failure off.
         Cast one's check-pending-pulls or pass the failure off.
+        Cast one's check-fillings on (program) or pass the failure off.
     Done.
 
     /// Every top-level `permanently` constant, registered before anything is checked — so a body
@@ -1080,8 +1089,8 @@ Pull a book on collections.
 
     // ── From outside ──────────────────────────────────────────────────────
 
-    /// "ok", or the failure that says why not.
-    Bind text or failure to checked, given (the node program, the series of node prelude):
+    /// A checker that has seen nothing but the prelude.
+    Bind checker to fresh-checker, given (the series of node prelude):
         Define walker as a new checker {
             the scopes a series with (cast builtin-scope),
             the ended-names a map from text to number,
@@ -1107,8 +1116,22 @@ Pull a book on collections.
             the checking-module "",
             the module-needs a map from text to series of text,
             the pending-pulls a series of pending-pull,
-            the carried-types a map from text to map from text to text }.
+            the carried-types a map from text to map from text to text,
+            the generic-binds a map from text to node,
+            the generic-methods a map from text to node,
+            the instantiated-functions a series of node,
+            the made-functions a map from text to node,
+            the filled-methods a series of filling,
+            the origins a map from text to origin,
+            the instantiation-depth 0,
+            the prelude-defs prelude }.
         Cast walker's register-prelude on (prelude).
+        Return walker.
+    Done.
+
+    /// "ok", or the failure that says why not.
+    Bind text or failure to checked, given (the node program, the series of node prelude):
+        Define walker as cast fresh-checker on (prelude).
         // Every refusal leaves through here, so a lifted type name is put back once, for all of them.
         Try to:
             Cast walker's check-program on (program).

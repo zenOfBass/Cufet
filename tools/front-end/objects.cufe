@@ -156,6 +156,8 @@ Pull a book on collections.
                 Return cast function-type-of on (method).
             Done.
         Done.
+        Define filled-method as cast one's filled-method-of on (name, method-name).
+        If filled-method is not void, return cast function-type-of on (filled-method).
         Define embedded as cast embedded-name on (definition).
         If embedded is "", return void.
         Return cast one's method-type-of on (embedded, method-name).
@@ -440,14 +442,15 @@ Pull a book on collections.
         Done.
     Done.
 
-    /// A method that leaves blanks is beyond this checker yet. Asked once every object type is
+    /// A method that leaves blanks is a template, filled per call. Asked once every object type is
     /// registered, as C# asks it, so a type defined further down is not mistaken for a blank.
     Bind void or failure to check-method-blanks unto checker:
         For each name in one's def-order, repeat:
-            If (the entry for name in one's bundled) is not void, skip.
             Define definition as the entry for name in one's defs but void is cast listed.
             For each method in (cast field-of on (definition, 4))'s children, repeat:
-                If cast one's has-blanks on (method), return a failure (cast not-judged on ("a method that leaves blanks")).
+                If cast one's has-blanks on (method):
+                    In one's generic-methods, the entry for "{name}'s {cast unquoted on (cast field-of on (method, 1))}" becomes method.
+                Done.
             Done.
         Done.
     Done.
@@ -462,8 +465,10 @@ Pull a book on collections.
                 Cast one's check-resolves on (cast field-of on (pair, 2)) or pass the failure off.
             Done.
             For each method in cast one's all-methods on (definition), repeat:
-                Cast one's check-resolves on (cast field-of on (method, 3)) or pass the failure off.
-                Cast one's check-resolves on (cast field-of on (method, 2)) or pass the failure off.
+                If cast one's is-nested-template on (method) is false:
+                    Cast one's check-resolves on (cast field-of on (method, 3)) or pass the failure off.
+                    Cast one's check-resolves on (cast field-of on (method, 2)) or pass the failure off.
+                Done.
             Done.
             For each getter in cast one's all-getters on (definition), repeat:
                 Cast one's check-resolves on (cast field-of on (getter, 2)) or pass the failure off.
@@ -545,8 +550,11 @@ Pull a book on collections.
         Define earlier-module as one's checking-module.
         The one's checking-module becomes "".
         If cast is-module-definition on (statement), the one's checking-module becomes name.
+        // A method that left a blank is checked per filling, never as itself.
         For each method in (cast field-of on (statement, 4))'s children, repeat:
-            Cast one's check-method-body on (method, name, at-row) or pass the failure off.
+            If cast one's is-nested-template on (method) is false:
+                Cast one's check-method-body on (method, name, at-row) or pass the failure off.
+            Done.
         Done.
         For each getter in (cast field-of on (statement, 5))'s children, repeat:
             Cast one's check-getter-body on (getter, name, at-row) or pass the failure off.
@@ -559,6 +567,21 @@ Pull a book on collections.
 
     /// A method's body: `one` is the object, and otherwise it sees what a top-level function sees.
     Bind void or failure to check-method-body unto checker, given (the node method, the text owner,
+            the number owner-row):
+        Define filled-origin as the entry for "{owner}'s {cast unquoted on (cast field-of on (method, 1))}" in one's origins.
+        If filled-origin is not void:
+            Try to:
+                Cast one's check-method-core on (method, owner, owner-row).
+            Done.
+            In case of failure:
+                Return a failure (cast filled-body-refused on (filled-origin, the message of the failure)).
+            Done.
+            Return.
+        Done.
+        Cast one's check-method-core on (method, owner, owner-row) or pass the failure off.
+    Done.
+
+    Bind void or failure to check-method-core unto checker, given (the node method, the text owner,
             the number owner-row):
         Define method-name as cast unquoted on (cast field-of on (method, 1)).
         Define returned as cast field-of on (method, 2).
@@ -782,10 +805,6 @@ Pull a book on collections.
         Define owner as cast unquoted on (cast field-of on (target, 1)).
         If cast one's definition-of on (owner) is void, return a failure (cast not-judged on ("'s on a '{owner}'")).
         Cast one's check-hands-out on (owner, member, cast field-of on (said, 1), at-row) or pass the failure off.
-        If cast one's is-template-method on (owner, member):
-            Return a failure (cast not-judged on ("a method that leaves blanks")).
-        Done.
-
         Define method as cast one's method-type-of on (owner, member).
         If method is not void:
             If cast mentions-book-type on (method), return a failure (cast not-judged on ("a method on a book's own types")).

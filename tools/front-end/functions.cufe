@@ -207,6 +207,7 @@ Pull a book on collections.
                 // A function that leaves blanks is a template: set aside, checked only per filling.
                 If cast one's has-blanks on (statement):
                     In one's templates, the entry for name becomes true.
+                    In one's generic-binds, the entry for name becomes statement.
                     Skip.
                 Done.
                 Define hoisted-return as cast field-of on (statement, 2).
@@ -257,6 +258,16 @@ Pull a book on collections.
             Cast one's bind-name on (name, a new binding {
                 the shape cast function-type-of on (statement),
                 the established-by cast named-reference on (name), the line at-row, the permanent false, the module false, the depth 0, the parameter false }).
+        Done.
+        Define filled-origin as the entry for name in one's origins.
+        If filled-origin is not void:
+            Try to:
+                Cast one's check-bind-body on (statement).
+            Done.
+            In case of failure:
+                Return a failure (cast filled-body-refused on (filled-origin, the message of the failure)).
+            Done.
+            Return.
         Done.
         Cast one's check-bind-body on (statement) or pass the failure off.
     Done.
@@ -407,12 +418,12 @@ Pull a book on collections.
     Define object call with (the node shape, the text display, the number declared-on, the number receivers).
 
     Bind call or failure to resolve-cast unto checker, given (the node callee, the node call-args,
-            the number at-row):
+            the number at-row, the text filled):
         If callee's kind is "VariableReference":
             Define name as cast unquoted on (cast field-of on (callee, 1)).
-            If (the entry for name in one's templates) is not void:
-                Return a failure (cast not-judged on ("calling a function that leaves blanks")).
-            Done.
+            // A filling is registered under its filled name; the name written is the template's.
+            Define called as name.
+            If filled is not "", the called becomes filled.
             // ⚠ The first argument is typed BEFORE the name is looked up: C# asks it whether the
             // call is a method on an object, and a refusal inside it comes first.
             Define dispatched as cast unknown-type.
@@ -423,7 +434,7 @@ Pull a book on collections.
                 If first's kind is "ObjectType":
                     The owner becomes cast unquoted on (cast field-of on (first, 1)).
                     If cast one's definition-of on (owner) is void, return a failure (cast not-judged on ("a call on a '{owner}'")).
-                    Define method as cast one's method-type-of on (owner, name).
+                    Define method as cast one's method-type-of on (owner, called).
                     If method is not void, the dispatched becomes method.
                 Done.
                 If first's kind is "InterfaceType":
@@ -450,7 +461,7 @@ Pull a book on collections.
                     Done.
                 Done.
             Done.
-            Define found as cast one's look-up on (name).
+            Define found as cast one's look-up on (called).
             If cast is-none on (dispatched) is false:
                 If found is not void:
                     If found's shape's kind is "FunctionType":
@@ -459,7 +470,7 @@ Pull a book on collections.
                             "Use the possessive form to call the method explicitly: Cast <object>'s {name} on (args).")).
                     Done.
                 Done.
-                Return a new call { the shape dispatched, the display "method '{name}' on '{owner}'", the declared-on at-row, the receivers 1 }.
+                Return a new call { the shape dispatched, the display "method '{called}' on '{owner}'", the declared-on at-row, the receivers 1 }.
             Done.
             If found is void and owner is not "":
                 Define methods as cast one's own-method-names on (owner).
@@ -486,7 +497,9 @@ Pull a book on collections.
         Done.
         Define reached as cast unknown-type.
         If callee's kind is "PossessiveAccess":
-            The reached becomes cast one's infer-possessive on (callee, true) or pass the failure off.
+            Define looked-up as callee.
+            If filled is not "", the looked-up becomes cast with-field on (callee, 2, cast quoted on (filled)).
+            The reached becomes cast one's infer-possessive on (looked-up, true) or pass the failure off.
         Done.
         Otherwise:
             The reached becomes cast one's infer on (callee) or pass the failure off.
@@ -516,10 +529,12 @@ Pull a book on collections.
             Define name as cast unquoted on (cast field-of on (callee, 1)).
             The display becomes "'{name}'".
             Define dispatched as false.
+            Define first-owner as "".
             If the number of positional's children is greater than 0:
                 Define first as cast one's infer on (item 1 of positional's children) or pass the failure off.
                 If cast beyond-types on (first), return a failure (cast not-judged on ("named arguments after a {first's kind}")).
                 If first's kind is "ObjectType":
+                    The first-owner becomes cast unquoted on (cast field-of on (first, 1)).
                     Define method as cast one's method-type-of on (cast unquoted on (cast field-of on (first, 1)), name).
                     If method is not void:
                         The dispatched becomes true.
@@ -546,6 +561,22 @@ Pull a book on collections.
                         Done.
                     Done.
                 Done.
+                // A template is reached before it is filled, and its parameters are declared.
+                If known is false:
+                    Define held as the entry for name in one's generic-binds.
+                    If held is not void:
+                        The names becomes cast parameter-names-of on (cast function-type-of on (held)) but void is a series of text.
+                        The known becomes true.
+                    Done.
+                Done.
+                If known is false and first-owner is not "":
+                    Define held-method as the entry for "{first-owner}'s {name}" in one's generic-methods.
+                    If held-method is not void:
+                        The names becomes cast parameter-names-of on (cast function-type-of on (held-method)) but void is a series of text.
+                        The receivers becomes 1.
+                        The known becomes true.
+                    Done.
+                Done.
             Done.
         Done.
         Otherwise if callee's kind is "PossessiveAccess":
@@ -562,6 +593,13 @@ Pull a book on collections.
                         If known is false and cast unquoted on (cast field-of on (method, 1)) is member
                                 and cast one's is-nested-template on (method) is false:
                             The names becomes cast parameter-names-of on (cast function-type-of on (method)) but void is a series of text.
+                            The known becomes true.
+                        Done.
+                    Done.
+                    Define held-method as the entry for "{owner}'s {member}" in one's generic-methods.
+                    If known is false:
+                        If held-method is not void:
+                            The names becomes cast parameter-names-of on (cast function-type-of on (held-method)) but void is a series of text.
                             The known becomes true.
                         Done.
                     Done.
@@ -707,7 +745,8 @@ Pull a book on collections.
                 The passes-off becomes true.
             Done.
         Done.
-        Define reached as cast one's resolve-cast on (callee, call-args, at-row) or pass the failure off.
+        Define filled as cast one's call-filling on (said, callee, call-args, at-row) or pass the failure off.
+        Define reached as cast one's resolve-cast on (callee, call-args, at-row, filled) or pass the failure off.
         If cast is-none on (reached's shape), return reached's shape.
         Cast one's check-arguments on (reached, call-args, at-row) or pass the failure off.
         Define gives as cast field-of on (reached's shape, 2).
