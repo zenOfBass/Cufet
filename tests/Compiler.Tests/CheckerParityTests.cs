@@ -27,7 +27,7 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
     : IClassFixture<CompiledCufetChecker>
 {
     /// <summary>How many corpus files must agree. Raised as the checker grows; never lowered.</summary>
-    private const int CorpusFloor = 102;
+    private const int CorpusFloor = 110;
 
     /// <summary>Where the bundled books' source is — the checker reads their layers with its own parser.</summary>
     private static string[] PreludeArgs =>
@@ -923,6 +923,47 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
         "Define total as 5.\nDefine object vec2 with (the number x).\nBind overloading +, given (the lhs is a vec2, the rhs is a vec2):\n    Return lhs's x + total.\nDone.",
         "Define total as 5 permanently.\nDefine object vec2 with (the number x).\nBind overloading +, given (the lhs is a vec2, the rhs is a vec2):\n    Return lhs's x + total.\nDone.\nDefine u as a new vec2 { the x 4 }.\nState u + u + 1.",
         "Define object vec2 with (the number x).\nBind overloading /, given (the lhs is a vec2, the rhs is a number):\n    If rhs is 0, return a failure \"zero\".\n    Return lhs's x / rhs.\nDone.\nDefine u as a new vec2 { the x 4 }.\nDefine half as (u / 2) but on failure 0.\nState half + 1.",
+        // Tasks, channels and pipes of functions — sending, closing, delivering, awaiting, a task's captured writes and inferred result, and what flows between pipe stages.
+        "Define n as 3.\nSend 1 through n.",
+        "Define c as a channel of number.\nSend \"a\" through c.",
+        "Define c as a channel of number.\nSend 1 through c.\nDefine got as the delivery from c.\nState got + 1.",
+        "Define c as a channel of number.\nSend 1 through c.\nDefine got as the delivery from c.\nIf got is not void, state got + 1.",
+        "Define n as \"a\".\nState the delivery from n.",
+        "Define n as 3.\nClose n.",
+        "Define c as a channel of text.\nSend \"hi\" through c.\nClose c.",
+        "Define helper as 3.\nPull a rabbit.\n    Have helper start a task:\n        State 1.\n    Done.\nDone.",
+        "Pull a rabbit as outer.\n    If true:\n        Pull a rabbit.\n            Have outer start a task:\n                State 1.\n            Done.\n        Done.\n    Done.\nDone.",
+        "Pull a rabbit as helper.\n    Have helper start a task:\n        State 1.\n    Done.\nDone.",
+        "Pull a rabbit.\n    Define tally as 0.\n    Have rabbit start a task:\n        The tally becomes tally + 5.\n    Done.\n    State tally.\nDone.",
+        "Pull a rabbit.\n    Define tally as 0.\n    Have rabbit start a task:\n        The tally becomes tally + 5.\n    Done.\nDone.",
+        "Pull a rabbit.\n    Define tally as 0.\n    Have rabbit start a task:\n        If 1 is 1:\n            The tally becomes tally + 5.\n        Done.\n    Done.\n    State tally.\nDone.",
+        "Define found as a series of number.\nPull a rabbit.\n    Have rabbit start a task:\n        Insert 3 into found.\n    Done.\nDone.\nState the number of found.",
+        "Bind void to poke, given (the series of number xs):\n    Insert 1 into xs.\nDone.\nDefine found as a series of number.\nPull a rabbit.\n    Have rabbit start a task:\n        Cast poke on (found).\n    Done.\nDone.\nState the number of found.",
+        "Pull a rabbit.\n    Define zeta as 0.\n    Define alpha as 0.\n    Have rabbit start a task:\n        The zeta becomes 1.\n        The alpha becomes 2.\n    Done.\n    State zeta + alpha.\nDone.",
+        "Pull a rabbit.\n    Have rabbit start a task as job:\n        Return 4.\n    Done.\n    State the awaited result of job + 1.\nDone.",
+        "Pull a rabbit.\n    Have rabbit start a task as job:\n        Return 4.\n    Done.\n    State the awaited result of job joined to \"!\".\nDone.",
+        "Pull a rabbit.\n    Have rabbit start a task as job:\n        State 4.\n    Done.\n    State the awaited result of job.\nDone.",
+        "Define n as 1.\nState the awaited result of n.",
+        "Pull a rabbit.\n    Have rabbit start a task as job:\n        If true, return 4.\n    Done.\nDone.",
+        "Pull a rabbit.\n    Have rabbit start a task as job:\n        If false, return a failure \"no\".\n        Return 1.\n    Done.\n    State the awaited result of job.\nDone.",
+        "Pull a rabbit.\n    Have rabbit start a task as job:\n        If false, return a failure \"no\".\n        Return 1.\n    Done.\n    Try to:\n        State the awaited result of job + 1.\n    Done.\n    In case of failure:\n        State \"failed\".\n    Done.\nDone.",
+        "Pull a rabbit.\n    Have rabbit start a task as job:\n        If false, return a failure \"no\".\n        Return 1.\n    Done.\n    State (the awaited result of job) but on failure 0.\nDone.",
+        "Pull a rabbit.\n    Have rabbit start a task as job:\n        If false, return 1.\n        Return \"two\".\n    Done.\nDone.",
+        "Yield.\nPull a rabbit.\n    Have rabbit start a task:\n        Yield.\n    Done.\nDone.",
+        "Pull a rabbit.\n    Have rabbit start a task as job:\n        Return 4.\n    Done.\n    State job.\nDone.",
+        "Pull a rabbit.\n    Have rabbit start a task as job:\n        Return 4.\n    Done.\n    State job + 1.\nDone.",
+        "Define c as a channel of number.\nState c + 1.",
+        "Define c as a channel of series of number.\nSend 3 through c.",
+        "Define c as a channel of (number or text).\nSend \"a\" through c.\nSend 2 through c.\nSend true through c.",
+        "Bind void to emit:\n    Output 1.\n    Output 2.\nDone.\nBind void to measure:\n    For each n from input, state the length of n.\nDone.\nemit | measure.",
+        "Bind void to emit:\n    Output \"a\".\nDone.\nBind void to measure:\n    For each n from input, state the length of n.\nDone.\nemit | measure.",
+        "Bind void to emit:\n    Output \"a\".\nDone.\nBind void to measure:\n    For each n from input, state the length of n.\nDone.\nDefine n as 3.\nemit | n.",
+        "Bind void to emit-text:\n    Output \"a\".\nDone.\nBind void to emit-number:\n    Output 1.\nDone.\nBind void to pass-on:\n    For each n from input, output n.\nDone.\nBind void to show:\n    For each n from input, state n.\nDone.\nemit-text | pass-on | show.\nemit-number | pass-on | show.",
+        "Bind void to emit:\n    Output 1.\nDone.\nBind void to double:\n    For each n from input, output n * 2.\nDone.\nBind void to show:\n    For each n from input, state n joined to \"!\".\nDone.\nemit | double | show.",
+        "Bind void to show:\n    For each n from input, state n joined to \"!\".\nDone.\nState 1.",
+        "Bind void to emit:\n    Output 1.\nDone.\nDefine shown as emit | emit.",
+        "Pull a rabbit.\n    Define inbox as a channel of number.\n    Have rabbit start a task:\n        Send 1 through inbox.\n        Close inbox.\n    Done.\n    Define got as the delivery from inbox.\n    While got is not void, repeat:\n        State got.\n        The got becomes the delivery from inbox.\n    Done.\nDone.",
+        "Pull a rabbit.\n    Have rabbit start a task as job:\n        Return 4.\n    Done.\n    Have rabbit start a task as job:\n        Return \"x\".\n    Done.\n    State the awaited result of job joined to \"!\".\nDone.",
     ];
 
     [Fact]
