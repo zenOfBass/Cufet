@@ -141,15 +141,51 @@ they are large, not because they are waiting — the order among them means noth
    namespace**, or **part of its parent's** (organising files, no wall). The programmer is
    responsible for the tree being right.
 
+   ✅ **Spelled as a drawing**, beside the steps and pins:
+
+   ```
+   Bind text to tree:
+       Return <<
+   front-end
+       lexer
+       parser
+       checker
+   snake
+   terminals
+   >>.
+   Done.
+   ```
+
+   **Folders only** — the filesystem lists the files, and a file joins its folder by being there. A
+   folder at the left edge is its own namespace; one indented under another is part of it. This one
+   body must be a `Return` of a literal, read without running; anything else in it is refused.
+   ⚠ It is the one place indentation means something, so the reader is strict and never guesses:
+   it refuses tabs mixed with spaces, an indent matching no level above it, a drawn folder that
+   does not exist, and a folder drawn twice — each on the drawing's line, in the checker's voice.
+   ⚠ The column rule cannot make a namespace INSIDE another folder (`front-end/vendor/` as a wall);
+   nothing needs one yet.
+
    ★ **Human-declared, tool-maintained.** The editor must not INFER the tree — fold or wall is a
    decision about intent, and an inferred tree is a cache of a guess. It may MAINTAIN it: rewrite
    an entry when a folder is moved or renamed, ask "part of its parent, or its own namespace?" when
    one is created, and offer the edit that fixes a reference broken by the choice. Every write is
    confirmed, or follows from a move the person made.
 
-   **Open:** how the tree is spelled; the default (proposed, not agreed: a folder the tree does
-   not mention stays its own namespace, as today, so the tree records only folds and nothing has to
-   migrate); how `check` and the editor find and read it. ⚠ Cross-folder TYPES stay a gap for
+   ✅ **The drawing shows EVERY folder** once a project has one — a partial drawing would be read as
+   the whole project and be wrong, and a drawing you can trust is the reason to have one. A folder
+   that exists and is not drawn is refused, and the editor's "own namespace, or part of its
+   parent?" prompt on a new folder is what keeps that from being a chore. A project with NO tree is
+   unchanged: every folder its own namespace, as today, so nothing has to migrate.
+   ★ "Every folder" means every folder with Cufet source in it or beneath it. Build output, `.git`
+   and asset-only folders are not drawn, and `books/` is exempt — it belongs to the pins.
+
+   ✅ **Found the way the project already is:** `check` and the editor walk up to the nearest
+   `blueprint.cufe`, parse it without running it, and read the drawing once into a map from folder
+   to namespace.
+
+   **Build order:** the drawing's reader and its refusals; namespace resolution through it; the
+   Cufet front end's copy of the reader; the editor's maintenance prompts; then the checker written
+   in Cufet moves out of `tools/`, split into folders. ⚠ Cross-folder TYPES stay a gap for
    folders that remain walls — `snake` cannot name a `terminals` type.
 
 ## Ongoing, no fixed slot
