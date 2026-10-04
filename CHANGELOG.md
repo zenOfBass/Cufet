@@ -60,7 +60,9 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   input and output: files, directories, streams, running programs and piping them, and pipes of
   functions, and axioms: regex patterns, c-language source at its boundary, and cufet blocks placed
   by `Cite`. Anything it cannot judge yet it says so about, rather than accepting — and it judges
-  every one of the 131 corpus files.
+  every one of the 131 corpus files. With `--tree` it also prints the program it hands on, which C#
+  rewrites as it checks; the test compares that with C#'s, the bundled books left out, and 50 of the
+  71 files both accept already match.
 
 ### Changed
 

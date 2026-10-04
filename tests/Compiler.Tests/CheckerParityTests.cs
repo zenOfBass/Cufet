@@ -29,6 +29,9 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
     /// <summary>How many corpus files must agree. Raised as the checker grows; never lowered.</summary>
     private const int CorpusFloor = 131;
 
+    /// <summary>How many corpus files' CHECKED TREES must match, of those both checkers accept. Raised; never lowered.</summary>
+    private const int TreeFloor = 50;
+
     /// <summary>Where the bundled books' source is — the checker reads their layers with its own parser.</summary>
     private static string[] PreludeArgs =>
         ["--prelude", Path.Combine(RepoRoot, "src", "Interpreter", "Prelude").Replace('\\', '/')];
@@ -1120,5 +1123,40 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
         Assert.True(files.Count >= 80, $"only {files.Count} Cufet files found under {RepoRoot}");
         var sources = Parsed(files.Select(n => (n, File.ReadAllText(Path.Combine(RepoRoot, n)))));
         Check(ByFile(Run(compiled.Exe, [.. PreludeArgs, .. files], RepoRoot)), sources, CorpusFloor, "on the corpus");
+    }
+
+    // ── Layer 2: the checked tree ───────────────────────────────────────────
+
+    /// <summary>
+    /// What `Check` hands back — the program after its rewrites, printed with <see
+    /// cref="ParserTreePrinter"/>, the prelude left out (<see cref="CheckerAnswer.CheckedTree"/>) —
+    /// is what the Cufet checker prints after `ok` under `--tree`.
+    /// </summary>
+    /// <remarks>
+    /// ★ Over the files both checkers ACCEPT; whether they agree to accept is the test above. A file
+    /// whose tree differs is listed, not failed, until the floor says it must match — the rewrites
+    /// still to port are known (dispatch, Cite, generics, the stash machine, notes on nodes).
+    /// </remarks>
+    [Fact]
+    public void TheCompiledChecker_HandsBackTheTreeCSharpDoes()
+    {
+        var files = Corpus();
+        var got = ByFile(Run(compiled.Exe, ["--tree", .. PreludeArgs, .. files], RepoRoot));
+        int matched = 0, accepted = 0;
+        var differ = new List<string>();
+        foreach (var name in files)
+        {
+            var source = File.ReadAllText(Path.Combine(RepoRoot, name));
+            if (CheckerAnswer.Expected(source) != "ok") continue;
+            if (!got.TryGetValue(name, out var lines) || lines.Count == 0 || lines[0] != "ok") continue;
+            accepted++;
+            var want = CheckerAnswer.CheckedTree(source)!;
+            var have = string.Join("\n", lines.Skip(1));
+            if (have == want) matched++;
+            else differ.Add(name);
+        }
+        output.WriteLine($"the checked tree: {matched} of {accepted} accepted files match; differing:");
+        foreach (var name in differ) output.WriteLine("    " + name);
+        Assert.True(matched >= TreeFloor, $"only {matched} checked trees match, and the floor is {TreeFloor}.");
     }
 }
