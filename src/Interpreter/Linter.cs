@@ -348,7 +348,7 @@ public static class Linter
     // grounds. A duplicate is the same defect one step earlier, and the only reason the parser
     // cannot catch it is that it needs the arms compared rather than counted.
     //
-    // ★ Both kinds of arm, because they fail identically: `A number` twice and `It is "cd"` twice
+    // ★ Both kinds of arm, because they fail identically: `A number` twice and `"cd"` twice
     // are one mistake with two spellings.
     //
     // Reported at the LATER arm, because that is the one to remove — naming the earlier one would

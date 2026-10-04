@@ -234,6 +234,10 @@ public class ParserParityTests(ITestOutputHelper output, CompiledCufetParser com
       + "Bind text to shout unto shouter, \"a\".\n"
       + "Bind text to shout unto talker, \"b\".\n"
       + "Define object hare with (the text name) and shouter and talker.",
+        // A value arm in the spelling that used to say `It is` again — and a name where only a
+        // value can go, after `or`.
+        "Define command as \"cd\".\nJudge command, where it is:\n    It is \"cd\", state \"change directory\".\n    Otherwise, state \"else\".\nDone.",
+        "Define command as \"cd\".\nJudge command, where it is:\n    \"cd\" or other, state \"same\".\n    Otherwise, state \"else\".\nDone.",
     ];
 
     [Fact]

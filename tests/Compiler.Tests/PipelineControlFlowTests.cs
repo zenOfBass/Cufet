@@ -496,8 +496,8 @@ public class PipelineControlFlowTests : PipelineTestBase
         const string src = """
             Define command as "bg".
             Judge command, where it is:
-                It is "cd", state "change directory".
-                It is "fg" or "bg", state "job control: {it}".
+                "cd", state "change directory".
+                "fg" or "bg", state "job control: {it}".
                 Otherwise, state "run {it}".
             Done.
             """;
@@ -510,8 +510,8 @@ public class PipelineControlFlowTests : PipelineTestBase
         const string src = """
             Define command as "ls".
             Judge command, where it is:
-                It is "cd", state "change directory".
-                It is "fg" or "bg", state "job control".
+                "cd", state "change directory".
+                "fg" or "bg", state "job control".
                 Otherwise, state "run {it}".
             Done.
             """;
@@ -526,8 +526,8 @@ public class PipelineControlFlowTests : PipelineTestBase
         const string src = """
             Bind text to name-of, given (the number code):
                 Judge code, where it is:
-                    It is 0, return "fine".
-                    It is -1, return "interrupted".
+                    0, return "fine".
+                    -1, return "interrupted".
                     Otherwise, return "exit {it}".
                 Done.
             Done.
@@ -536,7 +536,7 @@ public class PipelineControlFlowTests : PipelineTestBase
             State cast name-of on (7).
             Define flag as false.
             Judge flag, where it is:
-                It is true, state "on".
+                true, state "on".
                 Otherwise, state "off".
             Done.
             """;
@@ -559,15 +559,15 @@ public class PipelineControlFlowTests : PipelineTestBase
                     A number-literal:
                         Define held as it.
                         Judge held's value, where it is:
-                            It is 1, return "the number one".
-                            It is 2 or 3, return "a small number".
+                            1, return "the number one".
+                            2 or 3, return "a small number".
                             Otherwise, return "the number {held's value}".
                         Done.
                     Done.
                     A text-literal:
                         Define held as it.
                         Judge held's value, where it is:
-                            It is "yes", return "an agreement".
+                            "yes", return "an agreement".
                             Otherwise, return "the words {held's value}".
                         Done.
                     Done.
@@ -592,8 +592,8 @@ public class PipelineControlFlowTests : PipelineTestBase
         const string src = """
             Bind text to name-of, given (the number code):
                 Judge code, where it is:
-                    It is 0, return "fine".
-                    It is 1 or 2, return "a small problem".
+                    0, return "fine".
+                    1 or 2, return "a small problem".
                     Otherwise, return "exit {code}".
                 Done.
             Done.

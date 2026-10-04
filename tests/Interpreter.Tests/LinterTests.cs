@@ -357,8 +357,8 @@ public class LinterTests
     {
         var only = Assert.Single(Lint("""
             Judge command, where it is:
-                It is "cd", state "first".
-                It is "cd", state "second".
+                "cd", state "first".
+                "cd", state "second".
                 Otherwise, state "rest".
             Done.
             """));
@@ -387,8 +387,8 @@ public class LinterTests
     {
         var only = Assert.Single(Lint("""
             Judge command, where it is:
-                It is "fg" or "bg", state "job control".
-                It is "bg", state "unreachable".
+                "fg" or "bg", state "job control".
+                "bg", state "unreachable".
                 Otherwise, state "rest".
             Done.
             """));
@@ -402,8 +402,8 @@ public class LinterTests
         // it is — so these two arms name one pattern and the second cannot run.
         var only = Assert.Single(Lint("""
             Judge pattern, where it is:
-                It is 0xFF, state "all set".
-                It is 0b11111111, state "unreachable".
+                0xFF, state "all set".
+                0b11111111, state "unreachable".
                 Otherwise, state "rest".
             Done.
             """));
@@ -420,8 +420,8 @@ public class LinterTests
             Judge thing, where it is:
                 A number:
                     Judge command, where it is:
-                        It is "cd", state "first".
-                        It is "cd", state "second".
+                        "cd", state "first".
+                        "cd", state "second".
                         Otherwise, state "rest".
                     Done.
                 Done.
@@ -448,8 +448,8 @@ public class LinterTests
     {
         Assert.Empty(Lint("""
             Judge command, where it is:
-                It is "cd", state "change directory".
-                It is "fg" or "bg", state "job control".
+                "cd", state "change directory".
+                "fg" or "bg", state "job control".
                 Otherwise, state "run it".
             Done.
             """));
@@ -462,11 +462,11 @@ public class LinterTests
         // value are two independent decisions, and neither arm is dead.
         Assert.Empty(Lint("""
             Judge command, where it is:
-                It is "cd", state "first judgement".
+                "cd", state "first judgement".
                 Otherwise, state "rest".
             Done.
             Judge command, where it is:
-                It is "cd", state "second judgement".
+                "cd", state "second judgement".
                 Otherwise, state "rest".
             Done.
             """));

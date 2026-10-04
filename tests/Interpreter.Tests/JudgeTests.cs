@@ -217,7 +217,7 @@ public class JudgeTests
         Assert.Equal("change directory", Run("""
             Define command as "cd".
             Judge command, where it is:
-                It is "cd", state "change directory".
+                "cd", state "change directory".
                 Otherwise, state "something else".
             Done.
             """));
@@ -230,7 +230,7 @@ public class JudgeTests
         Assert.Equal("job control", Run("""
             Define command as "bg".
             Judge command, where it is:
-                It is "fg" or "bg", state "job control".
+                "fg" or "bg", state "job control".
                 Otherwise, state "something else".
             Done.
             """));
@@ -242,7 +242,7 @@ public class JudgeTests
         Assert.Equal("run ls", Run("""
             Define command as "ls".
             Judge command, where it is:
-                It is "cd", state "change directory".
+                "cd", state "change directory".
                 Otherwise, state "run {it}".
             Done.
             """));
@@ -255,7 +255,7 @@ public class JudgeTests
         var ex = Assert.Throws<TypeException>(() => Run("""
             Define command as "cd".
             Judge command, where it is:
-                It is "cd", state "change directory".
+                "cd", state "change directory".
             Done.
             """));
         Assert.Contains("no 'Otherwise'", ex.Message);
@@ -270,7 +270,7 @@ public class JudgeTests
         var ex = Assert.Throws<TypeException>(() => Run("""
             Define command as "cd".
             Judge command, where it is:
-                It is 3, state "three".
+                3, state "three".
                 Otherwise, state "something else".
             Done.
             """));
@@ -286,7 +286,7 @@ public class JudgeTests
         var ex = Assert.Throws<TypeException>(() => Run("""
             Define command as "cd".
             Judge command, where it is:
-                It is "cd", state "change directory".
+                "cd", state "change directory".
                 A text, state "some words".
                 Otherwise, state "something else".
             Done.
@@ -302,7 +302,7 @@ public class JudgeTests
             Define command as "cd".
             Judge command, where it is:
                 A text, state "some words".
-                It is "cd", state "change directory".
+                "cd", state "change directory".
                 Otherwise, state "something else".
             Done.
             """));
@@ -315,15 +315,32 @@ public class JudgeTests
         // An arm is a case, and a case has to be a fixed thing the reader can see beside the
         // others. An expression here would make the arms order-dependent on side effects and would
         // let two arms name the same value with nothing on the page saying so.
+        // ⚠ A bare name opening an arm is a TYPE arm (`circle, …` reads as `A circle, …`), so the
+        // place a name is refused as a value is after `or`, where only a value can go.
         var ex = Assert.Throws<ParseException>(() => Run("""
             Define command as "cd".
             Define other as "bg".
             Judge command, where it is:
-                It is other, state "the same".
+                "cd" or other, state "the same".
                 Otherwise, state "something else".
             Done.
             """));
-        Assert.Contains("after 'It is'", ex.Message);
+        Assert.Contains("expected a number, some text, a bit pattern or a fact", ex.Message);
+    }
+
+    [Fact]
+    public void AValueArm_NoLongerSaysItIs()
+    {
+        // The header says `where it is` once; a value arm used to say it again. That spelling is
+        // refused by name, so the message carries the fix.
+        var ex = Assert.Throws<ParseException>(() => Run("""
+            Define command as "cd".
+            Judge command, where it is:
+                It is "cd", state "change directory".
+                Otherwise, state "something else".
+            Done.
+            """));
+        Assert.Contains("a value arm is the value alone", ex.Message);
     }
 
     [Fact]
@@ -334,13 +351,13 @@ public class JudgeTests
         Assert.Equal("interrupted\nyes", Run("""
             Define code as 0 - 1.
             Judge code, where it is:
-                It is 0, state "fine".
-                It is -1, state "interrupted".
+                0, state "fine".
+                -1, state "interrupted".
                 Otherwise, state "exit {it}".
             Done.
             Define flag as true.
             Judge flag, where it is:
-                It is true, state "yes".
+                true, state "yes".
                 Otherwise, state "no".
             Done.
             """));
@@ -355,7 +372,7 @@ public class JudgeTests
         Assert.Equal("cd is 2 long", Run("""
             Define command as "cd".
             Judge command, where it is:
-                It is "cd", state "{it} is {the length of it} long".
+                "cd", state "{it} is {the length of it} long".
                 Otherwise, state "something else".
             Done.
             """));

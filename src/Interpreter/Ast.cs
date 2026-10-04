@@ -175,7 +175,7 @@ public sealed record IfStatement(
 // what happens when both could match, and nothing has needed to ask.
 //
 // Each holds every alternative the arm matches, because grouping is how the common use of C-style
-// fall-through is served: `An add-node or a mul-node` for types, `It is "fg" or "bg"` for values.
+// fall-through is served: `An add-node or a mul-node` for types, `"fg" or "bg"` for values.
 //
 // ★ A VALUE ARM NARROWS NOTHING. Matching "cd" says nothing about the subject's type that its own
 // declaration did not, so `it` reads at the subject's type throughout the arm. That is why value

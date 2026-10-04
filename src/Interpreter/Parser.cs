@@ -1535,19 +1535,15 @@ public sealed class Parser
 
             var armTok = Peek();
 
-            // A VALUE arm says `It is` again, completing the header's sentence a second time;
-            // a TYPE arm completes it with a bare noun (`A circle`). That is the whole
-            // discriminator, and it needs no lookahead past the first token.
-            if (Peek().Type == TokenType.It)
+            // ★ The header says `where it is:` once, and every arm completes that sentence: a TYPE
+            // arm with a noun (`A circle`), a VALUE arm with the value itself (`"cd"`). A value is
+            // always a literal and no statement starts with one, so the first token is the whole
+            // discriminator — no lookahead past it.
+            if (IsArmValueStart(Peek().Type))
             {
-                Advance();
-                SkipNoise();
-                Consume(TokenType.Is);
-                SkipNoise();
                 var values = new List<IExpression> { ParseArmValue() };
                 SkipNoise();
-                // `It is "fg" or "bg"` — the `It is` is said once, the way an arm's type cases
-                // repeat the article and not the subject.
+                // `"fg" or "bg"` — grouping, the way an arm's type cases are grouped.
                 while (Peek().Type == TokenType.Or)
                 {
                     Advance();
@@ -1558,6 +1554,13 @@ public sealed class Parser
                 arms.Add(new JudgeArm([], ParseIfBody(armTok), armTok.Line, armTok.Column, values));
                 continue;
             }
+
+            // ⚠ A value arm used to say `It is` again — `It is "cd", …` — and the header already
+            // says it. That spelling is gone, and refused by name so the fix is in the message.
+            if (Peek().Type == TokenType.It)
+                throw new ParseException(armTok.Line, armTok.Column,
+                    "a value arm is the value alone, because the header already says 'where it is' — "
+                    + "write '\"cd\", …', not 'It is \"cd\", …'.");
 
             var cases  = new List<CufetType>();
             SkipNoise();
@@ -1587,6 +1590,11 @@ public sealed class Parser
 
         return new JudgeStatement(subject, arms, otherwise, tok.Line, tok.Column);
     }
+
+    // A token a value arm can start with — the start of a literal.
+    private static bool IsArmValueStart(TokenType type) =>
+        type is TokenType.Number or TokenType.String or TokenType.Bits
+             or TokenType.TrueKw or TokenType.FalseKw or TokenType.Minus;
 
     // The constants a value arm may name.
     //
@@ -1630,7 +1638,7 @@ public sealed class Parser
                 return new BooleanLiteral(false, tok.Line, tok.Column);
         }
 
-        throw new ParseException(tok, "a number, some text, a bit pattern or a fact after 'It is'");
+        throw new ParseException(tok, "a number, some text, a bit pattern or a fact");
     }
 
     private WhileStatement ParseWhileStatement()

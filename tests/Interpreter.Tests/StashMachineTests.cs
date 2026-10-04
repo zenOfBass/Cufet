@@ -1135,8 +1135,8 @@ public class StashMachineTests
             Bind number to router, given (the rabbit helper, the series of text commands):
                 For each command in commands, repeat:
                     Judge command, where it is:
-                        It is "cd", have helper bury "builtin".
-                        It is "fg" or "bg", have helper bury "job control".
+                        "cd", have helper bury "builtin".
+                        "fg" or "bg", have helper bury "job control".
                         Otherwise, have helper bury "launch {it}".
                     Done.
                 Done.
