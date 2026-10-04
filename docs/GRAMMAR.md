@@ -253,9 +253,10 @@ separator: `cast apply on (10, a function given (the number x), x * 2)` could no
 body is always `Done.`-terminated.
 
 **`Judge <subject>, where it is:` — coverage is total, by proof or by default.** An arm names
-either a **type** (`A num-node`, `A number or a text`) or a **value** (`It is "cd"`,
-`It is "fg" or "bg"`), taking the comma form for one statement or a colon and `Done.` for a
-block. The subject is evaluated **once** and bound to `it`.
+either a **type** (`A num-node`, `A number or a text`) or a **value** (`"cd"`, `"fg" or "bg"`),
+taking the comma form for one statement or a colon and `Done.` for a block. A value arm opens with
+the literal itself, since the header already says `it is`. The subject is evaluated **once** and
+bound to `it`.
 
 - **Closed-union subject, type arms** → exhaustiveness is *proved*; `Otherwise` is optional and a
   missing case is a static error.

@@ -64,6 +64,9 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Changed
 
+- **A value arm of a `Judge` is the value alone.** `Judge command, where it is:` says `it is` once,
+  so an arm reads `"cd", state …` or `"fg" or "bg", state …` — the way a type arm already reads
+  `A number, …`. The old spelling, `It is "cd", …`, is refused with the new one in the message.
 - **The front end written in Cufet lives in `self-hosting/`**, a project of its own, as one namespace
   in three folders — `front-end/lexer/`, `front-end/parser/` and `front-end/checker/`, with the tree
   they share in `front-end/` — which its blueprint draws. The lexer came from `tools/lexer/`: its

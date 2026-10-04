@@ -388,8 +388,8 @@ Several `If`s in a row can pick one of many — or, if none of them matches, qui
 ```cufet
 Define wanted as "kale".
 Judge wanted, where it is:
-    It is "carrots", state "orange and crunchy".
-    It is "kale" or "lettuce", state "something green".
+    "carrots", state "orange and crunchy".
+    "kale" or "lettuce", state "something green".
     Otherwise, state "never heard of {it}".
 Done.
 ```

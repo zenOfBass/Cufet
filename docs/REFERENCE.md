@@ -577,15 +577,15 @@ Done.
 A **grouped** arm narrows only as far as the group: an arm covering two cases cannot
 know which one arrived, so `it` is the sub-union it names and must be tested again
 before type-specific use.
-**An arm may name a value instead of a type.** Where a type arm completes the header
-with a noun, a value arm says `It is` again and completes it with a constant:
+**An arm may name a value instead of a type.** The header says `where it is` once, and
+where a type arm completes it with a noun, a value arm completes it with a constant:
 
 ```cufet
 Define command as "bg".
 
 Judge command, where it is:
-    It is "cd", state "change directory".
-    It is "fg" or "bg", state "job control: {it}".
+    "cd", state "change directory".
+    "fg" or "bg", state "job control: {it}".
     Otherwise, state "run {it}".
 Done.
 ```
@@ -613,7 +613,7 @@ value would have to answer what happens when both could match, so mixing is refu
 Define command as "cd".
 
 Judge command, where it is:
-    It is "cd", state "change directory".
+    "cd", state "change directory".
     A text, state "some words".
     Otherwise, state "something else".
 Done.
