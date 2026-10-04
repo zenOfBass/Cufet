@@ -64,6 +64,14 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Changed
 
+- **A folder folded into a namespace keeps its own names, and sees the folders above it.** A file
+  reaches, by plain name, what its own folder and each folder above it declare; a sibling folder is
+  reached by qualifying it — `parser's program-tree` — the same possessive that crosses into another
+  namespace. Siblings may share a name, a local may take a sibling's function name, and a folder
+  declaring a name a folder above it already has is refused. From outside, a namespace offers its
+  own folder's names. The front end written in Cufet moved what its folders share — the scanner, the
+  keyword table, the tree builders and the words for types — up into `front-end/`. A method written
+  `unto` a type a folder or book renames now follows the rename, as do maker and embed targets.
 - **A value arm of a `Judge` is the value alone.** `Judge command, where it is:` says `it is` once,
   so an arm reads `"cd", state …` or `"fg" or "bg", state …` — the way a type arm already reads
   `A number, …`. The old spelling, `It is "cd", …`, is refused with the new one in the message.

@@ -3322,11 +3322,16 @@ brings in nobody.
 ★ **The tree, when the blueprint draws one, decides what a namespace IS** — read by `ProjectTree`
 before any neighbour is gathered. The blueprint is PARSED, never run: a `Bind text to tree` whose
 body is one `Return` of a written-out text, read as a drawing of folders. A folder at the left edge
-is a namespace; one indented under another is folded into it, so gathering a namespace takes its
-folder's files and then each folded folder's, under one claim table, and a folded folder is never
-offered as a qualifier. Its refusals point at the blueprint's own lines: tabs mixed with spaces, an
-indent matching no level above it, a missing folder, a folder drawn twice, an undrawn source
-folder, a body that is not a written-out text, and one name declared in two folded folders.
+is a namespace; one indented under another belongs to it. A file sees, by plain name, its own
+folder's declarations and each folder's above it in the namespace — gathered under one claim table,
+so a folder and one above it declaring one name is refused. Any other folder of the namespace, a
+sibling or one beneath, is a QUALIFIER, loaded on demand under a rename after its path (`program-tree in
+front-end/parser`); its references to renamed folders above it follow those renames
+(`MakePrivate`'s `alsoRenamed`), and so do its `unto`, maker and embed targets, which are strings.
+Siblings may repeat a name. From outside, a namespace offers its own folder's names. The drawing's
+refusals point at the blueprint's own lines: tabs mixed with spaces, an indent matching no level
+above it, a missing folder, a folder drawn twice, an undrawn source folder, and a body that is not a
+written-out text.
 
 ⚠ **Refusals:** a repeated top-level name within one directory (naming both files); a member the
 directory does not declare (listing what it does); a declaration taking a directory's name; two

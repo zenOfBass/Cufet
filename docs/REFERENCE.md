@@ -4584,10 +4584,18 @@ terminals
 Done.
 ```
 
-**A folder at the left edge is its own namespace; one indented under another is PART of it.** The
-files of `front-end/lexer/`, `front-end/parser/` and `front-end/checker/` count as if they sat in
-`front-end/` — one set of names, nothing qualified between them — and from outside they are reached
-as `front-end's …`. `snake` and `terminals` stay walls, as before.
+**A folder at the left edge is its own namespace; one indented under another belongs to it.** A
+folded folder keeps its own names and sees the folders above it: a file in `front-end/checker/`
+reaches what `checker/` declares and what `front-end/` declares, by their plain names. A sibling —
+`front-end/parser/` — is reached by qualifying it, `parser's program-tree`, the same possessive that crosses
+into another namespace. So every name written bare is found by walking UP the tree from the file.
+`snake` and `terminals` stay walls, as before.
+
+- **Siblings may share a name**; a folder may not declare one that a folder above it already has —
+  the nearer would win without a word, which is the reason a local has to say `a shadow`.
+- **A local may take a sibling's function name**, since that function is not a name the file sees
+  bare.
+- **From outside**, `front-end's …` reaches what `front-end/` itself declares.
 
 - **Folders only.** The filesystem lists the files; a file joins its folder by being there.
 - **Every folder, once there is a tree** — every folder with Cufet source in it or beneath it, so

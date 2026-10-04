@@ -216,12 +216,6 @@ the calling: these wait only for a turn.
   `Return.` follows. Correct and explicit, and the bulk of that program's line noise.
   *Blocker:* none known.
 
-- **Names run short across a directory.** A local may not share a name with any function in the
-  program, and a directory is one program — `made` is a function in `types.cufe`, so no file beside
-  it may name a local `made`. With 20+ files in one namespace the taken pool keeps growing, and
-  reserved words add to it (`bind`, `skip`, `through`, `one` in one session). The one-namespace rule
-  is deliberate; this records what it costs at that size. *Blocker:* none known.
-
 - **A nested function cannot call a sibling declared after it.** Two functions inside a third
   cannot call each other, so closures cannot be mutually recursive: `even-step` calling an
   `odd-step` written below it is refused — *"'odd-step' isn't defined … no declaration of this name

@@ -762,6 +762,30 @@ a drawing. A computed tree is refused rather than run.
   a move or rename, prompt "own namespace, or part of its parent?" on a new folder — but must not
   INFER it: fold or wall is intent, and an inferred tree is a cache of a guess.
 
+#### A folded folder keeps its own names — DECIDED 2026-10-04
+
+**The north star is "explicit for reference and scope", so one name has to mean one thing wherever
+it can be reached — and the cure for names running short is to put fewer of them in reach, never to
+let one mean two things.** Writing the checker in Cufet measured the cost of one pool per folded
+tree: about eight collisions in a week, every one a local against a function declared in another
+folder, and each surfacing at a distance — a helper added in one file broke a local in a file nobody
+was editing.
+
+- **Up the tree only.** A file sees its own folder and each folder above it in the namespace, by
+  plain name; a sibling, or a folder beneath, is reached by QUALIFYING it — `parser's program-tree`. Every
+  bare name is then found by walking up from where the file sits. Siblings in the default lookup
+  were weighed and declined: a bare name could come from a folder the reader is neither in nor
+  under.
+- **A folder and one above it may not share a name.** The nearer would win silently — the reason a
+  local must say `a shadow`. No opt-in is offered: every collision measured was an accident, and an
+  escape waits for a program that overrides a parent's function on purpose.
+- **A local does not clash with a sibling's function.** The function is not a name the file sees
+  bare, so taking the name hides nothing a reader could have meant.
+- **What it cost to adopt:** what the folders genuinely share moved up into `front-end/` — the
+  lexer's scanner and keyword table, the tree builders, and the words for types. That last one was
+  found by the change itself: the parser had been calling the checker's `type-words`, a dependency
+  the one shared pool had hidden.
+
 ---
 
 ## Teaching the language
