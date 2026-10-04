@@ -1330,10 +1330,16 @@ public sealed partial class TypeChecker
         FailureType ft          => new FailureType(ResolveParamType(ft.Inner)),
         MapType mt              => new MapType(ResolveParamType(mt.KeyType), ResolveParamType(mt.ValueType)),
         MappingType mt          => new MappingType(ResolveParamType(mt.KeyType), ResolveParamType(mt.ValueType)),
+        // ⚠ The return-depth signature rides across with the names. InferType resolves every type
+        // it infers, so a method reached as `box's contents` arrived as this COPY — and a copy
+        // without the signature hands back depth 0, which let `Insert cast box's contents into
+        // keep.` store a rabbit's series in an outer one: the compiled program read it after the
+        // region ended and died with an access violation. `cast contents on (box)` was refused.
         FunctionType ft         => new FunctionType(
                                     ft.ParameterTypes.Select(ResolveParamType).ToList(),
                                     ft.ReturnType is null ? null : ResolveParamType(ft.ReturnType))
-                                   { ParameterNames = ft.ParameterNames },
+                                   { ParameterNames = ft.ParameterNames,
+                                     ReturnDepthSignature = ft.ReturnDepthSignature },
         ReadableStreamType rst  => new ReadableStreamType(ResolveParamType(rst.ElementType)),
         WritableStreamType wst  => new WritableStreamType(ResolveParamType(wst.ElementType)),
         UnionType { Cases: { } cases } => new UnionType(cases.Select(ResolveParamType).ToList()),

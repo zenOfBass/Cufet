@@ -27,7 +27,7 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
     : IClassFixture<CompiledCufetChecker>
 {
     /// <summary>How many corpus files must agree. Raised as the checker grows; never lowered.</summary>
-    private const int CorpusFloor = 130;
+    private const int CorpusFloor = 131;
 
     /// <summary>Where the bundled books' source is — the checker reads their layers with its own parser.</summary>
     private static string[] PreludeArgs =>
@@ -1082,6 +1082,24 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
         "Pull a book on blueprints.\n    Bind series of pin to pins:\n        Return a series of pin with (a record with (the name \"x\", the source \"y\", the commit \"z\")).\n    Done.\n    Define all-pins as cast pins.\n    State the number of all-pins + \"a\".\nDone.",
         "Pull a book on blueprints.\n    State step.\nDone.",
         "State step.",
+        // Region depth through calls — a function's, a method's and a getter's return-depth signature, read at each call and member read.
+        "Bind series of number to same, given (the series of number xs):\n    Return xs.\nDone.\nDefine keep as a series of series of number.\nPull a rabbit.\n    Define inner as a series of number with (1).\n    Insert cast same on (inner) into keep.\nDone.",
+        "Bind series of number to fresh:\n    Return a series of number with (1).\nDone.\nDefine keep as a series of series of number.\nPull a rabbit.\n    Insert cast fresh into keep.\nDone.\nState the number of keep.",
+        "Bind series of number to fresh, given (the series of number xs):\n    Return a series of number with (the number of xs).\nDone.\nDefine keep as a series of series of number.\nPull a rabbit.\n    Define inner as a series of number with (1).\n    Insert cast fresh on (inner) into keep.\nDone.\nState the number of keep.",
+        "Bind series of number to pick, given (the series of number xs, the series of number ys):\n    If the number of xs is 0, return ys.\n    Return xs.\nDone.\nDefine keep as a series of series of number.\nDefine outer as a series of number with (2).\nPull a rabbit.\n    Define inner as a series of number with (1).\n    Insert cast pick on (outer, outer) into keep.\n    Insert cast pick on (outer, inner) into keep.\nDone.",
+        "Bind series of number to via, given (the series of number xs):\n    Define held as xs.\n    Return held.\nDone.\nDefine keep as a series of series of number.\nPull a rabbit.\n    Define inner as a series of number with (1).\n    Insert cast via on (inner) into keep.\nDone.",
+        "Bind series of number to same, given (the series of number xs):\n    Return xs.\nDone.\nBind series of number to twice, given (the series of number xs):\n    Return cast same on (xs).\nDone.\nDefine keep as a series of series of number.\nPull a rabbit.\n    Define inner as a series of number with (1).\n    Insert cast twice on (inner) into keep.\nDone.",
+        "Define object holder with (the series of number items).\nBind series of number to contents unto holder:\n    Return one's items.\nDone.\nDefine keep as a series of series of number.\nPull a rabbit.\n    Define box as a new holder { the items a series of number with (1) }.\n    Insert cast box's contents into keep.\nDone.",
+        "Define object holder with (the series of number items).\nBind series of number to fresh-items unto holder:\n    Return a series of number with (1).\nDone.\nDefine keep as a series of series of number.\nPull a rabbit.\n    Define box as a new holder { the items a series of number with (1) }.\n    Insert cast box's fresh-items into keep.\nDone.\nState the number of keep.",
+        "Define object holder with (the series of number items).\nDefine keep as a series of series of number.\nPull a rabbit.\n    Define box as a new holder { the items a series of number with (1) }.\n    Insert box's items into keep.\nDone.",
+        "Define object holder with (the series of number items).\nGet copied unto holder as series of number:\n    Return a series of number with (1).\nDone.\nGet same-items unto holder as series of number:\n    Return one's items.\nDone.\nDefine keep as a series of series of number.\nPull a rabbit.\n    Define box as a new holder { the items a series of number with (1) }.\n    Insert box's copied into keep.\n    Insert box's same-items into keep.\nDone.",
+        "Define object holder with (the series of number items).\nDefine keep as a series of series of number.\nPull a rabbit.\n    Define box as a new holder { the items a series of number with (1) }.\n    Insert the items of box into keep.\nDone.",
+        "Define object holder with (the series of number items).\nBind series of number to contents unto holder:\n    Return one's items.\nDone.\nDefine keep as a series of series of number.\nPull a rabbit.\n    Define box as a new holder { the items a series of number with (1) }.\n    Insert cast contents on (box) into keep.\nDone.",
+        "Bind series of number to same, given (the series of number xs):\n    Return xs.\nDone.\nDefine keep as a series of series of number.\nDefine outer as a series of number with (2).\nPull a rabbit.\n    Insert cast same on (outer) into keep.\n    Define inner as a series of number with (1).\n    The keep becomes a series of series of number with (cast same on (inner)).\nDone.\nState the number of keep.",
+        "Bind series of number to same, given (the series of number xs):\n    Return xs.\nDone.\nDefine keep as a map from text to series of number.\nPull a rabbit.\n    Define inner as a series of number with (1).\n    In keep, the entry for \"a\" becomes cast same on (inner).\nDone.",
+        "Bind void to outer-fn, given (the series of number xs):\n    Define keep as a series of series of number.\n    Bind void to inner-fn:\n        Insert xs into keep.\n    Done.\n    Cast inner-fn.\nDone.\nState 1.",
+        "Bind series of number to same, given (the series of number xs):\n    Return xs.\nDone.\nDefine keep as a series of series of number.\nPull a rabbit.\n    Pull a rabbit.\n        Define inner as a series of number with (1).\n        Insert cast same on (inner) into keep.\n    Done.\nDone.",
+        "Bind series of number to same, given (the series of number xs):\n    Return xs.\nDone.\nPull a rabbit.\n    Define keep as a series of series of number.\n    Pull a rabbit.\n        Define inner as a series of number with (1).\n        Insert cast same on (inner) into keep.\n    Done.\nDone.",
     ];
 
     [Fact]
