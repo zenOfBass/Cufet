@@ -6,7 +6,7 @@
     ★ A function or method whose signature names a type nobody declared, at least twice, is a
     TEMPLATE: set aside, never checked itself. Each call fills it from its arguments — `echo` called
     on a number reaches `echo of number`, a copy with every blank replaced — and the call remembers
-    which filling it reached (the `:Filled` mark on the call), because the re-check will meet the
+    which filling it reached (`:ResolvedFunctionName` on the call, as C# names it), because the re-check will meet the
     same call with the template gone.
 
     ★★ The fillings' BODIES are checked by a second, fresh checker, on the program with the
@@ -256,16 +256,9 @@ Pull a book on collections.
         Return filled.
     Done.
 
-    /// The filling a call reached, as its `:Filled` mark says — or "".
+    /// The filling a call reached, as its `:ResolvedFunctionName` says — or "".
     Bind text to filled-mark, given (the node said):
-        Define place as 0.
-        Define marked as false.
-        For each child in said's children, repeat:
-            Increment place by 1.
-            If marked, return cast unquoted on (child).
-            If place is greater than 4 and child's kind is "atom" and child's word is ":Filled", the marked becomes true.
-        Done.
-        Return "".
+        Return cast bind-mark on (said, ":ResolvedFunctionName").
     Done.
 
     /// Which filling this call reaches, worked out before anything is resolved — and marked on the
@@ -296,21 +289,7 @@ Pull a book on collections.
         Done.
         // The mark is written every time a function is filled, as C# writes the answer — a method's
         // only when the call has none, which the branches above already arrange.
-        If reached is not "":
-            Define mark-place as 0.
-            Define place as 0.
-            For each child in said's children, repeat:
-                Increment place by 1.
-                If place is greater than 4 and child's kind is "atom" and child's word is ":Filled", the mark-place becomes place.
-            Done.
-            If mark-place is 0:
-                Cast said's add on (cast atom on (":Filled")).
-                Cast said's add on (cast quoted on (reached)).
-            Done.
-            Otherwise:
-                The item (mark-place + 1) of said's children becomes cast quoted on (reached).
-            Done.
-        Done.
+        If reached is not "", cast note on (said, ":ResolvedFunctionName", cast quoted on (reached)).
         If reached is "", return marked.
         Return reached.
     Done.

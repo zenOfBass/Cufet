@@ -725,6 +725,8 @@ Pull a book on collections.
         If the number of (cast field-of on (said, 6))'s children is greater than 0:
             The looked-up becomes cast one's instantiate-object on (cast made on ("ObjectType",
                 a series with (cast field-of on (said, 1), cast field-of on (said, 6))), at-row) or pass the failure off.
+            // Both backends look a definition up by name, and the template's names none.
+            Cast note on (said, ":ResolvedTypeName", cast quoted on (looked-up)).
         Done.
         If cast one's definition-of on (looked-up) is void:
             Define template as the entry for name in one's generic-defs.

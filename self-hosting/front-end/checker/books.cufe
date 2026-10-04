@@ -147,15 +147,19 @@ Pull a book on collections.
     Done.
 
     /// After checking: every type written as the bare name of a type a pulled book introduces is
-    /// replaced, where it stands, by that type — `series of step` becomes a series of the record.
-    /// C# does the same so the compiler meets one spelling of one type.
+    /// replaced, where it stands, by that type — `series of step` becomes a series of the record —
+    /// and every filled type by its filling's own name, `stack of number`. C# does the same so the
+    /// compiler meets one spelling of one type.
     Bind void to resolve-book-shells unto checker, given (the node tree):
         If tree's kind is "atom" or tree's kind is "CufetAxiomDefinition", return.
         Define place as 0.
         For each child in tree's children, repeat:
             Increment place by 1.
             Define resolved as cast unknown-type.
-            If child's kind is "ObjectType" and the number of (cast field-of on (child, 2))'s children is 0:
+            If cast is-filled-type on (child):
+                The resolved becomes cast made on ("ObjectType", a series with (cast quoted on (cast filled-type-name on (child)), cast listed)).
+            Done.
+            Otherwise if child's kind is "ObjectType" and the number of (cast field-of on (child, 2))'s children is 0:
                 Define name as cast unquoted on (cast field-of on (child, 1)).
                 If (the entry for name in one's defs) is void:
                     The resolved becomes cast one's scoped-type on (name in lowercase).
