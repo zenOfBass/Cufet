@@ -64,8 +64,9 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   rewrites as it checks — the notes it writes onto the tree included, an axiom's language and what it
   gives back, the type an `is a` test was asked of, the function a sort keys on, the defaults an
   object was given, named arguments put in order, a book's types written by name made the types they
-  are. The test compares that with C#'s, the bundled books left out, and 65 of the 72 files both
-  accept match.
+  are — and what generics hand on: the templates taken out, the fillings in their place, each call
+  and literal naming the filling it reached. The test compares that with C#'s, the bundled books
+  left out, and 70 of the 72 files both accept match.
 
 ### Changed
 

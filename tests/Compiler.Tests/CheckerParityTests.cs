@@ -30,7 +30,7 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
     private const int CorpusFloor = 131;
 
     /// <summary>How many corpus files' CHECKED TREES must match, of those both checkers accept. Raised; never lowered.</summary>
-    private const int TreeFloor = 65;
+    private const int TreeFloor = 70;
 
     /// <summary>Where the bundled books' source is — the checker reads their layers with its own parser.</summary>
     private static string[] PreludeArgs =>
