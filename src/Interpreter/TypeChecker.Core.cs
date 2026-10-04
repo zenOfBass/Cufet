@@ -1864,21 +1864,43 @@ public sealed partial class TypeChecker
     /// declaration is added there and not here, its body quietly returns to being emitted into
     /// every program — which is the bug this exists to close.
     /// </remarks>
+    // The name a top-level declaration claims — the kinds MakePrivate renames.
+    private static string? DeclaredName(IStatement statement) => statement switch
+    {
+        BindStatement b       => b.Name,
+        DefineStatement d     => d.Name,
+        ObjectDefinition o    => o.Name,
+        InterfaceDefinition i => i.Name,
+        _ => null,
+    };
+
     private static string? OwningBook(IStatement statement)
     {
-        string? name = statement switch
-        {
-            BindStatement b       => b.Name,
-            DefineStatement d     => d.Name,
-            ObjectDefinition o    => o.Name,
-            InterfaceDefinition i => i.Name,
-            _ => null,
-        };
-        if (name is null) return null;
+        if (DeclaredName(statement) is not { } name) return null;
         int at = name.LastIndexOf(" in ", StringComparison.Ordinal);
         if (at < 0) return null;
         var book = name[(at + 4)..];
         return BuiltinBooks.ContainsKey(book) ? book : null;
+    }
+
+    /// <summary>Whether a top-level statement of a checked program came from the bundled books.</summary>
+    /// <remarks>
+    /// ⚠ By name — a bundled book's own module, or a declaration renamed into one — and never by
+    /// <see cref="PreludeStatements"/>, which holds what went IN: dropping templates, the re-check
+    /// that fills them and the stash rewrite all hand back NEW book objects. MEASURED: 9 of the 72
+    /// corpus files C# accepts kept a rebuilt book after a reference test. The names are sound for
+    /// the same reason <see cref="DropUnpulledLayers"/> trusts them: a writer may not define a
+    /// bundled book's name, and cannot write one with a space in it.
+    /// ⚠ The books are <see cref="PreludeBooks"/>, not <see cref="BuiltinBooks"/> — `rabbit` has no
+    /// native side, so it is in the one and not the other.
+    /// </remarks>
+    public static bool IsFromPrelude(IStatement statement)
+    {
+        if (DeclaredName(statement) is not { } name) return false;
+        int at = name.LastIndexOf(" in ", StringComparison.Ordinal);
+        var book = at < 0 ? name : name[(at + 4)..];
+        return (at >= 0 || statement is ObjectDefinition)
+            && PreludeBooks.Any(p => string.Equals(p.Book, book, StringComparison.OrdinalIgnoreCase));
     }
 
     private IReadOnlyList<IStatement> DropUnpulledLayers(IReadOnlyList<IStatement> statements)

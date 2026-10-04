@@ -38,6 +38,27 @@ public static class CheckerAnswer
         }
     }
 
+    /// <summary>The program `Check` hands back, one printed statement per line, the prelude left out.</summary>
+    /// <remarks>
+    /// ★ The prelude is told by C#'s own rule, <see cref="TypeChecker.IsFromPrelude"/> — never by a
+    /// list of book names kept here. Null when the program does not parse or is refused; <see
+    /// cref="Expected"/> says which.
+    /// </remarks>
+    public static string? CheckedTree(string source)
+    {
+        try
+        {
+            var program = new TypeChecker().Check(new Parser(new CufetLexer(source).Tokenize()).Parse());
+            return string.Join("\n", program.Statements
+                .Where(s => !TypeChecker.IsFromPrelude(s))
+                .Select(ParserTreePrinter.Show));
+        }
+        catch (Exception e) when (e is ParseException or Cufet.Lexer.LexerException or TypeException)
+        {
+            return null;
+        }
+    }
+
     /// <summary>A message's line breaks written `\n`, and its backslashes doubled so they stay apart.</summary>
     public static string OneLine(string message) =>
         message.Replace("\r", "").Replace("\\", "\\\\").Replace("\n", "\\n");
