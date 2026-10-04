@@ -126,6 +126,7 @@ Pull a book on collections.
                 Return cast display-name on (cast unquoted on (cast field-of on (shape, 1))).
             Done.
             It is "InterfaceType", return cast unquoted on (cast field-of on (shape, 1)).
+            It is "AxiomType", return cast axiom-words on (shape).
             It is "RecordType", return cast record-words on (shape).
             It is "UnionType", return cast union-words on (shape).
             It is "FailureType", return "{cast type-words on (cast field-of on (shape, 1))} or failure".
@@ -133,6 +134,21 @@ Pull a book on collections.
             It is "WritableStreamType", return "writable stream of {cast plural-words on (cast field-of on (shape, 1))}".
             Otherwise, return "<unknown>".
         Done.
+    Done.
+
+    /// `FormatAxiomType`: `c-language number axiom given (text)`.
+    Bind text to axiom-words, given (the node shape):
+        Define language as cast unquoted on (cast field-of on (shape, 1)).
+        Define head as "{language} axiom".
+        If cast is-nothing on (cast field-of on (shape, 2)) is false, the head becomes "{language} {cast type-words on (cast field-of on (shape, 2))} axiom".
+        Define taken as (cast field-of on (shape, 3))'s children.
+        If the number of taken is 0, return head.
+        Define listing as "".
+        For each one-type in taken, repeat:
+            If listing is not "", the listing becomes listing joined to ", ".
+            The listing becomes listing joined to cast type-words on (one-type).
+        Done.
+        Return "{head} given ({listing})".
     Done.
 
     Bind text to plural-words, given (the node shape):

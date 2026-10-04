@@ -42,16 +42,22 @@ Pull a book on collections.
     /// Why this `Bind` is beyond reach yet, or "".
     Bind text to bind-beyond-reach, given (the node statement):
         If cast is-nothing on (cast field-of on (statement, 5)) is false, return "a method bound 'unto' a type".
-        If the number of statement's children is greater than 8, return "a Bind with {(cast field-of on (statement, 9))'s word}".
+        // A function lowered from an axiom is an ordinary one; any other mark is beyond reach yet.
+        Define place as 9.
+        While place is less than the number of statement's children, repeat:
+            Define mark as (cast field-of on (statement, place))'s word.
+            If mark is not ":FromAxiomLanguage", return "a Bind with {mark}".
+            Increment place by 2.
+        Done.
         Define returned as cast field-of on (statement, 2).
         If cast is-nothing on (returned) is false:
-            If cast beyond-types on (returned) or returned's kind is "AxiomType":
+            If cast beyond-types on (returned):
                 Return "a function giving back a {returned's kind}".
             Done.
         Done.
         For each parameter in (cast field-of on (statement, 3))'s children, repeat:
             Define taken as cast field-of on (parameter, 1).
-            If cast beyond-types on (taken) or taken's kind is "AxiomType":
+            If cast beyond-types on (taken):
                 Return "a function taking a {taken's kind}".
             Done.
         Done.
@@ -116,7 +122,7 @@ Pull a book on collections.
                 // Versions with the same argument types and no condition cannot be told apart.
                 Define fallbacks as a map from text to number.
                 For each version in versions, repeat:
-                    If the number of version's children is greater than 8:
+                    If cast has-mark on (version, ":When"):
                         Return a failure (cast not-judged on ("a version of '{name}' with a condition")).
                     Done.
                     Define key as cast type-key on (cast parameter-types-of on (version)).
@@ -132,7 +138,7 @@ Pull a book on collections.
                 Done.
                 Return a failure (cast not-judged on ("versions of '{name}' told apart by type")).
             Done.
-            If the number of first's children is greater than 8:
+            If cast has-mark on (first, ":When"):
                 Return a failure (cast not-judged on ("a version of '{name}' with a condition")).
             Done.
         Done.
@@ -289,6 +295,9 @@ Pull a book on collections.
         Define name as cast unquoted on (cast field-of on (statement, 1)).
         Define returned as cast field-of on (statement, 2).
         Define at-row as cast numeric on (cast field-of on (statement, 7)).
+        // Lowered from an axiom, it still owes the pull its language wants around it.
+        Define axiom-language as cast bind-mark on (statement, ":FromAxiomLanguage").
+        If axiom-language is not "", cast one's require-language-pulled on (axiom-language, at-row) or pass the failure off.
 
         Define saved as one's scopes.
         Define saved-types as the number of one's type-scopes.
@@ -516,7 +525,17 @@ Pull a book on collections.
             Return a failure (cast refusal-of on ("this function is declared to give back a {promised}", declared-on,
                 at-row, "return without a value", "Provide a {promised} value to return.")).
         Done.
-        Define value-type as cast one's infer on (value) or pass the failure off.
+        Define value-type as cast unknown-type.
+        If cast is-none on (cast one's axiom-behind on (value)) is false and expected's kind is not "AxiomType":
+            The value-type becomes cast one's run-axiom-on-return on (value, at-row) or pass the failure off.
+        Done.
+        Otherwise:
+            The value-type becomes cast one's infer on (value) or pass the failure off.
+        Done.
+        // Running needs the source, which a parameter or another call's result does not carry.
+        If value-type's kind is "AxiomType" and expected's kind is not "AxiomType":
+            Return a failure (cast source-not-reachable on (value-type, at-row)).
+        Done.
         If cast is-rabbit-type on (value-type):
             Return a failure (cast refusal-of on ("rabbits cannot be returned — they flow downward only", "",
                 at-row, "return a rabbit from a function",
@@ -866,6 +885,18 @@ Pull a book on collections.
             Done.
             Otherwise if marker is ":PassesFailureOff":
                 The passes-off becomes true.
+            Done.
+        Done.
+        // A cast of an axiom runs it, and is checked against what the axiom takes.
+        Define axiom-result as cast one's check-axiom-call on (callee, call-args, at-row, as-value, passes-off) or pass the failure off.
+        If cast is-none on (axiom-result) is false:
+            If as-value, return axiom-result.
+            Return cast unknown-type.
+        Done.
+        If callee's kind is "VariableReference":
+            Define axiom-held as cast one's look-up on (cast unquoted on (cast field-of on (callee, 1))).
+            If axiom-held is not void:
+                If axiom-held's shape's kind is "AxiomType", return cast unknown-type.
             Done.
         Done.
         Define filled as cast one's call-filling on (said, callee, call-args, at-row) or pass the failure off.

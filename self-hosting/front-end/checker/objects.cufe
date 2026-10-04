@@ -333,6 +333,7 @@ Pull a book on collections.
     /// Whether every type name inside `shape` names something — `ResolveParamType`'s refusal, which
     /// alone of the checker's says no line: it is met while types are gathered, before any is.
     Bind void or failure to check-resolves unto checker, given (the node shape):
+        Cast check-written-axiom on (shape) or pass the failure off.
         If shape's kind is "atom" or shape's kind is "list":
             For each inner in shape's children, repeat:
                 Cast one's check-resolves on (inner) or pass the failure off.

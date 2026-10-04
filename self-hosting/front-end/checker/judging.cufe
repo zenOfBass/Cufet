@@ -62,7 +62,8 @@ Pull a book on collections.
         the text recording-stash,
         the map from text to node stash-locals,
         the map from text to fact series-loops,
-        the map from text to fact stash-drains).
+        the map from text to fact stash-drains,
+        the map from text to node axiom-tags).
 
     /// A pull of a module, remembered with the names visible at it — its needs are verified once
     /// every module's body has been checked, since one may be defined after the block that pulls it.
@@ -206,11 +207,8 @@ Pull a book on collections.
             It is "DefineStatement":
                 Define declared as cast field-of on (statement, 7).
                 If cast is-nothing on (declared) is false:
-                    If cast beyond-types on (declared) or declared's kind is "AxiomType" or declared's kind is "AddressType":
-                        Return "a Define declared as {declared's kind}".
-                    Done.
+                    If cast beyond-types on (declared), return "a Define declared as {declared's kind}".
                 Done.
-                If the number of statement's children is greater than 7, return "a Define given parameters".
                 Return "".
             Done.
             It is "IfStatement":
@@ -260,7 +258,8 @@ Pull a book on collections.
                     or "CurrentDirectorySetStatement" or "WriteToStreamStatement" or "RunStatement"
                     or "AcknowledgeInterruptStatement" or "SendStatement" or "CloseStatement" or "YieldStatement"
                     or "OutputStatement" or "PipeExpression" or "SeriesInsertStatement" or "SeriesSetStatement"
-                    or "SeriesRemoveAtStatement" or "SeriesRemoveValueStatement" or "BuryStatement", return "".
+                    or "SeriesRemoveAtStatement" or "SeriesRemoveValueStatement" or "BuryStatement"
+                    or "CufetAxiomDefinition", return "".
             Otherwise, return kind.
         Done.
     Done.
@@ -308,6 +307,8 @@ Pull a book on collections.
         Define program as cast one's lift-carried-types on (written).
         // Held for the question a task's captured write asks: does anything outside it read the name?
         The one's whole-program becomes program.
+        // Every `Cite` is replaced by what its block holds before anything is gathered.
+        The program becomes cast one's expand-cites on (program) or pass the failure off.
         Define reach as cast program-beyond-reach on (program).
         If reach is not "", return a failure (cast not-judged on (reach)).
         Cast check-versions on (program) or pass the failure off.
@@ -552,6 +553,10 @@ Pull a book on collections.
             Done.
             It is "CloseStatement":
                 Cast one's check-close on (statement) or pass the failure off.
+            Done.
+            // What a block holds is checked where it is cited; the block owes only its language.
+            It is "CufetAxiomDefinition":
+                Cast one's require-language-pulled on ("cufet", cast numeric on (cast field-of on (statement, 3))) or pass the failure off.
             Done.
             It is "BuryStatement":
                 Cast one's check-bury on (statement) or pass the failure off.
@@ -1024,8 +1029,23 @@ Pull a book on collections.
         Define shadowing as cast truth-of on (cast field-of on (statement, 4)).
         Define at-row as cast numeric on (cast field-of on (statement, 5)).
 
-        If cast is-nothing on (cast field-of on (statement, 7)) is false:
-            Cast one's check-resolves on (cast field-of on (statement, 7)) or pass the failure off.
+        // An axiom has no type until its declaration gives it one, so the tag is first.
+        Define declared as cast one's tag-axiom-declaration on (statement) or pass the failure off.
+        If cast is-nothing on (declared) is false and declared's kind is not "AxiomType":
+            Cast one's check-resolves on (declared) or pass the failure off.
+        Done.
+        // `Define alias as answer.` — the one place an axiom's name is a value.
+        If value's kind is "VariableReference" and cast is-none on (cast one's axiom-behind on (value)) is false:
+            Define aliased as cast one's look-up on (cast unquoted on (cast field-of on (value, 1))).
+            If aliased is not void:
+                If aliased's shape's kind is "AxiomType":
+                    Cast one's bind-name on (name, a new binding {
+                        the shape aliased's shape, the established-by value, the line at-row, the permanent true, the module false,
+                        the depth one's rabbit-depth, the parameter false }).
+                    Cast one's record-stash-local on (name, aliased's shape, at-row) or pass the failure off.
+                    Return.
+                Done.
+            Done.
         Done.
         Define value-type as cast one's infer on (value) or pass the failure off.
         If value-type's kind is "none":
@@ -1070,7 +1090,6 @@ Pull a book on collections.
         Done.
 
         // An annotation is the binding's type; the value only has to fit into it.
-        Define declared as cast field-of on (statement, 7).
         Define kept as value-type.
         If cast is-nothing on (declared) is false:
             If cast assignable on (declared, value-type) is false:
@@ -1082,8 +1101,11 @@ Pull a book on collections.
             Done.
             The kept becomes declared.
         Done.
+        // An axiom is permanent whether or not it says so: nothing else could be its value.
+        Define held-for-good as permanent or kept's kind is "AxiomType".
+        Cast one's require-rabbit-for-address on (kept, name, at-row) or pass the failure off.
         Cast one's bind-name on (name, a new binding {
-            the shape kept, the established-by value, the line at-row, the permanent permanent, the module false,
+            the shape kept, the established-by value, the line at-row, the permanent held-for-good, the module false,
             the depth one's rabbit-depth, the parameter false }).
         Cast one's record-stash-local on (name, kept, at-row) or pass the failure off.
     Done.
@@ -1193,7 +1215,8 @@ Pull a book on collections.
             the recording-stash "",
             the stash-locals a map from text to node,
             the series-loops a map from text to fact,
-            the stash-drains a map from text to fact }.
+            the stash-drains a map from text to fact,
+            the axiom-tags a map from text to node }.
         Cast walker's register-prelude on (prelude).
         Return walker.
     Done.

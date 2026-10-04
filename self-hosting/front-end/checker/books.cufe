@@ -12,7 +12,9 @@
 */
 
 Pull a book on collections.
-    /// The prelude's object definitions — each bundled book's Cufet layer, and the rabbit.
+    /// The prelude's object definitions — each bundled book's Cufet layer, and the rabbit — and its
+    /// top-level functions, under the private names C# gives them (`match` in `regex.cufe` is
+    /// `match in regex`), which is how a lowered pattern reaches its engine.
     Bind series of node to prelude-definitions, given (the text folder):
         Define found as a series of node.
         For each book in a series with ("blueprints", "chance", "collections", "math", "rabbit", "regex"), repeat:
@@ -21,6 +23,14 @@ Pull a book on collections.
                 Define parsed as cast program-tree on (whole).
                 For each statement in parsed's children, repeat:
                     If statement's kind is "ObjectDefinition", insert statement into found.
+                    If statement's kind is "BindStatement" and cast is-nothing on (cast field-of on (statement, 5)):
+                        Define renamed as cast made on ("BindStatement", a series of node).
+                        For each part in statement's children, repeat:
+                            Cast renamed's add on (part).
+                        Done.
+                        The item 1 of renamed's children becomes cast quoted on ("{cast unquoted on (cast field-of on (statement, 1))} in {book}").
+                        Insert renamed into found.
+                    Done.
                 Done.
             Done.
             In case of failure:
@@ -33,6 +43,15 @@ Pull a book on collections.
     /// Registers the prelude's definitions ahead of the program's, as C# does by putting them first.
     Bind void to register-prelude unto checker, given (the series of node definitions):
         For each definition in definitions, repeat:
+            // A function is known by its signature; its body is the prelude's own business.
+            If definition's kind is "BindStatement":
+                Define function-name as cast unquoted on (cast field-of on (definition, 1)).
+                Cast one's bind-name on (function-name, a new binding {
+                    the shape cast function-type-of on (definition),
+                    the established-by cast named-reference on (function-name), the line 0, the permanent false,
+                    the module false, the depth 0, the parameter false }).
+                Skip.
+            Done.
             Define name as cast def-name on (definition).
             Insert name into one's def-order.
             In one's defs, the entry for name becomes definition.

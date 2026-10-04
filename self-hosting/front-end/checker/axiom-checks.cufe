@@ -1,0 +1,509 @@
+/*  Axioms — source in another language held by a Cufet name: `TypeChecker.Foreign.cs`.
+
+    ★ The parser lowers a `regex` pattern, and a `cufet` block that says what it gives back, into
+    an ordinary `Bind` marked `:FromAxiomLanguage`. All a lowered function still owes is the pull
+    its language wants around it, since the literal that would have asked is gone.
+*/
+
+Pull a book on collections.
+    /// The value of a mark a parsed node carries after its fields — `:FromAxiomLanguage "regex"` — or "".
+    /// A mark is an atom starting with `:`, which no field's leaf can be.
+    Bind text to bind-mark, given (the node statement, the text mark):
+        Define place as 1.
+        While place is less than the number of statement's children, repeat:
+            Define here as cast field-of on (statement, place).
+            If here's kind is "atom" and here's word is mark:
+                // A text is quoted; a fact like `true` is not.
+                Define held as cast field-of on (statement, place + 1).
+                If held's word starts with "\"", return cast unquoted on (held).
+                Return held's word.
+            Done.
+            Increment place by 1.
+        Done.
+        Return "".
+    Done.
+
+    Bind fact to has-mark, given (the node statement, the text mark):
+        For each here in statement's children, repeat:
+            If here's kind is "atom" and here's word is mark, return true.
+        Done.
+        Return false.
+    Done.
+
+    /// A language book's name as it is spoken — `the c-language`, plain `regex`.
+    Bind text to language-named, given (the text language):
+        If (language in lowercase) is "c-language", return "the {language}".
+        Return language.
+    Done.
+
+    /// `RequireLanguagePulled`: the book of this language, or its Cufet layer, is in scope.
+    Bind void or failure to require-language-pulled unto checker, given (the text language, the number at-row):
+        Define wanted as language in lowercase.
+        For each scope in one's scopes, repeat:
+            For each pair in scope, repeat:
+                Define held as (the value of pair)'s shape.
+                If held's kind is "BookType" or held's kind is "ObjectType":
+                    If (cast unquoted on (cast field-of on (held, 1)) in lowercase) is wanted, return.
+                Done.
+            Done.
+        Done.
+        Return a failure (cast refusal-of on ("the {language} book is not in scope", "",
+            at-row, "write {language} source without pulling the {language} book",
+            "Add 'Pull a book on {cast language-named on (language)}.' around this.")).
+    Done.
+
+    // ── C axioms: `Define c-language number answer as [6 * 7].` ───────────
+
+    /// A book that names a language rather than a library.
+    Bind fact to is-language-book, given (the text name):
+        Define lowered as name in lowercase.
+        Return lowered is "c-language" or lowered is "cufet" or lowered is "regex".
+    Done.
+
+    Bind text to amount-of, given (the number amount, the text noun):
+        If amount is 1, return "1 {noun}".
+        Return "{amount} {noun}s".
+    Done.
+
+    /// The `(type name)` pairs an axiom literal says it takes.
+    Bind series of node to axiom-parameters, given (the node literal):
+        Define found as a series of node.
+        Define place as 4.
+        While place is less than the number of literal's children, repeat:
+            If (cast field-of on (literal, place))'s word is ":Parameters":
+                For each pair in (cast field-of on (literal, place + 1))'s children, repeat:
+                    Insert pair into found.
+                Done.
+            Done.
+            Increment place by 2.
+        Done.
+        Return found.
+    Done.
+
+    /// Where an axiom literal stands — the key its tag is kept under.
+    Bind text to literal-key, given (the node literal):
+        Return "{(cast field-of on (literal, 2))'s word}:{(cast field-of on (literal, 3))'s word}".
+    Done.
+
+    /// `ForeignC.Mentions`: `the <name>` in the source — the article in any case, the name exact,
+    /// and a dash counting as part of a name on either side.
+    Bind fact to mentions-parameter, given (the text source, the text name):
+        Define lowered as source in lowercase.
+        Define total as the length of source.
+        Define spot as 1.
+        While spot + 2 is not greater than total, repeat:
+            If the characters from spot to spot + 2 of lowered is "the" and cast name-edge on (source, spot - 1):
+                Define past-article as spot + 3.
+                Define spaced as past-article.
+                While spaced is not greater than total and cast is-blank-char on (the characters from spaced to spaced of source), repeat:
+                    Increment spaced by 1.
+                Done.
+                Define ending as spaced + the length of name - 1.
+                If spaced is greater than past-article and ending is not greater than total:
+                    If the characters from spaced to ending of source is name and cast name-edge on (source, ending + 1), return true.
+                Done.
+            Done.
+            Increment spot by 1.
+        Done.
+        Return false.
+    Done.
+
+    /// Nothing of a name at this place — the start or end of the text, or a character no name holds.
+    Bind fact to name-edge, given (the text source, the number spot):
+        If spot is less than 1 or spot is greater than the length of source, return true.
+        Define here as the characters from spot to spot of source.
+        Return cast name-character on (here) is false.
+    Done.
+
+    Bind fact to name-character, given (the text letter):
+        If letter is "-" or letter is "_", return true.
+        Return "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789" contains letter.
+    Done.
+
+    /// ⚠ C#'s `\s` also takes a form feed and a vertical tab, and neither can be written in Cufet —
+    /// there is no escape for them and no way to make a character from its code (ROADMAP › Measured
+    /// needs, character classification). Between `the` and a name in C source, they do not occur.
+    Bind fact to is-blank-char, given (the text letter):
+        Return letter is " " or letter is "\t" or letter is "\n" or letter is "\r".
+    Done.
+
+    /// `TagAxiomDeclaration`: a `Define` whose value is foreign source gets its language from the
+    /// declaration, and the declared type is completed from what the literal takes.
+    Bind node or failure to tag-axiom-declaration unto checker, given (the node statement):
+        Define name as cast unquoted on (cast field-of on (statement, 1)).
+        Define define-row as cast numeric on (cast field-of on (statement, 5)).
+        Define declared as cast field-of on (statement, 7).
+        If declared's kind is "ObjectType" and cast is-filled-type on (declared) is false:
+            Define shell-name as cast unquoted on (cast field-of on (declared, 1)).
+            If cast is-language-book on (shell-name):
+                The declared becomes cast made on ("AxiomType", a series with (cast quoted on (shell-name), cast nothing, cast listed)).
+            Done.
+        Done.
+        Define value as cast field-of on (statement, 2).
+        If value's kind is not "AxiomLiteral":
+            If cast bind-mark on (statement, ":HasParameterClause") is "true":
+                Return a failure (cast refusal-of on ("'{name}' is not foreign source, so it cannot be 'given' anything",
+                    "Only an axiom — source in another language — takes parameters at a 'Define'",
+                    define-row, "declare parameters for '{name}'",
+                    "Use 'Bind ... to {name}, given (...)' for a function, or drop the clause.")).
+            Done.
+            Return declared.
+        Done.
+        Define literal-row as cast numeric on (cast field-of on (value, 2)).
+        If declared's kind is not "AxiomType":
+            Return a failure (cast refusal-of on ("'{name}' is foreign source, but nothing says what language it is in",
+                "Square brackets say the text is not Cufet; they cannot say which language it is, and the tag names who reads it",
+                literal-row, "write foreign source without naming its language",
+                "Name it in the declaration: 'Define c-language {name} as [ ... ].'")).
+        Done.
+        Define language as cast unquoted on (cast field-of on (declared, 1)).
+        Define released as cast literal-mark on (value, ":ReleasedBy").
+        If (language in lowercase) is "cufet" and released is not "":
+            Return a failure (cast refusal-of on ("'{name}' is Cufet source, so there is nothing for it to free",
+                "A release clause hands memory back to the language that allocated it, and cufet source allocates nothing across a boundary — what it produces is an ordinary Cufet value",
+                literal-row, "give '{name}' a release clause", "Drop the ', and free it with ...' clause.")).
+        Done.
+        Cast one's require-language-pulled on (language, literal-row) or pass the failure off.
+        Define result as cast field-of on (declared, 2).
+        If cast is-nothing on (result) is false:
+            The result becomes cast one's resolved on (result).
+            Cast require-crossable-result on (result, language, literal-row) or pass the failure off.
+        Done.
+        Define parameters as cast axiom-parameters on (value).
+        Cast one's check-axiom-parameters on (statement, value, language, result, parameters) or pass the failure off.
+        Cast one's check-release-clause on (released, language, result, literal-row) or pass the failure off.
+        Define parameter-types as cast listed.
+        For each pair in parameters, repeat:
+            Cast parameter-types's add on (cast field-of on (pair, 1)).
+        Done.
+        Define tagged as cast made on ("AxiomType", a series with (cast quoted on (language), result, parameter-types)).
+        In one's axiom-tags, the entry for cast literal-key on (value) becomes tagged.
+        Return tagged.
+    Done.
+
+    /// The value of a mark an axiom literal carries — `:ReleasedBy "closer"` — or "".
+    Bind text to literal-mark, given (the node literal, the text mark):
+        Define place as 4.
+        While place is less than the number of literal's children, repeat:
+            If (cast field-of on (literal, place))'s word is mark, return cast unquoted on (cast field-of on (literal, place + 1)).
+            Increment place by 2.
+        Done.
+        Return "".
+    Done.
+
+    /// `RequireCrossableResult`: a number, a fact, or a voidable text, number or address comes back.
+    Bind void or failure to require-crossable-result, given (the node result, the text language, the number at-row):
+        If result's kind is "NumberType" or result's kind is "FactType", return.
+        If result's kind is "VoidableType":
+            Define inner-kind as (cast field-of on (result, 1))'s kind.
+            If inner-kind is "TextType" or inner-kind is "NumberType" or inner-kind is "AddressType", return.
+        Done.
+        If result's kind is "TextType":
+            Return a failure (cast refusal-of on ("a {language} axiom gives back a 'voidable text', never a plain 'text'",
+                "C says nothing is there by handing back nothing — `getenv` on an unset name, `strerror` on a code it does not know",
+                at-row, "declare it as giving back a text",
+                "Write 'Define {language} voidable text <name> as [ ... ].'")).
+        Done.
+        Return a failure (cast refusal-of on ("a {language} axiom cannot give back a {cast type-words on (result)} yet",
+            "A number, a fact and a voidable text cross back; nothing else does",
+            at-row, "declare it as giving back a {cast type-words on (result)}",
+            "Give back a number, a fact or a voidable text, and do the rest inside the source.")).
+    Done.
+
+    /// `CheckAxiomParameters`: what an axiom takes can cross, is named once, and is used.
+    Bind void or failure to check-axiom-parameters unto checker, given (the node statement, the node literal,
+            the text language, the node result, the series of node parameters):
+        Define name as cast unquoted on (cast field-of on (statement, 1)).
+        Define define-row as cast numeric on (cast field-of on (statement, 5)).
+        Define literal-row as cast numeric on (cast field-of on (literal, 2)).
+        If cast is-nothing on (result) and the number of parameters is greater than 0:
+            Return a failure (cast refusal-of on (
+                "'{name}' says nothing about what it gives back, so it is source rather than something to run — and source takes no parameters",
+                "A parameter's value comes from a call, and nothing calls this: it is pasted once, above every axiom that can then use what it declares",
+                define-row, "give '{name}' parameters",
+                "Drop the 'given' clause — or say what running it gives back, as in 'Define {language} number {name}, given (…), as [ … ].'")).
+        Done.
+        Define source as cast unquoted on (cast field-of on (literal, 1)).
+        Define seen as a map from text to fact.
+        For each pair in parameters, repeat:
+            Define taken as cast one's resolved on (cast field-of on (pair, 1)).
+            Define parameter-name as cast unquoted on (cast field-of on (pair, 2)).
+            Define taken-kind as taken's kind.
+            If taken-kind is not "NumberType" and taken-kind is not "FactType" and taken-kind is not "TextType" and taken-kind is not "AddressType":
+                Return a failure (cast refusal-of on ("a {cast type-words on (taken)} cannot be handed to {language} source yet",
+                    "A number, a fact and a text cross the boundary; nothing else does",
+                    literal-row, "declare '{parameter-name}' as a {cast type-words on (taken)}",
+                    "Take a number, a fact or a text instead, and do the rest inside the source.")).
+            Done.
+            If (the entry for parameter-name in seen) is not void:
+                Return a failure (cast refusal-of on ("'{parameter-name}' is declared twice in this axiom's parameters",
+                    "Each `the <name>` in the source has to name exactly one of them",
+                    literal-row, "declare '{parameter-name}' twice", "Give them different names.")).
+            Done.
+            In seen, the entry for parameter-name becomes true.
+            If cast mentions-parameter on (source, parameter-name) is false:
+                Return a failure (cast refusal-of on ("this {language} source never uses 'the {parameter-name}'",
+                    "A parameter reaches the source by its article — `the text path` here, `the path` in the source",
+                    literal-row, "declare '{parameter-name}' without using it",
+                    "Write 'the {parameter-name}' where the value belongs, or drop it from 'given'.")).
+            Done.
+        Done.
+        If cast bind-mark on (statement, ":HasParameterClause") is "true" and the number of parameters is 0:
+            Return a failure (cast refusal-of on ("'{name}' declares an empty parameter list", "",
+                define-row, "write 'given ()' with nothing in it",
+                "Drop the 'given' clause — an axiom that takes nothing needs none.")).
+        Done.
+    Done.
+
+    /// `CheckReleaseClause`: what frees an axiom's result is an axiom taking one address, and the
+    /// result is an address to free.
+    Bind void or failure to check-release-clause unto checker, given (the text released, the text language,
+            the node result, the number at-row):
+        If released is "", return.
+        Define freeable as false.
+        If cast is-nothing on (result) is false and result's kind is "VoidableType":
+            The freeable becomes (cast field-of on (result, 1))'s kind is "AddressType".
+        Done.
+        If freeable is false:
+            Return a failure (cast refusal-of on ("'{released}' is named to free what this axiom gives back, but it does not give back an address",
+                "only an address needs freeing — a number, a fact and a text are copied across the boundary and belong to Cufet once they arrive",
+                at-row, "say how to free something that is not an address",
+                "Drop the clause, or declare this axiom 'voidable address'.")).
+        Done.
+        Define found as cast one's look-up on (released).
+        Define release as cast unknown-type.
+        If found is not void:
+            If found's established-by's kind is "AxiomLiteral", the release becomes found's established-by.
+        Done.
+        If cast is-none on (release):
+            Return a failure (cast refusal-of on ("'{released}' is named to free this axiom's result, but it is not an axiom",
+                "freeing happens in the other language, so the thing that does it has to be foreign source too",
+                at-row, "free an address with something that is not foreign source",
+                "Declare it, as in 'Define {language} number {released}, given (the address held), as [ … ].'")).
+        Done.
+        Define taking as cast axiom-parameters on (release).
+        Define takes-one-address as false.
+        If the number of taking is 1:
+            The takes-one-address becomes (cast one's resolved on (cast field-of on (item 1 of taking, 1)))'s kind is "AddressType".
+        Done.
+        If takes-one-address is false:
+            Define takes as "nothing".
+            If the number of taking is greater than 0, the takes becomes cast amount-of on (the number of taking, "value").
+            Return a failure (cast refusal-of on ("'{released}' has to take exactly one address to free one, and it takes {takes}", "",
+                at-row, "free an address with an axiom that cannot be handed one",
+                "Declare it 'given (the address held)'.")).
+        Done.
+    Done.
+
+    /// `AxiomBehind`: the literal a name stands for, following names bound to names — or none.
+    Bind node to axiom-behind unto checker, given (the node said):
+        Define reached as said.
+        Define hops as 0.
+        While hops is less than 64, repeat:
+            If reached's kind is "AxiomLiteral", return reached.
+            If reached's kind is not "VariableReference", return cast unknown-type.
+            Define found as cast one's look-up on (cast unquoted on (cast field-of on (reached, 1))).
+            If found is void, return cast unknown-type.
+            Define established as found's established-by.
+            If established's kind is "AxiomLiteral", return established.
+            If established's kind is not "VariableReference", return cast unknown-type.
+            The reached becomes established.
+            Increment hops by 1.
+        Done.
+        Return cast unknown-type.
+    Done.
+
+    /// The tag a declaration gave this literal, or none when nothing declared it.
+    Bind node to axiom-tag-of unto checker, given (the node literal):
+        Define tagged as the entry for cast literal-key on (literal) in one's axiom-tags.
+        If tagged is void, return cast unknown-type.
+        Return tagged.
+    Done.
+
+    /// A bare axiom literal's type — the one its declaration gave it.
+    Bind node or failure to infer-axiom-literal unto checker, given (the node said):
+        Define tagged as cast one's axiom-tag-of on (said).
+        If cast is-none on (tagged) is false, return tagged.
+        Return a failure (cast refusal-of on ("this is foreign source, and nothing says what language it is in",
+            "An axiom takes its language from the declaration it is the value of",
+            cast numeric on (cast field-of on (said, 2)), "write foreign source outside a declaration that names its language",
+            "Give it a name first: 'Define c-language <name> as [ ... ].'")).
+    Done.
+
+    /// `RunResultOf`: what running this axiom gives back, refusing one that never said.
+    Bind node or failure to run-result-of, given (the node tagged, the number at-row):
+        Define result as cast field-of on (tagged, 2).
+        If cast is-nothing on (result) is false, return result.
+        Define language as cast unquoted on (cast field-of on (tagged, 1)).
+        Return a failure (cast refusal-of on ("this {language} axiom does not say what it gives back",
+            "Cufet cannot read a C listing to find out — an `int` might be a number, a fact, or a handle, and only the person who wrote the source knows which",
+            at-row, "run foreign source that never declared a result",
+            "Say so where it is declared: 'Define {language} number <name> as [ ... ].'")).
+    Done.
+
+    /// An axiom whose source is not known where it is being run.
+    Bind text to source-not-reachable, given (the node axiom, the number at-row):
+        Define language as cast unquoted on (cast field-of on (axiom, 1)).
+        Return cast refusal-of on ("this {language} axiom cannot be run from here — its source is not known at this point",
+            "an axiom is the foreign text itself, and running one pastes that text; a name bound to an axiom can be run, but one arriving through a parameter or handed back by a function has no text to paste",
+            at-row, "run an axiom whose source is decided at run time",
+            "Run it where it is declared, or bind the axiom to a name and run that name.").
+    Done.
+
+    /// `RunAxiomOnReturn`: returning a declared axiom runs it.
+    Bind node or failure to run-axiom-on-return unto checker, given (the node value, the number at-row):
+        Define literal as cast one's axiom-behind on (value).
+        Define tagged as cast one's axiom-tag-of on (literal).
+        If cast is-none on (tagged):
+            Return a failure (cast refusal-of on ("an axiom can only be run by returning one that was declared",
+                "Foreign source runs from a name, so there is always a declaration to read the language and the source off",
+                at-row, "run foreign source that has no declaration",
+                "Declare it first: 'Define c-language <name> as [ ... ].' — then return that name.")).
+        Done.
+        Cast one's require-language-pulled on (cast unquoted on (cast field-of on (tagged, 1)), at-row) or pass the failure off.
+        Return cast run-result-of on (tagged, at-row) or pass the failure off.
+    Done.
+
+    /// A cast that reaches an axiom — by name, with its source in hand, or as a value with only its
+    /// written type. Gives back what running it gives, or none when the callee is no axiom.
+    Bind node or failure to check-axiom-call unto checker, given (the node callee, the node call-args, the number at-row,
+            the fact as-value, the fact passes-off):
+        If callee's kind is not "VariableReference", return cast unknown-type.
+        Define callee-name as cast unquoted on (cast field-of on (callee, 1)).
+        Define found as cast one's look-up on (callee-name).
+        If found is void, return cast unknown-type.
+        Define axiom as found's shape.
+        If axiom's kind is not "AxiomType", return cast unknown-type.
+        Define literal as cast one's axiom-behind on (callee).
+        Define tagged as cast unknown-type.
+        If cast is-none on (literal) is false, the tagged becomes cast one's axiom-tag-of on (literal).
+        If cast is-none on (tagged) is false:
+            If as-value is false and passes-off:
+                Cast one's check-pass-off on (cast unknown-type, "'{callee-name}'", at-row) or pass the failure off.
+            Done.
+            Define language as cast unquoted on (cast field-of on (tagged, 1)).
+            Cast one's require-language-pulled on (language, at-row) or pass the failure off.
+            Cast one's check-foreign-arguments on (call-args, cast axiom-parameters on (literal), language, at-row) or pass the failure off.
+            Return cast run-result-of on (tagged, at-row) or pass the failure off.
+        Done.
+        If cast is-nothing on (cast field-of on (axiom, 2)):
+            Return a failure (cast source-not-reachable on (axiom, at-row)).
+        Done.
+        If as-value is false and passes-off:
+            Cast one's check-pass-off on (cast unknown-type, "'{callee-name}'", at-row) or pass the failure off.
+        Done.
+        Cast one's check-axiom-value-call on (call-args, axiom, at-row) or pass the failure off.
+        Return cast field-of on (axiom, 2).
+    Done.
+
+    /// `CheckForeignArguments`: a call matches what the axiom's declaration takes.
+    Bind void or failure to check-foreign-arguments unto checker, given (the node call-args, the series of node parameters,
+            the text language, the number at-row):
+        Define given-args as call-args's children.
+        If the number of given-args is not the number of parameters:
+            Define was as "were".
+            If the number of given-args is 1, the was becomes "was".
+            Define parameter-spellings as a series of text.
+            For each pair in parameters, repeat:
+                Insert "the {cast type-words on (cast field-of on (pair, 1))} {cast unquoted on (cast field-of on (pair, 2))}" into parameter-spellings.
+            Done.
+            Define listing as "".
+            For each piece in parameter-spellings, repeat:
+                If listing is not "", the listing becomes listing joined to ", ".
+                The listing becomes listing joined to piece.
+            Done.
+            Return a failure (cast refusal-of on (
+                "this {language} source takes {cast amount-of on (the number of parameters, "value")}, and {the number of given-args} {was} given", "",
+                at-row, "pass {cast amount-of on (the number of given-args, "value")}",
+                "It is declared 'given ({listing})'.")).
+        Done.
+        Define place as 0.
+        For each argument in given-args, repeat:
+            Increment place by 1.
+            Define pair as item place of parameters.
+            Define wanted as cast one's resolved on (cast field-of on (pair, 1)).
+            Define parameter-name as cast unquoted on (cast field-of on (pair, 2)).
+            Define actual as cast one's infer on (argument) or pass the failure off.
+            If cast is-none on (actual) is false and cast assignable on (wanted, actual) is false:
+                Return a failure (cast refusal-of on (
+                    "'{parameter-name}' takes a {cast type-words on (wanted)}, but a {cast type-words on (actual)} was given", "",
+                    at-row, "pass a {cast type-words on (actual)} for '{parameter-name}'",
+                    "Give it a {cast type-words on (wanted)}.")).
+            Done.
+        Done.
+    Done.
+
+    /// `CheckAxiomValueCall`: a call matches a WRITTEN axiom type, by position.
+    Bind void or failure to check-axiom-value-call unto checker, given (the node call-args, the node axiom, the number at-row):
+        Define language as cast unquoted on (cast field-of on (axiom, 1)).
+        Cast one's require-language-pulled on (language, at-row) or pass the failure off.
+        Define given-args as call-args's children.
+        Define wanted-types as (cast field-of on (axiom, 3))'s children.
+        If the number of given-args is not the number of wanted-types:
+            Define was as "were".
+            If the number of given-args is 1, the was becomes "was".
+            Return a failure (cast refusal-of on (
+                "this {language} axiom takes {cast amount-of on (the number of wanted-types, "value")}, and {the number of given-args} {was} given", "",
+                at-row, "pass {cast amount-of on (the number of given-args, "value")}",
+                "It is written '{cast type-words on (axiom)}'.")).
+        Done.
+        Define place as 0.
+        For each argument in given-args, repeat:
+            Increment place by 1.
+            Define wanted as item place of wanted-types.
+            Define actual as cast one's infer on (argument) or pass the failure off.
+            If cast is-none on (actual) is false and cast assignable on (wanted, actual) is false:
+                Return a failure (cast refusal-of on (
+                    "value {place} of this {language} axiom takes a {cast type-words on (wanted)}, but a {cast type-words on (actual)} was given", "",
+                    at-row, "pass a {cast type-words on (actual)} there", "Give it a {cast type-words on (wanted)}.")).
+            Done.
+        Done.
+    Done.
+
+    /// An axiom that never said what it gives back, reached for as a value.
+    Bind text to axiom-used-as-value, given (the text name, the node axiom, the number at-row):
+        Define language as cast unquoted on (cast field-of on (axiom, 1)).
+        Return cast refusal-of on ("'{name}' is {language} source, and can only be run by returning it",
+            "Foreign source is not a value that can be printed, stored, or passed",
+            at-row, "use '{name}' as a value",
+            "Wrap it: 'Bind number to <name>, {name}.' — then use that function.").
+    Done.
+
+    /// `the text at <address>` — read through a foreign pointer; void reads as void.
+    Bind node or failure to infer-text-at unto checker, given (the node said):
+        Define at-row as cast numeric on (cast field-of on (said, 2)).
+        Define held as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
+        If cast is-none on (held):
+            Return a failure (cast refusal-of on ("'the text at' reads through a foreign address, and nothing here says what this is",
+                "only an address from foreign source can be read through, and this name does not resolve to a value at all",
+                at-row, "read text at something with no type",
+                "Give it an address from foreign source — the result of an axiom declared 'voidable address'.")).
+        Done.
+        Define readable as held's kind is "AddressType".
+        If held's kind is "VoidableType", the readable becomes (cast field-of on (held, 1))'s kind is "AddressType".
+        If readable is false:
+            Return a failure (cast refusal-of on ("'the text at' reads through a foreign address, and this is a {cast type-words on (held)}",
+                "the only thing an address can be read through is this phrase, and the only thing this phrase reads is an address",
+                at-row, "read text at a {cast type-words on (held)}", "Give it an address from foreign source.")).
+        Done.
+        Return cast wrapped on ("VoidableType", cast plain-type on ("TextType")).
+    Done.
+
+    /// `RequireRabbitForAddress`: a foreign pointer may only be held inside a rabbit.
+    Bind void or failure to require-rabbit-for-address unto checker, given (the node shape, the text name, the number at-row):
+        If one's rabbit-depth is greater than 0, return.
+        Define holds as shape's kind is "AddressType".
+        If shape's kind is "VoidableType", the holds becomes (cast field-of on (shape, 1))'s kind is "AddressType".
+        If holds is false, return.
+        Return a failure (cast refusal-of on ("'{name}' holds a foreign address, and one can only be held inside a rabbit",
+            "a rabbit block is where region-scoped memory work happens, so it is also where a pointer's lifetime is answered for — the rabbit that knows when the region dies is what knows when the pointer dies",
+            at-row, "hold a foreign address outside a rabbit", "Wrap the work in 'Pull a rabbit. ... Done.'")).
+    Done.
+
+    /// An axiom written as a type that never says what it gives back — `ResolveParamType`'s refusal.
+    Bind void or failure to check-written-axiom, given (the node shape):
+        If shape's kind is not "AxiomType" or cast is-nothing on (cast field-of on (shape, 2)) is false, return.
+        Define language as cast unquoted on (cast field-of on (shape, 1)).
+        Return a failure "error\tThat doesn't work: a {language} axiom written as a type has to say what it gives back. 'the c-language axiom job' cannot be a parameter, a field, or an element type, because nothing could be done with what running it produces. Say the result: 'the {language} number axiom job'.".
+    Done.
+Done.

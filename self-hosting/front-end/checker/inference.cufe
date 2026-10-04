@@ -92,6 +92,8 @@ Pull a book on collections.
             It is "DeliveryExpression", return cast one's infer-delivery on (said) or pass the failure off.
             It is "AwaitedResultExpression", return cast one's infer-awaited on (said) or pass the failure off.
             It is "UnburyExpression", return cast one's infer-unbury on (said) or pass the failure off.
+            It is "AxiomLiteral", return cast one's infer-axiom-literal on (said) or pass the failure off.
+            It is "ForeignTextAt", return cast one's infer-text-at on (said) or pass the failure off.
             It is "CurrentDirectoryExpression", return cast wrapped on ("VoidableType", cast plain-type on ("TextType")).
             It is "ProgramArgumentsExpression", return cast wrapped on ("SeriesType", cast plain-type on ("TextType")).
             It is "InterruptRequestedExpression", return cast plain-type on ("FactType").
@@ -123,7 +125,12 @@ Pull a book on collections.
         Define narrowing as the entry for name in one's narrowed.
         If narrowing is not void, return narrowing.
         Define found as cast one's look-up on (name).
-        If found is not void, return found's shape.
+        If found is not void:
+            If found's shape's kind is "AxiomType" and cast is-nothing on (cast field-of on (found's shape, 2)):
+                Return a failure (cast axiom-used-as-value on (name, found's shape, cast numeric on (cast field-of on (said, 2)))).
+            Done.
+            Return found's shape.
+        Done.
         If (the entry for name in one's hidden) is not void:
             Define at-row as cast numeric on (cast field-of on (said, 2)).
             Return a failure (cast refusal-of on (

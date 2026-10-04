@@ -1,0 +1,245 @@
+/*  `cufet` blocks and `Cite` — `src/Interpreter/CiteExpansion.cs`.
+
+    ★ A block that says nothing about what it gives back is SOURCE, held until a `Cite` places it:
+    each `Cite <name>.` is replaced by what the block holds, before anything is gathered, so a cited
+    object is an ordinary type of the program and a cited `Define` an ordinary local where it lands.
+    The blocks stay in the program, and the only thing still asked of one is that `cufet` is pulled.
+
+    ⚠ What a block holds may reach only for what belongs to the program — a free function, a type,
+    a `permanently` constant, a pulled book — since anything else would mean whatever the citing
+    site happens to have under that name.
+*/
+
+Pull a book on collections.
+    /// The program with every `Cite` replaced by what its block holds — or the refusal.
+    Bind node or failure to expand-cites unto checker, given (the node program):
+        Define blocks as a map from text to node.
+        Define block-order as a series of text.
+        Define runnable as a map from text to fact.
+        Define cited as a series of node.
+        Cast gather-citing on (program, blocks, block-order, runnable, cited) or pass the failure off.
+        If the number of block-order is 0 and the number of cited is 0, return program.
+
+        Define scope-names as cast program-scope-names on (program).
+        For each block-name in block-order, repeat:
+            Define block as the entry for block-name in blocks but void is cast unknown-type.
+            Cast require-declarations-only on (block) or pass the failure off.
+            Cast require-no-capture on (block, scope-names) or pass the failure off.
+        Done.
+
+        // A block holding a function may only be cited where functions belong.
+        Define places-function as a map from text to fact.
+        For each block-name in block-order, repeat:
+            Define block as the entry for block-name in blocks but void is cast unknown-type.
+            For each held in (cast field-of on (block, 2))'s children, repeat:
+                If held's kind is "BindStatement", in places-function, the entry for block-name becomes true.
+            Done.
+        Done.
+        Define function-scope as a map from text to fact.
+        For each statement in cast hoistable on (program), repeat:
+            If statement's kind is "CiteStatement", in function-scope, the entry for cast cite-key on (statement) becomes true.
+        Done.
+        Return cast placed-cites on (program, blocks, runnable, places-function, function-scope) or pass the failure off.
+    Done.
+
+    Bind text to cite-key, given (the node citation):
+        Return "{(cast field-of on (citation, 2))'s word}:{(cast field-of on (citation, 3))'s word}".
+    Done.
+
+    /// Every block, runnable cufet axiom and `Cite`, in the order they are written — not looking
+    /// inside a block, whose contents are not in the program until something cites them.
+    Bind void or failure to gather-citing, given (the node tree, the map from text to node blocks, the series of text block-order,
+            the map from text to fact runnable, the series of node cited):
+        Define kind as tree's kind.
+        If kind is "atom", return.
+        If kind is "CufetAxiomDefinition":
+            Define name as cast unquoted on (cast field-of on (tree, 1)).
+            Define first as the entry for name in blocks.
+            If first is not void:
+                Return a failure (cast refusal-of on ("there is already cufet source called '{name}', on line {(cast field-of on (first, 3))'s word}",
+                    "A name holds one block, because a 'Cite' of it has to say which one without looking anywhere else",
+                    cast numeric on (cast field-of on (tree, 3)), "declare a second block called '{name}'",
+                    "Give this one another name, or fold the two together.")).
+            Done.
+            In blocks, the entry for name becomes tree.
+            Insert name into block-order.
+            Return.
+        Done.
+        If kind is "BindStatement" and (cast bind-mark on (tree, ":FromAxiomLanguage") in lowercase) is "cufet":
+            In runnable, the entry for cast unquoted on (cast field-of on (tree, 1)) becomes true.
+        Done.
+        If kind is "CiteStatement", insert tree into cited.
+        For each child in tree's children, repeat:
+            Cast gather-citing on (child, blocks, block-order, runnable, cited) or pass the failure off.
+        Done.
+    Done.
+
+    /// `ProgramScopeNames`: free functions, `permanently` constants and pulled books where hoisting
+    /// reaches, and every type anywhere outside a block.
+    Bind map from text to fact to program-scope-names, given (the node program):
+        Define names as a map from text to fact.
+        For each statement in cast hoistable on (program), repeat:
+            If statement's kind is "BindStatement" and cast is-nothing on (cast field-of on (statement, 5)):
+                In names, the entry for cast unquoted on (cast field-of on (statement, 1)) becomes true.
+            Done.
+            If statement's kind is "DefineStatement" and cast truth-of on (cast field-of on (statement, 3)):
+                In names, the entry for cast unquoted on (cast field-of on (statement, 1)) becomes true.
+            Done.
+            If statement's kind is "PullStatement":
+                For each pulled in (cast field-of on (statement, 1))'s children, repeat:
+                    For each part in pulled's children, repeat:
+                        In names, the entry for cast unquoted on (part) becomes true.
+                    Done.
+                Done.
+            Done.
+        Done.
+        Cast gather-type-names on (program, names).
+        Return names.
+    Done.
+
+    Bind void to gather-type-names, given (the node tree, the map from text to fact names):
+        Define kind as tree's kind.
+        If kind is "atom" or kind is "CufetAxiomDefinition", return.
+        If kind is "ObjectDefinition" or kind is "InterfaceDefinition":
+            In names, the entry for cast unquoted on (cast field-of on (tree, 1)) becomes true.
+        Done.
+        For each child in tree's children, repeat:
+            Cast gather-type-names on (child, names).
+        Done.
+    Done.
+
+    /// Where a statement inside a block is said to be — its own line, or the block's when it has
+    /// none. ⚠ C# finds it by reflection; the kinds not listed are left unjudged rather than guessed.
+    Bind number or failure to held-row, given (the node statement, the number block-row):
+        Define place as 0.
+        Judge statement's kind, where it is:
+            It is "StateStatement" or "IfStatement" or "StopStatement" or "SkipStatement" or "RepeatUntilStatement", return block-row.
+            It is "ReturnStatement" or "ExitStatement", the place becomes 2.
+            It is "CastStatement" or "BecomesStatement" or "PullStatement" or "PullRabbitStatement" or "CiteStatement" or "WhileStatement", the place becomes 3.
+            It is "ForEachStatement", the place becomes 4.
+            Otherwise, return a failure (cast not-judged on ("a cufet block holding a {statement's kind}")).
+        Done.
+        Return cast numeric on (cast field-of on (statement, place)).
+    Done.
+
+    /// `RequireDeclarationsOnly`: source takes no parameters, and holds only declarations.
+    Bind void or failure to require-declarations-only, given (the node block):
+        Define name as cast unquoted on (cast field-of on (block, 1)).
+        Define block-row as cast numeric on (cast field-of on (block, 3)).
+        If cast bind-mark on (block, ":HasParameterClause") is "true":
+            Return a failure (cast refusal-of on (
+                "'{name}' says nothing about what it gives back, so it is source rather than something to run — and source takes no parameters",
+                "A parameter's value comes from a call, and nothing calls this: it is placed where a 'Cite' says",
+                block-row, "give '{name}' parameters",
+                "Drop the 'given' clause — or say what running it gives back, as in 'Define cufet number {name}, given (…), as [ … ].'")).
+        Done.
+        For each statement in (cast field-of on (block, 2))'s children, repeat:
+            Define kind as statement's kind.
+            If kind is not "ObjectDefinition" and kind is not "InterfaceDefinition" and kind is not "DefineStatement" and kind is not "BindStatement":
+                Define at-row as cast held-row on (statement, block-row) or pass the failure off.
+                Return a failure (cast refusal-of on ("cufet source holds declarations, and this is not one",
+                    "A cited block places what it declares where the 'Cite' is. An object, an interface and a 'Define' are what it can declare so far",
+                    at-row, "put this inside '{name}'",
+                    "Move it out of the block, or declare an object or an interface here.")).
+            Done.
+        Done.
+    Done.
+
+    /// `RequireNoCapture`: a `Define`'s value in a block reads only what the block declares, what
+    /// belongs to the program, and the pronouns.
+    Bind void or failure to require-no-capture, given (the node block, the map from text to fact scope-names):
+        Define visible as a map from text to fact.
+        For each mapping in scope-names, repeat:
+            In visible, the entry for the key of mapping becomes true.
+        Done.
+        For each statement in (cast field-of on (block, 2))'s children, repeat:
+            Define kind as statement's kind.
+            If kind is "DefineStatement" or kind is "ObjectDefinition" or kind is "InterfaceDefinition":
+                In visible, the entry for cast unquoted on (cast field-of on (statement, 1)) becomes true.
+            Done.
+        Done.
+        For each pronoun in a series with ("it", "one", "input", "failure", "the failure"), repeat:
+            In visible, the entry for pronoun becomes true.
+        Done.
+        Define name as cast unquoted on (cast field-of on (block, 1)).
+        For each statement in (cast field-of on (block, 2))'s children, repeat:
+            If statement's kind is "DefineStatement":
+                Cast refuse-capture on (cast field-of on (statement, 2), visible, name) or pass the failure off.
+            Done.
+        Done.
+    Done.
+
+    Bind void or failure to refuse-capture, given (the node tree, the map from text to fact visible, the text block-name):
+        Define kind as tree's kind.
+        If kind is "atom", return.
+        If kind is "VariableReference":
+            Define read as cast unquoted on (cast field-of on (tree, 1)).
+            If (the entry for read in visible) is not void, return.
+            Return a failure (cast refusal-of on (
+                "cufet source cannot reach for '{read}' — it declares no such name, and one it does not declare would mean whatever the site that cites it happens to have",
+                "A block may use what belongs to the program — a function, a type, a 'permanently' constant, a pulled book — because those mean the same thing wherever it is placed",
+                cast numeric on (cast field-of on (tree, 2)), "read '{read}' inside '{block-name}'",
+                "Declare '{read}' inside the block, or make it a 'permanently' constant outside it.")).
+        Done.
+        If kind is "LambdaLiteral":
+            Define inner as a map from text to fact.
+            For each mapping in visible, repeat:
+                In inner, the entry for the key of mapping becomes true.
+            Done.
+            For each parameter-name in cast bound-names-of on (cast field-of on (tree, 1)), repeat:
+                In inner, the entry for parameter-name becomes true.
+            Done.
+            Cast refuse-capture on (cast field-of on (tree, 2), inner, block-name) or pass the failure off.
+            Return.
+        Done.
+        For each child in tree's children, repeat:
+            Cast refuse-capture on (child, visible, block-name) or pass the failure off.
+        Done.
+    Done.
+
+    /// The tree with each `Cite` replaced by what its block holds.
+    Bind node or failure to placed-cites, given (the node tree, the map from text to node blocks, the map from text to fact runnable,
+            the map from text to fact places-function, the map from text to fact function-scope):
+        If tree's kind is "atom", return tree.
+        Define rebuilt as a new node { the kind tree's kind, the word tree's word, the children a series of node }.
+        For each child in tree's children, repeat:
+            If child's kind is "CiteStatement" and tree's kind is "list":
+                Define spliced as cast held-by-cite on (child, blocks, runnable, places-function, function-scope) or pass the failure off.
+                For each held in spliced's children, repeat:
+                    Cast rebuilt's add on (held).
+                Done.
+            Done.
+            Otherwise:
+                Cast rebuilt's add on (cast placed-cites on (child, blocks, runnable, places-function, function-scope) or pass the failure off).
+            Done.
+        Done.
+        Return rebuilt.
+    Done.
+
+    /// What one `Cite` places — or why it cannot.
+    Bind node or failure to held-by-cite, given (the node citation, the map from text to node blocks, the map from text to fact runnable,
+            the map from text to fact places-function, the map from text to fact function-scope):
+        Define name as cast unquoted on (cast field-of on (citation, 1)).
+        Define at-row as cast numeric on (cast field-of on (citation, 2)).
+        Define block as the entry for name in blocks.
+        If block is not void:
+            If (the entry for name in places-function) is not void and (the entry for cast cite-key on (citation) in function-scope) is void:
+                Return a failure (cast refusal-of on ("'{name}' holds a function, so it cannot be cited inside another body",
+                    "Placed here it would be a closure over the body citing it, and what a block holds must mean the same thing wherever it is placed. Placed where functions belong it is a free function, which already cannot read the data around it",
+                    at-row, "cite '{name}' inside a body",
+                    "Cite '{name}' at the top level, or directly inside a 'Pull' block.")).
+            Done.
+            Return cast field-of on (block, 2).
+        Done.
+        If (the entry for name in runnable) is not void:
+            Return a failure (cast refusal-of on ("'{name}' says what it gives back, so it is something you run rather than source to cite",
+                "A cufet axiom that names a result is a body with a name — the same rule the c-language tag follows",
+                at-row, "cite '{name}'",
+                "Call it: 'cast {name} on (...)'. Only a block that says nothing about a result is cited.")).
+        Done.
+        Return a failure (cast refusal-of on ("there is no cufet source called '{name}' to cite",
+            "'Cite' places what a cufet block holds, and the name is the block's, not a variable's",
+            at-row, "cite '{name}'",
+            "Declare it first: 'Define cufet {name} as [ ... ].'")).
+    Done.
+Done.
