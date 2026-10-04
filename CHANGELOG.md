@@ -61,8 +61,11 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   functions, and axioms: regex patterns, c-language source at its boundary, and cufet blocks placed
   by `Cite`. Anything it cannot judge yet it says so about, rather than accepting — and it judges
   every one of the 131 corpus files. With `--tree` it also prints the program it hands on, which C#
-  rewrites as it checks; the test compares that with C#'s, the bundled books left out, and 50 of the
-  71 files both accept already match.
+  rewrites as it checks — the notes it writes onto the tree included, an axiom's language and what it
+  gives back, the type an `is a` test was asked of, the function a sort keys on, the defaults an
+  object was given, named arguments put in order, a book's types written by name made the types they
+  are. The test compares that with C#'s, the bundled books left out, and 65 of the 72 files both
+  accept match.
 
 ### Changed
 
