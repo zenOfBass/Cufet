@@ -132,6 +132,10 @@ Pull a book on collections.
         Define body as cast field-of on (getter, 3).
         Define at-row as cast getter-row on (getter).
         Cast one's check-member-body on (owner, self-row, cast listed, at-row, false, returned, body) or pass the failure off.
+        If cast is-reference-type on (returned):
+            In one's getter-signatures, the entry for "{owner}\t{getter-name}" becomes
+                cast one's return-depth-signature on (cast listed, body, true).
+        Done.
         If cast definitely-returns on (body) is false:
             Return a failure (cast refusal-of on (
                 "getter '{getter-name}' is declared to give back a {cast type-words on (returned)}, but it can reach its end without returning one", "",

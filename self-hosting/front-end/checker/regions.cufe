@@ -5,10 +5,8 @@
     ★ A region is a depth. Pulling a rabbit goes one deeper, a name remembers the depth it was made
     at, and a value may not be stored anywhere that outlives it — somewhere shallower.
 
-    ⚠ C# knows the depth of what a CALL or a field read gives back, from a signature it works out
-    after checking each function's returns. This checker does not work that out yet, so such a value
-    stored somewhere longer-lived than the region it stands in is left `unsupported` rather than
-    guessed — at the same depth, or outside every region, it cannot be refused and needs no answer.
+    ★ What a CALL or a member read gives back is as deep as its signature says — see
+    `region-depths.cufe`, which works that out once each function's body has been checked.
 */
 
 Pull a book on collections.
@@ -42,21 +40,7 @@ Pull a book on collections.
     Bind void or failure to check-region-store unto checker, given (the node value, the node value-type,
             the number target-depth, the number at-row, the text action):
         If cast is-reference-type on (value-type) is false, return.
-        Define kind as value's kind.
-        Define value-depth as 0.
-        If kind is "VariableReference":
-            Define found as cast one's look-up on (cast unquoted on (cast field-of on (value, 1))).
-            If found is not void, the value-depth becomes found's depth.
-        Done.
-        Otherwise if kind is "SeriesLiteral" or kind is "MapLiteral" or kind is "MatrixLiteral" or kind is "MatrixSized"
-                or kind is "ObjectLiteral" or kind is "RangeExpression" or kind is "ChannelCreation":
-            The value-depth becomes one's rabbit-depth.
-        Done.
-        Otherwise if kind is "CastExpression" or kind is "PossessiveAccess" or kind is "RecordNamedAccess":
-            If target-depth is less than one's rabbit-depth or one's nesting is greater than 1:
-                Return a failure (cast not-judged on ("the region of a value a call or a field hands back")).
-            Done.
-        Done.
+        Define value-depth as cast one's depth-of-value on (value, value-type).
         If value-depth is greater than target-depth:
             Return a failure (cast refusal-of on (
                 "this value lives in a shorter-lived region than its destination — it will be gone when that region ends", "",

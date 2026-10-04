@@ -284,6 +284,20 @@ Pull a book on collections.
         Done.
         Cast one's check-block on (cast field-of on (statement, 4)) or pass the failure off.
         The one's recording-stash becomes earlier-recording.
+        // Which parameters' depth reaches what it gives back, for the calls checked after it.
+        If cast is-nothing on (returned) is false:
+            Define effective as returned.
+            If returned's kind is "FailureType", the effective becomes cast field-of on (returned, 1).
+            Define self as cast one's look-up on (name).
+            If cast is-reference-type on (effective):
+                If self is not void:
+                    If self's shape's kind is "FunctionType":
+                        In one's depth-signatures, the entry for "{name}@{self's line}" becomes
+                            cast one's return-depth-signature on (cast field-of on (statement, 3), cast field-of on (statement, 4), false).
+                    Done.
+                Done.
+            Done.
+        Done.
 
         The one's in-function becomes earlier-in-function.
         Remove item (the number of one's expected-returns) from one's expected-returns.
@@ -477,7 +491,8 @@ Pull a book on collections.
 
     /// What `cast f on (…)` reaches: the function's type, how a refusal names it, and the line it
     /// was declared on. Gives back a `call` — or `none` for a callee whose type is not known.
-    Define object call with (the node shape, the text display, the number declared-on, the number receivers).
+    Define object call with (the node shape, the text display, the number declared-on, the number receivers,
+        the text depth-key).
 
     Bind call or failure to resolve-cast unto checker, given (the node callee, the node call-args,
             the number at-row, the text filled):
@@ -512,7 +527,7 @@ Pull a book on collections.
                             Done.
                         Done.
                         Return a new call { the shape reached-method, the display "method '{name}' on interface '{interface-name}'",
-                            the declared-on at-row, the receivers 1 }.
+                            the declared-on at-row, the receivers 1, the depth-key "" }.
                     Done.
                     If cast one's look-up on (name) is void:
                         Define offered as cast one's interface-method-names on (interface-name).
@@ -532,7 +547,8 @@ Pull a book on collections.
                             "Use the possessive form to call the method explicitly: Cast <object>'s {name} on (args).")).
                     Done.
                 Done.
-                Return a new call { the shape dispatched, the display "method '{called}' on '{owner}'", the declared-on at-row, the receivers 1 }.
+                Return a new call { the shape dispatched, the display "method '{called}' on '{owner}'", the declared-on at-row, the receivers 1,
+                    the depth-key "{cast one's method-owner on (owner, called)}'s {called}" }.
             Done.
             If found is void and owner is not "":
                 Define methods as cast one's own-method-names on (owner).
@@ -555,7 +571,8 @@ Pull a book on collections.
                     at-row, "cast something that isn't a function",
                     "Only functions can be cast. Make sure the name you're casting refers to a function.")).
             Done.
-            Return a new call { the shape found's shape, the display "'{name}'", the declared-on found's line, the receivers 0 }.
+            Return a new call { the shape found's shape, the display "'{name}'", the declared-on found's line, the receivers 0,
+                the depth-key "{called}@{found's line}" }.
         Done.
         Define reached as cast unknown-type.
         If callee's kind is "PossessiveAccess":
@@ -566,8 +583,14 @@ Pull a book on collections.
         Otherwise:
             The reached becomes cast one's infer on (callee) or pass the failure off.
         Done.
+        // A method reached through its object takes the signature of the type it is written in.
+        Define method-key as "".
+        If callee's kind is "PossessiveAccess":
+            Define owning-type as cast one's infer on (cast field-of on (callee, 1)) or pass the failure off.
+            The method-key becomes cast one's method-depth-key on (owning-type, cast unquoted on (cast field-of on (callee, 2))).
+        Done.
         If cast is-none on (reached):
-            Return a new call { the shape reached, the display "this function", the declared-on at-row, the receivers 0 }.
+            Return a new call { the shape reached, the display "this function", the declared-on at-row, the receivers 0, the depth-key method-key }.
         Done.
         If reached's kind is not "FunctionType":
             If cast beyond-types on (reached) or reached's kind is "AxiomType":
@@ -576,7 +599,7 @@ Pull a book on collections.
             Return a failure (cast refusal-of on ("this expression holds a {cast type-words on (reached)}, not a function — you can only cast functions", "",
                 at-row, "cast something that isn't a function", "Only functions can be cast.")).
         Done.
-        Return a new call { the shape reached, the display "this function", the declared-on at-row, the receivers 0 }.
+        Return a new call { the shape reached, the display "this function", the declared-on at-row, the receivers 0, the depth-key method-key }.
     Done.
 
     /// The arguments in the order the callee declares its parameters — `MergeNamedArgs`. A method
@@ -855,13 +878,17 @@ Pull a book on collections.
                 "Cast it as a statement — inside 'Try to:', or ending '… or pass the failure off.' in a function that can fail.")).
         Done.
         If cast is-failure-type on (gives):
-            If one's in-try, return cast field-of on (gives, 1).
+            If one's in-try:
+                Cast one's record-call-depth on (said, reached, call-args, cast field-of on (gives, 1)).
+                Return cast field-of on (gives, 1).
+            Done.
             If one's handled is false:
                 Return a failure (cast refusal-of on ("{display} can fail — you must handle the failure", "",
                     at-row, "use a fallible function's result without handling the failure",
                     "Wrap the call in a 'Try to: / In case of failure:' block, use 'but on failure <default>', or use 'or pass the failure off'.")).
             Done.
         Done.
+        Cast one's record-call-depth on (said, reached, call-args, gives).
         Return gives.
     Done.
 Done.

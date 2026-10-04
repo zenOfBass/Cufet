@@ -63,7 +63,11 @@ Pull a book on collections.
         the map from text to node stash-locals,
         the map from text to fact series-loops,
         the map from text to fact stash-drains,
-        the map from text to node axiom-tags).
+        the map from text to node axiom-tags,
+        the map from text to series of number depth-signatures,
+        the map from text to series of number getter-signatures,
+        the map from text to number call-depths,
+        the map from text to number member-depths).
 
     /// A pull of a module, remembered with the names visible at it — its needs are verified once
     /// every module's body has been checked, since one may be defined after the block that pulls it.
@@ -1225,7 +1229,11 @@ Pull a book on collections.
             the stash-locals a map from text to node,
             the series-loops a map from text to fact,
             the stash-drains a map from text to fact,
-            the axiom-tags a map from text to node }.
+            the axiom-tags a map from text to node,
+            the depth-signatures a map from text to series of number,
+            the getter-signatures a map from text to series of number,
+            the call-depths a map from text to number,
+            the member-depths a map from text to number }.
         Cast walker's register-prelude on (prelude).
         Return walker.
     Done.

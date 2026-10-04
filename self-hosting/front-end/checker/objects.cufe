@@ -607,6 +607,14 @@ Pull a book on collections.
         Cast one's check-member-body on (owner, owner-row, cast field-of on (method, 3), at-row, true, returned,
             cast field-of on (method, 4)) or pass the failure off.
         The one's recording-stash becomes earlier-recording.
+        If cast is-nothing on (returned) is false:
+            Define effective as returned.
+            If returned's kind is "FailureType", the effective becomes cast field-of on (returned, 1).
+            If cast is-reference-type on (effective):
+                In one's depth-signatures, the entry for "{owner}'s {method-name}" becomes
+                    cast one's return-depth-signature on (cast field-of on (method, 3), cast field-of on (method, 4), true).
+            Done.
+        Done.
         If cast is-nothing on (returned) is false and cast is-void-or-failure on (returned) is false and buries is false
                 and cast definitely-returns on (cast field-of on (method, 4)) is false:
             Return a failure (cast refusal-of on (
@@ -844,9 +852,15 @@ Pull a book on collections.
             Return method.
         Done.
         Define getter as cast one's getter-type-of on (owner, member).
-        If getter is not void, return getter.
+        If getter is not void:
+            If cast is-reference-type on (cast one's resolved on (getter)), cast one's record-member-depth on (said, cast field-of on (said, 1), owner, member).
+            Return getter.
+        Done.
         Define field as cast one's field-type-of on (owner, member).
-        If field is not void, return field.
+        If field is not void:
+            If cast is-reference-type on (cast one's resolved on (field)), cast one's record-member-depth on (said, cast field-of on (said, 1), owner, member).
+            Return field.
+        Done.
 
         Define available as cast comma-joined on (a series with (
             cast quoted-names on (cast one's field-names on (owner), ""),
@@ -871,9 +885,15 @@ Pull a book on collections.
                 Define owner as cast unquoted on (cast field-of on (target, 1)).
                 If cast one's definition-of on (owner) is void, return a failure (cast not-judged on ("the fields of a '{owner}'")).
                 Define getter as cast one's getter-type-of on (owner, field).
-                If getter is not void, return getter.
+                If getter is not void:
+                    If cast is-reference-type on (cast one's resolved on (getter)), cast one's record-member-depth on (said, reached, owner, field).
+                    Return getter.
+                Done.
                 Define found as cast one's field-type-of on (owner, field).
-                If found is not void, return found.
+                If found is not void:
+                    If cast is-reference-type on (cast one's resolved on (found)), cast one's record-member-depth on (said, reached, owner, field).
+                    Return found.
+                Done.
                 Define available as cast comma-joined on (a series with (
                     cast quoted-names on (cast one's field-names on (owner), ""),
                     cast quoted-names on (cast one's own-getter-names on (owner), " (getter)"))).
