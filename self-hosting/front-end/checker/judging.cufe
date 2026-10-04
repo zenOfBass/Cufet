@@ -58,6 +58,7 @@ Pull a book on collections.
         the map from text to node free-binds,
         the node pipe-input,
         the node pipe-output,
+        the node checked-program,
         the map from text to node pipe-stage-elem,
         the text recording-stash,
         the map from text to node stash-locals,
@@ -335,6 +336,8 @@ Pull a book on collections.
         Cast one's check-overloads on (program) or pass the failure off.
         Cast one's check-block on (program) or pass the failure off.
         Cast one's check-pending-pulls or pass the failure off.
+        // What `--tree` prints; a re-check that fills generics replaces it with its own.
+        The one's checked-program becomes program.
         Cast one's check-fillings on (program) or pass the failure off.
         Cast one's check-stash-machines on (program) or pass the failure off.
     Done.
@@ -1224,6 +1227,7 @@ Pull a book on collections.
             the free-binds a map from text to node,
             the pipe-input cast unknown-type,
             the pipe-output cast unknown-type,
+            the checked-program cast listed,
             the pipe-stage-elem a map from text to node,
             the recording-stash "",
             the stash-locals a map from text to node,
@@ -1239,7 +1243,8 @@ Pull a book on collections.
     Done.
 
     /// "ok", or the failure that says why not.
-    Bind text or failure to checked, given (the node program, the series of node prelude):
+    /// `ok` — and with `with-tree`, the checked program after it, one statement to a line.
+    Bind text or failure to checked, given (the node program, the series of node prelude, the fact with-tree):
         Define walker as cast fresh-checker on (prelude).
         // Every refusal leaves through here, so a lifted type name is put back once, for all of them.
         Try to:
@@ -1248,6 +1253,13 @@ Pull a book on collections.
         In case of failure:
             Return a failure (cast walker's written-names on (the message of the failure)).
         Done.
-        Return "ok".
+        If with-tree is false, return "ok".
+        Define out as a chase.
+        Insert "ok" into out.
+        For each statement in walker's checked-program's children, repeat:
+            Insert "\n" into out.
+            Insert cast shown-tree on (statement) into out.
+        Done.
+        Return out converted to text.
     Done.
 Done.

@@ -1,10 +1,12 @@
 /*  The Cufet type checker, written in Cufet.
 
-        cufet self-hosting/front-end/checker/checker.cufe <file.cufe> [more…]
+        cufet self-hosting/front-end/checker/checker.cufe [--tree] <file.cufe> [more…]
 
     Prints one line for each file, after its `file` header:
 
         ok                      the C# checker accepts it
+                                (with `--tree`, followed by the checked program, one statement
+                                to a line, printed as `ParserTreePrinter` prints C#'s)
         error   <message>       it refuses it, in these words (a line break written `\n`)
         unsupported <what>      this checker cannot judge it yet
         parse   <message>       the parser refused it, so there was nothing to check
@@ -22,7 +24,7 @@ Pull a book on collections.
     Done.
 
     /// The one line printed for a program.
-    Bind text to verdict, given (the text whole, the series of node prelude):
+    Bind text to verdict, given (the text whole, the series of node prelude, the fact with-tree):
         Define parsed as cast listed.
         Try to:
             The parsed becomes cast parser's program-tree on (whole).
@@ -32,7 +34,7 @@ Pull a book on collections.
         Done.
         Define outcome as "ok".
         Try to:
-            The outcome becomes cast checked on (parsed, prelude).
+            The outcome becomes cast checked on (parsed, prelude, with-tree).
         Done.
         In case of failure:
             Define said as the message of the failure.
@@ -48,6 +50,7 @@ Pull a book on collections.
     Define prelude-folder as "src/Interpreter/Prelude".
     Define files as a series of text.
     Define taking-folder as false.
+    Define with-tree as false.
     For each passed in the arguments, repeat:
         If taking-folder:
             The prelude-folder becomes passed.
@@ -55,6 +58,9 @@ Pull a book on collections.
         Done.
         Otherwise if passed is "--prelude":
             The taking-folder becomes true.
+        Done.
+        Otherwise if passed is "--tree":
+            The with-tree becomes true.
         Done.
         Otherwise:
             Insert passed into files.
@@ -71,7 +77,7 @@ Pull a book on collections.
     For each name in files, repeat:
         State "file\t{name}".
         Try to:
-            State cast verdict on (read all from the file name, prelude).
+            State cast verdict on (read all from the file name, prelude, with-tree).
         Done.
         In case of failure:
             State "crash\t{the message of the failure}".

@@ -618,5 +618,6 @@ Pull a book on collections.
             Done.
         Done.
         Cast child's check-program on (spliced) or pass the failure off.
+        The one's checked-program becomes child's checked-program.
     Done.
 Done.
