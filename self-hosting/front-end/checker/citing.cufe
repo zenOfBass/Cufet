@@ -242,4 +242,29 @@ Pull a book on collections.
             at-row, "cite '{name}'",
             "Declare it first: 'Define cufet {name} as [ ... ].'")).
     Done.
+    /// After checking: every cufet block taken out of the tree, wherever it stands — C#'s
+    /// `CiteExpansion.WithoutBlocks`. Its contents were placed by `Cite`; what is left is only the
+    /// definition, which nothing after the checker can meet.
+    Bind void to drop-cufet-blocks, given (the node tree):
+        If tree's kind is "atom", return.
+        If tree's kind is "list":
+            Define kept as a series of node.
+            Define dropped as false.
+            For each child in tree's children, repeat:
+                If child's kind is "CufetAxiomDefinition", the dropped becomes true.
+                Otherwise, insert child into kept.
+            Done.
+            If dropped:
+                While the number of tree's children is greater than 0, repeat:
+                    Remove item 1 from tree's children.
+                Done.
+                For each child in kept, repeat:
+                    Insert child into tree's children.
+                Done.
+            Done.
+        Done.
+        For each child in tree's children, repeat:
+            Cast drop-cufet-blocks on (child).
+        Done.
+    Done.
 Done.

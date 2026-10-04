@@ -165,13 +165,17 @@ Pull a book on collections.
         Done.
         Cast one's require-language-pulled on (language, literal-row) or pass the failure off.
         Define result as cast field-of on (declared, 2).
+        If cast is-nothing on (result) is false, the result becomes cast one's resolved on (result).
+        // Written onto the literal, so everything that runs it carries them along — C#'s
+        // AxiomLiteral.Language and ReturnType.
+        Cast note on (value, ":Language", cast quoted on (language)).
+        Cast note on (value, ":ReturnType", result).
         If cast is-nothing on (result) is false:
-            The result becomes cast one's resolved on (result).
             Cast require-crossable-result on (result, language, literal-row) or pass the failure off.
         Done.
         Define parameters as cast axiom-parameters on (value).
         Cast one's check-axiom-parameters on (statement, value, language, result, parameters) or pass the failure off.
-        Cast one's check-release-clause on (released, language, result, literal-row) or pass the failure off.
+        Cast one's check-release-clause on (value, released, language, result, literal-row) or pass the failure off.
         Define parameter-types as cast listed.
         For each pair in parameters, repeat:
             Cast parameter-types's add on (cast field-of on (pair, 1)).
@@ -257,8 +261,8 @@ Pull a book on collections.
 
     /// `CheckReleaseClause`: what frees an axiom's result is an axiom taking one address, and the
     /// result is an address to free.
-    Bind void or failure to check-release-clause unto checker, given (the text released, the text language,
-            the node result, the number at-row):
+    Bind void or failure to check-release-clause unto checker, given (the node literal, the text released,
+            the text language, the node result, the number at-row):
         If released is "", return.
         Define freeable as false.
         If cast is-nothing on (result) is false and result's kind is "VoidableType":
@@ -293,6 +297,7 @@ Pull a book on collections.
                 at-row, "free an address with an axiom that cannot be handed one",
                 "Declare it 'given (the address held)'.")).
         Done.
+        Cast note on (literal, ":ReleaseAxiom", release).
     Done.
 
     /// `AxiomBehind`: the literal a name stands for, following names bound to names — or none.
@@ -351,7 +356,7 @@ Pull a book on collections.
     Done.
 
     /// `RunAxiomOnReturn`: returning a declared axiom runs it.
-    Bind node or failure to run-axiom-on-return unto checker, given (the node value, the number at-row):
+    Bind node or failure to run-axiom-on-return unto checker, given (the node returning, the node value, the number at-row):
         Define literal as cast one's axiom-behind on (value).
         Define tagged as cast one's axiom-tag-of on (literal).
         If cast is-none on (tagged):
@@ -361,13 +366,14 @@ Pull a book on collections.
                 "Declare it first: 'Define c-language <name> as [ ... ].' — then return that name.")).
         Done.
         Cast one's require-language-pulled on (cast unquoted on (cast field-of on (tagged, 1)), at-row) or pass the failure off.
+        Cast note on (returning, ":RunsAxiom", literal).
         Return cast run-result-of on (tagged, at-row) or pass the failure off.
     Done.
 
     /// A cast that reaches an axiom — by name, with its source in hand, or as a value with only its
     /// written type. Gives back what running it gives, or none when the callee is no axiom.
-    Bind node or failure to check-axiom-call unto checker, given (the node callee, the node call-args, the number at-row,
-            the fact as-value, the fact passes-off):
+    Bind node or failure to check-axiom-call unto checker, given (the node call, the node callee, the node call-args,
+            the number at-row, the fact as-value, the fact passes-off):
         If callee's kind is not "VariableReference", return cast unknown-type.
         Define callee-name as cast unquoted on (cast field-of on (callee, 1)).
         Define found as cast one's look-up on (callee-name).
@@ -384,7 +390,9 @@ Pull a book on collections.
             Define language as cast unquoted on (cast field-of on (tagged, 1)).
             Cast one's require-language-pulled on (language, at-row) or pass the failure off.
             Cast one's check-foreign-arguments on (call-args, cast axiom-parameters on (literal), language, at-row) or pass the failure off.
-            Return cast run-result-of on (tagged, at-row) or pass the failure off.
+            Define ran as cast run-result-of on (tagged, at-row) or pass the failure off.
+            Cast note on (call, ":RunsAxiom", literal).
+            Return ran.
         Done.
         If cast is-nothing on (cast field-of on (axiom, 2)):
             Return a failure (cast source-not-reachable on (axiom, at-row)).
@@ -393,6 +401,7 @@ Pull a book on collections.
             Cast one's check-pass-off on (cast unknown-type, "'{callee-name}'", at-row) or pass the failure off.
         Done.
         Cast one's check-axiom-value-call on (call-args, axiom, at-row) or pass the failure off.
+        Cast note on (call, ":RunsAxiomValue", cast flag on (true)).
         Return cast field-of on (axiom, 2).
     Done.
 

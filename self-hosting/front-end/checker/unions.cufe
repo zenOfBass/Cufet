@@ -91,7 +91,9 @@ Pull a book on collections.
 
     /// `x is a <type>` — always a fact; the value tested is typed for its own refusals.
     Bind node or failure to infer-type-test unto checker, given (the node said):
-        Cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
+        // The target's type as known HERE, narrowing and all — C#'s StaticTargetType.
+        Define target-type as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
+        Cast note on (said, ":StaticTargetType", target-type).
         Return cast plain-type on ("FactType").
     Done.
 

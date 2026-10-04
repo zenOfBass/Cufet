@@ -336,10 +336,19 @@ Pull a book on collections.
         Cast one's check-overloads on (program) or pass the failure off.
         Cast one's check-block on (program) or pass the failure off.
         Cast one's check-pending-pulls or pass the failure off.
+        // A book's types written by name become the types they are, with the names in scope only
+        // for that — everything that could refuse a name outside its pull has run.
+        Define shell-names as cast one's register-pulled-book-types on (program).
+        Cast one's resolve-book-shells on (program).
+        For each added in shell-names, repeat:
+            Remove added from outermost-types.
+        Done.
         // What `--tree` prints; a re-check that fills generics replaces it with its own.
         The one's checked-program becomes program.
         Cast one's check-fillings on (program) or pass the failure off.
         Cast one's check-stash-machines on (program) or pass the failure off.
+        // Last, as in C#: the blocks stay while anything could still ask where they stand.
+        Cast drop-cufet-blocks on (one's checked-program).
     Done.
 
     /// Every top-level `permanently` constant, registered before anything is checked — so a body

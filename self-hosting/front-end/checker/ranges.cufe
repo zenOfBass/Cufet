@@ -162,6 +162,8 @@ Pull a book on collections.
         Define by-name as cast field-of on (said, 2).
         Define at-row as cast numeric on (cast field-of on (said, 4)).
         Define by-lambda as cast field-of on (said, 6).
+        // Rewritten on every pass, never merely set — C#'s SortExpression.KeyFunction.
+        Cast note on (said, ":KeyFunction", cast nothing).
         Define source as cast one's infer on (sorted-said) or pass the failure off.
         If cast is-none on (source), return source.
         If source's kind is "ChaseType":
@@ -229,6 +231,8 @@ Pull a book on collections.
         Done.
         If cast is-none on (function-type) is false:
             Cast check-sort-key on (function-type, "'{name}'", element, at-row) or pass the failure off.
+            Cast note on (said, ":KeyFunction", cast made on ("VariableReference",
+                a series of node with (by-name, cast field-of on (said, 4), cast field-of on (said, 5)))).
             Return source.
         Done.
         If element's kind is "RecordType":

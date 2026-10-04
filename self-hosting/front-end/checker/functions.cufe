@@ -461,7 +461,7 @@ Pull a book on collections.
         Done.
         Define value-type as cast unknown-type.
         If cast is-none on (cast one's axiom-behind on (value)) is false and expected's kind is not "AxiomType":
-            The value-type becomes cast one's run-axiom-on-return on (value, at-row) or pass the failure off.
+            The value-type becomes cast one's run-axiom-on-return on (statement, value, at-row) or pass the failure off.
         Done.
         Otherwise:
             The value-type becomes cast one's infer on (value) or pass the failure off.
@@ -818,6 +818,7 @@ Pull a book on collections.
         Define at-row as cast numeric on (cast field-of on (said, 3)).
         // Named arguments first: everything after reads the arguments by position.
         Define passes-off as false.
+        Define merged as false.
         Define place as 4.
         While place is less than the number of said's children, repeat:
             Increment place by 1.
@@ -825,13 +826,19 @@ Pull a book on collections.
             If marker is ":NamedArgs":
                 The call-args becomes cast one's merged-arguments on (callee, call-args,
                     item (place + 1) of said's children, at-row) or pass the failure off.
+                The merged becomes true.
             Done.
             Otherwise if marker is ":PassesFailureOff":
                 The passes-off becomes true.
             Done.
         Done.
+        // Written back as C# writes it: one list, in order, and the named ones gone.
+        If merged:
+            Cast rewrite-field on (said, 2, call-args).
+            Cast note on (said, ":NamedArgs", cast nothing).
+        Done.
         // A cast of an axiom runs it, and is checked against what the axiom takes.
-        Define axiom-result as cast one's check-axiom-call on (callee, call-args, at-row, as-value, passes-off) or pass the failure off.
+        Define axiom-result as cast one's check-axiom-call on (said, callee, call-args, at-row, as-value, passes-off) or pass the failure off.
         If cast is-none on (axiom-result) is false:
             If as-value, return axiom-result.
             Return cast unknown-type.

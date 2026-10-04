@@ -87,11 +87,11 @@ Pull a book on collections.
                     In names, the entry for (short in lowercase) becomes "{short} in {module-name}".
                 Done.
                 For each type in held's children, repeat:
-                    Define renamed as cast renamed-deep on (cast with-field on (type, 13, cast listed), names).
+                    Define renamed as cast renamed-deep on (cast with-field on (type, 13, cast nothing), names).
                     Define short as cast unquoted on (cast field-of on (type, 1)).
                     Cast rewritten's add on (cast with-field on (renamed, 1, cast quoted on ("{short} in {module-name}"))).
                 Done.
-                Cast rewritten's add on (cast renamed-deep on (cast with-field on (statement, 13, cast listed), names)).
+                Cast rewritten's add on (cast renamed-deep on (cast with-field on (statement, 13, cast nothing), names)).
                 In one's carried-types, the entry for (module-name in lowercase) becomes names.
             Done.
             Otherwise:

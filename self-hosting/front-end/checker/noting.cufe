@@ -1,0 +1,82 @@
+/*  Notes the checker writes onto the tree — what C#'s checker sets on a node outside its
+    constructor: an axiom's language, the type an `is a` test was asked of, the function a sort
+    keys on. The checked tree prints them as `:Name value`, after the fields.
+
+    ★ IN PLACE, as C# writes them: a node's children are its own series, so a note written here
+    is in the program `--tree` prints, with nothing to thread back up.
+*/
+
+Pull a book on collections.
+    /// The notes a kind of node can carry, in the order its C# record declares them — the order
+    /// `ParserTreePrinter` prints them in.
+    Bind series of text to note-order, given (the text kind):
+        Judge kind, where it is:
+            "AxiomLiteral", return a series of text with (":Language", ":Parameters", ":ReturnType", ":ReleasedBy", ":ReleaseAxiom").
+            "CastExpression", return a series of text with (":NamedArgs", ":ResolvedFunctionName", ":RunsAxiom", ":RunsAxiomValue").
+            "CastStatement",
+                return a series of text with (":NamedArgs", ":ResolvedFunctionName", ":RunsAxiom", ":RunsAxiomValue", ":PassesFailureOff").
+            "ObjectLiteral", return a series of text with (":ResolvedTypeName", ":FilledDefaults").
+            "IsTypeCheck", return a series of text with (":StaticTargetType").
+            "SortExpression", return a series of text with (":KeyFunction").
+            "ReturnStatement", return a series of text with (":RunsAxiom").
+            Otherwise, return a series of text.
+        Done.
+    Done.
+
+    /// Replaces a node's `place`th field where it stands — C# setting a property its constructor took.
+    Bind void to rewrite-field, given (the node target, the number place, the node value):
+        The item place of target's children becomes value.
+    Done.
+
+    /// Writes `mark` onto `target` as `value`, replacing any earlier note of that name — or, given
+    /// nothing or a type not known (C#'s null), takes it off. C# rewrites these on every pass rather
+    /// than adding to them, so writing one twice leaves one.
+    Bind void to note, given (the node target, the text mark, the node value):
+        Define fields as a series of node.
+        Define held as a map from text to node.
+        Define held-order as a series of text.
+        Define index as 1.
+        Define count as the number of target's children.
+        While index is not greater than count, repeat:
+            Define here as item index of target's children.
+            If here's kind is "atom" and here's word starts with ":" and index is less than count:
+                In held, the entry for here's word becomes item (index + 1) of target's children.
+                Insert here's word into held-order.
+                Increment index by 2.
+            Done.
+            Otherwise:
+                Insert here into fields.
+                Increment index by 1.
+            Done.
+        Done.
+        If cast is-nothing on (value) or cast is-none on (value):
+            If (the entry for mark in held) is not void, remove mark from held.
+        Done.
+        Otherwise:
+            If (the entry for mark in held) is void, insert mark into held-order.
+            In held, the entry for mark becomes value.
+        Done.
+        // ⚠ A mark the order does not list is kept, after the rest — never dropped.
+        Define ordered as cast note-order on (target's kind).
+        Define listed-names as a map from text to fact.
+        For each name in ordered, repeat:
+            In listed-names, the entry for name becomes true.
+        Done.
+        For each name in held-order, repeat:
+            If (the entry for name in listed-names) is void, insert name into ordered.
+        Done.
+        While the number of target's children is greater than 0, repeat:
+            Remove item 1 from target's children.
+        Done.
+        For each field in fields, repeat:
+            Insert field into target's children.
+        Done.
+        For each name in ordered, repeat:
+            Define value-held as the entry for name in held.
+            If value-held is not void:
+                Insert cast atom on (name) into target's children.
+                Insert value-held into target's children.
+            Done.
+        Done.
+    Done.
+Done.

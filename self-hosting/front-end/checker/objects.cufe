@@ -785,6 +785,11 @@ Pull a book on collections.
         For each pair in filled, repeat:
             Cast one's infer on (cast field-of on (pair, 2)) or pass the failure off.
         Done.
+        // Written onto the literal, so what builds it never learns that defaults exist — C#'s
+        // ObjectLiteral.FilledDefaults, set only when one was filled.
+        If the number of filled is greater than 0:
+            Cast note on (said, ":FilledDefaults", a new node { the kind "list", the word "", the children filled }).
+        Done.
         For each pair in named-values, repeat:
             Define field as cast unquoted on (cast field-of on (pair, 1)).
             Define wanted as cast one's field-type-of on (looked-up, field).
