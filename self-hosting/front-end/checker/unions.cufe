@@ -185,6 +185,7 @@ Pull a book on collections.
         Define otherwise-body as cast field-of on (statement, 3).
         Define at-row as cast numeric on (cast field-of on (statement, 4)).
         Define subject-type as cast one's infer on (subject) or pass the failure off.
+        If cast is-none on (subject-type) is false, cast one's record-stash-local on ("it", subject-type, at-row) or pass the failure off.
 
         // ⚠ One kind of arm per judgement — the one that differs from the FIRST is to blame.
         Define value-judgement as false.

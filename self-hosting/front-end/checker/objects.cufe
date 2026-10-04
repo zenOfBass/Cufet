@@ -290,6 +290,9 @@ Pull a book on collections.
                         cast numeric on (cast field-of on (statement, 9)), "define an object named '{name}'",
                         "Pick another name — 'Pull {name}.' always finds the one the language ships.")).
                 Done.
+                For each method in (cast field-of on (statement, 4))'s children, repeat:
+                    Cast check-buries-say-what on (method, "method") or pass the failure off.
+                Done.
                 // A definition that leaves a blank is a template: not a type, filled per use.
                 Define is-template as the number of (cast field-of on (statement, 12))'s children is greater than 0.
                 If is-template is false:
@@ -317,6 +320,7 @@ Pull a book on collections.
                                 "Method names must be unique per type, whether declared nested or with 'unto'. Rename one of them.")).
                         Done.
                         In taken, the entry for method-name becomes true.
+                        Cast check-buries-say-what on (method, "method") or pass the failure off.
                     Done.
                 Done.
                 Cast one's check-unto-property-names on (statement, "get ", 5, "getter", "Getter names must be unique per type. Rename one of them.") or pass the failure off.
@@ -592,9 +596,14 @@ Pull a book on collections.
         Define method-name as cast unquoted on (cast field-of on (method, 1)).
         Define returned as cast field-of on (method, 2).
         Define at-row as cast numeric on (cast field-of on (method, 7)).
+        Define buries as cast contains-bury on (cast field-of on (method, 4)).
+        Define earlier-recording as one's recording-stash.
+        The one's recording-stash becomes "".
+        If buries, the one's recording-stash becomes "{owner}'s {method-name}".
         Cast one's check-member-body on (owner, owner-row, cast field-of on (method, 3), at-row, true, returned,
             cast field-of on (method, 4)) or pass the failure off.
-        If cast is-nothing on (returned) is false and cast is-void-or-failure on (returned) is false
+        The one's recording-stash becomes earlier-recording.
+        If cast is-nothing on (returned) is false and cast is-void-or-failure on (returned) is false and buries is false
                 and cast definitely-returns on (cast field-of on (method, 4)) is false:
             Return a failure (cast refusal-of on (
                 "method '{method-name}' is declared to give back a {cast type-words on (returned)}, but it can reach its end without returning one", "",

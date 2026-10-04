@@ -1,0 +1,337 @@
+/*  Stashes — `Have <rabbit> bury <value>.`, `unbury`, a `For each` over a stash, and the refusals
+    of the rewrite that turns a burying body into steps: the stash parts of
+    `src/Interpreter/TypeChecker.*.cs`, and the refusals of `src/Interpreter/StashTransform.cs`.
+
+    ★ A function or method whose OWN body buries hands back a `stash of T`, where T is what it says
+    it gives — the difference lives in its signature (`function-type-of`), so a call needs nothing new.
+
+    ★ C# rewrites each burying body into a machine of steps once checking is over, and refuses what
+    cannot be split: a `Return`, a bury inside a `Try`, a rabbit block, a task or a file block, a
+    bury in a `for each` over something that is not a series, or in the `Otherwise` of a judgement
+    whose leftovers cannot be named. Those refusals are asked here, after everything else, by
+    walking each body the way the machine builder would — the machine itself is never built.
+
+    ⚠ A burying body's locals all land in one place, so a name may mean only one type in it, and no
+    name in it may be a shadow.
+*/
+
+Pull a book on collections.
+    // ── Finding a bury ────────────────────────────────────────────────────
+
+    /// The first node of one of `hits` kinds, not looking inside any of `opaque` kinds — or none.
+    Bind node to stash-search, given (the node tree, the series of text hits, the series of text opaque):
+        Define kind as tree's kind.
+        If kind is "atom", return cast unknown-type.
+        If kind is not "list":
+            For each hit in hits, repeat:
+                If kind is hit, return tree.
+            Done.
+            For each closed in opaque, repeat:
+                If kind is closed, return cast unknown-type.
+            Done.
+        Done.
+        For each child in tree's children, repeat:
+            Define found as cast stash-search on (child, hits, opaque).
+            If cast is-none on (found) is false, return found.
+        Done.
+        Return cast unknown-type.
+    Done.
+
+    /// `ContainsBury`: a nested function's bury is its own, so a `Bind` or a lambda is not looked into.
+    Bind node to find-bury, given (the node tree):
+        Return cast stash-search on (tree, a series with ("BuryStatement"), a series with ("BindStatement", "LambdaLiteral")).
+    Done.
+
+    Bind fact to contains-bury, given (the node tree):
+        Return cast is-none on (cast find-bury on (tree)) is false.
+    Done.
+
+    Bind fact to contains-return, given (the node tree):
+        Return cast is-none on (cast stash-search on (tree, a series with ("ReturnStatement"), a series with ("BindStatement", "LambdaLiteral"))) is false.
+    Done.
+
+    /// A `Stop` or `Skip` that would leave this statement for a loop around it.
+    Bind fact to has-free-loop-exit, given (the node tree):
+        Return cast is-none on (cast stash-search on (tree, a series with ("StopStatement", "SkipStatement"),
+            a series with ("BindStatement", "LambdaLiteral", "WhileStatement", "RepeatUntilStatement", "ForEachStatement"))) is false.
+    Done.
+
+    /// What a function's signature hands back: a stash of what it buries, when its own body buries.
+    Bind node to signature-return, given (the node statement):
+        Define returned as cast field-of on (statement, 2).
+        If cast is-nothing on (returned) or cast contains-bury on (cast field-of on (statement, 4)) is false, return returned.
+        Return cast wrapped on ("StashType", returned).
+    Done.
+
+    /// A function or method that buries has to say what it buries.
+    Bind void or failure to check-buries-say-what, given (the node statement, the text what):
+        If cast is-nothing on (cast field-of on (statement, 2)) is false, return.
+        If cast contains-bury on (cast field-of on (statement, 4)) is false, return.
+        Define name as cast unquoted on (cast field-of on (statement, 1)).
+        Return a failure (cast refusal-of on ("'{name}' buries values, so it has to say what kind", "",
+            cast numeric on (cast field-of on (statement, 7)), "declare '{name}' as void when it buries",
+            "A burying {what}'s declared type is the type of what it buries: 'Bind number to {name}' hands back a stash of number.")).
+    Done.
+
+    // ── Burying and unburying ─────────────────────────────────────────────
+
+    /// Whether this type owns a region — a rabbit, or an object that says `and region`.
+    Bind fact to owns-region unto checker, given (the node shape):
+        If shape's kind is not "ObjectType", return false.
+        Define definition as cast one's definition-of on (cast unquoted on (cast field-of on (shape, 1))).
+        If definition is void, return false.
+        Return cast conforms-as on (definition, "region").
+    Done.
+
+    /// `Have <agent> bury <value>.`
+    Bind void or failure to check-bury unto checker, given (the node statement):
+        Define at-row as cast numeric on (cast field-of on (statement, 2)).
+        Cast one's infer on (cast field-of on (statement, 1)) or pass the failure off.
+        Define receiver as cast field-of on (statement, 4).
+        If cast is-nothing on (receiver):
+            Return a failure (cast refusal-of on ("a bury has to name the rabbit doing it",
+                "'rabbit' means the enclosing one, and a function body is not inside one",
+                at-row, "bury with the bare 'rabbit' keyword inside a function",
+                "Take a rabbit as a parameter and name it: 'given (the rabbit helper, ...)' then 'Have helper bury <value>.'")).
+        Done.
+        Define agent as cast unquoted on (receiver).
+        Define found as cast one's look-up on (agent).
+        Define owning as false.
+        If found is not void, the owning becomes cast one's owns-region on (found's shape).
+        If owning is false:
+            Return a failure (cast refusal-of on ("'{agent}' does not own a region, so it cannot be told to bury",
+                "Burying suspends the work in a region, so the thing told to do it has to own one",
+                at-row, "have '{agent}' bury a value",
+                "Take a rabbit as a parameter — 'given (the rabbit {agent}, ...)' — pull one with 'Pull a rabbit as {agent}.', or say 'and region' on the type '{agent}' has.")).
+        Done.
+    Done.
+
+    /// `unbury <stash>` — the next value, or void once the stash is spent.
+    Bind node or failure to infer-unbury unto checker, given (the node said):
+        Define at-row as cast numeric on (cast field-of on (said, 2)).
+        Define inner as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
+        If inner's kind is "StashType", return cast wrapped on ("VoidableType", cast field-of on (inner, 1)).
+        Define said-first as "'unbury' needs a stash, but this is {cast type-words on (inner)}".
+        If cast is-none on (inner), the said-first becomes "'unbury' needs a stash, and the type of what it was given can't be determined".
+        Return a failure (cast refusal-of on (said-first, "", at-row, "unbury something that is not a stash",
+            "A stash comes from calling a function that buries: 'Define s as cast walk on (tree).'")).
+    Done.
+
+    /// A lambda may not bury — only a named body becomes a stash.
+    Bind void or failure to refuse-burying-lambda, given (the node body):
+        Define suspension as cast find-bury on (body).
+        If cast is-none on (suspension), return.
+        Return a failure (cast refusal-of on ("a function with no name cannot hand a value out and pause", "",
+            cast numeric on (cast field-of on (suspension, 2)), "use 'bury' inside a lambda",
+            "Give the body a name. A 'Bind' whose body contains a 'bury' hands back a stash, and a stash is an ordinary value — pass it wherever the lambda was going.")).
+    Done.
+
+    // ── A burying body's locals ───────────────────────────────────────────
+
+    /// The type a local of the burying body being checked has — one per name.
+    Bind void or failure to record-stash-local unto checker, given (the text name, the node shape, the number at-row):
+        If one's recording-stash is "", return.
+        Define key as "{one's recording-stash}\t{name}".
+        Define already as the entry for key in one's stash-locals.
+        If already is not void:
+            If cast same-type on (already, shape) is false:
+                Return a failure (cast refusal-of on (
+                    "'{name}' means a {cast type-words on (already)} in one part of '{one's recording-stash}' and a {cast type-words on (shape)} in another",
+                    "A burying function keeps its locals in one place, so a name can only mean one type there",
+                    at-row, "use '{name}' for two different types inside a burying function", "Rename one of them.")).
+            Done.
+        Done.
+        In one's stash-locals, the entry for key becomes shape.
+    Done.
+
+    /// A shadow cannot survive a burying body's flattening.
+    Bind void or failure to refuse-stash-shadow unto checker, given (the text name, the number at-row):
+        If one's recording-stash is "", return.
+        Return a failure (cast refusal-of on ("'{one's recording-stash}' buries, so it can't shadow '{name}'",
+            "A burying function is rewritten into one flat block of state, and a shadowed name would land on top of the name it hides",
+            at-row, "shadow '{name}' inside a burying function", "Give the inner one a different name.")).
+    Done.
+
+    // ── A `For each` over a stash ─────────────────────────────────────────
+
+    /// `For each <name> in <stash>` stands for the drain: take one, stop once it is spent, else run
+    /// the body — and the drain is what is checked (`StashDrainLoop`).
+    Bind void or failure to check-stash-loop unto checker, given (the node statement):
+        Define named as cast field-of on (statement, 1).
+        Define name as "it".
+        If cast is-nothing on (named) is false, the name becomes cast unquoted on (named).
+        Define line-atom as cast field-of on (statement, 4).
+        Define column-atom as cast field-of on (statement, 5).
+        Define shadows as cast one's look-up on (name) is not void.
+        In one's stash-drains, the entry for "{line-atom's word}:{column-atom's word}" becomes true.
+
+        Define taken as cast made on ("UnburyExpression", a series with (cast field-of on (statement, 2), line-atom, column-atom)).
+        Define take as cast made on ("DefineStatement", a series with (cast quoted on (name), taken, cast flag on (false),
+            cast flag on (shadows), line-atom, column-atom, cast nothing)).
+        Define alive as cast made on ("BinaryExpression", a series with (
+            cast made on ("VariableReference", a series with (cast quoted on (name), line-atom, column-atom)),
+            cast atom on ("NotEqual"),
+            cast made on ("VoidLiteral", a series with (line-atom, column-atom)),
+            line-atom, column-atom)).
+        Define arms as cast listed.
+        Cast arms's add on (cast made on ("ConditionArm", a series with (alive, cast field-of on (statement, 3)))).
+        Define stopping as cast listed.
+        Cast stopping's add on (cast shaped on ("StopStatement")).
+        Define inner as cast listed.
+        Cast inner's add on (take).
+        Cast inner's add on (cast made on ("IfStatement", a series with (arms, stopping))).
+        Define drain as cast made on ("RepeatUntilStatement", a series with (inner,
+            cast made on ("BooleanLiteral", a series with (cast flag on (false), line-atom, column-atom)))).
+        Cast one's enter-scope.
+        Cast one's check-statement on (drain) or pass the failure off.
+        Cast one's exit-scope.
+    Done.
+
+    // ── What the machine builder refuses (`StashTransform`) ───────────────
+
+    /// Every burying body in the program, walked the way `StashTransform.Rewrite` reaches them.
+    Bind void or failure to check-stash-machines unto checker, given (the node statements):
+        For each statement in statements's children, repeat:
+            Define kind as statement's kind.
+            If kind is "BindStatement":
+                Define name as cast unquoted on (cast field-of on (statement, 1)).
+                Define target as cast field-of on (statement, 5).
+                Define body as cast field-of on (statement, 4).
+                If (the entry for name in one's templates) is void:
+                    If cast contains-bury on (body):
+                        Define key as name.
+                        If cast is-nothing on (target) is false, the key becomes "{cast unquoted on (target)}'s {name}".
+                        Cast one's check-stash-machine on (statement, key) or pass the failure off.
+                    Done.
+                    Otherwise:
+                        Cast one's check-stash-machines on (body) or pass the failure off.
+                    Done.
+                Done.
+            Done.
+            If kind is "PullStatement" or kind is "PullRabbitStatement":
+                Cast one's check-stash-machines on (cast field-of on (statement, 2)) or pass the failure off.
+            Done.
+            If kind is "ObjectDefinition" and the number of (cast field-of on (statement, 12))'s children is 0:
+                Define owner as cast def-name on (statement).
+                For each method in (cast field-of on (statement, 4))'s children, repeat:
+                    If cast contains-bury on (cast field-of on (method, 4)):
+                        Cast one's check-stash-machine on (method, "{owner}'s {cast unquoted on (cast field-of on (method, 1))}") or pass the failure off.
+                    Done.
+                    Otherwise:
+                        Cast one's check-stash-machines on (cast field-of on (method, 4)) or pass the failure off.
+                    Done.
+                Done.
+            Done.
+        Done.
+    Done.
+
+    /// One burying body: no `Return`, then every statement that has to be split, splittable.
+    Bind void or failure to check-stash-machine unto checker, given (the node burying, the text key):
+        Define at-row as cast numeric on (cast field-of on (burying, 7)).
+        If cast contains-return on (cast field-of on (burying, 4)):
+            Return a failure (cast refusal-of on ("'{key}' buries, so it can't also return a value", "",
+                at-row, "return from a burying function",
+                "A burying function finishes by reaching its end, and whoever holds the stash sees void once it is spent. Take the 'Return' out.")).
+        Done.
+        Cast one's emit-stash-statements on (cast field-of on (burying, 4), false, key, at-row) or pass the failure off.
+    Done.
+
+    Bind void or failure to emit-stash-statements unto checker, given (the node body, the fact in-loop, the text key,
+            the number at-row):
+        For each statement in body's children, repeat:
+            Define kind as statement's kind.
+            Define splits as cast contains-bury on (statement) or kind is "StopStatement" or kind is "SkipStatement".
+            If splits is false and in-loop, the splits becomes cast has-free-loop-exit on (statement).
+            If splits, cast one's emit-stash-control on (statement, in-loop, key, at-row) or pass the failure off.
+        Done.
+    Done.
+
+    /// Where a refused statement is said to be: its own line, or the function's when it has none.
+    Bind number to stash-where, given (the node statement, the number at-row):
+        Define place as 0.
+        Judge statement's kind, where it is:
+            It is "PullRabbitStatement" or "LaunchTaskStatement" or "PullStatement" or "ForEachFromInputStatement", the place becomes 3.
+            It is "TryStatement" or "JudgeStatement" or "ForEachStatement", the place becomes 4.
+            It is "WithOpenStatement", the place becomes 5.
+            It is "ObjectDefinition", the place becomes 9.
+            Otherwise, return at-row.
+        Done.
+        Return cast numeric on (cast field-of on (statement, place)).
+    Done.
+
+    Bind void or failure to emit-stash-control unto checker, given (the node statement, the fact in-loop, the text key,
+            the number at-row):
+        Define kind as statement's kind.
+        Judge kind, where it is:
+            It is "BuryStatement", return.
+            It is "IfStatement":
+                For each arm in (cast field-of on (statement, 1))'s children, repeat:
+                    Cast one's emit-stash-statements on (cast field-of on (arm, 2), in-loop, key, at-row) or pass the failure off.
+                Done.
+                Define otherwise-body as cast field-of on (statement, 2).
+                If cast is-nothing on (otherwise-body) is false:
+                    Cast one's emit-stash-statements on (otherwise-body, in-loop, key, at-row) or pass the failure off.
+                Done.
+            Done.
+            It is "JudgeStatement":
+                Define arms as (cast field-of on (statement, 2))'s children.
+                Define otherwise-body as cast field-of on (statement, 3).
+                // The leftovers an `Otherwise` resumes into have to be named, so the subject has to
+                // be a closed union — unless the arms match values, which narrow nothing.
+                If cast is-nothing on (otherwise-body) is false:
+                    Define valued as false.
+                    If the number of arms is greater than 0, the valued becomes cast is-value-arm on (item 1 of arms).
+                    If valued is false:
+                        Define subject-type as the entry for "{key}\tit" in one's stash-locals.
+                        Define closed as false.
+                        If subject-type is not void:
+                            If subject-type's kind is "UnionType", the closed becomes (cast field-of on (subject-type, 1))'s kind is "list".
+                        Done.
+                        If closed is false:
+                            Return a failure (cast refusal-of on (
+                                "'{key}' buries inside the 'Otherwise' of a judgement on something that is not a closed union", "",
+                                cast stash-where on (statement, at-row), "bury from inside that 'Otherwise'",
+                                "The leftover cases have to be named to resume into them, and only a closed union lists what they are. Judge a closed union, or move the bury out of the judgement.")).
+                        Done.
+                    Done.
+                Done.
+                For each arm in arms, repeat:
+                    Cast one's emit-stash-statements on (cast field-of on (arm, 2), in-loop, key, at-row) or pass the failure off.
+                Done.
+                If cast is-nothing on (otherwise-body) is false:
+                    Cast one's emit-stash-statements on (otherwise-body, in-loop, key, at-row) or pass the failure off.
+                Done.
+            Done.
+            It is "WhileStatement":
+                Cast one's emit-stash-statements on (cast field-of on (statement, 2), true, key, at-row) or pass the failure off.
+            Done.
+            It is "RepeatUntilStatement":
+                Cast one's emit-stash-statements on (cast field-of on (statement, 1), true, key, at-row) or pass the failure off.
+            Done.
+            It is "ForEachStatement":
+                Define spot as "{(cast field-of on (statement, 4))'s word}:{(cast field-of on (statement, 5))'s word}".
+                If (the entry for spot in one's stash-drains) is void and (the entry for spot in one's series-loops) is void:
+                    Return a failure (cast refusal-of on ("'{key}' buries inside a for-each over something that is not a series", "",
+                        cast stash-where on (statement, at-row), "bury while looping over a map",
+                        "Resuming a loop means counting back to where it was, and a map's entries have no position to count to. Loop over a series, or use a While.")).
+                Done.
+                Cast one's emit-stash-statements on (cast field-of on (statement, 3), true, key, at-row) or pass the failure off.
+            Done.
+            It is "StopStatement" or "SkipStatement":
+                If in-loop, return.
+                Return a failure (cast refusal-of on ("'{key}' has a 'Stop' or a 'Skip' with no loop to leave", "",
+                    at-row, "stop or skip outside a loop", "Put it inside the loop it belongs to.")).
+            Done.
+            Otherwise:
+                Define kind-words as kind.
+                If kind is "TryStatement", the kind-words becomes "Try block".
+                If kind is "PullRabbitStatement", the kind-words becomes "rabbit block".
+                If kind is "LaunchTaskStatement", the kind-words becomes "task".
+                If kind is "WithOpenStatement", the kind-words becomes "file block".
+                Return a failure (cast refusal-of on ("'{key}' buries inside a {kind-words}, which can't be split into steps", "",
+                    cast stash-where on (statement, at-row), "bury from inside a {kind-words}",
+                    "A Try block, a rabbit block, a task and a file block each carry something — a handler, a region, a thread, an open file — that a resumption cannot restore. Move the bury out of it, or use an If, a While or a judgement.")).
+            Done.
+        Done.
+    Done.
+Done.

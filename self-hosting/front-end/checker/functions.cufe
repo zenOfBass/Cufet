@@ -18,7 +18,7 @@ Pull a book on collections.
         Done.
         Define shape as cast plain-type on ("FunctionType").
         Cast shape's add on (parameter-types).
-        Cast shape's add on (cast field-of on (statement, 2)).
+        Cast shape's add on (cast signature-return on (statement)).
         Cast shape's add on (parameter-names).
         Return shape.
     Done.
@@ -210,6 +210,7 @@ Pull a book on collections.
                         "Two functions cannot share a name — the second would silently replace the first. Rename one of them.")).
                 Done.
                 In seen, the entry for name becomes at-row.
+                Cast check-buries-say-what on (statement, "function") or pass the failure off.
                 // A function that leaves blanks is a template: set aside, checked only per filling.
                 If cast one's has-blanks on (statement):
                     In one's templates, the entry for name becomes true.
@@ -347,7 +348,13 @@ Pull a book on collections.
         Otherwise, insert cast one's resolved on (returned) into one's expected-returns.
         The one's function-line becomes at-row.
 
+        Define earlier-recording as one's recording-stash.
+        The one's recording-stash becomes "".
+        If cast is-nothing on (cast field-of on (statement, 5)) and cast contains-bury on (cast field-of on (statement, 4)):
+            The one's recording-stash becomes name.
+        Done.
         Cast one's check-block on (cast field-of on (statement, 4)) or pass the failure off.
+        The one's recording-stash becomes earlier-recording.
 
         The one's in-function becomes earlier-in-function.
         Remove item (the number of one's expected-returns) from one's expected-returns.
@@ -359,6 +366,7 @@ Pull a book on collections.
         Cast one's trim-type-scopes on (saved-types).
 
         If cast is-nothing on (returned) is false and cast is-void-or-failure on (returned) is false
+                and cast contains-bury on (cast field-of on (statement, 4)) is false
                 and cast definitely-returns on (cast field-of on (statement, 4)) is false:
             Return a failure (cast refusal-of on (
                 "'{name}' is declared to give back a {cast type-words on (returned)}, but it can reach its end without returning one", "",
@@ -373,6 +381,7 @@ Pull a book on collections.
         Define parameters as (cast field-of on (said, 1))'s children.
         Define body as cast field-of on (said, 2).
         Define at-row as cast numeric on (cast field-of on (said, 3)).
+        Cast refuse-burying-lambda on (body) or pass the failure off.
         // Its statements sit inside an expression, out of sight of the program's own pre-scan.
         Define inner-reach as cast beyond-reach on (body).
         If inner-reach is not "", return a failure (cast not-judged on (inner-reach)).
@@ -422,7 +431,10 @@ Pull a book on collections.
         Insert cast unknown-type into one's expected-returns.
         The one's function-line becomes at-row.
 
+        Define earlier-recording as one's recording-stash.
+        The one's recording-stash becomes "".
         Cast one's check-block on (body) or pass the failure off.
+        The one's recording-stash becomes earlier-recording.
 
         Define inferred as item (the number of one's expected-returns) of one's expected-returns.
         Remove item (the number of one's expected-returns) from one's expected-returns.

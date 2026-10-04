@@ -58,7 +58,11 @@ Pull a book on collections.
         the map from text to node free-binds,
         the node pipe-input,
         the node pipe-output,
-        the map from text to node pipe-stage-elem).
+        the map from text to node pipe-stage-elem,
+        the text recording-stash,
+        the map from text to node stash-locals,
+        the map from text to fact series-loops,
+        the map from text to fact stash-drains).
 
     /// A pull of a module, remembered with the names visible at it — its needs are verified once
     /// every module's body has been checked, since one may be defined after the block that pulls it.
@@ -256,7 +260,7 @@ Pull a book on collections.
                     or "CurrentDirectorySetStatement" or "WriteToStreamStatement" or "RunStatement"
                     or "AcknowledgeInterruptStatement" or "SendStatement" or "CloseStatement" or "YieldStatement"
                     or "OutputStatement" or "PipeExpression" or "SeriesInsertStatement" or "SeriesSetStatement"
-                    or "SeriesRemoveAtStatement" or "SeriesRemoveValueStatement", return "".
+                    or "SeriesRemoveAtStatement" or "SeriesRemoveValueStatement" or "BuryStatement", return "".
             Otherwise, return kind.
         Done.
     Done.
@@ -319,6 +323,7 @@ Pull a book on collections.
         Cast one's check-block on (program) or pass the failure off.
         Cast one's check-pending-pulls or pass the failure off.
         Cast one's check-fillings on (program) or pass the failure off.
+        Cast one's check-stash-machines on (program) or pass the failure off.
     Done.
 
     /// Every top-level `permanently` constant, registered before anything is checked — so a body
@@ -547,6 +552,9 @@ Pull a book on collections.
             Done.
             It is "CloseStatement":
                 Cast one's check-close on (statement) or pass the failure off.
+            Done.
+            It is "BuryStatement":
+                Cast one's check-bury on (statement) or pass the failure off.
             Done.
             It is "OutputStatement":
                 Cast one's check-output on (statement) or pass the failure off.
@@ -807,7 +815,7 @@ Pull a book on collections.
                 Return.
             Done.
             It is "StashType":
-                Return a failure (cast not-judged on ("looping over a {kind}")).
+                Cast one's check-stash-loop on (statement) or pass the failure off.
             Done.
             Otherwise:
                 If kind is not "SeriesType":
@@ -825,6 +833,9 @@ Pull a book on collections.
                 Define iterator as "it".
                 Define named as cast field-of on (statement, 1).
                 If cast is-nothing on (named) is false, the iterator becomes cast unquoted on (named).
+                // What the machine builder needs: which loops run over a series, and the iterator's type.
+                In one's series-loops, the entry for "{(cast field-of on (statement, 4))'s word}:{(cast field-of on (statement, 5))'s word}" becomes true.
+                Cast one's record-stash-local on (iterator, cast field-of on (looped-type, 1), at-row) or pass the failure off.
                 Define iterator-depth as one's rabbit-depth.
                 If looped's kind is "VariableReference":
                     Define source as cast one's look-up on (cast unquoted on (cast field-of on (looped, 1))).
@@ -1035,6 +1046,7 @@ Pull a book on collections.
                 at-row, "define '{name}' again in the same block",
                 "Each name can only be defined once per block. Use 'becomes' to reassign it, or choose a different name.")).
         Done.
+        If shadowing, cast one's refuse-stash-shadow on (name, at-row) or pass the failure off.
 
         If reclaiming is false:
             Define outer as cast one's look-up-outer on (name).
@@ -1073,6 +1085,7 @@ Pull a book on collections.
         Cast one's bind-name on (name, a new binding {
             the shape kept, the established-by value, the line at-row, the permanent permanent, the module false,
             the depth one's rabbit-depth, the parameter false }).
+        Cast one's record-stash-local on (name, kept, at-row) or pass the failure off.
     Done.
 
     Bind void or failure to check-becomes unto checker, given (the node statement):
@@ -1176,7 +1189,11 @@ Pull a book on collections.
             the free-binds a map from text to node,
             the pipe-input cast unknown-type,
             the pipe-output cast unknown-type,
-            the pipe-stage-elem a map from text to node }.
+            the pipe-stage-elem a map from text to node,
+            the recording-stash "",
+            the stash-locals a map from text to node,
+            the series-loops a map from text to fact,
+            the stash-drains a map from text to fact }.
         Cast walker's register-prelude on (prelude).
         Return walker.
     Done.

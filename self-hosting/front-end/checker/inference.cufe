@@ -91,6 +91,7 @@ Pull a book on collections.
             It is "ChannelCreation", return cast one's infer-channel-creation on (said).
             It is "DeliveryExpression", return cast one's infer-delivery on (said) or pass the failure off.
             It is "AwaitedResultExpression", return cast one's infer-awaited on (said) or pass the failure off.
+            It is "UnburyExpression", return cast one's infer-unbury on (said) or pass the failure off.
             It is "CurrentDirectoryExpression", return cast wrapped on ("VoidableType", cast plain-type on ("TextType")).
             It is "ProgramArgumentsExpression", return cast wrapped on ("SeriesType", cast plain-type on ("TextType")).
             It is "InterruptRequestedExpression", return cast plain-type on ("FactType").
