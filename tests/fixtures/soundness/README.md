@@ -38,6 +38,7 @@ theories would silently become no-ops and the suite would still pass.
 | `escape-function.cufe` | Laundered through a function that returns its own parameter |
 | `escape-getter.cufe` | Out through a computed property |
 | `escape-method.cufe` | Out through an `unto` method |
+| `escape-method-possessive.cufe` | The same method, called as `b's get-items` |
 
 **Legal — the mirror images:**
 
