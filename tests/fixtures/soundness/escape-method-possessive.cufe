@@ -1,0 +1,21 @@
+/*  EXPECTED: REJECTED at type-check, identically by both backends.
+    Region escape via a METHOD called in the POSSESSIVE form — `b's get-items` rather
+    than `get-items on (b)`. Same route as escape-method.cufe, a different spelling.
+
+    It was accepted: the possessive form reached the method through a resolved copy of
+    its type that had lost the method's return-depth signature, so what it handed back
+    was taken to be freshly made. The compiled program then read the series after the
+    rabbit's Done. had popped its region, and died with an access violation. */
+
+Define object bag with (the series of number items).
+
+Bind series of number to get-items unto bag:
+    return one's items.
+Done.
+
+Define outer as a series of number.
+Pull a rabbit.
+    Define inner as a series of number with (1, 2, 3).
+    Define b as a new bag { the items inner }.
+    outer becomes Cast b's get-items.
+Done.
