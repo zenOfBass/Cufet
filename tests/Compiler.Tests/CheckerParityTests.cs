@@ -27,7 +27,7 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
     : IClassFixture<CompiledCufetChecker>
 {
     /// <summary>How many corpus files must agree. Raised as the checker grows; never lowered.</summary>
-    private const int CorpusFloor = 110;
+    private const int CorpusFloor = 113;
 
     /// <summary>Where the bundled books' source is — the checker reads their layers with its own parser.</summary>
     private static string[] PreludeArgs =>
@@ -964,6 +964,41 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
         "Bind void to emit:\n    Output 1.\nDone.\nDefine shown as emit | emit.",
         "Pull a rabbit.\n    Define inbox as a channel of number.\n    Have rabbit start a task:\n        Send 1 through inbox.\n        Close inbox.\n    Done.\n    Define got as the delivery from inbox.\n    While got is not void, repeat:\n        State got.\n        The got becomes the delivery from inbox.\n    Done.\nDone.",
         "Pull a rabbit.\n    Have rabbit start a task as job:\n        Return 4.\n    Done.\n    Have rabbit start a task as job:\n        Return \"x\".\n    Done.\n    State the awaited result of job joined to \"!\".\nDone.",
+        // Stashes — burying and unburying, what a burying body may hold, looping over a stash, and what the machine builder cannot split.
+        "Bind number to count-up, given (the rabbit helper, the number first-value):\n    Define next as first-value.\n    Repeat:\n        Have helper bury next.\n        The next becomes next + 1.\n    Until false.\nDone.\nPull a rabbit as hopper.\n    Define counter as cast count-up on (hopper, 3).\n    State unbury counter + 1.\nDone.",
+        "Bind number to count-up, given (the rabbit helper, the number first-value):\n    Define next as first-value.\n    Repeat:\n        Have helper bury next.\n        The next becomes next + 1.\n    Until false.\nDone.\nPull a rabbit as hopper.\n    Define counter as cast count-up on (hopper, 3).\n    State (unbury counter but void is 0) + 1.\n    State counter + 1.\nDone.",
+        "Bind void to count-up, given (the rabbit helper):\n    Have helper bury 1.\nDone.",
+        "Bind number to count-up, given (the number helper):\n    Have helper bury 1.\nDone.",
+        "Bind number to count-up, given (the rabbit helper):\n    Have helper bury 1.\n    Return 2.\nDone.",
+        "Bind number to count-up, given (the rabbit helper):\n    Have helper bury \"one\".\nDone.",
+        "Define n as 3.\nState unbury n.",
+        "Bind number to count-up, given (the rabbit helper):\n    Have helper bury 1.\nDone.\nBind void to take, given (the stash of number source):\n    State (unbury source but void is 0) converted to text.\nDone.\nPull a rabbit as hopper.\n    Cast take on (cast count-up on (hopper)).\n    Cast take on (5).\nDone.",
+        "Bind number to count-up, given (the rabbit helper):\n    Try to:\n        Have helper bury 1.\n    Done.\n    In case of failure:\n        State \"no\".\n    Done.\nDone.",
+        "Bind number to count-up, given (the rabbit helper):\n    Pull a rabbit.\n        Have helper bury 1.\n    Done.\nDone.",
+        "Bind number to count-up, given (the rabbit helper, the map from text to number counts):\n    For each pair in counts, repeat:\n        Have helper bury the value of pair.\n    Done.\nDone.",
+        "Bind number to count-up, given (the rabbit helper, the series of number counts):\n    For each count in counts, repeat:\n        If count is greater than 2, stop.\n        Have helper bury count.\n    Done.\nDone.\nPull a rabbit as hopper.\n    Define s as cast count-up on (hopper, a series with (1, 2, 3)).\n    State unbury s but void is 0.\nDone.",
+        "Bind number to count-up, given (the rabbit helper, the series of number counts):\n    For each count in counts, repeat:\n        Define x as count.\n    Done.\n    For each count in counts, repeat:\n        Define x as \"a\".\n        Have helper bury count.\n    Done.\nDone.",
+        "Bind number to count-up, given (the rabbit helper, the number first-value):\n    If first-value is greater than 1:\n        Define a shadow first-value as 2.\n        Have helper bury first-value.\n    Done.\nDone.",
+        "Bind number to count-up, given (the rabbit helper, the (number or text) thing):\n    Judge thing, where it is:\n        A number, have helper bury it.\n        Otherwise, have helper bury 0.\n    Done.\nDone.",
+        "Bind number to count-up, given (the rabbit helper, the (number or text) thing):\n    Judge thing, where it is:\n        A number, have helper bury it.\n        A text, have helper bury the length of it.\n    Done.\nDone.\nPull a rabbit as hopper.\n    State unbury cast count-up on (hopper, \"abc\").\nDone.",
+        "Bind number to count-up, given (the rabbit helper, the number thing):\n    Judge thing, where it is:\n        A number, have helper bury it.\n        Otherwise, have helper bury 0.\n    Done.\nDone.",
+        "Bind number to count-up, given (the rabbit helper, the number thing):\n    Judge thing, where it is:\n        It is 1, have helper bury 10.\n        Otherwise, have helper bury 0.\n    Done.\nDone.",
+        "Bind void to show-all, given (the rabbit helper):\n    Define pick as a function given (the number n):\n        Have helper bury n.\n    Done.\nDone.",
+        "Define object counter-from with (the number first-beat):\n    Bind number to ticks, given (the rabbit helper):\n        Define next as one's first-beat.\n        Repeat:\n            Have helper bury next.\n            The next becomes next + 1.\n        Until false.\n    Done.\nDone.\nPull a rabbit as hopper.\n    Define clock as a new counter-from { the first-beat 3 }.\n    Define beats as cast clock's ticks on (hopper).\n    State (unbury beats but void is 0) joined to \"!\".\nDone.",
+        "Define object counter-from with (the number first-beat):\n    Bind void to ticks, given (the rabbit helper):\n        Have helper bury one's first-beat.\n    Done.\nDone.",
+        "Define object counter-from with (the number first-beat):\n    Bind number to ticks, given (the rabbit helper):\n        Have helper bury one's first-beat.\n        Return 1.\n    Done.\nDone.",
+        "Define object counter-from with (the number first-beat):\n    Bind number to ticks, given (the rabbit helper):\n        Define x as 1.\n        If one's first-beat is 1:\n            Define x as \"a\".\n        Done.\n        Have helper bury x.\n    Done.\nDone.",
+        "Bind number to count-up, given (the rabbit helper):\n    Have helper bury 1.\n    Have helper bury 2.\nDone.\nBind number to doubled, given (the rabbit helper, the stash of number source):\n    For each value in source, repeat:\n        Have helper bury value * 2.\n    Done.\nDone.\nPull a rabbit as hopper.\n    For each value in cast doubled on (hopper, cast count-up on (hopper)), repeat:\n        State value joined to \"!\".\n    Done.\nDone.",
+        "Bind number to count-up, given (the rabbit helper):\n    Have helper bury 1.\nDone.\nPull a rabbit as hopper.\n    For each value in cast count-up on (hopper), repeat:\n        State value + 1.\n    Done.\nDone.",
+        "Bind number to count-up, given (the rabbit helper):\n    Have helper bury 1.\nDone.\nPull a rabbit as hopper.\n    Define value as 3.\n    For each value in cast count-up on (hopper), repeat:\n        State value + 1.\n    Done.\nDone.",
+        "Bind number to count-up, given (the rabbit helper):\n    Have helper bury 1.\nDone.\nBind number to doubled, given (the rabbit helper, the stash of number source):\n    Define value as 0.\n    For each value in source, repeat:\n        Have helper bury value * 2.\n    Done.\nDone.",
+        "Bind number to count-up, given (the rabbit helper):\n    With the file \"a.txt\" open for reading as f:\n        Have helper bury 1.\n    Done.\nDone.",
+        "Bind number to count-up, given (the rabbit helper, the set of number counts):\n    For each count in counts, repeat:\n        Have helper bury count.\n    Done.\nDone.",
+        "Bind number to count-up, given (the rabbit helper):\n    Define n as 0.\n    While n is less than 3, repeat:\n        The n becomes n + 1.\n        If n is 2, skip.\n        Have helper bury n.\n    Done.\nDone.\nPull a rabbit as hopper.\n    State unbury cast count-up on (hopper).\nDone.",
+        "Bind number to count-up, given (the rabbit helper):\n    Bind number to inner, given (the rabbit other):\n        Have other bury 1.\n        Return 3.\n    Done.\n    Have helper bury 2.\nDone.",
+        "Bind number to count-up, given (the rabbit helper):\n    Define n as 1.\n    Have helper bury n.\n    Define m as n + \"a\".\nDone.",
+        "Bind number to count-up, given (the rabbit helper):\n    Pull a rabbit as hopper.\n        Have rabbit start a task:\n            State 1.\n        Done.\n    Done.\n    Have helper bury 1.\nDone.\nState 1.",
+        "Bind number to count-up, given (the rabbit helper, the series of number xs):\n    For each x in xs, repeat:\n        Try to:\n            If x is 2, stop.\n        Done.\n        In case of failure:\n            State \"no\".\n        Done.\n        Have helper bury x.\n    Done.\nDone.",
     ];
 
     [Fact]
