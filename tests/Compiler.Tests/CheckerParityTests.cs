@@ -27,7 +27,7 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
     : IClassFixture<CompiledCufetChecker>
 {
     /// <summary>How many corpus files must agree. Raised as the checker grows; never lowered.</summary>
-    private const int CorpusFloor = 127;
+    private const int CorpusFloor = 130;
 
     /// <summary>Where the bundled books' source is — the checker reads their layers with its own parser.</summary>
     private static string[] PreludeArgs =>
@@ -1069,6 +1069,19 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
         "Bind text to sign-of, given (the number n) when n is true:\n    Return \"small\".\nDone.\nBind text to sign-of, given (the number n):\n    Return \"other\".\nDone.",
         "Bind text to sign-of, given (the number n) when not (n is 0):\n    Return \"nonzero\".\nDone.\nBind text to sign-of, given (the number n):\n    Return \"other\".\nDone.",
         "Define object num-lit with (the number value).\nDefine object text-lit with (the text value).\nDefine object sum with (the number left, the number right).\nBind text to describe, given (the num-lit node):\n    Return \"number\".\nDone.\nBind text to describe, given (the text-lit node):\n    Return \"text\".\nDone.\nBind text to describe, given (the sum node):\n    Return \"sum\".\nDone.\nDefine nodes as a series of (num-lit or text-lit) with (a new num-lit { the value 1 }).\nFor each one-node in nodes, repeat:\n    State cast describe on (one-node) joined to \"!\".\nDone.",
+        // The blueprints book's records — 'step' and 'pin' inside its pull, and their names outside it.
+        "Pull a book on blueprints.\n    Bind series of step to blueprint:\n        Return a series of step with (\n            a record with (the name \"x\", the needs a series of text, the makes a series of text, the runs a series of text)).\n    Done.\nDone.",
+        "Pull a book on blueprints.\n    Bind series of step to blueprint:\n        Return a series of step with (\n            a record with (the name \"x\", the needs a series of text, the makes a series of text)).\n    Done.\nDone.",
+        "Pull a book on blueprints.\n    Bind series of step to blueprint:\n        Return a series of step with (\n            a record with (the name 3, the needs a series of text, the makes a series of text, the runs a series of text)).\n    Done.\nDone.",
+        "Bind series of step to blueprint:\n    Return a series of text.\nDone.",
+        "Define the step s as 3.",
+        "Pull a book on blueprints.\n    Define the step one-step as a record with (the name \"x\", the needs a series of text, the makes a series of text, the runs a series of text).\n    State one-step's name joined to \"!\".\n    State one-step's needs + 1.\nDone.",
+        "Pull a book on blueprints.\n    Define the pin one-pin as a record with (the name \"x\", the source \"y\", the commit \"z\").\n    State one-pin's commit joined to \"!\".\n    State one-pin's commit + 1.\nDone.",
+        "Pull a book on blueprints.\n    Define the pin one-pin as a record with (the name \"x\", the source \"y\").\nDone.",
+        "Pull a book on blueprints.\n    Bind text to step-name, given (the step one-step):\n        Return one-step's name.\n    Done.\n    State cast step-name on (a record with (the name \"x\", the needs a series of text, the makes a series of text, the runs a series of text)) joined to \"!\".\n    State cast step-name on (3).\nDone.",
+        "Pull a book on blueprints.\n    Bind series of pin to pins:\n        Return a series of pin with (a record with (the name \"x\", the source \"y\", the commit \"z\")).\n    Done.\n    Define all-pins as cast pins.\n    State the number of all-pins + \"a\".\nDone.",
+        "Pull a book on blueprints.\n    State step.\nDone.",
+        "State step.",
     ];
 
     [Fact]
