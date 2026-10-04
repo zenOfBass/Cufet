@@ -457,12 +457,13 @@ public class DirectoryNamespaceTests : IDisposable
         """;
 
     [Fact]
-    public void AFoldedFolder_IsPartOfTheNamespaceAboveIt()
+    public void AFolder_SeesTheFoldersAboveIt()
     {
-        // ★ The case the checker written in Cufet needs: a type and a function shared across
-        // subfolders by their plain names — no qualifier, and no cross-folder type to need one.
-        Write("front-end/parser", "shapes", TwoKinds);
+        // ★ The case the checker written in Cufet needs: a type and a function shared from the
+        // namespace's own folder, reached by their plain names from a folder folded beneath it.
+        Write("front-end", "shapes", TwoKinds);
         Write("front-end", "tree", Helper);
+        Write("front-end/parser", "parse", "Bind number to unused:\n    Return 0.\nDone.\n");
         var main = Write("front-end/checker", "main", """
             Define spot as cast origin.
             Bind number to across-of, given (the point which):
@@ -475,12 +476,108 @@ public class DirectoryNamespaceTests : IDisposable
     }
 
     [Fact]
-    public void AFoldedNamespace_IsReachedByTheFolderItWasFoldedInto()
+    public void ASiblingFolder_IsNotSeenUnqualified()
+    {
+        // ★★ Every name written bare is found by walking UP the tree — never sideways.
+        Write("front-end/parser", "helper", Helper);
+        var main = Write("front-end/checker", "main", UsesHelper);
+        DrawTree("front-end\n    parser\n    checker");
+        Assert.Contains("'doubled' isn't defined", Refuses(main).Message);
+    }
+
+    [Fact]
+    public void ASiblingFolder_IsReachedByQualifyingIt()
     {
         Write("front-end/parser", "helper", Helper);
+        var main = Write("front-end/checker", "main", """State "{cast parser's doubled on (21)}".""");
+        DrawTree("front-end\n    parser\n    checker");
+        Assert.Equal("42", Run(main));
+    }
+
+    [Fact]
+    public void SiblingFolders_MayShareAName()
+    {
+        // Each sees its own; the other is reached by qualifying — so neither collides.
+        Write("front-end/parser", "helper", Helper);
+        Write("front-end/checker", "helper", """
+            Bind number to doubled, given (the number n):
+                Return n + n + 1.
+            Done.
+            """);
+        var main = Write("front-end/checker", "main", """
+            State "{cast doubled on (20)} {cast parser's doubled on (21)}".
+            """);
+        DrawTree("front-end\n    parser\n    checker");
+        Assert.Equal("41 42", Run(main));
+    }
+
+    [Fact]
+    public void ALocal_MayShareASiblingFoldersFunctionName()
+    {
+        // ★ The collision this rule was built to end: a sibling's function is not a name this file
+        // sees bare, so a local may take it.
+        Write("front-end/parser", "helper", Helper);
+        var main = Write("front-end/checker", "main", """
+            Define doubled as cast parser's doubled on (21).
+            State "{doubled}".
+            """);
+        DrawTree("front-end\n    parser\n    checker");
+        Assert.Equal("42", Run(main));
+    }
+
+    [Fact]
+    public void ASiblingFolder_WithAMethodUntoItsOwnType_IsReachedByQualifying()
+    {
+        // ⚠ A qualified sibling comes in under a rename, and a method written `unto` its type names
+        // that type by a STRING — which has to follow the rename, or the method is aimed at nothing.
+        // Measured on the parser folder, whose methods are `unto parser`.
+        Write("front-end/parser", "box", """
+            Define object box with (the number held).
+            Bind number to twice unto box:
+                Return one's held * 2.
+            Done.
+            Bind number to answer:
+                Define made as a new box { the held 21 }.
+                Return cast made's twice.
+            Done.
+            """);
+        var main = Write("front-end/checker", "main", """State "{cast parser's answer}".""");
+        DrawTree("front-end\n    parser\n    checker");
+        Assert.Equal("42", Run(main));
+    }
+
+    [Fact]
+    public void AFolder_AndOneAboveIt_DeclaringOneName_AreRefused()
+    {
+        // The nearer would win silently — the shadowing rule's reason, one level up.
+        Write("front-end", "one", Helper);
+        Write("front-end/checker", "two", Helper);
+        var main = Write("front-end/checker", "main", UsesHelper);
+        DrawTree("front-end\n    checker");
+        var refusal = Refuses(main);
+        Assert.Contains("'doubled' is declared in", refusal.Message);
+        Assert.Contains("above it", refusal.Message);
+    }
+
+    [Fact]
+    public void AFoldedNamespace_IsReachedFromOutsideByItsOwnFolder()
+    {
+        Write("front-end", "helper", Helper);
+        Write("front-end/parser", "parse", "Bind number to unused:\n    Return 0.\nDone.\n");
         var main = Write("game", "main", """State "{cast front-end's doubled on (21)}".""");
         DrawTree("front-end\n    parser\ngame");
         Assert.Equal("42", Run(main));
+    }
+
+    [Fact]
+    public void AFoldedFolder_IsNotReachedFromOutsideThroughItsNamespace()
+    {
+        // ⚠ From outside, a namespace offers its own folder's names — a folded folder's are its own.
+        Write("front-end/parser", "helper", Helper);
+        Write("front-end", "tree", "Bind number to unused:\n    Return 0.\nDone.\n");
+        var main = Write("game", "main", """State "{cast front-end's doubled on (21)}".""");
+        DrawTree("front-end\n    parser\ngame");
+        Assert.Contains("the directory 'front-end' declares nothing called 'doubled'", Refuses(main).Message);
     }
 
     [Fact]
@@ -490,18 +587,6 @@ public class DirectoryNamespaceTests : IDisposable
         var main = Write("game", "main", UsesHelper);
         DrawTree("tools\ngame");
         Assert.Contains("'doubled' isn't defined", Refuses(main).Message);
-    }
-
-    [Fact]
-    public void TwoFoldedFolders_DeclaringOneName_AreRefused()
-    {
-        Write("front-end/parser", "one", Helper);
-        Write("front-end/checker", "two", Helper);
-        var main = Write("front-end", "main", UsesHelper);
-        DrawTree("front-end\n    parser\n    checker");
-        var refusal = Refuses(main);
-        Assert.Contains("'doubled' is declared in two files of one namespace", refusal.Message);
-        Assert.Contains("draw one of the two folders at the left edge", refusal.Message);
     }
 
     [Theory]
