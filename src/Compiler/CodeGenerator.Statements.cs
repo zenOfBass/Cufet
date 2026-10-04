@@ -2824,6 +2824,48 @@ public sealed partial class CodeGenerator
 
     // Object member READ: getter dispatch, own field, embed handle, or a promoted field
     // reached by walking the embed chain — all resolved statically.
+    /// <summary>
+    /// An object a method or getter is called on, as something C can take the address of.
+    /// </summary>
+    /// <remarks>
+    /// ★ A method and a getter take their object BY ADDRESS, and the sites calling them wrote
+    /// <c>&amp;(…)</c> around whatever the receiver expression was. A variable, a stored field of
+    /// one, or a series element is addressable; the result of a call is not, and
+    /// <c>Cast (cast fresh-box)'s push on (3).</c> — which checks clean and runs interpreted —
+    /// emitted <c>cm_box_push(&amp;((cv_fresh_box())), …)</c>, which gcc refuses.
+    ///
+    /// ★ Anything else is copied into a one-element array literal, <c>((cd_box[]){ … })[0]</c>:
+    /// standard C, an lvalue, and alive until the end of the enclosing block — so the call can be
+    /// handed its address. What the method changes in that copy is unseen, which is right: nobody
+    /// held the value it was called on.
+    /// </remarks>
+    private string AddressableReceiver(IExpression receiver)
+    {
+        var emitted = EmitExpr(receiver);
+        return IsAddressable(receiver)
+            ? emitted
+            : $"(({EmitCType(TypeOf(receiver)!)}[]){{ {emitted} }})[0]";
+    }
+
+    /// <summary>Whether the C an expression emits names storage, rather than computing a value.</summary>
+    private bool IsAddressable(IExpression expr) => expr switch
+    {
+        VariableReference   => true,
+        // A series element is `->data[…]`; a record's positional is a member of its record.
+        SeriesAccess sa     => TypeOf(sa.Target) is SeriesType || IsAddressable(sa.Target),
+        PossessiveAccess pa => IsStoredMember(pa.Target, pa.Member) && IsAddressable(pa.Target),
+        RecordNamedAccess r => IsStoredMember(r.Record, r.FieldName) && IsAddressable(r.Record),
+        _                   => false,
+    };
+
+    /// <summary>A member read straight out of storage — a field, not a getter that computes it.</summary>
+    private bool IsStoredMember(IExpression target, string member) => TypeOf(target) switch
+    {
+        ObjectType ot => GetterFor(ot.Name, member) is null,
+        RecordType    => true,
+        _             => false,
+    };
+
     private string EmitMemberAccess(IExpression target, string member)
     {
         // `<book>'s <member>` — the book's Cufet layer answers first (a getter on the layer
@@ -2842,7 +2884,8 @@ public sealed partial class CodeGenerator
             TextType          => $"cufet_dec_from_ll((long long)cufet_u8_len({EmitExpr(target)}))",
             // the size of <map>
             MapType           => $"cufet_dec_from_ll(({EmitExpr(target)})->len)",
-            ObjectType ot     => EmitObjectMemberRead(EmitExpr(target), ot.Name, member),
+            // A getter takes its object by address — see AddressableReceiver.
+            ObjectType ot     => EmitObjectMemberRead(AddressableReceiver(target), ot.Name, member),
             // the message of the exception → the saved fault message (arena text).
             ExceptionMarkerType => _currentExcVar ?? throw new CompilerException("'the exception' is only available inside an 'In case of exception' handler."),
         MappingType       => $"{EmitExpr(target)}_{member}",   // the key/value of pair → cv_pair_key/_value

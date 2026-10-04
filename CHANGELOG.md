@@ -47,19 +47,19 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   and two interfaces supplying one default. A sweep of 7,637 such programs agreed on every one.
 - **The type checker, begun in Cufet** — `self-hosting/front-end/checker/checker.cufe`, the third
   piece. It says of each file what `TypeChecker.Check` says — accepted, or refused in the same words
-  — and `CheckerParityTests` holds it to that on 914 hand-written programs and on the corpus. It
+  — and `CheckerParityTests` holds it to that on 950 hand-written programs and on the corpus. It
   judges names and scopes, `Define` and `becomes`, operators, text and its operations, bit patterns,
   series, ranges, sorting, records, maps, sets, chases, matrices, the `chance` book, voidables,
-  unions and narrowing, `Judge`, `when … otherwise`, functions with named arguments and blanks,
-  lambdas and function values, objects with their fields, defaults and blanks, methods, getters and
-  setters, makers and unmakers, operator overloads, `unto` members and embedding, interfaces and
-  conformance, modules and the types they carry, books, regions, tasks, channels and stashes — the
-  bundled books read with its own parser — the rule that keeps a region's values inside it, failures
-  — `Try`, `but on failure` and `or pass the failure off` — and input and output: files,
-  directories, streams, running programs and piping them, and pipes of functions, and axioms: regex
-  patterns, c-language source at its boundary, and cufet blocks placed by `Cite`. Anything it cannot
-  judge yet it says so about, rather than accepting: 125 corpus files so far, the rest waiting on
-  the rarer constructs.
+  unions and narrowing, `Judge`, `when … otherwise`, versions of one name told apart by type or by a
+  `when`, functions with named arguments and blanks, lambdas and function values, objects with their
+  fields, defaults and blanks, methods, getters and setters, makers and unmakers, operator
+  overloads, `unto` members and embedding, interfaces and conformance, modules and the types they
+  carry, books and the blueprints book's records, regions, tasks, channels and stashes — the bundled
+  books read with its own parser — the rule that keeps a region's values inside it, failures —
+  `Try`, `but on failure` and `or pass the failure off` — and input and output: files, directories,
+  streams, running programs and piping them, and pipes of functions, and axioms: regex patterns,
+  c-language source at its boundary, and cufet blocks placed by `Cite`. Anything it cannot judge yet
+  it says so about, rather than accepting — and it judges every one of the 130 corpus files.
 
 ### Changed
 
@@ -75,6 +75,12 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **A method or getter called on what a call hands back builds.** `Cast (cast fresh-box)'s push on
+  (3).` checked clean and ran interpreted, and the build failed in gcc with "lvalue required as
+  unary '&' operand": both take their object by address, and C cannot take the address of a
+  function's result. Such an object is now copied into a temporary first; one that is held is still
+  the one the method changes. Found by the Cufet checker, whose dispatch rewrite adds to a node it
+  has just looked up.
 - **A refusal in a neighbouring file names that file** when a program is run or built. `cufet
   main.cufe` refusing a line of `helper.cufe` printed "Here on line 2" and nothing else, which
   points into the file that was run; it now opens `In helper.cufe:`. `cufet check` always named it.

@@ -768,7 +768,7 @@ public sealed partial class CodeGenerator
             if (args.Count > 0 && TypeOf(args[0]) is ObjectType ot)
             {
                 var (owner, suffix) = ResolveMethodLevel(ot.Name, vr.Name);
-                string recv = $"&(({EmitExpr(args[0])}){suffix})";
+                string recv = $"&(({AddressableReceiver(args[0])}){suffix})";
                 if (_ifaceMethods.TryGetValue((owner, vr.Name), out var ifm))
                     return EmitSpecializedCall(ifm, owner, args.Skip(1).ToList(), recv);
                 var call = new[] { recv }.Concat(args.Skip(1).Select(EmitExpr));
@@ -817,7 +817,7 @@ public sealed partial class CodeGenerator
         if (funcExpr is PossessiveAccess pa && TypeOf(pa.Target) is ObjectType pot)   // alice's greet
         {
             var (owner, suffix) = ResolveMethodLevel(pot.Name, pa.Member);
-            string recv = $"&(({EmitExpr(pa.Target)}){suffix})";
+            string recv = $"&(({AddressableReceiver(pa.Target)}){suffix})";
             if (_ifaceMethods.TryGetValue((owner, pa.Member), out var ifpm))
                 return EmitSpecializedCall(ifpm, owner, args, recv);
             var call = new[] { recv }.Concat(args.Select(EmitExpr));

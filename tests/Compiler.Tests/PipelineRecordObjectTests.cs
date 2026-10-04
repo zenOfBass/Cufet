@@ -284,6 +284,46 @@ public class PipelineRecordObjectTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
+    /// <summary>
+    /// A method or a getter called on what a call hands back — not on anything held.
+    /// </summary>
+    /// <remarks>
+    /// Both take their object by address, and C cannot take the address of a function's result:
+    /// `Cast (cast fresh-box)'s push on (3).` checked clean and ran interpreted, and the build
+    /// failed in gcc with "lvalue required as unary '&amp;' operand". Found by the Cufet checker,
+    /// whose dispatch rewrite adds to a node it has just looked up. The last three lines are the
+    /// other half: a HELD object is still the one the method changes.
+    /// </remarks>
+    [Fact]
+    public void AMethodOrGetter_OnWhatACallHandsBack_Compiles()
+    {
+        const string src = """
+            Define object box with (the series of number items, the number count).
+            Bind void to push unto box, given (the number n):
+                Insert n into one's items.
+                The one's count becomes one's count + 1.
+            Done.
+            Bind number to tally unto box:
+                Return the number of one's items.
+            Done.
+            Get doubled unto box as number:
+                Return one's count * 2.
+            Done.
+            Bind box to fresh-box:
+                Return a new box { the items a series with (7), the count 5 }.
+            Done.
+            Cast (cast fresh-box)'s push on (3).
+            State cast (cast fresh-box)'s tally.
+            State (cast fresh-box)'s doubled.
+            Define kept as cast fresh-box.
+            Cast kept's push on (4).
+            State kept's count.
+            State kept's doubled.
+            """;
+        Assert.Equal("1\n10\n6\n12\n", InterpretRaw(src).ReplaceLineEndings("\n"));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
     [Fact]
     public void Record_PositionalAccess_MatchesInterpreter()
     {
