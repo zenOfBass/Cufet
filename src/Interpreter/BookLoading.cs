@@ -265,23 +265,46 @@ public static class BookLoading
         var tree = ProjectTree.Read(root, map);
         var namespaceFolder = tree?.NamespaceOf(directory) ?? directory;
 
-        // ── Its own directory: one flat scope, nothing renamed ───────────────
+        // ── Its own folder, and each folder above it in its namespace ────────
+        //
+        // ★★ A FOLDED FOLDER IS ITS OWN SET OF NAMES, and sees the folders above it. A file reaches
+        // unqualified what its own folder declares and what every folder above it declares — up to
+        // the namespace's folder — and never a sibling's: one of those is reached by QUALIFYING it,
+        // `parser's made`, the same possessive that crosses into another namespace. So every name a
+        // file writes bare can be found by walking UP the tree from where the file sits.
+        //
+        // ⚠ One claim table along the chain, so a name declared in a folder AND in one above it is
+        // refused — the nearer would otherwise win silently, and the language makes even a local
+        // say `a shadow` to hide an outer name. Siblings may repeat a name freely.
         //
         // The file being checked claims its own names first, so a collision is always reported
         // against the file a person is actually looking at.
+        var ownChain = FolderChain(directory, namespaceFolder);
         var claimed = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var (name, _, _) in TopLevelNames(statements)) claimed[name] = self;
 
-        var here = GatheredNamespace(namespaceFolder, tree, map, self, claimed);
+        var here = new List<IStatement>();
+        foreach (var folder in ownChain) here.AddRange(Gathered(folder, map, self, claimed));
 
-        // ── The directories this program QUALIFIES, and the ones they do ─────
+        // ── The folders and directories this program QUALIFIES, and the ones they do ───
         //
         // ★ Loaded ON DEMAND rather than wholesale, the same way a pull is: a project may hold a
         // hundred directories, and a program naming none of them must pay for none of them. The
-        // loop runs to a fixpoint because a loaded namespace may qualify a third.
+        // loop runs to a fixpoint because a loaded one may qualify a third.
+        //
+        // Two kinds of qualifier: another NAMESPACE of the project, reaching its folder's names, and
+        // a FOLDER of this namespace off this file's chain — a sibling, or one beneath — reaching
+        // that folder's.
         var everyNamespace = Namespaces(root, tree);
-        var loaded = new Dictionary<string, IReadOnlyList<IStatement>>(StringComparer.OrdinalIgnoreCase);
         var ownName = Path.GetFileName(namespaceFolder);
+        var folders = OtherFolders(tree, namespaceFolder, ownChain);
+
+        var loaded = new Dictionary<string, IReadOnlyList<IStatement>>(StringComparer.OrdinalIgnoreCase);
+        var reach = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
+        // Folders of this namespace loaded under their own rename, by full path: their statements,
+        // and what each of their names became.
+        var renamedFolders = new Dictionary<string, (IReadOnlyList<IStatement> Statements, Dictionary<string, string> Names)>(
+            StringComparer.OrdinalIgnoreCase);
 
         var frontier = new List<IReadOnlyList<IStatement>> { statements, here };
         while (frontier.Count > 0)
@@ -289,16 +312,18 @@ public static class BookLoading
             var wanted = new SortedDictionary<string, (int Line, int Column)>(StringComparer.Ordinal);
             foreach (var group in frontier)
                 foreach (var (name, line, column) in Qualifiers(group))
-                    if (!loaded.ContainsKey(name)
-                        && !name.Equals(ownName, StringComparison.OrdinalIgnoreCase)
-                        && everyNamespace.ContainsKey(name)
+                    if (!reach.ContainsKey(name)
+                        && !ownChain.Any(f => Path.GetFileName(f).Equals(name, StringComparison.OrdinalIgnoreCase))
+                        && (everyNamespace.ContainsKey(name) || folders.ContainsKey(name))
                         && !wanted.ContainsKey(name))
                         wanted[name] = (line, column);
 
             frontier = [];
             foreach (var (name, at) in wanted)
             {
-                var directories = everyNamespace[name];
+                var directories = new List<string>();
+                if (everyNamespace.TryGetValue(name, out var namespaces)) directories.AddRange(namespaces);
+                if (folders.TryGetValue(name, out var inHere)) directories.AddRange(inHere);
 
                 // ⚠ Refused HERE rather than where the duplicate was found, so an unused clash
                 // breaks nobody and the message has a line to point at.
@@ -306,22 +331,51 @@ public static class BookLoading
                     throw TypeChecker.TypeError(
                         $"two directories of this project are both named '{name}'",
                         $"They are {string.Join(" and ", directories.Select(d => $"'{d}'"))}, and "
-                      + "a directory is a namespace named after itself — so this qualification "
-                      + "would have two meanings",
+                      + "a directory is reached by its name — so this qualification would have two "
+                      + "meanings",
                         at.Line, at.Column,
                         $"qualify with '{name}'",
                         "Rename one of them. A qualifier reaches one directory, and which one has "
                       + "to be decidable from the name alone.");
 
-                var gathered = GatheredNamespace(
-                    directories[0], tree, map, skipFile: null,
+                if (inHere is not null)
+                {
+                    // A folder of this namespace: it, and each folder above it that is not on this
+                    // file's chain, under their own renames — so a sibling may repeat any name.
+                    foreach (var folder in FolderChain(inHere[0], namespaceFolder)
+                                 .TakeWhile(f => !ownChain.Contains(f, StringComparer.OrdinalIgnoreCase)))
+                        if (!renamedFolders.ContainsKey(folder))
+                        {
+                            var gathered = Gathered(folder, map, skipFile: null,
+                                claimed: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
+                            var names = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                            foreach (var (member, _, _) in TopLevelNames(gathered))
+                                names[member] = ModuleTypeLifting.LiftedName(FolderTag(root, folder), member);
+                            renamedFolders[folder] = (gathered, names);
+                            frontier.Add(gathered);
+                        }
+                    reach[name] = renamedFolders[inHere[0]].Names;
+                    continue;
+                }
+
+                // Another namespace: reached by its own folder's names.
+                var other = Gathered(directories[0], map, skipFile: null,
                     claimed: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
-                loaded[name] = gathered;
-                frontier.Add(gathered);
+                loaded[name] = other;
+                var members = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var (member, _, _) in TopLevelNames(other))
+                    members[member] = ModuleTypeLifting.LiftedName(name, member);
+                reach[name] = members;
+                frontier.Add(other);
             }
         }
 
-        if (loaded.Count == 0)
+        // A name a renamed folder declares that a folder above it declares too — the same refusal
+        // the chain makes, for a sibling's chain.
+        foreach (var folder in renamedFolders.Keys)
+            RefuseANameAbove(folder, namespaceFolder, renamedFolders, claimed);
+
+        if (reach.Count == 0)
         {
             if (here.Count == 0) return statements;
             var only = new List<IStatement>(here);
@@ -329,23 +383,22 @@ public static class BookLoading
             return only;
         }
 
-        // ── The rename, and the qualifications that now point at it ──────────
+        // ── The renames, and the qualifications that now point at them ───────
         //
-        // ⚠⚠ ONE MAP FOR ALL OF THEM, built before anything is rewritten. Two namespaces may
-        // qualify each other, and rewriting one at a time would leave whichever went first
-        // pointing at short names the second had already renamed away.
-        var reach = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
-        foreach (var (name, gathered) in loaded)
+        // ⚠⚠ ONE MAP FOR ALL OF THEM, built before anything is rewritten. Two may qualify each
+        // other, and rewriting one at a time would leave whichever went first pointing at short
+        // names the second had already renamed away.
+        var qualifiers = new Dictionary<string, IReadOnlyList<string>>(everyNamespace, StringComparer.OrdinalIgnoreCase);
+        foreach (var (name, paths) in folders) qualifiers.TryAdd(name, paths);
+        // ⚠ Each group is exempt for ITS OWN name, never another's: inside a folder its name is no
+        // qualifier, so the parser folder may declare an object called `parser`.
+        var groups = loaded.Select(entry => (Name: entry.Key, Statements: entry.Value))
+            .Concat(renamedFolders.Select(entry => (Name: Path.GetFileName(entry.Key), entry.Value.Statements)))
+            .Append((Name: ownName, Statements: here))
+            .Append((Name: ownName, Statements: statements));
+        foreach (var (groupName, group) in groups)
         {
-            var members = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var (member, _, _) in TopLevelNames(gathered))
-                members[member] = ModuleTypeLifting.LiftedName(name, member);
-            reach[name] = members;
-        }
-
-        foreach (var group in loaded.Values.Append(here).Append(statements))
-        {
-            RefuseAShadowedNamespace(group, everyNamespace, ownName);
+            RefuseAShadowedNamespace(group, qualifiers, groupName);
             RefuseAMemberTheDirectoryHasNot(group, reach);
         }
 
@@ -353,10 +406,88 @@ public static class BookLoading
         foreach (var (name, gathered) in loaded.OrderBy(entry => entry.Key, StringComparer.Ordinal))
             brought.AddRange(MakePrivate(Qualify(gathered, reach), name, exemptModules: false));
 
+        foreach (var (folder, (gathered, _)) in renamedFolders.OrderBy(entry => entry.Key, StringComparer.Ordinal))
+        {
+            // Its references to renamed folders above it follow those renames.
+            var above = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var up in FolderChain(folder, namespaceFolder).Skip(1))
+                if (renamedFolders.TryGetValue(up, out var upper))
+                    foreach (var (from, to) in upper.Names) above.TryAdd(from, to);
+            brought.AddRange(MakePrivate(Qualify(gathered, reach), FolderTag(root, folder),
+                                         exemptModules: false, alsoRenamed: above));
+        }
+
         brought.AddRange(Qualify(here, reach));
         brought.AddRange(Qualify(statements, reach));
         return brought;
     }
+
+    /// <summary>A folder and each folder above it, up to and including its namespace's folder.</summary>
+    private static List<string> FolderChain(string directory, string namespaceFolder)
+    {
+        var chain = new List<string>();
+        var top = Path.GetFullPath(namespaceFolder).TrimEnd(Path.DirectorySeparatorChar);
+        var at = Path.GetFullPath(directory).TrimEnd(Path.DirectorySeparatorChar);
+        while (true)
+        {
+            chain.Add(at);
+            if (string.Equals(at, top, StringComparison.OrdinalIgnoreCase)) return chain;
+            var up = Path.GetDirectoryName(at);
+            if (up is null) return chain;
+            at = up.TrimEnd(Path.DirectorySeparatorChar);
+        }
+    }
+
+    /// <summary>The folders of a namespace off this file's chain, keyed by the name that qualifies them.</summary>
+    private static Dictionary<string, IReadOnlyList<string>> OtherFolders(
+        ProjectTree? tree, string namespaceFolder, List<string> ownChain)
+    {
+        var found = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        if (tree is not null)
+            foreach (var folder in tree.Folders(namespaceFolder))
+            {
+                if (ownChain.Contains(folder, StringComparer.OrdinalIgnoreCase)) continue;
+                var name = Path.GetFileName(folder);
+                if (!found.TryGetValue(name, out var already)) found[name] = already = [];
+                already.Add(folder);
+            }
+        return found.ToDictionary(entry => entry.Key, entry => (IReadOnlyList<string>)entry.Value,
+                                  StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>What a folder's names are renamed after — its path from the project root.</summary>
+    private static string FolderTag(string root, string folder) =>
+        Path.GetRelativePath(root, folder).Replace(Path.DirectorySeparatorChar, '/');
+
+    /// <summary>Refuses a name a renamed folder declares that a folder above it declares as well.</summary>
+    private static void RefuseANameAbove(
+        string folder, string namespaceFolder,
+        Dictionary<string, (IReadOnlyList<IStatement> Statements, Dictionary<string, string> Names)> renamedFolders,
+        Dictionary<string, string> claimed)
+    {
+        var (statements, _) = renamedFolders[folder];
+        foreach (var (name, line, column) in TopLevelNames(statements))
+            foreach (var up in FolderChain(folder, namespaceFolder).Skip(1))
+            {
+                bool above = renamedFolders.TryGetValue(up, out var upper)
+                    ? upper.Names.ContainsKey(name)
+                    : claimed.TryGetValue(name, out var file)
+                      && string.Equals(Path.GetDirectoryName(file), up, StringComparison.OrdinalIgnoreCase);
+                if (above)
+                    throw NameAbove(name, folder, up, line, column);
+            }
+    }
+
+    /// <summary>The refusal for a folder declaring a name a folder above it already has.</summary>
+    private static TypeException NameAbove(string name, string folder, string up, int line, int column) =>
+        TypeChecker.TypeError(
+            $"'{name}' is declared in '{Path.GetFileName(folder)}' and in '{Path.GetFileName(up)}' above it",
+            $"A folder sees every name the folders above it declare, so '{Path.GetFileName(folder)}' "
+          + "would have two meanings for it, and the nearer would win without a word",
+            line, column,
+            $"declare '{name}' in '{Path.GetFileName(folder)}' as well",
+            "Rename one of them. Folders beside each other may share a name; a folder and one above "
+          + "it may not.");
 
     /// <summary>Refuses a declaration that takes a name a directory of this project already has.</summary>
     /// <remarks>
@@ -560,22 +691,6 @@ public static class BookLoading
         }
     }
 
-    /// <summary>The statements a NAMESPACE contributes: its folder's, then each folded folder's.</summary>
-    /// <remarks>
-    /// One claim table across all of them, so two files in two folded folders declaring one name is
-    /// the same refusal as two files in one folder — they ARE one namespace.
-    /// </remarks>
-    private static IReadOnlyList<IStatement> GatheredNamespace(
-        string namespaceFolder, ProjectTree? tree, SourceMap map, string? skipFile,
-        Dictionary<string, string> claimed)
-    {
-        if (tree is null) return Gathered(namespaceFolder, map, skipFile, claimed);
-        var all = new List<IStatement>();
-        foreach (var folder in tree.Folders(namespaceFolder))
-            all.AddRange(Gathered(folder, map, skipFile, claimed));
-        return all;
-    }
-
     /// <summary>The statements a directory contributes, as one group, before they are renamed.</summary>
     private static IReadOnlyList<IStatement> Gathered(
         string directory, SourceMap map, string? skipFile, Dictionary<string, string> claimed)
@@ -605,19 +720,13 @@ public static class BookLoading
                 if (!claimed.TryGetValue(name, out var already))
                 { claimed[name] = path; continue; }
 
+                // ⚠ A folder and one above it on this file's chain: the nearer would win silently.
+                if (!string.Equals(Path.GetDirectoryName(already), Path.GetDirectoryName(path),
+                                   StringComparison.OrdinalIgnoreCase))
+                    throw NameAbove(name, Path.GetDirectoryName(already)!, Path.GetDirectoryName(path)!, line, column);
+
                 throw TypeChecker.TypeError(
-                    // ⚠ Two FOLDERS folded into one namespace by the tree: say so, and where the fix is.
-                    !string.Equals(Path.GetDirectoryName(already), Path.GetDirectoryName(path),
-                                   StringComparison.OrdinalIgnoreCase)
-                        ? throw TypeChecker.TypeError(
-                            $"'{name}' is declared in two files of one namespace",
-                            $"'{Path.GetFileName(Path.GetDirectoryName(already))}/{Path.GetFileName(already)}' "
-                          + "declares it too, and the project's tree folds their folders into one namespace",
-                            line, column,
-                            $"declare '{name}' in '{Path.GetFileName(Path.GetDirectoryName(path))}/{Path.GetFileName(path)}' as well",
-                            "Rename one of them, or draw one of the two folders at the left edge of the "
-                          + "tree, so it is a namespace of its own.")
-                        : $"'{name}' is declared in two files of one directory",
+                    $"'{name}' is declared in two files of one directory",
                     $"'{Path.GetFileName(already)}' declares it too, and a directory is one "
                   + "namespace — its files share a single set of names, with nothing between them "
                   + "to keep two apart",
@@ -969,7 +1078,8 @@ public static class BookLoading
     /// make two directories able to collide.
     /// </param>
     internal static IReadOnlyList<IStatement> MakePrivate(
-        IReadOnlyList<IStatement> statements, string bookName, bool exemptModules = true)
+        IReadOnlyList<IStatement> statements, string bookName, bool exemptModules = true,
+        IReadOnlyDictionary<string, string>? alsoRenamed = null)
     {
         // What the host is meant to see: the modules. Everything else the file declares at its
         // top level is its own.
@@ -1014,6 +1124,12 @@ public static class BookLoading
             // A space keeps it unwritable, and naming the book keeps two books’ helpers apart.
             if (name is not null) hidden[name] = $"{name} in {bookName}";
         }
+        // ★ Names declared ELSEWHERE that are renamed too — a folder above a sibling, loaded under
+        // its own rename. References to them follow; nothing here declares them, so the renaming
+        // of declarations below never touches one.
+        if (alsoRenamed is not null)
+            foreach (var (from, to) in alsoRenamed)
+                hidden.TryAdd(from, to);
         if (hidden.Count == 0) return statements;
 
         // Types first — AstSearch deliberately does not descend into a CufetType, so the two
@@ -1062,7 +1178,20 @@ public static class BookLoading
                     Name = hidden.TryGetValue(o.Name, out var to) ? to : o.Name,
                     ConformedInterfaces = [.. o.ConformedInterfaces.Select(
                         name => hidden.TryGetValue(name, out var ito) ? ito : name)],
+                    EmbeddedTypeName = o.EmbeddedTypeName is { } embedded && hidden.TryGetValue(embedded, out var eto)
+                        ? eto : o.EmbeddedTypeName,
                 },
+                // ⚠ The same for a member written `unto` a renamed type, and a maker of one: the target
+                // is a STRING too, so a method stayed aimed at a name nothing declared any more —
+                // measured when a folder's `Bind … unto parser` met its own renamed `parser` object.
+                BindStatement b when b.UntoType is { } target && hidden.TryGetValue(target, out var uto)
+                    => b with { UntoType = uto },
+                BindStatement b when b.ConstructsTypeName is { } made && hidden.TryGetValue(made, out var mto)
+                    => b with { Name = hidden.TryGetValue(b.Name, out var bto) ? bto : b.Name, ConstructsTypeName = mto },
+                GetterDeclaration g when g.UntoType is { } gt && hidden.TryGetValue(gt, out var gto)
+                    => g with { UntoType = gto },
+                SetterDeclaration st when st.UntoType is { } sut && hidden.TryGetValue(sut, out var sto)
+                    => st with { UntoType = sto },
                 BindStatement b when hidden.TryGetValue(b.Name, out var to) => b with { Name = to },
                 DefineStatement d when hidden.TryGetValue(d.Name, out var to) => d with { Name = to },
                 InterfaceDefinition i when hidden.TryGetValue(i.Name, out var to) => i with { Name = to },

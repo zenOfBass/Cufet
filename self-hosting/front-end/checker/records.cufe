@@ -179,23 +179,6 @@ Pull a book on collections.
         Done.
     Done.
 
-    /// How a record type is written in a message: `record (number, make: text)`.
-    Bind text to record-words, given (the node shape):
-        Define listing as a chase.
-        Define first-one as true.
-        For each positional in (cast field-of on (shape, 1))'s children, repeat:
-            If first-one is false, insert ", " into listing.
-            The first-one becomes false.
-            Insert cast type-words on (positional) into listing.
-        Done.
-        For each pair in (cast field-of on (shape, 2))'s children, repeat:
-            If first-one is false, insert ", " into listing.
-            The first-one becomes false.
-            Insert "{cast unquoted on (item 1 of pair's children)}: {cast type-words on (item 2 of pair's children)}" into listing.
-        Done.
-        Return "record ({listing converted to text})".
-    Done.
-
     /// The edits — insert, delete or change one character — between two names. C#'s `Levenshtein`.
     Bind number to edit-distance, given (the text first, the text second):
         Define first-letters as a chase.

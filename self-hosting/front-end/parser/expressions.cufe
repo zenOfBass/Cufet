@@ -20,18 +20,6 @@
 Pull a book on collections.
     // ── Building nodes ────────────────────────────────────────────────────
 
-    Bind node to made, given (the text kind, the series of node parts):
-        Return a new node { the kind kind, the word "", the children parts }.
-    Done.
-
-    Bind node to row-of, given (the token spot-tok):
-        Return cast numeral on (spot-tok's row).
-    Done.
-
-    Bind node to column-of, given (the token spot-tok):
-        Return cast numeral on (spot-tok's column).
-    Done.
-
     /// `(BinaryExpression left Op right line column)`.
     Bind node to binary, given (the node left, the text op, the node right, the token spot-tok):
         Return cast made on ("BinaryExpression", a series with (
@@ -41,13 +29,6 @@ Pull a book on collections.
     Bind node to unary, given (the text op, the node operand, the token spot-tok):
         Return cast made on ("UnaryExpression", a series with (
             cast atom on (op), operand, cast row-of on (spot-tok), cast column-of on (spot-tok))).
-    Done.
-
-    /// A node of `kind` whose fields are `parts` and then the position of `spot-tok`.
-    Bind node to placed, given (the text kind, the series of node parts, the token spot-tok):
-        Insert cast row-of on (spot-tok) into parts.
-        Insert cast column-of on (spot-tok) into parts.
-        Return cast made on (kind, parts).
     Done.
 
     Bind node to variable-named, given (the text name, the token spot-tok):

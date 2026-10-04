@@ -1108,12 +1108,6 @@ Pull a book on collections.
         Return bound.
     Done.
 
-    Bind fact to is-void-or-failure, given (the node returned):
-        If returned's kind is not "FailureType", return false.
-        Define inner as item 1 of returned's children.
-        Return inner's kind is "VoidType".
-    Done.
-
     /// ParseReturnType — nothing for a bare `void`.
     Bind node or failure to return-type unto parser:
         Increment one's type-depth by 1.

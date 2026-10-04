@@ -15,29 +15,6 @@
 */
 
 Pull a book on collections.
-    /// The name to SHOW for a type: the one its author wrote, any owner appended taken back off —
-    /// trimmed at the LAST ` in `, so a carried generic keeps the part that is really its name.
-    Bind text to display-name, given (the text name):
-        Define letters as a chase.
-        Insert name into letters.
-        Define at as 0.
-        Define place as 1.
-        While place + 3 is not greater than the number of letters, repeat:
-            If item place of letters is " " and item (place + 1) of letters is "i" and item (place + 2) of letters is "n"
-                    and item (place + 3) of letters is " ":
-                The at becomes place.
-            Done.
-            Increment place by 1.
-        Done.
-        If at is not greater than 1, return name.
-        Define kept as a chase.
-        Define index as 1.
-        While index is less than at, repeat:
-            Insert item index of letters into kept.
-            Increment index by 1.
-        Done.
-        Return kept converted to text.
-    Done.
 
     /// `ShowWrittenNames`: a refusal with every lifted type name put back to the one its author
     /// wrote — longest first, so a name that ends another is replaced after it.

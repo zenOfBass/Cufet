@@ -20,7 +20,7 @@ Pull a book on collections.
         For each book in a series with ("blueprints", "chance", "collections", "math", "rabbit", "regex"), repeat:
             Try to:
                 Define whole as read all from the file "{folder}/{book}.cufe".
-                Define parsed as cast program-tree on (whole).
+                Define parsed as cast parser's program-tree on (whole).
                 For each statement in parsed's children, repeat:
                     If statement's kind is "ObjectDefinition", insert statement into found.
                     If statement's kind is "BindStatement" and cast is-nothing on (cast field-of on (statement, 5)):

@@ -1,9 +1,10 @@
 /*  The project of Cufet written in Cufet — and the first to draw its tree.
 
-    ★★ `front-end` is ONE namespace spread over three folders. The lexer, the parser and the
-    checker share their types and helpers — `node`, `token`, `field-of` — by their plain names, so a
-    wall between them would mean qualifying nearly every line. The drawing folds the three folders
-    into `front-end`: organised apart, named together.
+    ★★ `front-end` is ONE namespace over three folders. What they share — `node`, `token`, the
+    scanner, the words for types — sits in `front-end/` itself, which each folder sees by plain
+    name. Each folder keeps its own names besides, so `lexer/`, `parser/` and `checker/` may each
+    have a `counted`; one reaches another's by qualifying it, as the checker does with
+    `parser's program-tree`.
 
     ⚠ Once a project draws its tree it draws every folder with Cufet source in it. A new folder
     here needs a line before anything in it can be checked.

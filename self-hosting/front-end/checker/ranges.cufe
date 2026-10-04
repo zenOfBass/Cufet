@@ -137,23 +137,6 @@ Pull a book on collections.
 
     // ── Sorting ───────────────────────────────────────────────────────────
 
-    /// `<type> function given (<types>)` — C#'s `FormatFunctionType`.
-    Bind text to function-words, given (the node shape):
-        Define gives as "void".
-        Define returned as cast field-of on (shape, 2).
-        If cast is-nothing on (returned) is false, the gives becomes cast type-words on (returned).
-        Define taken as (cast field-of on (shape, 1))'s children.
-        If the number of taken is 0, return "{gives} function".
-        Define listing as a chase.
-        Define first-one as true.
-        For each one-taken in taken, repeat:
-            If first-one is false, insert ", " into listing.
-            The first-one becomes false.
-            Insert cast type-words on (one-taken) into listing.
-        Done.
-        Return "{gives} function given ({listing converted to text})".
-    Done.
-
     /// A key function takes exactly one element and gives back a number or text.
     Bind void or failure to check-sort-key, given (the node shape, the text what, the node element, the number at-row):
         Define taken as (cast field-of on (shape, 1))'s children.

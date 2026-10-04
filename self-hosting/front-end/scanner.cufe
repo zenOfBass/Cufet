@@ -656,4 +656,9 @@ Pull a book on collections.
         Cast scan's tokenize or pass the failure off.
         Return scan's out.
     Done.
+
+    Bind fact to spelled, given (the token candidate, the text word):
+        Return (candidate's lexeme in lowercase) is word.
+    Done.
+
 Done.

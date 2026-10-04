@@ -83,4 +83,53 @@ Pull a book on collections.
         Cast write-tree on (tree, out).
         Return out converted to text.
     Done.
+
+    // ── Building nodes — shared by the parser and the checker ─────────────
+
+    Bind node to made, given (the text kind, the series of node parts):
+        Return a new node { the kind kind, the word "", the children parts }.
+    Done.
+
+    Bind node to row-of, given (the token spot-tok):
+        Return cast numeral on (spot-tok's row).
+    Done.
+
+    Bind node to column-of, given (the token spot-tok):
+        Return cast numeral on (spot-tok's column).
+    Done.
+
+    /// A node of `kind` whose fields are `parts` and then the position of `spot-tok`.
+    Bind node to placed, given (the text kind, the series of node parts, the token spot-tok):
+        Insert cast row-of on (spot-tok) into parts.
+        Insert cast column-of on (spot-tok) into parts.
+        Return cast made on (kind, parts).
+    Done.
+
+    Bind node to plain-type, given (the text kind):
+        Return cast made on (kind, a series of node).
+    Done.
+
+    /// The pairs of a list, ordered by the quoted name each begins with.
+    ///
+    /// ⚠ Through `sorted by` on records, because `is less than` does not order text.
+    Bind node to sorted-by-name, given (the node pairs):
+        Define keyed as a series of records like (the text name, the number spot).
+        Define spot as 0.
+        For each pair in pairs's children, repeat:
+            Increment spot by 1.
+            Define first-part as item 1 of pair's children.
+            Insert a record with (the name first-part's word, the spot spot) into keyed.
+        Done.
+        Define ordered as cast listed.
+        For each entry in keyed sorted by name, repeat:
+            Cast ordered's add on (item (the spot of entry) of pairs's children).
+        Done.
+        Return ordered.
+    Done.
+
+    Bind fact to is-void-or-failure, given (the node returned):
+        If returned's kind is not "FailureType", return false.
+        Define inner as item 1 of returned's children.
+        Return inner's kind is "VoidType".
+    Done.
 Done.

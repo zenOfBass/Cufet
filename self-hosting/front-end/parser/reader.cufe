@@ -95,10 +95,6 @@ Pull a book on collections.
         Return found's kind is kind.
     Done.
 
-    Bind fact to spelled, given (the token candidate, the text word):
-        Return (candidate's lexeme in lowercase) is word.
-    Done.
-
     /// IsWord — the current token is spelled `word`, whatever kind it is.
     Bind fact to is-word unto parser, given (the text word):
         Return cast spelled on (cast one's peek, word).

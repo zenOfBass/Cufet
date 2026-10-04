@@ -1,0 +1,235 @@
+/*  Types, in words — what the parser and the checker both say about a type: `number`,
+    `series of numbers`, `stack of number`, `(number or text) values`.
+
+    ★ Shared, so it sits in `front-end/` itself, where both folders see it by its plain name.
+*/
+
+Pull a book on collections.
+    /// The text a quoted leaf holds — the reverse of `quoted` in tree.cufe.
+    Bind text to unquoted, given (the node leaf):
+        Define letters as a chase.
+        Insert leaf's word into letters.
+        Define out as a chase.
+        Define place as 2.
+        Define last as the number of letters - 1.
+        While place is less than last + 1, repeat:
+            Define ch as item place of letters.
+            If ch is "\\" and place is less than last:
+                Increment place by 1.
+                Define escape as item place of letters.
+                The ch becomes escape.
+                If escape is "n", the ch becomes "\n".
+                If escape is "t", the ch becomes "\t".
+                If escape is "r", the ch becomes "\r".
+            Done.
+            Insert ch into out.
+            Increment place by 1.
+        Done.
+        Return out converted to text.
+    Done.
+
+    /// A node's `n`th field.
+    Bind node to field-of, given (the node whole, the number place):
+        Return item place of whole's children.
+    Done.
+
+    /// Is this field empty — the `_` the printer writes for nothing?
+    Bind fact to is-nothing, given (the node leaf):
+        Return leaf's kind is "atom" and leaf's word is "_".
+    Done.
+
+    Bind text to type-words, given (the node shape):
+        Define kind as shape's kind.
+        Judge kind, where it is:
+            "NumberType", return "number".
+            "BitsType", return "bits".
+            "TextType", return "text".
+            "FactType", return "fact".
+            "VoidType", return "void".
+            "AddressType", return "address".
+            "FailureMarkerType", return "failure".
+            "MappingType", return "mapping".
+            "ExceptionMarkerType", return "exception".
+            "MatrixType", return "matrix".
+            "ChaseType", return "chase".
+            "VoidableType", return "voidable {cast type-words on (cast field-of on (shape, 1))}".
+            "SeriesType", return "series of {cast plural-words on (cast field-of on (shape, 1))}".
+            "StashType", return "stash of {cast plural-words on (cast field-of on (shape, 1))}".
+            "SetType", return "set of {cast type-words on (cast field-of on (shape, 1))}".
+            "ChannelType", return "channel of {cast type-words on (cast field-of on (shape, 1))}".
+            "TaskHandleType":
+                If cast is-nothing on (cast field-of on (shape, 1)), return "void task".
+                Return "task (result: {cast type-words on (cast field-of on (shape, 1))})".
+            Done.
+            "MapType":
+                Return "map from {cast type-words on (cast field-of on (shape, 1))} to {cast type-words on (cast field-of on (shape, 2))}".
+            Done.
+            "FunctionType", return cast function-words on (shape).
+            "ObjectType":
+                If cast is-filled-type on (shape), return cast filled-type-name on (shape).
+                Return cast display-name on (cast unquoted on (cast field-of on (shape, 1))).
+            Done.
+            "InterfaceType", return cast unquoted on (cast field-of on (shape, 1)).
+            "AxiomType", return cast axiom-words on (shape).
+            "RecordType", return cast record-words on (shape).
+            "UnionType", return cast union-words on (shape).
+            "FailureType", return "{cast type-words on (cast field-of on (shape, 1))} or failure".
+            "ReadableStreamType", return "readable stream of {cast plural-words on (cast field-of on (shape, 1))}".
+            "WritableStreamType", return "writable stream of {cast plural-words on (cast field-of on (shape, 1))}".
+            Otherwise, return "<unknown>".
+        Done.
+    Done.
+
+    Bind text to plural-words, given (the node shape):
+        Define kind as shape's kind.
+        Judge kind, where it is:
+            "NumberType", return "numbers".
+            "BitsType", return "bits".
+            "TextType", return "text".
+            "FactType", return "facts".
+            "VoidType", return "void values".
+            "MatrixType", return "matrices".
+            "FailureMarkerType", return "failures".
+            "MappingType", return "mappings".
+            "ExceptionMarkerType", return "exceptions".
+            "VoidableType", return "voidable {cast plural-words on (cast field-of on (shape, 1))}".
+            "SeriesType", return "series of {cast plural-words on (cast field-of on (shape, 1))}".
+            "StashType", return "stashes of {cast plural-words on (cast field-of on (shape, 1))}".
+            "SetType", return "sets of {cast type-words on (cast field-of on (shape, 1))}".
+            "ChannelType", return "channels of {cast plural-words on (cast field-of on (shape, 1))}".
+            "TaskHandleType":
+                If cast is-nothing on (cast field-of on (shape, 1)), return "void task handles".
+                Return "task handles (result: {cast plural-words on (cast field-of on (shape, 1))})".
+            Done.
+            "MapType":
+                Return "maps from {cast type-words on (cast field-of on (shape, 1))} to {cast type-words on (cast field-of on (shape, 2))}".
+            Done.
+            "FunctionType", return "functions".
+            "ObjectType":
+                If cast is-filled-type on (shape), return "{cast filled-type-name on (shape)} objects".
+                Return "{cast display-name on (cast unquoted on (cast field-of on (shape, 1)))} objects".
+            Done.
+            "InterfaceType", return "{cast unquoted on (cast field-of on (shape, 1))} values".
+            "RecordType", return cast record-words on (shape).
+            "UnionType", return "{cast union-words on (shape)} values".
+            "FailureType", return "{cast plural-words on (cast field-of on (shape, 1))} or failures".
+            "ReadableStreamType", return "readable streams of {cast plural-words on (cast field-of on (shape, 1))}".
+            "WritableStreamType", return "writable streams of {cast plural-words on (cast field-of on (shape, 1))}".
+            Otherwise, return "<unknown>".
+        Done.
+    Done.
+
+    /// `FormatAxiomType`: `c-language number axiom given (text)`.
+    Bind text to axiom-words, given (the node shape):
+        Define language as cast unquoted on (cast field-of on (shape, 1)).
+        Define head as "{language} axiom".
+        If cast is-nothing on (cast field-of on (shape, 2)) is false, the head becomes "{language} {cast type-words on (cast field-of on (shape, 2))} axiom".
+        Define taken as (cast field-of on (shape, 3))'s children.
+        If the number of taken is 0, return head.
+        Define listing as "".
+        For each one-type in taken, repeat:
+            If listing is not "", the listing becomes listing joined to ", ".
+            The listing becomes listing joined to cast type-words on (one-type).
+        Done.
+        Return "{head} given ({listing})".
+    Done.
+
+    /// The name to SHOW for a type: the one its author wrote, any owner appended taken back off —
+    /// trimmed at the LAST ` in `, so a carried generic keeps the part that is really its name.
+    Bind text to display-name, given (the text name):
+        Define letters as a chase.
+        Insert name into letters.
+        Define at as 0.
+        Define place as 1.
+        While place + 3 is not greater than the number of letters, repeat:
+            If item place of letters is " " and item (place + 1) of letters is "i" and item (place + 2) of letters is "n"
+                    and item (place + 3) of letters is " ":
+                The at becomes place.
+            Done.
+            Increment place by 1.
+        Done.
+        If at is not greater than 1, return name.
+        Define kept as a chase.
+        Define index as 1.
+        While index is less than at, repeat:
+            Insert item index of letters into kept.
+            Increment index by 1.
+        Done.
+        Return kept converted to text.
+    Done.
+
+    /// `<type> function given (<types>)` — C#'s `FormatFunctionType`.
+    Bind text to function-words, given (the node shape):
+        Define gives as "void".
+        Define returned as cast field-of on (shape, 2).
+        If cast is-nothing on (returned) is false, the gives becomes cast type-words on (returned).
+        Define taken as (cast field-of on (shape, 1))'s children.
+        If the number of taken is 0, return "{gives} function".
+        Define listing as a chase.
+        Define first-one as true.
+        For each one-taken in taken, repeat:
+            If first-one is false, insert ", " into listing.
+            The first-one becomes false.
+            Insert cast type-words on (one-taken) into listing.
+        Done.
+        Return "{gives} function given ({listing converted to text})".
+    Done.
+
+    /// How a record type is written in a message: `record (number, make: text)`.
+    Bind text to record-words, given (the node shape):
+        Define listing as a chase.
+        Define first-one as true.
+        For each positional in (cast field-of on (shape, 1))'s children, repeat:
+            If first-one is false, insert ", " into listing.
+            The first-one becomes false.
+            Insert cast type-words on (positional) into listing.
+        Done.
+        For each pair in (cast field-of on (shape, 2))'s children, repeat:
+            If first-one is false, insert ", " into listing.
+            The first-one becomes false.
+            Insert "{cast unquoted on (item 1 of pair's children)}: {cast type-words on (item 2 of pair's children)}" into listing.
+        Done.
+        Return "record ({listing converted to text})".
+    Done.
+
+    /// `(number or text)`, or `open union`.
+    Bind text to union-words, given (the node shape):
+        If cast is-open-union on (shape), return "open union".
+        Define listing as a chase.
+        Define first-one as true.
+        For each one-case in cast union-cases on (shape), repeat:
+            If first-one is false, insert " or " into listing.
+            The first-one becomes false.
+            Insert cast type-words on (one-case) into listing.
+        Done.
+        Return "({listing converted to text})".
+    Done.
+
+    /// A closed union's cases; an open union and anything else have none to list.
+    Bind series of node to union-cases, given (the node shape):
+        If shape's kind is not "UnionType" or cast is-open-union on (shape), return a series of node.
+        Return (cast field-of on (shape, 1))'s children.
+    Done.
+
+    Bind fact to is-open-union, given (the node shape):
+        Return shape's kind is "UnionType" and (cast field-of on (shape, 1))'s kind is not "list".
+    Done.
+
+    /// Is this an object type written with a filling — `stack of number`?
+    Bind fact to is-filled-type, given (the node shape):
+        If shape's kind is not "ObjectType", return false.
+        Define arguments-given as cast field-of on (shape, 2).
+        Return arguments-given's kind is "list" and the number of arguments-given's children is greater than 0.
+    Done.
+
+    /// `stack of number` — a filled object type's name: the template's, then what fills each blank,
+    /// as C#'s `GenericInstantiation.NameFor` writes it. A written filling and a resolved one share it.
+    Bind text to filled-type-name, given (the node shape):
+        Define out as a chase.
+        Insert cast unquoted on (cast field-of on (shape, 1)) into out.
+        For each argument in (cast field-of on (shape, 2))'s children, repeat:
+            Insert " of {cast type-words on (argument)}" into out.
+        Done.
+        Return out converted to text.
+    Done.
+Done.

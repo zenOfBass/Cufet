@@ -11,15 +11,6 @@
 */
 
 Pull a book on collections.
-    Bind fact to is-open-union, given (the node shape):
-        Return shape's kind is "UnionType" and (cast field-of on (shape, 1))'s kind is not "list".
-    Done.
-
-    /// A closed union's cases; an open union and anything else have none to list.
-    Bind series of node to union-cases, given (the node shape):
-        If shape's kind is not "UnionType" or cast is-open-union on (shape), return a series of node.
-        Return (cast field-of on (shape, 1))'s children.
-    Done.
 
     Bind node to union-of, given (the series of node cases):
         Define listing as cast listed.
@@ -45,19 +36,6 @@ Pull a book on collections.
             If (item 2 of remaining)'s kind is "VoidType", return cast wrapped on ("VoidableType", item 1 of remaining).
         Done.
         Return cast union-of on (remaining).
-    Done.
-
-    /// `(number or text)`, or `open union`.
-    Bind text to union-words, given (the node shape):
-        If cast is-open-union on (shape), return "open union".
-        Define listing as a chase.
-        Define first-one as true.
-        For each one-case in cast union-cases on (shape), repeat:
-            If first-one is false, insert " or " into listing.
-            The first-one becomes false.
-            Insert cast type-words on (one-case) into listing.
-        Done.
-        Return "({listing converted to text})".
     Done.
 
     /// Does a union take this value — one of its cases does, or every case of a smaller union does.

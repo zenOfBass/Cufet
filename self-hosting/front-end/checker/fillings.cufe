@@ -332,24 +332,6 @@ Pull a book on collections.
 
     // ── Objects that leave a blank ────────────────────────────────────────
 
-    /// `stack of number` — a filled object type's name: the template's, then what fills each blank,
-    /// as C#'s `GenericInstantiation.NameFor` writes it. A written filling and a resolved one share it.
-    Bind text to filled-type-name, given (the node shape):
-        Define out as a chase.
-        Insert cast unquoted on (cast field-of on (shape, 1)) into out.
-        For each argument in (cast field-of on (shape, 2))'s children, repeat:
-            Insert " of {cast type-words on (argument)}" into out.
-        Done.
-        Return out converted to text.
-    Done.
-
-    /// Is this an object type written with a filling — `stack of number`?
-    Bind fact to is-filled-type, given (the node shape):
-        If shape's kind is not "ObjectType", return false.
-        Define arguments-given as cast field-of on (shape, 2).
-        Return arguments-given's kind is "list" and the number of arguments-given's children is greater than 0.
-    Done.
-
     /// An `unto` target folded into a type elsewhere — a template (each filling carries its copy)
     /// or a filling of one (it holds its own). `UntoAbsorbedTargets`.
     Bind fact to is-absorbed unto checker, given (the text target):

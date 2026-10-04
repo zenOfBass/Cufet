@@ -25,7 +25,7 @@ Pull a book on collections.
     Bind text to verdict, given (the text whole, the series of node prelude):
         Define parsed as cast listed.
         Try to:
-            The parsed becomes cast program-tree on (whole).
+            The parsed becomes cast parser's program-tree on (whole).
         Done.
         In case of failure:
             Return "parse\t{cast one-line on (the message of the failure)}".

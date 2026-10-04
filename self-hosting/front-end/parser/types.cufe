@@ -10,9 +10,6 @@
 */
 
 Pull a book on collections.
-    Bind node to plain-type, given (the text kind):
-        Return cast made on (kind, a series of node).
-    Done.
 
     Bind node or failure to type-annotation unto parser:
         Increment one's type-depth by 1.
@@ -382,24 +379,6 @@ Pull a book on collections.
         Done.
         Cast one's consume on ("RParen") or pass the failure off.
         Return cast made on ("RecordType", a series with (positional, cast sorted-by-name on (named))).
-    Done.
-
-    /// The pairs of a list, ordered by the quoted name each begins with.
-    ///
-    /// ⚠ Through `sorted by` on records, because `is less than` does not order text.
-    Bind node to sorted-by-name, given (the node pairs):
-        Define keyed as a series of records like (the text name, the number spot).
-        Define spot as 0.
-        For each pair in pairs's children, repeat:
-            Increment spot by 1.
-            Define first-part as item 1 of pair's children.
-            Insert a record with (the name first-part's word, the spot spot) into keyed.
-        Done.
-        Define ordered as cast listed.
-        For each entry in keyed sorted by name, repeat:
-            Cast ordered's add on (item (the spot of entry) of pairs's children).
-        Done.
-        Return ordered.
     Done.
 
     Bind void or failure to one-shape-field unto parser, given (the node positional, the node named, the node permanent, the node defaults):
