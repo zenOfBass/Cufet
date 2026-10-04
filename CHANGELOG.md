@@ -47,7 +47,7 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   and two interfaces supplying one default. A sweep of 7,637 such programs agreed on every one.
 - **The type checker, begun in Cufet** — `self-hosting/front-end/checker/checker.cufe`, the third
   piece. It says of each file what `TypeChecker.Check` says — accepted, or refused in the same words
-  — and `CheckerParityTests` holds it to that on 870 hand-written programs and on the corpus. It
+  — and `CheckerParityTests` holds it to that on 914 hand-written programs and on the corpus. It
   judges names and scopes, `Define` and `becomes`, operators, text and its operations, bit patterns,
   series, ranges, sorting, records, maps, sets, chases, matrices, the `chance` book, voidables,
   unions and narrowing, `Judge`, `when … otherwise`, functions with named arguments and blanks,
@@ -56,8 +56,9 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   conformance, modules and the types they carry, books, regions, tasks, channels and stashes — the
   bundled books read with its own parser — the rule that keeps a region's values inside it, failures
   — `Try`, `but on failure` and `or pass the failure off` — and input and output: files,
-  directories, streams, running programs and piping them, and pipes of functions. Anything it cannot
-  judge yet it says so about, rather than accepting: 113 corpus files so far, the rest waiting on
+  directories, streams, running programs and piping them, and pipes of functions, and axioms: regex
+  patterns, c-language source at its boundary, and cufet blocks placed by `Cite`. Anything it cannot
+  judge yet it says so about, rather than accepting: 125 corpus files so far, the rest waiting on
   the rarer constructs.
 
 ### Changed

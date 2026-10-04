@@ -27,7 +27,7 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
     : IClassFixture<CompiledCufetChecker>
 {
     /// <summary>How many corpus files must agree. Raised as the checker grows; never lowered.</summary>
-    private const int CorpusFloor = 113;
+    private const int CorpusFloor = 125;
 
     /// <summary>Where the bundled books' source is — the checker reads their layers with its own parser.</summary>
     private static string[] PreludeArgs =>
@@ -999,6 +999,51 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
         "Bind number to count-up, given (the rabbit helper):\n    Define n as 1.\n    Have helper bury n.\n    Define m as n + \"a\".\nDone.",
         "Bind number to count-up, given (the rabbit helper):\n    Pull a rabbit as hopper.\n        Have rabbit start a task:\n            State 1.\n        Done.\n    Done.\n    Have helper bury 1.\nDone.\nState 1.",
         "Bind number to count-up, given (the rabbit helper, the series of number xs):\n    For each x in xs, repeat:\n        Try to:\n            If x is 2, stop.\n        Done.\n        In case of failure:\n            State \"no\".\n        Done.\n        Have helper bury x.\n    Done.\nDone.",
+        // Axioms — a regex pattern's pull, c-language source at its boundary (tags, results, parameters, release clauses, running one by return or cast, addresses), and cufet blocks placed by Cite.
+        "Define regex core as [^a+$].\nState cast core on (\"aa\").",
+        "Pull a book on regex.\n    Define regex core as [^a+$].\n    State cast core on (3).\nDone.",
+        "Pull a book on regex.\n    Define regex core as [^a+$].\n    State cast core on (\"aa\") + 1.\nDone.",
+        "Pull a book on the c-language.\n    Define c-language number answer as [6 * 7].\n    State cast answer + 1.\n    State cast answer joined to \"!\".\nDone.",
+        "Define c-language number answer as [6 * 7].",
+        "Pull a book on the c-language.\n    Define answer as [6 * 7].\nDone.",
+        "Pull a book on the c-language.\n    Define c-language text name-of as [getenv(\"HOME\")].\nDone.",
+        "Pull a book on the c-language.\n    Define c-language series of number many as [0].\nDone.",
+        "Pull a book on the c-language.\n    Define c-language number text-length, given (the text subject), as [strlen(the subject)].\n    State cast text-length on (\"ab\") + 1.\n    State cast text-length on (3).\nDone.",
+        "Pull a book on the c-language.\n    Define c-language number text-length, given (the text subject), as [strlen(the subject)].\n    State cast text-length on (\"ab\", \"cd\").\nDone.",
+        "Pull a book on the c-language.\n    Define c-language number text-length, given (the text subject), as [strlen(subject)].\nDone.",
+        "Pull a book on the c-language.\n    Define c-language number pair-length, given (the text left, the text left), as [strlen(the left)].\nDone.",
+        "Pull a book on the c-language.\n    Define c-language number many-length, given (the series of number xs), as [the xs].\nDone.",
+        "Pull a book on the c-language.\n    Define c-language helpers, given (the number n), as [int x = the n;].\nDone.",
+        "Pull a book on the c-language.\n    Define c-language helpers as [int x;].\n    State cast helpers.\nDone.",
+        "Pull a book on the c-language.\n    Define c-language helpers as [int x;].\n    State helpers.\nDone.",
+        "Pull a book on the c-language.\n    Define c-language number answer as [42].\n    Define alias as answer.\n    State cast alias + 1.\nDone.",
+        "Pull a book on the c-language.\n    Define c-language number answer as [42].\n    Bind number to run-it, answer.\n    Bind text to run-text, answer.\nDone.",
+        "Pull a book on the c-language.\n    Define c-language number answer as [42].\n    Define c-language helpers as [int x;].\n    Bind number to run-it, helpers.\nDone.",
+        "Pull a book on the c-language.\n    Define c-language number closer, given (the address held), as [fclose(the held)].\n    Define c-language voidable address opened, given (the text file-name), as [fopen(the file-name, \"r\")], and free it with closer.\n    Define handle as cast opened on (\"x\").\nDone.",
+        "Pull a book on the c-language.\n    Define c-language number closer, given (the address held), as [fclose(the held)].\n    Define c-language voidable address opened, given (the text file-name), as [fopen(the file-name, \"r\")], and free it with closer.\n    Pull a rabbit.\n        Define handle as cast opened on (\"x\").\n        State (the text at handle) but void is \"?\".\n        State the text at 3.\n    Done.\nDone.",
+        "Pull a book on the c-language.\n    Define c-language number opened, given (the text file-name), as [1 + the file-name[0]], and free it with closer.\nDone.",
+        "Pull a book on the c-language.\n    Define c-language voidable address opened, given (the text file-name), as [fopen(the file-name, \"r\")], and free it with nothing-here.\nDone.",
+        "Pull a book on the c-language.\n    Define c-language number closer, given (the number held), as [the held].\n    Define c-language voidable address opened, given (the text file-name), as [fopen(the file-name, \"r\")], and free it with closer.\nDone.",
+        "Pull a book on the c-language.\n    Define c-language number twice, given (the number n), as [the n * 2].\n    Bind number to via, given (the c-language number axiom given (the number) job):\n        Return cast job on (3).\n    Done.\n    State cast via on (twice) + 1.\nDone.",
+        "Pull a book on the c-language.\n    Bind number to via, given (the c-language number axiom given (the number) job):\n        Return cast job on (\"x\").\n    Done.\nDone.",
+        "Pull a book on the c-language.\n    Bind number to via, given (the c-language number axiom given (the number) job):\n        Return cast job on (1, 2).\n    Done.\nDone.",
+        "Pull a book on the c-language.\n    Bind number to via, given (the c-language axiom job):\n        Return 1.\n    Done.\nDone.",
+        "Pull a book on the c-language.\n    Bind number to via, given (the c-language number axiom given (the number) job):\n        Return job.\n    Done.\nDone.",
+        "Pull a book on the c-language.\n    Define c-language number text-length, given (the text subject), as [strlen(the subject)].\n    Cast text-length on (\"ab\").\n    Cast text-length on (3).\nDone.",
+        "Pull a book on cufet.\n    Define cufet fresh-tally as [\n        Define the tally as 0.\n    ].\n    Bind number to counted-up:\n        Cite fresh-tally.\n        The tally becomes the tally + 5.\n        Return the tally.\n    Done.\n    State cast counted-up joined to \"!\".\nDone.",
+        "Define cufet fresh-tally as [\n    Define the tally as 0.\n].",
+        "Pull a book on cufet.\n    Cite nothing-here.\nDone.",
+        "Pull a book on cufet.\n    Define cufet number two as [Return 2.].\n    Cite two.\nDone.",
+        "Pull a book on cufet.\n    Define cufet fresh as [\n        Define the tally as 0.\n    ].\n    Define cufet fresh as [\n        Define the count as 0.\n    ].\nDone.",
+        "Pull a book on cufet.\n    Define cufet fresh as [\n        State 1.\n    ].\nDone.",
+        "Pull a book on cufet.\n    Define outside as 3.\n    Define cufet fresh as [\n        Define the tally as outside.\n    ].\nDone.",
+        "Pull a book on cufet.\n    Define outside as 3 permanently.\n    Define cufet fresh as [\n        Define the tally as outside + 1.\n    ].\n    Cite fresh.\n    State tally joined to \"!\".\nDone.",
+        "Pull a book on cufet.\n    Define cufet helper as [\n        Bind number to doubled, given (the number n):\n            Return n * 2.\n        Done.\n    ].\n    Bind number to user:\n        Cite helper.\n        Return 1.\n    Done.\nDone.",
+        "Pull a book on cufet.\n    Define cufet helper as [\n        Bind number to doubled, given (the number n):\n            Return n * 2.\n        Done.\n    ].\n    Cite helper.\n    State cast doubled on (3) joined to \"!\".\nDone.",
+        "Pull a book on cufet.\n    Define cufet shapes as [\n        Define object point with (the number x, the number y).\n    ].\n    Cite shapes.\n    Define p as a new point { the x 1, the y 2 }.\n    State p's x joined to \"!\".\nDone.",
+        "Pull a book on cufet.\n    Define cufet fresh, given (the number n), as [\n        Define the tally as n.\n    ].\nDone.",
+        "Pull a book on cufet.\n    Define cufet number two as [Return 2.].\n    State cast two joined to \"!\".\nDone.",
+        "Define cufet number two as [Return 2.].",
     ];
 
     [Fact]
