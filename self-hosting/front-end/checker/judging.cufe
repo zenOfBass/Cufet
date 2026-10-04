@@ -311,7 +311,11 @@ Pull a book on collections.
         The program becomes cast one's expand-cites on (program) or pass the failure off.
         Define reach as cast program-beyond-reach on (program).
         If reach is not "", return a failure (cast not-judged on (reach)).
-        Cast check-versions on (program) or pass the failure off.
+        // Versions of one name become ordinary functions and a dispatcher between them.
+        The program becomes cast expand-dispatch on (program) or pass the failure off.
+        // The types a pulled book introduces are names while signatures are gathered and resolved —
+        // and only then; inside a body they mean something only within their pull.
+        Define book-type-names as cast one's register-pulled-book-types on (program).
         Cast one's hoist-interfaces on (program).
         Cast one's hoist-objects on (program) or pass the failure off.
         Cast one's check-method-blanks or pass the failure off.
@@ -319,6 +323,10 @@ Pull a book on collections.
         Cast one's hoist-functions on (program) or pass the failure off.
         Cast one's hoist-makers on (program) or pass the failure off.
         Cast one's resolve-types or pass the failure off.
+        Define outermost-types as item 1 of one's type-scopes.
+        For each added in book-type-names, repeat:
+            Remove added from outermost-types.
+        Done.
         Cast one's hoist-shared-constants on (program) or pass the failure off.
         Cast one's check-overloads on (program) or pass the failure off.
         Cast one's check-block on (program) or pass the failure off.
@@ -1033,6 +1041,7 @@ Pull a book on collections.
         Define declared as cast one's tag-axiom-declaration on (statement) or pass the failure off.
         If cast is-nothing on (declared) is false and declared's kind is not "AxiomType":
             Cast one's check-resolves on (declared) or pass the failure off.
+            The declared becomes cast one's scope-resolved on (declared).
         Done.
         // `Define alias as answer.` — the one place an axiom's name is a value.
         If value's kind is "VariableReference" and cast is-none on (cast one's axiom-behind on (value)) is false:

@@ -46,7 +46,7 @@ Pull a book on collections.
         Define place as 9.
         While place is less than the number of statement's children, repeat:
             Define mark as (cast field-of on (statement, place))'s word.
-            If mark is not ":FromAxiomLanguage", return "a Bind with {mark}".
+            If mark is not ":FromAxiomLanguage" and mark is not ":When", return "a Bind with {mark}".
             Increment place by 2.
         Done.
         Define returned as cast field-of on (statement, 2).
@@ -62,86 +62,6 @@ Pull a book on collections.
             Done.
         Done.
         Return cast beyond-reach on (cast field-of on (statement, 4)).
-    Done.
-
-    // ── Versions of one name ──────────────────────────────────────────────
-
-    /// `DispatchExpansion`, which runs before anything is gathered: top-level functions that share
-    /// a name are versions of it. Only its refusals are here — a group that really does dispatch,
-    /// or carries a `when`, is beyond this checker yet.
-    Bind void or failure to check-versions, given (the node program):
-        Define order as a series of text.
-        Define groups as a map from text to node.
-        For each statement in program's children, repeat:
-            If statement's kind is "BindStatement" and cast is-nothing on (cast field-of on (statement, 5)):
-                Define name as cast unquoted on (cast field-of on (statement, 1)).
-                Define group as the entry for name in groups.
-                If group is void:
-                    Define fresh-group as cast listed.
-                    In groups, the entry for name becomes fresh-group.
-                    Insert name into order.
-                    Cast fresh-group's add on (statement).
-                Done.
-                Otherwise:
-                    Cast group's add on (statement).
-                Done.
-            Done.
-        Done.
-        For each name in order, repeat:
-            Define versions as (the entry for name in groups but void is cast listed)'s children.
-            Define first as item 1 of versions.
-            If the number of versions is greater than 1:
-                Define first-count as the number of (cast field-of on (first, 3))'s children.
-                Define first-row as cast numeric on (cast field-of on (first, 7)).
-                Define place as 0.
-                For each other in versions, repeat:
-                    Increment place by 1.
-                    If place is greater than 1:
-                        Define other-row as cast numeric on (cast field-of on (other, 7)).
-                        Define other-count as the number of (cast field-of on (other, 3))'s children.
-                        If other-count is not first-count:
-                            Return a failure (cast refusal-of on ("the versions of '{name}' take different numbers of arguments",
-                                "The one on line {first-row} takes {first-count}, and this one takes {other-count}",
-                                other-row, "declare a version of '{name}' with a different number of arguments",
-                                "Every version of a name is reached by the same call, so they all take the same arguments. Rename this one if it does something else.")).
-                        Done.
-                        Define first-gives as cast field-of on (first, 2).
-                        Define other-gives as cast field-of on (other, 2).
-                        If cast type-key on (first-gives) is not cast type-key on (other-gives):
-                            Define first-said as "nothing".
-                            If cast is-nothing on (first-gives) is false, the first-said becomes cast type-words on (first-gives).
-                            Define other-said as "nothing".
-                            If cast is-nothing on (other-gives) is false, the other-said becomes cast type-words on (other-gives).
-                            Return a failure (cast refusal-of on ("the versions of '{name}' give back different types",
-                                "The one on line {first-row} gives back {first-said}, and this one gives back {other-said}",
-                                other-row, "declare a version of '{name}' with another return type",
-                                "A caller has to know what it gets back without knowing which version ran, so every version gives back the same type.")).
-                        Done.
-                    Done.
-                Done.
-                // Versions with the same argument types and no condition cannot be told apart.
-                Define fallbacks as a map from text to number.
-                For each version in versions, repeat:
-                    If cast has-mark on (version, ":When"):
-                        Return a failure (cast not-judged on ("a version of '{name}' with a condition")).
-                    Done.
-                    Define key as cast type-key on (cast parameter-types-of on (version)).
-                    Define version-row as cast numeric on (cast field-of on (version, 7)).
-                    Define already as the entry for key in fallbacks.
-                    If already is not void:
-                        Return a failure (cast refusal-of on ("'{name}' is declared twice with the same argument types",
-                            "It was already declared on line {already}", version-row,
-                            "declare '{name}' again with nothing to tell the two apart",
-                            "Versions of a name are told apart by one argument's type or by a 'when' condition. These have neither, so no call could pick between them. Rename one of them.")).
-                    Done.
-                    In fallbacks, the entry for key becomes version-row.
-                Done.
-                Return a failure (cast not-judged on ("versions of '{name}' told apart by type")).
-            Done.
-            If cast has-mark on (first, ":When"):
-                Return a failure (cast not-judged on ("a version of '{name}' with a condition")).
-            Done.
-        Done.
     Done.
 
     /// A function's parameter types, as one list.

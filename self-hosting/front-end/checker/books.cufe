@@ -74,8 +74,87 @@ Pull a book on collections.
     Bind node to introduced-type, given (the text name):
         If name is "matrix", return cast plain-type on ("MatrixType").
         If name is "chase", return cast plain-type on ("ChaseType").
-        // `step` and `pin` are shapes of record, which this checker does not hold yet.
-        Return cast plain-type on ("RecordType").
+        // `step` and `pin` are names for shapes of record — the fields sorted, as a record's are.
+        Define text-type as cast plain-type on ("TextType").
+        Define texts as cast wrapped on ("SeriesType", text-type).
+        Define named as cast listed.
+        If name is "step":
+            Cast named's add on (cast record-slot on ("makes", texts)).
+            Cast named's add on (cast record-slot on ("name", text-type)).
+            Cast named's add on (cast record-slot on ("needs", texts)).
+            Cast named's add on (cast record-slot on ("runs", texts)).
+        Done.
+        Otherwise:
+            Cast named's add on (cast record-slot on ("commit", text-type)).
+            Cast named's add on (cast record-slot on ("name", text-type)).
+            Cast named's add on (cast record-slot on ("source", text-type)).
+        Done.
+        Return cast made on ("RecordType", a series with (cast listed, named)).
+    Done.
+
+    Bind node to record-slot, given (the text name, the node shape):
+        Define field as cast listed.
+        Cast field's add on (cast quoted on (name)).
+        Cast field's add on (shape).
+        Return field.
+    Done.
+
+    /// `RegisterPulledBookTypes`: every type a book pulled anywhere in the program introduces, in
+    /// scope for gathering signatures — giving back the names it added, so only those are taken away.
+    Bind series of text to register-pulled-book-types unto checker, given (the node program):
+        Define added as a series of text.
+        Cast one's gather-pulled-types on (program, added).
+        Return added.
+    Done.
+
+    Bind void to gather-pulled-types unto checker, given (the node tree, the series of text added):
+        Define kind as tree's kind.
+        If kind is "atom" or kind is "CufetAxiomDefinition", return.
+        If kind is "PullStatement":
+            For each pulled in (cast field-of on (tree, 1))'s children, repeat:
+                Define book as cast unquoted on (cast field-of on (pulled, 1)).
+                For each introduced in cast introduced-types on (book), repeat:
+                    Define key as introduced in lowercase.
+                    Define outermost-types as item 1 of one's type-scopes.
+                    If (the entry for key in outermost-types) is void:
+                        In outermost-types, the entry for key becomes cast introduced-type on (introduced).
+                        Insert key into added.
+                    Done.
+                Done.
+            Done.
+        Done.
+        For each child in tree's children, repeat:
+            Cast one's gather-pulled-types on (child, added).
+        Done.
+    Done.
+
+    /// The shape with every name a pulled book has put in scope replaced by that type.
+    Bind node to scope-resolved unto checker, given (the node shape):
+        If shape's kind is "atom", return shape.
+        If shape's kind is "ObjectType":
+            Define name as cast unquoted on (cast field-of on (shape, 1)).
+            If (the entry for name in one's defs) is void:
+                Define introduced as cast one's scoped-type on (name in lowercase).
+                If cast is-none on (introduced) is false, return introduced.
+            Done.
+            Return shape.
+        Done.
+        Define rebuilt as a new node { the kind shape's kind, the word shape's word, the children a series of node }.
+        For each inner in shape's children, repeat:
+            Cast rebuilt's add on (cast one's scope-resolved on (inner)).
+        Done.
+        Return rebuilt.
+    Done.
+
+    /// The type a book's pull put in scope under this name, or none.
+    Bind node to scoped-type unto checker, given (the text name):
+        Define back as the number of one's type-scopes.
+        While back is greater than 0, repeat:
+            Define found as the entry for name in item back of one's type-scopes.
+            If found is not void, return found.
+            Decrement back by 1.
+        Done.
+        Return cast unknown-type.
     Done.
 
     Bind void to register-scoped-type unto checker, given (the text name, the node shape):

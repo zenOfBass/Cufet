@@ -69,6 +69,10 @@ Pull a book on collections.
             If (the entry for name in one's defs) is void and cast one's is-interface-name on (name):
                 Return cast interface-type-named on (name).
             Done.
+            If (the entry for name in one's defs) is void and cast book-introducing on (name) is not "":
+                Define introduced as cast one's scoped-type on (name in lowercase).
+                If cast is-none on (introduced) is false, return introduced.
+            Done.
             Return shape.
         Done.
         If shape's kind is "atom" or shape's kind is "list":

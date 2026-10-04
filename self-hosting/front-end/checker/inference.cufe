@@ -538,6 +538,8 @@ Pull a book on collections.
 
         If annotated:
             Cast one's check-resolves on (annotation) or pass the failure off.
+            // A name a pulled book put in scope is that book's type, wherever it sits in the annotation.
+            The annotation becomes cast one's scope-resolved on (annotation).
             If cast is-none on (inferred) is false and cast same-type on (inferred, annotation) is false:
                 If cast beyond-types on (inferred), return a failure (cast not-judged on ("a series of {inferred's kind}")).
                 Return a failure (cast refusal-of on ("you said this is a series of {cast plural-words on (annotation)}",

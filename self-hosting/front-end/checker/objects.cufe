@@ -348,7 +348,10 @@ Pull a book on collections.
             Done.
             If (the entry for name in one's defs) is not void, return.
             If cast one's is-interface-name on (name), return.
-            If cast is-bundled-module on (name) or cast book-introducing on (name) is not "":
+            // A type a book introduces resolves to it inside the pull, and outside is left as the
+            // name it is — C# refuses it later, where it is used, in its own words.
+            If cast book-introducing on (name) is not "", return.
+            If cast is-bundled-module on (name):
                 Return a failure (cast not-judged on ("a type named for a book")).
             Done.
             Return a failure "error\tThat doesn't work: '{name}' is not a defined type.\n\nDefine 'object {name}' before using it as a type name, or check the spelling.".

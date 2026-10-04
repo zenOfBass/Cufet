@@ -1,0 +1,703 @@
+/*  Versions of one name — `src/Interpreter/DispatchExpansion.cs` and `DispatchConditions.cs`.
+
+    ★ Top-level functions that share a name are versions of it, told apart by the TYPE of one or
+    more arguments, by a `when` condition, or both. Before anything is gathered, each version
+    becomes an ordinary function under a name of its own (`fold given sum 1`), and the name the
+    writer called becomes a function built of `Judge` and `If` that picks between them — so what
+    is checked afterwards is that program, and nothing downstream knows dispatch exists.
+
+    ★ The conditions of one signature are proved never to hold together, by reading each into an
+    `or` of `and`s of simple tests (equality against a literal, a type test, either negated) and
+    finding a contradiction between every pair — which is what lets an ordinary `If` chain stand for
+    dispatch that does not depend on order.
+*/
+
+Pull a book on collections.
+    /// The program with every group of versions replaced by its versions and their dispatcher.
+    Bind node or failure to expand-dispatch, given (the node program):
+        Define order as a series of text.
+        Define groups as a map from text to node.
+        For each statement in program's children, repeat:
+            If statement's kind is "BindStatement" and cast is-nothing on (cast field-of on (statement, 5)):
+                Define name as cast unquoted on (cast field-of on (statement, 1)).
+                Define group as the entry for name in groups.
+                If group is void:
+                    Define fresh-group as cast listed.
+                    In groups, the entry for name becomes fresh-group.
+                    Insert name into order.
+                    Cast fresh-group's add on (statement).
+                Done.
+                Otherwise:
+                    Cast group's add on (statement).
+                Done.
+            Done.
+        Done.
+        Define replacements as a map from text to node.
+        For each name in order, repeat:
+            Define versions as (the entry for name in groups but void is cast listed)'s children.
+            If the number of versions is greater than 1 or cast has-mark on (item 1 of versions, ":When"):
+                Define built as cast build-dispatch on (name, versions) or pass the failure off.
+                Define held as cast listed.
+                For each statement in built, repeat:
+                    Cast held's add on (statement).
+                Done.
+                In replacements, the entry for name becomes held.
+            Done.
+        Done.
+        If the size of replacements is 0, return program.
+        // Each group stands where its first version stood, and nowhere else.
+        Define expanded as a new node { the kind program's kind, the word program's word, the children a series of node }.
+        Define emitted as a map from text to fact.
+        For each statement in program's children, repeat:
+            Define replaced as cast unknown-type.
+            If statement's kind is "BindStatement" and cast is-nothing on (cast field-of on (statement, 5)):
+                Define name as cast unquoted on (cast field-of on (statement, 1)).
+                Define found as the entry for name in replacements.
+                If found is not void:
+                    The replaced becomes found.
+                    If (the entry for name in emitted) is void:
+                        In emitted, the entry for name becomes true.
+                        For each held in found's children, repeat:
+                            Cast expanded's add on (held).
+                        Done.
+                    Done.
+                Done.
+            Done.
+            If cast is-none on (replaced), cast expanded's add on (statement).
+        Done.
+        Return expanded.
+    Done.
+
+    // ── Building one group ────────────────────────────────────────────────
+
+    Bind number to bind-row, given (the node version):
+        Return cast numeric on (cast field-of on (version, 7)).
+    Done.
+
+    Bind text to parameter-name-at, given (the node version, the number place):
+        Return cast unquoted on (cast field-of on (item place of (cast field-of on (version, 3))'s children, 2)).
+    Done.
+
+    /// The same types, each once, in the order first met.
+    Bind series of node to distinct-types, given (the series of node shapes):
+        Define kept as a series of node.
+        Define seen as a map from text to fact.
+        For each shape in shapes, repeat:
+            Define key as cast type-key on (shape).
+            If (the entry for key in seen) is void:
+                In seen, the entry for key becomes true.
+                Insert shape into kept.
+            Done.
+        Done.
+        Return kept.
+    Done.
+
+    /// A signature is `(signature [types] [conditioned versions] fallback-or-_)`.
+    Bind series of node to types-at, given (the series of node signatures, the number place):
+        Define found as a series of node.
+        For each signature in signatures, repeat:
+            Insert item place of (cast field-of on (signature, 1))'s children into found.
+        Done.
+        Return found.
+    Done.
+
+    Bind series of node or failure to build-dispatch, given (the text name, the series of node versions):
+        Define first as item 1 of versions.
+        Define first-count as the number of (cast field-of on (first, 3))'s children.
+        Define first-row as cast bind-row on (first).
+        Define place as 0.
+        For each other in versions, repeat:
+            Increment place by 1.
+            If place is greater than 1:
+                Define other-row as cast bind-row on (other).
+                Define other-count as the number of (cast field-of on (other, 3))'s children.
+                If other-count is not first-count:
+                    Return a failure (cast refusal-of on ("the versions of '{name}' take different numbers of arguments",
+                        "The one on line {first-row} takes {first-count}, and this one takes {other-count}",
+                        other-row, "declare a version of '{name}' with a different number of arguments",
+                        "Every version of a name is reached by the same call, so they all take the same arguments. Rename this one if it does something else.")).
+                Done.
+                Define first-gives as cast field-of on (first, 2).
+                Define other-gives as cast field-of on (other, 2).
+                If cast type-key on (first-gives) is not cast type-key on (other-gives):
+                    Define first-said as "nothing".
+                    If cast is-nothing on (first-gives) is false, the first-said becomes cast type-words on (first-gives).
+                    Define other-said as "nothing".
+                    If cast is-nothing on (other-gives) is false, the other-said becomes cast type-words on (other-gives).
+                    Return a failure (cast refusal-of on ("the versions of '{name}' give back different types",
+                        "The one on line {first-row} gives back {first-said}, and this one gives back {other-said}",
+                        other-row, "declare a version of '{name}' with another return type",
+                        "A caller has to know what it gets back without knowing which version ran, so every version gives back the same type.")).
+                Done.
+            Done.
+        Done.
+
+        Define signatures as cast group-by-signature on (name, versions) or pass the failure off.
+
+        // Which arguments are dispatched on — those whose type differs between signatures.
+        Define varying as a series of number.
+        Define arg-place as 0.
+        While arg-place is less than first-count, repeat:
+            Increment arg-place by 1.
+            If the number of cast distinct-types on (cast types-at on (signatures, arg-place)) is greater than 1, insert arg-place into varying.
+        Done.
+
+        Define built as a series of node.
+        If the number of varying is 0:
+            Define only as item 1 of signatures.
+            For each version in cast renamed-versions on (name, only), repeat:
+                Insert version into built.
+            Done.
+            Insert cast dispatcher on (name, first, cast field-of on (first, 3),
+                cast condition-chain on (name, only, first, a map from text to text)) into built.
+            Return built.
+        Done.
+
+        Define cases-at as a series of node.
+        For each varied in varying, repeat:
+            Define cases as cast listed.
+            For each one-case in cast distinct-types on (cast types-at on (signatures, varied)), repeat:
+                Cast cases's add on (one-case).
+            Done.
+            Insert cases into cases-at.
+        Done.
+        Cast require-every-combination on (name, versions, signatures, varying, cases-at) or pass the failure off.
+
+        For each signature in signatures, repeat:
+            For each version in cast renamed-versions on (name, signature), repeat:
+                Insert version into built.
+            Done.
+        Done.
+
+        Define dispatcher-parameters as cast listed.
+        Define index as 0.
+        For each parameter in (cast field-of on (first, 3))'s children, repeat:
+            Increment index by 1.
+            If cast holds-number on (varying, index):
+                Define either-cases as cast listed.
+                For each one-case in cast distinct-types on (cast types-at on (signatures, index)), repeat:
+                    Cast either-cases's add on (one-case).
+                Done.
+                Define pair as cast listed.
+                Cast pair's add on (cast made on ("UnionType", a series with (either-cases))).
+                Cast pair's add on (cast field-of on (parameter, 2)).
+                Cast dispatcher-parameters's add on (pair).
+            Done.
+            Otherwise:
+                Cast dispatcher-parameters's add on (parameter).
+            Done.
+        Done.
+        Insert cast dispatcher on (name, first, dispatcher-parameters,
+            cast judge-level on (name, first, varying, cases-at, 1, signatures, a map from text to text)) into built.
+        Return built.
+    Done.
+
+    /// The versions grouped by their parameter types: in each, the conditioned ones and at most
+    /// one fallback — then every signature's conditions checked.
+    Bind series of node or failure to group-by-signature, given (the text name, the series of node versions):
+        Define signatures as a series of node.
+        For each version in versions, repeat:
+            Define types as cast parameter-types-of on (version).
+            Define key as cast type-key on (types).
+            Define signature as cast unknown-type.
+            For each candidate in signatures, repeat:
+                If cast is-none on (signature) and cast type-key on (cast field-of on (candidate, 1)) is key, the signature becomes candidate.
+            Done.
+            If cast is-none on (signature):
+                The signature becomes cast made on ("signature", a series with (types, cast listed, cast nothing)).
+                Insert signature into signatures.
+            Done.
+            If cast has-mark on (version, ":When") is false:
+                Define fallback as cast field-of on (signature, 3).
+                If cast is-nothing on (fallback) is false:
+                    Return a failure (cast refusal-of on ("'{name}' is declared twice with the same argument types",
+                        "It was already declared on line {cast bind-row on (fallback)}", cast bind-row on (version),
+                        "declare '{name}' again with nothing to tell the two apart",
+                        "Versions of a name are told apart by one argument's type or by a 'when' condition. These have neither, so no call could pick between them. Rename one of them.")).
+                Done.
+                The item 3 of signature's children becomes version.
+            Done.
+            Otherwise:
+                Cast (cast field-of on (signature, 2))'s add on (version).
+            Done.
+        Done.
+        For each signature in signatures, repeat:
+            Cast check-conditions on (name, signature) or pass the failure off.
+        Done.
+        Return signatures.
+    Done.
+
+    /// The node a version's `when` carries.
+    Bind node to when-of, given (the node version):
+        Define place as 1.
+        While place is less than the number of version's children, repeat:
+            Define here as cast field-of on (version, place).
+            If here's kind is "atom" and here's word is ":When", return cast field-of on (version, place + 1).
+            Increment place by 1.
+        Done.
+        Return cast unknown-type.
+    Done.
+
+    /// Something runs when every condition is false, and no two conditions can hold together.
+    Bind void or failure to check-conditions, given (the text name, the node signature):
+        Define conditioned as (cast field-of on (signature, 2))'s children.
+        If the number of conditioned is 0, return.
+        If cast is-nothing on (cast field-of on (signature, 3)):
+            Return a failure (cast refusal-of on ("every version of '{name}' carries a condition",
+                "A condition can be false, and something has to run when they all are",
+                cast bind-row on (item 1 of conditioned), "leave '{name}' with nothing to run when no condition holds",
+                "Add a version with no 'when' — it runs when none of the others apply.")).
+        Done.
+        Define clauses as a series of node.
+        For each version in conditioned, repeat:
+            Define clause as cast unknown-type.
+            Try to:
+                The clause becomes cast condition-dnf on (cast when-of on (version)).
+            Done.
+            In case of failure:
+                Return a failure (cast refusal-of on ("this condition on '{name}' is outside what can be checked for overlap",
+                    "Two versions may never both apply, and showing that needs a condition built from tests this checker can compare",
+                    cast bind-row on (version), "tell versions of '{name}' apart by this condition",
+                    "A 'when' is built from equality against a literal ('node's left is 0'), a type test ('node is a num-lit'), either of them negated, and 'and', 'or' and 'xor'. Ordering and arithmetic are not part of it.")).
+            Done.
+            Insert clause into clauses.
+        Done.
+        Define left-place as 0.
+        While left-place is less than the number of clauses, repeat:
+            Increment left-place by 1.
+            Define right-place as left-place.
+            While right-place is less than the number of clauses, repeat:
+                Increment right-place by 1.
+                If cast are-disjoint on (item left-place of clauses, item right-place of clauses) is false:
+                    Return a failure (cast refusal-of on ("two versions of '{name}' can both apply",
+                        "The one on line {cast bind-row on (item left-place of conditioned)} and this one can hold at the same time, and the language does not decide which of two would win",
+                        cast bind-row on (item right-place of conditioned), "declare versions of '{name}' whose conditions overlap",
+                        "Make the conditions exclude each other — a version for the narrower case and a version for the rest — or fold the two bodies into one.")).
+                Done.
+            Done.
+        Done.
+    Done.
+
+    // ── Conditions, as an `or` of `and`s of tests (`DispatchConditions`) ──
+
+    /// What a test is about — `node`, `node's left` — or "" when it is about nothing nameable.
+    Bind text to test-target, given (the node said):
+        Define kind as said's kind.
+        If kind is "VariableReference", return cast unquoted on (cast field-of on (said, 1)).
+        If kind is "PossessiveAccess":
+            Define inner as cast test-target on (cast field-of on (said, 1)).
+            If inner is "", return "".
+            Return "{inner}'s {cast unquoted on (cast field-of on (said, 2))}".
+        Done.
+        If kind is "RecordNamedAccess":
+            Define inner as cast test-target on (cast field-of on (said, 2)).
+            If inner is "", return "".
+            Return "{inner}'s {cast unquoted on (cast field-of on (said, 1))}".
+        Done.
+        Return "".
+    Done.
+
+    /// A literal as something two can be compared by — or "" when it is not a literal.
+    Bind text to literal-identity, given (the node said):
+        Define kind as said's kind.
+        If kind is "NumberLiteral", return "number {cast numeric on (cast field-of on (said, 1))}".
+        If kind is "StringLiteral", return "text {cast unquoted on (cast field-of on (said, 1))}".
+        If kind is "BooleanLiteral", return "fact {(cast field-of on (said, 1))'s word}".
+        Return "".
+    Done.
+
+    /// One test: `(test target literal-or-"" type-or-_ negated)`.
+    Bind node to one-test, given (the text target, the text literal, the node shape, the fact negated):
+        Define test as cast made on ("test", a series with (cast quoted on (target), cast quoted on (literal), shape, cast flag on (negated))).
+        Define conjunct as cast listed.
+        Cast conjunct's add on (test).
+        Define clause as cast listed.
+        Cast clause's add on (conjunct).
+        Return clause.
+    Done.
+
+    /// The condition as a list of conjuncts, each a list of tests — or a failure when it holds
+    /// anything outside the fragment.
+    Bind node or failure to condition-dnf, given (the node said):
+        Define kind as said's kind.
+        If kind is "IsTypeCheck":
+            Define target as cast test-target on (cast field-of on (said, 1)).
+            If target is "", return a failure "outside".
+            Return cast one-test on (target, "", cast field-of on (said, 2), cast truth-of on (cast field-of on (said, 3))).
+        Done.
+        If kind is not "BinaryExpression", return a failure "outside".
+        Define op as (cast field-of on (said, 2))'s word.
+        If op is "Or":
+            Define left as cast condition-dnf on (cast field-of on (said, 1)) or pass the failure off.
+            Define right as cast condition-dnf on (cast field-of on (said, 3)) or pass the failure off.
+            Define both as cast listed.
+            For each conjunct in left's children, repeat:
+                Cast both's add on (conjunct).
+            Done.
+            For each conjunct in right's children, repeat:
+                Cast both's add on (conjunct).
+            Done.
+            Return both.
+        Done.
+        If op is "And":
+            Define left as cast condition-dnf on (cast field-of on (said, 1)) or pass the failure off.
+            Define right as cast condition-dnf on (cast field-of on (said, 3)) or pass the failure off.
+            Define product as cast listed.
+            For each left-conjunct in left's children, repeat:
+                For each right-conjunct in right's children, repeat:
+                    Define joined-conjunct as cast listed.
+                    For each test in left-conjunct's children, repeat:
+                        Cast joined-conjunct's add on (test).
+                    Done.
+                    For each test in right-conjunct's children, repeat:
+                        Cast joined-conjunct's add on (test).
+                    Done.
+                    Cast product's add on (joined-conjunct).
+                Done.
+            Done.
+            Return product.
+        Done.
+        If op is "Xor":
+            Define first-side as cast field-of on (said, 1).
+            Define second-side as cast field-of on (said, 3).
+            Define line-atom as cast field-of on (said, 4).
+            Define column-atom as cast field-of on (said, 5).
+            Define one-way as cast made on ("BinaryExpression", a series with (first-side, cast atom on ("And"), cast negated-condition on (second-side), line-atom, column-atom)).
+            Define other-way as cast made on ("BinaryExpression", a series with (cast negated-condition on (first-side), cast atom on ("And"), second-side, line-atom, column-atom)).
+            Return cast condition-dnf on (cast made on ("BinaryExpression", a series with (one-way, cast atom on ("Or"), other-way, line-atom, column-atom))) or pass the failure off.
+        Done.
+        If op is "Equal" or op is "NotEqual":
+            Define negated as op is "NotEqual".
+            Define left-side as cast field-of on (said, 1).
+            Define right-side as cast field-of on (said, 3).
+            If cast literal-identity on (right-side) is not "" and cast test-target on (left-side) is not "":
+                Return cast one-test on (cast test-target on (left-side), cast literal-identity on (right-side), cast nothing, negated).
+            Done.
+            If cast literal-identity on (left-side) is not "" and cast test-target on (right-side) is not "":
+                Return cast one-test on (cast test-target on (right-side), cast literal-identity on (left-side), cast nothing, negated).
+            Done.
+        Done.
+        Return a failure "outside".
+    Done.
+
+    /// `Negate`: what holds when this does not — anything but a test, `and` or `or` falls out of
+    /// the fragment, which reading it then says.
+    Bind node to negated-condition, given (the node said):
+        Define kind as said's kind.
+        If kind is "IsTypeCheck":
+            Return cast made on ("IsTypeCheck", a series with (cast field-of on (said, 1), cast field-of on (said, 2),
+                cast flag on (cast truth-of on (cast field-of on (said, 3)) is false), cast field-of on (said, 4), cast field-of on (said, 5))).
+        Done.
+        If kind is "BinaryExpression":
+            Define op as (cast field-of on (said, 2))'s word.
+            Define flipped as "".
+            If op is "Equal", the flipped becomes "NotEqual".
+            If op is "NotEqual", the flipped becomes "Equal".
+            If flipped is not "":
+                Return cast made on ("BinaryExpression", a series with (cast field-of on (said, 1), cast atom on (flipped),
+                    cast field-of on (said, 3), cast field-of on (said, 4), cast field-of on (said, 5))).
+            Done.
+            Define joined-by as "".
+            If op is "And", the joined-by becomes "Or".
+            If op is "Or", the joined-by becomes "And".
+            If joined-by is not "":
+                Return cast made on ("BinaryExpression", a series with (cast negated-condition on (cast field-of on (said, 1)), cast atom on (joined-by),
+                    cast negated-condition on (cast field-of on (said, 3)), cast field-of on (said, 4), cast field-of on (said, 5))).
+            Done.
+        Done.
+        Return cast made on ("UnaryExpression", a series with (cast atom on ("Not"), said, cast numeral on (0), cast numeral on (0))).
+    Done.
+
+    /// Every conjunct of one against every conjunct of the other holds a contradiction.
+    Bind fact to are-disjoint, given (the node left, the node right):
+        For each left-conjunct in left's children, repeat:
+            For each right-conjunct in right's children, repeat:
+                If cast conjuncts-contradict on (left-conjunct, right-conjunct) is false, return false.
+            Done.
+        Done.
+        Return true.
+    Done.
+
+    Bind fact to conjuncts-contradict, given (the node left, the node right):
+        For each left-test in left's children, repeat:
+            For each right-test in right's children, repeat:
+                If cast tests-contradict on (left-test, right-test), return true.
+            Done.
+        Done.
+        Return false.
+    Done.
+
+    /// Two tests on the same thing that cannot both hold.
+    Bind fact to tests-contradict, given (the node left, the node right):
+        If (cast field-of on (left, 1))'s word is not (cast field-of on (right, 1))'s word, return false.
+        Define left-literal as cast unquoted on (cast field-of on (left, 2)).
+        Define right-literal as cast unquoted on (cast field-of on (right, 2)).
+        If (left-literal is "") is not (right-literal is ""), return false.
+        Define left-negated as cast truth-of on (cast field-of on (left, 4)).
+        Define right-negated as cast truth-of on (cast field-of on (right, 4)).
+        Define same as false.
+        If left-literal is not "", the same becomes left-literal is right-literal.
+        Otherwise, the same becomes cast type-key on (cast field-of on (left, 3)) is cast type-key on (cast field-of on (right, 3)).
+        If same, return left-negated is not right-negated.
+        Return left-negated is false and right-negated is false.
+    Done.
+
+    // ── Coverage, and the built statements ────────────────────────────────
+
+    /// With more than one argument told apart, every combination of their cases needs a version.
+    Bind void or failure to require-every-combination, given (the text name, the series of node versions,
+            the series of node signatures, the series of number varying, the series of node cases-at):
+        Define declared as a map from text to fact.
+        For each signature in signatures, repeat:
+            Define spelled-key as a series of text.
+            For each varied in varying, repeat:
+                Insert cast type-words on (item varied of (cast field-of on (signature, 1))'s children) into spelled-key.
+            Done.
+            In declared, the entry for cast joined-with on (spelled-key, " | ") becomes true.
+        Done.
+        Define indices as a series of number.
+        For each cases in cases-at, repeat:
+            Insert 1 into indices.
+        Done.
+        Define going as true.
+        While going, repeat:
+            Define combination as a series of node.
+            Define slot as 0.
+            For each cases in cases-at, repeat:
+                Increment slot by 1.
+                Insert item (item slot of indices) of cases's children into combination.
+            Done.
+            Define words as a series of text.
+            For each one-case in combination, repeat:
+                Insert cast type-words on (one-case) into words.
+            Done.
+            If (the entry for cast joined-with on (words, " | ") in declared) is void:
+                Define parts as a series of text.
+                Define at as 0.
+                For each one-case in combination, repeat:
+                    Increment at by 1.
+                    Insert "argument {item at of varying} a {cast type-words on (one-case)}" into parts.
+                Done.
+                Define count as the number of varying.
+                Return a failure (cast refusal-of on ("'{name}' has no version for {cast joined-with on (parts, ", ")}",
+                    "{count} arguments tell its versions apart, so every combination of them has to have one",
+                    cast bind-row on (item (the number of versions) of versions), "leave a call to '{name}' with nothing to run",
+                    "Add that version, or tell the versions apart by one argument instead of {count}.")).
+            Done.
+            // The last arg-place turns fastest, like an odometer.
+            Define turning as the number of indices.
+            Define carried as true.
+            While carried and turning is greater than 0, repeat:
+                Define next as item turning of indices + 1.
+                If next is greater than the number of (item turning of cases-at)'s children:
+                    The item turning of indices becomes 1.
+                    Decrement turning by 1.
+                Done.
+                Otherwise:
+                    The item turning of indices becomes next.
+                    The carried becomes false.
+                Done.
+            Done.
+            If carried, the going becomes false.
+        Done.
+    Done.
+
+    Bind fact to holds-number, given (the series of number numbers, the number wanted):
+        For each one-number in numbers, repeat:
+            If one-number is wanted, return true.
+        Done.
+        Return false.
+    Done.
+
+    Bind text to joined-with, given (the series of text pieces, the text between):
+        Define out as "".
+        Define first as true.
+        For each piece in pieces, repeat:
+            If first is false, the out becomes out joined to between.
+            The out becomes out joined to piece.
+            The first becomes false.
+        Done.
+        Return out.
+    Done.
+
+    /// What one version is called once it stands alone: `fold given sum`, `fold given sum 1`.
+    Bind text to version-name, given (the text name, the node signature, the number ordinal):
+        Define words as a series of text.
+        For each one-type in (cast field-of on (signature, 1))'s children, repeat:
+            Insert cast type-words on (one-type) into words.
+        Done.
+        If ordinal is 0, return "{name} given {cast joined-with on (words, ", ")}".
+        Return "{name} given {cast joined-with on (words, ", ")} {ordinal}".
+    Done.
+
+    /// A version under its own name, its `when` gone.
+    Bind node to renamed-version, given (the node version, the text renamed):
+        Define copy as cast made on ("BindStatement", a series of node).
+        Define place as 0.
+        Define skipping as false.
+        For each part in version's children, repeat:
+            Increment place by 1.
+            If skipping:
+                The skipping becomes false.
+            Done.
+            Otherwise if part's kind is "atom" and part's word is ":When":
+                The skipping becomes true.
+            Done.
+            Otherwise if place is 1:
+                Cast copy's add on (cast quoted on (renamed)).
+            Done.
+            Otherwise:
+                Cast copy's add on (part).
+            Done.
+        Done.
+        Return copy.
+    Done.
+
+    Bind series of node to renamed-versions, given (the text name, the node signature):
+        Define renamed as a series of node.
+        Define ordinal as 0.
+        For each version in (cast field-of on (signature, 2))'s children, repeat:
+            Insert cast renamed-version on (version, cast version-name on (name, signature, ordinal)) into renamed.
+            Increment ordinal by 1.
+        Done.
+        Define fallback as cast field-of on (signature, 3).
+        If cast is-nothing on (fallback) is false:
+            Insert cast renamed-version on (fallback, cast version-name on (name, signature, ordinal)) into renamed.
+        Done.
+        Return renamed.
+    Done.
+
+    /// The function the writer called, built over the versions.
+    Bind node to dispatcher, given (the text name, the node shape, the node parameters, the node body):
+        Return cast made on ("BindStatement", a series with (cast quoted on (name), cast field-of on (shape, 2), parameters, body,
+            cast nothing, cast nothing, cast field-of on (shape, 7), cast field-of on (shape, 8))).
+    Done.
+
+    /// The call to one version, with each argument as the dispatcher holds it at this point.
+    Bind node to call-to-version, given (the text name, the node signature, the number ordinal, the node version,
+            the node shape, the map from text to text bound):
+        Define line-atom as cast field-of on (version, 7).
+        Define column-atom as cast field-of on (version, 8).
+        Define handed-on as cast listed.
+        Define place as 0.
+        For each parameter in (cast field-of on (shape, 3))'s children, repeat:
+            Increment place by 1.
+            Define held as the entry for "{place}" in bound but void is cast unquoted on (cast field-of on (parameter, 2)).
+            Cast handed-on's add on (cast made on ("VariableReference", a series with (cast quoted on (held), line-atom, column-atom))).
+        Done.
+        Define callee as cast made on ("VariableReference", a series with (cast quoted on (cast version-name on (name, signature, ordinal)), line-atom, column-atom)).
+        Define statements as cast listed.
+        If cast is-nothing on (cast field-of on (shape, 2)):
+            Cast statements's add on (cast made on ("CastStatement", a series with (callee, handed-on, line-atom, column-atom))).
+        Done.
+        Otherwise:
+            Define call as cast made on ("CastExpression", a series with (callee, handed-on, line-atom, column-atom)).
+            Cast statements's add on (cast made on ("ReturnStatement", a series with (call, line-atom, column-atom))).
+        Done.
+        Return statements.
+    Done.
+
+    /// One signature's versions in turn: each condition, then the fallback.
+    Bind node to condition-chain, given (the text name, the node signature, the node shape, the map from text to text bound):
+        Define conditioned as (cast field-of on (signature, 2))'s children.
+        Define fallback as cast field-of on (signature, 3).
+        If the number of conditioned is 0:
+            Return cast call-to-version on (name, signature, 0, fallback, shape, bound).
+        Done.
+        Define arms as cast listed.
+        Define ordinal as 0.
+        For each version in conditioned, repeat:
+            // Inside a judgement the parameter still holds the whole union; the condition reads
+            // the narrowed name instead.
+            Define condition as cast when-of on (version).
+            Define place as 0.
+            For each parameter in (cast field-of on (shape, 3))'s children, repeat:
+                Increment place by 1.
+                Define parameter-name as cast unquoted on (cast field-of on (parameter, 2)).
+                Define held as the entry for "{place}" in bound but void is "".
+                If held is not "" and held is not parameter-name, the condition becomes cast renamed-in on (condition, parameter-name, held).
+            Done.
+            Cast arms's add on (cast made on ("ConditionArm", a series with (condition,
+                cast call-to-version on (name, signature, ordinal, version, shape, bound)))).
+            Increment ordinal by 1.
+        Done.
+        Define chain as cast listed.
+        Cast chain's add on (cast made on ("IfStatement", a series with (arms, cast call-to-version on (name, signature, ordinal, fallback, shape, bound)))).
+        Return chain.
+    Done.
+
+    /// The condition with one name swapped for another, through the shapes a `when` may hold.
+    Bind node to renamed-in, given (the node said, the text old-name, the text new-name):
+        Define kind as said's kind.
+        If kind is "VariableReference":
+            If cast unquoted on (cast field-of on (said, 1)) is not old-name, return said.
+            Return cast made on ("VariableReference", a series with (cast quoted on (new-name), cast field-of on (said, 2), cast field-of on (said, 3))).
+        Done.
+        Define place as 0.
+        If kind is "BinaryExpression" or kind is "UnaryExpression" or kind is "IsTypeCheck" or kind is "PossessiveAccess" or kind is "RecordNamedAccess":
+            Define copy as cast made on (kind, a series of node).
+            For each part in said's children, repeat:
+                Increment place by 1.
+                Define walked as false.
+                If kind is "BinaryExpression" and (place is 1 or place is 3), the walked becomes true.
+                If kind is "UnaryExpression" and place is 2, the walked becomes true.
+                If (kind is "IsTypeCheck" or kind is "PossessiveAccess") and place is 1, the walked becomes true.
+                If kind is "RecordNamedAccess" and place is 2, the walked becomes true.
+                If walked, cast copy's add on (cast renamed-in on (part, old-name, new-name)).
+                Otherwise, cast copy's add on (part).
+            Done.
+            Return copy.
+        Done.
+        Return said.
+    Done.
+
+    /// One `Judge` per argument told apart by type, nested, the innermost running that combination.
+    Bind node to judge-level, given (the text name, the node shape, the series of number varying, the series of node cases-at,
+            the number depth, the series of node remaining, the map from text to text bound):
+        Define arg-place as item depth of varying.
+        Define last as depth is the number of varying.
+        Define line-atom as cast field-of on (shape, 7).
+        Define column-atom as cast field-of on (shape, 8).
+        Define arms as cast listed.
+        Define case-place as 0.
+        For each one-case in (item depth of cases-at)'s children, repeat:
+            Increment case-place by 1.
+            Define inner as a series of node.
+            For each signature in remaining, repeat:
+                If cast type-key on (item arg-place of (cast field-of on (signature, 1))'s children) is cast type-key on (one-case), insert signature into inner.
+            Done.
+            If the number of inner is greater than 0:
+                Define body as cast listed.
+                Define inner-bound as a map from text to text.
+                For each mapping in bound, repeat:
+                    In inner-bound, the entry for the key of mapping becomes the value of mapping.
+                Done.
+                If last:
+                    In inner-bound, the entry for "{arg-place}" becomes "it".
+                    For each statement in (cast condition-chain on (name, item 1 of inner, shape, inner-bound))'s children, repeat:
+                        Cast body's add on (statement).
+                    Done.
+                Done.
+                Otherwise:
+                    Define held as "{cast parameter-name-at on (shape, arg-place)} at {cast type-words on (one-case)} {depth - 1}.{case-place - 1}".
+                    In inner-bound, the entry for "{arg-place}" becomes held.
+                    Cast body's add on (cast made on ("DefineStatement", a series with (cast quoted on (held),
+                        cast made on ("VariableReference", a series with (cast quoted on ("it"), line-atom, column-atom)),
+                        cast flag on (false), cast flag on (false), line-atom, column-atom, cast nothing))).
+                    For each statement in (cast judge-level on (name, shape, varying, cases-at, depth + 1, inner, inner-bound))'s children, repeat:
+                        Cast body's add on (statement).
+                    Done.
+                Done.
+                Define anchor as cast field-of on (item 1 of inner, 3).
+                If cast is-nothing on (anchor), the anchor becomes item 1 of (cast field-of on (item 1 of inner, 2))'s children.
+                Define arm-cases as cast listed.
+                Cast arm-cases's add on (one-case).
+                Cast arms's add on (cast made on ("JudgeArm", a series with (arm-cases, body, cast field-of on (anchor, 7), cast field-of on (anchor, 8), cast nothing))).
+            Done.
+        Done.
+        Define subject as cast made on ("VariableReference", a series with (cast quoted on (cast parameter-name-at on (shape, arg-place)), line-atom, column-atom)).
+        Define judged as cast listed.
+        Cast judged's add on (cast made on ("JudgeStatement", a series with (subject, arms, cast nothing, line-atom, column-atom))).
+        Return judged.
+    Done.
+Done.
