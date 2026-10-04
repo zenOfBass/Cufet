@@ -203,45 +203,45 @@ Pull a book on collections.
     Bind void to refs-and-defs, given (the node tree, the map from text to fact refs, the map from text to fact defs):
         Define kind as tree's kind.
         Judge kind, where it is:
-            It is "atom", return.
-            It is "VariableReference":
+            "atom", return.
+            "VariableReference":
                 In refs, the entry for cast unquoted on (cast field-of on (tree, 1)) becomes true.
                 Return.
             Done.
             // An assignment's target is a bare name, invisible to the walk below.
-            It is "BecomesStatement":
+            "BecomesStatement":
                 In refs, the entry for cast unquoted on (cast field-of on (tree, 1)) becomes true.
                 Cast refs-and-defs on (cast field-of on (tree, 2), refs, defs).
                 Return.
             Done.
-            It is "DefineStatement":
+            "DefineStatement":
                 In defs, the entry for cast unquoted on (cast field-of on (tree, 1)) becomes true.
                 Cast refs-and-defs on (cast field-of on (tree, 2), refs, defs).
                 Return.
             Done.
             // A binding form binds its own names for its own body only.
-            It is "ForEachStatement":
+            "ForEachStatement":
                 Cast refs-and-defs on (cast field-of on (tree, 2), refs, defs).
                 Define iterated as a series of text.
                 If cast is-nothing on (cast field-of on (tree, 1)) is false, insert cast unquoted on (cast field-of on (tree, 1)) into iterated.
                 Cast refs-in-nested on (iterated, cast field-of on (tree, 3), refs, defs).
                 Return.
             Done.
-            It is "ForEachFromInputStatement":
+            "ForEachFromInputStatement":
                 Cast refs-in-nested on (a series with (cast unquoted on (cast field-of on (tree, 1))), cast field-of on (tree, 2), refs, defs).
                 Return.
             Done.
-            It is "LambdaLiteral":
+            "LambdaLiteral":
                 Cast refs-in-nested on (cast bound-names-of on (cast field-of on (tree, 1)), cast field-of on (tree, 2), refs, defs).
                 Return.
             Done.
-            It is "BindStatement":
+            "BindStatement":
                 In defs, the entry for cast unquoted on (cast field-of on (tree, 1)) becomes true.
                 Cast refs-in-nested on (cast bound-names-of on (cast field-of on (tree, 3)), cast field-of on (tree, 4), refs, defs).
                 Return.
             Done.
             // An object's members are bound by the member — `one`, and each one's own parameters.
-            It is "ObjectDefinition":
+            "ObjectDefinition":
                 For each method in (cast field-of on (tree, 4))'s children, repeat:
                     Define bound as cast bound-names-of on (cast field-of on (method, 3)).
                     Insert "one" into bound.
@@ -347,9 +347,9 @@ Pull a book on collections.
     Bind number to stage-row, given (the node stage):
         Define kind as stage's kind.
         Judge kind, where it is:
-            It is "VariableReference", return cast numeric on (cast field-of on (stage, 2)).
-            It is "LambdaLiteral" or "PipeExpression", return cast numeric on (cast field-of on (stage, 3)).
-            It is "RunExpression", return cast numeric on (cast field-of on (stage, 4)).
+            "VariableReference", return cast numeric on (cast field-of on (stage, 2)).
+            "LambdaLiteral" or "PipeExpression", return cast numeric on (cast field-of on (stage, 3)).
+            "RunExpression", return cast numeric on (cast field-of on (stage, 4)).
             Otherwise, return 0.
         Done.
     Done.

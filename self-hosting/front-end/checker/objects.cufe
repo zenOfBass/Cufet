@@ -881,7 +881,7 @@ Pull a book on collections.
         If cast is-none on (target), return target.
         Define kind as target's kind.
         Judge kind, where it is:
-            It is "ObjectType":
+            "ObjectType":
                 Define owner as cast unquoted on (cast field-of on (target, 1)).
                 If cast one's definition-of on (owner) is void, return a failure (cast not-judged on ("the fields of a '{owner}'")).
                 Define getter as cast one's getter-type-of on (owner, field).
@@ -902,18 +902,18 @@ Pull a book on collections.
                 Return a failure (cast refusal-of on ("'{owner}' has no field or getter named '{field}'", "",
                     at-row, "access field '{field}'", fix)).
             Done.
-            It is "MappingType":
+            "MappingType":
                 If field is "key", return cast field-of on (target, 1).
                 If field is "value", return cast field-of on (target, 2).
                 Return a failure (cast refusal-of on ("a mapping only has 'key' and 'value' fields", "",
                     at-row, "access field '{field}' on a mapping", "Use 'the key of mapping' or 'the value of mapping'.")).
             Done.
-            It is "ExceptionMarkerType":
+            "ExceptionMarkerType":
                 If field is "message", return cast plain-type on ("TextType").
                 Return a failure (cast refusal-of on ("an exception only has a 'message' field", "",
                     at-row, "access field '{field}' on an exception", "Use 'the message of the exception'.")).
             Done.
-            It is "FailureMarkerType":
+            "FailureMarkerType":
                 If field is "message", return cast plain-type on ("TextType").
                 If field is "category", return cast wrapped on ("VoidableType", cast plain-type on ("TextType")).
                 Return a failure (cast refusal-of on ("a failure only has 'message' and 'category' fields", "",

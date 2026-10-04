@@ -13,10 +13,10 @@
 Pull a book on collections.
     Bind text to op-symbol, given (the text op):
         Judge op, where it is:
-            It is "Plus", return "+".
-            It is "Minus", return "-".
-            It is "Star", return "*".
-            It is "Slash", return "/".
+            "Plus", return "+".
+            "Minus", return "-".
+            "Star", return "*".
+            "Slash", return "/".
             Otherwise, return op.
         Done.
     Done.
@@ -36,10 +36,10 @@ Pull a book on collections.
         If cast one's definition-of on (name) is not void, return cast object-type-named on (name).
         Define lowered as name in lowercase.
         Judge lowered, where it is:
-            It is "number", return cast plain-type on ("NumberType").
-            It is "text", return cast plain-type on ("TextType").
-            It is "fact", return cast plain-type on ("FactType").
-            It is "bits", return cast plain-type on ("BitsType").
+            "number", return cast plain-type on ("NumberType").
+            "text", return cast plain-type on ("TextType").
+            "fact", return cast plain-type on ("FactType").
+            "bits", return cast plain-type on ("BitsType").
             Otherwise:
                 Return a failure (cast refusal-of on ("'{name}' is not a defined object type — an operator overload has no type to register on", "",
                     at-row, "declare an overload for '{name}'",

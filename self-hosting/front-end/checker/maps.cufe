@@ -10,9 +10,9 @@ Pull a book on collections.
     Bind fact to is-valid-key, given (the node shape):
         Define kind as shape's kind.
         Judge kind, where it is:
-            It is "NumberType" or "TextType" or "FactType" or "BitsType", return true.
-            It is "VoidableType", return cast is-valid-key on (cast field-of on (shape, 1)).
-            It is "RecordType":
+            "NumberType" or "TextType" or "FactType" or "BitsType", return true.
+            "VoidableType", return cast is-valid-key on (cast field-of on (shape, 1)).
+            "RecordType":
                 For each positional in (cast field-of on (shape, 1))'s children, repeat:
                     If cast is-valid-key on (positional) is false, return false.
                 Done.
@@ -21,7 +21,7 @@ Pull a book on collections.
                 Done.
                 Return true.
             Done.
-            It is "UnionType":
+            "UnionType":
                 Define cases as cast field-of on (shape, 1).
                 If cases's kind is not "list", return false.
                 For each one-case in cases's children, repeat:

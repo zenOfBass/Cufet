@@ -54,11 +54,11 @@ Pull a book on collections.
         For each statement in body's children, repeat:
             Define kind as statement's kind.
             Judge kind, where it is:
-                It is "DefineStatement":
+                "DefineStatement":
                     In locals, the entry for cast unquoted on (cast field-of on (statement, 1)) becomes
                         cast one's symbolic-depth on (cast field-of on (statement, 2), positions, referenced, locals).
                 Done.
-                It is "BecomesStatement":
+                "BecomesStatement":
                     Define name as cast unquoted on (cast field-of on (statement, 1)).
                     Define reached as cast one's symbolic-depth on (cast field-of on (statement, 2), positions, referenced, locals).
                     Define earlier as the entry for name in locals.
@@ -69,12 +69,12 @@ Pull a book on collections.
                     Done.
                     Otherwise, in locals, the entry for name becomes reached.
                 Done.
-                It is "ReturnStatement":
+                "ReturnStatement":
                     If cast is-nothing on (cast field-of on (statement, 1)) is false:
                         Cast union-into on (cast one's symbolic-depth on (cast field-of on (statement, 1), positions, referenced, locals), flows).
                     Done.
                 Done.
-                It is "IfStatement":
+                "IfStatement":
                     For each arm in (cast field-of on (statement, 1))'s children, repeat:
                         Cast one's walk-return-depths on (cast field-of on (arm, 2), positions, referenced, locals, flows).
                     Done.
@@ -82,13 +82,13 @@ Pull a book on collections.
                         Cast one's walk-return-depths on (cast field-of on (statement, 2), positions, referenced, locals, flows).
                     Done.
                 Done.
-                It is "WhileStatement" or "PullRabbitStatement":
+                "WhileStatement" or "PullRabbitStatement":
                     Cast one's walk-return-depths on (cast field-of on (statement, 2), positions, referenced, locals, flows).
                 Done.
-                It is "RepeatUntilStatement":
+                "RepeatUntilStatement":
                     Cast one's walk-return-depths on (cast field-of on (statement, 1), positions, referenced, locals, flows).
                 Done.
-                It is "ForEachStatement":
+                "ForEachStatement":
                     // The iterator is as deep as what it walks.
                     Define iterator as "it".
                     If cast is-nothing on (cast field-of on (statement, 1)) is false, the iterator becomes cast unquoted on (cast field-of on (statement, 1)).
@@ -98,7 +98,7 @@ Pull a book on collections.
                     If earlier is not void, in locals, the entry for iterator becomes earlier.
                     Otherwise, remove iterator from locals.
                 Done.
-                It is "TryStatement":
+                "TryStatement":
                     For each place in a series with (1, 2, 3), repeat:
                         If cast is-nothing on (cast field-of on (statement, place)) is false:
                             Cast one's walk-return-depths on (cast field-of on (statement, place), positions, referenced, locals, flows).

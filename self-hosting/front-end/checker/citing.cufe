@@ -113,10 +113,10 @@ Pull a book on collections.
     Bind number or failure to held-row, given (the node statement, the number block-row):
         Define place as 0.
         Judge statement's kind, where it is:
-            It is "StateStatement" or "IfStatement" or "StopStatement" or "SkipStatement" or "RepeatUntilStatement", return block-row.
-            It is "ReturnStatement" or "ExitStatement", the place becomes 2.
-            It is "CastStatement" or "BecomesStatement" or "PullStatement" or "PullRabbitStatement" or "CiteStatement" or "WhileStatement", the place becomes 3.
-            It is "ForEachStatement", the place becomes 4.
+            "StateStatement" or "IfStatement" or "StopStatement" or "SkipStatement" or "RepeatUntilStatement", return block-row.
+            "ReturnStatement" or "ExitStatement", the place becomes 2.
+            "CastStatement" or "BecomesStatement" or "PullStatement" or "PullRabbitStatement" or "CiteStatement" or "WhileStatement", the place becomes 3.
+            "ForEachStatement", the place becomes 4.
             Otherwise, return a failure (cast not-judged on ("a cufet block holding a {statement's kind}")).
         Done.
         Return cast numeric on (cast field-of on (statement, place)).

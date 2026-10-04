@@ -438,7 +438,7 @@ Pull a book on the c-language.
                            its parent's directory, which is why every real shell builds this one in. With
                            it, `pwd` finally reports somewhere you chose. A bad path is a
                            failure value, so a typo costs you a line of output and not the session. */
-                        It is "cd":
+                        "cd":
                             Try to:
                                 If n is 1:
                                     Define home as the environment variable "HOME" but void is "".
@@ -461,7 +461,7 @@ Pull a book on the c-language.
                             The argument is a POSITION in the list, not a pid — `fg 2` is the second
                             job, which is what is on screen when you typed `jobs`. Bare `fg` and `bg`
                             take the last one, the way they do everywhere. */
-                        It is "jobs":
+                        "jobs":
                             Define spot as 1.
                             For each job in jobs, repeat:
                                 Define how as "running".
@@ -472,7 +472,7 @@ Pull a book on the c-language.
                             If the number of jobs is 0, state "cufetsh: no jobs".
                         Done.
 
-                        It is "fg":
+                        "fg":
                             /*  ⚠ The terminal FIRST, then SIGCONT. A job woken while the shell still owns the
                                 terminal writes into a foreground group that is not its own and takes SIGTTOU for
                                 it — stopping again, immediately, for trying to do the thing it was just told to. */
@@ -509,7 +509,7 @@ Pull a book on the c-language.
                             Done.
                         Done.
 
-                        It is "bg":
+                        "bg":
                             /*  No terminal, and that is the whole difference from `fg`. A background job that is
                                 handed the terminal will read from it, and two things reading one keyboard is how
                                 a shell loses characters. */

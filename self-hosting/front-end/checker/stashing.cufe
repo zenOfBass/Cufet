@@ -250,10 +250,10 @@ Pull a book on collections.
     Bind number to stash-where, given (the node statement, the number at-row):
         Define place as 0.
         Judge statement's kind, where it is:
-            It is "PullRabbitStatement" or "LaunchTaskStatement" or "PullStatement" or "ForEachFromInputStatement", the place becomes 3.
-            It is "TryStatement" or "JudgeStatement" or "ForEachStatement", the place becomes 4.
-            It is "WithOpenStatement", the place becomes 5.
-            It is "ObjectDefinition", the place becomes 9.
+            "PullRabbitStatement" or "LaunchTaskStatement" or "PullStatement" or "ForEachFromInputStatement", the place becomes 3.
+            "TryStatement" or "JudgeStatement" or "ForEachStatement", the place becomes 4.
+            "WithOpenStatement", the place becomes 5.
+            "ObjectDefinition", the place becomes 9.
             Otherwise, return at-row.
         Done.
         Return cast numeric on (cast field-of on (statement, place)).
@@ -263,8 +263,8 @@ Pull a book on collections.
             the number at-row):
         Define kind as statement's kind.
         Judge kind, where it is:
-            It is "BuryStatement", return.
-            It is "IfStatement":
+            "BuryStatement", return.
+            "IfStatement":
                 For each arm in (cast field-of on (statement, 1))'s children, repeat:
                     Cast one's emit-stash-statements on (cast field-of on (arm, 2), in-loop, key, at-row) or pass the failure off.
                 Done.
@@ -273,7 +273,7 @@ Pull a book on collections.
                     Cast one's emit-stash-statements on (otherwise-body, in-loop, key, at-row) or pass the failure off.
                 Done.
             Done.
-            It is "JudgeStatement":
+            "JudgeStatement":
                 Define arms as (cast field-of on (statement, 2))'s children.
                 Define otherwise-body as cast field-of on (statement, 3).
                 // The leftovers an `Otherwise` resumes into have to be named, so the subject has to
@@ -302,13 +302,13 @@ Pull a book on collections.
                     Cast one's emit-stash-statements on (otherwise-body, in-loop, key, at-row) or pass the failure off.
                 Done.
             Done.
-            It is "WhileStatement":
+            "WhileStatement":
                 Cast one's emit-stash-statements on (cast field-of on (statement, 2), true, key, at-row) or pass the failure off.
             Done.
-            It is "RepeatUntilStatement":
+            "RepeatUntilStatement":
                 Cast one's emit-stash-statements on (cast field-of on (statement, 1), true, key, at-row) or pass the failure off.
             Done.
-            It is "ForEachStatement":
+            "ForEachStatement":
                 Define spot as "{(cast field-of on (statement, 4))'s word}:{(cast field-of on (statement, 5))'s word}".
                 If (the entry for spot in one's stash-drains) is void and (the entry for spot in one's series-loops) is void:
                     Return a failure (cast refusal-of on ("'{key}' buries inside a for-each over something that is not a series", "",
@@ -317,7 +317,7 @@ Pull a book on collections.
                 Done.
                 Cast one's emit-stash-statements on (cast field-of on (statement, 3), true, key, at-row) or pass the failure off.
             Done.
-            It is "StopStatement" or "SkipStatement":
+            "StopStatement" or "SkipStatement":
                 If in-loop, return.
                 Return a failure (cast refusal-of on ("'{key}' has a 'Stop' or a 'Skip' with no loop to leave", "",
                     at-row, "stop or skip outside a loop", "Put it inside the loop it belongs to.")).

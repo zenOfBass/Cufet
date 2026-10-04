@@ -208,14 +208,14 @@ Pull a book on collections.
     Bind text to statement-beyond-reach, given (the node statement):
         Define kind as statement's kind.
         Judge kind, where it is:
-            It is "DefineStatement":
+            "DefineStatement":
                 Define declared as cast field-of on (statement, 7).
                 If cast is-nothing on (declared) is false:
                     If cast beyond-types on (declared), return "a Define declared as {declared's kind}".
                 Done.
                 Return "".
             Done.
-            It is "IfStatement":
+            "IfStatement":
                 For each arm in (cast field-of on (statement, 1))'s children, repeat:
                     Define inner as cast beyond-reach on (cast field-of on (arm, 2)).
                     If inner is not "", return inner.
@@ -224,7 +224,7 @@ Pull a book on collections.
                 If cast is-nothing on (otherwise-body), return "".
                 Return cast beyond-reach on (otherwise-body).
             Done.
-            It is "JudgeStatement":
+            "JudgeStatement":
                 For each arm in (cast field-of on (statement, 2))'s children, repeat:
                     Define inner as cast beyond-reach on (cast field-of on (arm, 2)).
                     If inner is not "", return inner.
@@ -233,19 +233,19 @@ Pull a book on collections.
                 If cast is-nothing on (rest), return "".
                 Return cast beyond-reach on (rest).
             Done.
-            It is "WhileStatement", return cast beyond-reach on (cast field-of on (statement, 2)).
-            It is "WithOpenStatement", return cast beyond-reach on (cast field-of on (statement, 4)).
-            It is "GetterDeclaration" or "SetterDeclaration", return cast property-beyond-reach on (statement).
-            It is "ForEachFromInputStatement", return cast beyond-reach on (cast field-of on (statement, 2)).
-            It is "RepeatUntilStatement", return cast beyond-reach on (cast field-of on (statement, 1)).
-            It is "ForEachStatement", return cast beyond-reach on (cast field-of on (statement, 3)).
-            It is "BindStatement", return cast bind-beyond-reach on (statement).
-            It is "UnmakerDeclaration", return cast beyond-reach on (cast field-of on (statement, 3)).
-            It is "OperatorOverloadDeclaration", return cast beyond-reach on (cast field-of on (statement, 6)).
-            It is "PullStatement", return cast beyond-reach on (cast field-of on (statement, 2)).
-            It is "PullRabbitStatement", return cast beyond-reach on (cast field-of on (statement, 2)).
-            It is "LaunchTaskStatement", return cast beyond-reach on (cast field-of on (statement, 2)).
-            It is "TryStatement":
+            "WhileStatement", return cast beyond-reach on (cast field-of on (statement, 2)).
+            "WithOpenStatement", return cast beyond-reach on (cast field-of on (statement, 4)).
+            "GetterDeclaration" or "SetterDeclaration", return cast property-beyond-reach on (statement).
+            "ForEachFromInputStatement", return cast beyond-reach on (cast field-of on (statement, 2)).
+            "RepeatUntilStatement", return cast beyond-reach on (cast field-of on (statement, 1)).
+            "ForEachStatement", return cast beyond-reach on (cast field-of on (statement, 3)).
+            "BindStatement", return cast bind-beyond-reach on (statement).
+            "UnmakerDeclaration", return cast beyond-reach on (cast field-of on (statement, 3)).
+            "OperatorOverloadDeclaration", return cast beyond-reach on (cast field-of on (statement, 6)).
+            "PullStatement", return cast beyond-reach on (cast field-of on (statement, 2)).
+            "PullRabbitStatement", return cast beyond-reach on (cast field-of on (statement, 2)).
+            "LaunchTaskStatement", return cast beyond-reach on (cast field-of on (statement, 2)).
+            "TryStatement":
                 For each place in a series with (1, 2, 3), repeat:
                     Define handler as cast field-of on (statement, place).
                     If cast is-nothing on (handler) is false:
@@ -255,7 +255,7 @@ Pull a book on collections.
                 Done.
                 Return "".
             Done.
-            It is "StateStatement" or "BecomesStatement" or "StopStatement" or "SkipStatement"
+            "StateStatement" or "BecomesStatement" or "StopStatement" or "SkipStatement"
                     or "ReturnStatement" or "CastStatement" or "PossessiveSetStatement" or "RecordNamedSetStatement"
                     or "SuppressStatement" or "MapSetStatement" or "ExitStatement" or "SeedChanceStatement"
                     or "MatrixSetStatement" or "FileWriteStatement" or "PathActionStatement"
@@ -497,144 +497,144 @@ Pull a book on collections.
     Bind void or failure to check-statement unto checker, given (the node statement):
         Define kind as statement's kind.
         Judge kind, where it is:
-            It is "DefineStatement":
+            "DefineStatement":
                 Cast one's check-define on (statement) or pass the failure off.
             Done.
-            It is "BecomesStatement":
+            "BecomesStatement":
                 Cast one's check-becomes on (statement) or pass the failure off.
             Done.
-            It is "StateStatement":
+            "StateStatement":
                 Cast one's infer on (cast field-of on (statement, 1)) or pass the failure off.
             Done.
-            It is "IfStatement":
+            "IfStatement":
                 Cast one's check-if on (statement) or pass the failure off.
             Done.
-            It is "WhileStatement":
+            "WhileStatement":
                 Cast one's infer on (cast field-of on (statement, 1)) or pass the failure off.
                 Cast one's enter-scope.
                 Cast one's check-block on (cast field-of on (statement, 2)) or pass the failure off.
                 Cast one's exit-scope.
             Done.
-            It is "RepeatUntilStatement":
+            "RepeatUntilStatement":
                 Cast one's enter-scope.
                 Cast one's check-block on (cast field-of on (statement, 1)) or pass the failure off.
                 Cast one's exit-scope.
                 Cast one's infer on (cast field-of on (statement, 2)) or pass the failure off.
             Done.
-            It is "ForEachStatement":
+            "ForEachStatement":
                 Cast one's check-for-each on (statement) or pass the failure off.
             Done.
-            It is "SeriesInsertStatement":
+            "SeriesInsertStatement":
                 Cast one's check-insert on (statement) or pass the failure off.
             Done.
-            It is "SeriesSetStatement":
+            "SeriesSetStatement":
                 Cast one's check-series-set on (statement) or pass the failure off.
             Done.
-            It is "SeriesRemoveAtStatement":
+            "SeriesRemoveAtStatement":
                 Cast one's check-remove-at on (statement) or pass the failure off.
             Done.
-            It is "SeriesRemoveValueStatement":
+            "SeriesRemoveValueStatement":
                 Cast one's check-remove-value on (statement) or pass the failure off.
             Done.
-            It is "BindStatement":
+            "BindStatement":
                 Cast one's check-bind-statement on (statement) or pass the failure off.
             Done.
-            It is "UnmakerDeclaration":
+            "UnmakerDeclaration":
                 Cast one's check-unmaker on (statement) or pass the failure off.
             Done.
-            It is "ReturnStatement":
+            "ReturnStatement":
                 Cast one's check-return on (statement) or pass the failure off.
             Done.
-            It is "CastStatement":
+            "CastStatement":
                 Cast one's check-call on (statement, false) or pass the failure off.
             Done.
-            It is "ObjectDefinition":
+            "ObjectDefinition":
                 Cast one's check-object-definition on (statement) or pass the failure off.
             Done.
-            It is "PullStatement":
+            "PullStatement":
                 Cast one's check-pull on (statement) or pass the failure off.
             Done.
-            It is "PullRabbitStatement":
+            "PullRabbitStatement":
                 Cast one's check-pull-rabbit on (statement) or pass the failure off.
             Done.
-            It is "LaunchTaskStatement":
+            "LaunchTaskStatement":
                 Cast one's check-launch-task on (statement) or pass the failure off.
             Done.
-            It is "SendStatement":
+            "SendStatement":
                 Cast one's check-send on (statement) or pass the failure off.
             Done.
-            It is "CloseStatement":
+            "CloseStatement":
                 Cast one's check-close on (statement) or pass the failure off.
             Done.
             // What a block holds is checked where it is cited; the block owes only its language.
-            It is "CufetAxiomDefinition":
+            "CufetAxiomDefinition":
                 Cast one's require-language-pulled on ("cufet", cast numeric on (cast field-of on (statement, 3))) or pass the failure off.
             Done.
-            It is "BuryStatement":
+            "BuryStatement":
                 Cast one's check-bury on (statement) or pass the failure off.
             Done.
-            It is "OutputStatement":
+            "OutputStatement":
                 Cast one's check-output on (statement) or pass the failure off.
             Done.
-            It is "ForEachFromInputStatement":
+            "ForEachFromInputStatement":
                 Cast one's check-from-input on (statement) or pass the failure off.
             Done.
-            It is "TryStatement":
+            "TryStatement":
                 Cast one's check-try on (statement) or pass the failure off.
             Done.
-            It is "SuppressStatement":
+            "SuppressStatement":
                 Cast one's check-suppress on (statement) or pass the failure off.
             Done.
-            It is "MapSetStatement":
+            "MapSetStatement":
                 Cast one's check-map-set on (statement) or pass the failure off.
             Done.
-            It is "ExitStatement":
+            "ExitStatement":
                 Cast one's check-exit on (statement) or pass the failure off.
             Done.
             // An interface was gathered before anything was checked, and needs nothing more.
-            It is "PossessiveSetStatement":
+            "PossessiveSetStatement":
                 Cast one's check-possessive-set on (statement) or pass the failure off.
             Done.
-            It is "RecordNamedSetStatement":
+            "RecordNamedSetStatement":
                 Cast one's check-named-set on (statement) or pass the failure off.
             Done.
-            It is "JudgeStatement":
+            "JudgeStatement":
                 Cast one's check-judge on (statement) or pass the failure off.
             Done.
-            It is "SeedChanceStatement":
+            "SeedChanceStatement":
                 Cast one's check-seed on (statement) or pass the failure off.
             Done.
-            It is "MatrixSetStatement":
+            "MatrixSetStatement":
                 Cast one's check-matrix-set on (statement) or pass the failure off.
             Done.
-            It is "FileWriteStatement":
+            "FileWriteStatement":
                 Cast one's check-file-write on (statement) or pass the failure off.
             Done.
-            It is "PathActionStatement":
+            "PathActionStatement":
                 Cast one's check-path-action on (statement) or pass the failure off.
             Done.
-            It is "CurrentDirectorySetStatement":
+            "CurrentDirectorySetStatement":
                 Cast one's check-directory-set on (statement) or pass the failure off.
             Done.
-            It is "WithOpenStatement":
+            "WithOpenStatement":
                 Cast one's check-with-open on (statement) or pass the failure off.
             Done.
-            It is "WriteToStreamStatement":
+            "WriteToStreamStatement":
                 Cast one's check-stream-write on (statement) or pass the failure off.
             Done.
-            It is "RunStatement":
+            "RunStatement":
                 Cast one's check-run-statement on (statement) or pass the failure off.
             Done.
-            It is "PipeExpression":
+            "PipeExpression":
                 Cast one's check-pipe-statement on (statement) or pass the failure off.
             Done.
             // A getter or setter written inside its object was checked with it.
-            It is "GetterDeclaration":
+            "GetterDeclaration":
                 If cast is-nothing on (cast field-of on (statement, 4)) is false and cast one's is-absorbed on (cast unquoted on (cast field-of on (statement, 4))) is false:
                     Cast one's check-getter-body on (statement, cast unquoted on (cast field-of on (statement, 4)), cast getter-row on (statement)) or pass the failure off.
                 Done.
             Done.
-            It is "SetterDeclaration":
+            "SetterDeclaration":
                 If cast is-nothing on (cast field-of on (statement, 5)) is false and cast one's is-absorbed on (cast unquoted on (cast field-of on (statement, 5))) is false:
                     Cast one's check-setter-body on (statement, cast unquoted on (cast field-of on (statement, 5)), cast setter-row on (statement)) or pass the failure off.
                 Done.
@@ -799,7 +799,7 @@ Pull a book on collections.
         If cast is-none on (looped-type), return.
         Define kind as looped-type's kind.
         Judge kind, where it is:
-            It is "MapType":
+            "MapType":
                 Define entry-type as cast plain-type on ("MappingType").
                 Cast entry-type's add on (cast field-of on (looped-type, 1)).
                 Cast entry-type's add on (cast field-of on (looped-type, 2)).
@@ -816,7 +816,7 @@ Pull a book on collections.
                 Return.
             Done.
             // A chase gives one-character texts; a set gives its elements.
-            It is "ChaseType" or "SetType":
+            "ChaseType" or "SetType":
                 Define element-type as cast plain-type on ("TextType").
                 If kind is "SetType", the element-type becomes cast field-of on (looped-type, 1).
                 Define each-name as "it".
@@ -831,7 +831,7 @@ Pull a book on collections.
                 Cast one's exit-scope.
                 Return.
             Done.
-            It is "StashType":
+            "StashType":
                 Cast one's check-stash-loop on (statement) or pass the failure off.
             Done.
             Otherwise:

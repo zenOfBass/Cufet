@@ -45,7 +45,12 @@ Pull a book on collections.
             Cast one's advance.
             Return cast placed on ("BooleanLiteral", a series with (cast flag on (tok's kind is "TrueKw")), tok).
         Done.
-        Return a failure (cast one's expecting on (tok, "a number, some text, a bit pattern or a fact after 'It is'")).
+        Return a failure (cast one's expecting on (tok, "a number, some text, a bit pattern or a fact")).
+    Done.
+
+    /// IsArmValueStart — the start of a literal, which no statement starts with.
+    Bind fact to is-arm-value-start, given (the text kind):
+        Return kind is "Number" or kind is "String" or kind is "Bits" or kind is "TrueKw" or kind is "FalseKw" or kind is "Minus".
     Done.
 
     Bind node or failure to judge-statement unto parser:
@@ -71,11 +76,8 @@ Pull a book on collections.
                 Stop.
             Done.
             Define arm-tok as cast one's peek.
-            If kind is "It":
-                Cast one's advance.
-                Cast one's skip-noise.
-                Cast one's consume on ("Is") or pass the failure off.
-                Cast one's skip-noise.
+            // A value arm is the value alone: the header already says `where it is`.
+            If cast is-arm-value-start on (kind):
                 Define values as cast listed.
                 Define first-value as cast one's arm-value or pass the failure off.
                 Cast values's add on (first-value).
@@ -92,6 +94,11 @@ Pull a book on collections.
                 Cast value-arm's add on (values).
                 Cast arms's add on (value-arm).
                 Skip.
+            Done.
+            // The old spelling, `It is "cd", …`, refused by name.
+            If kind is "It":
+                Return a failure (cast one's refused on (arm-tok,
+                    "a value arm is the value alone, because the header already says 'where it is' — write '\"cd\", …', not 'It is \"cd\", …'.")).
             Done.
             Define cases as cast listed.
             Cast one's skip-noise.

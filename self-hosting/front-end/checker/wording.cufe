@@ -97,41 +97,41 @@ Pull a book on collections.
     Bind text to type-words, given (the node shape):
         Define kind as shape's kind.
         Judge kind, where it is:
-            It is "NumberType", return "number".
-            It is "BitsType", return "bits".
-            It is "TextType", return "text".
-            It is "FactType", return "fact".
-            It is "VoidType", return "void".
-            It is "AddressType", return "address".
-            It is "FailureMarkerType", return "failure".
-            It is "MappingType", return "mapping".
-            It is "ExceptionMarkerType", return "exception".
-            It is "MatrixType", return "matrix".
-            It is "ChaseType", return "chase".
-            It is "VoidableType", return "voidable {cast type-words on (cast field-of on (shape, 1))}".
-            It is "SeriesType", return "series of {cast plural-words on (cast field-of on (shape, 1))}".
-            It is "StashType", return "stash of {cast plural-words on (cast field-of on (shape, 1))}".
-            It is "SetType", return "set of {cast type-words on (cast field-of on (shape, 1))}".
-            It is "ChannelType", return "channel of {cast type-words on (cast field-of on (shape, 1))}".
-            It is "TaskHandleType":
+            "NumberType", return "number".
+            "BitsType", return "bits".
+            "TextType", return "text".
+            "FactType", return "fact".
+            "VoidType", return "void".
+            "AddressType", return "address".
+            "FailureMarkerType", return "failure".
+            "MappingType", return "mapping".
+            "ExceptionMarkerType", return "exception".
+            "MatrixType", return "matrix".
+            "ChaseType", return "chase".
+            "VoidableType", return "voidable {cast type-words on (cast field-of on (shape, 1))}".
+            "SeriesType", return "series of {cast plural-words on (cast field-of on (shape, 1))}".
+            "StashType", return "stash of {cast plural-words on (cast field-of on (shape, 1))}".
+            "SetType", return "set of {cast type-words on (cast field-of on (shape, 1))}".
+            "ChannelType", return "channel of {cast type-words on (cast field-of on (shape, 1))}".
+            "TaskHandleType":
                 If cast is-nothing on (cast field-of on (shape, 1)), return "void task".
                 Return "task (result: {cast type-words on (cast field-of on (shape, 1))})".
             Done.
-            It is "MapType":
+            "MapType":
                 Return "map from {cast type-words on (cast field-of on (shape, 1))} to {cast type-words on (cast field-of on (shape, 2))}".
             Done.
-            It is "FunctionType", return cast function-words on (shape).
-            It is "ObjectType":
+            "FunctionType", return cast function-words on (shape).
+            "ObjectType":
                 If cast is-filled-type on (shape), return cast filled-type-name on (shape).
                 Return cast display-name on (cast unquoted on (cast field-of on (shape, 1))).
             Done.
-            It is "InterfaceType", return cast unquoted on (cast field-of on (shape, 1)).
-            It is "AxiomType", return cast axiom-words on (shape).
-            It is "RecordType", return cast record-words on (shape).
-            It is "UnionType", return cast union-words on (shape).
-            It is "FailureType", return "{cast type-words on (cast field-of on (shape, 1))} or failure".
-            It is "ReadableStreamType", return "readable stream of {cast plural-words on (cast field-of on (shape, 1))}".
-            It is "WritableStreamType", return "writable stream of {cast plural-words on (cast field-of on (shape, 1))}".
+            "InterfaceType", return cast unquoted on (cast field-of on (shape, 1)).
+            "AxiomType", return cast axiom-words on (shape).
+            "RecordType", return cast record-words on (shape).
+            "UnionType", return cast union-words on (shape).
+            "FailureType", return "{cast type-words on (cast field-of on (shape, 1))} or failure".
+            "ReadableStreamType", return "readable stream of {cast plural-words on (cast field-of on (shape, 1))}".
+            "WritableStreamType", return "writable stream of {cast plural-words on (cast field-of on (shape, 1))}".
             Otherwise, return "<unknown>".
         Done.
     Done.
@@ -154,38 +154,38 @@ Pull a book on collections.
     Bind text to plural-words, given (the node shape):
         Define kind as shape's kind.
         Judge kind, where it is:
-            It is "NumberType", return "numbers".
-            It is "BitsType", return "bits".
-            It is "TextType", return "text".
-            It is "FactType", return "facts".
-            It is "VoidType", return "void values".
-            It is "MatrixType", return "matrices".
-            It is "FailureMarkerType", return "failures".
-            It is "MappingType", return "mappings".
-            It is "ExceptionMarkerType", return "exceptions".
-            It is "VoidableType", return "voidable {cast plural-words on (cast field-of on (shape, 1))}".
-            It is "SeriesType", return "series of {cast plural-words on (cast field-of on (shape, 1))}".
-            It is "StashType", return "stashes of {cast plural-words on (cast field-of on (shape, 1))}".
-            It is "SetType", return "sets of {cast type-words on (cast field-of on (shape, 1))}".
-            It is "ChannelType", return "channels of {cast plural-words on (cast field-of on (shape, 1))}".
-            It is "TaskHandleType":
+            "NumberType", return "numbers".
+            "BitsType", return "bits".
+            "TextType", return "text".
+            "FactType", return "facts".
+            "VoidType", return "void values".
+            "MatrixType", return "matrices".
+            "FailureMarkerType", return "failures".
+            "MappingType", return "mappings".
+            "ExceptionMarkerType", return "exceptions".
+            "VoidableType", return "voidable {cast plural-words on (cast field-of on (shape, 1))}".
+            "SeriesType", return "series of {cast plural-words on (cast field-of on (shape, 1))}".
+            "StashType", return "stashes of {cast plural-words on (cast field-of on (shape, 1))}".
+            "SetType", return "sets of {cast type-words on (cast field-of on (shape, 1))}".
+            "ChannelType", return "channels of {cast plural-words on (cast field-of on (shape, 1))}".
+            "TaskHandleType":
                 If cast is-nothing on (cast field-of on (shape, 1)), return "void task handles".
                 Return "task handles (result: {cast plural-words on (cast field-of on (shape, 1))})".
             Done.
-            It is "MapType":
+            "MapType":
                 Return "maps from {cast type-words on (cast field-of on (shape, 1))} to {cast type-words on (cast field-of on (shape, 2))}".
             Done.
-            It is "FunctionType", return "functions".
-            It is "ObjectType":
+            "FunctionType", return "functions".
+            "ObjectType":
                 If cast is-filled-type on (shape), return "{cast filled-type-name on (shape)} objects".
                 Return "{cast display-name on (cast unquoted on (cast field-of on (shape, 1)))} objects".
             Done.
-            It is "InterfaceType", return "{cast unquoted on (cast field-of on (shape, 1))} values".
-            It is "RecordType", return cast record-words on (shape).
-            It is "UnionType", return "{cast union-words on (shape)} values".
-            It is "FailureType", return "{cast plural-words on (cast field-of on (shape, 1))} or failures".
-            It is "ReadableStreamType", return "readable streams of {cast plural-words on (cast field-of on (shape, 1))}".
-            It is "WritableStreamType", return "writable streams of {cast plural-words on (cast field-of on (shape, 1))}".
+            "InterfaceType", return "{cast unquoted on (cast field-of on (shape, 1))} values".
+            "RecordType", return cast record-words on (shape).
+            "UnionType", return "{cast union-words on (shape)} values".
+            "FailureType", return "{cast plural-words on (cast field-of on (shape, 1))} or failures".
+            "ReadableStreamType", return "readable streams of {cast plural-words on (cast field-of on (shape, 1))}".
+            "WritableStreamType", return "writable streams of {cast plural-words on (cast field-of on (shape, 1))}".
             Otherwise, return "<unknown>".
         Done.
     Done.
@@ -196,18 +196,18 @@ Pull a book on collections.
     Bind text to expression-words, given (the node said):
         Define kind as said's kind.
         Judge kind, where it is:
-            It is "NumberLiteral", return cast field-of on (said, 1)'s word.
-            It is "StringLiteral", return "\"{cast unquoted on (cast field-of on (said, 1))}\"".
-            It is "VariableReference", return cast unquoted on (cast field-of on (said, 1)).
-            It is "VoidLiteral", return "void".
-            It is "NumberConvert", return "{cast expression-words on (cast field-of on (said, 1))} converted to number".
-            It is "PossessiveAccess":
+            "NumberLiteral", return cast field-of on (said, 1)'s word.
+            "StringLiteral", return "\"{cast unquoted on (cast field-of on (said, 1))}\"".
+            "VariableReference", return cast unquoted on (cast field-of on (said, 1)).
+            "VoidLiteral", return "void".
+            "NumberConvert", return "{cast expression-words on (cast field-of on (said, 1))} converted to number".
+            "PossessiveAccess":
                 Return "{cast expression-words on (cast field-of on (said, 1))}'s {cast unquoted on (cast field-of on (said, 2))}".
             Done.
-            It is "MapLookup":
+            "MapLookup":
                 Return "the entry for {cast expression-words on (cast field-of on (said, 2))} in {cast expression-words on (cast field-of on (said, 1))}".
             Done.
-            It is "CastExpression":
+            "CastExpression":
                 Define callee as cast field-of on (said, 1).
                 Define listing as a chase.
                 Define first-one as true.
@@ -225,11 +225,11 @@ Pull a book on collections.
                 Done.
                 Return "cast {cast expression-words on (callee)} on ({listing converted to text})".
             Done.
-            It is "TextFind":
+            "TextFind":
                 Return "the position of {cast expression-words on (cast field-of on (said, 1))} in {cast expression-words on (cast field-of on (said, 2))}".
             Done.
             // In its own base and width, as it was written.
-            It is "BitsLiteral", return cast bits-words on (said).
+            "BitsLiteral", return cast bits-words on (said).
             Otherwise, return "<expression>".
         Done.
     Done.
@@ -237,11 +237,11 @@ Pull a book on collections.
     /// An operator as a refusal names it.
     Bind text to operator-words, given (the text op):
         Judge op, where it is:
-            It is "Plus", return "+".
-            It is "Minus", return "-".
-            It is "Star", return "*".
-            It is "Slash", return "/".
-            It is "Percent", return "%".
+            "Plus", return "+".
+            "Minus", return "-".
+            "Star", return "*".
+            "Slash", return "/".
+            "Percent", return "%".
             Otherwise, return op in lowercase.
         Done.
     Done.
