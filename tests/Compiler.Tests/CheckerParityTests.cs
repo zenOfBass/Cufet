@@ -41,15 +41,19 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
 
     // ── The comparison ──────────────────────────────────────────────────────
 
+    /// <remarks>
+    /// ★ <paramref name="located"/>: the answer is C#'s for the file checked where it sits
+    /// (<see cref="CheckerAnswer.ExpectedAt"/>), its name being its path from the repository root.
+    /// </remarks>
     private void Check(Dictionary<string, List<string>> got, IReadOnlyList<(string Name, string Source)> files,
-                       int floor, string how)
+                       int floor, string how, bool located = false)
     {
         int agreed = 0;
         var problems = new List<string>();
         var unsupported = new List<string>();
         foreach (var (name, source) in files)
         {
-            string want = CheckerAnswer.Expected(source);
+            string want = located ? CheckerAnswer.ExpectedAt(Path.Combine(RepoRoot, name)) : CheckerAnswer.Expected(source);
             string have = got.TryGetValue(name, out var lines) && lines.Count > 0 ? lines[0] : "<nothing printed>";
             if (have.StartsWith("unsupported\t", StringComparison.Ordinal))
                 unsupported.Add($"{name}\t{have["unsupported\t".Length..]}");
@@ -1145,7 +1149,8 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
         var files = Corpus();
         Assert.True(files.Count >= 80, $"only {files.Count} Cufet files found under {RepoRoot}");
         var sources = Parsed(files.Select(n => (n, File.ReadAllText(Path.Combine(RepoRoot, n)))));
-        Check(ByFile(Run(compiled.Exe, [.. PreludeArgs, .. files], RepoRoot)), sources, CorpusFloor, "on the corpus");
+        Check(CorpusRun(files), sources, CorpusFloor, "on the corpus",
+              located: true);
     }
 
     // ── Layer 2: the checked tree ───────────────────────────────────────────
@@ -1163,21 +1168,37 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
     {
         var files = Corpus();
         var sources = Parsed(files.Select(n => (n, File.ReadAllText(Path.Combine(RepoRoot, n)))));
-        CheckTrees(ByFile(Run(compiled.Exe, ["--tree", .. PreludeArgs, .. files], RepoRoot)), sources, TreeFloor, "on the corpus");
+        CheckTrees(CorpusRun(files), sources, TreeFloor, "on the corpus",
+                   located: true);
     }
+
+    /// <summary>The compiled checker over the corpus, under `--tree` — run ONCE for both corpus tests.</summary>
+    /// <remarks>
+    /// ★ A file inside a project is checked with its whole folder, so a run costs minutes, not
+    /// seconds; the verdict is each file's first line either way, so one run answers both.
+    /// </remarks>
+    private Dictionary<string, List<string>> CorpusRun(IReadOnlyList<string> files)
+    {
+        lock (CorpusGate)
+            return _corpusRun ??= ByFile(Run(compiled.Exe, ["--tree", .. PreludeArgs, .. files], RepoRoot));
+    }
+
+    private static readonly object CorpusGate = new();
+    private static Dictionary<string, List<string>>? _corpusRun;
 
     /// <summary>Every file both checkers accept hands back the same tree — any that differs fails.</summary>
     private void CheckTrees(Dictionary<string, List<string>> got, IReadOnlyList<(string Name, string Source)> files,
-                            int floor, string how)
+                            int floor, string how, bool located = false)
     {
         int matched = 0, accepted = 0;
         var problems = new List<string>();
         foreach (var (name, source) in files)
         {
-            if (CheckerAnswer.Expected(source) != "ok") continue;
+            var at = Path.Combine(RepoRoot, name);
+            if ((located ? CheckerAnswer.ExpectedAt(at) : CheckerAnswer.Expected(source)) != "ok") continue;
             if (!got.TryGetValue(name, out var lines) || lines.Count == 0 || lines[0] != "ok") continue;
             accepted++;
-            var want = CheckerAnswer.CheckedTree(source)!;
+            var want = (located ? CheckerAnswer.CheckedTreeAt(at) : CheckerAnswer.CheckedTree(source))!;
             var have = string.Join("\n", lines.Skip(1));
             if (have == want) matched++;
             else problems.Add($"{name}:\n    C#:    {Clipped(want)}\n    Cufet: {Clipped(have)}");
