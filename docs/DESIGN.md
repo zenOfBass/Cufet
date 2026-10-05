@@ -886,7 +886,7 @@ What the toolchain is, and what it declines to become.
 
 The two arcs where soundness was the whole problem.
 
-- **Region model soundness — the adversarial arc (all three holes closed, 2026-06-26–28).**
+- **Region model soundness — the adversarial arc (three holes closed 2026-06-26–28, a fourth 2026-10-04).**
   The outward-only invariant ("a value may escape to a longer-lived region but never
   inward to a shorter-lived one") is the whole safety story for the regions model.
   Its teeth were tested adversarially — deliberately probing whether the invariant
@@ -952,7 +952,14 @@ The two arcs where soundness was the whole problem.
     more rather than less: the interpreter's GC forgives a region error that compiled
     code turns into a use-after-free.
 
-  *Status:* all three holes closed; no known remaining soundness gaps.
+  **Hole #4 — the possessive method call (found and closed 2026-10-04).** `cast box's
+  contents` reached the method through a resolved copy of its type that had dropped its
+  `ReturnDepthSignature`, so the result read as depth 0 — #1 again, through a path #3 had not
+  covered. Found by USE, not attack: writing the checker in Cufet. Pinned by
+  `escape-method-possessive.cufe`.
+
+  *Status:* four holes closed, no known open one — which says what has been found, not that
+  nothing is left: #4 arrived after this line first claimed "no known remaining gaps".
 
 - **Concurrency arc — message-passing + structured concurrency, cooperative (v0.9.0).**
   The complete concurrency core (all five slices) is built, validated, and hardened
