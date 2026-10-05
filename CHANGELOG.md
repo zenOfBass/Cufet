@@ -102,6 +102,9 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   split off in another — when the function is `consume`, reached through `one`. The rule now stands
   back when the name owns a `'s`, and the possessive rule colours it as it does everywhere else; the
   same went for `Cast box's contents`.
+- **`descend` is gone for good.** It was given back as a word on 2026-09-19, but the playground's
+  grammar still painted it as a keyword and GRAMMAR still called it reserved; both now agree with
+  the language, and the two grammar copies are identical again.
 - **Compiled arithmetic no longer divides by one after every sum.** Every addition and subtraction
   in a compiled program — each `Increment` too — ended by normalising its result, and when there was
   nothing to round that normalising still divided by 10⁰ with a 256-step bit loop. MEASURED at 91%

@@ -283,7 +283,7 @@ bound to `it`.
 ⚠ **Native backend: TYPE arms need a closed union.** A `Judge` whose arms name types over a
 non-union subject type-checks and interprets, and the compiler **refuses it cleanly** — there is no
 tag to dispatch on. Value arms have no such limit: they compare, on either backend, using the same
-equality `is` uses. `Descend.` (explicit fall-through) is reserved and not yet accepted.
+equality `is` uses.
 
 ### Functions and objects
 
