@@ -495,7 +495,7 @@ Pull a book on collections.
         the text depth-key).
 
     Bind call or failure to resolve-cast unto checker, given (the node callee, the node call-args,
-            the number at-row, the text filled):
+            the number at-row, the text filled, the map from text to node memo):
         If callee's kind is "VariableReference":
             Define name as cast unquoted on (cast field-of on (callee, 1)).
             // A filling is registered under its filled name; the name written is the template's.
@@ -506,7 +506,7 @@ Pull a book on collections.
             Define dispatched as cast unknown-type.
             Define owner as "".
             If the number of call-args's children is greater than 0:
-                Define first as cast one's infer on (item 1 of call-args's children) or pass the failure off.
+                Define first as cast one's call-part-type on (item 1 of call-args's children, "first", memo) or pass the failure off.
                 If cast beyond-types on (first), return a failure (cast not-judged on ("a call whose first argument is a {first's kind}")).
                 If first's kind is "ObjectType":
                     The owner becomes cast unquoted on (cast field-of on (first, 1)).
@@ -586,7 +586,7 @@ Pull a book on collections.
         // A method reached through its object takes the signature of the type it is written in.
         Define method-key as "".
         If callee's kind is "PossessiveAccess":
-            Define owning-type as cast one's infer on (cast field-of on (callee, 1)) or pass the failure off.
+            Define owning-type as cast one's call-part-type on (cast field-of on (callee, 1), "receiver", memo) or pass the failure off.
             The method-key becomes cast one's method-depth-key on (owning-type, cast unquoted on (cast field-of on (callee, 2))).
         Done.
         If cast is-none on (reached):
@@ -764,7 +764,7 @@ Pull a book on collections.
 
     /// The arguments measured against the parameters — `ValidateCastArgs`.
     Bind void or failure to check-arguments unto checker, given (the call reached, the node call-args,
-            the number at-row):
+            the number at-row, the map from text to node memo):
         Define formals as (cast field-of on (reached's shape, 1))'s children.
         Define supplied as a series of node.
         Define skipping as reached's receivers.
@@ -784,7 +784,13 @@ Pull a book on collections.
         Define place as 0.
         For each argument in supplied, repeat:
             Increment place by 1.
-            Define argument-type as cast one's infer on (argument) or pass the failure off.
+            Define argument-type as cast unknown-type.
+            If place is 1 and reached's receivers is 0:
+                The argument-type becomes cast one's call-part-type on (argument, "first", memo) or pass the failure off.
+            Done.
+            Otherwise:
+                The argument-type becomes cast one's infer on (argument) or pass the failure off.
+            Done.
             Define formal as cast one's resolved on (item place of formals).
             If formal's kind is "InterfaceType" and cast is-none on (argument-type) is false:
                 Cast one's check-interface-argument on (formal, argument-type, place, reached, at-row) or pass the failure off.
@@ -809,6 +815,21 @@ Pull a book on collections.
                     "Change argument {place} to a {cast type-words on (formal)}.")).
             Done.
         Done.
+    Done.
+
+    /// The type of a call's first argument (`"first"`) or a possessive callee's receiver
+    /// (`"receiver"`), inferred once for the call however many of its checks ask.
+    /// ★ Asked three times per call — is it a method's receiver, which version, does it fit — so
+    /// inferring it each time multiplied by three at every level of nesting. MEASURED: a call nested
+    /// eight deep took 0.5 s more than one nested five deep, and the checker's own files took a
+    /// minute each. The memo lives as long as the one `check-call`, so nothing outlives its scope.
+    Bind node or failure to call-part-type unto checker, given (the node part, the text which,
+            the map from text to node memo):
+        Define held as the entry for which in memo.
+        If held is not void, return held.
+        Define found as cast one's infer on (part) or pass the failure off.
+        In memo, the entry for which becomes found.
+        Return found.
     Done.
 
     /// `cast f on (…)`, as a statement or a value. Gives back what it returns, or `none`.
@@ -849,10 +870,11 @@ Pull a book on collections.
                 If axiom-held's shape's kind is "AxiomType", return cast unknown-type.
             Done.
         Done.
-        Define filled as cast one's call-filling on (said, callee, call-args, at-row) or pass the failure off.
-        Define reached as cast one's resolve-cast on (callee, call-args, at-row, filled) or pass the failure off.
+        Define memo as a map from text to node.
+        Define filled as cast one's call-filling on (said, callee, call-args, at-row, memo) or pass the failure off.
+        Define reached as cast one's resolve-cast on (callee, call-args, at-row, filled, memo) or pass the failure off.
         If cast is-none on (reached's shape), return reached's shape.
-        Cast one's check-arguments on (reached, call-args, at-row) or pass the failure off.
+        Cast one's check-arguments on (reached, call-args, at-row, memo) or pass the failure off.
         Define gives as cast field-of on (reached's shape, 2).
         Define display as reached's display.
         If as-value is false:

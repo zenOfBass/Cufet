@@ -264,7 +264,7 @@ Pull a book on collections.
     /// Which filling this call reaches, worked out before anything is resolved — and marked on the
     /// call, the first time, so the re-check meets an answer where it will not find the template.
     Bind text or failure to call-filling unto checker, given (the node said, the node callee, the node call-args,
-            the number at-row):
+            the number at-row, the map from text to node memo):
         Define marked as cast filled-mark on (said).
         Define reached as "".
         If callee's kind is "VariableReference" and (the entry for cast unquoted on (cast field-of on (callee, 1)) in one's generic-binds) is not void:
@@ -274,14 +274,14 @@ Pull a book on collections.
             Return marked.
         Done.
         Otherwise if callee's kind is "PossessiveAccess":
-            Define target as cast one's infer on (cast field-of on (callee, 1)) or pass the failure off.
+            Define target as cast one's call-part-type on (cast field-of on (callee, 1), "receiver", memo) or pass the failure off.
             If target's kind is "ObjectType":
                 The reached becomes cast one's instantiate-method on (cast unquoted on (cast field-of on (target, 1)),
                     cast unquoted on (cast field-of on (callee, 2)), call-args, 0, at-row) or pass the failure off.
             Done.
         Done.
         Otherwise if callee's kind is "VariableReference" and the number of call-args's children is greater than 0:
-            Define first as cast one's infer on (item 1 of call-args's children) or pass the failure off.
+            Define first as cast one's call-part-type on (item 1 of call-args's children, "first", memo) or pass the failure off.
             If first's kind is "ObjectType":
                 The reached becomes cast one's instantiate-method on (cast unquoted on (cast field-of on (first, 1)),
                     cast unquoted on (cast field-of on (callee, 1)), call-args, 1, at-row) or pass the failure off.

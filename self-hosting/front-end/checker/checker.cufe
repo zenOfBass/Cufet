@@ -75,22 +75,28 @@ Pull a book on collections.
         Exit with 1.
     Done.
 
-    // A neighbour is read by every file of its folder; it is parsed once for all of them.
-    Define parse-cache as a map from text to node.
     For each name in files, repeat:
         State "file\t{name}".
-        Try to:
-            // Checked where it sits: inside a project, its folder is part of its program.
-            State cast verdict on (read all from the file name, prelude, with-tree, cast full-path on (name), parse-cache).
-        Done.
-        In case of failure:
-            State "crash\t{the message of the failure}".
-        Done.
-        // ⚠ A fault inside the checker itself — an index past the end — would otherwise stop every
-        // file after this one. Said as a `crash` line, which the parity test counts as a difference.
-        In case of exception:
-            State "crash\t{the message of the exception}".
-            Suppress the exception.
+        // ⚠⚠ Each file in a region of its own, so what checking it built is gone before the next.
+        // A file inside a project brings its whole folder with it, and nothing was ever handed back:
+        // MEASURED 15 GB at the end of the corpus, and the compiled checker died with an access
+        // violation when the test suite was running beside it. So the parse cache lives here too —
+        // a tree kept past its file would outlive the region it was built in.
+        Pull a rabbit.
+            Define parse-cache as a map from text to node.
+            Try to:
+                // Checked where it sits: inside a project, its folder is part of its program.
+                State cast verdict on (read all from the file name, prelude, with-tree, cast full-path on (name), parse-cache).
+            Done.
+            In case of failure:
+                State "crash\t{the message of the failure}".
+            Done.
+            // ⚠ A fault inside the checker itself — an index past the end — would otherwise stop every
+            // file after this one. Said as a `crash` line, which the parity test counts as a difference.
+            In case of exception:
+                State "crash\t{the message of the exception}".
+                Suppress the exception.
+            Done.
         Done.
     Done.
 Done.
