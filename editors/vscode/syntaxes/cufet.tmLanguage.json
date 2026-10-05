@@ -186,8 +186,8 @@
           }
         },
         {
-          "comment": "Cast <name> on (...). The article is optional and stays unscoped, like every other article.",
-          "match": "((?i:cast))(?![\\w-])\\s+(?:(?i:the|an|a)(?![\\w-])\\s+)?([a-z][A-Za-z0-9-]*)",
+          "comment": "Cast <name> on (...). The article is optional and stays unscoped, like every other article. Not when the name owns a 's: in 'Cast one's consume' the function is consume, reached through one, so the possessive rule colours the owner and the keyword rule colours Cast.",
+          "match": "((?i:cast))(?![\\w-])\\s+(?:(?i:the|an|a)(?![\\w-])\\s+)?([a-z][A-Za-z0-9-]*)(?![\\w-]|'s(?![\\w-]))",
           "captures": {
             "1": { "name": "keyword.control.statement.cufet" },
             "2": { "name": "entity.name.function.cufet" }
