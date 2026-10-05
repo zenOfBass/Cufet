@@ -1,0 +1,1138 @@
+/*  A file checked where it sits — `BookLoading.Neighbours`, `ProjectTree` and `SourceMap` in C#.
+
+    ★ A file inside a PROJECT — under a folder holding `blueprint.cufe` — is part of more than
+    itself: the files of its folder, and of each folder above it in its namespace, are part of its
+    program. Their declarations are brought in ahead of its own, and a name two of them declare is
+    refused. A file under no project gets nothing, exactly as before.
+
+    ★ Every loaded file is read at a line offset — 100,000 lines a file — so the whole program keeps
+    one numbering and a refusal's position says which file it is in. A message is turned back into
+    the file's own lines on the way out, as C#'s reporter does.
+
+    ★ A folder of the namespace off the file's chain, or another namespace, is reached by qualifying
+    it — `parser's program-tree` — and loaded only then, its names renamed `<name> in <where>` so a
+    sibling may repeat any of them.
+
+    ★ A book pulled from a file is loaded beside the file that pulls it, or from the project's
+    `books/`, its own names hidden but its modules.
+
+    ⚠ Paths are kept with `/` between their parts whatever the platform gives back.
+*/
+
+Pull a book on collections.
+    /// Where a line of the checked program came from: the file a block of lines belongs to.
+    Define object source-block with (the number first-line, the text from-file).
+
+    // ── Paths ─────────────────────────────────────────────────────────────
+
+    Bind text to slashed, given (the text raw):
+        Return replace "\\" with "/" in raw.
+    Done.
+
+    /// The folder a path is in, or "" at the top.
+    Bind text to parent-of, given (the text full):
+        Define letters as a chase.
+        Insert full into letters.
+        Define back as the number of letters.
+        While back is greater than 0, repeat:
+            If item back of letters is "/":
+                If back is 1, return "/".
+                Return the characters from 1 to (back - 1) of full.
+            Done.
+            Decrement back by 1.
+        Done.
+        Return "".
+    Done.
+
+    /// The last part of a path.
+    Bind text to file-part, given (the text full):
+        Define parent as cast parent-of on (full).
+        If parent is "", return full.
+        Return the characters from (the length of parent + 2) to the end of full.
+    Done.
+
+    /// A path made absolute against the current directory, its parts joined with `/`.
+    Bind text to full-path, given (the text given-path):
+        Define written as cast slashed on (given-path).
+        If written starts with "/", return written.
+        If the length of written is greater than 1 and (the characters from 2 to 2 of written) is ":", return written.
+        Define here as cast slashed on (the current directory but void is "").
+        If here ends with "/", return here joined to written.
+        Return "{here}/{written}".
+    Done.
+
+    Bind fact to same-path, given (the text left, the text right):
+        Return (left in lowercase) is (right in lowercase).
+    Done.
+
+    /// The nearest folder at or above this one holding a blueprint, or "".
+    Bind text to project-root, given (the text folder):
+        Define at as folder.
+        While at is not "", repeat:
+            If the path "{at}/blueprint.cufe" is a file, return at.
+            Define up as cast parent-of on (at).
+            If up is at, return "".
+            The at becomes up.
+        Done.
+        Return "".
+    Done.
+
+    /// Every `.cufe` in a folder, sorted, or none when it cannot be read.
+    Bind series of text to cufet-files, given (the text folder):
+        Define found as a series of text.
+        Try to:
+            For each entry in the contents of the directory folder, repeat:
+                Define entry-path as cast slashed on (entry).
+                If entry-path ends with ".cufe" and the path entry-path is a file, insert entry-path into found.
+            Done.
+        Done.
+        In case of failure:
+            Return found.
+        Done.
+        Return found.
+    Done.
+
+    Bind series of text to sub-folders, given (the text folder):
+        Define found as a series of text.
+        Try to:
+            For each entry in the contents of the directory folder, repeat:
+                Define entry-path as cast slashed on (entry).
+                If the path entry-path is a directory, insert entry-path into found.
+            Done.
+        Done.
+        In case of failure:
+            Return found.
+        Done.
+        Return found.
+    Done.
+
+    // ── Reading a loaded file ─────────────────────────────────────────────
+
+    /// A copy of a tree that shares nothing a note could change — every node but its leaves is new.
+    Bind node to copied-node, given (the node tree):
+        If tree's kind is "atom", return tree.
+        Define copy as a new node { the kind tree's kind, the word tree's word, the children a series of node }.
+        For each child in tree's children, repeat:
+            Insert cast copied-node on (child) into copy's children.
+        Done.
+        Return copy.
+    Done.
+
+    /// A file's statements, read at `offset` — parsed once per run for each offset, and handed out
+    /// as a fresh copy every time, since checking writes notes into the tree it is given.
+    Bind node or failure to loaded-tree unto checker, given (the text from-file, the text file-text, the number offset):
+        Define key as "{offset}|{from-file}".
+        Define cached as the entry for key in one's parse-cache.
+        If cached is not void, return cast copied-node on (cached).
+        Define parsed as cast parser's program-tree-from on (file-text, offset) or pass the failure off.
+        In one's parse-cache, the entry for key becomes parsed.
+        Return cast copied-node on (parsed).
+    Done.
+
+    // ── The source map ────────────────────────────────────────────────────
+
+    /// A new block of lines for a file — C#'s `SourceMap.Add`.
+    Bind number to add-source unto checker, given (the text from-file):
+        Define first as 100000 * (the number of one's source-blocks + 1).
+        Insert a new source-block { the first-line first, the from-file from-file } into one's source-blocks.
+        Return first.
+    Done.
+
+    /// A message with every line number from a loaded file turned back into that file's own —
+    /// `SourceMap.Rewrite`: only a run of six digits or more, and only inside a block.
+    Bind text to source-rewritten unto checker, given (the text message):
+        If the number of one's source-blocks is 0, return message.
+        Define letters as a chase.
+        Insert message into letters.
+        Define out as a chase.
+        Define place as 1.
+        Define count as the number of letters.
+        While place is not greater than count, repeat:
+            Define ch as item place of letters.
+            If "0123456789" contains ch:
+                Define digits as "".
+                While place is not greater than count and "0123456789" contains (item place of letters), repeat:
+                    The digits becomes digits joined to (item place of letters).
+                    Increment place by 1.
+                Done.
+                Define shown as digits.
+                If the length of digits is greater than 5:
+                    Define value as (digits converted to number but void is 0).
+                    For each block in one's source-blocks, repeat:
+                        If value is not less than block's first-line and value is less than block's first-line + 100000:
+                            The shown becomes (value - block's first-line) converted to text.
+                        Done.
+                    Done.
+                Done.
+                Insert shown into out.
+            Done.
+            Otherwise:
+                Insert ch into out.
+                Increment place by 1.
+            Done.
+        Done.
+        Return out converted to text.
+    Done.
+
+    // ── The tree a blueprint draws (`ProjectTree`) ────────────────────────
+
+    /// Every folder the drawing names, mapped to the folder whose namespace it is part of — or an
+    /// empty map when the blueprint draws no tree.
+    Bind map from text to text or failure to project-tree unto checker, given (the text root):
+        Define drawn-in as a map from text to text.
+        Define blueprint-path as "{root}/blueprint.cufe".
+        Define file-text as "".
+        Try to:
+            The file-text becomes read all from the file blueprint-path.
+        Done.
+        In case of failure:
+            Return drawn-in.
+        Done.
+        If (file-text in lowercase) contains "tree" is false, return drawn-in.
+        Define offset as cast one's add-source on (blueprint-path).
+        Define blueprint as cast one's loaded-tree on (blueprint-path, file-text, offset) or pass the failure off.
+        Define tree-bind as cast unknown-type.
+        For each statement in cast hoistable-in-pulls on (blueprint), repeat:
+            If cast is-none on (tree-bind) and statement's kind is "BindStatement":
+                If cast is-nothing on (cast field-of on (statement, 5)) and cast unquoted on (cast field-of on (statement, 1)) is "tree":
+                    The tree-bind becomes statement.
+                Done.
+            Done.
+        Done.
+        If cast is-none on (tree-bind), return drawn-in.
+        Define body as (cast field-of on (tree-bind, 4))'s children.
+        Define written-out as (cast field-of on (tree-bind, 2))'s kind is "TextType" and the number of body is 1.
+        If written-out:
+            The written-out becomes (item 1 of body)'s kind is "ReturnStatement".
+            If written-out, the written-out becomes (cast field-of on (item 1 of body, 1))'s kind is "StringLiteral".
+        Done.
+        If written-out is false:
+            Return a failure (cast refusal-of on ("the blueprint's 'tree' has to be written out, not worked out",
+                "The tools read the tree without running anything, so its body can only give back the drawing itself",
+                cast numeric on (cast field-of on (tree-bind, 7)), "work out the tree",
+                "Write it as 'Bind text to tree:', then 'Return <<', a line for each folder, and '>>.'.")).
+        Done.
+        Define returned as item 1 of body.
+        // Where the drawing starts: the `<<` after the `Return`, counted in the blueprint's own lines.
+        Define lines as (replace "\r\n" with "\n" in file-text) split by "\n".
+        Define return-line as cast numeric on (cast field-of on (returned, 2)) - offset.
+        Define open-line as return-line.
+        Define index as return-line.
+        Define looking as true.
+        While looking and index is not greater than the number of lines, repeat:
+            If item index of lines contains "<<":
+                The open-line becomes index.
+                The looking becomes false.
+            Done.
+            Increment index by 1.
+        Done.
+        Define drawing as cast unquoted on (cast field-of on (cast field-of on (returned, 1), 1)).
+        Cast one's draw-tree on (drawing, root, offset + open-line, drawn-in) or pass the failure off.
+        Cast require-every-source-folder on (root, offset + open-line, drawn-in) or pass the failure off.
+        Return drawn-in.
+    Done.
+
+    /// Top-level statements, and those inside a `Pull` — where a blueprint's functions sit.
+    Bind series of node to hoistable-in-pulls, given (the node statements):
+        Define found as a series of node.
+        For each statement in statements's children, repeat:
+            Insert statement into found.
+            If statement's kind is "PullStatement":
+                For each inner in cast hoistable-in-pulls on (cast field-of on (statement, 2)), repeat:
+                    Insert inner into found.
+                Done.
+            Done.
+        Done.
+        Return found.
+    Done.
+
+    /// A folder as the drawing would name it, relative to the project root.
+    Bind text to shown-folder, given (the text root, the text folder):
+        If (folder in lowercase) starts with ((root in lowercase) joined to "/"):
+            Return the characters from (the length of root + 2) to the end of folder.
+        Done.
+        Return folder.
+    Done.
+
+    Bind void or failure to draw-tree unto checker, given (the text drawing, the text root, the number first-line,
+            the map from text to text drawn-in):
+        Define drawn-at as a map from text to number.
+        Define level-widths as a series of number.
+        Define level-folders as a series of text.
+        Define level-owners as a series of text.
+        Define indent-with as "".
+        Define lines as (replace "\r\n" with "\n" in drawing) split by "\n".
+        Define index as 0.
+        For each raw in lines, repeat:
+            Increment index by 1.
+            Define name as raw trimmed.
+            If name is "", skip.
+            Define at-line as first-line + index - 1.
+            Define width as 0.
+            Define letters as a chase.
+            Insert raw into letters.
+            While width is less than the number of letters and (item (width + 1) of letters is " " or item (width + 1) of letters is "\t"), repeat:
+                Define ch as item (width + 1) of letters.
+                If indent-with is "", the indent-with becomes ch.
+                If ch is not indent-with:
+                    Define with-what as "spaces".
+                    If ch is "\t", the with-what becomes "a tab".
+                    Return a failure (cast refusal-of on ("the tree's drawing mixes tabs and spaces", "",
+                        at-line, "indent '{name}' with {with-what}",
+                        "Indent the whole drawing one way — all spaces or all tabs — so a folder's depth means one thing.")).
+                Done.
+                Increment width by 1.
+            Done.
+            Define folder as "".
+            Define owner as "".
+            If width is 0:
+                While the number of level-widths is greater than 0, repeat:
+                    Remove item (the number of level-widths) from level-widths.
+                    Remove item (the number of level-folders) from level-folders.
+                    Remove item (the number of level-owners) from level-owners.
+                Done.
+                The folder becomes "{root}/{name}".
+                The owner becomes folder.
+            Done.
+            Otherwise:
+                Define dedented as false.
+                While the number of level-widths is greater than 0 and item (the number of level-widths) of level-widths is greater than width, repeat:
+                    Remove item (the number of level-widths) from level-widths.
+                    Remove item (the number of level-folders) from level-folders.
+                    Remove item (the number of level-owners) from level-owners.
+                    The dedented becomes true.
+                Done.
+                Define same-level as false.
+                If the number of level-widths is greater than 0, the same-level becomes item (the number of level-widths) of level-widths is width.
+                If same-level:
+                    Remove item (the number of level-widths) from level-widths.
+                    Remove item (the number of level-folders) from level-folders.
+                    Remove item (the number of level-owners) from level-owners.
+                Done.
+                Otherwise if dedented:
+                    Return a failure (cast refusal-of on ("'{name}' is indented to a depth no folder above it has", "",
+                        at-line, "indent '{name}' between two levels",
+                        "Line it up with the folder it sits beside, or indent it further than the folder it belongs to.")).
+                Done.
+                If the number of level-widths is 0:
+                    Return a failure (cast refusal-of on ("'{name}' is indented, but there is no folder above it to belong to", "",
+                        at-line, "indent '{name}'",
+                        "Start the drawing at the left edge — a folder there is a namespace of its own.")).
+                Done.
+                The folder becomes "{item (the number of level-folders) of level-folders}/{name}".
+                The owner becomes item (the number of level-owners) of level-owners.
+            Done.
+            Define shown as cast shown-folder on (root, folder).
+            If the path folder is a directory is false:
+                Return a failure (cast refusal-of on ("the tree draws '{shown}', but there is no such folder", "",
+                    at-line, "draw '{shown}'",
+                    "Create the folder, or take its line out — the tree describes the folders the project has; it does not make them.")).
+            Done.
+            Define first-drawn as the entry for (folder in lowercase) in drawn-at.
+            If first-drawn is not void:
+                Return a failure (cast refusal-of on ("the tree draws '{shown}' twice", "It is first drawn on line {first-drawn}",
+                    at-line, "draw '{shown}' again", "Take one of the two lines out.")).
+            Done.
+            In drawn-at, the entry for (folder in lowercase) becomes at-line.
+            In drawn-in, the entry for folder becomes owner.
+            Insert width into level-widths.
+            Insert folder into level-folders.
+            Insert owner into level-owners.
+        Done.
+    Done.
+
+    /// Once a project draws its tree, it draws every folder with Cufet source in it.
+    Bind void or failure to require-every-source-folder, given (the text root, the number at-line,
+            the map from text to text drawn-in):
+        Define drawn-names as a map from text to fact.
+        For each pair in drawn-in, repeat:
+            In drawn-names, the entry for (the key of pair in lowercase) becomes true.
+        Done.
+        Define found as a series of text.
+        Cast walk-source-folders on (root, "{root}/books", true, found).
+        For each folder in found, repeat:
+            If (the entry for (folder in lowercase) in drawn-names) is void:
+                Define shown as cast shown-folder on (root, folder).
+                Return a failure (cast refusal-of on ("the folder '{shown}' holds Cufet source, and the tree does not draw it",
+                    "Once a project draws its tree it draws every folder, so the drawing can be trusted to be the whole project",
+                    at-line, "leave '{shown}' out of the tree",
+                    "Add a line for it — at the left edge for a namespace of its own, or indented under the folder it belongs to.")).
+            Done.
+        Done.
+    Done.
+
+    /// Whether a folder holds Cufet source in it or beneath it, adding each such folder below the
+    /// root to `found` in path order.
+    Bind fact to walk-source-folders, given (the text folder, the text books, the fact is-root, the series of text found):
+        If cast same-path on (folder, books), return false.
+        Define at as the number of found.
+        Define any as the number of cast cufet-files on (folder) is greater than 0.
+        Define below as a series of text.
+        For each child in cast sub-folders on (folder), repeat:
+            If cast walk-source-folders on (child, books, false, below), the any becomes true.
+        Done.
+        If any and is-root is false, insert folder into found.
+        For each child in below, repeat:
+            Insert child into found.
+        Done.
+        Return any.
+    Done.
+
+    /// The folder whose namespace this one's files belong to — itself unless the tree folds it.
+    Bind text to namespace-of, given (the map from text to text drawn-in, the text folder):
+        For each pair in drawn-in, repeat:
+            If cast same-path on (the key of pair, folder), return the value of pair.
+        Done.
+        Return folder.
+    Done.
+
+    /// A folder and each above it, up to and including its namespace's folder.
+    Bind series of text to folder-chain, given (the text folder, the text namespace-folder):
+        Define chain as a series of text.
+        Define at as folder.
+        While at is not "", repeat:
+            Insert at into chain.
+            If cast same-path on (at, namespace-folder), return chain.
+            Define up as cast parent-of on (at).
+            If up is at, return chain.
+            The at becomes up.
+        Done.
+        Return chain.
+    Done.
+
+    /// Every folder that is its own namespace — holding Cufet, or with a folder folded into it that
+    /// does — keyed by the name that qualifies it (`BookLoading.Namespaces`).
+    Bind void to gather-namespaces, given (the text folder, the text books, the map from text to text drawn-in,
+            the map from text to series of text found):
+        If cast same-path on (folder, books), return.
+        Define own-source as false.
+        For each one-file in cast cufet-files on (folder), repeat:
+            If (cast file-part on (one-file) in lowercase) is not "blueprint.cufe", the own-source becomes true.
+        Done.
+        Define folded as cast namespace-of on (drawn-in, folder) is not folder.
+        Define folded-source as false.
+        For each pair in drawn-in, repeat:
+            If cast same-path on (the value of pair, folder) and cast same-path on (the key of pair, folder) is false:
+                If the number of cast cufet-files on (the key of pair) is greater than 0, the folded-source becomes true.
+            Done.
+        Done.
+        If folded is false and (own-source or folded-source):
+            Define key as cast file-part on (folder) in lowercase.
+            If (the entry for key in found) is void, in found, the entry for key becomes a series of text.
+            Define list as the entry for key in found but void is a series of text.
+            Insert folder into list.
+        Done.
+        For each child in cast sub-folders on (folder), repeat:
+            Cast gather-namespaces on (child, books, drawn-in, found).
+        Done.
+    Done.
+
+    // ── What a folder contributes (`Gathered`) ────────────────────────────
+
+    /// Every name a file's top level declares, as `[name line column]` — `TopLevelNames`.
+    Bind series of node to top-level-names, given (the node statements):
+        Define found as a series of node.
+        For each statement in cast hoistable on (statements), repeat:
+            Define kind as statement's kind.
+            Define named as false.
+            If kind is "ObjectDefinition" or kind is "InterfaceDefinition", the named becomes true.
+            If kind is "BindStatement" and cast is-nothing on (cast field-of on (statement, 5)), the named becomes true.
+            If kind is "DefineStatement" and cast truth-of on (cast field-of on (statement, 3)), the named becomes true.
+            If named:
+                Define line-place as 5.
+                If kind is "ObjectDefinition", the line-place becomes 9.
+                If kind is "BindStatement", the line-place becomes 7.
+                If kind is "InterfaceDefinition", the line-place becomes 3.
+                Insert cast made on ("list", a series with (cast field-of on (statement, 1), cast field-of on (statement, line-place),
+                    cast field-of on (statement, line-place + 1))) into found.
+            Done.
+        Done.
+        Return found.
+    Done.
+
+    /// What a neighbour contributes: everything it declares, and nothing it does.
+    Bind node to declarations-only, given (the node statements):
+        Define kept as cast listed.
+        For each statement in statements's children, repeat:
+            Define kind as statement's kind.
+            If kind is "PullStatement" or kind is "PullRabbitStatement":
+                Cast kept's add on (cast with-field on (statement, 2, cast declarations-only on (cast field-of on (statement, 2)))).
+            Done.
+            Otherwise if kind is "DefineStatement":
+                If cast truth-of on (cast field-of on (statement, 3)), cast kept's add on (statement).
+            Done.
+            Otherwise if kind is "BindStatement" or kind is "ObjectDefinition" or kind is "InterfaceDefinition"
+                    or kind is "GetterDeclaration" or kind is "SetterDeclaration" or kind is "UnmakerDeclaration"
+                    or kind is "OperatorOverloadDeclaration":
+                Cast kept's add on (statement).
+            Done.
+        Done.
+        Return kept.
+    Done.
+
+    /// The statements a folder contributes, its names claimed in `claimed` (lowercased name → file).
+    Bind node or failure to gathered-from unto checker, given (the text folder, the text skip-file,
+            the map from text to text claimed):
+        Define gathered as cast listed.
+        For each one-file in cast cufet-files on (folder), repeat:
+            Define skipping as (cast file-part on (one-file) in lowercase) is "blueprint.cufe".
+            If skip-file is not "" and cast same-path on (one-file, skip-file), the skipping becomes true.
+            If skipping is false:
+                Define file-text as "".
+                Try to:
+                    The file-text becomes read all from the file one-file.
+                Done.
+                In case of failure:
+                    Define shown as cast file-part on (one-file).
+                    Return a failure (cast refusal-of on ("'{shown}' is in this directory but could not be read",
+                        the message of the failure, 0, "read '{shown}' as part of its directory", "Check the file's permissions.")).
+                Done.
+                Define offset as cast one's add-source on (one-file).
+                Define inner as cast one's loaded-tree on (one-file, file-text, offset) or pass the failure off.
+                For each named in cast top-level-names on (inner), repeat:
+                    Define name as cast unquoted on (cast field-of on (named, 1)).
+                    Define at-line as cast numeric on (cast field-of on (named, 2)).
+                    Define key as name in lowercase.
+                    Define already as the entry for key in claimed.
+                    If already is void:
+                        In claimed, the entry for key becomes one-file.
+                    Done.
+                    Otherwise:
+                        If cast same-path on (cast parent-of on (already), cast parent-of on (one-file)) is false:
+                            Return a failure (cast name-above on (name, cast parent-of on (already), cast parent-of on (one-file), at-line)).
+                        Done.
+                        Return a failure (cast refusal-of on ("'{name}' is declared in two files of one directory",
+                            "'{cast file-part on (already)}' declares it too, and a directory is one namespace — its files share a single set of names, with nothing between them to keep two apart",
+                            at-line, "declare '{name}' in '{cast file-part on (one-file)}' as well",
+                            "Rename one of them, or move one of the two files into a directory of its own — a directory is what separates one set of names from another.")).
+                    Done.
+                Done.
+                For each kept in (cast declarations-only on (inner))'s children, repeat:
+                    Cast gathered's add on (kept).
+                Done.
+            Done.
+        Done.
+        Return gathered.
+    Done.
+
+    /// The refusal for a folder declaring a name a folder above it already has.
+    Bind text to name-above, given (the text name, the text folder, the text up, the number at-line):
+        Define here as cast file-part on (folder).
+        Define above as cast file-part on (up).
+        Return cast refusal-of on ("'{name}' is declared in '{here}' and in '{above}' above it",
+            "A folder sees every name the folders above it declare, so '{here}' would have two meanings for it, and the nearer would win without a word",
+            at-line, "declare '{name}' in '{here}' as well",
+            "Rename one of them. Folders beside each other may share a name; a folder and one above it may not.").
+    Done.
+
+    // ── Neighbours ────────────────────────────────────────────────────────
+
+    /// The program with what its folder and the folders above it declare brought in ahead of it, and
+    /// every folder or namespace it qualifies loaded under its own names — unchanged when the file is
+    /// in no project.
+    Bind node or failure to with-neighbours unto checker, given (the node statements):
+        If one's source-file is "", return statements.
+        Define self as one's source-file.
+        If (cast file-part on (self) in lowercase) is "blueprint.cufe", return statements.
+        Define folder as cast parent-of on (self).
+        Define root as cast project-root on (folder).
+        If root is "", return statements.
+        Define drawn-in as cast one's project-tree on (root) or pass the failure off.
+        Define namespace-folder as cast namespace-of on (drawn-in, folder).
+
+        // ── Its own folder, and each folder above it in its namespace ────────
+        Define own-chain as cast folder-chain on (folder, namespace-folder).
+        Define claimed as a map from text to text.
+        For each named in cast top-level-names on (statements), repeat:
+            In claimed, the entry for (cast unquoted on (cast field-of on (named, 1)) in lowercase) becomes self.
+        Done.
+        Define here as cast listed.
+        For each chain-folder in own-chain, repeat:
+            For each brought in (cast one's gathered-from on (chain-folder, self, claimed) or pass the failure off)'s children, repeat:
+                Cast here's add on (brought).
+            Done.
+        Done.
+
+        // ── What it qualifies, loaded on demand, to a fixpoint ───────────────
+        Define every-namespace as a map from text to series of text.
+        Cast gather-namespaces on (root, "{root}/books", drawn-in, every-namespace).
+        Define own-name as cast file-part on (namespace-folder).
+        Define chain-names as a map from text to fact.
+        For each chain-folder in own-chain, repeat:
+            In chain-names, the entry for (cast file-part on (chain-folder) in lowercase) becomes true.
+        Done.
+        Define folders as cast other-folders on (drawn-in, namespace-folder, own-chain).
+
+        // A qualifier's members: lowercased qualifier → lowercased member → the name it now has.
+        Define reach as a map from text to map from text to text.
+        // Another namespace loaded, by the qualifier as written: its statements.
+        Define loaded as a map from text to node.
+        Define loaded-order as a series of text.
+        // A folder of this namespace loaded under its own rename, by path.
+        Define renamed-statements as a map from text to node.
+        Define renamed-names as a map from text to map from text to text.
+        Define renamed-order as a series of text.
+
+        Define frontier as a series of node with (statements, here).
+        While the number of frontier is greater than 0, repeat:
+            Define wanted as a map from text to node.
+            Define wanted-order as a series of text.
+            For each group in frontier, repeat:
+                Define found as a series of node.
+                Cast gather-qualifier-sites on (group, found).
+                For each site in found, repeat:
+                    Define name as cast unquoted on (cast field-of on (site, 1)).
+                    Define key as name in lowercase.
+                    If (the entry for key in reach) is void and (the entry for key in chain-names) is void
+                            and ((the entry for key in every-namespace) is not void or (the entry for key in folders) is not void)
+                            and (the entry for name in wanted) is void:
+                        In wanted, the entry for name becomes site.
+                        Insert name into wanted-order.
+                    Done.
+                Done.
+            Done.
+            The frontier becomes a series of node.
+            For each name in cast sorted-texts on (wanted-order), repeat:
+                Define site as the entry for name in wanted but void is cast nothing.
+                Define key as name in lowercase.
+                Define directories as a series of text.
+                Define in-namespaces as the entry for key in every-namespace but void is a series of text.
+                Define in-here as the entry for key in folders but void is a series of text.
+                For each one-folder in in-namespaces, repeat:
+                    Insert one-folder into directories.
+                Done.
+                For each one-folder in in-here, repeat:
+                    Insert one-folder into directories.
+                Done.
+                If the number of directories is greater than 1:
+                    Define listing as "".
+                    For each one-folder in directories, repeat:
+                        If listing is not "", the listing becomes listing joined to " and ".
+                        The listing becomes listing joined to "'{cast native-path on (one-folder)}'".
+                    Done.
+                    Return a failure (cast refusal-of on ("two directories of this project are both named '{name}'",
+                        "They are {listing}, and a directory is reached by its name — so this qualification would have two meanings",
+                        cast numeric on (cast field-of on (site, 2)), "qualify with '{name}'",
+                        "Rename one of them. A qualifier reaches one directory, and which one has to be decidable from the name alone.")).
+                Done.
+                If the number of in-here is greater than 0:
+                    // A folder of this namespace: it, and each folder above it off this file's chain.
+                    For each up-folder in cast folder-chain on (item 1 of in-here, namespace-folder), repeat:
+                        Define on-chain as false.
+                        For each chain-folder in own-chain, repeat:
+                            If cast same-path on (chain-folder, up-folder), the on-chain becomes true.
+                        Done.
+                        If on-chain, stop.
+                        If (the entry for up-folder in renamed-statements) is void:
+                            Define gathered as cast one's gathered-from on (up-folder, "", a map from text to text) or pass the failure off.
+                            Define names as a map from text to text.
+                            For each named in cast top-level-names on (gathered), repeat:
+                                Define member as cast unquoted on (cast field-of on (named, 1)).
+                                In names, the entry for (member in lowercase) becomes "{member} in {cast shown-folder on (root, up-folder)}".
+                            Done.
+                            In renamed-statements, the entry for up-folder becomes gathered.
+                            In renamed-names, the entry for up-folder becomes names.
+                            Insert up-folder into renamed-order.
+                            Insert gathered into frontier.
+                        Done.
+                    Done.
+                    In reach, the entry for key becomes the entry for (item 1 of in-here) in renamed-names but void is a map from text to text.
+                Done.
+                Otherwise:
+                    // Another namespace: reached by its own folder's names.
+                    Define other as cast one's gathered-from on (item 1 of directories, "", a map from text to text) or pass the failure off.
+                    In loaded, the entry for name becomes other.
+                    Insert name into loaded-order.
+                    Define members as a map from text to text.
+                    For each named in cast top-level-names on (other), repeat:
+                        Define member as cast unquoted on (cast field-of on (named, 1)).
+                        In members, the entry for (member in lowercase) becomes "{member} in {name}".
+                    Done.
+                    In reach, the entry for key becomes members.
+                    Insert other into frontier.
+                Done.
+            Done.
+        Done.
+
+        // A name a renamed folder declares that a folder above it declares too.
+        For each renamed-folder in renamed-order, repeat:
+            Define gathered as the entry for renamed-folder in renamed-statements but void is cast listed.
+            For each named in cast top-level-names on (gathered), repeat:
+                Define name as cast unquoted on (cast field-of on (named, 1)).
+                Define key as name in lowercase.
+                Define first-up as true.
+                For each up-folder in cast folder-chain on (renamed-folder, namespace-folder), repeat:
+                    If first-up:
+                        The first-up becomes false.
+                    Done.
+                    Otherwise:
+                        Define above as false.
+                        Define upper as the entry for up-folder in renamed-names.
+                        If upper is not void:
+                            The above becomes (the entry for key in upper) is not void.
+                        Done.
+                        Otherwise:
+                            Define claimer as the entry for key in claimed.
+                            If claimer is not void, the above becomes cast same-path on (cast parent-of on (claimer), up-folder).
+                        Done.
+                        If above:
+                            Return a failure (cast name-above on (name, renamed-folder, up-folder, cast numeric on (cast field-of on (named, 2)))).
+                        Done.
+                    Done.
+                Done.
+            Done.
+        Done.
+
+        If the size of reach is 0:
+            If the number of here's children is 0, return statements.
+            For each statement in statements's children, repeat:
+                Cast here's add on (statement).
+            Done.
+            Return here.
+        Done.
+
+        // ── The renames, and the qualifications that now point at them ───────
+        Define qualifiers as a map from text to fact.
+        For each pair in every-namespace, repeat:
+            In qualifiers, the entry for the key of pair becomes true.
+        Done.
+        For each pair in folders, repeat:
+            In qualifiers, the entry for the key of pair becomes true.
+        Done.
+        // What was written is left as it was — a copy is qualified, so the program held whole is not.
+        Define written as cast copied-node on (statements).
+        For each name in loaded-order, repeat:
+            Define group as the entry for name in loaded but void is cast listed.
+            Cast refuse-a-shadowed-namespace on (group, qualifiers, name) or pass the failure off.
+            Cast refuse-a-member-not-there on (group, reach) or pass the failure off.
+        Done.
+        For each renamed-folder in renamed-order, repeat:
+            Define group as the entry for renamed-folder in renamed-statements but void is cast listed.
+            Cast refuse-a-shadowed-namespace on (group, qualifiers, cast file-part on (renamed-folder)) or pass the failure off.
+            Cast refuse-a-member-not-there on (group, reach) or pass the failure off.
+        Done.
+        Cast refuse-a-shadowed-namespace on (here, qualifiers, own-name) or pass the failure off.
+        Cast refuse-a-member-not-there on (here, reach) or pass the failure off.
+        Cast refuse-a-shadowed-namespace on (written, qualifiers, own-name) or pass the failure off.
+        Cast refuse-a-member-not-there on (written, reach) or pass the failure off.
+
+        Define brought as cast listed.
+        For each name in cast sorted-texts on (loaded-order), repeat:
+            Define group as the entry for name in loaded but void is cast listed.
+            Cast qualify on (group, reach).
+            Cast make-private on (group, name, a map from text to text, false).
+            For each statement in group's children, repeat:
+                Cast brought's add on (statement).
+            Done.
+        Done.
+        For each renamed-folder in cast sorted-texts on (renamed-order), repeat:
+            Define group as the entry for renamed-folder in renamed-statements but void is cast listed.
+            // Its references to renamed folders above it follow those renames.
+            Define above-names as a map from text to text.
+            Define first-up as true.
+            For each up-folder in cast folder-chain on (renamed-folder, namespace-folder), repeat:
+                If first-up:
+                    The first-up becomes false.
+                Done.
+                Otherwise:
+                    Define upper as the entry for up-folder in renamed-names.
+                    If upper is not void:
+                        For each pair in upper, repeat:
+                            If (the entry for the key of pair in above-names) is void, in above-names, the entry for the key of pair becomes the value of pair.
+                        Done.
+                    Done.
+                Done.
+            Done.
+            Cast qualify on (group, reach).
+            Cast make-private on (group, cast shown-folder on (root, renamed-folder), above-names, false).
+            For each statement in group's children, repeat:
+                Cast brought's add on (statement).
+            Done.
+        Done.
+        Cast qualify on (here, reach).
+        Cast qualify on (written, reach).
+        For each statement in here's children, repeat:
+            Cast brought's add on (statement).
+        Done.
+        For each statement in written's children, repeat:
+            Cast brought's add on (statement).
+        Done.
+        Return brought.
+    Done.
+
+    /// Texts in ordinal order — C#'s `StringComparer.Ordinal`.
+    Bind series of text to sorted-texts, given (the series of text unsorted):
+        Return unsorted sorted.
+    Done.
+
+    /// A path as the platform writes it, for a message that shows one whole.
+    Bind text to native-path, given (the text full):
+        If (the characters from 2 to 2 of full) is ":", return replace "/" with "\\" in full.
+        Return full.
+    Done.
+
+    /// The folders of a namespace off this file's chain, keyed by the lowercased name that qualifies them.
+    Bind map from text to series of text to other-folders, given (the map from text to text drawn-in,
+            the text namespace-folder, the series of text own-chain):
+        Define found as a map from text to series of text.
+        Define members as a series of text.
+        For each pair in drawn-in, repeat:
+            If cast same-path on (the value of pair, namespace-folder) and cast same-path on (the key of pair, namespace-folder) is false:
+                Insert the key of pair into members.
+            Done.
+        Done.
+        For each member-folder in cast sorted-texts on (members), repeat:
+            Define on-chain as false.
+            For each chain-folder in own-chain, repeat:
+                If cast same-path on (chain-folder, member-folder), the on-chain becomes true.
+            Done.
+            If on-chain is false:
+                Define key as cast file-part on (member-folder) in lowercase.
+                If (the entry for key in found) is void, in found, the entry for key becomes a series of text.
+                Define list as the entry for key in found but void is a series of text.
+                Insert member-folder into list.
+            Done.
+        Done.
+        Return found.
+    Done.
+
+    /// Every `X's y` with `X` a name, as `[X line column]`.
+    Bind void to gather-qualifier-sites, given (the node tree, the series of node found):
+        If tree's kind is "atom", return.
+        If tree's kind is "PossessiveAccess" and (cast field-of on (tree, 1))'s kind is "VariableReference":
+            Insert cast made on ("list", a series with (cast field-of on (cast field-of on (tree, 1), 1),
+                cast field-of on (tree, 3), cast field-of on (tree, 4))) into found.
+        Done.
+        For each child in tree's children, repeat:
+            Cast gather-qualifier-sites on (child, found).
+        Done.
+    Done.
+
+    /// `terminals's read-key` becomes the one name that declaration now has — where it stands, and
+    /// only where the namespace really declares the member.
+    Bind void to qualify, given (the node tree, the map from text to map from text to text reach):
+        If tree's kind is "atom", return.
+        Define place as 0.
+        For each child in tree's children, repeat:
+            Increment place by 1.
+            Define lifted as "".
+            If child's kind is "PossessiveAccess" and (cast field-of on (child, 1))'s kind is "VariableReference":
+                Define members as the entry for (cast unquoted on (cast field-of on (cast field-of on (child, 1), 1)) in lowercase) in reach.
+                If members is not void:
+                    The lifted becomes the entry for (cast unquoted on (cast field-of on (child, 2)) in lowercase) in members but void is "".
+                Done.
+            Done.
+            If lifted is "", cast qualify on (child, reach).
+            Otherwise:
+                Cast rewrite-field on (tree, place, cast made on ("VariableReference", a series with (cast quoted on (lifted),
+                    cast field-of on (child, 3), cast field-of on (child, 4)))).
+            Done.
+        Done.
+    Done.
+
+    /// A declaration named after a directory of this project — refused, so a qualification has one reading.
+    Bind void or failure to refuse-a-shadowed-namespace, given (the node statements, the map from text to fact qualifiers,
+            the text group-name):
+        For each statement in cast every-statement-in on (statements), repeat:
+            Define kind as statement's kind.
+            Define line-place as 0.
+            If kind is "ObjectDefinition", the line-place becomes 9.
+            If kind is "InterfaceDefinition", the line-place becomes 3.
+            If kind is "DefineStatement", the line-place becomes 5.
+            If kind is "BindStatement" and cast is-nothing on (cast field-of on (statement, 5)), the line-place becomes 7.
+            If line-place is not 0:
+                Define name as cast unquoted on (cast field-of on (statement, 1)).
+                If (name in lowercase) is not (group-name in lowercase) and (the entry for (name in lowercase) in qualifiers) is not void:
+                    Return a failure (cast refusal-of on ("'{name}' is a directory of this project, so it cannot also be a name",
+                        "A directory is a namespace named after itself, and '{name}' is how anything outside it writes '{name}'s ‹something›' — so the two readings would be indistinguishable",
+                        cast numeric on (cast field-of on (statement, line-place)), "declare '{name}'",
+                        "Rename this one. The directory's name belongs to the directory.")).
+                Done.
+            Done.
+        Done.
+    Done.
+
+    /// `‹directory›'s ‹member›` where that directory declares no such thing.
+    Bind void or failure to refuse-a-member-not-there, given (the node tree, the map from text to map from text to text reach):
+        If tree's kind is "atom", return.
+        If tree's kind is "PossessiveAccess" and (cast field-of on (tree, 1))'s kind is "VariableReference":
+            Define target as cast unquoted on (cast field-of on (cast field-of on (tree, 1), 1)).
+            Define member as cast unquoted on (cast field-of on (tree, 2)).
+            Define members as the entry for (target in lowercase) in reach.
+            If members is not void:
+                If (the entry for (member in lowercase) in members) is void:
+                    Define offered as a series of text.
+                    For each pair in members, repeat:
+                        Insert cast short-of on (the value of pair) into offered.
+                    Done.
+                    Define what as "'{target}' is a directory of this project and its files declare nothing".
+                    If the number of offered is greater than 0:
+                        The what becomes "What its files declare is {cast comma-joined on (cast sorted-texts on (offered))}".
+                    Done.
+                    Return a failure (cast refusal-of on ("the directory '{target}' declares nothing called '{member}'", what,
+                        cast numeric on (cast field-of on (tree, 3)), "reach '{target}'s {member}'",
+                        "Check the spelling, or declare it in one of that directory's files — everything a directory's files declare at their top level is what the directory offers.")).
+                Done.
+            Done.
+        Done.
+        For each child in tree's children, repeat:
+            Cast refuse-a-member-not-there on (child, reach) or pass the failure off.
+        Done.
+    Done.
+
+    /// The name before ` in ` — what the member was called where it was written.
+    Bind text to short-of, given (the text lifted):
+        Define at as the position of " in " in lifted but void is 0.
+        If at is 0, return lifted.
+        Return the characters from 1 to (at - 1) of lifted.
+    Done.
+
+    /// A group's own declarations renamed `<name> in <tag>`, and every reference to them — C#'s
+    /// `MakePrivate`. A book's modules are its face and keep their names (`exempt-modules`); a
+    /// directory offers everything alike. `also-renamed` names declared elsewhere whose references
+    /// follow too.
+    Bind void to make-private, given (the node statements, the text tag, the map from text to text also-renamed,
+            the fact exempt-modules):
+        Define hidden as a map from text to text.
+        Define top as a map from text to fact.
+        For each statement in statements's children, repeat:
+            If statement's kind is "DefineStatement", in top, the entry for "{(cast field-of on (statement, 5))'s word}:{(cast field-of on (statement, 6))'s word}" becomes true.
+        Done.
+        For each statement in cast hoistable on (statements), repeat:
+            Define kind as statement's kind.
+            Define named as kind is "ObjectDefinition" or kind is "InterfaceDefinition".
+            If kind is "ObjectDefinition" and exempt-modules:
+                If cast conforms-as on (statement, "module") or cast conforms-as on (statement, "book") or cast conforms-as on (statement, "region"):
+                    The named becomes false.
+                Done.
+            Done.
+            If kind is "BindStatement" and cast is-nothing on (cast field-of on (statement, 5)), the named becomes true.
+            If kind is "DefineStatement":
+                If cast truth-of on (cast field-of on (statement, 3)), the named becomes true.
+                If (the entry for "{(cast field-of on (statement, 5))'s word}:{(cast field-of on (statement, 6))'s word}" in top) is not void, the named becomes true.
+            Done.
+            If named:
+                Define name as cast unquoted on (cast field-of on (statement, 1)).
+                In hidden, the entry for name becomes "{name} in {tag}".
+            Done.
+        Done.
+        For each pair in also-renamed, repeat:
+            If (the entry for the key of pair in hidden) is void, in hidden, the entry for the key of pair becomes the value of pair.
+        Done.
+        If the size of hidden is 0, return.
+        Cast rename-references on (statements, hidden).
+        For each statement in cast hoistable on (statements), repeat:
+            Cast rename-declaration on (statement, hidden).
+        Done.
+    Done.
+
+    /// Every type, name and literal naming a hidden declaration, renamed where it stands.
+    Bind void to rename-references, given (the node tree, the map from text to text hidden):
+        If tree's kind is "atom", return.
+        If tree's kind is "VariableReference" or tree's kind is "ObjectLiteral":
+            Define renamed-to as the entry for cast unquoted on (cast field-of on (tree, 1)) in hidden.
+            If renamed-to is not void, cast rewrite-field on (tree, 1, cast quoted on (renamed-to)).
+        Done.
+        Define place as 0.
+        For each child in tree's children, repeat:
+            Increment place by 1.
+            Define renamed-type as false.
+            If child's kind is "ObjectType":
+                Define renamed-to as the entry for cast unquoted on (cast field-of on (child, 1)) in hidden.
+                If renamed-to is not void:
+                    Cast rewrite-field on (tree, place, cast made on ("ObjectType", a series with (cast quoted on (renamed-to), cast listed))).
+                    The renamed-type becomes true.
+                Done.
+            Done.
+            If renamed-type is false, cast rename-references on (child, hidden).
+        Done.
+    Done.
+
+    /// The declaration itself renamed to match what now refers to it.
+    Bind void to rename-declaration, given (the node statement, the map from text to text hidden):
+        Define kind as statement's kind.
+        If kind is "ObjectDefinition":
+            Cast rename-field-text on (statement, 1, hidden).
+            Cast rename-field-text on (statement, 7, hidden).
+            For each conformed in (cast field-of on (statement, 8))'s children, repeat:
+                Define renamed-to as the entry for cast unquoted on (conformed) in hidden.
+                If renamed-to is not void:
+                    Define place as 0.
+                    Define index as 0.
+                    For each other in (cast field-of on (statement, 8))'s children, repeat:
+                        Increment index by 1.
+                        If other's word is conformed's word, the place becomes index.
+                    Done.
+                    Cast rewrite-field on (cast field-of on (statement, 8), place, cast quoted on (renamed-to)).
+                Done.
+            Done.
+            Return.
+        Done.
+        If kind is "BindStatement":
+            Define target as cast field-of on (statement, 5).
+            If cast is-nothing on (target) is false and (the entry for cast unquoted on (target) in hidden) is not void:
+                Cast rename-field-text on (statement, 5, hidden).
+                Return.
+            Done.
+            Define made-name as cast field-of on (statement, 6).
+            If cast is-nothing on (made-name) is false and (the entry for cast unquoted on (made-name) in hidden) is not void:
+                Cast rename-field-text on (statement, 1, hidden).
+                Cast rename-field-text on (statement, 6, hidden).
+                Return.
+            Done.
+            Cast rename-field-text on (statement, 1, hidden).
+            Return.
+        Done.
+        If kind is "GetterDeclaration":
+            Cast rename-field-text on (statement, 4, hidden).
+            Return.
+        Done.
+        If kind is "SetterDeclaration":
+            Cast rename-field-text on (statement, 5, hidden).
+            Return.
+        Done.
+        If kind is "DefineStatement" or kind is "InterfaceDefinition", cast rename-field-text on (statement, 1, hidden).
+    Done.
+
+    /// A field holding a name, renamed when the name is hidden; nothing when it holds nothing.
+    Bind void to rename-field-text, given (the node statement, the number place, the map from text to text hidden):
+        Define held as cast field-of on (statement, place).
+        If cast is-nothing on (held), return.
+        Define renamed-to as the entry for cast unquoted on (held) in hidden.
+        If renamed-to is not void, cast rewrite-field on (statement, place, cast quoted on (renamed-to)).
+    Done.
+
+    // ── Books from files (`BookLoading.Expand`) ───────────────────────────
+
+    /// The program with every book it pulls from a file brought in ahead of it — beside the file
+    /// that pulls it, or in the project's `books/` — each one's own names hidden but its modules.
+    Bind node or failure to with-book-files unto checker, given (the node statements):
+        If one's source-file is "", return statements.
+        Define folder as cast parent-of on (one's source-file).
+        Define root as cast project-root on (folder).
+        Define shared as "".
+        If root is not "" and the path "{root}/books" is a directory, the shared becomes "{root}/books".
+        Define declared-here as a map from text to fact.
+        For each statement in cast every-statement-in on (statements), repeat:
+            If statement's kind is "ObjectDefinition" and (cast conforms-as on (statement, "module") or cast conforms-as on (statement, "book")
+                    or cast conforms-as on (statement, "region")):
+                In declared-here, the entry for (cast unquoted on (cast field-of on (statement, 1)) in lowercase) becomes true.
+            Done.
+        Done.
+        Define loaded as a map from text to text.
+        Define brought as cast listed.
+        Cast one's gather-books on (statements, folder, shared, declared-here, loaded, brought, a series of text) or pass the failure off.
+        If the number of brought's children is 0, return statements.
+        For each statement in statements's children, repeat:
+            Cast brought's add on (statement).
+        Done.
+        Return brought.
+    Done.
+
+    /// The file a pull names, beside the puller and then in the project's books — or "".
+    Bind text to book-file, given (the text book, the text folder, the text shared):
+        If the path "{folder}/{book}.cufe" is a file, return "{folder}/{book}.cufe".
+        If shared is not "" and the path "{shared}/{book}.cufe" is a file, return "{shared}/{book}.cufe".
+        Return "".
+    Done.
+
+    /// `Gather`: each pull of a book that is a file, loaded once per file, its own pulls resolved
+    /// beside IT — and a ring refused rather than followed.
+    Bind void or failure to gather-books unto checker, given (the node statements, the text folder, the text shared,
+            the map from text to fact declared-here, the map from text to text loaded, the node brought,
+            the series of text chain):
+        For each statement in cast every-statement-in on (statements), repeat:
+            If statement's kind is "PullStatement":
+                Define pull-row as cast numeric on (cast field-of on (statement, 3)).
+                For each pulled in (cast field-of on (statement, 1))'s children, repeat:
+                    Define book as cast unquoted on (cast field-of on (pulled, 1)).
+                    Define key as book in lowercase.
+                    Define known as cast is-bundled-module on (book) or (the entry for key in declared-here) is not void.
+                    If known is false:
+                        For each link in chain, repeat:
+                            If (link in lowercase) is key:
+                                Define ring as "".
+                                For each step-name in chain, repeat:
+                                    The ring becomes ring joined to step-name joined to " → ".
+                                Done.
+                                Return a failure (cast refusal-of on ("the book '{book}' pulls itself, round a ring",
+                                    "The ring is {ring}{book}", pull-row, "pull '{book}' from inside itself",
+                                    "Break the ring — move what both of them need into a third book they can each pull.")).
+                            Done.
+                        Done.
+                        Define found as cast book-file on (book, folder, shared).
+                        If found is not "":
+                            Define already as the entry for key in loaded.
+                            If already is not void:
+                                If cast same-path on (already, found) is false:
+                                    Return a failure (cast refusal-of on ("'{book}' is pulled from two different files",
+                                        "One is '{cast native-path on (already)}' and the other is '{cast native-path on (found)}', and a program holds one book per NAME — what a book declares is renamed to '<name> in <book>', so two files answering to one name would collide on every declaration they have",
+                                        pull-row, "pull '{book}' from both",
+                                        "Rename one of them. A book's name is its namespace, so the language cannot hold two.")).
+                                Done.
+                            Done.
+                            Otherwise:
+                                In loaded, the entry for key becomes found.
+                                Define file-text as "".
+                                Try to:
+                                    The file-text becomes read all from the file found.
+                                Done.
+                                In case of failure:
+                                    Return a failure (cast refusal-of on ("the book '{book}' is there but could not be read",
+                                        the message of the failure, pull-row, "pull '{book}'", "Check the file's permissions.")).
+                                Done.
+                                Define offset as cast one's add-source on (found).
+                                Define inner as cast one's loaded-tree on (found, file-text, offset) or pass the failure off.
+                                Cast refuse-a-program on (inner, book, pull-row) or pass the failure off.
+                                Insert book into chain.
+                                Cast one's gather-books on (inner, cast parent-of on (found), shared, declared-here, loaded, brought, chain)
+                                    or pass the failure off.
+                                Remove item (the number of chain) from chain.
+                                Cast make-private on (inner, book, a map from text to text, true).
+                                For each kept in inner's children, repeat:
+                                    Cast brought's add on (kept).
+                                Done.
+                            Done.
+                        Done.
+                    Done.
+                Done.
+            Done.
+        Done.
+    Done.
+
+    /// A pulled file whose top level does something rather than declaring.
+    Bind void or failure to refuse-a-program, given (the node statements, the text book, the number pull-row):
+        For each statement in cast hoistable on (statements), repeat:
+            Define kind as statement's kind.
+            Define declares as kind is "BindStatement" or kind is "ObjectDefinition" or kind is "InterfaceDefinition"
+                or kind is "GetterDeclaration" or kind is "SetterDeclaration" or kind is "UnmakerDeclaration"
+                or kind is "OperatorOverloadDeclaration" or kind is "DefineStatement" or kind is "PullStatement"
+                or kind is "PullRabbitStatement".
+            If declares is false:
+                Return a failure (cast refusal-of on ("'{book}' does something at its top level, so it cannot be pulled",
+                    "A pulled file is a LIBRARY: its top level may DECLARE things, but anything that runs would run inside your pull, before your own first line",
+                    pull-row, "pull '{book}'",
+                    "Split it in two: leave the declarations in '{book}.cufe', and move the lines that DO something into a program of their own that pulls it.")).
+            Done.
+        Done.
+    Done.
+
+    /// Every statement, at any depth — each block's statements as well as the top level's.
+    Bind series of node to every-statement-in, given (the node statements):
+        Define found as a series of node.
+        Cast gather-every-statement on (statements, found).
+        Return found.
+    Done.
+
+    Bind void to gather-every-statement, given (the node tree, the series of node found):
+        If tree's kind is "atom", return.
+        If tree's kind is "list":
+            For each child in tree's children, repeat:
+                If child's kind is not "atom" and child's kind is not "list", insert child into found.
+            Done.
+        Done.
+        For each child in tree's children, repeat:
+            Cast gather-every-statement on (child, found).
+        Done.
+    Done.
+Done.

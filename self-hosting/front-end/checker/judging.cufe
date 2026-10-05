@@ -65,6 +65,9 @@ Pull a book on collections.
         the map from text to node series-loops,
         the map from text to node stash-drains,
         the fact rechecked,
+        the text source-file,
+        the series of source-block source-blocks,
+        the map from text to node parse-cache,
         the map from text to node axiom-tags,
         the map from text to series of number depth-signatures,
         the map from text to series of number getter-signatures,
@@ -312,7 +315,14 @@ Pull a book on collections.
         // A module's carried types become ordinary top-level objects before anything else.
         Define program as cast one's lift-carried-types on (written).
         // Held for the question a task's captured write asks: does anything outside it read the name?
+        // What was written, before its neighbours arrive — as C# holds it.
         The one's whole-program becomes program.
+        // A file inside a project: its folder's and the folders above it brought in ahead of it.
+        Define located as cast one's with-neighbours on (written) or pass the failure off.
+        The located becomes cast one's with-book-files on (located) or pass the failure off.
+        If the number of located's children is not the number of written's children:
+            The program becomes cast one's lift-carried-types on (located).
+        Done.
         // Every `Cite` is replaced by what its block holds before anything is gathered.
         The program becomes cast one's expand-cites on (program) or pass the failure off.
         Define reach as cast program-beyond-reach on (program).
@@ -1251,6 +1261,9 @@ Pull a book on collections.
             the series-loops a map from text to node,
             the stash-drains a map from text to node,
             the rechecked false,
+            the source-file "",
+            the source-blocks a series of source-block,
+            the parse-cache a map from text to node,
             the axiom-tags a map from text to node,
             the depth-signatures a map from text to series of number,
             the getter-signatures a map from text to series of number,
@@ -1262,14 +1275,18 @@ Pull a book on collections.
 
     /// "ok", or the failure that says why not.
     /// `ok` — and with `with-tree`, the checked program after it, one statement to a line.
-    Bind text or failure to checked, given (the node program, the series of node prelude, the fact with-tree):
+    Bind text or failure to checked, given (the node program, the series of node prelude, the fact with-tree,
+            the text source-file, the map from text to node parse-cache):
         Define walker as cast fresh-checker on (prelude).
-        // Every refusal leaves through here, so a lifted type name is put back once, for all of them.
+        The walker's source-file becomes source-file.
+        The walker's parse-cache becomes parse-cache.
+        // Every refusal leaves through here, so a lifted type name is put back once, for all of them —
+        // and a line from a loaded file is turned back into that file's own.
         Try to:
             Cast walker's check-program on (program).
         Done.
         In case of failure:
-            Return a failure (cast walker's written-names on (the message of the failure)).
+            Return a failure (cast walker's source-rewritten on (cast walker's written-names on (the message of the failure))).
         Done.
         If with-tree is false, return "ok".
         Define out as a chase.

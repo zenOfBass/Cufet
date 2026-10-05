@@ -24,7 +24,8 @@ Pull a book on collections.
     Done.
 
     /// The one line printed for a program.
-    Bind text to verdict, given (the text whole, the series of node prelude, the fact with-tree):
+    Bind text to verdict, given (the text whole, the series of node prelude, the fact with-tree, the text source-file,
+            the map from text to node parse-cache):
         Define parsed as cast listed.
         Try to:
             The parsed becomes cast parser's program-tree on (whole).
@@ -34,7 +35,7 @@ Pull a book on collections.
         Done.
         Define outcome as "ok".
         Try to:
-            The outcome becomes cast checked on (parsed, prelude, with-tree).
+            The outcome becomes cast checked on (parsed, prelude, with-tree, source-file, parse-cache).
         Done.
         In case of failure:
             Define said as the message of the failure.
@@ -74,10 +75,13 @@ Pull a book on collections.
         Exit with 1.
     Done.
 
+    // A neighbour is read by every file of its folder; it is parsed once for all of them.
+    Define parse-cache as a map from text to node.
     For each name in files, repeat:
         State "file\t{name}".
         Try to:
-            State cast verdict on (read all from the file name, prelude, with-tree).
+            // Checked where it sits: inside a project, its folder is part of its program.
+            State cast verdict on (read all from the file name, prelude, with-tree, cast full-path on (name), parse-cache).
         Done.
         In case of failure:
             State "crash\t{the message of the failure}".

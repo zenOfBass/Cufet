@@ -36,12 +36,26 @@ Pull a book on collections.
 
     /// The whole program's top-level statements, as the C# parser hands them on — or why not.
     Bind node or failure to program-tree, given (the text whole):
+        Return cast program-tree-from on (whole, 0) or pass the failure off.
+    Done.
+
+    /// The same, for a file loaded into another's program: every line counted from `line-offset`,
+    /// as C#'s `Lexer(text, lineOffset, 0)` counts them, so one numbering spans every file.
+    Bind node or failure to program-tree-from, given (the text whole, the number line-offset):
         Define found as a series of token.
         Try to:
             The found becomes cast tokens-of on (whole).
         Done.
         In case of failure:
             Return a failure (cast lexer-refusal on (the message of the failure)).
+        Done.
+        If line-offset is not 0:
+            Define place as 0.
+            For each one-token in found, repeat:
+                Increment place by 1.
+                The item place of found becomes a new token { the kind one-token's kind, the lexeme one-token's lexeme,
+                    the row one-token's row + line-offset, the column one-token's column }.
+            Done.
         Done.
         Define reading as a new parser {
             the tokens found, the at 1, the type-depth 0, the collections-depth 0, the loop-depth 0,
