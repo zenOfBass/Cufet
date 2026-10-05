@@ -27,10 +27,13 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
     : IClassFixture<CompiledCufetChecker>
 {
     /// <summary>How many corpus files must agree. Raised as the checker grows; never lowered.</summary>
-    private const int CorpusFloor = 131;
+    private const int CorpusFloor = 134;
 
     /// <summary>How many corpus files' CHECKED TREES must match, of those both checkers accept. Raised; never lowered.</summary>
-    private const int TreeFloor = 70;
+    private const int TreeFloor = 72;
+
+    /// <summary>The same, of the hand-written programs both checkers accept.</summary>
+    private const int HandWrittenTreeFloor = 242;
 
     /// <summary>Where the bundled books' source is — the checker reads their layers with its own parser.</summary>
     private static string[] PreludeArgs =>
@@ -69,8 +72,10 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
         files.Where(f => CheckerAnswer.Expected(f.Source) != "parse").ToList();
 
     /// <summary>Writes each source to a temporary directory and runs the compiled checker over them.</summary>
-    private Dictionary<string, List<string>> RunOnSources(IReadOnlyList<(string Name, string Source)> sources, string label)
+    private Dictionary<string, List<string>> RunOnSources(IReadOnlyList<(string Name, string Source)> sources, string label,
+                                                          string[]? flags = null)
     {
+        flags ??= [];
         var dir = Directory.CreateTempSubdirectory($"cufet-checker-{label}-").FullName;
         try
         {
@@ -78,7 +83,7 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
             var got = new Dictionary<string, List<string>>();
             // In batches: a Windows command line has a length limit.
             foreach (var batch in sources.Select(s => s.Name).Chunk(200))
-                foreach (var (k, v) in ByFile(Run(compiled.Exe, [.. PreludeArgs, .. batch], dir))) got[k] = v;
+                foreach (var (k, v) in ByFile(Run(compiled.Exe, [.. flags, .. PreludeArgs, .. batch], dir))) got[k] = v;
             return got;
         }
         finally { Directory.Delete(dir, recursive: true); }
@@ -1103,15 +1108,33 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
         "Bind void to outer-fn, given (the series of number xs):\n    Define keep as a series of series of number.\n    Bind void to inner-fn:\n        Insert xs into keep.\n    Done.\n    Cast inner-fn.\nDone.\nState 1.",
         "Bind series of number to same, given (the series of number xs):\n    Return xs.\nDone.\nDefine keep as a series of series of number.\nPull a rabbit.\n    Pull a rabbit.\n        Define inner as a series of number with (1).\n        Insert cast same on (inner) into keep.\n    Done.\nDone.",
         "Bind series of number to same, given (the series of number xs):\n    Return xs.\nDone.\nPull a rabbit.\n    Define keep as a series of series of number.\n    Pull a rabbit.\n        Define inner as a series of number with (1).\n        Insert cast same on (inner) into keep.\n    Done.\nDone.",
+        // The stash machine's paths — a type test's guard and its eliminated else, 'is not void', While with a reassigned parameter, Repeat with Skip and Stop, For each named and not, judgements on a closed union and on values, a method, a stash value with delegation, a burying function nested in another.
+        "Bind number to picks, given (the rabbit helper, the (number or text) value):\n    If value is a number:\n        Have helper bury value.\n    Done.\n    Otherwise:\n        Have helper bury 0.\n    Done.\nDone.\nPull a rabbit as hopper.\n    Define drawn as cast picks on (hopper, 3).\n    State unbury drawn.\nDone.",
+        "Bind number to present, given (the rabbit helper, the voidable number value):\n    If value is not void:\n        Have helper bury value + 1.\n    Done.\n    If value is void:\n        Have helper bury 0.\n    Done.\nDone.\nPull a rabbit as hopper.\n    State unbury cast present on (hopper, 4).\nDone.",
+        "Bind number to tallying, given (the rabbit helper, the number limit):\n    Define n as 0.\n    While n is less than limit, repeat:\n        Have helper bury n.\n        The n becomes n + 1.\n        The limit becomes limit - 0.\n    Done.\nDone.\nPull a rabbit as hopper.\n    For each got in cast tallying on (hopper, 3), repeat:\n        State got.\n    Done.\nDone.",
+        "Bind number to evens, given (the rabbit helper):\n    Define n as 0.\n    Repeat:\n        The n becomes n + 1.\n        If n is 3, skip.\n        If n is 7, stop.\n        Have helper bury n.\n    Until n is greater than 9.\nDone.\nPull a rabbit as hopper.\n    For each got in cast evens on (hopper), repeat:\n        State got.\n    Done.\nDone.",
+        "Bind text to each-word, given (the rabbit helper, the series of text words):\n    For each word in words, repeat:\n        Have helper bury word.\n    Done.\nDone.\nPull a rabbit as hopper.\n    For each got in cast each-word on (hopper, a series of text with (\"a\", \"b\")), repeat:\n        State got.\n    Done.\nDone.",
+        "Bind number to doubled, given (the rabbit helper, the series of number xs):\n    For each in xs, repeat:\n        Have helper bury it * 2.\n    Done.\nDone.\nPull a rabbit as hopper.\n    For each got in cast doubled on (hopper, a series of number with (1, 2)), repeat:\n        State got.\n    Done.\nDone.",
+        "Bind text to described, given (the rabbit helper, the (number or text or fact) value):\n    Judge value, where it is:\n        a number:\n            Have helper bury \"number\".\n        Done.\n        a text:\n            Have helper bury it.\n        Done.\n        Otherwise:\n            Have helper bury \"fact\".\n        Done.\n    Done.\nDone.\nPull a rabbit as hopper.\n    State unbury cast described on (hopper, true).\nDone.",
+        "Bind text to named, given (the rabbit helper, the number value):\n    Judge value, where it is:\n        1, Have helper bury \"one\".\n        2 or 3:\n            Have helper bury \"few\".\n        Done.\n        Otherwise:\n            Have helper bury \"many\".\n        Done.\n    Done.\nDone.\nPull a rabbit as hopper.\n    State unbury cast named on (hopper, 2).\nDone.",
+        "Define object ticker with (the number first).\nBind number to ticks unto ticker, given (the rabbit helper):\n    Define n as one's first.\n    While n is less than one's first + 2, repeat:\n        Have helper bury n.\n        Increment n by 1.\n    Done.\nDone.\nDefine clock as a new ticker { the first 5 }.\nPull a rabbit as hopper.\n    For each got in cast clock's ticks on (hopper), repeat:\n        State got.\n    Done.\nDone.",
+        "Bind number to inner-one, given (the rabbit helper):\n    Have helper bury 1.\n    Have helper bury 2.\nDone.\nBind number to outer-one, given (the rabbit helper, the stash of number source):\n    For each got in source, repeat:\n        Have helper bury got * 10.\n    Done.\nDone.\nPull a rabbit as hopper.\n    For each got in cast outer-one on (hopper, cast inner-one on (hopper)), repeat:\n        State got.\n    Done.\nDone.",
+        "Bind number to total, given (the number n):\n    Bind number to upward, given (the rabbit helper):\n        Have helper bury n.\n    Done.\n    Define sum as 0.\n    Pull a rabbit as hopper.\n        For each got in cast upward on (hopper), repeat:\n            Increment sum by got.\n        Done.\n    Done.\n    Return sum.\nDone.\nState cast total on (4).",
     ];
 
+    /// <remarks>
+    /// ★ Run under `--tree`, so one run answers both layers: the verdict is each file's first line,
+    /// and an accepted file's checked tree follows it.
+    /// </remarks>
     [Fact]
     public void EveryHandWrittenProgram_IsJudgedAsCSharpJudgesIt()
     {
         var sources = Judged.Select((s, i) => ($"judged-{i + 1}.cufe", s)).ToList();
         foreach (var (name, source) in sources)
             Assert.True(CheckerAnswer.Expected(source) != "parse", $"{name} does not parse: {source}");
-        Check(RunOnSources(sources, "judged"), sources, sources.Count, "on hand-written programs");
+        var got = RunOnSources(sources, "judged", ["--tree"]);
+        Check(got, sources, sources.Count, "on hand-written programs");
+        CheckTrees(got, sources, HandWrittenTreeFloor, "on hand-written programs");
     }
 
     // ── The corpus ──────────────────────────────────────────────────────────
@@ -1133,30 +1156,37 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
     /// is what the Cufet checker prints after `ok` under `--tree`.
     /// </summary>
     /// <remarks>
-    /// ★ Over the files both checkers ACCEPT; whether they agree to accept is the test above. A file
-    /// whose tree differs is listed, not failed, until the floor says it must match — the rewrites
-    /// still to port are known (dispatch, Cite, generics, the stash machine, notes on nodes).
+    /// ★ Over the files both checkers ACCEPT; whether they agree to accept is the test above.
     /// </remarks>
     [Fact]
     public void TheCompiledChecker_HandsBackTheTreeCSharpDoes()
     {
         var files = Corpus();
-        var got = ByFile(Run(compiled.Exe, ["--tree", .. PreludeArgs, .. files], RepoRoot));
+        var sources = Parsed(files.Select(n => (n, File.ReadAllText(Path.Combine(RepoRoot, n)))));
+        CheckTrees(ByFile(Run(compiled.Exe, ["--tree", .. PreludeArgs, .. files], RepoRoot)), sources, TreeFloor, "on the corpus");
+    }
+
+    /// <summary>Every file both checkers accept hands back the same tree — any that differs fails.</summary>
+    private void CheckTrees(Dictionary<string, List<string>> got, IReadOnlyList<(string Name, string Source)> files,
+                            int floor, string how)
+    {
         int matched = 0, accepted = 0;
-        var differ = new List<string>();
-        foreach (var name in files)
+        var problems = new List<string>();
+        foreach (var (name, source) in files)
         {
-            var source = File.ReadAllText(Path.Combine(RepoRoot, name));
             if (CheckerAnswer.Expected(source) != "ok") continue;
             if (!got.TryGetValue(name, out var lines) || lines.Count == 0 || lines[0] != "ok") continue;
             accepted++;
             var want = CheckerAnswer.CheckedTree(source)!;
             var have = string.Join("\n", lines.Skip(1));
             if (have == want) matched++;
-            else differ.Add(name);
+            else problems.Add($"{name}:\n    C#:    {Clipped(want)}\n    Cufet: {Clipped(have)}");
         }
-        output.WriteLine($"the checked tree: {matched} of {accepted} accepted files match; differing:");
-        foreach (var name in differ) output.WriteLine("    " + name);
-        Assert.True(matched >= TreeFloor, $"only {matched} checked trees match, and the floor is {TreeFloor}.");
+        output.WriteLine($"the checked tree {how}: {matched} of {accepted} accepted files match.");
+        Assert.True(problems.Count == 0,
+            $"{problems.Count} checked trees differ {how}:\n{string.Join("\n", problems.Take(10))}");
+        Assert.True(matched >= floor, $"only {matched} checked trees match {how}, and the floor is {floor}.");
     }
+
+    private static string Clipped(string tree) => tree.Length > 300 ? tree[..300] + "…" : tree;
 }

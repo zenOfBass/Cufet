@@ -47,7 +47,7 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   and two interfaces supplying one default. A sweep of 7,637 such programs agreed on every one.
 - **The type checker, begun in Cufet** — `self-hosting/front-end/checker/checker.cufe`, the third
   piece. It says of each file what `TypeChecker.Check` says — accepted, or refused in the same words
-  — and `CheckerParityTests` holds it to that on 967 hand-written programs and on the corpus. It
+  — and `CheckerParityTests` holds it to that on 978 hand-written programs and on the corpus. It
   judges names and scopes, `Define` and `becomes`, operators, text and its operations, bit patterns,
   series, ranges, sorting, records, maps, sets, chases, matrices, the `chance` book, voidables,
   unions and narrowing, `Judge`, `when … otherwise`, versions of one name told apart by type or by a
@@ -60,13 +60,14 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   input and output: files, directories, streams, running programs and piping them, and pipes of
   functions, and axioms: regex patterns, c-language source at its boundary, and cufet blocks placed
   by `Cite`. Anything it cannot judge yet it says so about, rather than accepting — and it judges
-  every one of the 131 corpus files. With `--tree` it also prints the program it hands on, which C#
+  every one of the 134 corpus files. With `--tree` it also prints the program it hands on, which C#
   rewrites as it checks — the notes it writes onto the tree included, an axiom's language and what it
   gives back, the type an `is a` test was asked of, the function a sort keys on, the defaults an
   object was given, named arguments put in order, a book's types written by name made the types they
-  are — and what generics hand on: the templates taken out, the fillings in their place, each call
-  and literal naming the filling it reached. The test compares that with C#'s, the bundled books
-  left out, and 70 of the 72 files both accept match.
+  are — what generics hand on: the templates taken out, the fillings in their place, each call and
+  literal naming the filling it reached — and every burying function rebuilt as the machine of steps
+  a stash runs on. The test compares that with C#'s, the bundled books left out, and every file and
+  hand-written program both accept hands back the same tree: 72 corpus files and 242 programs.
 
 ### Changed
 
