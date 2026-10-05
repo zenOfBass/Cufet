@@ -9,7 +9,7 @@
     cannot be split: a `Return`, a bury inside a `Try`, a rabbit block, a task or a file block, a
     bury in a `for each` over something that is not a series, or in the `Otherwise` of a judgement
     whose leftovers cannot be named. Those refusals are asked here, after everything else, by
-    walking each body the way the machine builder would — the machine itself is never built.
+    walking each body the way the machine builder would; `stash-machine.cufe` then builds it.
 
     ⚠ A burying body's locals all land in one place, so a name may mean only one type in it, and no
     name in it may be a shadow.
@@ -163,7 +163,7 @@ Pull a book on collections.
         Define line-atom as cast field-of on (statement, 4).
         Define column-atom as cast field-of on (statement, 5).
         Define shadows as cast one's look-up on (name) is not void.
-        In one's stash-drains, the entry for "{line-atom's word}:{column-atom's word}" becomes true.
+        Define spot as "{line-atom's word}:{column-atom's word}".
 
         Define taken as cast made on ("UnburyExpression", a series with (cast field-of on (statement, 2), line-atom, column-atom)).
         Define take as cast made on ("DefineStatement", a series with (cast quoted on (name), taken, cast flag on (false),
@@ -182,6 +182,8 @@ Pull a book on collections.
         Cast inner's add on (cast made on ("IfStatement", a series with (arms, stopping))).
         Define drain as cast made on ("RepeatUntilStatement", a series with (inner,
             cast made on ("BooleanLiteral", a series with (cast flag on (false), line-atom, column-atom)))).
+        // Kept, so the loop it stands for can be replaced by it once checking is over.
+        In one's stash-drains, the entry for spot becomes drain.
         Cast one's enter-scope.
         Cast one's check-statement on (drain) or pass the failure off.
         Cast one's exit-scope.

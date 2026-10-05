@@ -1,0 +1,712 @@
+/*  The stash machine — `src/Interpreter/StashTransform.cs` and `StashTypeSubstitution.cs`.
+
+    ★ Once checking is over, every burying function becomes two: a RESUME function holding the body
+    as a machine of steps — basic blocks, a step counter, a slot for every local that has to outlive
+    a resumption — and a FACTORY of the original name, which makes the state and hands back a
+    closure over it. Then every written `stash of T` becomes the closure it lowers to: nothing in,
+    `voidable T` out. `stashing.cufe` has already refused what cannot be split, so nothing here
+    refuses but a local whose type was never recorded.
+
+    ★ Built the way C# builds it, node for node, so the program handed on is the same tree: a
+    machine's every node stands at the burying function's own line and column, but a bury's
+    `Return` and a for-each's own pieces keep theirs.
+
+    ⚠ A machine is an object, and an object is copied when handed on — so everything it changes
+    lives in its series and maps, which are shared: the blocks, each block's statements, exit and
+    guards, the guards in force, and the counter for invented names.
+*/
+
+Pull a book on collections.
+    /// A basic block: what it runs, how it leaves (empty until set — the first exit wins), and the
+    /// conditions that were true on the way in, re-tested when it is assembled to restore narrowing.
+    Define object stash-block with (the series of node body, the series of node leaving, the series of node guards).
+
+    /// One burying body being turned into steps.
+    Define object machine with (the node burying, the text key, the text owner, the node row, the node col,
+        the series of stash-block blocks, the series of node guards-now, the map from text to node invented,
+        the map from text to number counts, the map from text to node locals).
+
+    // ── Nodes the machine writes ──────────────────────────────────────────
+
+    Bind node to machine-number, given (the number amount):
+        Return cast made on ("NumberLiteral", a series with (cast numeral on (amount))).
+    Done.
+
+    Bind node to machine-var unto machine, given (the text name):
+        Return cast made on ("VariableReference", a series with (cast quoted on (name), one's row, one's col)).
+    Done.
+
+    Bind node to machine-define unto machine, given (the text name, the node value):
+        Return cast made on ("DefineStatement", a series with (cast quoted on (name), value, cast flag on (false),
+            cast flag on (false), one's row, one's col, cast nothing)).
+    Done.
+
+    Bind node to machine-binary unto machine, given (the node left, the text op, the node right):
+        Return cast made on ("BinaryExpression", a series with (left, cast atom on (op), right, one's row, one's col)).
+    Done.
+
+    Bind node to machine-return-void unto machine:
+        Return cast made on ("ReturnStatement", a series with (cast made on ("VoidLiteral", a series with (one's row, one's col)),
+            one's row, one's col)).
+    Done.
+
+    Bind node to machine-if, given (the node condition, the node body, the node otherwise-body):
+        Define arms as cast listed.
+        Cast arms's add on (cast made on ("ConditionArm", a series with (condition, body))).
+        Return cast made on ("IfStatement", a series with (arms, otherwise-body)).
+    Done.
+
+    Bind node to machine-list, given (the series of node items):
+        Return a new node { the kind "list", the word "", the children items }.
+    Done.
+
+    /// The step assignment: `stash_frame`'s one item becomes `goes-to`.
+    Bind node to machine-set-step unto machine, given (the number goes-to):
+        Return cast made on ("SeriesSetStatement", a series with (cast one's machine-var on ("stash_frame"),
+            cast machine-number on (1), cast machine-number on (goes-to), one's row, one's col)).
+    Done.
+
+    Bind node to machine-branch unto machine, given (the node condition, the number when-true, the number when-false):
+        Return cast machine-if on (condition, cast machine-list on (a series with (cast one's machine-set-step on (when-true))),
+            cast machine-list on (a series with (cast one's machine-set-step on (when-false)))).
+    Done.
+
+    // ── Blocks ────────────────────────────────────────────────────────────
+
+    /// A new block, holding the guards in force now — a copy, unaffected by what is pushed later.
+    Bind number to machine-new-block unto machine:
+        Define held as a series of node.
+        For each guard in one's guards-now, repeat:
+            Insert guard into held.
+        Done.
+        Insert a new stash-block { the body a series of node, the leaving a series of node, the guards held } into one's blocks.
+        Return the number of one's blocks - 1.
+    Done.
+
+    /// Block `at`, counted from 0 as C# counts its steps.
+    Bind stash-block to machine-block unto machine, given (the number at):
+        Return item (at + 1) of one's blocks.
+    Done.
+
+    /// The first exit wins: a block that already left is not left again by what contained it.
+    Bind void to machine-set-exit unto machine, given (the number at, the series of node leaving):
+        Define block as cast one's machine-block on (at).
+        If the number of block's leaving is greater than 0, return.
+        For each statement in leaving, repeat:
+            Insert statement into block's leaving.
+        Done.
+    Done.
+
+    Bind void to machine-add unto machine, given (the number at, the node statement):
+        Insert statement into (cast one's machine-block on (at))'s body.
+    Done.
+
+    // ── Linearising ───────────────────────────────────────────────────────
+
+    /// Emits `statements` from block `current`, and says which block carries on. `continue-to` and
+    /// `break-to` are the enclosing loop's steps, or -1 outside one.
+    Bind number to machine-emit unto machine, given (the node statements, the number current,
+            the number continue-to, the number break-to):
+        Define at as current.
+        For each statement in statements's children, repeat:
+            Define kind as statement's kind.
+            Define splits as cast contains-bury on (statement) or kind is "StopStatement" or kind is "SkipStatement".
+            If splits is false and break-to is not -1, the splits becomes cast has-free-loop-exit on (statement).
+            If splits, the at becomes cast one's machine-control on (statement, at, continue-to, break-to).
+            Otherwise, cast one's machine-add on (at, statement).
+        Done.
+        Return at.
+    Done.
+
+    /// An arm's body with `guard` in force for the block it starts in and every block made inside.
+    Bind number to machine-emit-guarded unto machine, given (the node body, the number entry,
+            the number continue-to, the number break-to, the node guard):
+        If cast is-nothing on (guard), return cast one's machine-emit on (body, entry, continue-to, break-to).
+        Insert guard into (cast one's machine-block on (entry))'s guards.
+        Insert guard into one's guards-now.
+        Define reached as cast one's machine-emit on (body, entry, continue-to, break-to).
+        Remove item (the number of one's guards-now) from one's guards-now.
+        Return reached.
+    Done.
+
+    /// Does this condition narrow what it tests — `is a`, or `is not void` — not looking into a nested function?
+    Bind fact to narrows-a-type, given (the node tree):
+        If tree's kind is "atom" or tree's kind is "BindStatement" or tree's kind is "LambdaLiteral", return false.
+        If tree's kind is "IsTypeCheck", return true.
+        If tree's kind is "BinaryExpression" and (cast field-of on (tree, 2))'s word is "NotEqual":
+            If (cast field-of on (tree, 1))'s kind is "VoidLiteral" or (cast field-of on (tree, 3))'s kind is "VoidLiteral", return true.
+        Done.
+        For each child in tree's children, repeat:
+            If cast narrows-a-type on (child), return true.
+        Done.
+        Return false.
+    Done.
+
+    Bind number to machine-control unto machine, given (the node statement, the number current,
+            the number continue-to, the number break-to):
+        Judge statement's kind, where it is:
+            "BuryStatement":
+                Define next as cast one's machine-new-block.
+                Cast one's machine-set-exit on (current, a series with (cast one's machine-set-step on (next),
+                    cast made on ("ReturnStatement", a series with (cast field-of on (statement, 1),
+                        cast field-of on (statement, 2), cast field-of on (statement, 3))))).
+                Return next.
+            Done.
+            "IfStatement", return cast one's machine-if-statement on (statement, current, continue-to, break-to).
+            "JudgeStatement", return cast one's machine-judge on (statement, current, continue-to, break-to).
+            "WhileStatement":
+                Define header as cast one's machine-new-block.
+                Define body as cast one's machine-new-block.
+                Define past as cast one's machine-new-block.
+                Cast one's machine-set-exit on (current, a series with (cast one's machine-set-step on (header))).
+                Cast one's machine-set-exit on (header, a series with (cast one's machine-branch on (cast field-of on (statement, 1), body, past))).
+                Define tail as cast one's machine-emit on (cast field-of on (statement, 2), body, header, past).
+                Cast one's machine-set-exit on (tail, a series with (cast one's machine-set-step on (header))).
+                Return past.
+            Done.
+            "RepeatUntilStatement":
+                // The test has a block of its own, so a `Skip` lands on the until-check.
+                Define body as cast one's machine-new-block.
+                Define test as cast one's machine-new-block.
+                Define past as cast one's machine-new-block.
+                Cast one's machine-set-exit on (current, a series with (cast one's machine-set-step on (body))).
+                Define tail as cast one's machine-emit on (cast field-of on (statement, 1), body, test, past).
+                Cast one's machine-set-exit on (tail, a series with (cast one's machine-set-step on (test))).
+                Cast one's machine-set-exit on (test, a series with (cast one's machine-branch on (cast field-of on (statement, 2), past, body))).
+                Return past.
+            Done.
+            "ForEachStatement", return cast one's machine-for-each on (statement, current, continue-to, break-to).
+            "StopStatement":
+                Cast one's machine-set-exit on (current, a series with (cast one's machine-set-step on (break-to))).
+                Return cast one's machine-new-block.
+            Done.
+            "SkipStatement":
+                Cast one's machine-set-exit on (current, a series with (cast one's machine-set-step on (continue-to))).
+                Return cast one's machine-new-block.
+            Done.
+            Otherwise:
+                Return current.
+            Done.
+        Done.
+    Done.
+
+    Bind number to machine-if-statement unto machine, given (the node statement, the number current,
+            the number continue-to, the number break-to):
+        Define arms as (cast field-of on (statement, 1))'s children.
+        Define past as cast one's machine-new-block.
+        Define entries as a series of number.
+        For each arm in arms, repeat:
+            Insert cast one's machine-new-block into entries.
+        Done.
+        Define otherwise-at as cast one's machine-new-block.
+        Define dispatch-arms as cast listed.
+        Define place as 0.
+        For each arm in arms, repeat:
+            Increment place by 1.
+            Cast dispatch-arms's add on (cast made on ("ConditionArm", a series with (cast field-of on (arm, 1),
+                cast machine-list on (a series with (cast one's machine-set-step on (item place of entries)))))).
+        Done.
+        Cast one's machine-set-exit on (current, a series with (cast made on ("IfStatement", a series with (dispatch-arms,
+            cast machine-list on (a series with (cast one's machine-set-step on (otherwise-at))))))).
+        The place becomes 0.
+        For each arm in arms, repeat:
+            Increment place by 1.
+            Define guard as cast nothing.
+            If cast narrows-a-type on (cast field-of on (arm, 1)), the guard becomes cast field-of on (arm, 1).
+            Define tail as cast one's machine-emit-guarded on (cast field-of on (arm, 2), item place of entries, continue-to, break-to, guard).
+            Cast one's machine-set-exit on (tail, a series with (cast one's machine-set-step on (past))).
+        Done.
+        // The else arm narrows by elimination — expressible with exactly one arm that tests a type.
+        Define else-guard as cast nothing.
+        If the number of arms is 1:
+            Define only as cast field-of on (item 1 of arms, 1).
+            If only's kind is "IsTypeCheck":
+                The else-guard becomes cast made on ("IsTypeCheck", a series with (cast field-of on (only, 1), cast field-of on (only, 2),
+                    cast flag on (cast truth-of on (cast field-of on (only, 3)) is false), cast field-of on (only, 4), cast field-of on (only, 5))).
+            Done.
+        Done.
+        Define otherwise-body as cast field-of on (statement, 2).
+        If cast is-nothing on (otherwise-body), the otherwise-body becomes cast listed.
+        Define tail as cast one's machine-emit-guarded on (otherwise-body, otherwise-at, continue-to, break-to, else-guard).
+        Cast one's machine-set-exit on (tail, a series with (cast one's machine-set-step on (past))).
+        Return past.
+    Done.
+
+    /// `it is a A or it is a B …` at an arm's place, or the judgement's when there is no arm.
+    Bind node to machine-any-of unto machine, given (the series of node cases, the node at-row, the node at-col):
+        Define test as cast made on ("IsTypeCheck", a series with (cast one's machine-var on ("it"), item 1 of cases,
+            cast flag on (false), at-row, at-col)).
+        Define place as 1.
+        While place is less than the number of cases, repeat:
+            Increment place by 1.
+            The test becomes cast made on ("BinaryExpression", a series with (test, cast atom on ("Or"),
+                cast made on ("IsTypeCheck", a series with (cast one's machine-var on ("it"), item place of cases,
+                    cast flag on (false), at-row, at-col)), at-row, at-col)).
+        Done.
+        Return test.
+    Done.
+
+    /// An arm's dispatch test: its cases, or for a value arm, `it` equal to one of its values.
+    Bind node to machine-arm-test unto machine, given (the node arm):
+        If cast is-value-arm on (arm) is false:
+            Return cast one's machine-any-of on ((cast field-of on (arm, 1))'s children, cast field-of on (arm, 3), cast field-of on (arm, 4)).
+        Done.
+        Define test as cast nothing.
+        For each value in (cast field-of on (arm, 5))'s children, repeat:
+            Define equal as cast made on ("BinaryExpression", a series with (cast one's machine-var on ("it"), cast atom on ("Equal"),
+                value, cast field-of on (arm, 3), cast field-of on (arm, 4))).
+            If cast is-nothing on (test), the test becomes equal.
+            Otherwise:
+                The test becomes cast made on ("BinaryExpression", a series with (test, cast atom on ("Or"), equal,
+                    cast field-of on (arm, 3), cast field-of on (arm, 4))).
+            Done.
+        Done.
+        Return test.
+    Done.
+
+    Bind number to machine-judge unto machine, given (the node statement, the number current,
+            the number continue-to, the number break-to):
+        // `it` becomes an ordinary local, evaluated once here and restored from its slot after.
+        Cast one's machine-add on (current, cast one's machine-define on ("it", cast field-of on (statement, 1))).
+        Define arms as (cast field-of on (statement, 2))'s children.
+        Define past as cast one's machine-new-block.
+        Define entries as a series of number.
+        For each arm in arms, repeat:
+            Insert cast one's machine-new-block into entries.
+        Done.
+        Define otherwise-at as cast one's machine-new-block.
+        Define otherwise-body as cast field-of on (statement, 3).
+        // The leftover an `Otherwise` is reached for: the subject's cases the arms did not take.
+        Define else-guard as cast nothing.
+        Define valued as false.
+        If the number of arms is greater than 0, the valued becomes cast is-value-arm on (item 1 of arms).
+        If cast is-nothing on (otherwise-body) is false and valued is false:
+            Define subject-type as the entry for "it" in one's locals.
+            If subject-type is not void:
+                Define residue as a series of node.
+                For each subject-case in (cast field-of on (subject-type, 1))'s children, repeat:
+                    Define taken as false.
+                    For each arm in arms, repeat:
+                        For each arm-case in (cast field-of on (arm, 1))'s children, repeat:
+                            If cast same-type on (arm-case, subject-case), the taken becomes true.
+                        Done.
+                    Done.
+                    If taken is false, insert subject-case into residue.
+                Done.
+                If the number of residue is greater than 0:
+                    The else-guard becomes cast one's machine-any-of on (residue, cast field-of on (statement, 4), cast field-of on (statement, 5)).
+                Done.
+            Done.
+        Done.
+        Define dispatch-arms as cast listed.
+        Define place as 0.
+        For each arm in arms, repeat:
+            Increment place by 1.
+            Cast dispatch-arms's add on (cast made on ("ConditionArm", a series with (cast one's machine-arm-test on (arm),
+                cast machine-list on (a series with (cast one's machine-set-step on (item place of entries)))))).
+        Done.
+        Cast one's machine-set-exit on (current, a series with (cast made on ("IfStatement", a series with (dispatch-arms,
+            cast machine-list on (a series with (cast one's machine-set-step on (otherwise-at))))))).
+        The place becomes 0.
+        For each arm in arms, repeat:
+            Increment place by 1.
+            Define guard as cast nothing.
+            If cast is-value-arm on (arm) is false:
+                The guard becomes cast one's machine-any-of on ((cast field-of on (arm, 1))'s children, cast field-of on (arm, 3), cast field-of on (arm, 4)).
+            Done.
+            Define tail as cast one's machine-emit-guarded on (cast field-of on (arm, 2), item place of entries, continue-to, break-to, guard).
+            Cast one's machine-set-exit on (tail, a series with (cast one's machine-set-step on (past))).
+        Done.
+        If cast is-nothing on (otherwise-body), the otherwise-body becomes cast listed.
+        Define tail as cast one's machine-emit-guarded on (otherwise-body, otherwise-at, continue-to, break-to, else-guard).
+        Cast one's machine-set-exit on (tail, a series with (cast one's machine-set-step on (past))).
+        Return past.
+    Done.
+
+    /// `For each x in xs` becomes an indexed `While`, so the loop's place is a number the frame holds.
+    Bind number to machine-for-each unto machine, given (the node statement, the number current,
+            the number continue-to, the number break-to):
+        Define fe-row as cast field-of on (statement, 4).
+        Define fe-col as cast field-of on (statement, 5).
+        Define fresh as the entry for "fresh" in one's counts but void is 0.
+        In one's counts, the entry for "fresh" becomes fresh + 1.
+        Define source as "stash_source_{fresh}".
+        Define index as "stash_index_{fresh}".
+        In one's invented, the entry for source becomes the entry for "{fe-row's word}:{fe-col's word}" in one's invented but void is cast unknown-type.
+        In one's invented, the entry for index becomes cast plain-type on ("NumberType").
+        Define iterator as "it".
+        If cast is-nothing on (cast field-of on (statement, 1)) is false, the iterator becomes cast unquoted on (cast field-of on (statement, 1)).
+        Cast one's machine-add on (current, cast one's machine-define on (source, cast field-of on (statement, 2))).
+        Cast one's machine-add on (current, cast one's machine-define on (index, cast machine-number on (1))).
+        Define header as cast one's machine-new-block.
+        Define body as cast one's machine-new-block.
+        Define step-at as cast one's machine-new-block.
+        Define past as cast one's machine-new-block.
+        Cast one's machine-set-exit on (current, a series with (cast one's machine-set-step on (header))).
+        Define in-range as cast made on ("BinaryExpression", a series with (cast one's machine-var on (index), cast atom on ("Lte"),
+            cast made on ("SeriesLength", a series with (cast one's machine-var on (source), fe-row, fe-col)), fe-row, fe-col)).
+        Cast one's machine-set-exit on (header, a series with (cast one's machine-branch on (in-range, body, past))).
+        Cast one's machine-add on (body, cast one's machine-define on (iterator, cast made on ("SeriesAccess",
+            a series with (cast one's machine-var on (source), cast one's machine-var on (index), fe-row, fe-col)))).
+        Define tail as cast one's machine-emit on (cast field-of on (statement, 3), body, step-at, past).
+        Cast one's machine-set-exit on (tail, a series with (cast one's machine-set-step on (step-at))).
+        Cast one's machine-add on (step-at, cast made on ("BecomesStatement", a series with (cast quoted on (index),
+            cast made on ("BinaryExpression", a series with (cast one's machine-var on (index), cast atom on ("Plus"),
+                cast machine-number on (1), fe-row, fe-col)), fe-row, fe-col))).
+        Cast one's machine-set-exit on (step-at, a series with (cast one's machine-set-step on (header))).
+        Return past.
+    Done.
+
+    // ── Hoisting ──────────────────────────────────────────────────────────
+
+    /// Any appearance of the name — read, reassigned or declared — anywhere inside.
+    Bind fact to machine-mentions, given (the node tree, the text name):
+        If tree's kind is "atom", return false.
+        If tree's kind is "VariableReference" or tree's kind is "BecomesStatement" or tree's kind is "DefineStatement":
+            If cast unquoted on (cast field-of on (tree, 1)) is name, return true.
+        Done.
+        For each child in tree's children, repeat:
+            If cast machine-mentions on (child, name), return true.
+        Done.
+        Return false.
+    Done.
+
+    Bind fact to machine-writes, given (the node tree, the text name):
+        If tree's kind is "atom", return false.
+        If tree's kind is "BecomesStatement" and cast unquoted on (cast field-of on (tree, 1)) is name, return true.
+        For each child in tree's children, repeat:
+            If cast machine-writes on (child, name), return true.
+        Done.
+        Return false.
+    Done.
+
+    Bind fact to machine-mentions-in, given (the series of node statements, the text name):
+        For each statement in statements, repeat:
+            If cast machine-mentions on (statement, name), return true.
+        Done.
+        Return false.
+    Done.
+
+    /// The names that must survive a resumption, in slot order, each as `[type "name"]`: a parameter
+    /// the body reassigns, then every local declared at the top of a block.
+    Bind series of node or failure to machine-hoisted unto machine:
+        Define ordered as a series of node.
+        Define seen as a map from text to fact.
+        Define body as cast field-of on (one's burying, 4).
+        For each parameter in (cast field-of on (one's burying, 3))'s children, repeat:
+            Define name as cast unquoted on (cast field-of on (parameter, 2)).
+            If cast machine-writes on (body, name) and (the entry for name in seen) is void:
+                In seen, the entry for name becomes true.
+                Insert parameter into ordered.
+            Done.
+        Done.
+        For each block in one's blocks, repeat:
+            For each statement in block's body, repeat:
+                If statement's kind is "DefineStatement":
+                    Define name as cast unquoted on (cast field-of on (statement, 1)).
+                    If (the entry for name in seen) is void:
+                        In seen, the entry for name becomes true.
+                        Define local-type as the entry for name in one's invented.
+                        If local-type is void, the local-type becomes the entry for name in one's locals.
+                        If local-type is void:
+                            Return a failure (cast refusal-of on ("'{one's key}' buries, and the type of '{name}' could not be worked out", "",
+                                cast numeric on (cast field-of on (statement, 5)), "keep '{name}' across a bury",
+                                "Everything that survives a resumption is stored, and storing it needs its type. Give it a starting value whose type is clear.")).
+                        Done.
+                        Insert cast machine-list on (a series with (local-type, cast quoted on (name))) into ordered.
+                    Done.
+                Done.
+            Done.
+        Done.
+        Return ordered.
+    Done.
+
+    Bind fact to machine-needs-load, given (the stash-block block, the text name):
+        If cast machine-mentions-in on (block's guards, name), return true.
+        For each statement in block's body, repeat:
+            If cast machine-mentions on (statement, name):
+                If statement's kind is not "DefineStatement", return true.
+                Return cast unquoted on (cast field-of on (statement, 1)) is not name.
+            Done.
+        Done.
+        Return cast machine-mentions-in on (block's leaving, name).
+    Done.
+
+    Bind fact to machine-changes, given (the stash-block block, the text name):
+        For each statement in block's body, repeat:
+            If statement's kind is "DefineStatement" and cast unquoted on (cast field-of on (statement, 1)) is name, return true.
+            If cast machine-writes on (statement, name), return true.
+        Done.
+        Return false.
+    Done.
+
+    /// Writes a local back to its slot — filling the slot if this is the first write.
+    Bind node to machine-store unto machine, given (the text name):
+        Define slot as cast one's machine-var on ("stash_slot_{name}").
+        Define empty as cast one's machine-binary on (cast made on ("SeriesLength", a series with (slot, one's row, one's col)),
+            "Equal", cast machine-number on (0)).
+        Define fill as cast made on ("SeriesInsertStatement", a series with (cast one's machine-var on (name),
+            cast one's machine-var on ("stash_slot_{name}"), cast nothing, cast flag on (false), one's row, one's col)).
+        Define overwrite as cast made on ("SeriesSetStatement", a series with (cast one's machine-var on ("stash_slot_{name}"),
+            cast machine-number on (1), cast one's machine-var on (name), one's row, one's col)).
+        Return cast machine-if on (empty, cast machine-list on (a series with (fill)), cast machine-list on (a series with (overwrite))).
+    Done.
+
+    /// One block: load what it reads, run it, write back what it changed, then leave — inside its guards.
+    Bind series of node to machine-assemble unto machine, given (the stash-block block, the series of node hoisted):
+        Define result as a series of node.
+        For each held in hoisted, repeat:
+            Define name as cast unquoted on (cast field-of on (held, 2)).
+            If cast machine-needs-load on (block, name):
+                Insert cast one's machine-define on (name, cast made on ("SeriesAccess", a series with (
+                    cast one's machine-var on ("stash_slot_{name}"), cast machine-number on (1), one's row, one's col))) into result.
+            Done.
+        Done.
+        Define inner as a series of node.
+        For each statement in block's body, repeat:
+            Insert statement into inner.
+        Done.
+        For each held in hoisted, repeat:
+            Define name as cast unquoted on (cast field-of on (held, 2)).
+            If cast machine-changes on (block, name), insert cast one's machine-store on (name) into inner.
+        Done.
+        For each statement in block's leaving, repeat:
+            Insert statement into inner.
+        Done.
+        Define back as the number of block's guards.
+        While back is greater than 0, repeat:
+            Define guarded-one as cast machine-if on (item back of block's guards, cast machine-list on (inner),
+                cast machine-list on (a series with (cast one's machine-return-void))).
+            The inner becomes a series of node with (guarded-one).
+            Decrement back by 1.
+        Done.
+        For each statement in inner, repeat:
+            Insert statement into result.
+        Done.
+        Return result.
+    Done.
+
+    // ── Building ──────────────────────────────────────────────────────────
+
+    /// The resume function and the factory, in that order.
+    Bind series of node or failure to machine-build unto machine:
+        Define entry as cast one's machine-new-block.
+        Define tail as cast one's machine-emit on (cast field-of on (one's burying, 4), entry, -1, -1).
+        Cast one's machine-set-exit on (tail, a series with (cast one's machine-set-step on (the number of one's blocks))).
+
+        Define hoisted as cast one's machine-hoisted or pass the failure off.
+        Define hoisted-names as a map from text to fact.
+        For each held in hoisted, repeat:
+            In hoisted-names, the entry for cast unquoted on (cast field-of on (held, 2)) becomes true.
+        Done.
+        Define passed as a series of node.
+        Define parameter-names as a map from text to fact.
+        For each parameter in (cast field-of on (one's burying, 3))'s children, repeat:
+            Define name as cast unquoted on (cast field-of on (parameter, 2)).
+            In parameter-names, the entry for name becomes true.
+            If (the entry for name in hoisted-names) is void, insert parameter into passed.
+        Done.
+        Define burying-name as cast unquoted on (cast field-of on (one's burying, 1)).
+        Define yields as cast made on ("VoidableType", a series with (cast field-of on (one's burying, 2))).
+        Define resume-name as "stash_resume_{burying-name}".
+
+        Define resume-parameters as cast listed.
+        Cast resume-parameters's add on (cast machine-list on (a series with (
+            cast made on ("SeriesType", a series with (cast plain-type on ("NumberType"))), cast quoted on ("stash_frame")))).
+        For each held in hoisted, repeat:
+            Cast resume-parameters's add on (cast machine-list on (a series with (
+                cast made on ("SeriesType", a series with (cast field-of on (held, 1))),
+                cast quoted on ("stash_slot_{cast unquoted on (cast field-of on (held, 2))}")))).
+        Done.
+        For each parameter in passed, repeat:
+            Cast resume-parameters's add on (parameter).
+        Done.
+
+        // The dispatch: a loop over the step, one arm a block.
+        Define spent as cast one's machine-return-void.
+        Define dispatch-arms as cast listed.
+        Define step as 0.
+        For each block in one's blocks, repeat:
+            Cast dispatch-arms's add on (cast made on ("ConditionArm", a series with (
+                cast one's machine-binary on (cast one's machine-var on ("stash_step"), "Equal", cast machine-number on (step)),
+                cast machine-list on (cast one's machine-assemble on (block, hoisted))))).
+            Increment step by 1.
+        Done.
+        Define looped as cast machine-list on (a series with (
+            cast one's machine-define on ("stash_step", cast made on ("SeriesAccess", a series with (
+                cast one's machine-var on ("stash_frame"), cast machine-number on (1), one's row, one's col))),
+            cast made on ("IfStatement", a series with (dispatch-arms, cast machine-list on (a series with (spent)))))).
+        Define dispatch as cast machine-list on (a series with (
+            cast made on ("WhileStatement", a series with (cast made on ("BooleanLiteral", a series with (
+                cast flag on (true), one's row, one's col)), looped)),
+            spent)).
+        Define resume as cast made on ("BindStatement", a series with (cast quoted on (resume-name), yields, resume-parameters,
+            dispatch, cast nothing, cast nothing, one's row, one's col)).
+
+        // The factory: make the state, hand back a closure over it.
+        Define factory-body as cast listed.
+        Cast factory-body's add on (cast one's machine-define on ("stash_frame", cast made on ("SeriesLiteral", a series with (
+            cast machine-list on (a series with (cast machine-number on (0))), cast plain-type on ("NumberType"), one's row, one's col)))).
+        For each held in hoisted, repeat:
+            Define name as cast unquoted on (cast field-of on (held, 2)).
+            Define starting as cast listed.
+            If (the entry for name in parameter-names) is not void, cast starting's add on (cast one's machine-var on (name)).
+            Cast factory-body's add on (cast one's machine-define on ("stash_slot_{name}", cast made on ("SeriesLiteral",
+                a series with (starting, cast field-of on (held, 1), one's row, one's col)))).
+        Done.
+        Define resume-arguments as cast listed.
+        If one's owner is not "", cast resume-arguments's add on (cast one's machine-var on ("one")).
+        Cast resume-arguments's add on (cast one's machine-var on ("stash_frame")).
+        For each held in hoisted, repeat:
+            Cast resume-arguments's add on (cast one's machine-var on ("stash_slot_{cast unquoted on (cast field-of on (held, 2))}")).
+        Done.
+        For each parameter in passed, repeat:
+            Cast resume-arguments's add on (cast one's machine-var on (cast unquoted on (cast field-of on (parameter, 2)))).
+        Done.
+        Define resumed as cast made on ("CastExpression", a series with (cast one's machine-var on (resume-name), resume-arguments,
+            one's row, one's col)).
+        Define closure as cast made on ("LambdaLiteral", a series with (cast listed,
+            cast machine-list on (a series with (cast made on ("ReturnStatement", a series with (resumed, one's row, one's col)))),
+            one's row, one's col)).
+        Cast factory-body's add on (cast made on ("ReturnStatement", a series with (closure, one's row, one's col))).
+        Define factory as cast made on ("BindStatement", a series with (cast field-of on (one's burying, 1),
+            cast made on ("FunctionType", a series with (cast listed, yields)), cast field-of on (one's burying, 3),
+            factory-body, cast nothing, cast nothing, one's row, one's col)).
+        Return a series of node with (resume, factory).
+    Done.
+
+    /// A machine for one burying body, its locals as the checker recorded them under `key`.
+    Bind series of node or failure to built-machine unto checker, given (the node burying, the text key, the text owner):
+        Define locals as a map from text to node.
+        Define prefix as "{key}\t".
+        For each pair in one's stash-locals, repeat:
+            If the key of pair starts with prefix:
+                In locals, the entry for (the characters from (the length of prefix + 1) to the end of the key of pair) becomes the value of pair.
+            Done.
+        Done.
+        Define invented as a map from text to node.
+        For each pair in one's series-loops, repeat:
+            In invented, the entry for the key of pair becomes the value of pair.
+        Done.
+        Define building as a new machine { the burying burying, the key key, the owner owner,
+            the row cast field-of on (burying, 7), the col cast field-of on (burying, 8),
+            the blocks a series of stash-block, the guards-now a series of node, the invented invented,
+            the counts a map from text to number, the locals locals }.
+        Return cast building's machine-build or pass the failure off.
+    Done.
+
+    // ── Where machines go (`StashTransform.Rewrite`) ──────────────────────
+
+    /// The statements with every burying body replaced by its machine — reached the way C# reaches them.
+    Bind node or failure to with-machines unto checker, given (the node statements):
+        Define rewritten as cast listed.
+        For each statement in statements's children, repeat:
+            Define kind as statement's kind.
+            If kind is "BindStatement":
+                Define name as cast unquoted on (cast field-of on (statement, 1)).
+                Define target as cast field-of on (statement, 5).
+                Define body as cast field-of on (statement, 4).
+                If cast contains-bury on (body):
+                    Define owner as "".
+                    Define key as name.
+                    If cast is-nothing on (target) is false:
+                        The owner becomes cast unquoted on (target).
+                        The key becomes "{owner}'s {name}".
+                    Done.
+                    Define pair-built as cast one's built-machine on (statement, key, owner) or pass the failure off.
+                    For each made-one in pair-built, repeat:
+                        // An `unto` method keeps its `unto`, both halves.
+                        If owner is not "", cast rewritten's add on (cast with-field on (made-one, 5, target)).
+                        Otherwise, cast rewritten's add on (made-one).
+                    Done.
+                Done.
+                Otherwise:
+                    Cast rewritten's add on (cast with-field on (statement, 4, cast one's with-machines on (body) or pass the failure off)).
+                Done.
+            Done.
+            Otherwise if kind is "PullStatement" or kind is "PullRabbitStatement":
+                Cast rewritten's add on (cast with-field on (statement, 2,
+                    cast one's with-machines on (cast field-of on (statement, 2)) or pass the failure off)).
+            Done.
+            Otherwise if kind is "ObjectDefinition":
+                Define owner as cast def-name on (statement).
+                Define methods as cast listed.
+                For each method in (cast field-of on (statement, 4))'s children, repeat:
+                    Define method-body as cast field-of on (method, 4).
+                    If cast contains-bury on (method-body):
+                        Define pair-built as cast one's built-machine on (method, "{owner}'s {cast unquoted on (cast field-of on (method, 1))}", owner)
+                            or pass the failure off.
+                        For each made-one in pair-built, repeat:
+                            Cast methods's add on (made-one).
+                        Done.
+                    Done.
+                    Otherwise:
+                        Cast methods's add on (cast with-field on (method, 4, cast one's with-machines on (method-body) or pass the failure off)).
+                    Done.
+                Done.
+                Cast rewritten's add on (cast with-field on (statement, 4, methods)).
+            Done.
+            Otherwise:
+                Cast rewritten's add on (statement).
+            Done.
+        Done.
+        Return rewritten.
+    Done.
+
+    /// Does anything in the program bury — a function or a method, anywhere?
+    Bind fact to anything-buries, given (the node tree):
+        If tree's kind is "atom", return false.
+        If tree's kind is "BindStatement" and cast contains-bury on (cast field-of on (tree, 4)), return true.
+        For each child in tree's children, repeat:
+            If cast anything-buries on (child), return true.
+        Done.
+        Return false.
+    Done.
+
+    /// Every `For each` over a stash replaced, where it stands, by the drain it was checked as.
+    Bind void to place-drains unto checker, given (the node tree):
+        If tree's kind is "atom", return.
+        Define place as 0.
+        For each child in tree's children, repeat:
+            Increment place by 1.
+            Define drain as cast unknown-type.
+            If child's kind is "ForEachStatement":
+                Define spot as "{(cast field-of on (child, 4))'s word}:{(cast field-of on (child, 5))'s word}".
+                Define held as the entry for spot in one's stash-drains.
+                If held is not void, the drain becomes held.
+            Done.
+            If cast is-none on (drain), cast one's place-drains on (child).
+            Otherwise:
+                Cast rewrite-field on (tree, place, drain).
+                Cast one's place-drains on (drain).
+            Done.
+        Done.
+    Done.
+
+    // ── Written stash types (`StashTypeSubstitution`) ─────────────────────
+
+    /// Every `stash of T` replaced, where it stands, by the closure it lowers to — never looking
+    /// inside an object type, which is nominal and may hold itself.
+    Bind void to substitute-stash-types, given (the node tree):
+        If tree's kind is "atom" or tree's kind is "ObjectType", return.
+        Define place as 0.
+        For each child in tree's children, repeat:
+            Increment place by 1.
+            Cast substitute-stash-types on (child).
+            If child's kind is "StashType":
+                Cast rewrite-field on (tree, place, cast made on ("FunctionType", a series with (cast listed,
+                    cast made on ("VoidableType", a series with (cast field-of on (child, 1)))))).
+            Done.
+        Done.
+    Done.
+
+    /// What the checker hands on once stashes are lowered: drains in place, machines built, written
+    /// stash types substituted. Nothing changes in a program where nothing buries.
+    Bind node or failure to lowered-stashes unto checker, given (the node handed, the node written):
+        If the size of one's stash-drains is greater than 0, cast one's place-drains on (handed).
+        If cast anything-buries on (written) is false, return handed.
+        Define built as cast one's with-machines on (handed) or pass the failure off.
+        Cast substitute-stash-types on (built).
+        Return built.
+    Done.
+Done.

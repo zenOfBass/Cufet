@@ -62,8 +62,9 @@ Pull a book on collections.
         the map from text to node pipe-stage-elem,
         the text recording-stash,
         the map from text to node stash-locals,
-        the map from text to fact series-loops,
-        the map from text to fact stash-drains,
+        the map from text to node series-loops,
+        the map from text to node stash-drains,
+        the fact rechecked,
         the map from text to node axiom-tags,
         the map from text to series of number depth-signatures,
         the map from text to series of number getter-signatures,
@@ -350,6 +351,9 @@ Pull a book on collections.
         The one's checked-program becomes handed-on.
         Cast one's check-fillings on (program) or pass the failure off.
         Cast one's check-stash-machines on (program) or pass the failure off.
+        If one's rechecked is false:
+            The one's checked-program becomes cast one's lowered-stashes on (one's checked-program, program) or pass the failure off.
+        Done.
         // Last, as in C#: the blocks stay while anything could still ask where they stand.
         Cast drop-cufet-blocks on (one's checked-program).
     Done.
@@ -865,8 +869,9 @@ Pull a book on collections.
                 Define iterator as "it".
                 Define named as cast field-of on (statement, 1).
                 If cast is-nothing on (named) is false, the iterator becomes cast unquoted on (named).
-                // What the machine builder needs: which loops run over a series, and the iterator's type.
-                In one's series-loops, the entry for "{(cast field-of on (statement, 4))'s word}:{(cast field-of on (statement, 5))'s word}" becomes true.
+                // What the machine builder needs: which loops run over a series, with the series' type,
+                // and the iterator's type.
+                In one's series-loops, the entry for "{(cast field-of on (statement, 4))'s word}:{(cast field-of on (statement, 5))'s word}" becomes looped-type.
                 Cast one's record-stash-local on (iterator, cast field-of on (looped-type, 1), at-row) or pass the failure off.
                 Define iterator-depth as one's rabbit-depth.
                 If looped's kind is "VariableReference":
@@ -1243,8 +1248,9 @@ Pull a book on collections.
             the pipe-stage-elem a map from text to node,
             the recording-stash "",
             the stash-locals a map from text to node,
-            the series-loops a map from text to fact,
-            the stash-drains a map from text to fact,
+            the series-loops a map from text to node,
+            the stash-drains a map from text to node,
+            the rechecked false,
             the axiom-tags a map from text to node,
             the depth-signatures a map from text to series of number,
             the getter-signatures a map from text to series of number,
