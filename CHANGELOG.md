@@ -60,14 +60,17 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   input and output: files, directories, streams, running programs and piping them, and pipes of
   functions, and axioms: regex patterns, c-language source at its boundary, and cufet blocks placed
   by `Cite`. Anything it cannot judge yet it says so about, rather than accepting — and it judges
-  every one of the 134 corpus files. With `--tree` it also prints the program it hands on, which C#
+  every one of the 135 corpus files, each checked where it sits, as `cufet check` checks it: inside a
+  project its folder and the folders above it are part of its program, a folder or namespace it
+  qualifies is loaded under its own names, a book is loaded from the file beside it, and the blueprint's
+  drawing of the tree is read and held to its rules. With `--tree` it also prints the program it hands on, which C#
   rewrites as it checks — the notes it writes onto the tree included, an axiom's language and what it
   gives back, the type an `is a` test was asked of, the function a sort keys on, the defaults an
   object was given, named arguments put in order, a book's types written by name made the types they
   are — what generics hand on: the templates taken out, the fillings in their place, each call and
   literal naming the filling it reached — and every burying function rebuilt as the machine of steps
   a stash runs on. The test compares that with C#'s, the bundled books left out, and every file and
-  hand-written program both accept hands back the same tree: 72 corpus files and 242 programs.
+  hand-written program both accept hands back the same tree: 131 corpus files and 242 programs.
 
 ### Changed
 
@@ -94,6 +97,11 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **Compiled arithmetic no longer divides by one after every sum.** Every addition and subtraction
+  in a compiled program — each `Increment` too — ended by normalising its result, and when there was
+  nothing to round that normalising still divided by 10⁰ with a 256-step bit loop. MEASURED at 91%
+  of the compiled Cufet checker's time; checking one of its files went from 58 seconds to 7.8. The
+  answers are the same digit for digit, now held by a test on the edges of the shortcut.
 - **A method called in the possessive form keeps a region's values inside it.** `Insert cast box's
   contents into keep.`, inside a rabbit, stored a series the rabbit owned in a series outside it —
   checked clean, and the compiled program read it after the region had ended and died with an access

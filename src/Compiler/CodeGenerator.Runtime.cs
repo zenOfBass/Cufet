@@ -480,6 +480,16 @@ static const cufet_u256 CUFET_DEC_MAX = {{0xFFFFFFFFFFFFFFFFULL, 0x00000000FFFFF
 /* Reduce (coef, scale, sign) to canonical form, dropping low digits with round-half-even.
    'inexact' is the division sticky bit: a nonzero true remainder below coef's least digit. */
 static CufetDec cufet_dec_reduce(cufet_u256 coef, int scale, int sign, int inexact) {
+    /* Nothing to drop: the loop below would divide by 10^0 and keep every digit. That divide is a
+       256-step bit loop, run on EVERY add and subtract — MEASURED at 91% of a compiled program's
+       time (the Cufet checker, 24 million adds on one file), 58 s down to 7.8 s with this. */
+    if (scale <= 28 && u256_cmp(coef, CUFET_DEC_MAX) <= 0) {
+        CufetDec out;
+        out.coef = ((unsigned __int128)coef.v[1] << 64) | coef.v[0];
+        out.scale = scale;
+        out.sign = u256_is_zero(coef) ? 0 : sign;                      /* zero is unsigned */
+        return out;
+    }
     for (;;) {
         int d = scale > 28 ? scale - 28 : 0;
         cufet_u256 p = u256_pow10(d), q, r;

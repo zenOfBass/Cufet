@@ -321,6 +321,24 @@ public class PipelineCoreTests : PipelineTestBase
             """;
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
+
+    [Fact]
+    public void Addition_WithNothingToRound_KeepsEveryDigitAndScale()
+    {
+        // ★ The runtime's reduce returns early when no digit has to be dropped — the divide by 10^0
+        // it skips was 91% of a compiled program's time. These sit on that path's edges: trailing
+        // zeros kept, the 28th decimal place, the largest coefficient, a sum that cancels to zero,
+        // and one past the edge that must still round.
+        const string src = """
+            State 1.10 + 2.20.
+            State -2.50 + 1.25.
+            State 0.0000000000000000000000000001 + 0.0000000000000000000000000002.
+            State 79228162514264337593543950334 + 1.
+            State 1 + -1.
+            State 7922816251426433759354395033.5 + 0.05.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
     // -- A type declaration is program-scope wherever it is written ------------
 
     [Fact]
