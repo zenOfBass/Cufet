@@ -67,7 +67,7 @@ Pull a book on collections.
         the fact rechecked,
         the text source-file,
         the series of source-block source-blocks,
-        the map from text to node parse-cache,
+        the map from text to node shared-trees,
         the map from text to node axiom-tags,
         the map from text to series of number depth-signatures,
         the map from text to series of number getter-signatures,
@@ -1263,7 +1263,7 @@ Pull a book on collections.
             the rechecked false,
             the source-file "",
             the source-blocks a series of source-block,
-            the parse-cache a map from text to node,
+            the shared-trees a map from text to node,
             the axiom-tags a map from text to node,
             the depth-signatures a map from text to series of number,
             the getter-signatures a map from text to series of number,
@@ -1276,10 +1276,10 @@ Pull a book on collections.
     /// "ok", or the failure that says why not.
     /// `ok` — and with `with-tree`, the checked program after it, one statement to a line.
     Bind text or failure to checked, given (the node program, the series of node prelude, the fact with-tree,
-            the text source-file, the map from text to node parse-cache):
+            the text source-file, the map from text to node shared-trees):
         Define walker as cast fresh-checker on (prelude).
         The walker's source-file becomes source-file.
-        The walker's parse-cache becomes parse-cache.
+        The walker's shared-trees becomes shared-trees.
         // Every refusal leaves through here, so a lifted type name is put back once, for all of them —
         // and a line from a loaded file is turned back into that file's own.
         Try to:

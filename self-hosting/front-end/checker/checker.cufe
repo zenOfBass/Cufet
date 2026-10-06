@@ -25,7 +25,7 @@ Pull a book on collections.
 
     /// The one line printed for a program.
     Bind text to verdict, given (the text whole, the series of node prelude, the fact with-tree, the text source-file,
-            the map from text to node parse-cache):
+            the map from text to node shared-trees):
         Define parsed as cast listed.
         Try to:
             The parsed becomes cast parser's program-tree on (whole).
@@ -35,7 +35,7 @@ Pull a book on collections.
         Done.
         Define outcome as "ok".
         Try to:
-            The outcome becomes cast checked on (parsed, prelude, with-tree, source-file, parse-cache).
+            The outcome becomes cast checked on (parsed, prelude, with-tree, source-file, shared-trees).
         Done.
         In case of failure:
             Define said as the message of the failure.
@@ -75,18 +75,20 @@ Pull a book on collections.
         Exit with 1.
     Done.
 
+    // A project's files, parsed once for the whole run — every file of a folder loads its neighbours.
+    Define shared-trees as a map from text to node.
     For each name in files, repeat:
         State "file\t{name}".
+        // Outside the file's region, so the trees outlive it: what is parsed in a region dies with it.
+        Cast share-project-trees on (cast full-path on (name), shared-trees).
         // ⚠⚠ Each file in a region of its own, so what checking it built is gone before the next.
         // A file inside a project brings its whole folder with it, and nothing was ever handed back:
         // MEASURED 15 GB at the end of the corpus, and the compiled checker died with an access
-        // violation when the test suite was running beside it. So the parse cache lives here too —
-        // a tree kept past its file would outlive the region it was built in.
+        // violation when the test suite was running beside it.
         Pull a rabbit.
-            Define parse-cache as a map from text to node.
             Try to:
                 // Checked where it sits: inside a project, its folder is part of its program.
-                State cast verdict on (read all from the file name, prelude, with-tree, cast full-path on (name), parse-cache).
+                State cast verdict on (read all from the file name, prelude, with-tree, cast full-path on (name), shared-trees).
             Done.
             In case of failure:
                 State "crash\t{the message of the failure}".

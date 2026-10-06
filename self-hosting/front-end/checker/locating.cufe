@@ -118,15 +118,68 @@ Pull a book on collections.
         Return copy.
     Done.
 
-    /// A file's statements, read at `offset` — parsed once per run for each offset, and handed out
-    /// as a fresh copy every time, since checking writes notes into the tree it is given.
+    /// A file's statements, read at `offset` — copied from the run's shared trees with every line
+    /// moved by `offset`, or parsed here when the file is not among them. A fresh tree either way,
+    /// since checking writes notes into the tree it is given.
     Bind node or failure to loaded-tree unto checker, given (the text from-file, the text file-text, the number offset):
-        Define key as "{offset}|{from-file}".
-        Define cached as the entry for key in one's parse-cache.
-        If cached is not void, return cast copied-node on (cached).
-        Define parsed as cast parser's program-tree-from on (file-text, offset) or pass the failure off.
-        In one's parse-cache, the entry for key becomes parsed.
-        Return cast copied-node on (parsed).
+        Define shared as the entry for (from-file in lowercase) in one's shared-trees.
+        If shared is not void:
+            Define places as cast line-places.
+            Return cast shifted-copy on (shared, offset, places).
+        Done.
+        Return cast parser's program-tree-from on (file-text, offset) or pass the failure off.
+    Done.
+
+    /// A copy of a tree parsed at line 0 with every node's line moved by `offset` — the field
+    /// `line-places` says each kind keeps it in.
+    Bind node to shifted-copy, given (the node tree, the number offset, the map from text to number places):
+        If tree's kind is "atom", return tree.
+        Define copy as a new node { the kind tree's kind, the word tree's word, the children a series of node }.
+        Define line-at as the entry for tree's kind in places but void is 0.
+        Define index as 0.
+        For each child in tree's children, repeat:
+            Increment index by 1.
+            If index is line-at and child's kind is "atom":
+                Insert cast numeral on ((child's word converted to number but void is 0) + offset) into copy's children.
+            Done.
+            Otherwise:
+                Insert cast shifted-copy on (child, offset, places) into copy's children.
+            Done.
+        Done.
+        Return copy.
+    Done.
+
+    /// Every `.cufe` in a folder and beneath it.
+    Bind void to gather-cufet-files, given (the text folder, the series of text found):
+        For each one-file in cast cufet-files on (folder), repeat:
+            Insert one-file into found.
+        Done.
+        For each child in cast sub-folders on (folder), repeat:
+            Cast gather-cufet-files on (child, found).
+        Done.
+    Done.
+
+    /// Every file of the project `source-file` is in, parsed once at line 0 into `shared` — called
+    /// OUTSIDE the region each file is checked in, so the trees outlive it and serve every file after.
+    /// A file that does not parse is left out, to be parsed (and refused) where it is loaded.
+    Bind void to share-project-trees, given (the text source-file, the map from text to node shared):
+        Define root as cast project-root on (cast parent-of on (source-file)).
+        If root is "", return.
+        Define marker as "project|{root in lowercase}".
+        If (the entry for marker in shared) is not void, return.
+        In shared, the entry for marker becomes cast listed.
+        Define every-file as a series of text.
+        Cast gather-cufet-files on (root, every-file).
+        For each one-file in every-file, repeat:
+            Try to:
+                Define file-text as read all from the file one-file.
+                Define parsed as cast parser's program-tree-from on (file-text, 0).
+                In shared, the entry for (one-file in lowercase) becomes parsed.
+            Done.
+            In case of failure:
+                Skip.
+            Done.
+        Done.
     Done.
 
     // ── The source map ────────────────────────────────────────────────────

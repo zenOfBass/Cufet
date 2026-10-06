@@ -1,0 +1,47 @@
+/*  Where each kind of node keeps its line — the place of `int Line` among its C# record's fields.
+    GENERATED from `src/Interpreter/Ast.cs` by a scratch script, so it cannot be kept in step by hand;
+    regenerate when a record gains or moves a line.
+
+    ★ What lets a parsed file be cached once and placed at any line offset: a copy moves exactly
+    these fields, and the parity tests, which compare every line against C#'s, show any it missed.
+    A map rather than a judgement: a copy asks once per node, and a namespace has a great many.
+*/
+
+Pull a book on collections.
+    /// Each kind with a line, and the field that holds it, counted from 1.
+    Bind map from text to number to line-places:
+        Return a map with (
+            "AcknowledgeInterruptStatement" : 1, "AwaitedResultExpression" : 2, "AxiomLiteral" : 2,
+            "BecomesStatement" : 3, "BinaryExpression" : 4, "BindStatement" : 7, "BitsAtWidth" : 3,
+            "BitsConvert" : 3, "BitsLiteral" : 4, "BitsShift" : 4, "BooleanLiteral" : 2,
+            "BuryStatement" : 2, "ButVoidDefault" : 3, "CastExpression" : 3, "CastStatement" : 3,
+            "ChannelCreation" : 2, "ChaseLiteral" : 1, "CiteStatement" : 2, "CloseStatement" : 2,
+            "ConditionalExpression" : 4, "CufetAxiomDefinition" : 3, "CurrentDirectoryExpression" : 1,
+            "CurrentDirectorySetStatement" : 2, "DefineStatement" : 5, "DeliveryExpression" : 2,
+            "DirectoryContentsExpression" : 2, "EnvironmentVariableExpression" : 2, "ExitStatement" : 2,
+            "FailureFallback" : 3, "FailureLiteral" : 3, "FailurePropagate" : 2,
+            "FileReadExpression" : 3, "FileWriteStatement" : 4, "ForEachFromInputStatement" : 3,
+            "ForEachStatement" : 4, "ForeignTextAt" : 2, "GetterDeclaration" : 5,
+            "InterfaceDefinition" : 3, "InterruptRequestedExpression" : 1, "IsTypeCheck" : 4,
+            "JudgeArm" : 3, "JudgeStatement" : 4, "LambdaLiteral" : 3, "LaunchTaskStatement" : 3,
+            "MapHasEntry" : 3, "MapHasKey" : 3, "MapLiteral" : 4, "MapLookup" : 3, "MapSetStatement" : 4,
+            "MatrixAccess" : 4, "MatrixLiteral" : 2, "MatrixSetStatement" : 5, "MatrixSized" : 4,
+            "NumberConvert" : 2, "ObjectDefinition" : 9, "ObjectLiteral" : 4,
+            "OperatorOverloadDeclaration" : 7, "OutputStatement" : 2, "PathActionStatement" : 3,
+            "PathCheckExpression" : 3, "PipeExpression" : 3, "PossessiveAccess" : 3,
+            "PossessiveSetStatement" : 4, "ProgramArgumentsExpression" : 1, "PullRabbitStatement" : 3,
+            "PullStatement" : 3, "RandomGuess" : 1, "RandomItem" : 2, "RandomNumber" : 3,
+            "RandomlyShuffled" : 2, "RangeExpression" : 4, "ReadExpression" : 3, "RecordLiteral" : 3,
+            "RecordNamedAccess" : 3, "RecordNamedSetStatement" : 4, "ReturnStatement" : 2,
+            "RunExpression" : 4, "RunStatement" : 4, "SeedChanceStatement" : 2, "SendStatement" : 3,
+            "SeriesAccess" : 3, "SeriesInsertStatement" : 5, "SeriesLength" : 2, "SeriesLiteral" : 3,
+            "SeriesRemoveAtStatement" : 3, "SeriesRemoveValueStatement" : 3, "SeriesSetStatement" : 4,
+            "SetHasMember" : 3, "SetLiteral" : 3, "SetterDeclaration" : 6, "SortExpression" : 4,
+            "SuppressStatement" : 1, "TextAffixTest" : 4, "TextCase" : 3, "TextContains" : 3,
+            "TextConvert" : 2, "TextFind" : 3, "TextJoin" : 3, "TextReplace" : 4, "TextSplit" : 3,
+            "TextSubstringEdge" : 4, "TextSubstringRange" : 4, "TextTrim" : 2, "TryStatement" : 4,
+            "UnaryExpression" : 3, "UnburyExpression" : 2, "UnmakerDeclaration" : 4,
+            "VariableReference" : 2, "VoidLiteral" : 1, "WithOpenStatement" : 5,
+            "WriteToStreamStatement" : 3, "YieldStatement" : 1).
+    Done.
+Done.
