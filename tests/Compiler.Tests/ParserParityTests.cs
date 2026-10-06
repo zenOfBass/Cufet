@@ -53,7 +53,7 @@ public class ParserParityTests(ITestOutputHelper output, CompiledCufetParser com
     private const int ParsedFloor = 100;
 
     /// <summary>The same, for the interpreted run's sample.</summary>
-    private const int SampleFloor = 20;
+    private const int SampleFloor = 5;
 
     // ── The comparison ──────────────────────────────────────────────────────
 
@@ -146,12 +146,14 @@ public class ParserParityTests(ITestOutputHelper output, CompiledCufetParser com
     /// ⚠ A SAMPLE, every fifth file, and deliberately so. Interpreted, the whole corpus takes about
     /// two minutes — a third of the suite again — while the compiled run covers every file in
     /// seconds. What this one adds is the other backend running the same parser.
+    /// ★ Every 25th file since 2026-10-06 — six; at every fifth it was still 259 s, the second
+    /// slowest test in the suite, for a claim a handful of files makes as well.
     /// </remarks>
     [Fact]
     public void TheInterpretedParser_BuildsTheSameTree_OnASampleOfTheCorpus()
     {
-        var files = Corpus().Where((_, i) => i % 5 == 0).ToList();
-        Assert.True(files.Count >= 16, $"only {files.Count} Cufet files in the sample");
+        var files = Corpus().Where((_, i) => i % 25 == 0).ToList();
+        Assert.True(files.Count >= 5, $"only {files.Count} Cufet files in the sample");
 
         var got = ByFile(Run(CufetExe, [EntryPath("parser"), .. files], RepoRoot));
         Check(got, WithSources(files), SampleFloor, "interpreted");

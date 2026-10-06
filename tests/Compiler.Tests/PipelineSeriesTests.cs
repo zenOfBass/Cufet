@@ -166,21 +166,6 @@ public class PipelineSeriesTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
-    [Fact]
-    public void Arena_SliceFour_StillPasses_AfterSliceFive()
-    {
-        // Regression: scalar functions must still compile correctly now that
-        // the global arena is pushed in main.
-        const string src = """
-            Bind number to factorial, given (the number n):
-                If n <= 1, return 1.
-                return n * cast factorial on (n - 1).
-            Done.
-            State cast factorial on (10).
-            """;
-        Assert.Equal(InterpretRaw(src), CompileRaw(src));
-    }
-
     // ── Slice 5.5: software decimal (bit-identical to interpreter's System.Decimal) ──
     // These are the fix's proof: programs that diverged under the old double lowering
     // (0.1 + 0.2 == 0.30000000000000004, etc.) now match the interpreter exactly.

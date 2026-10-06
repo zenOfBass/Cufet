@@ -186,14 +186,17 @@ public class LexerParityTests
     /// gains — while `TheCompiledLexer_AgreesWithCSharpToo` covers every file in about a minute.
     /// What this one adds is the other backend running the same lexer, and a fifth of the corpus
     /// says that as well as all of it.
+    /// ★ Every 25th file since 2026-10-06 — six, spread across examples, the front end and the REPL.
+    /// At every fifth it was still 118 s, and a handful of files says "the interpreter runs the
+    /// Cufet lexer as the compiled build does" as well as twenty-seven did.
     /// </remarks>
     [Fact]
     public void TheInterpretedLexer_LexesTheSameAsCSharp_OnASampleOfTheCorpus()
     {
-        var files = Corpus().Where((_, i) => i % 5 == 0).ToList();
+        var files = Corpus().Where((_, i) => i % 25 == 0).ToList();
         // ★ A floor, not an exact count — the corpus grows. It is here so that an empty listing
         // (a wrong root, a moved folder) fails rather than comparing nothing and passing.
-        Assert.True(files.Count >= 16, $"only {files.Count} Cufet files in the sample");
+        Assert.True(files.Count >= 5, $"only {files.Count} Cufet files in the sample");
 
         var got = ByFile(Run(CufetExe, [EntryPath("lexer"), .. files], RepoRoot));
         var problems = Differences(WithSources(files), got);

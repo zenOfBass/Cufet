@@ -48,8 +48,12 @@ public class ExampleOracleTests
     /// ★ A program earns this suite by being written in Cufet, not by which folder it was filed
     /// under. The REPL is not an example of anything, but it is a real program on both backends,
     /// and that is what everything below actually tests.
+    /// ⚠ `self-hosting/` is NOT a root, and was until 2026-10-06. Its files are libraries of one
+    /// namespace, so each run here compiled the same front end to run a program that does nothing —
+    /// 49 runs, about 465 s, asserting that two empty outputs agree. The lexer, parser and checker
+    /// parity tests compile that code and hold it to what it actually does.
     /// </remarks>
-    private static string[] Roots => [ExampleDir, Path.Combine(RepoRoot, "tools"), Path.Combine(RepoRoot, "self-hosting")];
+    private static string[] Roots => [ExampleDir, Path.Combine(RepoRoot, "tools")];
 
     // Pinned outputs live in their own directory rather than beside the programs. `examples/` is
     // read by people looking for programs, and interleaving a fixture with every example halves
