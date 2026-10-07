@@ -1,0 +1,370 @@
+/*  Style warnings — `src/Interpreter/Linter.cs`. Legal code that reads worse than it needs to.
+
+    ★ Advice, never a refusal: these are said about a program that checks, after `ok`, as
+    `warning <line>:<column> <message>`, in the order C# says them — a lowercase keyword opening a
+    line, one bare-`it` loop inside another, a directory changed after a rabbit started a task, a
+    type definition a later one replaces, and a judgement arm that can never run.
+
+    ⚠ Read from the program AS WRITTEN — before checking writes its notes into the tree, and with
+    the tokens and statement starts the parser saw. The cited copies of a cufet block do not exist
+    yet, so a block is looked into where it is written.
+*/
+
+Pull a book on collections.
+    /// Every warning for a program, each `warning\t<line>:<column>\t<message>`.
+    Bind series of text to lint-warnings, given (the series of token tokens, the node starts, the node statements):
+        Define found as a series of text.
+        Cast capital-starts on (tokens, starts, found).
+        Cast nested-bare-it on (statements, cast nothing, found).
+        For each rabbit in cast every-rabbit on (statements), repeat:
+            Define started as a series of fact.
+            Cast scan-rabbit on (rabbit, cast field-of on (rabbit, 2), started, found).
+        Done.
+        Define everything as a series of node.
+        Cast lint-walk on (statements, everything).
+        Cast superseded-types on (everything, found).
+        Cast unreachable-arms on (everything, tokens, found).
+        Return found.
+    Done.
+
+    Bind void to warn, given (the series of text found, the number at-line, the number at-column, the text message):
+        Insert "warning\t{at-line}:{at-column}\t{message}" into found.
+    Done.
+
+    // ── A line opening with a lowercase keyword ───────────────────────────
+
+    Bind void to capital-starts, given (the series of token tokens, the node starts, the series of text found):
+        // The leftmost token on each line, and where each token sits.
+        Define opener as a map from text to number.
+        Define index-at as a map from text to number.
+        Define place as 0.
+        For each one-token in tokens, repeat:
+            Increment place by 1.
+            Define spot as "{one-token's row}:{one-token's column}".
+            In index-at, the entry for spot becomes place.
+            If one-token's kind is not "Eof":
+                Define row-key as one-token's row converted to text.
+                // Nothing on the line yet counts as further right than anything.
+                Define leftmost as (the entry for row-key in opener but void is one-token's column + 1).
+                If one-token's column is less than leftmost, in opener, the entry for row-key becomes one-token's column.
+            Done.
+        Done.
+        Define reported as a map from text to fact.
+        For each start-record in starts's children, repeat:
+            Define at-line as cast numeric on (item 1 of start-record's children).
+            Define at-column as cast numeric on (item 2 of start-record's children).
+            Define spot as "{at-line}:{at-column}".
+            Define leads as cast truth-of on (item 3 of start-record's children).
+            Define opens as (the entry for (at-line converted to text) in opener but void is -1) is at-column.
+            Define index as the entry for spot in index-at but void is 0.
+            If leads and opens and index is not 0 and (the entry for spot in reported) is void:
+                // What starts a sentence is the token before it: none, a '.', or a ':'.
+                Define previous as index - 1.
+                While previous is greater than 0 and (item previous of tokens)'s kind is "Article", repeat:
+                    Decrement previous by 1.
+                Done.
+                Define sentence as previous is 0.
+                If previous is greater than 0:
+                    The sentence becomes (item previous of tokens)'s kind is "Dot" or (item previous of tokens)'s kind is "Colon".
+                Done.
+                If sentence:
+                    In reported, the entry for spot becomes true.
+                    Define word as (item index of tokens)'s lexeme.
+                    Define first as the characters from 1 to 1 of word.
+                    If word is not "" and first is not (first in uppercase):
+                        Define capitalised as (first in uppercase) joined to (the characters from 2 to the end of word).
+                        Cast warn on (found, at-line, at-column,
+                            "this line opens with '{word}' — write '{capitalised}'. A statement reads as a sentence, and a sentence starts with a capital. Keywords are case-insensitive, so this changes nothing but how the line reads.").
+                    Done.
+                Done.
+            Done.
+        Done.
+    Done.
+
+    // ── The statement blocks inside a statement (`ChildBlocks`) ───────────
+
+    /// Each block nested directly inside a statement, as `[block opens-new-scope]`.
+    Bind series of node to child-blocks, given (the node statement):
+        Define blocks as a series of node.
+        Define kind as statement's kind.
+        If kind is "IfStatement":
+            For each arm in (cast field-of on (statement, 1))'s children, repeat:
+                Insert cast lint-block on (cast field-of on (arm, 2), false) into blocks.
+            Done.
+            Insert cast lint-block on (cast field-of on (statement, 2), false) into blocks.
+        Done.
+        Otherwise if kind is "JudgeStatement":
+            For each arm in (cast field-of on (statement, 2))'s children, repeat:
+                Insert cast lint-block on (cast field-of on (arm, 2), false) into blocks.
+            Done.
+            Insert cast lint-block on (cast field-of on (statement, 3), false) into blocks.
+        Done.
+        Otherwise if kind is "TryStatement":
+            Insert cast lint-block on (cast field-of on (statement, 1), false) into blocks.
+            Insert cast lint-block on (cast field-of on (statement, 2), false) into blocks.
+            Insert cast lint-block on (cast field-of on (statement, 3), false) into blocks.
+        Done.
+        Otherwise if kind is "WhileStatement" or kind is "PullStatement" or kind is "PullRabbitStatement"
+                or kind is "LaunchTaskStatement" or kind is "ForEachFromInputStatement":
+            Insert cast lint-block on (cast field-of on (statement, 2), false) into blocks.
+        Done.
+        Otherwise if kind is "RepeatUntilStatement":
+            Insert cast lint-block on (cast field-of on (statement, 1), false) into blocks.
+        Done.
+        Otherwise if kind is "ForEachStatement":
+            Insert cast lint-block on (cast field-of on (statement, 3), false) into blocks.
+        Done.
+        Otherwise if kind is "WithOpenStatement" or kind is "BindStatement" or kind is "SetterDeclaration":
+            Define place as 4.
+            Insert cast lint-block on (cast field-of on (statement, place), kind is not "WithOpenStatement") into blocks.
+        Done.
+        Otherwise if kind is "CufetAxiomDefinition":
+            Insert cast lint-block on (cast field-of on (statement, 2), true) into blocks.
+        Done.
+        Otherwise if kind is "OperatorOverloadDeclaration":
+            Insert cast lint-block on (cast field-of on (statement, 6), true) into blocks.
+        Done.
+        Otherwise if kind is "UnmakerDeclaration" or kind is "GetterDeclaration":
+            Insert cast lint-block on (cast field-of on (statement, 3), true) into blocks.
+        Done.
+        Otherwise if kind is "ObjectDefinition":
+            For each method in (cast field-of on (statement, 4))'s children, repeat:
+                Insert cast lint-block on (cast field-of on (method, 4), true) into blocks.
+            Done.
+            For each getter in (cast field-of on (statement, 5))'s children, repeat:
+                Insert cast lint-block on (cast field-of on (getter, 3), true) into blocks.
+            Done.
+            For each setter in (cast field-of on (statement, 6))'s children, repeat:
+                Insert cast lint-block on (cast field-of on (setter, 4), true) into blocks.
+            Done.
+        Done.
+        Return blocks.
+    Done.
+
+    Bind node to lint-block, given (the node block, the fact new-scope):
+        Return cast made on ("list", a series with (block, cast flag on (new-scope))).
+    Done.
+
+    // ── One bare-`it` loop inside another ─────────────────────────────────
+
+    /// `enclosing` is the bare-`it` loop around this block, or nothing.
+    Bind void to nested-bare-it, given (the node block, the node enclosing, the series of text found):
+        If cast is-nothing on (block), return.
+        For each statement in block's children, repeat:
+            Define inner-enclosing as enclosing.
+            If statement's kind is "ForEachStatement" and cast is-nothing on (cast field-of on (statement, 1)):
+                If cast is-nothing on (enclosing) is false:
+                    Cast warn on (found, cast numeric on (cast field-of on (statement, 4)), cast numeric on (cast field-of on (statement, 5)),
+                        "this loop and the one on line {cast numeric on (cast field-of on (enclosing, 4))} both bind 'it', so this one shadows the outer. That is well defined — the innermost wins — but a reader has to track which 'it' is which. Name one of them: 'For each <name> in …' binds the element to <name> instead.").
+                Done.
+                The inner-enclosing becomes statement.
+            Done.
+            For each child in cast child-blocks on (statement), repeat:
+                Define passed as inner-enclosing.
+                If cast truth-of on (item 2 of child's children), the passed becomes cast nothing.
+                Cast nested-bare-it on (item 1 of child's children, passed, found).
+            Done.
+        Done.
+    Done.
+
+    // ── A directory changed after a rabbit started a task ─────────────────
+
+    Bind series of node to every-rabbit, given (the node block):
+        Define found as a series of node.
+        Cast gather-rabbits on (block, found).
+        Return found.
+    Done.
+
+    Bind void to gather-rabbits, given (the node block, the series of node found):
+        If cast is-nothing on (block), return.
+        For each statement in block's children, repeat:
+            If statement's kind is "PullRabbitStatement", insert statement into found.
+            For each child in cast child-blocks on (statement), repeat:
+                Cast gather-rabbits on (item 1 of child's children, found).
+            Done.
+        Done.
+    Done.
+
+    /// `started` holds one item once a task has started — carried in source order through the walk.
+    Bind void to scan-rabbit, given (the node rabbit, the node block, the series of fact started, the series of text found):
+        If cast is-nothing on (block), return.
+        For each statement in block's children, repeat:
+            If statement's kind is "LaunchTaskStatement":
+                If the number of started is 0, insert true into started.
+                Skip.
+            Done.
+            If statement's kind is "CurrentDirectorySetStatement" and the number of started is greater than 0:
+                Cast warn on (found, cast numeric on (cast field-of on (statement, 2)), cast numeric on (cast field-of on (statement, 3)),
+                    "this changes the current directory after the rabbit on line {cast numeric on (cast field-of on (rabbit, 3))} has already started a task. Tasks resolve relative paths against it, and there is one for the whole process, so which directory a running task sees is a race. Change it before starting any task.").
+                Skip.
+            Done.
+            For each child in cast child-blocks on (statement), repeat:
+                If cast truth-of on (item 2 of child's children) is false:
+                    Cast scan-rabbit on (rabbit, item 1 of child's children, started, found).
+                Done.
+            Done.
+        Done.
+    Done.
+
+    // ── Every statement, as `AstSearch.EveryStatement` reaches them ───────
+
+    /// Every node, in the order C#'s walk meets them — a node before what is inside it — but not
+    /// inside a cufet block, whose contents are not in the program until a `Cite` places them.
+    Bind void to lint-walk, given (the node tree, the series of node found):
+        If tree's kind is "atom", return.
+        If tree's kind is not "list", insert tree into found.
+        If tree's kind is "CufetAxiomDefinition", return.
+        For each child in tree's children, repeat:
+            Cast lint-walk on (child, found).
+        Done.
+    Done.
+
+    // ── A type definition replaced by a later one ─────────────────────────
+
+    Bind void to superseded-types, given (the series of node everything, the series of text found):
+        Define order as a series of text.
+        Define defined as a map from text to series of node.
+        For each statement in everything, repeat:
+            If statement's kind is "ObjectDefinition":
+                Define name as cast unquoted on (cast field-of on (statement, 1)).
+                If (the entry for name in defined) is void:
+                    In defined, the entry for name becomes a series of node.
+                    Insert name into order.
+                Done.
+                Define seen as the entry for name in defined but void is a series of node.
+                Insert statement into seen.
+            Done.
+        Done.
+        For each name in order, repeat:
+            Define definitions as the entry for name in defined but void is a series of node.
+            If the number of definitions is greater than 1:
+                Define winner as item (the number of definitions) of definitions.
+                Define place as 0.
+                For each superseded in definitions, repeat:
+                    Increment place by 1.
+                    If place is less than the number of definitions:
+                        Cast warn on (found, cast numeric on (cast field-of on (superseded, 9)), cast numeric on (cast field-of on (superseded, 10)),
+                            "this definition of '{name}' is replaced by the one on line {cast numeric on (cast field-of on (winner, 9))}, so nothing reaches it. That is well defined — the last definition wins, the same as any other shadowing — but a reader has to notice the second one to know this is dead. Remove it, or rename one of them.").
+                    Done.
+                Done.
+            Done.
+        Done.
+    Done.
+
+    // ── A judgement arm that can never run ────────────────────────────────
+
+    Bind void to unreachable-arms, given (the series of node everything, the series of token tokens, the series of text found):
+        Define index-at as a map from text to number.
+        Define token-place as 0.
+        For each one-token in tokens, repeat:
+            Increment token-place by 1.
+            In index-at, the entry for "{one-token's row}:{one-token's column}" becomes token-place.
+        Done.
+        For each statement in everything, repeat:
+            If statement's kind is "JudgeStatement":
+                Define seen-types as a series of node.
+                Define type-lines as a series of number.
+                Define seen-values as a series of node.
+                Define value-lines as a series of number.
+                For each arm in (cast field-of on (statement, 2))'s children, repeat:
+                    Define arm-line as cast numeric on (cast field-of on (arm, 3)).
+                    Define arm-column as cast numeric on (cast field-of on (arm, 4)).
+                    If cast is-value-arm on (arm):
+                        Define written as cast written-numbers on (tokens, the entry for "{arm-line}:{arm-column}" in index-at but void is 0).
+                        Define number-count as 0.
+                        For each value in (cast field-of on (arm, 5))'s children, repeat:
+                            Define shown as cast described-constant on (value).
+                            If value's kind is "NumberLiteral":
+                                Increment number-count by 1.
+                                If number-count is not greater than the number of written, the shown becomes item number-count of written.
+                            Done.
+                            Define earlier as 0.
+                            Define place as 0.
+                            For each other in seen-values, repeat:
+                                Increment place by 1.
+                                If earlier is 0 and cast same-constant on (other, value), the earlier becomes item place of value-lines.
+                            Done.
+                            If earlier is not 0:
+                                Cast warn on (found, arm-line, arm-column,
+                                    "this arm can never run — {shown} is already handled on line {earlier}. The earlier arm wins, so this body is dead and nothing in the text says so. Remove it, or change the value it names.").
+                            Done.
+                            Otherwise:
+                                Insert value into seen-values.
+                                Insert arm-line into value-lines.
+                            Done.
+                        Done.
+                    Done.
+                    Otherwise:
+                        For each arm-case in (cast field-of on (arm, 1))'s children, repeat:
+                            Define earlier as 0.
+                            Define place as 0.
+                            For each other in seen-types, repeat:
+                                Increment place by 1.
+                                If earlier is 0 and cast same-type on (other, arm-case), the earlier becomes item place of type-lines.
+                            Done.
+                            If earlier is not 0:
+                                Cast warn on (found, arm-line, arm-column,
+                                    "this arm can never run — {cast type-words on (arm-case)} is already handled on line {earlier}. The earlier arm wins, so this body is dead and nothing in the text says so. Remove it, or change the case it names.").
+                            Done.
+                            Otherwise:
+                                Insert arm-case into seen-types.
+                                Insert arm-line into type-lines.
+                            Done.
+                        Done.
+                    Done.
+                Done.
+            Done.
+        Done.
+    Done.
+
+    /// Whether two arm constants name one value — bits by value alone, whatever their base or width.
+    Bind fact to same-constant, given (the node left, the node right):
+        If left's kind is not right's kind, return false.
+        Define left-word as (cast field-of on (left, 1))'s word.
+        Define right-word as (cast field-of on (right, 1))'s word.
+        If left's kind is "StringLiteral" or left's kind is "BooleanLiteral", return left-word is right-word.
+        If left's kind is not "NumberLiteral" and left's kind is not "BitsLiteral", return false.
+        Define left-number as left-word converted to number.
+        Define right-number as right-word converted to number.
+        If left-number is void or right-number is void, return false.
+        Return left-number is right-number.
+    Done.
+
+    /// The numbers an arm's values are written as, in order — from the arm's first token to the
+    /// comma or colon that ends its values — as C#'s decimal prints them: the digits kept as
+    /// written, trailing zeros and all, the leading zeros gone, a minus kept.
+    Bind series of text to written-numbers, given (the series of token tokens, the number first-token):
+        Define found as a series of text.
+        If first-token is 0, return found.
+        Define place as first-token.
+        Define negative as false.
+        While place is not greater than the number of tokens, repeat:
+            Define one-token as item place of tokens.
+            If one-token's kind is "Comma" or one-token's kind is "Colon" or one-token's kind is "Eof", return found.
+            If one-token's kind is "Minus", the negative becomes true.
+            Otherwise if one-token's kind is "Number":
+                Define digits as one-token's lexeme.
+                While the length of digits is greater than 1 and (the characters from 1 to 1 of digits) is "0"
+                        and (the characters from 2 to 2 of digits) is not ".", repeat:
+                    The digits becomes the characters from 2 to the end of digits.
+                Done.
+                If negative, the digits becomes "-" joined to digits.
+                Insert digits into found.
+                The negative becomes false.
+            Done.
+            Otherwise, the negative becomes false.
+            Increment place by 1.
+        Done.
+        Return found.
+    Done.
+
+    Bind text to described-constant, given (the node value):
+        Judge value's kind, where it is:
+            "NumberLiteral", return (cast field-of on (value, 1))'s word.
+            "StringLiteral", return (cast field-of on (value, 1))'s word.
+            "BooleanLiteral", return (cast field-of on (value, 1))'s word.
+            "BitsLiteral", return "that bit pattern".
+            Otherwise, return "that value".
+        Done.
+    Done.
+Done.

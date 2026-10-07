@@ -23,7 +23,8 @@ Pull a book on collections.
         the number function-depth,
         the number rabbit-depth,
         the fact in-object-def,
-        the fact in-free-function).
+        the fact in-free-function,
+        the series of node starts).
 
     // ── Where the parser stands ───────────────────────────────────────────
 

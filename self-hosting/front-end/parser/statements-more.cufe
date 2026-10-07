@@ -538,7 +538,8 @@ Pull a book on collections.
         Done.
         Define inner-parser as a new parser {
             the tokens moved, the at 1, the type-depth 0, the collections-depth 0, the loop-depth 0,
-            the nest-depth 0, the function-depth 0, the rabbit-depth 0, the in-object-def false, the in-free-function false }.
+            the nest-depth 0, the function-depth 0, the rabbit-depth 0, the in-object-def false, the in-free-function false,
+            the starts a series of node }.
         If as-body:
             The inner-parser's function-depth becomes 1.
             The inner-parser's in-free-function becomes true.

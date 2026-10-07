@@ -27,12 +27,19 @@ Pull a book on collections.
     Bind text to verdict, given (the text whole, the series of node prelude, the fact with-tree, the text source-file,
             the map from text to node shared-trees):
         Define parsed as cast listed.
+        Define starts as cast listed.
         Try to:
-            The parsed becomes cast parser's program-tree on (whole).
+            Define both as cast parser's program-and-starts on (whole).
+            The parsed becomes item 1 of both's children.
+            The starts becomes item 2 of both's children.
         Done.
         In case of failure:
             Return "parse\t{cast one-line on (the message of the failure)}".
         Done.
+        // Style advice is read from the program as written — before checking writes into it — and
+        // said only about a program that checks.
+        Define lint-tokens as cast tokens-of on (whole) but on failure a series of token.
+        Define warnings as cast lint-warnings on (lint-tokens, starts, cast copied-node on (parsed)).
         Define outcome as "ok".
         Try to:
             The outcome becomes cast checked on (parsed, prelude, with-tree, source-file, shared-trees).
@@ -43,6 +50,15 @@ Pull a book on collections.
             If said starts with "error\t":
                 The outcome becomes "error\t{cast one-line on (the characters from 7 to the end of said)}".
             Done.
+        Done.
+        // Each warning on a line of its own, right after `ok` and before any tree.
+        If (outcome is "ok" or outcome starts with "ok\n") and the number of warnings is greater than 0:
+            Define said-warnings as a chase.
+            For each warning in warnings, repeat:
+                Insert "\n" into said-warnings.
+                Insert cast one-line on (warning) into said-warnings.
+            Done.
+            Return "ok" joined to (said-warnings converted to text) joined to (the characters from 3 to the end of outcome).
         Done.
         Return outcome.
     Done.

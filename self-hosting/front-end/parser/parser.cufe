@@ -42,6 +42,17 @@ Pull a book on collections.
     /// The same, for a file loaded into another's program: every line counted from `line-offset`,
     /// as C#'s `Lexer(text, lineOffset, 0)` counts them, so one numbering spans every file.
     Bind node or failure to program-tree-from, given (the text whole, the number line-offset):
+        Define both as cast program-and-starts-from on (whole, line-offset) or pass the failure off.
+        Return item 1 of both's children.
+    Done.
+
+    /// The program's statements and, beside them, where each statement started — `[row column
+    /// keyword-led]` for each — as `[statements starts]`. What the linter reads.
+    Bind node or failure to program-and-starts, given (the text whole):
+        Return cast program-and-starts-from on (whole, 0) or pass the failure off.
+    Done.
+
+    Bind node or failure to program-and-starts-from, given (the text whole, the number line-offset):
         Define found as a series of token.
         Try to:
             The found becomes cast tokens-of on (whole).
@@ -59,7 +70,8 @@ Pull a book on collections.
         Done.
         Define reading as a new parser {
             the tokens found, the at 1, the type-depth 0, the collections-depth 0, the loop-depth 0,
-            the nest-depth 0, the function-depth 0, the rabbit-depth 0, the in-object-def false, the in-free-function false }.
+            the nest-depth 0, the function-depth 0, the rabbit-depth 0, the in-object-def false, the in-free-function false,
+            the starts a series of node }.
         Define statements as cast listed.
         Define scanning as true.
         While scanning, repeat:
@@ -69,7 +81,8 @@ Pull a book on collections.
             Cast statements's add on (next-statement).
         Done.
         // The one pass the C# parser runs over the whole program before handing it on.
-        Return cast expand-defaults on (statements) or pass the failure off.
+        Define expanded as cast expand-defaults on (statements) or pass the failure off.
+        Return cast made on ("list", a series with (expanded, a new node { the kind "list", the word "", the children reading's starts })).
     Done.
 
     Bind series of text or failure to program-lines, given (the text whole):

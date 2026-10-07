@@ -8,6 +8,21 @@ Pull a book on collections.
     Bind node or failure to statement unto parser:
         Define tok as cast one's peek.
         Define kind as tok's kind.
+        // Where it starts, and whether its first word is a KEYWORD here rather than a name — what
+        // only this place knows, and what the linter's capital-letter rule reads (`StatementStarts`).
+        Define keyword-led as kind is not "Identifier".
+        If keyword-led is false:
+            Define lowered-word as tok's lexeme in lowercase.
+            Define after-word as cast one's kind-after.
+            If lowered-word is "output" and after-word is not "Becomes" and after-word is not "Possessive"
+                    and after-word is not "Equal" and after-word is not "Pipe":
+                The keyword-led becomes true.
+            Done.
+            If lowered-word is "seed" and cast one's next-word-is on ("chance"), the keyword-led becomes true.
+            If (lowered-word is "current" or lowered-word is "make") and after-word is "DirectoryKw", the keyword-led becomes true.
+        Done.
+        Insert cast made on ("list", a series with (cast numeral on (tok's row), cast numeral on (tok's column),
+            cast flag on (keyword-led))) into one's starts.
 
         If kind is "State":
             Cast one's advance.
