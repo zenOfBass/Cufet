@@ -26,12 +26,12 @@ The ordering is not ceremonial: this tier's real blocker is stated below as **er
     ★ **The Cufet-written evaluator lands here, and nowhere earlier.** The REPL weighed writing
     one against shelling out to `cufet`, and shelled out: `cufet` already holds the type checker,
     and a hand-written evaluator would say something worse about a bad line than the compiler
-    already says. An evaluator is also a THIRD implementation — and unlike a self-hosted compiler,
-    which the oracle checks for free by diffing its C against this one, an evaluator emits nothing
-    to diff. It gets validated here or it gets validated twice.
+    already says. An evaluator is also a THIRD implementation. It gets validated here or it gets
+    validated twice.
 
-    ★ The test oracle already exists. A self-hosted compiler can be validated by asserting
-    its C output matches this compiler's — a third implementation held against the other two.
+    ★ The test oracle already exists. The self-hosted compiler is held to it as the two backends
+    are: every program it builds must print what the interpreter prints. Its C is free to differ
+    from this compiler's.
 
     ★ **This is where "written in Cufet, no exceptions" is finally discharged.** The language's
     floor — `If`, arithmetic, `bury`'s state-machine transform — is compiler-implemented, so the
@@ -48,7 +48,13 @@ The ordering is not ceremonial: this tier's real blocker is stated below as **er
     ★ Nothing is privileged in the meantime — `and region` gives every region the same `bury` the
     rabbit gets — so this is a self-hosting debt, not an asymmetry.
 
-2. **Compile-time macros — the `cufet` tag's expander.** Not a third program. It is here 
+2. **The C runtime, written in Cufet.** The compiler above links `cufet-runtime.c` as it stands.
+    Writing the runtime in Cufet waits for that compiler, which would build it, and first needs a
+    way for Cufet to say what the runtime does in C — memory, arenas, threads — which today it
+    reaches only through c-language axioms. Programs are held to their output, so the swap changes
+    no test.
+
+3. **Compile-time macros — the `cufet` tag's expander.** Not a third program. It is here 
     rather than in *Deferred* because its blocker is a numbered item above, not something off the list.
 
     Hygienic, expanding to Cufet AST before the checker runs — *not* fexprs, which are first-class and runtime. It is one tag of the BLOCKS type rather than a feature of its own: quoted Cufet and
