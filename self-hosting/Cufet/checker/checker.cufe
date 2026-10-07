@@ -1,6 +1,6 @@
 /*  The Cufet type checker, written in Cufet.
 
-        cufet self-hosting/front-end/checker/checker.cufe [--tree] <file.cufe> [more…]
+        cufet self-hosting/Cufet/checker/checker.cufe [--tree] <file.cufe> [more…]
 
     Prints one line for each file, after its `file` header:
 

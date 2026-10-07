@@ -1,7 +1,7 @@
 /*  Types, in words — what the parser and the checker both say about a type: `number`,
     `series of numbers`, `stack of number`, `(number or text) values`.
 
-    ★ Shared, so it sits in `front-end/` itself, where both folders see it by its plain name.
+    ★ Shared, so it sits in `Cufet/` itself, where both folders see it by its plain name.
 */
 
 Pull a book on collections.

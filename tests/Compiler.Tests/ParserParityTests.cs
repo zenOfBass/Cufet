@@ -4,7 +4,7 @@ using static Cufet.Compiler.Tests.LexerParityTests;
 
 namespace Cufet.Compiler.Tests;
 
-/// <summary>One program of `self-hosting/front-end/`, built once for every test that runs it compiled.</summary>
+/// <summary>One program of `self-hosting/Cufet/`, built once for every test that runs it compiled.</summary>
 public abstract class CompiledFrontEnd : IDisposable
 {
     private readonly string _dir;
@@ -25,7 +25,7 @@ public abstract class CompiledFrontEnd : IDisposable
 public sealed class CompiledCufetParser() : CompiledFrontEnd("parser");
 
 /// <summary>
-/// The parser written in Cufet (`self-hosting/front-end/parser/parser.cufe`) builds the same tree as the one in
+/// The parser written in Cufet (`self-hosting/Cufet/parser/parser.cufe`) builds the same tree as the one in
 /// C#, and refuses what it refuses in the same words at the same place.
 /// </summary>
 /// <remarks>

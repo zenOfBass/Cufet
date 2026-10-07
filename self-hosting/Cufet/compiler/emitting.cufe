@@ -1,0 +1,242 @@
+/*  Emitting C — the checked program, one statement at a time, as C that calls the runtime
+    (`cufet-runtime.h`, the one `cufet build` links).
+
+    ★ Held to what the program PRINTS, not to the C `CodeGenerator` writes (the user's ruling): the
+    C here may differ from it freely, and each program built is run and compared with the
+    interpreter.
+
+    ★★ `unsupported` rather than a guess. Anything this compiler cannot build yet fails with
+    `unsupported\t<what>`, never with C that might print the right thing — the same claim the
+    checker makes with its own `unsupported`.
+
+    ★ The tree carries no types, so the emitter keeps its own: the kind of each name it has defined,
+    and from those the kind of each expression — as `TypeOf` does in `CodeGenerator`.
+*/
+
+Pull a book on collections.
+    Define object emitter with (the map from text to text kinds, the chase body).
+
+    Bind emitter to fresh-emitter:
+        Return a new emitter { the kinds a map from text to text, the body a chase }.
+    Done.
+
+    /// What this compiler cannot build yet, as a failure message.
+    Bind text to not-built, given (the text what):
+        Return "unsupported\t{what}".
+    Done.
+
+    /// A Cufet name as a C one: hyphens become underscores, which no Cufet name holds, behind a
+    /// prefix that keeps it clear of C's own words.
+    Bind text to c-name, given (the text name):
+        Return "cv_" joined to (replace "-" with "_" in name).
+    Done.
+
+    // ── Expressions ───────────────────────────────────────────────────────
+
+    /// A number as the runtime builds one: its digits, how many of them follow the point, its sign.
+    Bind text or failure to number-literal, given (the text written):
+        Define sign as 0.
+        Define unsigned as written.
+        If unsigned starts with "-":
+            The sign becomes 1.
+            The unsigned becomes the characters from 2 to the end of unsigned.
+        Done.
+        Define scale as 0.
+        Define dot as the position of "." in unsigned.
+        If dot is greater than 0, the scale becomes the length of unsigned - dot.
+        Define digits as replace "." with "" in unsigned.
+        // Nineteen digits fit the low word of the coefficient; more wait for the high one.
+        If the length of digits is greater than 19:
+            Return a failure (cast not-built on ("a number of more than nineteen digits")).
+        Done.
+        // Written without its leading zeros, which C would read as octal.
+        Define coefficient as (digits converted to number but void is 0) converted to text.
+        Return "cufet_dec_lit(0ULL, {coefficient}ULL, {scale}, {sign})".
+    Done.
+
+    /// The kind of value an expression gives: "number", "text" or "fact".
+    Bind text or failure to kind-of unto emitter, given (the node expression):
+        Define kind as expression's kind.
+        Judge kind, where it is:
+            "NumberLiteral", return "number".
+            "StringLiteral" or "TextJoin" or "TextConvert", return "text".
+            "BooleanLiteral", return "fact".
+            "VariableReference":
+                Define known as the entry for cast unquoted on (cast field-of on (expression, 1)) in one's kinds.
+                If known is void, return a failure (cast not-built on ("a name defined where this compiler cannot see it")).
+                Return known.
+            Done.
+            "UnaryExpression":
+                If (cast field-of on (expression, 1))'s word is "Not", return "fact".
+                Return "number".
+            Done.
+            "BinaryExpression":
+                Define operator as (cast field-of on (expression, 2))'s word.
+                If operator is "Plus" or operator is "Minus" or operator is "Star" or operator is "Slash" or operator is "Percent":
+                    Return "number".
+                Done.
+                Return "fact".
+            Done.
+            Otherwise, return a failure (cast not-built on (kind)).
+        Done.
+    Done.
+
+    /// An expression as C.
+    Bind text or failure to c-of unto emitter, given (the node expression):
+        Define kind as expression's kind.
+        Judge kind, where it is:
+            "NumberLiteral", return cast number-literal on ((cast field-of on (expression, 1))'s word) or pass the failure off.
+            // The tree writes a text with C's own escapes, quotes and all.
+            "StringLiteral", return (cast field-of on (expression, 1))'s word.
+            "BooleanLiteral":
+                If (cast field-of on (expression, 1))'s word is "true", return "1".
+                Return "0".
+            Done.
+            "VariableReference":
+                Cast one's kind-of on (expression) or pass the failure off.
+                Return cast c-name on (cast unquoted on (cast field-of on (expression, 1))).
+            Done.
+            "TextJoin":
+                Define left as cast one's c-of on (cast field-of on (expression, 1)) or pass the failure off.
+                Define right as cast one's c-of on (cast field-of on (expression, 2)) or pass the failure off.
+                Return "cufet_str_concat({left}, {right})".
+            Done.
+            "TextConvert", return cast one's c-text-of on (cast field-of on (expression, 1)) or pass the failure off.
+            "UnaryExpression":
+                Define operand as cast one's c-of on (cast field-of on (expression, 2)) or pass the failure off.
+                Define operator as (cast field-of on (expression, 1))'s word.
+                If operator is "Minus", return "cufet_neg({operand})".
+                If operator is "Not", return "(!{operand})".
+                Return a failure (cast not-built on ("the operator {operator}")).
+            Done.
+            "BinaryExpression", return cast one's c-binary on (expression) or pass the failure off.
+            Otherwise, return a failure (cast not-built on (kind)).
+        Done.
+    Done.
+
+    /// An expression as C text, whatever its kind — what `converted to text` and a hole make.
+    Bind text or failure to c-text-of unto emitter, given (the node expression):
+        Define value as cast one's c-of on (expression) or pass the failure off.
+        Define kind as cast one's kind-of on (expression) or pass the failure off.
+        If kind is "number", return "cufet_text_from_dec({value})".
+        If kind is "fact", return "({value} ? \"true\" : \"false\")".
+        Return value.
+    Done.
+
+    Bind text or failure to c-binary unto emitter, given (the node expression):
+        Define left-side as cast field-of on (expression, 1).
+        Define operator as (cast field-of on (expression, 2))'s word.
+        Define left as cast one's c-of on (left-side) or pass the failure off.
+        Define right as cast one's c-of on (cast field-of on (expression, 3)) or pass the failure off.
+        Define at-line as (cast field-of on (expression, 4))'s word.
+        Define left-kind as cast one's kind-of on (left-side) or pass the failure off.
+        If left-kind is "number":
+            Judge operator, where it is:
+                "Plus", return "cufet_add({left}, {right})".
+                "Minus", return "cufet_sub({left}, {right})".
+                "Star", return "cufet_mul({left}, {right})".
+                "Slash", return "cufet_div({left}, {right}, {at-line})".
+                "Percent", return "cufet_mod({left}, {right}, {at-line})".
+                "Equal", return "(cufet_cmp({left}, {right}) == 0)".
+                "NotEqual", return "(cufet_cmp({left}, {right}) != 0)".
+                "Lt", return "(cufet_cmp({left}, {right}) < 0)".
+                "Gt", return "(cufet_cmp({left}, {right}) > 0)".
+                "Lte", return "(cufet_cmp({left}, {right}) <= 0)".
+                "Gte", return "(cufet_cmp({left}, {right}) >= 0)".
+                Otherwise, return a failure (cast not-built on ("the operator {operator} on numbers")).
+            Done.
+        Done.
+        If left-kind is "text":
+            If operator is "Equal", return "(strcmp({left}, {right}) == 0)".
+            If operator is "NotEqual", return "(strcmp({left}, {right}) != 0)".
+            Return a failure (cast not-built on ("the operator {operator} on text")).
+        Done.
+        Judge operator, where it is:
+            "And", return "({left} && {right})".
+            "Or", return "({left} || {right})".
+            "Xor", return "(!!({left}) != !!({right}))".
+            "Equal", return "(!!({left}) == !!({right}))".
+            "NotEqual", return "(!!({left}) != !!({right}))".
+            Otherwise, return a failure (cast not-built on ("the operator {operator} on facts")).
+        Done.
+    Done.
+
+    // ── Statements ────────────────────────────────────────────────────────
+
+    /// The C type a kind of value is held in.
+    Bind text to c-type, given (the text kind):
+        If kind is "number", return "CufetDec".
+        If kind is "fact", return "int".
+        Return "const char*".
+    Done.
+
+    /// The runtime call that writes a value of a kind, without the line's end.
+    Bind text to write-call, given (the text kind, the text value):
+        If kind is "number", return "cufet_write_number({value})".
+        If kind is "fact", return "cufet_write_fact({value})".
+        Return "cufet_write_text({value})".
+    Done.
+
+    Bind void to line unto emitter, given (the text written):
+        Insert "    " into one's body.
+        Insert written into one's body.
+        Insert "\n" into one's body.
+    Done.
+
+    Bind void or failure to emit-statement unto emitter, given (the node statement):
+        Define kind as statement's kind.
+        Judge kind, where it is:
+            "StateStatement":
+                Define said as cast field-of on (statement, 1).
+                Define value as cast one's c-of on (said) or pass the failure off.
+                Define value-kind as cast one's kind-of on (said) or pass the failure off.
+                // Locked for the whole line: a `State` is several writes.
+                Cast one's line on ("cufet_out_lock(); {cast write-call on (value-kind, value)}; cufet_nl(); cufet_out_unlock();").
+            Done.
+            "DefineStatement":
+                // A `permanently` constant, or one declared with a type, waits for a later slice.
+                If cast is-nothing on (cast field-of on (statement, 7)) is false:
+                    Return a failure (cast not-built on ("a Define declared with a type")).
+                Done.
+                If (cast field-of on (statement, 3))'s word is "true":
+                    Return a failure (cast not-built on ("a permanent Define")).
+                Done.
+                Define name as cast unquoted on (cast field-of on (statement, 1)).
+                Define assigned as cast field-of on (statement, 2).
+                Define value as cast one's c-of on (assigned) or pass the failure off.
+                Define value-kind as cast one's kind-of on (assigned) or pass the failure off.
+                In one's kinds, the entry for name becomes value-kind.
+                Cast one's line on ("{cast c-type on (value-kind)} {cast c-name on (name)} = {value};").
+            Done.
+            "BecomesStatement":
+                Define name as cast unquoted on (cast field-of on (statement, 1)).
+                If (the entry for name in one's kinds) is void:
+                    Return a failure (cast not-built on ("a name defined where this compiler cannot see it")).
+                Done.
+                Define value as cast one's c-of on (cast field-of on (statement, 2)) or pass the failure off.
+                Cast one's line on ("{cast c-name on (name)} = {value};").
+            Done.
+            Otherwise, return a failure (cast not-built on (kind)).
+        Done.
+    Done.
+
+    /// The whole program as one C file.
+    Bind text or failure to c-program, given (the node program):
+        Define writer as cast fresh-emitter.
+        For each statement in program's children, repeat:
+            Cast writer's emit-statement on (statement) or pass the failure off.
+        Done.
+        Define out as a chase.
+        Insert "#include \"cufet-runtime.h\"\n\n" into out.
+        Insert "int main(int argc, char** argv) \{\n" into out.
+        Insert "    cufet_set_args(argc, argv);\n" into out.
+        Insert "    CUFET_STDOUT_BINARY();\n" into out.
+        Insert "    cufet_watch_stack();\n" into out.
+        Insert "    cufet_arena_push();\n" into out.
+        Insert writer's body converted to text into out.
+        Insert "    cufet_arena_pop();\n" into out.
+        Insert "    return 0;\n" into out.
+        Insert "\}\n" into out.
+        Return out converted to text.
+    Done.
+Done.

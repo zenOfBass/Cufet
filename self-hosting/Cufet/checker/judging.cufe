@@ -1284,6 +1284,20 @@ Pull a book on collections.
     /// `ok` — and with `with-tree`, the checked program after it, one statement to a line.
     Bind text or failure to checked, given (the node program, the series of node prelude, the fact with-tree,
             the text source-file, the map from text to node shared-trees):
+        Define handed-on as cast checked-tree on (program, prelude, source-file, shared-trees) or pass the failure off.
+        If with-tree is false, return "ok".
+        Define out as a chase.
+        Insert "ok" into out.
+        For each statement in handed-on's children, repeat:
+            Insert "\n" into out.
+            Insert cast shown-tree on (statement) into out.
+        Done.
+        Return out converted to text.
+    Done.
+
+    /// The program as checking hands it on — what `--tree` prints, and what the compiler is given.
+    Bind node or failure to checked-tree, given (the node program, the series of node prelude,
+            the text source-file, the map from text to node shared-trees):
         Define walker as cast fresh-checker on (prelude).
         The walker's source-file becomes source-file.
         The walker's shared-trees becomes shared-trees.
@@ -1295,13 +1309,6 @@ Pull a book on collections.
         In case of failure:
             Return a failure (cast walker's source-rewritten on (cast walker's written-names on (the message of the failure))).
         Done.
-        If with-tree is false, return "ok".
-        Define out as a chase.
-        Insert "ok" into out.
-        For each statement in walker's checked-program's children, repeat:
-            Insert "\n" into out.
-            Insert cast shown-tree on (statement) into out.
-        Done.
-        Return out converted to text.
+        Return walker's checked-program.
     Done.
 Done.

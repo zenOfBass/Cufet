@@ -1,0 +1,154 @@
+/*  The Cufet compiler, written in Cufet.
+
+        cufet self-hosting/Cufet/compiler/compiler.cufe --runtime <folder> [--prelude <folder>] <file.cufe> [more…]
+
+    Builds each file into a program beside it — `<name>.c`, then `<name>` (`<name>.exe` on Windows) —
+    and prints one line for each, after its `file` header:
+
+        built                   the program was built
+        refused <message>       the parser or the checker refused it (a line break written `\n`)
+        unsupported <what>      this compiler cannot build it yet
+        gcc     <message>       the C it wrote did not compile — always this compiler's fault
+
+    `--runtime` names the folder holding `cufet-runtime.c` and `cufet-runtime.h`, the runtime every
+    built program links; it is compiled there once, into `cufet-runtime.o`, and reused.
+
+    ★★ Held to what the program PRINTS — `CompilerParityTests` runs each one and compares it with the
+    interpreter. The C it writes may differ from `CodeGenerator`'s freely.
+*/
+
+Pull a book on collections.
+    /// A message on one line, the way the parity test reads it.
+    Bind text to flattened, given (the text raw):
+        Define flat as replace "\\" with "\\\\" in raw.
+        The flat becomes replace "\r" with "" in flat.
+        Return replace "\n" with "\\n" in flat.
+    Done.
+
+    /// Whether this runs on Windows, which names a program `.exe` and keeps sockets in a library of
+    /// their own. Windows always sets `OS`.
+    Bind fact to on-windows:
+        Return (the environment variable "OS" but void is "") is "Windows_NT".
+    Done.
+
+    /// The runtime compiled once into an object beside its source, so each program only links it.
+    Bind text or failure to runtime-object, given (the text folder):
+        Define object-path as "{folder}/cufet-runtime.o".
+        If the path object-path exists, return object-path.
+        Define flags as a series of text with ("-c", "{folder}/cufet-runtime.c", "-o", object-path, "-O2", "-pthread").
+        Define outcome as run "gcc" with arguments flags or pass the failure off.
+        If the exit-code of outcome is not 0:
+            Return a failure "gcc\t{cast flattened on (the errors of outcome)}".
+        Done.
+        Return object-path.
+    Done.
+
+    /// One file built, or why not — the line printed for it.
+    Bind text to built, given (the text source-file, the series of node prelude, the text runtime-folder,
+            the map from text to node shared-trees):
+        Define whole as read all from the file source-file but on failure "".
+        Define parsed as cast listed.
+        Try to:
+            The parsed becomes cast parser's program-tree on (whole).
+        Done.
+        In case of failure:
+            Return "refused\t{cast flattened on (the message of the failure)}".
+        Done.
+        Define handed-on as cast listed.
+        Try to:
+            The handed-on becomes cast checker's checked-tree on (parsed, prelude, cast checker's full-path on (source-file), shared-trees).
+        Done.
+        In case of failure:
+            Define said as the message of the failure.
+            If said starts with "unsupported\t", return "unsupported\tthe checker: {cast flattened on (the characters from 13 to the end of said)}".
+            If said starts with "error\t", the said becomes the characters from 7 to the end of said.
+            Return "refused\t{cast flattened on (said)}".
+        Done.
+        Define source as "".
+        Try to:
+            The source becomes cast c-program on (handed-on).
+        Done.
+        In case of failure:
+            Return the message of the failure.
+        Done.
+
+        // `<folder>/<name>.cufe` becomes `<folder>/<name>.c` and the program beside it.
+        Define stem as source-file.
+        If stem ends with ".cufe", the stem becomes the characters from 1 to (the length of stem - 5) of stem.
+        Define c-file as "{stem}.c".
+        Define program-file as stem.
+        If cast on-windows, the program-file becomes "{stem}.exe".
+        Try to:
+            Write source to the file c-file.
+        Done.
+        In case of failure:
+            Return "crash\tcould not write {c-file}: {the message of the failure}".
+        Done.
+        Define linked as cast runtime-object on (runtime-folder) but on failure "".
+        If linked is "", return "gcc\tthe runtime in '{runtime-folder}' did not compile".
+        Define flags as a series of text with (c-file, linked, "-I", runtime-folder, "-o", program-file,
+            "-O2", "-pthread", "-lm").
+        If cast on-windows, insert "-lws2_32" into flags.
+        Define outcome as run "gcc" with arguments flags but on failure void.
+        If outcome is void, return "gcc\tgcc could not be started".
+        If the exit-code of outcome is not 0:
+            Return "gcc\t{cast flattened on (the errors of outcome)}".
+        Done.
+        Return "built".
+    Done.
+
+    // `--prelude <folder>` says where the bundled books' source is; run from the repository, it is found.
+    Define prelude-folder as "src/Interpreter/Prelude".
+    Define runtime-folder as "".
+    Define files as a series of text.
+    Define taking as "".
+    For each passed in the arguments, repeat:
+        If taking is "prelude":
+            The prelude-folder becomes passed.
+            The taking becomes "".
+        Done.
+        Otherwise if taking is "runtime":
+            The runtime-folder becomes passed.
+            The taking becomes "".
+        Done.
+        Otherwise if passed is "--prelude":
+            The taking becomes "prelude".
+        Done.
+        Otherwise if passed is "--runtime":
+            The taking becomes "runtime".
+        Done.
+        Otherwise:
+            Insert passed into files.
+        Done.
+    Done.
+    // ⚠ Loud, not empty: with no runtime nothing could be linked, and with no prelude every pull of a
+    // bundled book would be refused in words that look like a real answer.
+    If runtime-folder is "" or (the path "{runtime-folder}/cufet-runtime.h" exists) is false:
+        State "crash\tno runtime was found — pass --runtime <folder> holding cufet-runtime.c and cufet-runtime.h".
+        Exit with 1.
+    Done.
+    Define prelude as cast checker's prelude-definitions on (prelude-folder).
+    If the number of prelude is 0:
+        State "crash\tno bundled books were found in '{prelude-folder}' — pass --prelude <folder>".
+        Exit with 1.
+    Done.
+
+    Define shared-trees as a map from text to node.
+    For each name in files, repeat:
+        State "file\t{name}".
+        Cast checker's share-project-trees on (cast checker's full-path on (name), shared-trees).
+        // Each file in a region of its own, as the checker does, so what building it made is gone before the next.
+        Pull a rabbit.
+            Try to:
+                State cast built on (name, prelude, runtime-folder, shared-trees).
+            Done.
+            In case of failure:
+                State "crash\t{cast flattened on (the message of the failure)}".
+            Done.
+            In case of exception:
+                State "crash\t{cast flattened on (the message of the exception)}".
+                Suppress the exception.
+            Done.
+        Done.
+    Done.
+Done.
