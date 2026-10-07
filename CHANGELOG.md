@@ -47,7 +47,7 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   and two interfaces supplying one default. A sweep of 7,637 such programs agreed on every one.
 - **The type checker, begun in Cufet** — `self-hosting/front-end/checker/checker.cufe`, the third
   piece. It says of each file what `TypeChecker.Check` says — accepted, or refused in the same words
-  — and `CheckerParityTests` holds it to that on 978 hand-written programs and on the corpus. It
+  — and `CheckerParityTests` holds it to that on 999 hand-written programs and on the corpus. It
   judges names and scopes, `Define` and `becomes`, operators, text and its operations, bit patterns,
   series, ranges, sorting, records, maps, sets, chases, matrices, the `chance` book, voidables,
   unions and narrowing, `Judge`, `when … otherwise`, versions of one name told apart by type or by a
@@ -60,7 +60,7 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   input and output: files, directories, streams, running programs and piping them, and pipes of
   functions, and axioms: regex patterns, c-language source at its boundary, and cufet blocks placed
   by `Cite`. Anything it cannot judge yet it says so about, rather than accepting — and it judges
-  every one of the 135 corpus files, each checked where it sits, as `cufet check` checks it: inside a
+  every one of the 137 corpus files, each checked where it sits, as `cufet check` checks it: inside a
   project its folder and the folders above it are part of its program, a folder or namespace it
   qualifies is loaded under its own names, a book is loaded from the file beside it, and the blueprint's
   drawing of the tree is read and held to its rules. With `--tree` it also prints the program it hands on, which C#
@@ -70,7 +70,11 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   are — what generics hand on: the templates taken out, the fillings in their place, each call and
   literal naming the filling it reached — and every burying function rebuilt as the machine of steps
   a stash runs on. The test compares that with C#'s, the bundled books left out, and every file and
-  hand-written program both accept hands back the same tree: 131 corpus files and 242 programs.
+  hand-written program both accept hands back the same tree: 133 corpus files and 263 programs. And it says
+  what `cufet check` warns of a program that runs, in the same words after `ok` — a keyword opening a
+  line in lowercase, one bare-`it` loop inside another, the directory changed after a task started, a
+  type definition a later one replaces, and a judgement arm that can never run — held to that on 18
+  programs that draw a warning and the near misses beside them.
 
 ### Changed
 

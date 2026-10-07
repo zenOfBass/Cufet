@@ -19,15 +19,7 @@ version, and 1.0.0 will mark the point at which the language is considered stabl
 
 The ordering is not ceremonial: this tier's real blocker is stated below as **ergonomic rather than capability**, and the only way to find ergonomic blockers is to write large Cufet programs. They are the instrument as much as they are the goal — better to meet the gaps one program at a time than to meet all of them at once inside a compiler.
 
-1. **The type checker, written in Cufet — in progress.** `self-hosting/front-end/checker/checker.cufe` says of
-    each program what `TypeChecker.Check` says: accepted, or refused in the same words, held there
-    by `CheckerParityTests`. The lexer and parser it reads are done (see CHANGELOG). Left to judge:
-    tasks and channels, axioms, `when` dispatch, operator overloads, function-typed fields and
-    lambdas, book types — then the checked TREE, which needs the lowering passes, then warnings.
-    ★ It is the instrument this tier's introduction asks for: what it costs to write is recorded
-    under *Deferred* as it is met.
-
-2. **The compiler, written in Cufet.** The blockers are ergonomic rather than capability: the
+1. **The compiler, written in Cufet.** The blockers are ergonomic rather than capability: the
     data model, text handling and I/O are already sufficient, and emitting C is a route a
     Cufet-written compiler can take too.
 
@@ -56,7 +48,7 @@ The ordering is not ceremonial: this tier's real blocker is stated below as **er
     ★ Nothing is privileged in the meantime — `and region` gives every region the same `bury` the
     rabbit gets — so this is a self-hosting debt, not an asymmetry.
 
-3. **Compile-time macros — the `cufet` tag's expander.** Not a third program. It is here 
+2. **Compile-time macros — the `cufet` tag's expander.** Not a third program. It is here 
     rather than in *Deferred* because its blocker is a numbered item above, not something off the list.
 
     Hygienic, expanding to Cufet AST before the checker runs — *not* fexprs, which are first-class and runtime. It is one tag of the BLOCKS type rather than a feature of its own: quoted Cufet and
@@ -80,7 +72,7 @@ The ordering is not ceremonial: this tier's real blocker is stated below as **er
     ⚠ **Open, to settle on paper first:** typed holes want types checked BEFORE expansion (as Nim's
     typed macros do), and this entry says the expander runs before the checker.
 
-    ⚠ **Its blocker is item 2 above.** An expander generates Cufet AST, so building one in C# now means building it again in Cufet later. Macro errors are the worst part of every language that has them, and clear errors are this language's distinguishing feature — that tax is still paid deliberately, not early.
+    ⚠ **Its blocker is item 1 above.** An expander generates Cufet AST, so building one in C# now means building it again in Cufet later. Macro errors are the worst part of every language that has them, and clear errors are this language's distinguishing feature — that tax is still paid deliberately, not early.
 
     ★ Fexprs stay out, but the recorded reason was the weaker one. Wand's result (no two expressions
     ever equivalent, taking out `check` and monomorphization) is true; the **decisive** reason is that a compiled Cufet binary is standalone C, so running a Cufet block at run time needs a Cufet
