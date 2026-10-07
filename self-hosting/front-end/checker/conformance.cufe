@@ -127,7 +127,7 @@ Pull a book on collections.
     // ── Gathering them ────────────────────────────────────────────────────
 
     Bind void to hoist-interfaces unto checker, given (the node program):
-        For each statement in cast hoistable on (program), repeat:
+        For each statement in cast declared-anywhere on (program), repeat:
             If statement's kind is "InterfaceDefinition":
                 In one's interfaces, the entry for cast unquoted on (cast field-of on (statement, 1)) becomes statement.
             Done.

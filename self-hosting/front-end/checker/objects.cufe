@@ -38,7 +38,7 @@ Pull a book on collections.
         Return "".
     Done.
 
-    /// A method bound `unto` a type, standing at the top level or in a pull.
+    /// A method bound `unto` a type, wherever it stands.
     Bind text to unto-beyond-reach, given (the node statement):
         Define reach as cast bind-beyond-reach on (statement).
         If reach is not "a method bound 'unto' a type", return reach.
@@ -240,7 +240,7 @@ Pull a book on collections.
     /// Every object type, registered before anything is checked. A name that belongs to a book
     /// the language ships is refused; a second definition of any other name replaces the first.
     Bind void or failure to hoist-objects unto checker, given (the node program):
-        For each statement in cast hoistable on (program), repeat:
+        For each statement in cast declared-anywhere on (program), repeat:
             // A method is filed under its type's name; a getter under `get <type>`, a setter under `set <type>`.
             Define unto-place as 0.
             Define unto-row as 0.
@@ -282,7 +282,7 @@ Pull a book on collections.
             Done.
         Done.
         Define claimed as a map from text to fact.
-        For each statement in cast hoistable on (program), repeat:
+        For each statement in cast declared-anywhere on (program), repeat:
             If statement's kind is "ObjectDefinition":
                 Define name as cast def-name on (statement).
                 If cast is-bundled-module on (name) or (name in lowercase) is "rabbit":
