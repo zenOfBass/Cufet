@@ -33,10 +33,10 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
     private const int TreeFloor = 133;
 
     /// <summary>The same, of the hand-written programs both checkers accept.</summary>
-    private const int HandWrittenTreeFloor = 263;
+    private const int HandWrittenTreeFloor = 279;
 
     /// <summary>How many hand-written programs draw warnings and are warned of alike. Raised; never lowered.</summary>
-    private const int HandWrittenWarnedFloor = 18;
+    private const int HandWrittenWarnedFloor = 20;
 
     /// <summary>Where the bundled books' source is — the checker reads their layers with its own parser.</summary>
     private static string[] PreludeArgs =>
@@ -1149,6 +1149,34 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
         "Define flag as true.\nJudge flag, where it is:\n    true, state 1.\n    true, state 2.\n    Otherwise, state 3.\nDone.",
         "Define n as 1.\nJudge n, where it is:\n    -2.50, state 1.\n    -2.5 or 3, state 2.\n    Otherwise, state 3.\nDone.",
         "Define word as \"cd\".\nJudge word, where it is:\n    \"cd\", state 1.\n    \"ls\", state 2.\n    Otherwise, state 3.\nDone.",
+        // Types defined below the top level - an object or interface inside a function, method, If, While, Judge or task.
+        "Bind number to area, given (the number side):\n    Define object square with (the number edge).\n    Define s as a new square { the edge side }.\n    Return s's edge * s's edge.\nDone.\nState cast area on (3).",
+        "Bind void to setup:\n    Define object square with (the number edge).\nDone.\nDefine s as a new square { the edge 2 }.\nState s's edge.",
+        "Define s as a new square { the edge 2 }.\nIf 1 is 1:\n    Define object square with (the number edge).\nDone.\nState s's edge.",
+        "Define n as 0.\nWhile n is less than 1, repeat:\n    Define object tally with (the number count).\n    Increment n by 1.\nDone.\nDefine t as a new tally { the count 3 }.\nState t's count.",
+        "Define object box with (the number size):\n    Bind number to doubled:\n        Define object pair with (the number left, the number right).\n        Define p as a new pair { the left one's size, the right one's size }.\n        Return p's left + p's right.\n    Done.\nDone.\nDefine b as a new box { the size 2 }.\nState cast b's doubled.",
+        "Bind void to setup:\n    Define shape as an interface for { The number function area }.\nDone.\nDefine object square with (the number edge) and shape:\n    Bind number to area:\n        Return one's edge * one's edge.\n    Done.\nDone.\nDefine s as a new square { the edge 3 }.\nState cast s's area.",
+        "Bind void to setup:\n    Define object square with (the number edge with default \"wide\").\nDone.\nState 1.",
+        "Bind void to setup:\n    Define object square with (the widget edge).\nDone.\nState 1.",
+        "Define object square with (the number edge).\nBind void to setup:\n    Define object square with (the number side).\nDone.\nDefine s as a new square { the side 2 }.\nState s's side.",
+        "Bind void to setup:\n    Define object square with (the number side).\nDone.\nDefine object square with (the number edge).\nDefine s as a new square { the edge 2 }.\nState s's edge.",
+        "Bind number to area, given (the number side):\n    Define object square with (the number edge):\n        Bind number to scaled:\n            Return one's edge * side.\n        Done.\n    Done.\n    Define s as a new square { the edge 2 }.\n    Return cast s's scaled.\nDone.\nState cast area on (3).",
+        "Bind void to setup:\n    Define object square with (the number edge):\n        Bind number to doubled:\n            Return \"two\".\n        Done.\n    Done.\nDone.\nState 1.",
+        "Pull a rabbit.\n    Have rabbit start a task:\n        Define object note with (the text said).\n        Define n as a new note { the said \"hi\" }.\n        State n's said.\n    Done.\nDone.",
+        "Bind void to setup:\n    Define object holder of element with (the element held).\nDone.\nDefine h as a new holder of number { the held 2 }.\nState h's held.",
+        "Bind void to setup:\n    Define object square with (the number edge).\nDone.\nBind number to area unto square:\n    Return one's edge * one's edge.\nDone.\nDefine s as a new square { the edge 3 }.\nState cast s's area.",
+        "Bind void to setup:\n    Define object collections with (the number edge).\nDone.\nState 1.",
+        "Define n as 1.\nJudge n, where it is:\n    1:\n        Define object one-ish with (the number held).\n    Done.\n    Otherwise, state 0.\nDone.\nDefine o as a new one-ish { the held 1 }.\nState o's held.",
+        "Bind void to setup:\n    Define object square with (the number edge).\nDone.\nBind number to area, given (the square shape):\n    Return shape's edge * shape's edge.\nDone.\nState cast area on (a new square { the edge 4 }).",
+        // Members bound unto a type below the top level, as C# gathers them from anywhere.
+        "Define object square with (the number edge).\nBind void to setup:\n    Bind number to area unto square:\n        Return one's edge * one's edge.\n    Done.\nDone.\nDefine s as a new square { the edge 3 }.\nState cast s's area.",
+        "Define object square with (the number edge).\nBind void to setup:\n    Bind number to area unto square:\n        Return \"wide\".\n    Done.\nDone.\nState 1.",
+        "Define object square with (the number edge):\n    Bind number to area:\n        Return one's edge * one's edge.\n    Done.\nDone.\nBind void to setup:\n    Bind number to area unto square:\n        Return 0.\n    Done.\nDone.\nState 1.",
+        "Bind void to setup:\n    Bind number to area unto widget:\n        Return 0.\n    Done.\nDone.\nState 1.",
+        "Bind void to setup:\n    Bind number to area unto collections:\n        Return 0.\n    Done.\nDone.\nState 1.",
+        "Bind number to measure:\n    Define object square with (the number edge).\n    Bind number to area unto square:\n        Return one's edge * one's edge.\n    Done.\n    Define s as a new square { the edge 4 }.\n    Return cast s's area.\nDone.\nState cast measure.",
+        "Define shape as an interface for { The number function area, The text function describe }.\nBind void to setup:\n    Bind text to describe unto shape:\n        Return \"area {(cast area on one) converted to text}\".\n    Done.\nDone.\nDefine object square with (the number side) and shape.\nBind number to area unto square:\n    Return one's side * one's side.\nDone.\nState cast describe on (a new square { the side 5 }).",
+        "Define object square with (the number edge).\nBind void to setup:\n    Get area unto square as number:\n        Return one's edge * one's edge.\n    Done.\nDone.\nDefine s as a new square { the edge 3 }.\nState s's area.",
     ];
 
     /// <remarks>
