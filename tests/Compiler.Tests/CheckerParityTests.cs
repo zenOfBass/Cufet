@@ -27,13 +27,16 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
     : IClassFixture<CompiledCufetChecker>
 {
     /// <summary>How many corpus files must agree. Raised as the checker grows; never lowered.</summary>
-    private const int CorpusFloor = 136;
+    private const int CorpusFloor = 137;
 
     /// <summary>How many corpus files' CHECKED TREES must match, of those both checkers accept. Raised; never lowered.</summary>
-    private const int TreeFloor = 132;
+    private const int TreeFloor = 133;
 
     /// <summary>The same, of the hand-written programs both checkers accept.</summary>
-    private const int HandWrittenTreeFloor = 242;
+    private const int HandWrittenTreeFloor = 263;
+
+    /// <summary>How many hand-written programs draw warnings and are warned of alike. Raised; never lowered.</summary>
+    private const int HandWrittenWarnedFloor = 18;
 
     /// <summary>Where the bundled books' source is — the checker reads their layers with its own parser.</summary>
     private static string[] PreludeArgs =>
@@ -1124,6 +1127,28 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
         "Define object ticker with (the number first).\nBind number to ticks unto ticker, given (the rabbit helper):\n    Define n as one's first.\n    While n is less than one's first + 2, repeat:\n        Have helper bury n.\n        Increment n by 1.\n    Done.\nDone.\nDefine clock as a new ticker { the first 5 }.\nPull a rabbit as hopper.\n    For each got in cast clock's ticks on (hopper), repeat:\n        State got.\n    Done.\nDone.",
         "Bind number to inner-one, given (the rabbit helper):\n    Have helper bury 1.\n    Have helper bury 2.\nDone.\nBind number to outer-one, given (the rabbit helper, the stash of number source):\n    For each got in source, repeat:\n        Have helper bury got * 10.\n    Done.\nDone.\nPull a rabbit as hopper.\n    For each got in cast outer-one on (hopper, cast inner-one on (hopper)), repeat:\n        State got.\n    Done.\nDone.",
         "Bind number to total, given (the number n):\n    Bind number to upward, given (the rabbit helper):\n        Have helper bury n.\n    Done.\n    Define sum as 0.\n    Pull a rabbit as hopper.\n        For each got in cast upward on (hopper), repeat:\n            Increment sum by got.\n        Done.\n    Done.\n    Return sum.\nDone.\nState cast total on (4).",
+        // Style warnings — a lowercase keyword opening a line (and the wrapped, mid-line and article-led near misses), nested bare-it loops, a directory changed after a task starts, a type definition replaced, and a judgement arm that can never run — by value, number, bit pattern, fact and type, and with nothing repeated.
+        "define x as 1.\nstate x.",
+        "If 1 is 1,\n    state \"one\".",
+        "Define x as 1. state x.",
+        "Bind number to doubled, given (the number n):\n    return n * 2.\nDone.\nState cast doubled on (2).",
+        "If 1 is 1:\n    state \"yes\".\nDone.",
+        "Define total as 1.\nthe total becomes 2.\nState total.",
+        "Define xs as a series of number with (1, 2).\nFor each in xs, repeat:\n    For each in xs, repeat:\n        State it.\n    Done.\nDone.",
+        "Define xs as a series of number with (1, 2).\nFor each in xs, repeat:\n    For each y in xs, repeat:\n        State y.\n    Done.\nDone.",
+        "Define xs as a series of number with (1, 2).\nFor each in xs, repeat:\n    If it is 1:\n        For each in xs, repeat:\n            State it.\n        Done.\n    Done.\nDone.",
+        "Define xs as a series of number with (1, 2).\nBind void to show-all, given (the series of number ys):\n    For each in ys, repeat:\n        State it.\n    Done.\nDone.\nFor each in xs, repeat:\n    Cast show-all on (xs).\nDone.",
+        "Pull a rabbit.\n    Have rabbit start a task:\n        State 1.\n    Done.\n    The current directory becomes \".\".\nDone.",
+        "Pull a rabbit.\n    The current directory becomes \".\".\n    Have rabbit start a task:\n        State 1.\n    Done.\nDone.",
+        "Define object point with (the number x).\nDefine object point with (the number y).\nDefine object point with (the number z).\nDefine p as a new point { the z 1 }.\nState p's z.",
+        "Define object marker with (the number x).\nPull a rabbit.\n    Define object marker with (the number y).\nDone.\nState 1.",
+        "Define word as \"cd\".\nJudge word, where it is:\n    \"cd\", state 1.\n    \"ls\" or \"cd\", state 2.\n    Otherwise, state 3.\nDone.",
+        "Define n as 1.\nJudge n, where it is:\n    1.5, state 1.\n    1.50, state 2.\n    Otherwise, state 3.\nDone.",
+        "Define b as 0xFF.\nJudge b, where it is:\n    0xFF, state 1.\n    0b11111111, state 2.\n    Otherwise, state 3.\nDone.",
+        "Bind void to describe, given (the (number or text) held):\n    Judge held, where it is:\n        a number or a text, state 1.\n        a text, state 2.\n    Done.\nDone.\nCast describe on (1).",
+        "Define flag as true.\nJudge flag, where it is:\n    true, state 1.\n    true, state 2.\n    Otherwise, state 3.\nDone.",
+        "Define n as 1.\nJudge n, where it is:\n    -2.50, state 1.\n    -2.5 or 3, state 2.\n    Otherwise, state 3.\nDone.",
+        "Define word as \"cd\".\nJudge word, where it is:\n    \"cd\", state 1.\n    \"ls\", state 2.\n    Otherwise, state 3.\nDone.",
     ];
 
     /// <remarks>
@@ -1139,6 +1164,7 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
         var got = RunOnSources(sources, "judged", ["--tree"]);
         Check(got, sources, sources.Count, "on hand-written programs");
         CheckTrees(got, sources, HandWrittenTreeFloor, "on hand-written programs");
+        CheckWarnings(got, sources, HandWrittenWarnedFloor, "on hand-written programs");
     }
 
     // ── The corpus ──────────────────────────────────────────────────────────
@@ -1170,6 +1196,7 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
         var sources = Parsed(files.Select(n => (n, File.ReadAllText(Path.Combine(RepoRoot, n)))));
         CheckTrees(CorpusRun(files), sources, TreeFloor, "on the corpus",
                    located: true);
+        CheckWarnings(CorpusRun(files), sources, 0, "on the corpus", located: true);
     }
 
     /// <summary>The compiled checker over the corpus, under `--tree` — run ONCE for both corpus tests.</summary>
@@ -1199,7 +1226,7 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
             if (!got.TryGetValue(name, out var lines) || lines.Count == 0 || lines[0] != "ok") continue;
             accepted++;
             var want = (located ? CheckerAnswer.CheckedTreeAt(at) : CheckerAnswer.CheckedTree(source))!;
-            var have = string.Join("\n", lines.Skip(1));
+            var have = string.Join("\n", lines.Skip(1).Where(l => !l.StartsWith("warning\t", StringComparison.Ordinal)));
             if (have == want) matched++;
             else problems.Add($"{name}:\n    C#:    {Clipped(want)}\n    Cufet: {Clipped(have)}");
         }
@@ -1210,4 +1237,30 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
     }
 
     private static string Clipped(string tree) => tree.Length > 300 ? tree[..300] + "…" : tree;
+
+    /// <summary>Every file both checkers accept is warned of alike — the same warnings, in the same order.</summary>
+    /// <remarks>
+    /// ★ The third layer of the answer key: what `cufet check` says of a program that runs. The
+    /// warnings follow `ok`, before any tree. <paramref name="floor"/> counts the files that drew at
+    /// least one warning and matched — the corpus draws none, so the hand-written programs carry it.
+    /// </remarks>
+    private void CheckWarnings(Dictionary<string, List<string>> got, IReadOnlyList<(string Name, string Source)> files,
+                               int floor, string how, bool located = false)
+    {
+        int warned = 0;
+        var problems = new List<string>();
+        foreach (var (name, source) in files)
+        {
+            if (!got.TryGetValue(name, out var lines) || lines.Count == 0 || lines[0] != "ok") continue;
+            var at = Path.Combine(RepoRoot, name);
+            var want = located ? CheckerAnswer.ExpectedWarningsAt(at) : CheckerAnswer.ExpectedWarnings(source);
+            var have = lines.Skip(1).Where(l => l.StartsWith("warning\t", StringComparison.Ordinal)).ToList();
+            if (want.SequenceEqual(have)) { if (want.Count > 0) warned++; continue; }
+            problems.Add($"{name}:\n    C#:    {string.Join(" | ", want)}\n    Cufet: {string.Join(" | ", have)}");
+        }
+        output.WriteLine($"warnings {how}: {warned} warned files match.");
+        Assert.True(problems.Count == 0,
+            $"{problems.Count} files are warned of differently {how}:\n{string.Join("\n", problems.Take(10))}");
+        Assert.True(warned >= floor, $"only {warned} warned files match {how}, and the floor is {floor}.");
+    }
 }

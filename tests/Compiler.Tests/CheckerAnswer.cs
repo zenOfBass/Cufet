@@ -51,6 +51,9 @@ public static class CheckerAnswer
     /// <summary><see cref="CheckedTree"/> for the file at <paramref name="path"/>, checked where it sits.</summary>
     public static string? CheckedTreeAt(string path) => Located(path).Tree;
 
+    /// <summary><see cref="ExpectedWarnings"/> for the file at <paramref name="path"/>, checked where it sits.</summary>
+    public static List<string> ExpectedWarningsAt(string path) => Located(path).Warnings;
+
     /// <summary>One check of the file where it sits — its verdict, and its tree when it is accepted.</summary>
     /// <remarks>
     /// ★ Remembered for the run, by full path: the corpus tests asked for the verdict twice and the
@@ -59,22 +62,27 @@ public static class CheckerAnswer
     /// ⚠ Safe only because nothing writes the corpus while the suite runs — the same assumption every
     /// corpus test already makes when it reads a file once and compares later.
     /// </remarks>
-    private static (string Verdict, string? Tree) Located(string path) =>
-        LocatedChecks.GetOrAdd(Path.GetFullPath(path), full => new Lazy<(string, string?)>(() => CheckLocated(full))).Value;
+    private static (string Verdict, string? Tree, List<string> Warnings) Located(string path) =>
+        LocatedChecks.GetOrAdd(Path.GetFullPath(path),
+            full => new Lazy<(string, string?, List<string>)>(() => CheckLocated(full))).Value;
 
-    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Lazy<(string, string?)>> LocatedChecks =
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Lazy<(string, string?, List<string>)>> LocatedChecks =
         new(StringComparer.OrdinalIgnoreCase);
 
-    private static (string Verdict, string? Tree) CheckLocated(string full)
+    private static (string Verdict, string? Tree, List<string> Warnings) CheckLocated(string full)
     {
         Cufet.Interpreter.Program program;
+        IReadOnlyList<Cufet.Lexer.Token> tokens;
+        Parser parser;
         try
         {
-            program = new Parser(new CufetLexer(File.ReadAllText(full)).Tokenize()).Parse();
+            tokens = new CufetLexer(File.ReadAllText(full)).Tokenize();
+            parser = new Parser(tokens);
+            program = parser.Parse();
         }
         catch (Exception e) when (e is ParseException or Cufet.Lexer.LexerException)
         {
-            return ("parse", null);
+            return ("parse", null, []);
         }
         var checker = new TypeChecker { SourceDirectory = Path.GetDirectoryName(full), SourceFile = full };
         try
@@ -82,15 +90,15 @@ public static class CheckerAnswer
             var checkedProgram = checker.Check(program);
             return ("ok", string.Join("\n", checkedProgram.Statements
                 .Where(s => !TypeChecker.IsFromPrelude(s))
-                .Select(ParserTreePrinter.Show)));
+                .Select(ParserTreePrinter.Show)), Warnings(checker, tokens, parser, program));
         }
         catch (TypeException e)
         {
-            return ($"error\t{OneLine(Rewritten(e.Message, checker.Sources))}", null);
+            return ($"error\t{OneLine(Rewritten(e.Message, checker.Sources))}", null, []);
         }
         catch (Exception e) when (e is ParseException or Cufet.Lexer.LexerException)
         {
-            return ("parse", null);
+            return ("parse", null, []);
         }
     }
 
@@ -121,6 +129,34 @@ public static class CheckerAnswer
             return null;
         }
     }
+
+    /// <summary>What `cufet check` warns of a program it accepts, each `warning\t<line>:<column>\t<message>`.</summary>
+    /// <remarks>
+    /// ★ The checker's own diagnostics, then the linter's — read from the program AS WRITTEN, with
+    /// the tokens and statement starts its parse produced, exactly as `cufet check` reads them.
+    /// Empty when the program is refused: advice is only given about a program that runs.
+    /// </remarks>
+    public static List<string> ExpectedWarnings(string source)
+    {
+        try
+        {
+            var tokens = new CufetLexer(source).Tokenize();
+            var parser = new Parser(tokens);
+            var program = parser.Parse();
+            var checker = new TypeChecker();
+            checker.Check(program);
+            return Warnings(checker, tokens, parser, program);
+        }
+        catch (Exception e) when (e is ParseException or Cufet.Lexer.LexerException or TypeException)
+        {
+            return [];
+        }
+    }
+
+    private static List<string> Warnings(TypeChecker checker, IReadOnlyList<Cufet.Lexer.Token> tokens, Parser parser,
+                                         Cufet.Interpreter.Program written) =>
+        [.. checker.Diagnostics.Items.Concat(Linter.Lint(tokens, parser.StatementStarts, written))
+            .Select(w => $"warning\t{w.Line}:{w.Column}\t{OneLine(w.Message)}")];
 
     /// <summary>A message's line breaks written `\n`, and its backslashes doubled so they stay apart.</summary>
     public static string OneLine(string message) =>
