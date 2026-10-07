@@ -3,7 +3,7 @@ using CufetLexer = Cufet.Lexer.Lexer;
 
 namespace Cufet.Compiler.Tests;
 
-/// <summary>What the C# checker says of a program, printed the way `self-hosting/front-end/checker/checker.cufe` prints it.</summary>
+/// <summary>What the C# checker says of a program, printed the way `self-hosting/Cufet/checker/checker.cufe` prints it.</summary>
 /// <remarks>
 /// ★ Its own file, depending on nothing but the interpreter, so a scratch tool can compile the very
 /// same answer key the test uses — the reason <see cref="ParserTreePrinter"/> is one too.

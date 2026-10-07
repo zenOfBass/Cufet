@@ -6,7 +6,7 @@ using Xunit;
 namespace Cufet.Compiler.Tests;
 
 /// <summary>
-/// The lexer written in Cufet (`self-hosting/front-end/lexer/`) gives the same tokens as the one in C#.
+/// The lexer written in Cufet (`self-hosting/Cufet/lexer/`) gives the same tokens as the one in C#.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -46,7 +46,7 @@ public class LexerParityTests
     internal static string SelfHostingDir => Path.Combine(RepoRoot, "self-hosting");
 
     /// <summary>One entry of the front end, relative to the repository root.</summary>
-    internal static string EntryPath(string entry) => $"self-hosting/front-end/{entry}/{entry}.cufe";
+    internal static string EntryPath(string entry) => $"self-hosting/Cufet/{entry}/{entry}.cufe";
 
     /// <summary>
     /// Copies the self-hosting project — its blueprint AND its folders — into <paramref name="dir"/>,
@@ -64,8 +64,8 @@ public class LexerParityTests
             Directory.CreateDirectory(Path.GetDirectoryName(to)!);
             File.Copy(f, to);
         }
-        Run(CufetExe, ["build", Path.Combine("front-end", entry, entry + ".cufe")], dir);
-        return Path.Combine(dir, "front-end", entry,
+        Run(CufetExe, ["build", Path.Combine("Cufet", entry, entry + ".cufe")], dir);
+        return Path.Combine(dir, "Cufet", entry,
             entry + (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? ".exe" : ""));
     }
 

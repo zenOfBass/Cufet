@@ -7,7 +7,7 @@ namespace Cufet.Compiler.Tests;
 public sealed class CompiledCufetChecker() : CompiledFrontEnd("checker");
 
 /// <summary>
-/// The checker written in Cufet (`self-hosting/front-end/checker/checker.cufe`) accepts what the one in C# accepts,
+/// The checker written in Cufet (`self-hosting/Cufet/checker/checker.cufe`) accepts what the one in C# accepts,
 /// and refuses what it refuses in the same words.
 /// </summary>
 /// <remarks>

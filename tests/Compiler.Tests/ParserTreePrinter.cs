@@ -7,7 +7,7 @@ using CufetLexer = Cufet.Lexer.Lexer;
 
 namespace Cufet.Compiler.Tests;
 
-/// <summary>The C# parser's tree, printed the way `self-hosting/front-end/parser/parser.cufe` prints its own.</summary>
+/// <summary>The C# parser's tree, printed the way `self-hosting/Cufet/parser/parser.cufe` prints its own.</summary>
 /// <remarks>
 /// ★ Its own file, depending on nothing but the interpreter, so a scratch tool can compile the very
 /// same printer the test uses — two copies of an answer key is how an answer key drifts.
