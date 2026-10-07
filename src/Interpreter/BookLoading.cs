@@ -1,4 +1,5 @@
 using Cufet.Lexer;
+using System.Collections.Immutable;
 using CufetLexer = Cufet.Lexer.Lexer;
 
 namespace Cufet.Interpreter;
@@ -1144,16 +1145,19 @@ public static class BookLoading
                 _ => leaf,
             }));
 
-        AstSearch.Visit(rebuilt, node =>
-        {
-            switch (node)
-            {
-                case VariableReference v when hidden.TryGetValue(v.Name, out var to):
-                    v.Name = to; break;
-                case ObjectLiteral lit when hidden.TryGetValue(lit.TypeName, out var to):
-                    lit.TypeName = to; break;
-            }
-        });
+        // ⚠ Taken here, before the references are renamed: a `Bind` among these is a declaration
+        // of the file's, and one anywhere else is a local function that shadows it.
+        var toRename = new HashSet<IStatement>(TypeChecker.FlattenHoistable(rebuilt), ByReference.Instance);
+
+        // ⚠⚠ A REFERENCE IS RENAMED ONLY WHERE IT MEANS THE HIDDEN NAME. This renamed every
+        // `VariableReference` spelled like one, so a parameter, a loop variable or a local that
+        // happened to share a name with a declaration was turned into it. MEASURED 2026-10-07: a
+        // parameter `thing` beside `Define object thing` was refused as "'thing' isn't defined",
+        // and a parameter `helper` beside a function `helper` as arithmetic on a function — but only
+        // when a sibling folder reached the file by qualifying it. The checker written in Cufet
+        // met it first: its parameter `call` beside its object `call`.
+        RenameReferences(rebuilt, hidden, new HashSet<IStatement>(rebuilt, ByReference.Instance), toRename,
+            ImmutableHashSet<string>.Empty);
 
         // The declarations themselves, renamed to match what now refers to them.
         //
@@ -1165,7 +1169,6 @@ public static class BookLoading
         // ★ By reference rather than by name, because a name is not unique in a file: a local
         // `Define` inside some function body may be spelled like a hidden helper, and renaming
         // THAT would rewrite a binding the host was never able to reach.
-        var toRename = new HashSet<IStatement>(TypeChecker.FlattenHoistable(rebuilt), ByReference.Instance);
 
         return AstRebuilder.Apply(rebuilt, type => type, replace: statement =>
             !toRename.Contains(statement) ? statement : statement switch
@@ -1197,5 +1200,85 @@ public static class BookLoading
                 InterfaceDefinition i when hidden.TryGetValue(i.Name, out var to) => i with { Name = to },
                 _ => statement,
             });
+    }
+
+    /// <summary>
+    /// Renames each reference to a hidden name, except where something nearer binds that name: a
+    /// parameter, a loop's variable, a handle, a named rabbit or task, or a `Define` or `Bind`
+    /// inside a body, which binds it for the statements after it.
+    /// </summary>
+    /// <remarks>
+    /// Walked the way <see cref="AstSearch.Contains"/> walks — a cufet block's body is not entered,
+    /// since a `Cite` places it — carrying what is bound on the way down.
+    /// </remarks>
+    private static void RenameReferences(object? node, Dictionary<string, string> hidden,
+        HashSet<IStatement> topLevel, HashSet<IStatement> declarations, ImmutableHashSet<string> bound)
+    {
+        switch (node)
+        {
+            case null or string or CufetType or CufetAxiomDefinition: return;
+
+            case VariableReference v:
+                if (!bound.Contains(v.Name) && hidden.TryGetValue(v.Name, out var to)) v.Name = to;
+                return;
+
+            // A type's name is not a value's, so nothing binds it away.
+            case ObjectLiteral lit when hidden.TryGetValue(lit.TypeName, out var typeTo):
+                lit.TypeName = typeTo;
+                break;
+
+            // What is evaluated before the name is bound sees the name as it was.
+            case ForEachStatement each:
+                RenameReferences(each.Series, hidden, topLevel, declarations, bound);
+                RenameReferences(each.Body, hidden, topLevel, declarations,
+                    each.IteratorName is { } iterator ? bound.Add(iterator) : bound);
+                return;
+            case WithOpenStatement open:
+                RenameReferences(open.Path, hidden, topLevel, declarations, bound);
+                RenameReferences(open.Body, hidden, topLevel, declarations, bound.Add(open.BindingName));
+                return;
+
+            // A list of statements: a local binds its name for what follows it.
+            case IEnumerable<IStatement> statements:
+                foreach (var statement in statements)
+                {
+                    RenameReferences(statement, hidden, topLevel, declarations, bound);
+                    if (statement is DefineStatement d && !topLevel.Contains(d) && !d.Permanent)
+                        bound = bound.Add(d.Name);
+                    else if (statement is BindStatement local && !declarations.Contains(local))
+                        bound = bound.Add(local.Name);
+                }
+                return;
+        }
+
+        var inner = node switch
+        {
+            BindStatement b when declarations.Contains(b) => bound.Union(b.Parameters.Select(p => p.Name)),
+            // A local function sees itself by its own name.
+            BindStatement b => bound.Union(b.Parameters.Select(p => p.Name)).Add(b.Name),
+            LambdaLiteral l => bound.Union(l.Parameters.Select(p => p.Name)),
+            SetterDeclaration s => bound.Add(s.ParamName),
+            OperatorOverloadDeclaration o => bound.Add(o.LeftName).Add(o.RightName),
+            ForEachFromInputStatement input => bound.Add(input.IteratorName),
+            PullRabbitStatement { Name: { } rabbit } => bound.Add(rabbit),
+            LaunchTaskStatement { Name: { } task } => bound.Add(task),
+            _ => bound,
+        };
+
+        switch (node)
+        {
+            case System.Runtime.CompilerServices.ITuple tuple:
+                for (int i = 0; i < tuple.Length; i++)
+                    RenameReferences(tuple[i], hidden, topLevel, declarations, inner);
+                return;
+            case System.Collections.IEnumerable items:
+                foreach (var item in items) RenameReferences(item, hidden, topLevel, declarations, inner);
+                return;
+        }
+        // Keyed on the namespace, as AstSearch is: ConditionArm and JudgeArm hold statements and
+        // implement neither interface.
+        if (node.GetType().Namespace != typeof(Program).Namespace) return;
+        foreach (var property in node.GetType().GetProperties())
+            RenameReferences(property.GetValue(node), hidden, topLevel, declarations, inner);
     }
 }
