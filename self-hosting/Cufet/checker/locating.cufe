@@ -973,22 +973,90 @@ Pull a book on collections.
             If (the entry for the key of pair in hidden) is void, in hidden, the entry for the key of pair becomes the value of pair.
         Done.
         If the size of hidden is 0, return.
-        Cast rename-references on (statements, hidden).
+        // A `Bind` the hoist reaches is a declaration of the group's; one anywhere else is local.
+        Define declared as a map from text to fact.
+        For each statement in cast hoistable on (statements), repeat:
+            If statement's kind is "BindStatement":
+                In declared, the entry for "{(cast field-of on (statement, 7))'s word}:{(cast field-of on (statement, 8))'s word}" becomes true.
+            Done.
+        Done.
+        Cast rename-references on (statements, hidden, top, declared, a map from text to fact).
         For each statement in cast hoistable on (statements), repeat:
             Cast rename-declaration on (statement, hidden).
         Done.
     Done.
 
-    /// Every type, name and literal naming a hidden declaration, renamed where it stands.
-    Bind void to rename-references, given (the node tree, the map from text to text hidden):
-        If tree's kind is "atom", return.
-        If tree's kind is "VariableReference" or tree's kind is "ObjectLiteral":
+    /// `bound` with `names` added — a fresh map, so the caller's is left as it was.
+    Bind map from text to fact to bound-with, given (the map from text to fact bound, the series of text names):
+        Define wider as a map from text to fact.
+        For each pair in bound, repeat:
+            In wider, the entry for the key of pair becomes true.
+        Done.
+        For each name in names, repeat:
+            In wider, the entry for name becomes true.
+        Done.
+        Return wider.
+    Done.
+
+    /// The names a node binds for what it holds: parameters, a loop's variable, a handle, a named
+    /// rabbit or task, and a local function's own name.
+    Bind series of text to names-bound-by, given (the node tree, the map from text to fact declared):
+        Define names as a series of text.
+        Define kind as tree's kind.
+        If kind is "BindStatement" or kind is "LambdaLiteral":
+            Define place as 3.
+            If kind is "LambdaLiteral", the place becomes 1.
+            For each parameter in (cast field-of on (tree, place))'s children, repeat:
+                Insert cast unquoted on (cast field-of on (parameter, 2)) into names.
+            Done.
+            If kind is "BindStatement":
+                If (the entry for "{(cast field-of on (tree, 7))'s word}:{(cast field-of on (tree, 8))'s word}" in declared) is void:
+                    Insert cast unquoted on (cast field-of on (tree, 1)) into names.
+                Done.
+            Done.
+        Done.
+        Otherwise if kind is "SetterDeclaration" or kind is "WithOpenStatement":
+            Insert cast unquoted on (cast field-of on (tree, 3)) into names.
+        Done.
+        Otherwise if kind is "OperatorOverloadDeclaration":
+            Insert cast unquoted on (cast field-of on (tree, 2)) into names.
+            Insert cast unquoted on (cast field-of on (tree, 3)) into names.
+        Done.
+        Otherwise if kind is "ForEachStatement" or kind is "ForEachFromInputStatement" or kind is "PullRabbitStatement" or kind is "LaunchTaskStatement":
+            If cast is-nothing on (cast field-of on (tree, 1)) is false, insert cast unquoted on (cast field-of on (tree, 1)) into names.
+        Done.
+        Return names.
+    Done.
+
+    /// Every type, name and literal naming a hidden declaration, renamed where it stands — but a
+    /// name is not renamed where something nearer binds it (`bound`): a parameter, a loop's
+    /// variable, or a `Define` or `Bind` inside a body, for the statements after it.
+    Bind void to rename-references, given (the node tree, the map from text to text hidden, the map from text to fact top,
+            the map from text to fact declared, the map from text to fact bound):
+        Define kind as tree's kind.
+        If kind is "atom", return.
+        If kind is "VariableReference":
+            Define referred as cast unquoted on (cast field-of on (tree, 1)).
+            If (the entry for referred in bound) is not void, return.
+            Define renamed-to as the entry for referred in hidden.
+            If renamed-to is not void, cast rewrite-field on (tree, 1, cast quoted on (renamed-to)).
+            Return.
+        Done.
+        If kind is "ObjectLiteral":
             Define renamed-to as the entry for cast unquoted on (cast field-of on (tree, 1)) in hidden.
             If renamed-to is not void, cast rewrite-field on (tree, 1, cast quoted on (renamed-to)).
         Done.
+        Define inner as bound.
+        Define introduced as cast names-bound-by on (tree, declared).
+        If the number of introduced is greater than 0, the inner becomes cast bound-with on (bound, introduced).
+        // What a loop runs over, or a file's path, is evaluated before its name is bound.
+        Define evaluated-first as 0.
+        If kind is "ForEachStatement" or kind is "WithOpenStatement", the evaluated-first becomes 2.
         Define place as 0.
         For each child in tree's children, repeat:
             Increment place by 1.
+            Define seen as inner.
+            If place is evaluated-first, the seen becomes bound.
             Define renamed-type as false.
             If child's kind is "ObjectType":
                 Define renamed-to as the entry for cast unquoted on (cast field-of on (child, 1)) in hidden.
@@ -997,7 +1065,22 @@ Pull a book on collections.
                     The renamed-type becomes true.
                 Done.
             Done.
-            If renamed-type is false, cast rename-references on (child, hidden).
+            If renamed-type is false, cast rename-references on (child, hidden, top, declared, seen).
+            // In a list of statements, a local binds its name for what follows it.
+            If kind is "list":
+                Define local as "".
+                If child's kind is "DefineStatement" and cast truth-of on (cast field-of on (child, 3)) is false:
+                    If (the entry for "{(cast field-of on (child, 5))'s word}:{(cast field-of on (child, 6))'s word}" in top) is void:
+                        The local becomes cast unquoted on (cast field-of on (child, 1)).
+                    Done.
+                Done.
+                If child's kind is "BindStatement":
+                    If (the entry for "{(cast field-of on (child, 7))'s word}:{(cast field-of on (child, 8))'s word}" in declared) is void:
+                        The local becomes cast unquoted on (cast field-of on (child, 1)).
+                    Done.
+                Done.
+                If local is not "", the inner becomes cast bound-with on (inner, a series of text with (local)).
+            Done.
         Done.
     Done.
 
