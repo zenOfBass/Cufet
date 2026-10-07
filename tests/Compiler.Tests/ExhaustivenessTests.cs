@@ -372,6 +372,13 @@ public class ExhaustivenessTests
         // IStatement/IExpression instead of the namespace, and in both the captured name appears
         // ONLY inside an arm's BODY — a `Judge` subject is an ordinary property any walk reaches.
         "CiteExpansion.cs: RequireNoCapture",
+        // A qualified folder's references renamed where they mean a hidden name, and not where a
+        // parameter or local binds it. Proof it sees inside ConditionArm and JudgeArm:
+        // Interpreter.Tests/DirectoryNamespaceTests.AQualifiedSiblingsHiddenFunction_IsReached_
+        // FromInsideAnIfArmBody and …FromInsideAJudgeArmBody — the hidden call appears ONLY in an
+        // arm's body. Both were shown RED by keying the walk on IStatement/IExpression instead of
+        // the namespace.
+        "BookLoading.cs: RenameReferences",
     ];
 
     // A generic AST walk's fingerprint: it asks an unknown node for its properties.

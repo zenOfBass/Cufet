@@ -546,6 +546,137 @@ public class DirectoryNamespaceTests : IDisposable
         Assert.Equal("42", Run(main));
     }
 
+    // ⚠⚠ A qualified sibling's names come in renamed, and a reference is renamed with them ONLY
+    // where it means one. MEASURED 2026-10-07: every reference spelled like a hidden name was
+    // renamed, so a parameter beside an object of its name was "not defined", and one beside a
+    // function of its name became the function. The checker written in Cufet met it first — its
+    // parameter `call` beside its object `call`.
+    [Theory]
+    [InlineData("""
+        Define object thing with (the number size).
+        Bind number to doubled, given (the number thing):
+            Return thing * 2.
+        Done.
+        """)]
+    [InlineData("""
+        Bind number to helper, given (the number n):
+            Return n + 1.
+        Done.
+        Bind number to doubled, given (the number helper):
+            Return helper * 2.
+        Done.
+        """)]
+    [InlineData("""
+        Bind number to helper, given (the number n):
+            Return n + 1.
+        Done.
+        Bind number to doubled, given (the number n):
+            Define helper as n * 2.
+            Return helper.
+        Done.
+        """)]
+    [InlineData("""
+        Bind number to helper, given (the number n):
+            Return n + 1.
+        Done.
+        Bind number to doubled, given (the number n):
+            Define total as 0.
+            For each helper in a series with (n, n), repeat:
+                The total becomes total + helper.
+            Done.
+            Return total.
+        Done.
+        """)]
+    [InlineData("""
+        Bind number to helper, given (the number n):
+            Return n + 1.
+        Done.
+        Bind number to doubled, given (the number n):
+            Bind number to helper, given (the number m):
+                Return m * 2.
+            Done.
+            Return cast helper on (n).
+        Done.
+        """)]
+    [InlineData("""
+        Bind number to helper, given (the number n):
+            Return n + 1.
+        Done.
+        Bind number to doubled, given (the number n):
+            Define twice as a function given (the number helper): Return helper * 2. Done.
+            Return cast twice on (n).
+        Done.
+        """)]
+    public void AQualifiedSiblingsLocal_KeepsItsName_BesideAHiddenDeclarationOfThatName(string helper)
+    {
+        Write("front-end/parser", "helper", helper);
+        var main = Write("front-end/checker", "main", """State "{cast parser's doubled on (21)}".""");
+        DrawTree("front-end\n    parser\n    checker");
+        Assert.Equal("42", Run(main));
+    }
+
+    [Fact]
+    public void AQualifiedSiblingsHiddenFunction_IsStillReached_WhereALaterLocalTakesItsName()
+    {
+        // A local binds its name for what FOLLOWS it — the call before it still means the function.
+        Write("front-end/parser", "helper", """
+            Bind number to helper, given (the number n):
+                Return n + 21.
+            Done.
+            Bind number to doubled, given (the number n):
+                Define first as cast helper on (n).
+                Define helper as first.
+                Return helper.
+            Done.
+            """);
+        var main = Write("front-end/checker", "main", """State "{cast parser's doubled on (21)}".""");
+        DrawTree("front-end\n    parser\n    checker");
+        Assert.Equal("42", Run(main));
+    }
+
+    // ★ The rename walk sees inside `If` and `Judge` arm bodies — `ConditionArm` and `JudgeArm`
+    // implement neither IExpression nor IStatement. The hidden function is called ONLY inside an arm
+    // body, so a walk that missed it would leave the call aimed at a name nothing declares.
+    [Fact]
+    public void AQualifiedSiblingsHiddenFunction_IsReached_FromInsideAnIfArmBody()
+    {
+        Write("front-end/parser", "helper", """
+            Bind number to helper, given (the number n):
+                Return n * 2.
+            Done.
+            Bind number to doubled, given (the number n):
+                If n is 21:
+                    Return cast helper on (n).
+                Done.
+                Return 0.
+            Done.
+            """);
+        var main = Write("front-end/checker", "main", """State "{cast parser's doubled on (21)}".""");
+        DrawTree("front-end\n    parser\n    checker");
+        Assert.Equal("42", Run(main));
+    }
+
+    [Fact]
+    public void AQualifiedSiblingsHiddenFunction_IsReached_FromInsideAJudgeArmBody()
+    {
+        Write("front-end/parser", "helper", """
+            Bind number to helper, given (the number n):
+                Return n * 2.
+            Done.
+            Bind number to doubled, given (the number n):
+                Judge n, where it is:
+                    21:
+                        Return cast helper on (n).
+                    Done.
+                    Otherwise, return 0.
+                Done.
+            Done.
+            """);
+        var main = Write("front-end/checker", "main", """State "{cast parser's doubled on (21)}".""");
+        DrawTree("front-end\n    parser\n    checker");
+        Assert.Equal("42", Run(main));
+    }
+
     [Fact]
     public void AFolder_AndOneAboveIt_DeclaringOneName_AreRefused()
     {
