@@ -81,9 +81,10 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   file with the parser and checker written in Cufet, writes it as C, and builds it with gcc against
   the C runtime `cufet build` links. It builds `State`, `Define` and `becomes` over numbers, text and
   facts — arithmetic, joining, converting to text and interpolation, comparing, `and`, `or` and
-  `not` — and says `unsupported` for anything else rather than writing C that might happen to work.
-  `CompilerParityTests` runs every program it builds and holds it to printing exactly what the
-  interpreter prints, on 44 programs; the C it writes is its own.
+  `not` — and `If`, `While`, `Repeat … until`, `Stop`, `Skip`, `Increment` and `Decrement`, and
+  `Judge` over values; and it says `unsupported` for anything else rather than writing C that might
+  happen to work. `CompilerParityTests` runs every program it builds and holds it to printing
+  exactly what the interpreter prints, on 69 programs; the C it writes is its own.
 
 ### Changed
 

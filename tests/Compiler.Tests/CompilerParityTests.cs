@@ -52,7 +52,7 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     : PipelineTestBase, IClassFixture<CompiledCufetCompiler>
 {
     /// <summary>How many hand-written programs must build and print alike. Raised as it grows; never lowered.</summary>
-    private const int BuiltFloor = 44;
+    private const int BuiltFloor = 69;
 
     private static string[] PreludeArgs =>
         ["--prelude", Path.Combine(RepoRoot, "src", "Interpreter", "Prelude").Replace('\\', '/')];
@@ -111,6 +111,32 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
         "State \"back\\\\slash\".",
         "State \"café — naïve\".",
         "State <<C:\\Users\\me>>.",
+        // Choosing and repeating: If, While, Repeat … until, Stop, Skip, Increment, and Judge on values.
+        "Define n as 0.\nIf n is 0:\n    State \"zero\".\nDone.\nOtherwise if n is 1:\n    State \"one\".\nDone.\nOtherwise:\n    State \"many\".\nDone.",
+        "Define n as 1.\nIf n is 0:\n    State \"zero\".\nDone.\nOtherwise if n is 1:\n    State \"one\".\nDone.\nOtherwise:\n    State \"many\".\nDone.",
+        "Define n as 5.\nIf n is 0:\n    State \"zero\".\nDone.\nOtherwise if n is 1:\n    State \"one\".\nDone.\nOtherwise:\n    State \"many\".\nDone.",
+        "Define n as 5.\nIf n is greater than 3, state \"big\".\nIf n is less than 3, state \"small\".",
+        "Define n as 4.\nIf n is greater than 3 and n is less than 10:\n    State \"between\".\nDone.\nIf n is 1 or n is 4, state \"one or four\".",
+        "Define n as 0.\nWhile n is less than 5, repeat:\n    Increment n by 1.\n    State n.\nDone.",
+        "Define n as 0.\nWhile true, repeat:\n    Increment n by 1.\n    If n is 2, skip.\n    If n is 5, stop.\n    State n.\nDone.\nState \"done at {n}\".",
+        "Define n as 10.\nRepeat:\n    Decrement n by 3.\n    State n.\nUntil n is less than 0.",
+        "Define n as 0.\nRepeat:\n    Increment n by 1.\n    If n is 3, stop.\nUntil n is 10.\nState n.",
+        "Define n as 0.\nRepeat:\n    Increment n by 1.\n    If n is 2, skip.\n    State n.\nUntil n is not less than 4.",
+        "Define row as 1.\nWhile row is not greater than 3, repeat:\n    Define column as 1.\n    Define line as \"\".\n    While column is not greater than row, repeat:\n        The line becomes line joined to \"*\".\n        Increment column by 1.\n    Done.\n    State line.\n    Increment row by 1.\nDone.",
+        "Define n as 1.\nWhile n is not greater than 15, repeat:\n    If n % 15 is 0:\n        State \"FizzBuzz\".\n    Done.\n    Otherwise if n % 3 is 0:\n        State \"Fizz\".\n    Done.\n    Otherwise if n % 5 is 0:\n        State \"Buzz\".\n    Done.\n    Otherwise:\n        State n.\n    Done.\n    Increment n by 1.\nDone.",
+        "Define word as \"cd\".\nJudge word, where it is:\n    \"cd\", state \"change\".\n    \"ls\" or \"dir\", state \"list\".\n    Otherwise, state \"other\".\nDone.",
+        "Define word as \"dir\".\nJudge word, where it is:\n    \"cd\", state \"change\".\n    \"ls\" or \"dir\", state \"list\".\n    Otherwise, state \"other\".\nDone.",
+        "Define word as \"rm\".\nJudge word, where it is:\n    \"cd\", state \"change\".\n    \"ls\" or \"dir\", state \"list\".\n    Otherwise, state \"other\".\nDone.",
+        "Define n as 2.5.\nJudge n, where it is:\n    1, state \"one\".\n    2.50, state \"two and a half\".\n    Otherwise, state \"else\".\nDone.",
+        "Define n as 7.\nJudge n, where it is:\n    1, state \"one\".\n    2, state \"two\".\n    Otherwise, state \"neither: {it}\".\nDone.\nState \"after\".",
+        "Define flag as false.\nJudge flag, where it is:\n    true, state \"yes\".\n    Otherwise, state \"no\".\nDone.",
+        "Define n as 3.\nJudge n, where it is:\n    3:\n        State \"three\".\n        State it * 2.\n    Done.\n    Otherwise, state it.\nDone.",
+        "Define n as 0.\nWhile n is less than 10, repeat:\n    Increment n by 1.\n    Judge n, where it is:\n        4, stop.\n        2, skip.\n        Otherwise, state it.\n    Done.\nDone.\nState n.",
+        "Define n as 1.\nJudge n, where it is:\n    1:\n        Define word as \"outer\".\n        Judge word, where it is:\n            \"outer\", state \"inner sees {it}\".\n            Otherwise, state \"no\".\n        Done.\n        State it.\n    Done.\n    Otherwise, state \"no\".\nDone.",
+        "If true:\n    Define x as 1.\n    State x.\nDone.\nIf true:\n    Define x as \"one\".\n    State x.\nDone.",
+        "Define x as 1.\nIf true:\n    Define a shadow x as \"shadowed\".\n    State x.\nDone.\nState x.",
+        "Define total as 0.\nDefine n as 1.\nWhile n is not greater than 100, repeat:\n    Increment total by n.\n    Increment n by 1.\nDone.\nState total.",
+        "Define n as 27.\nDefine steps as 0.\nWhile n is not 1, repeat:\n    If n % 2 is 0, the n becomes n / 2.\n    Otherwise, the n becomes 3 * n + 1.\n    Increment steps by 1.\nDone.\nState \"steps: {steps}\".",
     ];
 
     [Fact]
