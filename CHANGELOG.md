@@ -61,7 +61,7 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   input and output: files, directories, streams, running programs and piping them, and pipes of
   functions, and axioms: regex patterns, c-language source at its boundary, and cufet blocks placed
   by `Cite`. Anything it cannot judge yet it says so about, rather than accepting — and it judges
-  every one of the 137 corpus files, each checked where it sits, as `cufet check` checks it: inside a
+  every one of the 139 corpus files, each checked where it sits, as `cufet check` checks it: inside a
   project its folder and the folders above it are part of its program, a folder or namespace it
   qualifies is loaded under its own names, a book is loaded from the file beside it, and the blueprint's
   drawing of the tree is read and held to its rules. With `--tree` it also prints the program it hands on, which C#
@@ -71,11 +71,19 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   are — what generics hand on: the templates taken out, the fillings in their place, each call and
   literal naming the filling it reached — and every burying function rebuilt as the machine of steps
   a stash runs on. The test compares that with C#'s, the bundled books left out, and every file and
-  hand-written program both accept hands back the same tree: 133 corpus files and 279 programs. And it says
+  hand-written program both accept hands back the same tree: 135 corpus files and 279 programs. And it says
   what `cufet check` warns of a program that runs, in the same words after `ok` — a keyword opening a
   line in lowercase, one bare-`it` loop inside another, the directory changed after a task started, a
   type definition a later one replaces, and a judgement arm that can never run — held to that on 20
   programs that draw a warning and the near misses beside them.
+- **The compiler, begun in Cufet** — `self-hosting/Cufet/compiler/compiler.cufe`, the fourth piece.
+  `cufet self-hosting/Cufet/compiler/compiler.cufe --runtime <folder> <files…>` parses and checks each
+  file with the parser and checker written in Cufet, writes it as C, and builds it with gcc against
+  the C runtime `cufet build` links. It builds `State`, `Define` and `becomes` over numbers, text and
+  facts — arithmetic, joining, converting to text and interpolation, comparing, `and`, `or` and
+  `not` — and says `unsupported` for anything else rather than writing C that might happen to work.
+  `CompilerParityTests` runs every program it builds and holds it to printing exactly what the
+  interpreter prints, on 44 programs; the C it writes is its own.
 
 ### Changed
 
@@ -102,6 +110,20 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **A folder reached by qualifying it no longer sees the program that reached it.** Everything a
+  file loads becomes one program, and the loading file's names stayed plain in it — so a sibling's
+  call to a name it never declared ran the LOADER's function of that name, silently, and a sibling's
+  own local or method spelled like one was refused as shadowing it or as ambiguous. A bare name is
+  found by walking up from the file that wrote it, and now that holds from both sides: such a call is
+  refused as not defined, and what a folder declares inside its bodies keeps clear of the loader's
+  names. The same goes for another namespace the program reaches.
+- **A parameter or local in a qualified folder keeps its own name.** When a folder is loaded under a
+  rename, every reference spelled like one of its hidden declarations was renamed with it — so a
+  parameter `thing` beside `Define object thing` was "not defined", and a parameter `helper` beside a
+  function `helper` became the function. A name is now renamed only where it means the declaration:
+  a parameter, a loop's variable, a handle, a named rabbit or task, or a local `Define` or `Bind`
+  binds it for what follows. Both were found by the compiler written in Cufet, which reaches the
+  checker by qualifying it.
 - **`Cast one's consume` colours `one's` as `one`, whole.** The editor's rule for `Cast <name>` took
   the owner of a possessive as the function — `one` came out in a function's colour and its `'s`
   split off in another — when the function is `consume`, reached through `one`. The rule now stands
