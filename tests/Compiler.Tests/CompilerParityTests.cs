@@ -52,7 +52,7 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     : PipelineTestBase, IClassFixture<CompiledCufetCompiler>
 {
     /// <summary>How many hand-written programs must build and print alike. Raised as it grows; never lowered.</summary>
-    private const int BuiltFloor = 69;
+    private const int BuiltFloor = 88;
 
     private static string[] PreludeArgs =>
         ["--prelude", Path.Combine(RepoRoot, "src", "Interpreter", "Prelude").Replace('\\', '/')];
@@ -137,6 +137,26 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
         "Define x as 1.\nIf true:\n    Define a shadow x as \"shadowed\".\n    State x.\nDone.\nState x.",
         "Define total as 0.\nDefine n as 1.\nWhile n is not greater than 100, repeat:\n    Increment total by n.\n    Increment n by 1.\nDone.\nState total.",
         "Define n as 27.\nDefine steps as 0.\nWhile n is not 1, repeat:\n    If n % 2 is 0, the n becomes n / 2.\n    Otherwise, the n becomes 3 * n + 1.\n    Increment steps by 1.\nDone.\nState \"steps: {steps}\".",
+        // Functions: parameters, giving back, calls as values and as statements, recursion, and calling one declared further down.
+        "Bind number to doubled, given (the number n):\n    Return n * 2.\nDone.\nState cast doubled on (21).",
+        "Bind number to seven:\n    Return 7.\nDone.\nState cast seven.",
+        "Bind text to greeting, given (the text who, the fact loud):\n    If loud, return \"HELLO {who}\".\n    Return \"hello {who}\".\nDone.\nState cast greeting on (\"grace\", true).\nState cast greeting on (\"hopper\", false).",
+        "Bind void to shout, given (the text said):\n    State said joined to \"!\".\nDone.\nCast shout on (\"hey\").\nCast shout on (\"you\").",
+        "Bind number to factorial, given (the number n):\n    If n is less than 2, return 1.\n    Return n * cast factorial on (n - 1).\nDone.\nState cast factorial on (10).",
+        "Bind number to fibonacci, given (the number n):\n    If n is less than 2, return n.\n    Return cast fibonacci on (n - 1) + cast fibonacci on (n - 2).\nDone.\nState cast fibonacci on (20).",
+        "State cast later on (4).\nBind number to later, given (the number n):\n    Return n + 1.\nDone.",
+        "Bind fact to is-even, given (the number n):\n    If n is 0, return true.\n    Return cast is-odd on (n - 1).\nDone.\nBind fact to is-odd, given (the number n):\n    If n is 0, return false.\n    Return cast is-even on (n - 1).\nDone.\nState cast is-even on (10).\nState cast is-odd on (7).",
+        "Bind number to largest, given (the number first, the number second):\n    If first is greater than second, return first.\n    Return second.\nDone.\nState cast largest on (3, 9).\nState cast largest on (cast largest on (1, 2), 0).",
+        "Bind void to count-down, given (the number count):\n    Define n as count.\n    While n is greater than 0, repeat:\n        State n.\n        Decrement n by 1.\n    Done.\n    State \"liftoff\".\nDone.\nCast count-down on (3).",
+        "Bind void to early, given (the number n):\n    If n is 1:\n        State \"one\".\n        Return.\n    Done.\n    State \"not one\".\nDone.\nCast early on (1).\nCast early on (2).",
+        "Bind text to label, given (the number n):\n    Judge n, where it is:\n        1, return \"one\".\n        2, return \"two\".\n        Otherwise, return \"many\".\n    Done.\nDone.\nState cast label on (1).\nState cast label on (2).\nState cast label on (9).",
+        "Bind number to sum-to, given (the number n):\n    Define total as 0.\n    Define i as 1.\n    While i is not greater than n, repeat:\n        Increment total by i.\n        Increment i by 1.\n    Done.\n    Return total.\nDone.\nState \"sum: {cast sum-to on (100)}\".",
+        "Bind number to power, given (the number base, the number exponent):\n    If exponent is 0, return 1.\n    Return base * cast power on (base, exponent - 1).\nDone.\nState cast power on (2, 10).\nState cast power on (1.5, 3).",
+        "Bind number to gcd, given (the number left, the number right):\n    If right is 0, return left.\n    Return cast gcd on (right, left % right).\nDone.\nState cast gcd on (1071, 462).",
+        "Bind fact to is-prime, given (the number n):\n    If n is less than 2, return false.\n    Define d as 2.\n    While d * d is not greater than n, repeat:\n        If n % d is 0, return false.\n        Increment d by 1.\n    Done.\n    Return true.\nDone.\nDefine n as 1.\nWhile n is less than 30, repeat:\n    If cast is-prime on (n), state n.\n    Increment n by 1.\nDone.",
+        "Bind text to repeated, given (the text piece, the number times):\n    Define out as \"\".\n    Define i as 0.\n    While i is less than times, repeat:\n        The out becomes out joined to piece.\n        Increment i by 1.\n    Done.\n    Return out.\nDone.\nState cast repeated on (\"ab\", 3).",
+        "Bind number to helper, given (the number n):\n    Return n + 1.\nDone.\nBind number to twice, given (the number helper):\n    Return helper * 2.\nDone.\nState cast twice on (cast helper on (20)).",
+        "Bind void to report, given (the number n):\n    State \"n is {n}\".\nDone.\nDefine n as 5.\nCast report on (n * 2).\nState n.",
     ];
 
     [Fact]

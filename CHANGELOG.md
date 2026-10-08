@@ -82,9 +82,11 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   the C runtime `cufet build` links. It builds `State`, `Define` and `becomes` over numbers, text and
   facts — arithmetic, joining, converting to text and interpolation, comparing, `and`, `or` and
   `not` — and `If`, `While`, `Repeat … until`, `Stop`, `Skip`, `Increment` and `Decrement`, and
-  `Judge` over values; and it says `unsupported` for anything else rather than writing C that might
-  happen to work. `CompilerParityTests` runs every program it builds and holds it to printing
-  exactly what the interpreter prints, on 69 programs; the C it writes is its own.
+  `Judge` over values; and functions — parameters, giving back, calls as values and as statements,
+  recursion, and calls to one declared further down; and it says `unsupported` for anything else
+  rather than writing C that might happen to work. `CompilerParityTests` runs every program it builds
+  and holds it to printing exactly what the interpreter prints, on 88 programs; the C it writes is
+  its own.
 
 ### Changed
 
