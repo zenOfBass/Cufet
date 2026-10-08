@@ -42,7 +42,7 @@ Pull a book on collections.
             The unsigned becomes the characters from 2 to the end of unsigned.
         Done.
         Define scale as 0.
-        Define dot as the position of "." in unsigned.
+        Define dot as (the position of "." in unsigned but void is 0).
         If dot is greater than 0, the scale becomes the length of unsigned - dot.
         Define digits as replace "." with "" in unsigned.
         // Nineteen digits fit the low word of the coefficient; more wait for the high one.

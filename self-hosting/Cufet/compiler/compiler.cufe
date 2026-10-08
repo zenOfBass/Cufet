@@ -46,7 +46,14 @@ Pull a book on collections.
     /// One file built, or why not — the line printed for it.
     Bind text to built, given (the text source-file, the series of node prelude, the text runtime-folder,
             the map from text to node shared-trees):
-        Define whole as read all from the file source-file but on failure "".
+        // ⚠ Loud: a file that cannot be read is not an empty program, which would build.
+        Define whole as "".
+        Try to:
+            The whole becomes read all from the file source-file.
+        Done.
+        In case of failure:
+            Return "crash\tcould not read {source-file}: {cast flattened on (the message of the failure)}".
+        Done.
         Define parsed as cast listed.
         Try to:
             The parsed becomes cast parser's program-tree on (whole).
@@ -89,10 +96,14 @@ Pull a book on collections.
         Define flags as a series of text with (c-file, linked, "-I", runtime-folder, "-o", program-file,
             "-O2", "-pthread", "-lm").
         If cast on-windows, insert "-lws2_32" into flags.
-        Define outcome as run "gcc" with arguments flags but on failure void.
-        If outcome is void, return "gcc\tgcc could not be started".
-        If the exit-code of outcome is not 0:
-            Return "gcc\t{cast flattened on (the errors of outcome)}".
+        Try to:
+            Define outcome as run "gcc" with arguments flags.
+            If the exit-code of outcome is not 0:
+                Return "gcc\t{cast flattened on (the errors of outcome)}".
+            Done.
+        Done.
+        In case of failure:
+            Return "gcc\tgcc could not be started: {the message of the failure}".
         Done.
         Return "built".
     Done.

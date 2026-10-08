@@ -583,6 +583,63 @@ Pull a book on collections.
     /// The program with what its folder and the folders above it declare brought in ahead of it, and
     /// every folder or namespace it qualifies loaded under its own names — unchanged when the file is
     /// in no project.
+    /// What a loading program keeps out of the groups it loads, and what of its own it renames.
+    Define object wall-plan with (the series of text entry-names, the map from text to series of text chain-folder-names,
+        the series of text seen-by-a-group, the text entry-tag, the map from text to text entry-renamed).
+
+    /// The names `group` must not see, each as the name it would have if the group owned it — and,
+    /// where the group declares one below its top level, this file's declaration noted for renaming.
+    Bind map from text to text to unseen unto wall-plan, given (the text tag, the node group, the series of text visible-folders):
+        Define own-top as a map from text to fact.
+        For each named in cast top-level-names on (group), repeat:
+            In own-top, the entry for cast unquoted on (cast field-of on (named, 1)) becomes true.
+        Done.
+        Define declares as a map from text to fact.
+        For each statement in cast declared-anywhere on (group), repeat:
+            Define kind as statement's kind.
+            If kind is "BindStatement" or kind is "ObjectDefinition" or kind is "InterfaceDefinition" or kind is "DefineStatement"
+                    or kind is "GetterDeclaration" or kind is "SetterDeclaration":
+                In declares, the entry for cast unquoted on (cast field-of on (statement, 1)) becomes true.
+            Done.
+        Done.
+        Define unseen-names as a map from text to text.
+        Define considered as a series of text.
+        Define renameable as a series of fact.
+        For each entry-name in one's entry-names, repeat:
+            Insert entry-name into considered.
+            Insert true into renameable.
+        Done.
+        For each pair in one's chain-folder-names, repeat:
+            Define visible as false.
+            For each visible-folder in visible-folders, repeat:
+                If cast same-path on (visible-folder, the key of pair), the visible becomes true.
+            Done.
+            If visible is false:
+                Define seen as false.
+                For each seen-folder in one's seen-by-a-group, repeat:
+                    If cast same-path on (seen-folder, the key of pair), the seen becomes true.
+                Done.
+                For each chain-name in the value of pair, repeat:
+                    Insert chain-name into considered.
+                    Insert seen is false into renameable.
+                Done.
+            Done.
+        Done.
+        Define place as 0.
+        For each name in considered, repeat:
+            Increment place by 1.
+            If (the entry for name in declares) is void:
+                If (the entry for name in unseen-names) is void, in unseen-names, the entry for name becomes "{name} in {tag}".
+            Done.
+            Otherwise if (the entry for name in own-top) is void and item place of renameable:
+                If (the entry for name in one's entry-renamed) is void:
+                    In one's entry-renamed, the entry for name becomes "{name} in {one's entry-tag}".
+                Done.
+            Done.
+        Done.
+        Return unseen-names.
+    Done.
+
     Bind node or failure to with-neighbours unto checker, given (the node statements):
         If one's source-file is "", return statements.
         Define self as one's source-file.
@@ -600,8 +657,17 @@ Pull a book on collections.
             In claimed, the entry for (cast unquoted on (cast field-of on (named, 1)) in lowercase) becomes self.
         Done.
         Define here as cast listed.
+        // What each folder of this file's chain declares — what a folder loaded under a rename must not
+        // see, unless the folder is above it as well.
+        Define chain-folder-names as a map from text to series of text.
         For each chain-folder in own-chain, repeat:
-            For each brought in (cast one's gathered-from on (chain-folder, self, claimed) or pass the failure off)'s children, repeat:
+            Define gathered-here as cast one's gathered-from on (chain-folder, self, claimed) or pass the failure off.
+            Define its-names as a series of text.
+            For each named in cast top-level-names on (gathered-here), repeat:
+                Insert cast unquoted on (cast field-of on (named, 1)) into its-names.
+            Done.
+            In chain-folder-names, the entry for chain-folder becomes its-names.
+            For each brought in gathered-here's children, repeat:
                 Cast here's add on (brought).
             Done.
         Done.
@@ -769,11 +835,31 @@ Pull a book on collections.
         Cast refuse-a-shadowed-namespace on (written, qualifiers, own-name) or pass the failure off.
         Cast refuse-a-member-not-there on (written, reach) or pass the failure off.
 
+        // ⚠⚠ A loaded group does not see the program that loaded it — C#'s note in `Neighbours`. A
+        // name the group writes and does not declare is renamed in it as though it owned it, and is
+        // refused; a name it declares below its top level is left alone, and this file's
+        // declaration of it renamed instead.
+        Define entry-names as a series of text.
+        For each named in cast top-level-names on (statements), repeat:
+            Insert cast unquoted on (cast field-of on (named, 1)) into entry-names.
+        Done.
+        Define seen-by-a-group as a series of text.
+        For each renamed-folder in renamed-order, repeat:
+            For each up-folder in cast folder-chain on (renamed-folder, namespace-folder), repeat:
+                For each chain-folder in own-chain, repeat:
+                    If cast same-path on (chain-folder, up-folder), insert chain-folder into seen-by-a-group.
+                Done.
+            Done.
+        Done.
+        Define walls as a new wall-plan { the entry-names entry-names, the chain-folder-names chain-folder-names,
+            the seen-by-a-group seen-by-a-group, the entry-tag cast shown-folder on (root, folder),
+            the entry-renamed a map from text to text }.
+
         Define brought as cast listed.
         For each name in cast sorted-texts on (loaded-order), repeat:
             Define group as the entry for name in loaded but void is cast listed.
             Cast qualify on (group, reach).
-            Cast make-private on (group, name, a map from text to text, false).
+            Cast make-private on (group, name, cast walls's unseen on (name, group, a series of text), false, a map from text to text).
             For each statement in group's children, repeat:
                 Cast brought's add on (statement).
             Done.
@@ -797,13 +883,21 @@ Pull a book on collections.
                 Done.
             Done.
             Cast qualify on (group, reach).
-            Cast make-private on (group, cast shown-folder on (root, renamed-folder), above-names, false).
+            Define tag as cast shown-folder on (root, renamed-folder).
+            For each pair in cast walls's unseen on (tag, group, cast folder-chain on (renamed-folder, namespace-folder)), repeat:
+                If (the entry for the key of pair in above-names) is void, in above-names, the entry for the key of pair becomes the value of pair.
+            Done.
+            Cast make-private on (group, tag, above-names, false, a map from text to text).
             For each statement in group's children, repeat:
                 Cast brought's add on (statement).
             Done.
         Done.
         Cast qualify on (here, reach).
         Cast qualify on (written, reach).
+        If the size of walls's entry-renamed is greater than 0:
+            Cast make-private on (here, walls's entry-tag, a map from text to text, false, walls's entry-renamed).
+            Cast make-private on (written, walls's entry-tag, a map from text to text, false, walls's entry-renamed).
+        Done.
         For each statement in here's children, repeat:
             Cast brought's add on (statement).
         Done.
@@ -943,15 +1037,21 @@ Pull a book on collections.
     /// A group's own declarations renamed `<name> in <tag>`, and every reference to them — C#'s
     /// `MakePrivate`. A book's modules are its face and keep their names (`exempt-modules`); a
     /// directory offers everything alike. `also-renamed` names declared elsewhere whose references
-    /// follow too.
+    /// follow too — a folder above, or the program that loaded this one, which it must not see; a
+    /// declaration is renamed only under a name of its own. `only`, when it holds anything, is
+    /// exactly the names to rename, declared here, and nothing else this group declares.
     Bind void to make-private, given (the node statements, the text tag, the map from text to text also-renamed,
-            the fact exempt-modules):
+            the fact exempt-modules, the map from text to text only):
         Define hidden as a map from text to text.
         Define top as a map from text to fact.
         For each statement in statements's children, repeat:
             If statement's kind is "DefineStatement", in top, the entry for "{(cast field-of on (statement, 5))'s word}:{(cast field-of on (statement, 6))'s word}" becomes true.
         Done.
+        For each pair in only, repeat:
+            In hidden, the entry for the key of pair becomes the value of pair.
+        Done.
         For each statement in cast hoistable on (statements), repeat:
+            If the size of only is greater than 0, stop.
             Define kind as statement's kind.
             Define named as kind is "ObjectDefinition" or kind is "InterfaceDefinition".
             If kind is "ObjectDefinition" and exempt-modules:
@@ -969,6 +1069,10 @@ Pull a book on collections.
                 In hidden, the entry for name becomes "{name} in {tag}".
             Done.
         Done.
+        Define own as a map from text to text.
+        For each pair in hidden, repeat:
+            In own, the entry for the key of pair becomes the value of pair.
+        Done.
         For each pair in also-renamed, repeat:
             If (the entry for the key of pair in hidden) is void, in hidden, the entry for the key of pair becomes the value of pair.
         Done.
@@ -982,7 +1086,7 @@ Pull a book on collections.
         Done.
         Cast rename-references on (statements, hidden, top, declared, a map from text to fact).
         For each statement in cast hoistable on (statements), repeat:
-            Cast rename-declaration on (statement, hidden).
+            Cast rename-declaration on (statement, hidden, own, top).
         Done.
     Done.
 
@@ -1085,10 +1189,13 @@ Pull a book on collections.
     Done.
 
     /// The declaration itself renamed to match what now refers to it.
-    Bind void to rename-declaration, given (the node statement, the map from text to text hidden):
+    /// Its own name follows `own`; what it names — a type it embeds, conforms to, is `unto` or makes
+    /// — follows `hidden`. A `Define` is renamed only at the top level or `permanently`.
+    Bind void to rename-declaration, given (the node statement, the map from text to text hidden,
+            the map from text to text own, the map from text to fact top):
         Define kind as statement's kind.
         If kind is "ObjectDefinition":
-            Cast rename-field-text on (statement, 1, hidden).
+            Cast rename-field-text on (statement, 1, own).
             Cast rename-field-text on (statement, 7, hidden).
             For each conformed in (cast field-of on (statement, 8))'s children, repeat:
                 Define renamed-to as the entry for cast unquoted on (conformed) in hidden.
@@ -1112,11 +1219,11 @@ Pull a book on collections.
             Done.
             Define made-name as cast field-of on (statement, 6).
             If cast is-nothing on (made-name) is false and (the entry for cast unquoted on (made-name) in hidden) is not void:
-                Cast rename-field-text on (statement, 1, hidden).
+                Cast rename-field-text on (statement, 1, own).
                 Cast rename-field-text on (statement, 6, hidden).
                 Return.
             Done.
-            Cast rename-field-text on (statement, 1, hidden).
+            Cast rename-field-text on (statement, 1, own).
             Return.
         Done.
         If kind is "GetterDeclaration":
@@ -1127,7 +1234,13 @@ Pull a book on collections.
             Cast rename-field-text on (statement, 5, hidden).
             Return.
         Done.
-        If kind is "DefineStatement" or kind is "InterfaceDefinition", cast rename-field-text on (statement, 1, hidden).
+        If kind is "InterfaceDefinition", cast rename-field-text on (statement, 1, own).
+        If kind is "DefineStatement":
+            Define at as "{(cast field-of on (statement, 5))'s word}:{(cast field-of on (statement, 6))'s word}".
+            If (the entry for at in top) is not void or cast truth-of on (cast field-of on (statement, 3)):
+                Cast rename-field-text on (statement, 1, own).
+            Done.
+        Done.
     Done.
 
     /// A field holding a name, renamed when the name is hidden; nothing when it holds nothing.
@@ -1224,7 +1337,7 @@ Pull a book on collections.
                                 Cast one's gather-books on (inner, cast parent-of on (found), shared, declared-here, loaded, brought, chain)
                                     or pass the failure off.
                                 Remove item (the number of chain) from chain.
-                                Cast make-private on (inner, book, a map from text to text, true).
+                                Cast make-private on (inner, book, a map from text to text, true, a map from text to text).
                                 For each kept in inner's children, repeat:
                                     Cast brought's add on (kept).
                                 Done.
