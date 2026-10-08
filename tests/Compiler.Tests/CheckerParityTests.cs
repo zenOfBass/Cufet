@@ -27,13 +27,16 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
     : IClassFixture<CompiledCufetChecker>
 {
     /// <summary>How many corpus files must agree. Raised as the checker grows; never lowered.</summary>
-    private const int CorpusFloor = 137;
+    private const int CorpusFloor = 139;
 
     /// <summary>How many corpus files' CHECKED TREES must match, of those both checkers accept. Raised; never lowered.</summary>
-    private const int TreeFloor = 133;
+    private const int TreeFloor = 135;
 
     /// <summary>The same, of the hand-written programs both checkers accept.</summary>
     private const int HandWrittenTreeFloor = 279;
+
+    /// <summary>The same, of the hand-written projects both checkers accept.</summary>
+    private const int ProjectTreeFloor = 12;
 
     /// <summary>How many hand-written programs draw warnings and are warned of alike. Raised; never lowered.</summary>
     private const int HandWrittenWarnedFloor = 20;
@@ -1205,6 +1208,82 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
         var sources = Parsed(files.Select(n => (n, File.ReadAllText(Path.Combine(RepoRoot, n)))));
         Check(CorpusRun(files), sources, CorpusFloor, "on the corpus",
               located: true);
+    }
+
+    // ── Hand-written projects ───────────────────────────────────────────────
+
+    private const string ProjectBlueprint =
+        "Pull a book on blueprints.\n    Bind text to tree:\n        Return <<\ntop\n    lib\n    app\nother\n>>.\n    Done.\nDone.\n";
+    private const string ProjectHelper = "Bind number to helper, given (the number n):\n    Return n + 1.\nDone.\n";
+    private const string CallsLib = "State cast lib's doubled on (21).";
+
+    /// <summary>
+    /// Projects of three folders and another namespace — `top/` above `top/lib/` and `top/app/`, and
+    /// `other/` — each checked from `top/app/app.cufe`, where it sits.
+    /// </summary>
+    /// <remarks>
+    /// ⚠⚠ The wall between a loaded folder and the program that loads it, from both sides. MEASURED
+    /// 2026-10-07: a sibling reached by qualifying it saw the names of the file that qualified it, so
+    /// its call to a name it never declared ran the loader's function, and its own local of that name
+    /// was refused as shadowing it; and every reference spelled like one of its hidden declarations
+    /// was renamed, a parameter included. The compiler written in Cufet met both, reaching the checker.
+    /// </remarks>
+    private static readonly Dictionary<string, string>[] Projects =
+    [
+        // A name only the loader, or only the loader's folder, declares — refused in the sibling.
+        new() { ["top/lib/lib.cufe"] = "Bind number to doubled, given (the number n):\n    Return cast helper on (n).\nDone.", ["top/app/app.cufe"] = ProjectHelper + CallsLib },
+        new() { ["top/lib/lib.cufe"] = "Bind number to doubled, given (the number n):\n    Return cast helper on (n).\nDone.", ["top/app/more.cufe"] = ProjectHelper, ["top/app/app.cufe"] = CallsLib },
+        new() { ["other/other.cufe"] = "Bind number to doubled, given (the number n):\n    Return cast helper on (n).\nDone.", ["top/app/app.cufe"] = ProjectHelper + "State cast other's doubled on (21)." },
+        new() { ["top/lib/lib.cufe"] = "Bind number to doubled, given (the number n):\n    Define made as a new box { the held n }.\n    Return made's held * 2.\nDone.", ["top/app/app.cufe"] = "Define object box with (the number held).\n" + CallsLib },
+        // What a sibling declares inside keeps out of the loader's way, and the loader out of its.
+        new() { ["top/lib/lib.cufe"] = "Bind number to doubled, given (the number n):\n    Define helper as n * 2.\n    Return helper.\nDone.", ["top/app/app.cufe"] = ProjectHelper + CallsLib },
+        new() { ["top/lib/lib.cufe"] = "Define object box with (the number held).\nBind number to helper unto box:\n    Return one's held * 2.\nDone.\nBind number to doubled, given (the number n):\n    Define made as a new box { the held n }.\n    Return cast helper on made.\nDone.", ["top/app/app.cufe"] = ProjectHelper + CallsLib },
+        new() { ["top/lib/lib.cufe"] = "Bind number to helper, given (the number n):\n    Return n * 2.\nDone.\nBind number to doubled, given (the number n):\n    Return cast helper on (n).\nDone.", ["top/app/app.cufe"] = ProjectHelper + CallsLib },
+        new() { ["top/lib/lib.cufe"] = "Bind number to doubled, given (the number n):\n    Define helper as n * 2.\n    Return helper.\nDone.", ["top/app/app.cufe"] = ProjectHelper + "State cast helper on (cast lib's doubled on (20))." },
+        new() { ["top/lib/lib.cufe"] = "Bind number to doubled, given (the number n):\n    Define helper as n * 2.\n    Return helper.\nDone.", ["top/app/app.cufe"] = ProjectHelper + "State cast helper on (\"x\")." },
+        // The folder above both stays in sight.
+        new() { ["top/shared.cufe"] = "Bind number to helper, given (the number n):\n    Return n * 2.\nDone.", ["top/lib/lib.cufe"] = "Bind number to doubled, given (the number n):\n    Return cast helper on (n).\nDone.", ["top/app/app.cufe"] = CallsLib },
+        // A sibling's locals beside its own hidden declarations keep their names.
+        new() { ["top/lib/lib.cufe"] = "Define object thing with (the number size).\nBind number to doubled, given (the number thing):\n    Return thing * 2.\nDone.", ["top/app/app.cufe"] = CallsLib },
+        new() { ["top/lib/lib.cufe"] = ProjectHelper + "Bind number to doubled, given (the number helper):\n    Return helper * 2.\nDone.", ["top/app/app.cufe"] = CallsLib },
+        new() { ["top/lib/lib.cufe"] = ProjectHelper + "Bind number to doubled, given (the number n):\n    Define total as 0.\n    For each helper in a series with (n, n), repeat:\n        The total becomes total + helper.\n    Done.\n    Return total.\nDone.", ["top/app/app.cufe"] = CallsLib },
+        new() { ["top/lib/lib.cufe"] = ProjectHelper + "Bind number to doubled, given (the number n):\n    Bind number to helper, given (the number m):\n        Return m * 2.\n    Done.\n    Return cast helper on (n).\nDone.", ["top/app/app.cufe"] = CallsLib },
+        new() { ["top/lib/lib.cufe"] = ProjectHelper + "Bind number to doubled, given (the number n):\n    Define twice as a function given (the number helper): Return helper * 2. Done.\n    Return cast twice on (n).\nDone.", ["top/app/app.cufe"] = CallsLib },
+        // A hidden call only inside an arm body.
+        new() { ["top/lib/lib.cufe"] = "Bind number to helper, given (the number n):\n    Return n * 2.\nDone.\nBind number to doubled, given (the number n):\n    If n is 21:\n        Return cast helper on (n).\n    Done.\n    Return 0.\nDone.", ["top/app/app.cufe"] = CallsLib },
+        new() { ["top/lib/lib.cufe"] = "Bind number to helper, given (the number n):\n    Return n * 2.\nDone.\nBind number to doubled, given (the number n):\n    Judge n, where it is:\n        21:\n            Return cast helper on (n).\n        Done.\n        Otherwise, return 0.\n    Done.\nDone.", ["top/app/app.cufe"] = CallsLib },
+    ];
+
+    [Fact]
+    public void TheCompiledChecker_JudgesHandWrittenProjectsWhereTheySit()
+    {
+        var dir = Directory.CreateTempSubdirectory("cufet-checker-projects-").FullName;
+        try
+        {
+            var entries = new List<(string Name, string Source)>();
+            for (int i = 0; i < Projects.Length; i++)
+            {
+                var at = Path.Combine(dir, $"{i + 1:00}");
+                var files = new Dictionary<string, string>(Projects[i]);
+                // Every drawn folder holds source, or the drawing is refused.
+                files.TryAdd("other/other.cufe", "Bind number to unrelated:\n    Return 0.\nDone.");
+                files.TryAdd("top/lib/lib.cufe", "Bind number to doubled, given (the number n):\n    Return n * 2.\nDone.");
+                File.WriteAllText(Path.Combine(Directory.CreateDirectory(at).FullName, "blueprint.cufe"), ProjectBlueprint);
+                foreach (var (path, body) in files)
+                {
+                    var file = Path.Combine(at, path);
+                    Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+                    File.WriteAllText(file, body + "\n");
+                }
+                // ★ Named by its full path: `located` reads the answer where the file sits.
+                var entry = Path.Combine(at, "top", "app", "app.cufe").Replace('\\', '/');
+                entries.Add((entry, files["top/app/app.cufe"]));
+            }
+            var got = ByFile(Run(compiled.Exe, ["--tree", .. PreludeArgs, .. entries.Select(e => e.Name)], dir));
+            Check(got, entries, entries.Count, "on hand-written projects", located: true);
+            CheckTrees(got, entries, ProjectTreeFloor, "on hand-written projects", located: true);
+        }
+        finally { Directory.Delete(dir, recursive: true); }
     }
 
     // ── Layer 2: the checked tree ───────────────────────────────────────────

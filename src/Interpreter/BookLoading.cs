@@ -245,7 +245,8 @@ public static class BookLoading
     /// </para>
     /// </remarks>
     public static IReadOnlyList<IStatement> Neighbours(
-        IReadOnlyList<IStatement> statements, string? sourceFile, SourceMap map)
+        IReadOnlyList<IStatement> statements, string? sourceFile, SourceMap map,
+        IReadOnlySet<IStatement>? prelude = null)
     {
         if (sourceFile is null) return statements;
 
@@ -285,7 +286,15 @@ public static class BookLoading
         foreach (var (name, _, _) in TopLevelNames(statements)) claimed[name] = self;
 
         var here = new List<IStatement>();
-        foreach (var folder in ownChain) here.AddRange(Gathered(folder, map, self, claimed));
+        // What each folder of this file's chain declares — the names a folder loaded under a rename
+        // must not see, unless the folder is above it as well.
+        var chainNames = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var folder in ownChain)
+        {
+            var gatheredHere = Gathered(folder, map, self, claimed);
+            here.AddRange(gatheredHere);
+            chainNames[folder] = TopLevelNames(gatheredHere).Select(n => n.Name).ToList();
+        }
 
         // ── The folders and directories this program QUALIFIES, and the ones they do ───
         //
@@ -403,21 +412,93 @@ public static class BookLoading
             RefuseAMemberTheDirectoryHasNot(group, reach);
         }
 
+        // ⚠⚠ A LOADED GROUP DOES NOT SEE THE PROGRAM THAT LOADED IT. Everything here becomes one
+        // program, where this file's names and its folders' are plain — so a qualified folder that
+        // wrote a name it never declared reached THIS file's declaration of it. MEASURED 2026-10-07:
+        // a sibling's `cast helper on (n)` ran the entry file's `helper`, a sibling's local `helper`
+        // was refused as shadowing it, and a sibling's method `helper` as ambiguous with it. A bare
+        // name is found by walking UP from the file that wrote it, so the wall is built from both
+        // sides:
+        //   · a name the group writes and does not declare is renamed in the group as though the
+        //     group owned it — and, since it does not, it is refused as not defined;
+        //   · a name the group DOES declare below its top level — a local, a method, a member — is
+        //     left alone there, and this file's declaration of it is renamed instead, so the two
+        //     never meet. Its top-level names are renamed by MakePrivate already.
+        // Only names the group cannot see are touched: the folders of this file's chain that are
+        // above the group too are part of what it sees.
+        var entryNames = TopLevelNames(statements).Select(n => n.Name).ToList();
+        var seenByAGroup = new HashSet<string>(
+            renamedFolders.Keys.SelectMany(f => FolderChain(f, namespaceFolder))
+                .Where(f => ownChain.Contains(f, StringComparer.OrdinalIgnoreCase)),
+            StringComparer.OrdinalIgnoreCase);
+        var entryRenamed = new Dictionary<string, string>(StringComparer.Ordinal);
+        string entryTag = FolderTag(root, directory);
+
+        Dictionary<string, string> Unseen(string tag, IReadOnlyList<IStatement> group, IEnumerable<string> visibleFolders)
+        {
+            var visible = new HashSet<string>(visibleFolders, StringComparer.OrdinalIgnoreCase);
+            var ownTop = new HashSet<string>(TopLevelNames(group).Select(n => n.Name), StringComparer.Ordinal);
+            var declares = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var statement in AstSearch.EveryStatement(group))
+                if (statement switch
+                    {
+                        BindStatement b => b.Name,
+                        GetterDeclaration g => g.Name,
+                        SetterDeclaration st => st.Name,
+                        ObjectDefinition o => o.Name,
+                        InterfaceDefinition i => i.Name,
+                        DefineStatement d => d.Name,
+                        _ => null,
+                    } is { } declared)
+                    declares.Add(declared);
+
+            var unseen = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            void Consider(string name, bool renameable)
+            {
+                if (!declares.Contains(name))
+                    unseen.TryAdd(name, ModuleTypeLifting.LiftedName(tag, name));
+                else if (!ownTop.Contains(name) && renameable)
+                    entryRenamed.TryAdd(name, ModuleTypeLifting.LiftedName(entryTag, name));
+            }
+            foreach (var entryName in entryNames) Consider(entryName, renameable: true);
+            foreach (var (folder, names) in chainNames)
+                if (!visible.Contains(folder))
+                    foreach (var chainName in names) Consider(chainName, renameable: !seenByAGroup.Contains(folder));
+            return unseen;
+        }
+
         var brought = new List<IStatement>();
         foreach (var (name, gathered) in loaded.OrderBy(entry => entry.Key, StringComparer.Ordinal))
-            brought.AddRange(MakePrivate(Qualify(gathered, reach), name, exemptModules: false));
+            brought.AddRange(MakePrivate(Qualify(gathered, reach), name, exemptModules: false,
+                                         alsoRenamed: Unseen(name, gathered, [])));
 
         foreach (var (folder, (gathered, _)) in renamedFolders.OrderBy(entry => entry.Key, StringComparer.Ordinal))
         {
             // Its references to renamed folders above it follow those renames.
             var above = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var up in FolderChain(folder, namespaceFolder).Skip(1))
+            var chain = FolderChain(folder, namespaceFolder);
+            foreach (var up in chain.Skip(1))
                 if (renamedFolders.TryGetValue(up, out var upper))
                     foreach (var (from, to) in upper.Names) above.TryAdd(from, to);
-            brought.AddRange(MakePrivate(Qualify(gathered, reach), FolderTag(root, folder),
+            string tag = FolderTag(root, folder);
+            foreach (var (from, to) in Unseen(tag, gathered, chain)) above.TryAdd(from, to);
+            brought.AddRange(MakePrivate(Qualify(gathered, reach), tag,
                                          exemptModules: false, alsoRenamed: above));
         }
 
+        if (entryRenamed.Count > 0)
+        {
+            brought.AddRange(MakePrivate(Qualify(here, reach), entryTag, exemptModules: false, only: entryRenamed));
+            // ⚠ Not the bundled books' layers, which arrive with the program and are known to the
+            // checker by reference — a rebuilt one reads as a writer's object of a book's name.
+            var written = Qualify(statements, reach);
+            var mine = written.Where(s => prelude?.Contains(s) != true).ToList();
+            var renamed = MakePrivate(mine, entryTag, exemptModules: false, only: entryRenamed);
+            int next = 0;
+            foreach (var statement in written)
+                brought.Add(prelude?.Contains(statement) == true ? statement : renamed[next++]);
+            return brought;
+        }
         brought.AddRange(Qualify(here, reach));
         brought.AddRange(Qualify(statements, reach));
         return brought;
@@ -1080,7 +1161,8 @@ public static class BookLoading
     /// </param>
     internal static IReadOnlyList<IStatement> MakePrivate(
         IReadOnlyList<IStatement> statements, string bookName, bool exemptModules = true,
-        IReadOnlyDictionary<string, string>? alsoRenamed = null)
+        IReadOnlyDictionary<string, string>? alsoRenamed = null,
+        IReadOnlyDictionary<string, string>? only = null)
     {
         // What the host is meant to see: the modules. Everything else the file declares at its
         // top level is its own.
@@ -1101,7 +1183,11 @@ public static class BookLoading
         var hidden = new Dictionary<string, string>(StringComparer.Ordinal);
         var flat   = new HashSet<IStatement>(statements, ByReference.Instance);
 
-        foreach (var statement in TypeChecker.FlattenHoistable(statements))
+        // `only`: exactly these names, declared here, and nothing else this file declares — the
+        // program that loaded a folder, keeping out of the way of what the folder declares inside.
+        if (only is not null)
+            foreach (var (from, to) in only) hidden[from] = to;
+        else foreach (var statement in TypeChecker.FlattenHoistable(statements))
         {
             string? name = statement switch
             {
@@ -1126,8 +1212,10 @@ public static class BookLoading
             if (name is not null) hidden[name] = $"{name} in {bookName}";
         }
         // ★ Names declared ELSEWHERE that are renamed too — a folder above a sibling, loaded under
-        // its own rename. References to them follow; nothing here declares them, so the renaming
-        // of declarations below never touches one.
+        // its own rename, or a name of the program that loaded this one, which it must not see.
+        // References to them follow; a DECLARATION is renamed only under a name of its own (`own`),
+        // so a local or a method that happens to share one of these is left alone.
+        var own = new Dictionary<string, string>(hidden, StringComparer.Ordinal);
         if (alsoRenamed is not null)
             foreach (var (from, to) in alsoRenamed)
                 hidden.TryAdd(from, to);
@@ -1156,7 +1244,8 @@ public static class BookLoading
         // and a parameter `helper` beside a function `helper` as arithmetic on a function — but only
         // when a sibling folder reached the file by qualifying it. The checker written in Cufet
         // met it first: its parameter `call` beside its object `call`.
-        RenameReferences(rebuilt, hidden, new HashSet<IStatement>(rebuilt, ByReference.Instance), toRename,
+        var topLevel = new HashSet<IStatement>(rebuilt, ByReference.Instance);
+        RenameReferences(rebuilt, hidden, topLevel, toRename,
             ImmutableHashSet<string>.Empty);
 
         // The declarations themselves, renamed to match what now refers to them.
@@ -1178,7 +1267,7 @@ public static class BookLoading
                 // file unable to use its OWN, claiming to satisfy something no longer defined.
                 ObjectDefinition o => o with
                 {
-                    Name = hidden.TryGetValue(o.Name, out var to) ? to : o.Name,
+                    Name = own.TryGetValue(o.Name, out var to) ? to : o.Name,
                     ConformedInterfaces = [.. o.ConformedInterfaces.Select(
                         name => hidden.TryGetValue(name, out var ito) ? ito : name)],
                     EmbeddedTypeName = o.EmbeddedTypeName is { } embedded && hidden.TryGetValue(embedded, out var eto)
@@ -1190,14 +1279,14 @@ public static class BookLoading
                 BindStatement b when b.UntoType is { } target && hidden.TryGetValue(target, out var uto)
                     => b with { UntoType = uto },
                 BindStatement b when b.ConstructsTypeName is { } made && hidden.TryGetValue(made, out var mto)
-                    => b with { Name = hidden.TryGetValue(b.Name, out var bto) ? bto : b.Name, ConstructsTypeName = mto },
+                    => b with { Name = own.TryGetValue(b.Name, out var bto) ? bto : b.Name, ConstructsTypeName = mto },
                 GetterDeclaration g when g.UntoType is { } gt && hidden.TryGetValue(gt, out var gto)
                     => g with { UntoType = gto },
                 SetterDeclaration st when st.UntoType is { } sut && hidden.TryGetValue(sut, out var sto)
                     => st with { UntoType = sto },
-                BindStatement b when hidden.TryGetValue(b.Name, out var to) => b with { Name = to },
-                DefineStatement d when hidden.TryGetValue(d.Name, out var to) => d with { Name = to },
-                InterfaceDefinition i when hidden.TryGetValue(i.Name, out var to) => i with { Name = to },
+                BindStatement b when own.TryGetValue(b.Name, out var to) => b with { Name = to },
+                DefineStatement d when (topLevel.Contains(d) || d.Permanent) && own.TryGetValue(d.Name, out var to) => d with { Name = to },
+                InterfaceDefinition i when own.TryGetValue(i.Name, out var to) => i with { Name = to },
                 _ => statement,
             });
     }

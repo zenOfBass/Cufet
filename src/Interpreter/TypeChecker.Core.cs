@@ -1241,7 +1241,7 @@ public sealed partial class TypeChecker
             // pull, so `declaredHere` below counts what they declare — and a pull naming a
             // neighbour resolves to the declaration that is now here rather than loading the file
             // a second time, privately renamed, under a name the program already holds.
-            var withNeighbours = BookLoading.Neighbours(program.Statements, SourceFile, Sources);
+            var withNeighbours = BookLoading.Neighbours(program.Statements, SourceFile, Sources, _preludeStatements);
             if (!ReferenceEquals(withNeighbours, program.Statements))
                 program = new Program(withNeighbours);
 
