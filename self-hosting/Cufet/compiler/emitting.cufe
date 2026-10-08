@@ -14,10 +14,13 @@
 */
 
 Pull a book on collections.
-    Define object emitter with (the map from text to text kinds, the chase body, the text indent).
+    Define object emitter with (the map from text to text kinds, the chase body, the text indent,
+        the map from text to node functions).
 
-    Bind emitter to fresh-emitter:
-        Return a new emitter { the kinds a map from text to text, the body a chase, the indent "    " }.
+    /// An emitter for one body, knowing the program's functions by name.
+    Bind emitter to fresh-emitter, given (the map from text to node functions):
+        Return a new emitter { the kinds a map from text to text, the body a chase, the indent "    ",
+            the functions functions }.
     Done.
 
     /// What this compiler cannot build yet, as a failure message.
@@ -29,6 +32,20 @@ Pull a book on collections.
     /// prefix that keeps it clear of C's own words.
     Bind text to c-name, given (the text name):
         Return "cv_" joined to (replace "-" with "_" in name).
+    Done.
+
+    /// A function's name as C — a prefix of its own, so no value's name can ever meet it.
+    Bind text to c-function-name, given (the text name):
+        Return "cfn_" joined to (replace "-" with "_" in name).
+    Done.
+
+    /// The kind of value a written type stands for, or "void" for none.
+    Bind text or failure to kind-of-type, given (the node written):
+        If cast is-nothing on (written), return "void".
+        If written's kind is "NumberType", return "number".
+        If written's kind is "TextType", return "text".
+        If written's kind is "FactType", return "fact".
+        Return a failure (cast not-built on ("a {written's kind}")).
     Done.
 
     // ── Expressions ───────────────────────────────────────────────────────
@@ -77,6 +94,10 @@ Pull a book on collections.
                 Done.
                 Return "fact".
             Done.
+            "CastExpression":
+                Define called as cast one's function-called on (expression) or pass the failure off.
+                Return cast kind-of-type on (cast field-of on (called, 2)) or pass the failure off.
+            Done.
             Otherwise, return a failure (cast not-built on (kind)).
         Done.
     Done.
@@ -110,8 +131,32 @@ Pull a book on collections.
                 Return a failure (cast not-built on ("the operator {operator}")).
             Done.
             "BinaryExpression", return cast one's c-binary on (expression) or pass the failure off.
+            "CastExpression", return cast one's c-call on (expression) or pass the failure off.
             Otherwise, return a failure (cast not-built on (kind)).
         Done.
+    Done.
+
+    /// The function a call reaches — one of the program's own, called by its name.
+    Bind node or failure to function-called unto emitter, given (the node call):
+        Define callee as cast field-of on (call, 1).
+        If callee's kind is not "VariableReference":
+            Return a failure (cast not-built on ("a call of a {callee's kind}")).
+        Done.
+        Define called as the entry for cast unquoted on (cast field-of on (callee, 1)) in one's functions.
+        If called is void, return a failure (cast not-built on ("a call of something other than the program's own function")).
+        Return called.
+    Done.
+
+    /// A call as C: the function's name and its arguments, in order.
+    Bind text or failure to c-call unto emitter, given (the node call):
+        Define called as cast one's function-called on (call) or pass the failure off.
+        Define listing as "".
+        For each argument in (cast field-of on (call, 2))'s children, repeat:
+            Define argument-c as cast one's c-of on (argument) or pass the failure off.
+            If listing is "", the listing becomes argument-c.
+            Otherwise, the listing becomes "{listing}, {argument-c}".
+        Done.
+        Return "{cast c-function-name on (cast unquoted on (cast field-of on (called, 1)))}({listing})".
     Done.
 
     /// An expression as C text, whatever its kind — what `converted to text` and a hole make.
@@ -267,6 +312,16 @@ Pull a book on collections.
                 Define condition as cast one's c-of on (cast field-of on (statement, 2)) or pass the failure off.
                 Cast one's line on ("\} while (!({condition}));").
             Done.
+            "ReturnStatement":
+                Define returned as cast field-of on (statement, 1).
+                If cast is-nothing on (returned), cast one's line on ("return;").
+                Otherwise, cast one's line on ("return {cast one's c-of on (returned) or pass the failure off};").
+            Done.
+            "CastStatement":
+                Define call as cast made on ("CastExpression", a series with (cast field-of on (statement, 1), cast field-of on (statement, 2))).
+                Cast one's line on ("{cast one's c-call on (call) or pass the failure off};").
+            Done.
+            "BindStatement", return a failure (cast not-built on ("a function inside a body")).
             "StopStatement", cast one's line on ("break;").
             "SkipStatement", cast one's line on ("continue;").
             "JudgeStatement", cast one's emit-judge on (statement) or pass the failure off.
@@ -326,14 +381,76 @@ Pull a book on collections.
         Cast one's line on ("\}").
     Done.
 
-    /// The whole program as one C file.
+    /// What this compiler cannot build in a function yet — a method, a maker, a template or anything
+    /// marked — or "".
+    Bind text or failure to function-beyond, given (the node statement):
+        If cast is-nothing on (cast field-of on (statement, 5)) is false, return "a method bound 'unto' a type".
+        If cast is-nothing on (cast field-of on (statement, 6)) is false, return "a maker".
+        If the number of statement's children is greater than 8, return "a Bind with {(cast field-of on (statement, 9))'s word}".
+        Return "".
+    Done.
+
+    /// A function's head as C: what it gives back, its name, and its parameters.
+    Bind text or failure to c-signature, given (the node statement):
+        Define gives as cast kind-of-type on (cast field-of on (statement, 2)) or pass the failure off.
+        Define head as "void".
+        If gives is not "void", the head becomes cast c-type on (gives).
+        Define listing as "".
+        For each parameter in (cast field-of on (statement, 3))'s children, repeat:
+            Define taken as cast kind-of-type on (cast field-of on (parameter, 1)) or pass the failure off.
+            If taken is "void", return a failure (cast not-built on ("a parameter of no type")).
+            Define one-parameter as "{cast c-type on (taken)} {cast c-name on (cast unquoted on (cast field-of on (parameter, 2)))}".
+            If listing is "", the listing becomes one-parameter.
+            Otherwise, the listing becomes "{listing}, {one-parameter}".
+        Done.
+        If listing is "", the listing becomes "void".
+        Return "{head} {cast c-function-name on (cast unquoted on (cast field-of on (statement, 1)))}({listing})".
+    Done.
+
+    /// One function as C. A body sees its parameters and nothing of the program's top level.
+    Bind text or failure to c-function, given (the node statement, the map from text to node functions):
+        Define writer as cast fresh-emitter on (functions).
+        For each parameter in (cast field-of on (statement, 3))'s children, repeat:
+            Define taken as cast kind-of-type on (cast field-of on (parameter, 1)) or pass the failure off.
+            In writer's kinds, the entry for cast unquoted on (cast field-of on (parameter, 2)) becomes taken.
+        Done.
+        For each inner in (cast field-of on (statement, 4))'s children, repeat:
+            Cast writer's emit-statement on (inner) or pass the failure off.
+        Done.
+        Define signature as cast c-signature on (statement) or pass the failure off.
+        Return "{signature} \{\n{writer's body converted to text}\}\n\n".
+    Done.
+
+    /// The whole program as one C file: its functions — declared first, so any may call any — then
+    /// what it does.
     Bind text or failure to c-program, given (the node program):
-        Define writer as cast fresh-emitter.
+        Define functions as a map from text to node.
         For each statement in program's children, repeat:
-            Cast writer's emit-statement on (statement) or pass the failure off.
+            If statement's kind is "BindStatement":
+                Define beyond as cast function-beyond on (statement) or pass the failure off.
+                If beyond is not "", return a failure (cast not-built on (beyond)).
+                In functions, the entry for cast unquoted on (cast field-of on (statement, 1)) becomes statement.
+            Done.
+        Done.
+        Define declared as a chase.
+        Define defined as a chase.
+        For each statement in program's children, repeat:
+            If statement's kind is "BindStatement":
+                Insert "{cast c-signature on (statement) or pass the failure off};\n" into declared.
+                Insert cast c-function on (statement, functions) or pass the failure off into defined.
+            Done.
+        Done.
+        Define writer as cast fresh-emitter on (functions).
+        For each statement in program's children, repeat:
+            If statement's kind is not "BindStatement":
+                Cast writer's emit-statement on (statement) or pass the failure off.
+            Done.
         Done.
         Define out as a chase.
         Insert "#include \"cufet-runtime.h\"\n\n" into out.
+        Insert declared converted to text into out.
+        Insert "\n" into out.
+        Insert defined converted to text into out.
         Insert "int main(int argc, char** argv) \{\n" into out.
         Insert "    cufet_set_args(argc, argv);\n" into out.
         Insert "    CUFET_STDOUT_BINARY();\n" into out.
