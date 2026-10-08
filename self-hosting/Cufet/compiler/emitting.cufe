@@ -14,10 +14,10 @@
 */
 
 Pull a book on collections.
-    Define object emitter with (the map from text to text kinds, the chase body).
+    Define object emitter with (the map from text to text kinds, the chase body, the text indent).
 
     Bind emitter to fresh-emitter:
-        Return a new emitter { the kinds a map from text to text, the body a chase }.
+        Return a new emitter { the kinds a map from text to text, the body a chase, the indent "    " }.
     Done.
 
     /// What this compiler cannot build yet, as a failure message.
@@ -178,9 +178,32 @@ Pull a book on collections.
     Done.
 
     Bind void to line unto emitter, given (the text written):
-        Insert "    " into one's body.
+        Insert one's indent into one's body.
         Insert written into one's body.
         Insert "\n" into one's body.
+    Done.
+
+    /// A block's statements, one level in. What a block defines is gone when it ends, so the kinds
+    /// of the names are put back as they were.
+    Bind void or failure to emit-block unto emitter, given (the node statements):
+        Define kept as a map from text to text.
+        For each pair in one's kinds, repeat:
+            In kept, the entry for the key of pair becomes the value of pair.
+        Done.
+        Define outer as one's indent.
+        The one's indent becomes outer joined to "    ".
+        For each statement in statements's children, repeat:
+            Cast one's emit-statement on (statement) or pass the failure off.
+        Done.
+        The one's indent becomes outer.
+        The one's kinds becomes kept.
+    Done.
+
+    /// Whether `left` and `right`, two values of `kind`, are equal — as C.
+    Bind text to c-equal, given (the text kind, the text left, the text right):
+        If kind is "number", return "(cufet_cmp({left}, {right}) == 0)".
+        If kind is "text", return "(strcmp({left}, {right}) == 0)".
+        Return "(!!({left}) == !!({right}))".
     Done.
 
     Bind void or failure to emit-statement unto emitter, given (the node statement):
@@ -216,8 +239,91 @@ Pull a book on collections.
                 Define value as cast one's c-of on (cast field-of on (statement, 2)) or pass the failure off.
                 Cast one's line on ("{cast c-name on (name)} = {value};").
             Done.
+            "IfStatement":
+                Define first-arm as true.
+                For each arm in (cast field-of on (statement, 1))'s children, repeat:
+                    Define condition as cast one's c-of on (cast field-of on (arm, 1)) or pass the failure off.
+                    If first-arm, cast one's line on ("if ({condition}) \{").
+                    Otherwise, cast one's line on ("\} else if ({condition}) \{").
+                    The first-arm becomes false.
+                    Cast one's emit-block on (cast field-of on (arm, 2)) or pass the failure off.
+                Done.
+                Define otherwise-body as cast field-of on (statement, 2).
+                If cast is-nothing on (otherwise-body) is false:
+                    Cast one's line on ("\} else \{").
+                    Cast one's emit-block on (otherwise-body) or pass the failure off.
+                Done.
+                Cast one's line on ("\}").
+            Done.
+            "WhileStatement":
+                Define condition as cast one's c-of on (cast field-of on (statement, 1)) or pass the failure off.
+                Cast one's line on ("while ({condition}) \{").
+                Cast one's emit-block on (cast field-of on (statement, 2)) or pass the failure off.
+                Cast one's line on ("\}").
+            Done.
+            "RepeatUntilStatement":
+                Cast one's line on ("do \{").
+                Cast one's emit-block on (cast field-of on (statement, 1)) or pass the failure off.
+                Define condition as cast one's c-of on (cast field-of on (statement, 2)) or pass the failure off.
+                Cast one's line on ("\} while (!({condition}));").
+            Done.
+            "StopStatement", cast one's line on ("break;").
+            "SkipStatement", cast one's line on ("continue;").
+            "JudgeStatement", cast one's emit-judge on (statement) or pass the failure off.
             Otherwise, return a failure (cast not-built on (kind)).
         Done.
+    Done.
+
+    /// `Judge <subject>, where it is:` over values — the subject held as `it`, each arm a test of it
+    /// against its values, in order. An arm naming a type waits for a later slice.
+    Bind void or failure to emit-judge unto emitter, given (the node statement):
+        Define subject as cast field-of on (statement, 1).
+        Define value as cast one's c-of on (subject) or pass the failure off.
+        Define subject-kind as cast one's kind-of on (subject) or pass the failure off.
+        Cast one's line on ("\{").
+        Define kept as a map from text to text.
+        For each pair in one's kinds, repeat:
+            In kept, the entry for the key of pair becomes the value of pair.
+        Done.
+        Define outer as one's indent.
+        The one's indent becomes outer joined to "    ".
+        Cast one's line on ("{cast c-type on (subject-kind)} cv_it = {value};").
+        In one's kinds, the entry for "it" becomes subject-kind.
+        Define first-arm as true.
+        For each arm in (cast field-of on (statement, 2))'s children, repeat:
+            If the number of (cast field-of on (arm, 1))'s children is greater than 0:
+                Return a failure (cast not-built on ("a judgement arm naming a type")).
+            Done.
+            Define tests as "".
+            For each written in (cast field-of on (arm, 5))'s children, repeat:
+                Define written-kind as cast one's kind-of on (written) or pass the failure off.
+                If written-kind is not subject-kind:
+                    Return a failure (cast not-built on ("a judgement arm of another kind than its subject")).
+                Done.
+                Define test as cast c-equal on (subject-kind, "cv_it", cast one's c-of on (written) or pass the failure off).
+                If tests is "", the tests becomes test.
+                Otherwise, the tests becomes "{tests} || {test}".
+            Done.
+            If first-arm, cast one's line on ("if ({tests}) \{").
+            Otherwise, cast one's line on ("\} else if ({tests}) \{").
+            The first-arm becomes false.
+            Cast one's emit-block on (cast field-of on (arm, 2)) or pass the failure off.
+        Done.
+        Define otherwise-body as cast field-of on (statement, 3).
+        If cast is-nothing on (otherwise-body) is false:
+            If first-arm:
+                Cast one's line on ("\{").
+            Done.
+            Otherwise:
+                Cast one's line on ("\} else \{").
+            Done.
+            Cast one's emit-block on (otherwise-body) or pass the failure off.
+            The first-arm becomes false.
+        Done.
+        If first-arm is false, cast one's line on ("\}").
+        The one's indent becomes outer.
+        The one's kinds becomes kept.
+        Cast one's line on ("\}").
     Done.
 
     /// The whole program as one C file.
