@@ -214,6 +214,16 @@ the calling: these wait only for a turn.
   `Return.` follows. Correct and explicit, and the bulk of that program's line noise.
   *Blocker:* none known.
 
+- **Text that holds braces cannot also hold holes.** A `{` in a quoted literal opens a hole, so
+  every brace C needs is written `\{` or `\}` — 53 of them in the compiler written in Cufet's
+  `emitting.cufe`, in lines like `"if ({condition}) \{"` — and `<<…>>` keeps the braces but has no
+  holes. Met writing that compiler; every slice adds more. *Blocker:* none known.
+
+- **A value made inside a `Try` has to be declared before it.** A name defined in the block is gone
+  after it, so the compiler written in Cufet writes `Define whole as "".` and then
+  `Try to: The whole becomes …` — four times in forty lines of `compiler.cufe`. Not the handing-on
+  above: this is keeping a result, not passing a failure. *Blocker:* none known.
+
 - **A nested function cannot call a sibling declared after it.** Two functions inside a third
   cannot call each other, so closures cannot be mutually recursive: `even-step` calling an
   `odd-step` written below it is refused — *"'odd-step' isn't defined … no declaration of this name
