@@ -238,10 +238,10 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     /// Programs the interpreter stops with an error, each with words the error must carry.
     /// </summary>
     /// <remarks>
-    /// ⚠ The C# compiler does not stop these — its loop over a series runs over the items there when
-    /// it began, whatever the body does to the series (measured 2026-10-08). GRAMMAR says the loop
-    /// refuses it, and the interpreter does; the oracle cannot see the difference, because it does
-    /// not run programs that end in an error. So this compiler is held to the interpreter here.
+    /// ⚠ Held to the interpreter, not to the C# compiler: until 2026-10-08 that one did not stop these
+    /// — its loop ran over the items there when it began, whatever the body did — and the oracle
+    /// could not see it, because it does not run programs that end in an error. This test found it;
+    /// `PipelineSeriesTests.ALoopThatChangesWhatItLoopsOver_StopsAsTheInterpreterDoes` holds it now.
     /// </remarks>
     private static readonly (string Source, string Says)[] Stopped =
     [

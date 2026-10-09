@@ -626,4 +626,24 @@ public class PipelineSeriesTests : PipelineTestBase
             """;
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
+
+    // ⚠⚠ A loop whose body inserts into or removes from what it loops over STOPS, with the error
+    // GRAMMAR names — and until 2026-10-08 the compiled loop did not: it ran over the items there
+    // when it began and carried on, where the interpreter stopped. The oracle could not see it,
+    // because it compares programs that finish; each fault here is CAUGHT and its message printed,
+    // so the comparison sees whether it came, where, and in what words. Found by the compiler
+    // written in Cufet, which is held to the interpreter. Series and chases are checked before each
+    // pass and after the last; sets and maps before each pass only — both as the interpreter does.
+    [Theory]
+    [InlineData("Define xs as a series of number with (1, 2, 3).\nTry to:\n    For each in xs, repeat:\n        State it.\n        Insert it into xs.\n    Done.\nDone.\nIn case of exception (the exception):\n    State \"caught: \" joined to the message of the exception.\n    Suppress the exception.\nDone.\nState xs.")]
+    [InlineData("Define xs as a series of number with (1, 2, 3).\nTry to:\n    For each n in xs, repeat:\n        State n.\n        If n is 3, remove the first from xs.\n    Done.\nDone.\nIn case of exception (the exception):\n    State \"caught: \" joined to the message of the exception.\n    Suppress the exception.\nDone.\nState xs.")]
+    [InlineData("Define xs as a series of number with (1, 2, 3).\nFor each n in xs, repeat:\n    State n.\n    If n is 2:\n        Insert 9 into xs.\n        Stop.\n    Done.\nDone.\nState xs.")]
+    [InlineData("Define xs as a series of number with (1, 2, 3).\nTry to:\n    For each n in xs, repeat:\n        State n.\n        If n is 1:\n            Insert 9 into xs.\n            Skip.\n        Done.\n    Done.\nDone.\nIn case of exception (the exception):\n    State \"caught: \" joined to the message of the exception.\n    Suppress the exception.\nDone.\nState xs.")]
+    [InlineData("Try to:\n    For each n in range 1 to 3, repeat:\n        State n.\n    Done.\nDone.\nIn case of exception (the exception):\n    State \"caught: \" joined to the message of the exception.\n    Suppress the exception.\nDone.")]
+    [InlineData("Define ages as a map from text to number with (\"ann\" : 1, \"bo\" : 2).\nTry to:\n    For each pair in ages, repeat:\n        State the key of pair.\n        In ages, the entry for \"cy\" becomes 3.\n    Done.\nDone.\nIn case of exception (the exception):\n    State \"caught: \" joined to the message of the exception.\n    Suppress the exception.\nDone.")]
+    [InlineData("Define ages as a map from text to number with (\"ann\" : 1).\nFor each pair in ages, repeat:\n    In ages, the entry for \"cy\" becomes 3.\nDone.\nState the size of ages.")]
+    [InlineData("Define seen as a set of text.\nInsert \"a\" into seen.\nInsert \"b\" into seen.\nTry to:\n    For each in seen, repeat:\n        State it.\n        Insert \"c\" into seen.\n    Done.\nDone.\nIn case of exception (the exception):\n    State \"caught: \" joined to the message of the exception.\n    Suppress the exception.\nDone.")]
+    [InlineData("Pull a book on collections.\n    Define buffer as a chase.\n    Insert \"ab\" into buffer.\n    Try to:\n        For each in buffer, repeat:\n            State it.\n            Insert \"z\" into buffer.\n        Done.\n    Done.\n    In case of exception (the exception):\n        State \"caught: \" joined to the message of the exception.\n        Suppress the exception.\n    Done.\nDone.")]
+    public void ALoopThatChangesWhatItLoopsOver_StopsAsTheInterpreterDoes(string src) =>
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
 }

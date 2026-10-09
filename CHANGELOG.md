@@ -115,6 +115,13 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **A built loop stops when its body changes what it loops over.** Inserting into or removing from
+  a series, map, set or chase inside a `For each` over it stops the program with the error GRAMMAR
+  names — and the interpreter did, but a built program ran over the items there when the loop began
+  and carried on, printing `(1, 2, 3, 1, 2, 3)` where the interpreter stopped. The two backends'
+  comparison never saw it, because it compares programs that finish. Now the built loop checks
+  where the interpreter does and stops in the same words. Found by the compiler written in Cufet,
+  which is held to the interpreter.
 - **A folder reached by qualifying it no longer sees the program that reached it.** Everything a
   file loads becomes one program, and the loading file's names stayed plain in it — so a sibling's
   call to a name it never declared ran the LOADER's function of that name, silently, and a sibling's

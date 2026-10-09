@@ -1676,13 +1676,36 @@ public sealed partial class CodeGenerator
         sb.AppendLine($"{indent}{{");
         sb.AppendLine($"{inner}CufetChase* {buf} = {bufExpr};");
         sb.AppendLine($"{inner}int {buf}_n = {buf}->len;");
-        sb.AppendLine($"{inner}for (int {idx} = 0; {idx} < {buf}_n; {idx}++) {{");
+        sb.AppendLine($"{inner}for (int {idx} = 0; ; {idx}++) {{");
+        sb.AppendLine($"{loopIndent}{ModifiedDuringLoop(fe, "The chase", $"{buf}->len", $"{buf}_n")}");
+        sb.AppendLine($"{loopIndent}if ({idx} >= {buf}_n) break;");
         sb.AppendLine($"{loopIndent}const char* {iterName} = cufet_chase_at({buf}, {idx} + 1);");
         EmitLoopBody(sb, fe.Body, loopIndent);
         sb.AppendLine($"{inner}}}");
         sb.AppendLine($"{indent}}}");
 
         if (savedType != null) _varTypes[rawName] = savedType; else _varTypes.Remove(rawName);
+    }
+
+    /// <summary>
+    /// The refusal a loop gives when its body inserts into or removes from what it loops over —
+    /// in the interpreter's words, at the interpreter's places.
+    /// </summary>
+    /// <remarks>
+    /// ⚠⚠ MISSING UNTIL 2026-10-08, and the oracle could not see it: every loop here snapshotted the
+    /// length and never looked again, so `Insert it into xs.` inside a loop over `xs` ran the loop
+    /// over the items there when it began and carried on, where the interpreter stops with this
+    /// error and GRAMMAR says it does. The oracle compares programs that finish. The compiler written
+    /// in Cufet, held to the interpreter, found it.
+    /// ★ Where it is checked follows the interpreter exactly: a series or a chase before each pass
+    /// and once more after the last — a `Stop` leaves without it — and a set or a map before each
+    /// pass only.
+    /// </remarks>
+    private static string ModifiedDuringLoop(ForEachStatement fe, string unnamed, string length, string start)
+    {
+        string display = fe.Series is VariableReference named ? $"'{named.Name}'" : unnamed;
+        string message = $"{display} was modified during a for-each loop on line {fe.Line} — collect into a separate series, or use a While loop if you need to change it while looping.";
+        return $"if ({length} != {start}) cufet_raise({EscapeStringLiteral(message)});";
     }
 
     private void EmitForEachSeries(StringBuilder sb, ForEachStatement fe, string indent)
@@ -1710,7 +1733,9 @@ public sealed partial class CodeGenerator
         sb.AppendLine($"{indent}{{");
         sb.AppendLine($"{inner}{name}* {ser} = {serExpr};");
         sb.AppendLine($"{inner}int {ser}_n = {ser}->len;");
-        sb.AppendLine($"{inner}for (int {idx} = 0; {idx} < {ser}_n; {idx}++) {{");
+        sb.AppendLine($"{inner}for (int {idx} = 0; ; {idx}++) {{");
+        sb.AppendLine($"{loopIndent}{ModifiedDuringLoop(fe, "The series", $"{ser}->len", $"{ser}_n")}");
+        sb.AppendLine($"{loopIndent}if ({idx} >= {ser}_n) break;");
         sb.AppendLine($"{loopIndent}{EmitCType(elem)} {iterName} = {ser}->data[{idx}];");
         EmitLoopBody(sb, fe.Body, loopIndent);
         sb.AppendLine($"{inner}}}");
@@ -1747,6 +1772,7 @@ public sealed partial class CodeGenerator
         sb.AppendLine($"{inner}{name}* {m} = {setExpr};");
         sb.AppendLine($"{inner}int {m}_n = {m}->len;");
         sb.AppendLine($"{inner}for (int {idx} = 0; {idx} < {m}_n; {idx}++) {{");
+        sb.AppendLine($"{loopIndent}{ModifiedDuringLoop(fe, "The set", $"{m}->len", $"{m}_n")}");
         sb.AppendLine($"{loopIndent}{EmitCType(mt.ValueType)} {member} = {m}->vals[{idx}];");
         EmitLoopBody(sb, fe.Body, loopIndent);
         sb.AppendLine($"{inner}}}");
@@ -1777,6 +1803,7 @@ public sealed partial class CodeGenerator
         sb.AppendLine($"{inner}{name}* {m} = {mapExpr};");
         sb.AppendLine($"{inner}int {m}_n = {m}->len;");
         sb.AppendLine($"{inner}for (int {idx} = 0; {idx} < {m}_n; {idx}++) {{");
+        sb.AppendLine($"{loopIndent}{ModifiedDuringLoop(fe, "The map", $"{m}->len", $"{m}_n")}");
         sb.AppendLine($"{loopIndent}{EmitCType(mt.KeyType)} {pair}_key = {m}->keys[{idx}];");
         sb.AppendLine($"{loopIndent}{EmitCType(mt.ValueType)} {pair}_value = {m}->vals[{idx}];");
         EmitLoopBody(sb, fe.Body, loopIndent);
