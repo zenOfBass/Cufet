@@ -52,7 +52,7 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     : PipelineTestBase, IClassFixture<CompiledCufetCompiler>
 {
     /// <summary>How many hand-written programs must build and print alike. Raised as it grows; never lowered.</summary>
-    private const int BuiltFloor = 88;
+    private const int BuiltFloor = 113;
 
     private static string[] PreludeArgs =>
         ["--prelude", Path.Combine(RepoRoot, "src", "Interpreter", "Prelude").Replace('\\', '/')];
@@ -157,6 +157,32 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
         "Bind text to repeated, given (the text piece, the number times):\n    Define out as \"\".\n    Define i as 0.\n    While i is less than times, repeat:\n        The out becomes out joined to piece.\n        Increment i by 1.\n    Done.\n    Return out.\nDone.\nState cast repeated on (\"ab\", 3).",
         "Bind number to helper, given (the number n):\n    Return n + 1.\nDone.\nBind number to twice, given (the number helper):\n    Return helper * 2.\nDone.\nState cast twice on (cast helper on (20)).",
         "Bind void to report, given (the number n):\n    State \"n is {n}\".\nDone.\nDefine n as 5.\nCast report on (n * 2).\nState n.",
+        // Series of numbers, text and facts: made, ranged, looped over, reached into, changed, shared, and passed to and from functions.
+        "Define scores as a series of number with (3, 1, 2).\nState scores.",
+        "Define names as a series of text with (\"grace\", \"hopper\").\nState names.",
+        "Define flags as a series of fact with (true, false).\nState flags.",
+        "Define empty as a series of number.\nState empty.\nState the number of empty.",
+        "Define scores as a series of number with (3, 1, 2).\nInsert 7 into scores.\nState the number of scores.\nState scores.",
+        "Define scores as a series of number with (3, 1, 2).\nState item 2 of scores.\nState the first of scores.\nState the last of scores.",
+        "Define scores as a series of number with (5, 6).\nInsert 4 into the start of scores.\nInsert 9 after item 1 of scores.\nState scores.",
+        "Define scores as a series of number with (4, 9, 5, 6, 1).\nRemove item 2 from scores.\nRemove 6 from scores.\nState scores.\nRemove the last from scores.\nState scores.",
+        "Define scores as a series of number with (1, 2, 3).\nThe item 2 of scores becomes 20.\nThe first of scores becomes 10.\nThe last of scores becomes 30.\nState scores.",
+        "Define scores as a series of number with (3, 1, 2).\nFor each n in scores, repeat:\n    State n * 10.\nDone.",
+        "Define names as a series of text.\nInsert \"grace\" into names.\nInsert \"hopper\" into names.\nFor each in names, repeat:\n    State \"hello, {it}\".\nDone.",
+        "For each n in range 1 to 5, repeat:\n    State n.\nDone.",
+        "For each n in range 1 to 10 counting by 3, repeat:\n    State n.\nDone.",
+        "Define total as 0.\nDefine limit as 0.\nFor each n in range 1 to limit, repeat:\n    Increment total by 1.\nDone.\nState total.",
+        "Define hundred as range 1 to 100.\nState the number of hundred.\nState the last of hundred.",
+        "Define s as a series of number with (1, 2).\nDefine t as s.\nInsert 3 into t.\nState s.",
+        "Define total as 0.\nFor each n in range 1 to 10, repeat:\n    If n % 2 is 0, skip.\n    If n is 9, stop.\n    Increment total by n.\nDone.\nState total.",
+        "Define grid as a series of text.\nFor each row in range 1 to 3, repeat:\n    For each column in range 1 to 3, repeat:\n        Insert \"{row}{column}\" into grid.\n    Done.\nDone.\nState grid.",
+        "Bind number to sum, given (the series of number xs):\n    Define total as 0.\n    For each in xs, repeat:\n        Increment total by it.\n    Done.\n    Return total.\nDone.\nState cast sum on (a series of number with (1, 2, 3, 4)).",
+        "Bind series of number to evens-to, given (the number limit):\n    Define found as a series of number.\n    For each n in range 1 to limit, repeat:\n        If n % 2 is 0, insert n into found.\n    Done.\n    Return found.\nDone.\nState cast evens-to on (10).",
+        "Bind void to grow, given (the series of text names):\n    Insert \"added\" into names.\nDone.\nDefine names as a series of text with (\"first\").\nCast grow on (names).\nState names.",
+        "Define words as a series of text with (\"a\", \"b\", \"c\").\nDefine together as \"\".\nFor each word in words, repeat:\n    The together becomes together joined to word.\nDone.\nState together.",
+        "Define xs as a series of number with (1, 2, 3).\nDefine copied as a series of number.\nFor each in xs, repeat:\n    Insert it * 2 into copied.\n    The first of xs becomes 0.\nDone.\nState xs.\nState copied.",
+        "Define primes as a series of number.\nFor each candidate in range 2 to 30, repeat:\n    Define is-prime as true.\n    For each p in primes, repeat:\n        If candidate % p is 0:\n            The is-prime becomes false.\n            Stop.\n        Done.\n    Done.\n    If is-prime, insert candidate into primes.\nDone.\nState primes.",
+        "Define xs as a series of number with (3, 1, 2).\nState item (the number of xs) of xs.\nState item 1 + 1 of xs.",
     ];
 
     [Fact]
@@ -204,6 +230,73 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
             Assert.True(problems.Count == 0,
                 $"{problems.Count} of {sources.Count} went wrong:\n{string.Join("\n", problems.Take(20))}");
             Assert.True(matched >= BuiltFloor, $"only {matched} built and print alike, and the floor is {BuiltFloor}.");
+        }
+        finally { try { Directory.Delete(dir, recursive: true); } catch (IOException) { } }
+    }
+
+    /// <summary>
+    /// Programs the interpreter stops with an error, each with words the error must carry.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ The C# compiler does not stop these — its loop over a series runs over the items there when
+    /// it began, whatever the body does to the series (measured 2026-10-08). GRAMMAR says the loop
+    /// refuses it, and the interpreter does; the oracle cannot see the difference, because it does
+    /// not run programs that end in an error. So this compiler is held to the interpreter here.
+    /// </remarks>
+    private static readonly (string Source, string Says)[] Stopped =
+    [
+        ("Define xs as a series of number with (1, 2, 3).\nFor each in xs, repeat:\n    State it.\n    Insert it into xs.\nDone.\nState xs.",
+         "was modified during a for-each loop"),
+        ("Define xs as a series of number with (1, 2, 3).\nFor each n in xs, repeat:\n    State n.\n    If n is 2, remove the first from xs.\nDone.\nState xs.",
+         "was modified during a for-each loop"),
+        ("Define xs as a series of number with (1, 2, 3).\nFor each n in xs, repeat:\n    State n.\n    If n is 3, insert 4 into xs.\nDone.\nState xs.",
+         "was modified during a for-each loop"),
+    ];
+
+    [Fact]
+    public void TheCompiledCompiler_BuildsProgramsThatStopWhereTheInterpreterStops()
+    {
+        var dir = Directory.CreateDirectory(
+            Path.Combine(TestScratch.Root, "cufet-selfstopped-" + Guid.NewGuid().ToString("N"))).FullName;
+        try
+        {
+            var sources = Stopped.Select((s, i) => (Name: $"s{i + 1:000}.cufe", s.Source, s.Says)).ToList();
+            foreach (var (name, source, _) in sources) File.WriteAllText(Path.Combine(dir, name), source);
+
+            var runtime = compiled.RuntimeFolder.Replace('\\', '/');
+            var got = ByFile(Run(compiled.Exe, ["--runtime", runtime, .. PreludeArgs, .. sources.Select(s => s.Name)], dir));
+
+            var problems = new List<string>();
+            foreach (var (name, source, says) in sources)
+            {
+                string said = got.TryGetValue(name, out var lines) && lines.Count > 0 ? lines[0] : "<nothing printed>";
+                if (said != "built") { problems.Add($"{name}: {said}"); continue; }
+                // ⚠ Each must stop the interpreter too, or it tests nothing.
+                Assert.Throws<RuntimeException>(() => InterpretRaw(source));
+
+                var psi = new System.Diagnostics.ProcessStartInfo(Path.Combine(dir, Path.GetFileNameWithoutExtension(name)
+                    + (OperatingSystem.IsWindows() ? ".exe" : "")))
+                {
+                    RedirectStandardOutput = true, RedirectStandardError = true, RedirectStandardInput = true,
+                    StandardOutputEncoding = System.Text.Encoding.UTF8, StandardErrorEncoding = System.Text.Encoding.UTF8,
+                    UseShellExecute = false,
+                };
+                using var process = System.Diagnostics.Process.Start(psi)!;
+                process.StandardInput.Close();
+                var stdout = process.StandardOutput.ReadToEndAsync();
+                var stderr = process.StandardError.ReadToEndAsync();
+                process.WaitForExit();
+                // What it printed before it stopped, then that it stopped, and why.
+                string want = InterpretThroughFaultRaw(source);
+                if (stdout.Result != want)
+                    problems.Add($"{name} printed differently before stopping:\n    interpreted: {Show(want)}\n    built:       {Show(stdout.Result)}");
+                else if (process.ExitCode == 0)
+                    problems.Add($"{name} did not stop: it exited 0");
+                else if (!stderr.Result.Contains(says, StringComparison.Ordinal))
+                    problems.Add($"{name} stopped without saying '{says}': {stderr.Result}");
+            }
+            Assert.True(problems.Count == 0,
+                $"{problems.Count} of {sources.Count} went wrong:\n{string.Join("\n", problems)}");
         }
         finally { try { Directory.Delete(dir, recursive: true); } catch (IOException) { } }
     }

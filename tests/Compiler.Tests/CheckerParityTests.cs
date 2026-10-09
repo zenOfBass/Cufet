@@ -27,10 +27,10 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
     : IClassFixture<CompiledCufetChecker>
 {
     /// <summary>How many corpus files must agree. Raised as the checker grows; never lowered.</summary>
-    private const int CorpusFloor = 139;
+    private const int CorpusFloor = 140;
 
     /// <summary>How many corpus files' CHECKED TREES must match, of those both checkers accept. Raised; never lowered.</summary>
-    private const int TreeFloor = 135;
+    private const int TreeFloor = 136;
 
     /// <summary>The same, of the hand-written programs both checkers accept.</summary>
     private const int HandWrittenTreeFloor = 279;
