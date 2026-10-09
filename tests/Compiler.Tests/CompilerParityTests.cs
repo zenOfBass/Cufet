@@ -52,7 +52,7 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     : PipelineTestBase, IClassFixture<CompiledCufetCompiler>
 {
     /// <summary>How many hand-written programs must build and print alike. Raised as it grows; never lowered.</summary>
-    private const int BuiltFloor = 113;
+    private const int BuiltFloor = 133;
 
     private static string[] PreludeArgs =>
         ["--prelude", Path.Combine(RepoRoot, "src", "Interpreter", "Prelude").Replace('\\', '/')];
@@ -183,6 +183,27 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
         "Define xs as a series of number with (1, 2, 3).\nDefine copied as a series of number.\nFor each in xs, repeat:\n    Insert it * 2 into copied.\n    The first of xs becomes 0.\nDone.\nState xs.\nState copied.",
         "Define primes as a series of number.\nFor each candidate in range 2 to 30, repeat:\n    Define is-prime as true.\n    For each p in primes, repeat:\n        If candidate % p is 0:\n            The is-prime becomes false.\n            Stop.\n        Done.\n    Done.\n    If is-prime, insert candidate into primes.\nDone.\nState primes.",
         "Define xs as a series of number with (3, 1, 2).\nState item (the number of xs) of xs.\nState item 1 + 1 of xs.",
+        // Objects: made, read, set, copied as values, compared, nested, holding a series, and their methods — inside the object or bound unto it.
+        "Define object point with (the number across, the number up).\nDefine spot as a new point { the across 3, the up 4 }.\nState spot's across.\nState spot's up.",
+        "Define object point with (the number across, the number up).\nDefine spot as a new point { the across 3, the up 4 }.\nState spot.",
+        "Define object badge with (the text name, the fact active, the number level).\nState a new badge { the name \"grace\", the active true, the level 2 }.",
+        "Define object empty with ().\nState a new empty { }.",
+        "Define object point with (the number across, the number up).\nDefine spot as a new point { the across 3, the up 4 }.\nThe spot's across becomes 10.\nState spot.",
+        "Define object point with (the number across, the number up).\nDefine spot as a new point { the across 3, the up 4 }.\nDefine copy as spot.\nThe copy's up becomes 0.\nState spot.\nState copy.",
+        "Define object point with (the number across, the number up).\nDefine one-spot as a new point { the across 1, the up 2 }.\nDefine two-spot as a new point { the across 1, the up 2 }.\nState one-spot is two-spot.\nThe two-spot's up becomes 9.\nState one-spot is two-spot.\nState one-spot is not two-spot.",
+        "Define object point with (the number across, the number up):\n    Bind number to sum:\n        Return one's across + one's up.\n    Done.\n    Bind void to shift, given (the number amount):\n        One's across becomes one's across + amount.\n    Done.\nDone.\nDefine spot as a new point { the across 3, the up 4 }.\nState cast spot's sum.\nCast spot's shift on (10).\nState spot.\nState cast spot's sum.",
+        "Define object point with (the number across, the number up).\nBind number to across-of unto point:\n    Return one's across.\nDone.\nDefine spot as a new point { the across 7, the up 1 }.\nState cast spot's across-of.",
+        "Define object point with (the number across, the number up).\nBind point to moved, given (the point start-point, the number amount):\n    Return a new point { the across start-point's across + amount, the up start-point's up }.\nDone.\nDefine spot as a new point { the across 1, the up 1 }.\nState cast moved on (spot, 5).\nState spot.",
+        "Define object point with (the number across, the number up).\nBind void to clobber, given (the point target):\n    The target's across becomes 99.\n    State target.\nDone.\nDefine spot as a new point { the across 1, the up 1 }.\nCast clobber on (spot).\nState spot.",
+        "Define object point with (the number across, the number up).\nDefine object line with (the point head, the point tail).\nDefine route as a new line { the head a new point { the across 0, the up 0 }, the tail a new point { the across 3, the up 4 } }.\nState route.\nState route's tail's up.\nThe route's head becomes a new point { the across 5, the up 5 }.\nState route.",
+        "Define object bag with (the text label, the series of number items).\nDefine first-bag as a new bag { the label \"a\", the items a series of number with (1, 2) }.\nDefine second-bag as first-bag.\nInsert 3 into second-bag's items.\nThe second-bag's label becomes \"b\".\nState first-bag.\nState second-bag.",
+        "Define object counter with (the number count):\n    Bind void to tick:\n        One's count becomes one's count + 1.\n    Done.\n    Bind void to tick-twice:\n        Cast one's tick.\n        Cast one's tick.\n    Done.\nDone.\nDefine clicks as a new counter { the count 0 }.\nCast clicks's tick-twice.\nCast clicks's tick.\nState clicks's count.",
+        "Define object account with (the text owner, the number balance):\n    Bind fact to can-pay, given (the number amount):\n        Return one's balance is not less than amount.\n    Done.\n    Bind void to pay, given (the number amount):\n        If cast one's can-pay on (amount):\n            One's balance becomes one's balance - amount.\n            State \"paid {amount}\".\n        Done.\n        Otherwise:\n            State \"{one's owner} cannot pay {amount}\".\n        Done.\n    Done.\nDone.\nDefine wallet as a new account { the owner \"grace\", the balance 10 }.\nCast wallet's pay on (4).\nCast wallet's pay on (9).\nState wallet's balance.",
+        "Define object point with (the number across, the number up).\nDefine spots as a series of number.\nDefine here as a new point { the across 2, the up 3 }.\nFor each n in range 1 to 3, repeat:\n    Insert here's across * n into spots.\nDone.\nState spots.",
+        "Define object point with (the number across, the number up):\n    Bind number to sum:\n        Return one's across + one's up.\n    Done.\n    Bind void to shift, given (the number amount):\n        One's across becomes one's across + amount.\n    Done.\nDone.\nBind number to total-of, given (the point first-point, the point second-point):\n    Return cast first-point's sum + cast second-point's sum.\nDone.\nState cast total-of on (a new point { the across 1, the up 2 }, a new point { the across 3, the up 4 }).",
+        "Define object shelf with (the series of text titles):\n    Bind void to add, given (the text title):\n        Insert title into one's titles.\n    Done.\n    Bind number to count:\n        Return the number of one's titles.\n    Done.\nDone.\nDefine books as a new shelf { the titles a series of text }.\nCast books's add on (\"dune\").\nCast books's add on (\"emma\").\nState cast books's count.\nState books.",
+        "Define object pair with (the text left, the text right).\nDefine one-pair as a new pair { the left \"a\", the right \"b\" }.\nJudge one-pair's left, where it is:\n    \"a\", state \"starts with a\".\n    Otherwise, state \"something else\".\nDone.",
+        "Define object point with (the number across, the number up).\nDefine spot as a new point { the across 1, the up 2 }.\nIf spot is (a new point { the across 1, the up 2 }), state \"same\".",
     ];
 
     [Fact]
