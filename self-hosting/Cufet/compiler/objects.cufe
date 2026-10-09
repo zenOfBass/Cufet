@@ -1,0 +1,232 @@
+/*  Objects — `Define object`, `a new … { … }`, `'s`, setting a field, and methods: written inside
+    the object, or bound `unto` it.
+
+    ★ An object is a VALUE, as in the language: `Define copy as spot` is a second object, and
+      changing one leaves the other. In C it is a struct, assigned and passed by value. A series in
+      it is still shared, as the language's own note says a copied builder half-copies — the struct
+      holds a pointer to it.
+
+    ★ A method changes the object it is called on, so it takes it by address — `one` is `*cv_one`.
+      Called on something that is not a place — the result of a call — it waits for a later slice.
+
+    ★ Fields are held, printed and compared in the order the checked tree lists them.
+*/
+
+Pull a book on collections.
+    /// A Cufet type name as the C name of its struct.
+    Bind text to c-struct-name, given (the text name):
+        Return "cd_" joined to (replace "-" with "_" in name).
+    Done.
+
+    /// The object a kind names, or "" when it names none.
+    Bind text to object-of, given (the text kind):
+        If kind starts with "object ", return the characters from 8 to the end of kind.
+        Return "".
+    Done.
+
+    /// What this compiler cannot build in an object yet, or "".
+    Bind text to object-beyond, given (the node definition):
+        If the number of (cast field-of on (definition, 2))'s children is greater than 0, return "an object with positional fields".
+        If the number of (cast field-of on (definition, 5))'s children is greater than 0, return "an object with getters".
+        If the number of (cast field-of on (definition, 6))'s children is greater than 0, return "an object with setters".
+        If cast is-nothing on (cast field-of on (definition, 7)) is false, return "an object that embeds another".
+        If the number of (cast field-of on (definition, 8))'s children is greater than 0, return "an object that conforms to an interface".
+        For each place in a series with (12, 13, 14), repeat:
+            If the number of (cast field-of on (definition, place))'s children is greater than 0, return "an object with defaults, blanks or carried types".
+        Done.
+        Return "".
+    Done.
+
+    /// The kind of an object's field, or a failure when it has none of that name.
+    Bind text or failure to field-kind unto emitter, given (the text object-name, the text field):
+        Define definition as the entry for object-name in one's objects.
+        If definition is void, return a failure (cast not-built on ("an object this compiler has not seen")).
+        For each pair in (cast field-of on (definition, 3))'s children, repeat:
+            If cast unquoted on (cast field-of on (pair, 1)) is field:
+                Return cast one's kind-of-type on (cast field-of on (pair, 2)) or pass the failure off.
+            Done.
+        Done.
+        Return a failure (cast not-built on ("the {field} of a {object-name}")).
+    Done.
+
+    // ── Expressions ───────────────────────────────────────────────────────
+
+    /// `<value>'s <field>` — the kind of what it reaches.
+    Bind text or failure to possessive-kind-of unto emitter, given (the node expression):
+        Define held as cast one's kind-of on (cast field-of on (expression, 1)) or pass the failure off.
+        Define object-name as cast object-of on (held).
+        If object-name is "", return a failure (cast not-built on ("'s on a {held}")).
+        Return cast one's field-kind on (object-name, cast unquoted on (cast field-of on (expression, 2))) or pass the failure off.
+    Done.
+
+    Bind text or failure to c-possessive unto emitter, given (the node expression):
+        Cast one's possessive-kind-of on (expression) or pass the failure off.
+        Define held as cast one's c-of on (cast field-of on (expression, 1)) or pass the failure off.
+        Return "({held}).{cast c-name on (cast unquoted on (cast field-of on (expression, 2)))}".
+    Done.
+
+    /// `a new <object> { the <field> <value>, … }`, every field given.
+    Bind text or failure to c-object-literal unto emitter, given (the node expression):
+        Define object-name as cast unquoted on (cast field-of on (expression, 1)).
+        Define definition as the entry for object-name in one's objects.
+        If definition is void, return a failure (cast not-built on ("a new {object-name}")).
+        If the number of (cast field-of on (expression, 2))'s children is greater than 0:
+            Return a failure (cast not-built on ("an object given its fields by position")).
+        Done.
+        If the number of (cast field-of on (expression, 6))'s children is greater than 0:
+            Return a failure (cast not-built on ("an object made with defaults")).
+        Done.
+        Define supplied as a map from text to fact.
+        Define listing as "".
+        For each pair in (cast field-of on (expression, 3))'s children, repeat:
+            Define field as cast unquoted on (cast field-of on (pair, 1)).
+            In supplied, the entry for field becomes true.
+            Define value as cast one's c-of on (cast field-of on (pair, 2)) or pass the failure off.
+            Define one-field as ".{cast c-name on (field)} = {value}".
+            If listing is "", the listing becomes one-field.
+            Otherwise, the listing becomes "{listing}, {one-field}".
+        Done.
+        For each pair in (cast field-of on (definition, 3))'s children, repeat:
+            If (the entry for cast unquoted on (cast field-of on (pair, 1)) in supplied) is void:
+                Return a failure (cast not-built on ("an object made without all its fields")).
+            Done.
+        Done.
+        Define type-c as cast c-struct-name on (object-name).
+        If listing is "", return "(({type-c})\{ 0 \})".
+        Return "(({type-c})\{ {listing} \})".
+    Done.
+
+    /// Whether an expression names a place C can take the address of — a name, `one`, or a field
+    /// of one of those.
+    Bind fact to is-place, given (the node expression):
+        If expression's kind is "VariableReference", return true.
+        If expression's kind is "PossessiveAccess", return cast is-place on (cast field-of on (expression, 1)).
+        Return false.
+    Done.
+
+    /// The method a call reaches, by `<receiver>'s <method>`.
+    Bind node or failure to method-called unto emitter, given (the node callee):
+        Define held as cast one's kind-of on (cast field-of on (callee, 1)) or pass the failure off.
+        Define object-name as cast object-of on (held).
+        If object-name is "", return a failure (cast not-built on ("a method of a {held}")).
+        Define method-name as cast unquoted on (cast field-of on (callee, 2)).
+        Define called as the entry for "{object-name}'s {method-name}" in one's methods.
+        If called is void, return a failure (cast not-built on ("calling the {method-name} of a {object-name}")).
+        Return called.
+    Done.
+
+    /// A method call as C: the method, the address of what it is called on, and its arguments.
+    Bind text or failure to c-method-call unto emitter, given (the node call):
+        Define callee as cast field-of on (call, 1).
+        Define called as cast one's method-called on (callee) or pass the failure off.
+        Define receiver as cast field-of on (callee, 1).
+        If cast is-place on (receiver) is false:
+            Return a failure (cast not-built on ("a method called on something that is not a name")).
+        Done.
+        Define object-name as cast object-of on (cast one's kind-of on (receiver) or pass the failure off).
+        Define listing as "&({cast one's c-of on (receiver) or pass the failure off})".
+        For each argument in (cast field-of on (call, 2))'s children, repeat:
+            The listing becomes "{listing}, {cast one's c-of on (argument) or pass the failure off}".
+        Done.
+        Return "{cast c-method-name on (object-name, cast unquoted on (cast field-of on (called, 1)))}({listing})".
+    Done.
+
+    Bind text to c-method-name, given (the text object-name, the text method-name):
+        Return "cm_{replace "-" with "_" in object-name}_{replace "-" with "_" in method-name}".
+    Done.
+
+    // ── Statements ────────────────────────────────────────────────────────
+
+    /// `<value>'s <field> becomes <value>.`
+    Bind void or failure to emit-field-set unto emitter, given (the node statement):
+        Define target as cast field-of on (statement, 1).
+        If cast is-place on (target) is false, return a failure (cast not-built on ("setting a field of something that is not a name")).
+        Define held as cast one's kind-of on (target) or pass the failure off.
+        Define object-name as cast object-of on (held).
+        If object-name is "", return a failure (cast not-built on ("setting a field of a {held}")).
+        Define field as cast unquoted on (cast field-of on (statement, 2)).
+        Cast one's field-kind on (object-name, field) or pass the failure off.
+        Define target-c as cast one's c-of on (target) or pass the failure off.
+        Define value as cast one's c-of on (cast field-of on (statement, 3)) or pass the failure off.
+        Cast one's line on ("({target-c}).{cast c-name on (field)} = {value};").
+    Done.
+
+    // ── The program's objects ─────────────────────────────────────────────
+
+    /// The objects in an order C can define them in — each after every object its fields hold.
+    Bind void or failure to order-objects unto emitter, given (the text object-name, the map from text to fact placed,
+            the map from text to fact visiting, the series of text ordered):
+        If (the entry for object-name in placed) is not void, return.
+        If (the entry for object-name in visiting) is not void:
+            Return a failure (cast not-built on ("an object that holds itself")).
+        Done.
+        In visiting, the entry for object-name becomes true.
+        Define definition as the entry for object-name in one's objects but void is cast listed.
+        For each pair in (cast field-of on (definition, 3))'s children, repeat:
+            Define held as cast one's kind-of-type on (cast field-of on (pair, 2)) or pass the failure off.
+            Define inner as cast object-of on (held).
+            If inner is not "", cast one's order-objects on (inner, placed, visiting, ordered) or pass the failure off.
+        Done.
+        In placed, the entry for object-name becomes true.
+        Insert object-name into ordered.
+    Done.
+
+    /// An object's struct, and how it is written and compared.
+    Bind text or failure to c-object unto emitter, given (the text object-name):
+        Define definition as the entry for object-name in one's objects but void is cast listed.
+        Define type-c as cast c-struct-name on (object-name).
+        Define members as a chase.
+        Define writes as a chase.
+        Define tests as "".
+        Define first-field as true.
+        For each pair in (cast field-of on (definition, 3))'s children, repeat:
+            Define field as cast unquoted on (cast field-of on (pair, 1)).
+            Define held as cast one's kind-of-type on (cast field-of on (pair, 2)) or pass the failure off.
+            Define member as cast c-name on (field).
+            Insert "    {cast c-type on (held)} {member};\n" into members.
+            If first-field is false, insert " fputs(\", \", stdout);" into writes.
+            The first-field becomes false.
+            Insert " fputs(\"{field}: \", stdout); {cast write-call on (held, "v.{member}")};" into writes.
+            Define test as cast c-equal on (held, "a.{member}", "b.{member}").
+            If tests is "", the tests becomes test.
+            Otherwise, the tests becomes "{tests} && {test}".
+        Done.
+        If tests is "", the tests becomes "1".
+        Define out as a chase.
+        Insert "typedef struct \{\n" into out.
+        If first-field, insert "    char cf_nothing;\n" into out.
+        Insert members converted to text into out.
+        Insert "\} {type-c};\n" into out.
+        Insert "static void {type-c}_write({type-c} v) \{ fputs(\"{object-name}(\", stdout);{writes converted to text} fputs(\")\", stdout); \}\n" into out.
+        Insert "static int {type-c}_eq({type-c} a, {type-c} b) \{ (void)a; (void)b; return {tests}; \}\n\n" into out.
+        Return out converted to text.
+    Done.
+
+    /// A method's head as C: what it gives back, its name, the object it changes, and its parameters.
+    Bind text or failure to c-method-signature unto emitter, given (the text object-name, the node method):
+        Define gives as cast one's kind-of-type on (cast field-of on (method, 2)) or pass the failure off.
+        Define head as "void".
+        If gives is not "void", the head becomes cast c-type on (gives).
+        Define listing as "{cast c-struct-name on (object-name)}* cv_one".
+        For each parameter in (cast field-of on (method, 3))'s children, repeat:
+            Define taken as cast one's kind-of-type on (cast field-of on (parameter, 1)) or pass the failure off.
+            The listing becomes "{listing}, {cast c-type on (taken)} {cast c-name on (cast unquoted on (cast field-of on (parameter, 2)))}".
+        Done.
+        Return "{head} {cast c-method-name on (object-name, cast unquoted on (cast field-of on (method, 1)))}({listing})".
+    Done.
+
+    /// One method as C. Its body sees `one` and its parameters.
+    Bind text or failure to c-method unto emitter, given (the text object-name, the node method):
+        Define writer as cast fresh-emitter on (one's functions, one's objects, one's methods).
+        In writer's kinds, the entry for "one" becomes "object {object-name}".
+        For each parameter in (cast field-of on (method, 3))'s children, repeat:
+            Define taken as cast one's kind-of-type on (cast field-of on (parameter, 1)) or pass the failure off.
+            In writer's kinds, the entry for cast unquoted on (cast field-of on (parameter, 2)) becomes taken.
+        Done.
+        For each inner in (cast field-of on (method, 4))'s children, repeat:
+            Cast writer's emit-statement on (inner) or pass the failure off.
+        Done.
+        Define signature as cast one's c-method-signature on (object-name, method) or pass the failure off.
+        Return "{signature} \{\n{writer's body converted to text}\}\n\n".
+    Done.
+Done.

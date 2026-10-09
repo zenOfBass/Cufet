@@ -36,6 +36,7 @@ Pull a book on collections.
         Insert "static void {series-type}_insert_after({series-type}* s, int after, {held} v) \{ {series-type}_ensure(s); if (s->len > after) memmove(s->data + after + 1, s->data + after, (size_t)(s->len - after) * sizeof({held})); s->data[after] = v; s->len++; \}\n" into out.
         Insert "static void {series-type}_remove_at({series-type}* s, int index) \{ if (s->len - index - 1 > 0) memmove(s->data + index, s->data + index + 1, (size_t)(s->len - index - 1) * sizeof({held})); s->len--; \}\n" into out.
         Insert "static void {series-type}_remove_value({series-type}* s, {held} v) \{ for (int i = 0; i < s->len; i++) if ({equal}) \{ {series-type}_remove_at(s, i); return; \} \}\n" into out.
+        Insert "static int {series-type}_eq({series-type}* a, {series-type}* b) \{ if (a->len != b->len) return 0; for (int i = 0; i < a->len; i++) if (!{cast c-equal on (element, "a->data[i]", "b->data[i]")}) return 0; return 1; \}\n" into out.
         Insert "static void {series-type}_write({series-type}* s) \{ fputs(\"(\", stdout); for (int i = 0; i < s->len; i++) \{ if (i > 0) fputs(\", \", stdout); {written}; \} fputs(\")\", stdout); \}\n" into out.
         Return out converted to text.
     Done.
@@ -66,7 +67,7 @@ Pull a book on collections.
     Bind text or failure to series-kind-of unto emitter, given (the node expression):
         Define kind as expression's kind.
         If kind is "SeriesLiteral":
-            Define element as cast kind-of-type on (cast field-of on (expression, 2)) or pass the failure off.
+            Define element as cast one's kind-of-type on (cast field-of on (expression, 2)) or pass the failure off.
             If cast is-scalar on (element) is false, return a failure (cast not-built on ("a series of {element}")).
             Return "series of {element}".
         Done.
