@@ -45,6 +45,11 @@ Pull a book on collections.
         If written's kind is "NumberType", return "number".
         If written's kind is "TextType", return "text".
         If written's kind is "FactType", return "fact".
+        If written's kind is "SeriesType":
+            Define element as cast kind-of-type on (cast field-of on (written, 1)) or pass the failure off.
+            If cast is-scalar on (element), return "series of {element}".
+            Return a failure (cast not-built on ("a series of {element}")).
+        Done.
         Return a failure (cast not-built on ("a {written's kind}")).
     Done.
 
@@ -71,7 +76,7 @@ Pull a book on collections.
         Return "cufet_dec_lit(0ULL, {coefficient}ULL, {scale}, {sign})".
     Done.
 
-    /// The kind of value an expression gives: "number", "text" or "fact".
+    /// The kind of value an expression gives: "number", "text", "fact", or "series of" one of them.
     Bind text or failure to kind-of unto emitter, given (the node expression):
         Define kind as expression's kind.
         Judge kind, where it is:
@@ -97,6 +102,9 @@ Pull a book on collections.
             "CastExpression":
                 Define called as cast one's function-called on (expression) or pass the failure off.
                 Return cast kind-of-type on (cast field-of on (called, 2)) or pass the failure off.
+            Done.
+            "SeriesLiteral" or "RangeExpression" or "SeriesLength" or "SeriesAccess":
+                Return cast one's series-kind-of on (expression) or pass the failure off.
             Done.
             Otherwise, return a failure (cast not-built on (kind)).
         Done.
@@ -132,6 +140,9 @@ Pull a book on collections.
             Done.
             "BinaryExpression", return cast one's c-binary on (expression) or pass the failure off.
             "CastExpression", return cast one's c-call on (expression) or pass the failure off.
+            "SeriesLiteral" or "RangeExpression" or "SeriesLength" or "SeriesAccess":
+                Return cast one's c-series-of on (expression) or pass the failure off.
+            Done.
             Otherwise, return a failure (cast not-built on (kind)).
         Done.
     Done.
@@ -163,6 +174,7 @@ Pull a book on collections.
     Bind text or failure to c-text-of unto emitter, given (the node expression):
         Define value as cast one's c-of on (expression) or pass the failure off.
         Define kind as cast one's kind-of on (expression) or pass the failure off.
+        If cast is-scalar on (kind) is false, return a failure (cast not-built on ("a {kind} as text")).
         If kind is "number", return "cufet_text_from_dec({value})".
         If kind is "fact", return "({value} ? \"true\" : \"false\")".
         Return value.
@@ -175,6 +187,7 @@ Pull a book on collections.
         Define right as cast one's c-of on (cast field-of on (expression, 3)) or pass the failure off.
         Define at-line as (cast field-of on (expression, 4))'s word.
         Define left-kind as cast one's kind-of on (left-side) or pass the failure off.
+        If cast is-scalar on (left-kind) is false, return a failure (cast not-built on ("the operator {operator} on a {left-kind}")).
         If left-kind is "number":
             Judge operator, where it is:
                 "Plus", return "cufet_add({left}, {right})".
@@ -210,6 +223,7 @@ Pull a book on collections.
 
     /// The C type a kind of value is held in.
     Bind text to c-type, given (the text kind):
+        If cast element-of on (kind) is not "", return "cser_{cast element-of on (kind)}*".
         If kind is "number", return "CufetDec".
         If kind is "fact", return "int".
         Return "const char*".
@@ -217,6 +231,7 @@ Pull a book on collections.
 
     /// The runtime call that writes a value of a kind, without the line's end.
     Bind text to write-call, given (the text kind, the text value):
+        If cast element-of on (kind) is not "", return "cser_{cast element-of on (kind)}_write({value})".
         If kind is "number", return "cufet_write_number({value})".
         If kind is "fact", return "cufet_write_fact({value})".
         Return "cufet_write_text({value})".
@@ -325,6 +340,10 @@ Pull a book on collections.
             "StopStatement", cast one's line on ("break;").
             "SkipStatement", cast one's line on ("continue;").
             "JudgeStatement", cast one's emit-judge on (statement) or pass the failure off.
+            "ForEachStatement" or "SeriesInsertStatement" or "SeriesRemoveAtStatement" or "SeriesRemoveValueStatement"
+                    or "SeriesSetStatement":
+                Cast one's emit-series-statement on (statement) or pass the failure off.
+            Done.
             Otherwise, return a failure (cast not-built on (kind)).
         Done.
     Done.
@@ -335,6 +354,7 @@ Pull a book on collections.
         Define subject as cast field-of on (statement, 1).
         Define value as cast one's c-of on (subject) or pass the failure off.
         Define subject-kind as cast one's kind-of on (subject) or pass the failure off.
+        If cast is-scalar on (subject-kind) is false, return a failure (cast not-built on ("judging a {subject-kind}")).
         Cast one's line on ("\{").
         Define kept as a map from text to text.
         For each pair in one's kinds, repeat:
@@ -448,6 +468,7 @@ Pull a book on collections.
         Done.
         Define out as a chase.
         Insert "#include \"cufet-runtime.h\"\n\n" into out.
+        Insert cast c-series-prelude into out.
         Insert declared converted to text into out.
         Insert "\n" into out.
         Insert defined converted to text into out.

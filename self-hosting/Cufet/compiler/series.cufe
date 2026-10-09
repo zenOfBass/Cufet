@@ -1,0 +1,218 @@
+/*  Series — `a series of … with (…)`, `range … to …`, `For each`, `item … of`, `the number of`,
+    `Insert`, `Remove` and setting an item — over numbers, text and facts.
+
+    ★ A series is SHARED, as in the language: `Define t as s` names the same series, so an insert
+      through `t` is seen through `s`. In C it is a pointer to one growable array.
+
+    ★ One C type per kind of element — `cser_number`, `cser_text`, `cser_fact` — written into every
+      program, used or not; C says nothing about a helper nobody calls. A series of anything else
+      waits for a later slice.
+*/
+
+Pull a book on collections.
+    /// The kind of a series' elements, or "" when `kind` is no series.
+    Bind text to element-of, given (the text kind):
+        If kind starts with "series of ", return the characters from 11 to the end of kind.
+        Return "".
+    Done.
+
+    /// Whether a kind is one of the three a value can be on its own.
+    Bind fact to is-scalar, given (the text kind):
+        Return kind is "number" or kind is "text" or kind is "fact".
+    Done.
+
+    /// The C a series type and its helpers are, for elements of one kind.
+    Bind text to c-series-helpers, given (the text element):
+        Define held as cast c-type on (element).
+        Define series-type as "cser_{element}".
+        Define written as cast write-call on (element, "s->data[i]").
+        Define equal as cast c-equal on (element, "s->data[i]", "v").
+        Define out as a chase.
+        Insert "typedef struct \{ {held}* data; int len; int cap; \} {series-type};\n" into out.
+        Insert "static {series-type}* {series-type}_new(void) \{ {series-type}* s = ({series-type}*)cufet_arena_alloc(sizeof({series-type})); s->data = NULL; s->len = 0; s->cap = 0; return s; \}\n" into out.
+        Insert "static void {series-type}_ensure({series-type}* s) \{ if (s->len >= s->cap) \{ int nc = s->cap == 0 ? 4 : s->cap * 2; {held}* nd = ({held}*)cufet_arena_alloc((size_t)nc * sizeof({held})); if (s->len > 0) memcpy(nd, s->data, (size_t)s->len * sizeof({held})); s->data = nd; s->cap = nc; \} \}\n" into out.
+        Insert "static {series-type}* {series-type}_append({series-type}* s, {held} v) \{ {series-type}_ensure(s); s->data[s->len++] = v; return s; \}\n" into out.
+        Insert "static void {series-type}_prepend({series-type}* s, {held} v) \{ {series-type}_ensure(s); if (s->len > 0) memmove(s->data + 1, s->data, (size_t)s->len * sizeof({held})); s->data[0] = v; s->len++; \}\n" into out.
+        Insert "static void {series-type}_insert_after({series-type}* s, int after, {held} v) \{ {series-type}_ensure(s); if (s->len > after) memmove(s->data + after + 1, s->data + after, (size_t)(s->len - after) * sizeof({held})); s->data[after] = v; s->len++; \}\n" into out.
+        Insert "static void {series-type}_remove_at({series-type}* s, int index) \{ if (s->len - index - 1 > 0) memmove(s->data + index, s->data + index + 1, (size_t)(s->len - index - 1) * sizeof({held})); s->len--; \}\n" into out.
+        Insert "static void {series-type}_remove_value({series-type}* s, {held} v) \{ for (int i = 0; i < s->len; i++) if ({equal}) \{ {series-type}_remove_at(s, i); return; \} \}\n" into out.
+        Insert "static void {series-type}_write({series-type}* s) \{ fputs(\"(\", stdout); for (int i = 0; i < s->len; i++) \{ if (i > 0) fputs(\", \", stdout); {written}; \} fputs(\")\", stdout); \}\n" into out.
+        Return out converted to text.
+    Done.
+
+    /// Every series type a program may use, and the range that makes a series of numbers.
+    Bind text to c-series-prelude:
+        Define out as a chase.
+        For each element in a series of text with ("number", "text", "fact"), repeat:
+            Insert cast c-series-helpers on (element) into out.
+        Done.
+        Insert "static cser_number* cser_number_range(CufetDec from, CufetDec to, CufetDec step, int line) \{\n" into out.
+        Insert "    if (cufet_cmp(step, cufet_dec_from_ll(0)) <= 0) cufet_raise(cufet_msgf(\"the step in 'counting by' must be positive (line %d).\", line));\n" into out.
+        Insert "    cser_number* s = cser_number_new();\n" into out.
+        Insert "    for (CufetDec n = from; cufet_cmp(n, to) <= 0; n = cufet_add(n, step)) cser_number_append(s, n);\n" into out.
+        Insert "    return s;\n\}\n\n" into out.
+        Return out converted to text.
+    Done.
+
+    /// What a refusal calls the series it reaches into: its name, when it has one.
+    Bind text to series-label, given (the node target):
+        If target's kind is "VariableReference", return cast unquoted on (cast field-of on (target, 1)).
+        Return "series".
+    Done.
+
+    // ── Expressions ───────────────────────────────────────────────────────
+
+    /// The kind a series expression gives, or a failure when it is beyond this compiler.
+    Bind text or failure to series-kind-of unto emitter, given (the node expression):
+        Define kind as expression's kind.
+        If kind is "SeriesLiteral":
+            Define element as cast kind-of-type on (cast field-of on (expression, 2)) or pass the failure off.
+            If cast is-scalar on (element) is false, return a failure (cast not-built on ("a series of {element}")).
+            Return "series of {element}".
+        Done.
+        If kind is "RangeExpression", return "series of number".
+        If kind is "SeriesLength", return "number".
+        // `item … of`, `the first of`, `the last of`.
+        Define held as cast one's kind-of on (cast field-of on (expression, 1)) or pass the failure off.
+        Define element as cast element-of on (held).
+        If element is "", return a failure (cast not-built on ("an item of a {held}")).
+        Return element.
+    Done.
+
+    /// A series expression as C.
+    Bind text or failure to c-series-of unto emitter, given (the node expression):
+        Define kind as expression's kind.
+        If kind is "SeriesLiteral":
+            Define element as cast element-of on (cast one's series-kind-of on (expression) or pass the failure off).
+            Define built as "cser_{element}_new()".
+            For each written in (cast field-of on (expression, 1))'s children, repeat:
+                The built becomes "cser_{element}_append({built}, {cast one's c-of on (written) or pass the failure off})".
+            Done.
+            Return built.
+        Done.
+        If kind is "RangeExpression":
+            Define lowest as cast one's c-of on (cast field-of on (expression, 1)) or pass the failure off.
+            Define upto as cast one's c-of on (cast field-of on (expression, 2)) or pass the failure off.
+            Define step as "cufet_dec_from_ll(1)".
+            If cast is-nothing on (cast field-of on (expression, 3)) is false:
+                The step becomes cast one's c-of on (cast field-of on (expression, 3)) or pass the failure off.
+            Done.
+            Return "cser_number_range({lowest}, {upto}, {step}, {(cast field-of on (expression, 4))'s word})".
+        Done.
+        Define target as cast field-of on (expression, 1).
+        Define series-c as cast one's c-of on (target) or pass the failure off.
+        Define element as cast element-of on (cast one's kind-of on (target) or pass the failure off).
+        If kind is "SeriesLength", return "cufet_dec_from_ll(({series-c})->len)".
+        // `item … of`: the series is held once, so it is reached once.
+        Define at-line as (cast field-of on (expression, 3))'s word.
+        Define place as cast one's c-place on (cast field-of on (expression, 2), "cf_at", target, at-line) or pass the failure off.
+        Return "(\{ cser_{element}* cf_at = {series-c}; cf_at->data[{place}]; \})".
+    Done.
+
+    /// The zero-based place of an item in the series `held` names in C — `_` for the last — checked
+    /// against its length, as the language refuses an item that is not there.
+    Bind text or failure to c-place unto emitter, given (the node index, the text held, the node target, the text at-line):
+        Define label as cast series-label on (target).
+        If cast is-nothing on (index), return "cufet_last_check({held}->len, \"{label}\", {at-line}) - 1".
+        Define index-c as cast one's c-of on (index) or pass the failure off.
+        Return "cufet_idx_check(cufet_to_int({index-c}), {held}->len, \"{label}\", {at-line}) - 1".
+    Done.
+
+    // ── Statements ────────────────────────────────────────────────────────
+
+    /// The kind of a series' elements, for a statement that changes it.
+    Bind text or failure to changed-element unto emitter, given (the node target):
+        Define held as cast one's kind-of on (target) or pass the failure off.
+        Define element as cast element-of on (held).
+        If element is "", return a failure (cast not-built on ("changing a {held}")).
+        Return element.
+    Done.
+
+    Bind void or failure to emit-series-statement unto emitter, given (the node statement):
+        Define kind as statement's kind.
+        If kind is "ForEachStatement":
+            Cast one's emit-for-each on (statement) or pass the failure off.
+            Return.
+        Done.
+        If kind is "SeriesInsertStatement":
+            Define target as cast field-of on (statement, 2).
+            Define element as cast one's changed-element on (target) or pass the failure off.
+            Define series-c as cast one's c-of on (target) or pass the failure off.
+            Define value as cast one's c-of on (cast field-of on (statement, 1)) or pass the failure off.
+            If (cast field-of on (statement, 4))'s word is "true":
+                Cast one's line on ("cser_{element}_prepend({series-c}, {value});").
+                Return.
+            Done.
+            Define following as cast field-of on (statement, 3).
+            If cast is-nothing on (following):
+                Cast one's line on ("cser_{element}_append({series-c}, {value});").
+                Return.
+            Done.
+            Define following-c as cast one's c-of on (following) or pass the failure off.
+            Cast one's line on ("cser_{element}_insert_after({series-c}, cufet_to_int({following-c}), {value});").
+            Return.
+        Done.
+        If kind is "SeriesRemoveValueStatement":
+            Define target as cast field-of on (statement, 1).
+            Define element as cast one's changed-element on (target) or pass the failure off.
+            Define series-c as cast one's c-of on (target) or pass the failure off.
+            Define value as cast one's c-of on (cast field-of on (statement, 2)) or pass the failure off.
+            Cast one's line on ("cser_{element}_remove_value({series-c}, {value});").
+            Return.
+        Done.
+        If kind is "SeriesRemoveAtStatement":
+            Define target as cast field-of on (statement, 1).
+            Define element as cast one's changed-element on (target) or pass the failure off.
+            Define series-c as cast one's c-of on (target) or pass the failure off.
+            Define place as cast one's c-place on (cast field-of on (statement, 2), "cf_at", target,
+                (cast field-of on (statement, 3))'s word) or pass the failure off.
+            Cast one's line on ("\{ cser_{element}* cf_at = {series-c}; cser_{element}_remove_at(cf_at, {place}); \}").
+            Return.
+        Done.
+        // `The item … of … becomes …`.
+        Define target as cast field-of on (statement, 1).
+        Define element as cast one's changed-element on (target) or pass the failure off.
+        Define series-c as cast one's c-of on (target) or pass the failure off.
+        Define place as cast one's c-place on (cast field-of on (statement, 2), "cf_at", target,
+            (cast field-of on (statement, 4))'s word) or pass the failure off.
+        Define value as cast one's c-of on (cast field-of on (statement, 3)) or pass the failure off.
+        Cast one's line on ("\{ cser_{element}* cf_at = {series-c}; cf_at->data[{place}] = {value}; \}").
+    Done.
+
+    /// `For each <name> in <series>, repeat:` — over the items there when it began, as in C#. The
+    /// name, or `it`, holds each in turn and is gone when the loop ends.
+    Bind void or failure to emit-for-each unto emitter, given (the node statement):
+        Define named as cast field-of on (statement, 1).
+        Define name as "it".
+        If cast is-nothing on (named) is false, the name becomes cast unquoted on (named).
+        Define over as cast field-of on (statement, 2).
+        Define held as cast one's kind-of on (over) or pass the failure off.
+        Define element as cast element-of on (held).
+        If element is "", return a failure (cast not-built on ("looping over a {held}")).
+        Define series-c as cast one's c-of on (over) or pass the failure off.
+        Cast one's line on ("\{").
+        Define kept as a map from text to text.
+        For each pair in one's kinds, repeat:
+            In kept, the entry for the key of pair becomes the value of pair.
+        Done.
+        Define outer as one's indent.
+        The one's indent becomes outer joined to "    ".
+        Cast one's line on ("cser_{element}* cf_each = {series-c};").
+        Cast one's line on ("int cf_each_n = cf_each->len;").
+        // ⚠ Inserting into or removing from the series it loops over is refused while it runs —
+        // checked before each pass and once more on the way out, which `Stop` leaves without, as
+        // the interpreter does (GRAMMAR: "The for-each body cannot add or remove elements").
+        Cast one's line on ("for (int cf_i = 0; ; cf_i++) \{").
+        In one's kinds, the entry for name becomes element.
+        The one's indent becomes outer joined to "        ".
+        Cast one's line on ("if (cf_each->len != cf_each_n) cufet_raise(cufet_msgf(\"'{cast series-label on (over)}' was modified during a for-each loop on line {(cast field-of on (statement, 4))'s word} — collect into a separate series, or use a While loop if you need to change it while looping.\"));").
+        Cast one's line on ("if (cf_i >= cf_each_n) break;").
+        Cast one's line on ("{cast c-type on (element)} {cast c-name on (name)} = cf_each->data[cf_i];").
+        The one's indent becomes outer joined to "    ".
+        Cast one's emit-block on (cast field-of on (statement, 3)) or pass the failure off.
+        Cast one's line on ("\}").
+        The one's indent becomes outer.
+        The one's kinds becomes kept.
+        Cast one's line on ("\}").
+    Done.
+Done.
