@@ -54,7 +54,7 @@ Pull a book on collections.
         Done.
         If written's kind is "SeriesType":
             Define element as cast one's kind-of-type on (cast field-of on (written, 1)) or pass the failure off.
-            If cast is-scalar on (element), return "series of {element}".
+            If cast is-element-kind on (element), return "series of {element}".
             Return a failure (cast not-built on ("a series of {element}")).
         Done.
         Return a failure (cast not-built on ("a {written's kind}")).
@@ -250,7 +250,7 @@ Pull a book on collections.
 
     /// The C type a kind of value is held in.
     Bind text to c-type, given (the text kind):
-        If cast element-of on (kind) is not "", return "cser_{cast element-of on (kind)}*".
+        If cast element-of on (kind) is not "", return "{cast series-c-name on (cast element-of on (kind))}*".
         If cast object-of on (kind) is not "", return cast c-struct-name on (cast object-of on (kind)).
         If kind is "number", return "CufetDec".
         If kind is "fact", return "int".
@@ -259,7 +259,7 @@ Pull a book on collections.
 
     /// The runtime call that writes a value of a kind, without the line's end.
     Bind text to write-call, given (the text kind, the text value):
-        If cast element-of on (kind) is not "", return "cser_{cast element-of on (kind)}_write({value})".
+        If cast element-of on (kind) is not "", return "{cast series-c-name on (cast element-of on (kind))}_write({value})".
         If cast object-of on (kind) is not "", return "{cast c-struct-name on (cast object-of on (kind))}_write({value})".
         If kind is "number", return "cufet_write_number({value})".
         If kind is "fact", return "cufet_write_fact({value})".
@@ -290,7 +290,7 @@ Pull a book on collections.
 
     /// Whether `left` and `right`, two values of `kind`, are equal — as C.
     Bind text to c-equal, given (the text kind, the text left, the text right):
-        If cast element-of on (kind) is not "", return "cser_{cast element-of on (kind)}_eq({left}, {right})".
+        If cast element-of on (kind) is not "", return "{cast series-c-name on (cast element-of on (kind))}_eq({left}, {right})".
         If cast object-of on (kind) is not "", return "{cast c-struct-name on (cast object-of on (kind))}_eq({left}, {right})".
         If kind is "number", return "(cufet_cmp({left}, {right}) == 0)".
         If kind is "text", return "(strcmp({left}, {right}) == 0)".
@@ -368,6 +368,9 @@ Pull a book on collections.
                 Cast one's line on ("{cast one's c-call on (call) or pass the failure off};").
             Done.
             "BindStatement", return a failure (cast not-built on ("a function inside a body")).
+            // A pull's functions and objects are the program's, gathered with its own; what is left
+            // is a block. A region frees nothing yet — see emit-pulled.
+            "PullStatement" or "PullRabbitStatement", cast one's emit-pulled on (statement) or pass the failure off.
             "ObjectDefinition", return a failure (cast not-built on ("an object defined inside a body")).
             "PossessiveSetStatement", cast one's emit-field-set on (statement) or pass the failure off.
             "StopStatement", cast one's line on ("break;").
@@ -378,6 +381,38 @@ Pull a book on collections.
                 Cast one's emit-series-statement on (statement) or pass the failure off.
             Done.
             Otherwise, return a failure (cast not-built on (kind)).
+        Done.
+    Done.
+
+    /// `Pull … Done.` — a block, with the functions and objects in it gathered as the program's.
+    /// ⚠ `Pull a rabbit.` is a region, and a region here FREES NOTHING yet: a value made in it and
+    /// kept outside it — copied out by C#, which the checked tree does not say — would otherwise be
+    /// read after it was freed. Kept, it costs memory and never changes what a program prints.
+    Bind void or failure to emit-pulled unto emitter, given (the node statement):
+        Cast one's line on ("\{").
+        Define kept as a map from text to text.
+        For each pair in one's kinds, repeat:
+            In kept, the entry for the key of pair becomes the value of pair.
+        Done.
+        Define outer as one's indent.
+        The one's indent becomes outer joined to "    ".
+        For each inner in (cast field-of on (statement, 2))'s children, repeat:
+            If inner's kind is not "BindStatement" and inner's kind is not "ObjectDefinition":
+                Cast one's emit-statement on (inner) or pass the failure off.
+            Done.
+        Done.
+        The one's indent becomes outer.
+        The one's kinds becomes kept.
+        Cast one's line on ("\}").
+    Done.
+
+    /// The statements hoisting reaches: the top level and every pull's body, rabbits' included.
+    Bind void to gather-hoisted, given (the node statements, the series of node found):
+        For each statement in statements's children, repeat:
+            Insert statement into found.
+            If statement's kind is "PullStatement" or statement's kind is "PullRabbitStatement":
+                Cast gather-hoisted on (cast field-of on (statement, 2), found).
+            Done.
         Done.
     Done.
 
@@ -482,7 +517,9 @@ Pull a book on collections.
         // Every method, by the object it belongs to: written inside it, or bound `unto` it.
         Define owned as a series of node.
         Define owners as a series of text.
-        For each statement in program's children, repeat:
+        Define hoisted as a series of node.
+        Cast gather-hoisted on (program, hoisted).
+        For each statement in hoisted, repeat:
             If statement's kind is "ObjectDefinition":
                 Define beyond as cast object-beyond on (statement).
                 If beyond is not "", return a failure (cast not-built on (beyond)).
@@ -497,7 +534,7 @@ Pull a book on collections.
                 Done.
             Done.
         Done.
-        For each statement in program's children, repeat:
+        For each statement in hoisted, repeat:
             If statement's kind is "BindStatement":
                 Define beyond as cast function-beyond on (statement) or pass the failure off.
                 If beyond is not "", return a failure (cast not-built on (beyond)).
@@ -522,14 +559,29 @@ Pull a book on collections.
         For each pair in objects, repeat:
             Cast writer's order-objects on (the key of pair, already-ordered, a map from text to fact, ordered) or pass the failure off.
         Done.
+        // Each object's series type named first, then the structs, then what writes and compares
+        // them, then each series of objects whole — so a node may hold a series of nodes.
         Define structs as a chase.
+        For each object-name in ordered, repeat:
+            Define series-type as cast series-c-name on ("object {object-name}").
+            Insert "typedef struct {series-type}_s {series-type};\n" into structs.
+        Done.
+        For each object-name in ordered, repeat:
+            Insert cast writer's c-object-struct on (object-name) or pass the failure off into structs.
+        Done.
+        For each object-name in ordered, repeat:
+            Insert cast c-object-heads on (object-name) into structs.
+        Done.
+        For each object-name in ordered, repeat:
+            Insert cast c-series-helpers on ("object {object-name}") into structs.
+        Done.
         For each object-name in ordered, repeat:
             Insert cast writer's c-object on (object-name) or pass the failure off into structs.
         Done.
 
         Define declared as a chase.
         Define defined as a chase.
-        For each statement in program's children, repeat:
+        For each statement in hoisted, repeat:
             If statement's kind is "BindStatement" and cast is-nothing on (cast field-of on (statement, 5)):
                 Insert "{cast writer's c-signature on (statement) or pass the failure off};\n" into declared.
                 Insert cast writer's c-function on (statement) or pass the failure off into defined.

@@ -171,11 +171,31 @@ Pull a book on collections.
         Insert object-name into ordered.
     Done.
 
-    /// An object's struct, and how it is written and compared.
+    /// An object's struct alone — what writes and compares it comes later, once every series type
+    /// its fields may name is whole.
+    Bind text or failure to c-object-struct unto emitter, given (the text object-name):
+        Define definition as the entry for object-name in one's objects but void is cast listed.
+        Define out as a chase.
+        Insert "typedef struct \{\n" into out.
+        If the number of (cast field-of on (definition, 3))'s children is 0, insert "    char cf_nothing;\n" into out.
+        For each pair in (cast field-of on (definition, 3))'s children, repeat:
+            Define held as cast one's kind-of-type on (cast field-of on (pair, 2)) or pass the failure off.
+            Insert "    {cast c-type on (held)} {cast c-name on (cast unquoted on (cast field-of on (pair, 1)))};\n" into out.
+        Done.
+        Insert "\} {cast c-struct-name on (object-name)};\n" into out.
+        Return out converted to text.
+    Done.
+
+    /// What an object's write and compare are called, declared ahead of everything that calls them.
+    Bind text to c-object-heads, given (the text object-name):
+        Define type-c as cast c-struct-name on (object-name).
+        Return "static void {type-c}_write({type-c} v);\nstatic int {type-c}_eq({type-c} a, {type-c} b);\n".
+    Done.
+
+    /// How an object is written and compared.
     Bind text or failure to c-object unto emitter, given (the text object-name):
         Define definition as the entry for object-name in one's objects but void is cast listed.
         Define type-c as cast c-struct-name on (object-name).
-        Define members as a chase.
         Define writes as a chase.
         Define tests as "".
         Define first-field as true.
@@ -183,7 +203,6 @@ Pull a book on collections.
             Define field as cast unquoted on (cast field-of on (pair, 1)).
             Define held as cast one's kind-of-type on (cast field-of on (pair, 2)) or pass the failure off.
             Define member as cast c-name on (field).
-            Insert "    {cast c-type on (held)} {member};\n" into members.
             If first-field is false, insert " fputs(\", \", stdout);" into writes.
             The first-field becomes false.
             Insert " fputs(\"{field}: \", stdout); {cast write-call on (held, "v.{member}")};" into writes.
@@ -193,10 +212,6 @@ Pull a book on collections.
         Done.
         If tests is "", the tests becomes "1".
         Define out as a chase.
-        Insert "typedef struct \{\n" into out.
-        If first-field, insert "    char cf_nothing;\n" into out.
-        Insert members converted to text into out.
-        Insert "\} {type-c};\n" into out.
         Insert "static void {type-c}_write({type-c} v) \{ fputs(\"{object-name}(\", stdout);{writes converted to text} fputs(\")\", stdout); \}\n" into out.
         Insert "static int {type-c}_eq({type-c} a, {type-c} b) \{ (void)a; (void)b; return {tests}; \}\n\n" into out.
         Return out converted to text.

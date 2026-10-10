@@ -21,14 +21,27 @@ Pull a book on collections.
         Return kind is "number" or kind is "text" or kind is "fact".
     Done.
 
+    /// Whether a series can hold a kind: one of the three, or an object.
+    Bind fact to is-element-kind, given (the text kind):
+        Return cast is-scalar on (kind) or cast object-of on (kind) is not "".
+    Done.
+
+    /// The C name of the series type that holds a kind.
+    Bind text to series-c-name, given (the text element):
+        Define object-name as cast object-of on (element).
+        If object-name is not "", return "cser_obj_{replace "-" with "_" in object-name}".
+        Return "cser_{element}".
+    Done.
+
     /// The C a series type and its helpers are, for elements of one kind.
     Bind text to c-series-helpers, given (the text element):
         Define held as cast c-type on (element).
-        Define series-type as "cser_{element}".
+        Define series-type as "{cast series-c-name on (element)}".
         Define written as cast write-call on (element, "s->data[i]").
         Define equal as cast c-equal on (element, "s->data[i]", "v").
         Define out as a chase.
-        Insert "typedef struct \{ {held}* data; int len; int cap; \} {series-type};\n" into out.
+        Insert "typedef struct {series-type}_s {series-type};\n" into out.
+        Insert "struct {series-type}_s \{ {held}* data; int len; int cap; \};\n" into out.
         Insert "static {series-type}* {series-type}_new(void) \{ {series-type}* s = ({series-type}*)cufet_arena_alloc(sizeof({series-type})); s->data = NULL; s->len = 0; s->cap = 0; return s; \}\n" into out.
         Insert "static void {series-type}_ensure({series-type}* s) \{ if (s->len >= s->cap) \{ int nc = s->cap == 0 ? 4 : s->cap * 2; {held}* nd = ({held}*)cufet_arena_alloc((size_t)nc * sizeof({held})); if (s->len > 0) memcpy(nd, s->data, (size_t)s->len * sizeof({held})); s->data = nd; s->cap = nc; \} \}\n" into out.
         Insert "static {series-type}* {series-type}_append({series-type}* s, {held} v) \{ {series-type}_ensure(s); s->data[s->len++] = v; return s; \}\n" into out.
@@ -67,8 +80,15 @@ Pull a book on collections.
     Bind text or failure to series-kind-of unto emitter, given (the node expression):
         Define kind as expression's kind.
         If kind is "SeriesLiteral":
-            Define element as cast one's kind-of-type on (cast field-of on (expression, 2)) or pass the failure off.
-            If cast is-scalar on (element) is false, return a failure (cast not-built on ("a series of {element}")).
+            Define element as "void".
+            If cast is-nothing on (cast field-of on (expression, 2)) is false:
+                The element becomes cast one's kind-of-type on (cast field-of on (expression, 2)) or pass the failure off.
+            Done.
+            // `a series with (10, 20)` names no type — its items do.
+            Otherwise if the number of (cast field-of on (expression, 1))'s children is greater than 0:
+                The element becomes cast one's kind-of on (item 1 of (cast field-of on (expression, 1))'s children) or pass the failure off.
+            Done.
+            If cast is-element-kind on (element) is false, return a failure (cast not-built on ("a series of {element}")).
             Return "series of {element}".
         Done.
         If kind is "RangeExpression", return "series of number".
@@ -85,9 +105,9 @@ Pull a book on collections.
         Define kind as expression's kind.
         If kind is "SeriesLiteral":
             Define element as cast element-of on (cast one's series-kind-of on (expression) or pass the failure off).
-            Define built as "cser_{element}_new()".
+            Define built as "{cast series-c-name on (element)}_new()".
             For each written in (cast field-of on (expression, 1))'s children, repeat:
-                The built becomes "cser_{element}_append({built}, {cast one's c-of on (written) or pass the failure off})".
+                The built becomes "{cast series-c-name on (element)}_append({built}, {cast one's c-of on (written) or pass the failure off})".
             Done.
             Return built.
         Done.
@@ -107,7 +127,7 @@ Pull a book on collections.
         // `item … of`: the series is held once, so it is reached once.
         Define at-line as (cast field-of on (expression, 3))'s word.
         Define place as cast one's c-place on (cast field-of on (expression, 2), "cf_at", target, at-line) or pass the failure off.
-        Return "(\{ cser_{element}* cf_at = {series-c}; cf_at->data[{place}]; \})".
+        Return "(\{ {cast series-c-name on (element)}* cf_at = {series-c}; cf_at->data[{place}]; \})".
     Done.
 
     /// The zero-based place of an item in the series `held` names in C — `_` for the last — checked
@@ -141,16 +161,16 @@ Pull a book on collections.
             Define series-c as cast one's c-of on (target) or pass the failure off.
             Define value as cast one's c-of on (cast field-of on (statement, 1)) or pass the failure off.
             If (cast field-of on (statement, 4))'s word is "true":
-                Cast one's line on ("cser_{element}_prepend({series-c}, {value});").
+                Cast one's line on ("{cast series-c-name on (element)}_prepend({series-c}, {value});").
                 Return.
             Done.
             Define following as cast field-of on (statement, 3).
             If cast is-nothing on (following):
-                Cast one's line on ("cser_{element}_append({series-c}, {value});").
+                Cast one's line on ("{cast series-c-name on (element)}_append({series-c}, {value});").
                 Return.
             Done.
             Define following-c as cast one's c-of on (following) or pass the failure off.
-            Cast one's line on ("cser_{element}_insert_after({series-c}, cufet_to_int({following-c}), {value});").
+            Cast one's line on ("{cast series-c-name on (element)}_insert_after({series-c}, cufet_to_int({following-c}), {value});").
             Return.
         Done.
         If kind is "SeriesRemoveValueStatement":
@@ -158,7 +178,7 @@ Pull a book on collections.
             Define element as cast one's changed-element on (target) or pass the failure off.
             Define series-c as cast one's c-of on (target) or pass the failure off.
             Define value as cast one's c-of on (cast field-of on (statement, 2)) or pass the failure off.
-            Cast one's line on ("cser_{element}_remove_value({series-c}, {value});").
+            Cast one's line on ("{cast series-c-name on (element)}_remove_value({series-c}, {value});").
             Return.
         Done.
         If kind is "SeriesRemoveAtStatement":
@@ -167,7 +187,7 @@ Pull a book on collections.
             Define series-c as cast one's c-of on (target) or pass the failure off.
             Define place as cast one's c-place on (cast field-of on (statement, 2), "cf_at", target,
                 (cast field-of on (statement, 3))'s word) or pass the failure off.
-            Cast one's line on ("\{ cser_{element}* cf_at = {series-c}; cser_{element}_remove_at(cf_at, {place}); \}").
+            Cast one's line on ("\{ {cast series-c-name on (element)}* cf_at = {series-c}; {cast series-c-name on (element)}_remove_at(cf_at, {place}); \}").
             Return.
         Done.
         // `The item … of … becomes …`.
@@ -177,7 +197,7 @@ Pull a book on collections.
         Define place as cast one's c-place on (cast field-of on (statement, 2), "cf_at", target,
             (cast field-of on (statement, 4))'s word) or pass the failure off.
         Define value as cast one's c-of on (cast field-of on (statement, 3)) or pass the failure off.
-        Cast one's line on ("\{ cser_{element}* cf_at = {series-c}; cf_at->data[{place}] = {value}; \}").
+        Cast one's line on ("\{ {cast series-c-name on (element)}* cf_at = {series-c}; cf_at->data[{place}] = {value}; \}").
     Done.
 
     /// `For each <name> in <series>, repeat:` — over the items there when it began, as in C#. The
@@ -198,7 +218,7 @@ Pull a book on collections.
         Done.
         Define outer as one's indent.
         The one's indent becomes outer joined to "    ".
-        Cast one's line on ("cser_{element}* cf_each = {series-c};").
+        Cast one's line on ("{cast series-c-name on (element)}* cf_each = {series-c};").
         Cast one's line on ("int cf_each_n = cf_each->len;").
         // ⚠ Inserting into or removing from the series it loops over is refused while it runs —
         // checked before each pass and once more on the way out, which `Stop` leaves without, as
