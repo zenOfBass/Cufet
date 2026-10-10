@@ -52,7 +52,7 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     : PipelineTestBase, IClassFixture<CompiledCufetCompiler>
 {
     /// <summary>How many hand-written programs must build and print alike. Raised as it grows; never lowered.</summary>
-    private const int BuiltFloor = 154;
+    private const int BuiltFloor = 162;
 
     private static string[] PreludeArgs =>
         ["--prelude", Path.Combine(RepoRoot, "src", "Interpreter", "Prelude").Replace('\\', '/')];
@@ -226,6 +226,15 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
         "Define object tree with (the text label, the series of tree children):\n    Bind number to size:\n        Define total as 1.\n        For each child in one's children, repeat:\n            Increment total by cast child's size.\n        Done.\n        Return total.\n    Done.\nDone.\nDefine leaf as a new tree { the label \"leaf\", the children a series of tree }.\nDefine middle as a new tree { the label \"middle\", the children a series of tree with (leaf, leaf) }.\nDefine root as a new tree { the label \"root\", the children a series of tree with (middle, leaf) }.\nState cast root's size.",
         "Define object point with (the number across, the number up).\nBind series of point to diagonal, given (the number count):\n    Define found as a series of point.\n    For each n in range 1 to count, repeat:\n        Insert a new point { the across n, the up n } into found.\n    Done.\n    Return found.\nDone.\nState cast diagonal on (3).",
         "Define object point with (the number across, the number up).\nDefine one-row as a series of point with (a new point { the across 1, the up 1 }).\nDefine two-row as a series of point with (a new point { the across 1, the up 1 }).\nState one-row is two-row.",
+        // Interfaces — one copy of a function per object passed for one — their defaults, and modules pulled and called.
+        "Define shape as an interface for {\n    The number function area,\n    The text function describe\n}.\nBind text to describe unto shape:\n    Return \"area {(cast area on one) converted to text}\".\nDone.\nDefine object square with (the number side) and shape.\nBind number to area unto square:\n    Return one's side * one's side.\nDone.\nDefine object circle with (the number radius) and shape:\n    Bind number to area:\n        Return 3 * one's radius * one's radius.\n    Done.\n    Bind text to describe:\n        Return \"a circle\".\n    Done.\nDone.\nBind void to show, given (the shape thing):\n    State cast thing's describe.\n    State cast thing's area.\nDone.\nCast show on (a new square { the side 5 }).\nCast show on (a new circle { the radius 2 }).",
+        "Define shape as an interface for {\n    The number function area,\n    The text function describe\n}.\nBind text to describe unto shape:\n    Return \"area {(cast area on one) converted to text}\".\nDone.\nDefine object square with (the number side) and shape.\nBind number to area unto square:\n    Return one's side * one's side.\nDone.\nDefine object circle with (the number radius) and shape:\n    Bind number to area:\n        Return 3 * one's radius * one's radius.\n    Done.\n    Bind text to describe:\n        Return \"a circle\".\n    Done.\nDone.\nBind number to doubled-area, given (the shape thing):\n    Return cast thing's area * 2.\nDone.\nState cast doubled-area on (a new square { the side 3 }).\nState cast doubled-area on (a new square { the side 4 }).\nState cast doubled-area on (a new circle { the radius 1 }).",
+        "Define shape as an interface for {\n    The number function area,\n    The text function describe\n}.\nBind text to describe unto shape:\n    Return \"area {(cast area on one) converted to text}\".\nDone.\nDefine object square with (the number side) and shape.\nBind number to area unto square:\n    Return one's side * one's side.\nDone.\nDefine object circle with (the number radius) and shape:\n    Bind number to area:\n        Return 3 * one's radius * one's radius.\n    Done.\n    Bind text to describe:\n        Return \"a circle\".\n    Done.\nDone.\nBind number to total-area, given (the shape first-shape, the shape second-shape):\n    Return cast first-shape's area + cast second-shape's area.\nDone.\nState cast total-area on (a new square { the side 2 }, a new circle { the radius 1 }).\nState cast total-area on (a new circle { the radius 1 }, a new circle { the radius 2 }).",
+        "Define shape as an interface for {\n    The number function area,\n    The text function describe\n}.\nBind text to describe unto shape:\n    Return \"area {(cast area on one) converted to text}\".\nDone.\nDefine object square with (the number side) and shape.\nBind number to area unto square:\n    Return one's side * one's side.\nDone.\nDefine object circle with (the number radius) and shape:\n    Bind number to area:\n        Return 3 * one's radius * one's radius.\n    Done.\n    Bind text to describe:\n        Return \"a circle\".\n    Done.\nDone.\nDefine tile as a new square { the side 6 }.\nState cast tile's describe.\nState cast area on (tile).",
+        "Define greeter as an interface for { The text function greet }.\nDefine object person with (the text name) and greeter:\n    Bind text to greet:\n        Return \"hi, \" joined to one's name.\n    Done.\nDone.\nDefine object robot with (the number serial) and greeter:\n    Bind text to greet:\n        Return \"BEEP {one's serial}\".\n    Done.\nDone.\nBind void to welcome, given (the greeter someone, the number times):\n    For each n in range 1 to times, repeat:\n        State cast someone's greet.\n    Done.\nDone.\nCast welcome on (a new person { the name \"grace\" }, 2).\nCast welcome on (a new robot { the serial 7 }, 1).",
+        "Define object shapes with () and module:\n    Define object point with (the number across, the number up).\n    Bind point to origin:\n        Return a new point { the across 3, the up 4 }.\n    Done.\n    Bind number to twice, given (the number n):\n        Return n * 2.\n    Done.\nDone.\nPull a shapes.\n    Define here as cast shapes's origin.\n    State here.\n    State cast shapes's twice on (21).\nDone.",
+        "Define object shapes with () and module:\n    Define object point with (the number across, the number up).\n    Bind point to origin:\n        Return a new point { the across 3, the up 4 }.\n    Done.\n    Bind number to twice, given (the number n):\n        Return n * 2.\n    Done.\nDone.\nPull a shapes.\n    Define spots as a series of point with (cast shapes's origin, a new point { the across 1, the up 1 }).\n    State spots.\nDone.",
+        "Define object shapes with () and module:\n    Define object point with (the number across, the number up).\n    Bind point to origin:\n        Return a new point { the across 3, the up 4 }.\n    Done.\n    Bind number to twice, given (the number n):\n        Return n * 2.\n    Done.\nDone.\nBind number to sum-of, given (the number n):\n    Return n + n.\nDone.\nPull a shapes.\n    State cast sum-of on (cast shapes's twice on (5)).\nDone.",
     ];
 
     [Fact]
@@ -278,7 +287,7 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     }
 
     /// <summary>How many programs of `examples/` must build and print alike. Raised as it grows; never lowered.</summary>
-    private const int CorpusFloor = 7;
+    private const int CorpusFloor = 9;
 
     /// <remarks>
     /// ★ The corpus is copied first: the compiler writes each program beside its source. Each program
@@ -312,8 +321,15 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
                     unsupported.Add($"{name}\t{said["unsupported\t".Length..]}");
                     continue;
                 }
-                if (said != "built") { problems.Add($"{name}: {said}"); continue; }
                 var folder = Path.GetDirectoryName(file)!;
+                // ★ A library is no program: neither backend runs one, and the interpreter must
+                // refuse it too — exit 2, "nothing to run" — or the compiler has called a program one.
+                if (said.StartsWith("library\t", StringComparison.Ordinal))
+                {
+                    if (RunIn(CufetExe, [file], folder).Exit != 2) problems.Add($"{name}: called a library, but the interpreter runs it");
+                    continue;
+                }
+                if (said != "built") { problems.Add($"{name}: {said}"); continue; }
                 var (want, wantExit) = RunIn(CufetExe, [file], folder);
                 var (have, haveExit) = RunIn(Path.ChangeExtension(file, OperatingSystem.IsWindows() ? ".exe" : null), [], folder);
                 if (have == want && haveExit == wantExit) matched++;
