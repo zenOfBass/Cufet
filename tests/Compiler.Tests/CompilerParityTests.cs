@@ -52,7 +52,7 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     : PipelineTestBase, IClassFixture<CompiledCufetCompiler>
 {
     /// <summary>How many hand-written programs must build and print alike. Raised as it grows; never lowered.</summary>
-    private const int BuiltFloor = 162;
+    private const int BuiltFloor = 181;
 
     private static string[] PreludeArgs =>
         ["--prelude", Path.Combine(RepoRoot, "src", "Interpreter", "Prelude").Replace('\\', '/')];
@@ -235,6 +235,26 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
         "Define object shapes with () and module:\n    Define object point with (the number across, the number up).\n    Bind point to origin:\n        Return a new point { the across 3, the up 4 }.\n    Done.\n    Bind number to twice, given (the number n):\n        Return n * 2.\n    Done.\nDone.\nPull a shapes.\n    Define here as cast shapes's origin.\n    State here.\n    State cast shapes's twice on (21).\nDone.",
         "Define object shapes with () and module:\n    Define object point with (the number across, the number up).\n    Bind point to origin:\n        Return a new point { the across 3, the up 4 }.\n    Done.\n    Bind number to twice, given (the number n):\n        Return n * 2.\n    Done.\nDone.\nPull a shapes.\n    Define spots as a series of point with (cast shapes's origin, a new point { the across 1, the up 1 }).\n    State spots.\nDone.",
         "Define object shapes with () and module:\n    Define object point with (the number across, the number up).\n    Bind point to origin:\n        Return a new point { the across 3, the up 4 }.\n    Done.\n    Bind number to twice, given (the number n):\n        Return n * 2.\n    Done.\nDone.\nBind number to sum-of, given (the number n):\n    Return n + n.\nDone.\nPull a shapes.\n    State cast sum-of on (cast shapes's twice on (5)).\nDone.",
+        // Closed unions: made, changed, compared, printed, tested with is a, narrowed in If and by elimination, judged by type, held in a series, passed and given back.
+        "Define the (number or text) held as 5.\nState held.\nThe held becomes \"five\".\nState held.",
+        "Define the (number or text) held as 5.\nIf held is a number, state held + 1.\nOtherwise, state held joined to \"!\".",
+        "Define the (number or text) held as \"x\".\nIf held is a number, state held + 1.\nOtherwise, state held joined to \"!\".",
+        "Define the (number or text) held as 5.\nIf held is not a number, state \"text: \" joined to held.\nOtherwise, state held * 10.",
+        "Define the (number or text or fact) held as true.\nIf held is a number, state held + 1.\nOtherwise if held is a text, state held joined to \"?\".\nOtherwise, state held converted to text.",
+        "Define the (number or text or fact) held as \"t\".\nIf held is a number or held is a fact:\n    State \"number or fact\".\nDone.\nOtherwise:\n    State held joined to \" is text\".\nDone.",
+        "Define the (number or text) held as 5.\nState held is 5.\nState held is \"5\".\nState held is not 6.\nThe held becomes \"5\".\nState held is \"5\".",
+        "Define the (number or text) one-value as 5.\nDefine the (number or text) two-value as 5.\nState one-value is two-value.\nThe two-value becomes \"5\".\nState one-value is two-value.",
+        "Define object cat with (the text name).\nDefine object dog with (the number tricks).\nBind text to describe, given (the (cat or dog) pet):\n    Judge pet, where it is:\n        A cat, return \"cat {it's name}\".\n        A dog, return \"dog with {it's tricks}\".\n    Done.\nDone.\nState cast describe on (a new cat { the name \"tom\" }).\nState cast describe on (a new dog { the tricks 3 }).",
+        "Define object cat with (the text name).\nDefine object dog with (the number tricks).\nDefine the (cat or dog) pet as a new dog { the tricks 2 }.\nState pet.\nIf pet is a dog, state pet's tricks * 2.\nThe pet becomes a new cat { the name \"felix\" }.\nIf pet is a cat, state pet's name.",
+        "Define object cat with (the text name).\nDefine object dog with (the number tricks).\nBind (cat or dog) to adopt, given (the fact wants-cat):\n    If wants-cat, return a new cat { the name \"tom\" }.\n    Return a new dog { the tricks 1 }.\nDone.\nState cast adopt on (true).\nState cast adopt on (false).",
+        "Define the (number or text) held as 4.\nJudge held, where it is:\n    A number, state it + 1.\n    A text, state it joined to \"!\".\nDone.",
+        "Define the (number or text or fact) held as false.\nJudge held, where it is:\n    A number, state \"number\".\n    Otherwise, state \"not a number\".\nDone.",
+        "Define the (number or text or fact) held as \"word\".\nJudge held, where it is:\n    A number or a fact, state \"number or fact\".\n    A text, state it joined to \"!\".\nDone.",
+        "Define pieces as a series of (number or text) with (1, \"two\", 3).\nState pieces.\nFor each piece in pieces, repeat:\n    If piece is a number, state piece * 100.\n    Otherwise, state piece.\nDone.",
+        "Define pieces as a series of (number or text).\nInsert 5 into pieces.\nInsert \"x\" into pieces.\nState pieces.\nState the number of pieces.",
+        "Bind void to show, given (the (number or text) value):\n    If value is a number, state \"number {value}\".\n    Otherwise, state \"text {value}\".\nDone.\nCast show on (3).\nCast show on (\"z\").",
+        "Define the (number or text) held as 5.\nIf held is a number:\n    State held + 1.\n    The held becomes \"changed\".\n    State held.\nDone.",
+        "Define total as 7.\nState total is a number.\nState total is a text.\nState total is not a text.",
     ];
 
     [Fact]
@@ -287,7 +307,7 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     }
 
     /// <summary>How many programs of `examples/` must build and print alike. Raised as it grows; never lowered.</summary>
-    private const int CorpusFloor = 9;
+    private const int CorpusFloor = 12;
 
     /// <remarks>
     /// ★ The corpus is copied first: the compiler writes each program beside its source. Each program
