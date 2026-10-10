@@ -1,0 +1,402 @@
+/*  Unions — `(number or text)`, `is a`, narrowing, and judging by type.
+
+    ★ A closed union is a tagged struct, a member for each case. Its cases are kept SORTED, so
+      `(cat or dog)` and `(dog or cat)` are one C type, and a case's tag is its place in that order.
+
+    ★ NARROWING IS DONE AGAIN HERE. The checker narrows a name inside the arm of an `is a` test, but
+      the tree it hands on does not say so — so the compiler works it out again, as C#'s does (two
+      copies; see the ROADMAP's Ongoing note on narrowing). Inside a narrowed arm a name reads as
+      its case's member, or is converted to the smaller union a group of tests leaves.
+
+    ★ The emitter's `kinds` map carries two more things per name, so every block that puts kinds
+      back as they were puts these back too: `@<name>` — the C a narrowed name is read as — and
+      `%<name>` — the kind it is stored as. `%return` is the kind a function gives back.
+
+    ★ A value is WRAPPED wherever it flows into a union-typed place — a `Define` declared so,
+      `becomes`, an argument, `Return`, a field, a series' items.
+*/
+
+Pull a book on collections.
+    Bind fact to is-union, given (the text kind):
+        Return kind starts with "union of ".
+    Done.
+
+    /// A union's cases, in their sorted order.
+    Bind series of text to kind-cases, given (the text kind):
+        Define cases as a series of text.
+        For each written in (the characters from 10 to the end of kind) split by "|", repeat:
+            Insert written into cases.
+        Done.
+        Return cases.
+    Done.
+
+    /// A union kind for some cases: flattened, without repeats, sorted.
+    Bind text to union-kind-of, given (the series of text cases):
+        Define seen as a map from text to fact.
+        Define kept as a series of text.
+        For each written in cases, repeat:
+            If cast is-union on (written):
+                For each inner in cast kind-cases on (written), repeat:
+                    If (the entry for inner in seen) is void:
+                        In seen, the entry for inner becomes true.
+                        Insert inner into kept.
+                    Done.
+                Done.
+            Done.
+            Otherwise if (the entry for written in seen) is void:
+                In seen, the entry for written becomes true.
+                Insert written into kept.
+            Done.
+        Done.
+        Define ordered as kept sorted.
+        If the number of ordered is 1, return item 1 of ordered.
+        Define joined-cases as "".
+        For each written in ordered, repeat:
+            If joined-cases is "", the joined-cases becomes written.
+            Otherwise, the joined-cases becomes "{joined-cases}|{written}".
+        Done.
+        Return "union of {joined-cases}".
+    Done.
+
+    /// A case's tag: its place in the union's sorted cases, from 0, or -1 when it is none of them.
+    Bind number to case-tag, given (the text union, the text written):
+        Define place as 0.
+        For each inner in cast kind-cases on (union), repeat:
+            If inner is written, return place.
+            Increment place by 1.
+        Done.
+        Return -1.
+    Done.
+
+    Bind text to union-c-name, given (the text kind):
+        Define named as "cun".
+        For each inner in cast kind-cases on (kind), repeat:
+            Define part as inner.
+            If cast object-of on (inner) is not "", the part becomes "obj_{cast c-ident on (cast object-of on (inner))}".
+            The named becomes "{named}_{part}".
+        Done.
+        Return named.
+    Done.
+
+    /// A union's struct, how a case is wrapped into it, and how it is written and compared.
+    Bind text to c-union-helpers, given (the text kind):
+        Define type-c as cast union-c-name on (kind).
+        Define out as a chase.
+        Insert "typedef struct \{ int tag;" into out.
+        Define place as 0.
+        For each inner in cast kind-cases on (kind), repeat:
+            Insert " {cast c-type on (inner)} case_{place};" into out.
+            Increment place by 1.
+        Done.
+        Insert " \} {type-c};\n" into out.
+        The place becomes 0.
+        Define writes as a chase.
+        Define tests as a chase.
+        For each inner in cast kind-cases on (kind), repeat:
+            Insert "static {type-c} {type-c}_from_{place}({cast c-type on (inner)} v) \{ {type-c} u; memset(&u, 0, sizeof u); u.tag = {place}; u.case_{place} = v; return u; \}\n" into out.
+            Insert " case {place}: {cast write-call on (inner, "u.case_{place}")}; break;" into writes.
+            Insert " case {place}: return {cast c-equal on (inner, "a.case_{place}", "b.case_{place}")};" into tests.
+            Increment place by 1.
+        Done.
+        Insert "static void {type-c}_write({type-c} u) \{ switch (u.tag) \{{writes converted to text} \} \}\n" into out.
+        Insert "static int {type-c}_eq({type-c} a, {type-c} b) \{ if (a.tag != b.tag) return 0; switch (a.tag) \{{tests converted to text} \} return 0; \}\n\n" into out.
+        Return out converted to text.
+    Done.
+
+    /// Notes a union type the program uses, so its struct is written.
+    Bind void to register-union unto emitter, given (the text kind):
+        If cast is-union on (kind) is false, return.
+        If (the entry for kind in one's unions) is void:
+            In one's unions, the entry for kind becomes true.
+            Insert kind into one's union-order.
+        Done.
+    Done.
+
+    /// A value of kind `from` as one of kind `wanted`: wrapped into a union, converted from a
+    /// smaller union, or as it is.
+    Bind text to c-coerce unto emitter, given (the text value, the text source-kind, the text wanted):
+        If source-kind is wanted or cast is-union on (wanted) is false, return value.
+        Cast one's register-union on (wanted).
+        Define wanted-c as cast union-c-name on (wanted).
+        If cast is-union on (source-kind) is false:
+            Define tag as cast case-tag on (wanted, source-kind).
+            If tag < 0, return value.
+            Return "{wanted-c}_from_{tag}({value})".
+        Done.
+        // One union into a wider one: each of its cases to the same case there.
+        Define from-c as cast union-c-name on (source-kind).
+        Define converting as "(\{ {from-c} cf_u = {value}; {wanted-c} cf_w; memset(&cf_w, 0, sizeof cf_w); switch (cf_u.tag) \{".
+        Define place as 0.
+        For each inner in cast kind-cases on (source-kind), repeat:
+            Define tag as cast case-tag on (wanted, inner).
+            If tag is not less than 0, the converting becomes "{converting} case {place}: cf_w = {wanted-c}_from_{tag}(cf_u.case_{place}); break;".
+            Increment place by 1.
+        Done.
+        Return "{converting} \} cf_w; \})".
+    Done.
+
+    /// An expression as C, as a value of the kind a place wants.
+    Bind text or failure to c-of-as unto emitter, given (the node expression, the text wanted):
+        Define value as cast one's c-of on (expression) or pass the failure off.
+        Define source-kind as cast one's kind-of on (expression) or pass the failure off.
+        Return cast one's c-coerce on (value, source-kind, wanted).
+    Done.
+
+    // ── Narrowing ─────────────────────────────────────────────────────────
+
+    /// The kind a name is stored as, however it is narrowed now.
+    Bind text to stored-kind unto emitter, given (the text name):
+        Define stored as the entry for "%{name}" in one's kinds.
+        If stored is not void, return stored.
+        Return the entry for name in one's kinds but void is "".
+    Done.
+
+    /// Narrows a name to some of its cases: it reads as that case's member, or as the smaller union.
+    Bind void to narrow unto emitter, given (the text name, the text to-kind):
+        Define stored as cast one's stored-kind on (name).
+        If cast is-union on (stored) is false, return.
+        In one's kinds, the entry for "%{name}" becomes stored.
+        In one's kinds, the entry for name becomes to-kind.
+        If to-kind is stored:
+            In one's kinds, the entry for "@{name}" becomes "".
+            Return.
+        Done.
+        Define held as cast c-name on (name).
+        If cast is-union on (to-kind) is false:
+            In one's kinds, the entry for "@{name}" becomes "({held}).case_{cast case-tag on (stored, to-kind)}".
+            Return.
+        Done.
+        In one's kinds, the entry for "@{name}" becomes cast one's c-coerce on (held, stored, to-kind).
+    Done.
+
+    /// What a condition narrows: a test `<name> is a <type>`, or a group of them on one name joined
+    /// by `or` — the name, its tested cases, and whether the test is `is not a`. "" for none.
+    Bind map from text to text or failure to narrowing-of unto emitter, given (the node condition):
+        Define found as a map from text to text.
+        If condition's kind is "IsTypeCheck":
+            Define target as cast field-of on (condition, 1).
+            If target's kind is not "VariableReference", return found.
+            In found, the entry for "name" becomes cast unquoted on (cast field-of on (target, 1)).
+            In found, the entry for "cases" becomes cast one's kind-of-type on (cast field-of on (condition, 2)) or pass the failure off.
+            In found, the entry for "negated" becomes (cast field-of on (condition, 3))'s word.
+            Return found.
+        Done.
+        If condition's kind is "BinaryExpression" and (cast field-of on (condition, 2))'s word is "Or":
+            Define left as cast one's narrowing-of on (cast field-of on (condition, 1)) or pass the failure off.
+            Define right as cast one's narrowing-of on (cast field-of on (condition, 3)) or pass the failure off.
+            If the size of left is 0 or the size of right is 0, return found.
+            If (the entry for "negated" in left) is "true" or (the entry for "negated" in right) is "true", return found.
+            If (the entry for "name" in left) is not (the entry for "name" in right), return found.
+            In found, the entry for "name" becomes the entry for "name" in left but void is "".
+            Define both as a series of text with (the entry for "cases" in left but void is "", the entry for "cases" in right but void is "").
+            In found, the entry for "cases" becomes cast union-kind-of on (both).
+            In found, the entry for "negated" becomes "false".
+        Done.
+        Return found.
+    Done.
+
+    /// The cases of `kind` that `removed` does not name.
+    Bind text to without-cases, given (the text kind, the text removed):
+        Define removing as a map from text to fact.
+        If cast is-union on (removed):
+            For each inner in cast kind-cases on (removed), repeat:
+                In removing, the entry for inner becomes true.
+            Done.
+        Done.
+        Otherwise, in removing, the entry for removed becomes true.
+        Define left as a series of text.
+        Define all-cases as a series of text.
+        If cast is-union on (kind), the all-cases becomes cast kind-cases on (kind).
+        Otherwise, insert kind into all-cases.
+        For each inner in all-cases, repeat:
+            If (the entry for inner in removing) is void, insert inner into left.
+        Done.
+        If the number of left is 0, return "".
+        Return cast union-kind-of on (left).
+    Done.
+
+    /// A copy of the kinds, to put back when an arm ends.
+    Bind map from text to text to kinds-kept unto emitter:
+        Define kept as a map from text to text.
+        For each pair in one's kinds, repeat:
+            In kept, the entry for the key of pair becomes the value of pair.
+        Done.
+        Return kept.
+    Done.
+
+    /// `If`, each arm narrowing what its test names. While every arm tests one name, `Otherwise`
+    /// has what the arms left of it; a lone `is not a` arm leaves its `Otherwise` the type tested.
+    Bind void or failure to emit-if unto emitter, given (the node statement):
+        Define arms as (cast field-of on (statement, 1))'s children.
+        Define first-arm as true.
+        Define tracked as "".
+        Define remaining as "".
+        Define eliminating as true.
+        Define lone-negated as "".
+        For each arm in arms, repeat:
+            Define condition-node as cast field-of on (arm, 1).
+            Define condition as cast one's c-of on (condition-node) or pass the failure off.
+            If first-arm, cast one's line on ("if ({condition}) \{").
+            Otherwise, cast one's line on ("\} else if ({condition}) \{").
+            The first-arm becomes false.
+            Define kept as cast one's kinds-kept.
+            Define narrowing as cast one's narrowing-of on (condition-node) or pass the failure off.
+            If the size of narrowing is greater than 0:
+                Define name as the entry for "name" in narrowing but void is "".
+                Define cases as the entry for "cases" in narrowing but void is "".
+                Define current as the entry for name in one's kinds but void is "".
+                If (the entry for "negated" in narrowing) is "true":
+                    Define rest as cast without-cases on (current, cases).
+                    If rest is not "", cast one's narrow on (name, rest).
+                    The eliminating becomes false.
+                    If the number of arms is 1:
+                        The tracked becomes name.
+                        The lone-negated becomes cases.
+                    Done.
+                Done.
+                Otherwise:
+                    Cast one's narrow on (name, cases).
+                    If tracked is "":
+                        The tracked becomes name.
+                        The remaining becomes current.
+                    Done.
+                    If tracked is name, the remaining becomes cast without-cases on (remaining, cases).
+                    Otherwise, the eliminating becomes false.
+                Done.
+            Done.
+            Otherwise, the eliminating becomes false.
+            Cast one's emit-block on (cast field-of on (arm, 2)) or pass the failure off.
+            The one's kinds becomes kept.
+        Done.
+        Define otherwise-body as cast field-of on (statement, 2).
+        If cast is-nothing on (otherwise-body) is false:
+            Cast one's line on ("\} else \{").
+            Define kept as cast one's kinds-kept.
+            If tracked is not "":
+                If lone-negated is not "", cast one's narrow on (tracked, lone-negated).
+                Otherwise if eliminating and remaining is not "", cast one's narrow on (tracked, remaining).
+            Done.
+            Cast one's emit-block on (otherwise-body) or pass the failure off.
+            The one's kinds becomes kept.
+        Done.
+        Cast one's line on ("\}").
+    Done.
+
+    /// `Judge <a union>, where it is:` by type — `it`, and the judged name, narrowed in each arm to
+    /// the types it names, and `Otherwise` to whatever the arms left.
+    Bind void or failure to emit-judge-union unto emitter, given (the node statement, the text subject-kind):
+        Define subject as cast field-of on (statement, 1).
+        Define value as cast one's c-of on (subject) or pass the failure off.
+        Define subject-name as "".
+        If subject's kind is "VariableReference", the subject-name becomes cast unquoted on (cast field-of on (subject, 1)).
+        Cast one's line on ("\{").
+        Define kept-outer as cast one's kinds-kept.
+        Define outer as one's indent.
+        The one's indent becomes outer joined to "    ".
+        Cast one's line on ("{cast union-c-name on (subject-kind)} cv_it = {value};").
+        In one's kinds, the entry for "it" becomes subject-kind.
+        In one's kinds, the entry for "%it" becomes subject-kind.
+        In one's kinds, the entry for "@it" becomes "".
+        Define remaining as subject-kind.
+        Define first-arm as true.
+        For each arm in (cast field-of on (statement, 2))'s children, repeat:
+            Define named as (cast field-of on (arm, 1))'s children.
+            If the number of named is 0, return a failure (cast not-built on ("a judgement arm of values on a union")).
+            Define arm-cases as a series of text.
+            For each written in named, repeat:
+                Insert cast one's kind-of-type on (written) or pass the failure off into arm-cases.
+            Done.
+            Define arm-kind as cast union-kind-of on (arm-cases).
+            Define tests as "".
+            Define tested as a series of text.
+            If cast is-union on (arm-kind), the tested becomes cast kind-cases on (arm-kind).
+            Otherwise, insert arm-kind into tested.
+            For each inner in tested, repeat:
+                Define test as "cv_it.tag == {cast case-tag on (subject-kind, inner)}".
+                If tests is "", the tests becomes test.
+                Otherwise, the tests becomes "{tests} || {test}".
+            Done.
+            If first-arm, cast one's line on ("if ({tests}) \{").
+            Otherwise, cast one's line on ("\} else if ({tests}) \{").
+            The first-arm becomes false.
+            Define kept as cast one's kinds-kept.
+            Cast one's narrow on ("it", arm-kind).
+            If subject-name is not "", cast one's narrow on (subject-name, arm-kind).
+            Cast one's emit-block on (cast field-of on (arm, 2)) or pass the failure off.
+            The one's kinds becomes kept.
+            The remaining becomes cast without-cases on (remaining, arm-kind).
+        Done.
+        Define otherwise-body as cast field-of on (statement, 3).
+        If cast is-nothing on (otherwise-body) is false:
+            If first-arm, cast one's line on ("\{").
+            Otherwise, cast one's line on ("\} else \{").
+            The first-arm becomes false.
+            Define kept as cast one's kinds-kept.
+            If remaining is not "":
+                Cast one's narrow on ("it", remaining).
+                If subject-name is not "", cast one's narrow on (subject-name, remaining).
+            Done.
+            Cast one's emit-block on (otherwise-body) or pass the failure off.
+            The one's kinds becomes kept.
+        Done.
+        If first-arm is false, cast one's line on ("\}").
+        The one's indent becomes outer.
+        The one's kinds becomes kept-outer.
+        Cast one's line on ("\}").
+    Done.
+
+    // ── Expressions ───────────────────────────────────────────────────────
+
+    /// `<value> is a <type>` — a test of a union's tag; on anything else, known as it is written.
+    Bind text or failure to c-type-check unto emitter, given (the node condition):
+        Define target as cast field-of on (condition, 1).
+        Define held as cast one's kind-of on (target) or pass the failure off.
+        Define tested as cast one's kind-of-type on (cast field-of on (condition, 2)) or pass the failure off.
+        Define negated as (cast field-of on (condition, 3))'s word is "true".
+        If cast is-union on (held) is false:
+            Define same as held is tested.
+            If same is not negated, return "1".
+            Return "0".
+        Done.
+        Define target-c as cast one's c-of on (target) or pass the failure off.
+        Define tests as "".
+        Define tested-cases as a series of text.
+        If cast is-union on (tested), the tested-cases becomes cast kind-cases on (tested).
+        Otherwise, insert tested into tested-cases.
+        For each inner in tested-cases, repeat:
+            Define test as "cf_t.tag == {cast case-tag on (held, inner)}".
+            If tests is "", the tests becomes test.
+            Otherwise, the tests becomes "{tests} || {test}".
+        Done.
+        Define checked as "(\{ {cast union-c-name on (held)} cf_t = {target-c}; ({tests}); \})".
+        If negated, return "(!{checked})".
+        Return checked.
+    Done.
+
+    /// `is` / `is not` with a union on either side: the same case, holding equal values.
+    Bind text or failure to c-union-equal unto emitter, given (the node expression):
+        Define left-side as cast field-of on (expression, 1).
+        Define right-side as cast field-of on (expression, 3).
+        Define left-kind as cast one's kind-of on (left-side) or pass the failure off.
+        Define right-kind as cast one's kind-of on (right-side) or pass the failure off.
+        Define left as cast one's c-of on (left-side) or pass the failure off.
+        Define right as cast one's c-of on (right-side) or pass the failure off.
+        Define equal as "".
+        If left-kind is right-kind:
+            The equal becomes cast c-equal on (left-kind, left, right).
+        Done.
+        Otherwise if cast is-union on (left-kind) and cast case-tag on (left-kind, right-kind) is not less than 0:
+            Define tag as cast case-tag on (left-kind, right-kind).
+            The equal becomes "(\{ {cast union-c-name on (left-kind)} cf_e = {left}; cf_e.tag == {tag} && {cast c-equal on (right-kind, "cf_e.case_{tag}", right)}; \})".
+        Done.
+        Otherwise if cast is-union on (right-kind) and cast case-tag on (right-kind, left-kind) is not less than 0:
+            Define tag as cast case-tag on (right-kind, left-kind).
+            The equal becomes "(\{ {cast union-c-name on (right-kind)} cf_e = {right}; cf_e.tag == {tag} && {cast c-equal on (left-kind, "cf_e.case_{tag}", left)}; \})".
+        Done.
+        Otherwise:
+            Return a failure (cast not-built on ("comparing a {left-kind} with a {right-kind}")).
+        Done.
+        If (cast field-of on (expression, 2))'s word is "NotEqual", return "(!{equal})".
+        Return equal.
+    Done.
+Done.

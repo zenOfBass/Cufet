@@ -12,13 +12,22 @@
 */
 
 Pull a book on collections.
-    /// A name as C: hyphens, the spaces of a name the loader renamed (`point in shapes`) and the
-    /// slashes of a folder's (`helper in top/lib`) all become underscores.
+    /// A name as C: every character but an ASCII letter or digit becomes an underscore — a
+    /// hyphen, the spaces of a name the loader renamed (`point in shapes`), the slashes of a
+    /// folder's (`helper in top/lib`), and the commas of a version dispatch made
+    /// (`check given text literal, wants number`).
     Bind text to c-ident, given (the text name):
-        Define cleaned as replace "-" with "_" in name.
-        The cleaned becomes replace " " with "_" in cleaned.
-        The cleaned becomes replace "/" with "_" in cleaned.
-        Return cleaned.
+        Define letters as a chase.
+        Insert name into letters.
+        Define cleaned as a chase.
+        Define place as 1.
+        While place is not greater than the number of letters, repeat:
+            Define ch as item place of letters.
+            If "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789" contains ch, insert ch into cleaned.
+            Otherwise, insert "_" into cleaned.
+            Increment place by 1.
+        Done.
+        Return cleaned converted to text.
     Done.
 
     /// What an object conforms to that this compiler cannot build yet, or "".

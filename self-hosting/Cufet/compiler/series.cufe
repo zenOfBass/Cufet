@@ -23,11 +23,12 @@ Pull a book on collections.
 
     /// Whether a series can hold a kind: one of the three, or an object.
     Bind fact to is-element-kind, given (the text kind):
-        Return cast is-scalar on (kind) or cast object-of on (kind) is not "".
+        Return cast is-scalar on (kind) or cast object-of on (kind) is not "" or cast is-union on (kind).
     Done.
 
     /// The C name of the series type that holds a kind.
     Bind text to series-c-name, given (the text element):
+        If cast is-union on (element), return "cser_{cast union-c-name on (element)}".
         Define object-name as cast object-of on (element).
         If object-name is not "", return "cser_obj_{cast c-ident on (object-name)}".
         Return "cser_{element}".
@@ -107,7 +108,7 @@ Pull a book on collections.
             Define element as cast element-of on (cast one's series-kind-of on (expression) or pass the failure off).
             Define built as "{cast series-c-name on (element)}_new()".
             For each written in (cast field-of on (expression, 1))'s children, repeat:
-                The built becomes "{cast series-c-name on (element)}_append({built}, {cast one's c-of on (written) or pass the failure off})".
+                The built becomes "{cast series-c-name on (element)}_append({built}, {cast one's c-of-as on (written, element) or pass the failure off})".
             Done.
             Return built.
         Done.
@@ -159,7 +160,7 @@ Pull a book on collections.
             Define target as cast field-of on (statement, 2).
             Define element as cast one's changed-element on (target) or pass the failure off.
             Define series-c as cast one's c-of on (target) or pass the failure off.
-            Define value as cast one's c-of on (cast field-of on (statement, 1)) or pass the failure off.
+            Define value as cast one's c-of-as on (cast field-of on (statement, 1), element) or pass the failure off.
             If (cast field-of on (statement, 4))'s word is "true":
                 Cast one's line on ("{cast series-c-name on (element)}_prepend({series-c}, {value});").
                 Return.
@@ -196,7 +197,7 @@ Pull a book on collections.
         Define series-c as cast one's c-of on (target) or pass the failure off.
         Define place as cast one's c-place on (cast field-of on (statement, 2), "cf_at", target,
             (cast field-of on (statement, 4))'s word) or pass the failure off.
-        Define value as cast one's c-of on (cast field-of on (statement, 3)) or pass the failure off.
+        Define value as cast one's c-of-as on (cast field-of on (statement, 3), element) or pass the failure off.
         Cast one's line on ("\{ {cast series-c-name on (element)}* cf_at = {series-c}; cf_at->data[{place}] = {value}; \}").
     Done.
 

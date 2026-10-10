@@ -80,7 +80,8 @@ Pull a book on collections.
         For each pair in (cast field-of on (expression, 3))'s children, repeat:
             Define field as cast unquoted on (cast field-of on (pair, 1)).
             In supplied, the entry for field becomes true.
-            Define value as cast one's c-of on (cast field-of on (pair, 2)) or pass the failure off.
+            Define wanted as cast one's field-kind on (object-name, field) or pass the failure off.
+            Define value as cast one's c-of-as on (cast field-of on (pair, 2), wanted) or pass the failure off.
             Define one-field as ".{cast c-name on (field)} = {value}".
             If listing is "", the listing becomes one-field.
             Otherwise, the listing becomes "{listing}, {one-field}".
@@ -124,9 +125,8 @@ Pull a book on collections.
         Done.
         Define object-name as cast object-of on (cast one's kind-of on (receiver) or pass the failure off).
         Define listing as "&({cast one's c-of on (receiver) or pass the failure off})".
-        For each argument in (cast field-of on (call, 2))'s children, repeat:
-            The listing becomes "{listing}, {cast one's c-of on (argument) or pass the failure off}".
-        Done.
+        Define rest as cast one's c-arguments on (cast field-of on (called, 3), cast field-of on (call, 2)) or pass the failure off.
+        If rest is not "", the listing becomes "{listing}, {rest}".
         Return "{cast c-method-name on (object-name, cast unquoted on (cast field-of on (called, 1)))}({listing})".
     Done.
 
@@ -144,9 +144,9 @@ Pull a book on collections.
         Define object-name as cast object-of on (held).
         If object-name is "", return a failure (cast not-built on ("setting a field of a {held}")).
         Define field as cast unquoted on (cast field-of on (statement, 2)).
-        Cast one's field-kind on (object-name, field) or pass the failure off.
+        Define wanted as cast one's field-kind on (object-name, field) or pass the failure off.
         Define target-c as cast one's c-of on (target) or pass the failure off.
-        Define value as cast one's c-of on (cast field-of on (statement, 3)) or pass the failure off.
+        Define value as cast one's c-of-as on (cast field-of on (statement, 3), wanted) or pass the failure off.
         Cast one's line on ("({target-c}).{cast c-name on (field)} = {value};").
     Done.
 
@@ -179,6 +179,8 @@ Pull a book on collections.
         If the number of (cast field-of on (definition, 3))'s children is 0, insert "    char cf_nothing;\n" into out.
         For each pair in (cast field-of on (definition, 3))'s children, repeat:
             Define held as cast one's kind-of-type on (cast field-of on (pair, 2)) or pass the failure off.
+            // A union's struct comes after the objects it may hold, so an object cannot hold one yet.
+            If cast is-union on (held), return a failure (cast not-built on ("an object with a union field")).
             Insert "    {cast c-type on (held)} {cast c-name on (cast unquoted on (cast field-of on (pair, 1)))};\n" into out.
         Done.
         Insert "\} {cast c-struct-name on (object-name)};\n" into out.
@@ -237,6 +239,7 @@ Pull a book on collections.
     Bind text or failure to c-method unto emitter, given (the text object-name, the node method):
         Define writer as cast one's sibling.
         In writer's kinds, the entry for "one" becomes "object {object-name}".
+        In writer's kinds, the entry for "%return" becomes cast one's kind-of-type on (cast field-of on (method, 2)) or pass the failure off.
         For each parameter in (cast field-of on (method, 3))'s children, repeat:
             Define taken as cast one's kind-of-type on (cast field-of on (parameter, 1)) or pass the failure off.
             In writer's kinds, the entry for cast unquoted on (cast field-of on (parameter, 2)) becomes taken.

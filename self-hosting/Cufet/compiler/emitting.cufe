@@ -18,7 +18,8 @@ Pull a book on collections.
         the map from text to node functions, the map from text to node objects, the map from text to node methods,
         the map from text to node interfaces, the map from text to fact specialized,
         the series of node pending-functions, the series of text pending-names,
-        the series of map from text to text pending-kinds).
+        the series of map from text to text pending-kinds, the map from text to fact unions,
+        the series of text union-order).
 
     /// An emitter for the program, knowing its functions, objects, methods — a method under
     /// `<object>'s <method>` — and interfaces by name.
@@ -27,7 +28,8 @@ Pull a book on collections.
         Return a new emitter { the kinds a map from text to text, the body a chase, the indent "    ",
             the functions functions, the objects objects, the methods methods, the interfaces interfaces,
             the specialized a map from text to fact, the pending-functions a series of node,
-            the pending-names a series of text, the pending-kinds a series of map from text to text }.
+            the pending-names a series of text, the pending-kinds a series of map from text to text,
+            the unions a map from text to fact, the union-order a series of text }.
     Done.
 
     /// An emitter for another body of the same program — every table shared, the copies asked for
@@ -37,7 +39,7 @@ Pull a book on collections.
             the functions one's functions, the objects one's objects, the methods one's methods,
             the interfaces one's interfaces, the specialized one's specialized,
             the pending-functions one's pending-functions, the pending-names one's pending-names,
-            the pending-kinds one's pending-kinds }.
+            the pending-kinds one's pending-kinds, the unions one's unions, the union-order one's union-order }.
     Done.
 
     /// What this compiler cannot build yet, as a failure message.
@@ -67,6 +69,19 @@ Pull a book on collections.
             If (the entry for object-name in one's objects) is not void, return "object {object-name}".
             If (the entry for object-name in one's interfaces) is not void, return "interface {object-name}".
             Return a failure (cast not-built on ("a {object-name}")).
+        Done.
+        If written's kind is "UnionType":
+            Define cases as a series of text.
+            For each inner in (cast field-of on (written, 1))'s children, repeat:
+                Define case-kind as cast one's kind-of-type on (inner) or pass the failure off.
+                If cast is-scalar on (case-kind) is false and cast object-of on (case-kind) is "" and cast is-union on (case-kind) is false:
+                    Return a failure (cast not-built on ("a union holding a {case-kind}")).
+                Done.
+                Insert case-kind into cases.
+            Done.
+            Define union as cast union-kind-of on (cases).
+            Cast one's register-union on (union).
+            Return union.
         Done.
         If written's kind is "SeriesType":
             Define element as cast one's kind-of-type on (cast field-of on (written, 1)) or pass the failure off.
@@ -145,6 +160,7 @@ Pull a book on collections.
             "SeriesLiteral" or "RangeExpression" or "SeriesLength" or "SeriesAccess":
                 Return cast one's series-kind-of on (expression) or pass the failure off.
             Done.
+            "IsTypeCheck", return "fact".
             Otherwise, return a failure (cast not-built on (kind)).
         Done.
     Done.
@@ -165,6 +181,9 @@ Pull a book on collections.
                 Define name as cast unquoted on (cast field-of on (expression, 1)).
                 // Inside a method, `one` is the object it was called on, held by its address.
                 If name is "one", return "(*cv_one)".
+                // A narrowed name reads as its case, or as the smaller union.
+                Define narrowed as the entry for "@{name}" in one's kinds but void is "".
+                If narrowed is not "", return narrowed.
                 Return cast c-name on (name).
             Done.
             "ObjectLiteral", return cast one's c-object-literal on (expression) or pass the failure off.
@@ -187,6 +206,7 @@ Pull a book on collections.
             "SeriesLiteral" or "RangeExpression" or "SeriesLength" or "SeriesAccess":
                 Return cast one's c-series-of on (expression) or pass the failure off.
             Done.
+            "IsTypeCheck", return cast one's c-type-check on (expression) or pass the failure off.
             Otherwise, return a failure (cast not-built on (kind)).
         Done.
     Done.
@@ -212,24 +232,30 @@ Pull a book on collections.
             Done.
         Done.
         Define called as cast one's function-called on (call) or pass the failure off.
+        Define listing as cast one's c-arguments on (cast field-of on (called, 3), cast field-of on (call, 2)) or pass the failure off.
         Define interface-taking as cast one's takes-interface on (called) or pass the failure off.
         If interface-taking:
             Define copy-name as cast one's c-specialized-name on (called, call) or pass the failure off.
-            Define copy-listing as "".
-            For each argument in (cast field-of on (call, 2))'s children, repeat:
-                Define copy-argument as cast one's c-of on (argument) or pass the failure off.
-                If copy-listing is "", the copy-listing becomes copy-argument.
-                Otherwise, the copy-listing becomes "{copy-listing}, {copy-argument}".
-            Done.
-            Return "{copy-name}({copy-listing})".
+            Return "{copy-name}({listing})".
         Done.
+        Return "{cast c-function-name on (cast unquoted on (cast field-of on (called, 1)))}({listing})".
+    Done.
+
+    /// A call's arguments as C, each as the kind its parameter wants — wrapped into a union where
+    /// the parameter is one. One passed for an interface is the object it is.
+    Bind text or failure to c-arguments unto emitter, given (the node parameters, the node handed):
         Define listing as "".
-        For each argument in (cast field-of on (call, 2))'s children, repeat:
-            Define argument-c as cast one's c-of on (argument) or pass the failure off.
+        Define place as 0.
+        For each argument in handed's children, repeat:
+            Increment place by 1.
+            Define wanted as cast one's kind-of-type on (cast field-of on (item place of parameters's children, 1)) or pass the failure off.
+            Define argument-c as "".
+            If wanted starts with "interface ", the argument-c becomes cast one's c-of on (argument) or pass the failure off.
+            Otherwise, the argument-c becomes cast one's c-of-as on (argument, wanted) or pass the failure off.
             If listing is "", the listing becomes argument-c.
             Otherwise, the listing becomes "{listing}, {argument-c}".
         Done.
-        Return "{cast c-function-name on (cast unquoted on (cast field-of on (called, 1)))}({listing})".
+        Return listing.
     Done.
 
     /// An expression as C text, whatever its kind — what `converted to text` and a hole make.
@@ -249,6 +275,10 @@ Pull a book on collections.
         Define right as cast one's c-of on (cast field-of on (expression, 3)) or pass the failure off.
         Define at-line as (cast field-of on (expression, 4))'s word.
         Define left-kind as cast one's kind-of on (left-side) or pass the failure off.
+        Define right-kind as cast one's kind-of on (cast field-of on (expression, 3)) or pass the failure off.
+        If (operator is "Equal" or operator is "NotEqual") and (cast is-union on (left-kind) or cast is-union on (right-kind)):
+            Return cast one's c-union-equal on (expression) or pass the failure off.
+        Done.
         If cast is-scalar on (left-kind) is false:
             If operator is "Equal", return "({cast c-equal on (left-kind, left, right)})".
             If operator is "NotEqual", return "(!{cast c-equal on (left-kind, left, right)})".
@@ -289,6 +319,7 @@ Pull a book on collections.
 
     /// The C type a kind of value is held in.
     Bind text to c-type, given (the text kind):
+        If cast is-union on (kind), return cast union-c-name on (kind).
         If cast element-of on (kind) is not "", return "{cast series-c-name on (cast element-of on (kind))}*".
         If cast object-of on (kind) is not "", return cast c-struct-name on (cast object-of on (kind)).
         If kind is "number", return "CufetDec".
@@ -298,6 +329,7 @@ Pull a book on collections.
 
     /// The runtime call that writes a value of a kind, without the line's end.
     Bind text to write-call, given (the text kind, the text value):
+        If cast is-union on (kind), return "{cast union-c-name on (kind)}_write({value})".
         If cast element-of on (kind) is not "", return "{cast series-c-name on (cast element-of on (kind))}_write({value})".
         If cast object-of on (kind) is not "", return "{cast c-struct-name on (cast object-of on (kind))}_write({value})".
         If kind is "number", return "cufet_write_number({value})".
@@ -329,6 +361,7 @@ Pull a book on collections.
 
     /// Whether `left` and `right`, two values of `kind`, are equal — as C.
     Bind text to c-equal, given (the text kind, the text left, the text right):
+        If cast is-union on (kind), return "{cast union-c-name on (kind)}_eq({left}, {right})".
         If cast element-of on (kind) is not "", return "{cast series-c-name on (cast element-of on (kind))}_eq({left}, {right})".
         If cast object-of on (kind) is not "", return "{cast c-struct-name on (cast object-of on (kind))}_eq({left}, {right})".
         If kind is "number", return "(cufet_cmp({left}, {right}) == 0)".
@@ -347,18 +380,21 @@ Pull a book on collections.
                 Cast one's line on ("cufet_out_lock(); {cast write-call on (value-kind, value)}; cufet_nl(); cufet_out_unlock();").
             Done.
             "DefineStatement":
-                // A `permanently` constant, or one declared with a type, waits for a later slice.
-                If cast is-nothing on (cast field-of on (statement, 7)) is false:
-                    Return a failure (cast not-built on ("a Define declared with a type")).
-                Done.
+                // A `permanently` constant waits for a later slice.
                 If (cast field-of on (statement, 3))'s word is "true":
                     Return a failure (cast not-built on ("a permanent Define")).
                 Done.
                 Define name as cast unquoted on (cast field-of on (statement, 1)).
                 Define assigned as cast field-of on (statement, 2).
-                Define value as cast one's c-of on (assigned) or pass the failure off.
                 Define value-kind as cast one's kind-of on (assigned) or pass the failure off.
+                // Declared with a type, it holds that type — a union, the value wrapped into it.
+                If cast is-nothing on (cast field-of on (statement, 7)) is false:
+                    The value-kind becomes cast one's kind-of-type on (cast field-of on (statement, 7)) or pass the failure off.
+                Done.
+                Define value as cast one's c-of-as on (assigned, value-kind) or pass the failure off.
                 In one's kinds, the entry for name becomes value-kind.
+                In one's kinds, the entry for "%{name}" becomes value-kind.
+                In one's kinds, the entry for "@{name}" becomes "".
                 Cast one's line on ("{cast c-type on (value-kind)} {cast c-name on (name)} = {value};").
             Done.
             "BecomesStatement":
@@ -366,25 +402,14 @@ Pull a book on collections.
                 If (the entry for name in one's kinds) is void:
                     Return a failure (cast not-built on ("a name defined where this compiler cannot see it")).
                 Done.
-                Define value as cast one's c-of on (cast field-of on (statement, 2)) or pass the failure off.
+                // Into what the name is stored as — and a narrowed name is narrowed no more.
+                Define stored as cast one's stored-kind on (name).
+                Define value as cast one's c-of-as on (cast field-of on (statement, 2), stored) or pass the failure off.
                 Cast one's line on ("{cast c-name on (name)} = {value};").
+                In one's kinds, the entry for name becomes stored.
+                In one's kinds, the entry for "@{name}" becomes "".
             Done.
-            "IfStatement":
-                Define first-arm as true.
-                For each arm in (cast field-of on (statement, 1))'s children, repeat:
-                    Define condition as cast one's c-of on (cast field-of on (arm, 1)) or pass the failure off.
-                    If first-arm, cast one's line on ("if ({condition}) \{").
-                    Otherwise, cast one's line on ("\} else if ({condition}) \{").
-                    The first-arm becomes false.
-                    Cast one's emit-block on (cast field-of on (arm, 2)) or pass the failure off.
-                Done.
-                Define otherwise-body as cast field-of on (statement, 2).
-                If cast is-nothing on (otherwise-body) is false:
-                    Cast one's line on ("\} else \{").
-                    Cast one's emit-block on (otherwise-body) or pass the failure off.
-                Done.
-                Cast one's line on ("\}").
-            Done.
+            "IfStatement", cast one's emit-if on (statement) or pass the failure off.
             "WhileStatement":
                 Define condition as cast one's c-of on (cast field-of on (statement, 1)) or pass the failure off.
                 Cast one's line on ("while ({condition}) \{").
@@ -400,7 +425,7 @@ Pull a book on collections.
             "ReturnStatement":
                 Define returned as cast field-of on (statement, 1).
                 If cast is-nothing on (returned), cast one's line on ("return;").
-                Otherwise, cast one's line on ("return {cast one's c-of on (returned) or pass the failure off};").
+                Otherwise, cast one's line on ("return {cast one's c-of-as on (returned, the entry for "%return" in one's kinds but void is "") or pass the failure off};").
             Done.
             "CastStatement":
                 Define call as cast made on ("CastExpression", a series with (cast field-of on (statement, 1), cast field-of on (statement, 2))).
@@ -464,6 +489,10 @@ Pull a book on collections.
         Define subject as cast field-of on (statement, 1).
         Define value as cast one's c-of on (subject) or pass the failure off.
         Define subject-kind as cast one's kind-of on (subject) or pass the failure off.
+        If cast is-union on (subject-kind):
+            Cast one's emit-judge-union on (statement, subject-kind) or pass the failure off.
+            Return.
+        Done.
         If cast is-scalar on (subject-kind) is false, return a failure (cast not-built on ("judging a {subject-kind}")).
         Cast one's line on ("\{").
         Define kept as a map from text to text.
@@ -545,6 +574,7 @@ Pull a book on collections.
     /// One function as C. A body sees its parameters and nothing of the program's top level.
     Bind text or failure to c-function unto emitter, given (the node statement, the map from text to text overrides, the text named):
         Define writer as cast one's sibling.
+        In writer's kinds, the entry for "%return" becomes cast one's kind-of-type on (cast field-of on (statement, 2)) or pass the failure off.
         For each parameter in (cast field-of on (statement, 3))'s children, repeat:
             Define taken as cast one's kind-of-type on (cast field-of on (parameter, 1)) or pass the failure off.
             Define overridden as the entry for cast unquoted on (cast field-of on (parameter, 2)) in overrides.
@@ -673,10 +703,25 @@ Pull a book on collections.
             Insert "{cast writer's c-signature on (copied, copy-kinds, copy-name) or pass the failure off};\n" into declared.
             Insert cast writer's c-function on (copied, copy-kinds, copy-name) or pass the failure off into defined.
         Done.
+        // Every union the program used, each with its series — after the objects they may hold.
+        Define union-types as a chase.
+        For each union in writer's union-order, repeat:
+            Insert cast c-union-helpers on (union) into union-types.
+            Insert cast c-series-helpers on (union) into union-types.
+        Done.
         Define out as a chase.
         Insert "#include \"cufet-runtime.h\"\n\n" into out.
         Insert cast c-series-prelude into out.
+        // A series of a union named ahead of the objects, which may hold one by its address — and
+        // how it is written and compared, which an object's own writing calls.
+        For each union in writer's union-order, repeat:
+            Define series-type as cast series-c-name on (union).
+            Insert "typedef struct {series-type}_s {series-type};\n" into out.
+            Insert "static void {series-type}_write({series-type}* s);\n" into out.
+            Insert "static int {series-type}_eq({series-type}* a, {series-type}* b);\n" into out.
+        Done.
         Insert structs converted to text into out.
+        Insert union-types converted to text into out.
         Insert declared converted to text into out.
         Insert "\n" into out.
         Insert defined converted to text into out.
