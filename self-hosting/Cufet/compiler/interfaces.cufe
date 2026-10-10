@@ -1,0 +1,113 @@
+/*  Interfaces, and the modules and books a program pulls.
+
+    ★ MONOMORPHIZED, as in C# (`CodeGenerator.Types.cs`, "Interfaces — MONOMORPHIZATION"): an
+      interface stands in exactly one place, a function's parameter, and at every call the argument
+      is a concrete object. So a function taking an interface is never built as it is written — each
+      call asks for a copy in which the parameter is the object passed, and the copies are built once
+      the program is, until no copy asks for another. A default written `unto` an interface arrives
+      already copied onto each conformer that lacks one: the checker does that.
+
+    ★ A module or a book is an object, usually of no fields; `Pull a shapes.` makes one, named for
+      it, for the length of the pull, and `shapes's origin` is a method called on it.
+*/
+
+Pull a book on collections.
+    /// A name as C: hyphens, the spaces of a name the loader renamed (`point in shapes`) and the
+    /// slashes of a folder's (`helper in top/lib`) all become underscores.
+    Bind text to c-ident, given (the text name):
+        Define cleaned as replace "-" with "_" in name.
+        The cleaned becomes replace " " with "_" in cleaned.
+        The cleaned becomes replace "/" with "_" in cleaned.
+        Return cleaned.
+    Done.
+
+    /// What an object conforms to that this compiler cannot build yet, or "".
+    Bind text to conformance-beyond unto emitter, given (the node definition):
+        For each conformed in (cast field-of on (definition, 8))'s children, repeat:
+            Define name as cast unquoted on (conformed).
+            If name is "region", return "an object that is a region".
+            If name is not "module" and name is not "book" and (the entry for name in one's interfaces) is void:
+                Return "an object conforming to '{name}'".
+            Done.
+        Done.
+        Return "".
+    Done.
+
+    /// Whether a function takes an interface anywhere — and so is built only as its copies.
+    Bind fact or failure to takes-interface unto emitter, given (the node statement):
+        For each parameter in (cast field-of on (statement, 3))'s children, repeat:
+            Define taken as cast one's kind-of-type on (cast field-of on (parameter, 1)) or pass the failure off.
+            If taken starts with "interface ", return true.
+        Done.
+        Return false.
+    Done.
+
+    /// The copy of `called` this call needs: its C name, asked for if it has not been yet. Each
+    /// interface parameter takes the kind of the object passed in its place.
+    Bind text or failure to c-specialized-name unto emitter, given (the node called, the node call):
+        Define function-name as cast unquoted on (cast field-of on (called, 1)).
+        Define handed as (cast field-of on (call, 2))'s children.
+        Define c-named as cast c-function-name on (function-name).
+        Define overrides as a map from text to text.
+        Define place as 0.
+        For each parameter in (cast field-of on (called, 3))'s children, repeat:
+            Increment place by 1.
+            Define taken as cast one's kind-of-type on (cast field-of on (parameter, 1)) or pass the failure off.
+            If taken starts with "interface ":
+                Define passed as cast one's kind-of on (item place of handed) or pass the failure off.
+                Define object-name as cast object-of on (passed).
+                If object-name is "", return a failure (cast not-built on ("a {passed} passed for an interface")).
+                The c-named becomes "{c-named}__{cast c-ident on (object-name)}".
+                In overrides, the entry for cast unquoted on (cast field-of on (parameter, 2)) becomes passed.
+            Done.
+        Done.
+        If (the entry for c-named in one's specialized) is void:
+            In one's specialized, the entry for c-named becomes true.
+            Insert called into one's pending-functions.
+            Insert c-named into one's pending-names.
+            Insert overrides into one's pending-kinds.
+        Done.
+        Return c-named.
+    Done.
+
+    /// `cast area on one` — a method called with what it is called on as its first argument.
+    Bind node or failure to method-by-argument unto emitter, given (the node call):
+        Define callee as cast field-of on (call, 1).
+        If callee's kind is not "VariableReference", return a failure (cast not-built on ("a call of a {callee's kind}")).
+        Define handed as (cast field-of on (call, 2))'s children.
+        If the number of handed is 0, return a failure (cast not-built on ("a call of something other than the program's own function")).
+        Define held as cast one's kind-of on (item 1 of handed) or pass the failure off.
+        Define object-name as cast object-of on (held).
+        Define method as the entry for "{object-name}'s {cast unquoted on (cast field-of on (callee, 1))}" in one's methods.
+        If object-name is "" or method is void:
+            Return a failure (cast not-built on ("a call of something other than the program's own function")).
+        Done.
+        Return method.
+    Done.
+
+    /// The same call written as `<first argument>'s <method> on (<the rest>)`.
+    Bind node to as-method-call, given (the node call):
+        Define handed as (cast field-of on (call, 2))'s children.
+        Define rest as cast listed.
+        Define place as 0.
+        For each argument in handed, repeat:
+            Increment place by 1.
+            If place is greater than 1, cast rest's add on (argument).
+        Done.
+        Define reached as cast made on ("PossessiveAccess", a series with (item 1 of handed, cast field-of on (cast field-of on (call, 1), 1))).
+        Return cast made on ("CastExpression", a series with (reached, rest)).
+    Done.
+
+    /// The module or book objects a pull names, each made for its length under its name.
+    Bind void or failure to emit-pulled-modules unto emitter, given (the node statement):
+        For each pulled in (cast field-of on (statement, 1))'s children, repeat:
+            Define pulled-name as cast unquoted on (cast field-of on (pulled, 1)).
+            If (the entry for pulled-name in one's objects) is not void:
+                Define known-as as cast unquoted on (cast field-of on (pulled, 2)).
+                Define type-c as cast c-struct-name on (pulled-name).
+                Cast one's line on ("{type-c} {cast c-name on (known-as)} = ({type-c})\{ 0 \};").
+                In one's kinds, the entry for known-as becomes "object {pulled-name}".
+            Done.
+        Done.
+    Done.
+Done.

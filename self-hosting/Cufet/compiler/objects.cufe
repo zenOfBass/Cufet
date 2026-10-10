@@ -15,7 +15,7 @@
 Pull a book on collections.
     /// A Cufet type name as the C name of its struct.
     Bind text to c-struct-name, given (the text name):
-        Return "cd_" joined to (replace "-" with "_" in name).
+        Return "cd_" joined to cast c-ident on (name).
     Done.
 
     /// The object a kind names, or "" when it names none.
@@ -30,7 +30,6 @@ Pull a book on collections.
         If the number of (cast field-of on (definition, 5))'s children is greater than 0, return "an object with getters".
         If the number of (cast field-of on (definition, 6))'s children is greater than 0, return "an object with setters".
         If cast is-nothing on (cast field-of on (definition, 7)) is false, return "an object that embeds another".
-        If the number of (cast field-of on (definition, 8))'s children is greater than 0, return "an object that conforms to an interface".
         For each place in a series with (12, 13, 14), repeat:
             If the number of (cast field-of on (definition, place))'s children is greater than 0, return "an object with defaults, blanks or carried types".
         Done.
@@ -132,7 +131,7 @@ Pull a book on collections.
     Done.
 
     Bind text to c-method-name, given (the text object-name, the text method-name):
-        Return "cm_{replace "-" with "_" in object-name}_{replace "-" with "_" in method-name}".
+        Return "cm_{cast c-ident on (object-name)}_{cast c-ident on (method-name)}".
     Done.
 
     // ── Statements ────────────────────────────────────────────────────────
@@ -212,7 +211,9 @@ Pull a book on collections.
         Done.
         If tests is "", the tests becomes "1".
         Define out as a chase.
-        Insert "static void {type-c}_write({type-c} v) \{ fputs(\"{object-name}(\", stdout);{writes converted to text} fputs(\")\", stdout); \}\n" into out.
+        // ⚠ Printed by the name its author wrote: a type a module carries is `point in shapes` to the
+        // compiler and `point` to whoever reads the output, as C#'s `DisplayName` has it.
+        Insert "static void {type-c}_write({type-c} v) \{ fputs(\"{cast display-name on (object-name)}(\", stdout);{writes converted to text} fputs(\")\", stdout); \}\n" into out.
         Insert "static int {type-c}_eq({type-c} a, {type-c} b) \{ (void)a; (void)b; return {tests}; \}\n\n" into out.
         Return out converted to text.
     Done.
@@ -225,6 +226,8 @@ Pull a book on collections.
         Define listing as "{cast c-struct-name on (object-name)}* cv_one".
         For each parameter in (cast field-of on (method, 3))'s children, repeat:
             Define taken as cast one's kind-of-type on (cast field-of on (parameter, 1)) or pass the failure off.
+            // Only a function is copied per object passed for an interface, so far.
+            If taken starts with "interface ", return a failure (cast not-built on ("a method taking an interface")).
             The listing becomes "{listing}, {cast c-type on (taken)} {cast c-name on (cast unquoted on (cast field-of on (parameter, 2)))}".
         Done.
         Return "{head} {cast c-method-name on (object-name, cast unquoted on (cast field-of on (method, 1)))}({listing})".
@@ -232,7 +235,7 @@ Pull a book on collections.
 
     /// One method as C. Its body sees `one` and its parameters.
     Bind text or failure to c-method unto emitter, given (the text object-name, the node method):
-        Define writer as cast fresh-emitter on (one's functions, one's objects, one's methods).
+        Define writer as cast one's sibling.
         In writer's kinds, the entry for "one" becomes "object {object-name}".
         For each parameter in (cast field-of on (method, 3))'s children, repeat:
             Define taken as cast one's kind-of-type on (cast field-of on (parameter, 1)) or pass the failure off.

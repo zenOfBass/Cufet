@@ -15,14 +15,29 @@
 
 Pull a book on collections.
     Define object emitter with (the map from text to text kinds, the chase body, the text indent,
-        the map from text to node functions, the map from text to node objects, the map from text to node methods).
+        the map from text to node functions, the map from text to node objects, the map from text to node methods,
+        the map from text to node interfaces, the map from text to fact specialized,
+        the series of node pending-functions, the series of text pending-names,
+        the series of map from text to text pending-kinds).
 
-    /// An emitter for one body, knowing the program's functions, objects and methods by name — a
-    /// method under `<object>'s <method>`.
+    /// An emitter for the program, knowing its functions, objects, methods — a method under
+    /// `<object>'s <method>` — and interfaces by name.
     Bind emitter to fresh-emitter, given (the map from text to node functions, the map from text to node objects,
-            the map from text to node methods):
+            the map from text to node methods, the map from text to node interfaces):
         Return a new emitter { the kinds a map from text to text, the body a chase, the indent "    ",
-            the functions functions, the objects objects, the methods methods }.
+            the functions functions, the objects objects, the methods methods, the interfaces interfaces,
+            the specialized a map from text to fact, the pending-functions a series of node,
+            the pending-names a series of text, the pending-kinds a series of map from text to text }.
+    Done.
+
+    /// An emitter for another body of the same program — every table shared, the copies asked for
+    /// included, so a copy one body asks for is built once for all of them.
+    Bind emitter to sibling unto emitter:
+        Return a new emitter { the kinds a map from text to text, the body a chase, the indent "    ",
+            the functions one's functions, the objects one's objects, the methods one's methods,
+            the interfaces one's interfaces, the specialized one's specialized,
+            the pending-functions one's pending-functions, the pending-names one's pending-names,
+            the pending-kinds one's pending-kinds }.
     Done.
 
     /// What this compiler cannot build yet, as a failure message.
@@ -33,12 +48,12 @@ Pull a book on collections.
     /// A Cufet name as a C one: hyphens become underscores, which no Cufet name holds, behind a
     /// prefix that keeps it clear of C's own words.
     Bind text to c-name, given (the text name):
-        Return "cv_" joined to (replace "-" with "_" in name).
+        Return "cv_" joined to cast c-ident on (name).
     Done.
 
     /// A function's name as C — a prefix of its own, so no value's name can ever meet it.
     Bind text to c-function-name, given (the text name):
-        Return "cfn_" joined to (replace "-" with "_" in name).
+        Return "cfn_" joined to cast c-ident on (name).
     Done.
 
     /// The kind of value a written type stands for, or "void" for none.
@@ -50,6 +65,7 @@ Pull a book on collections.
         If written's kind is "ObjectType":
             Define object-name as cast unquoted on (cast field-of on (written, 1)).
             If (the entry for object-name in one's objects) is not void, return "object {object-name}".
+            If (the entry for object-name in one's interfaces) is not void, return "interface {object-name}".
             Return a failure (cast not-built on ("a {object-name}")).
         Done.
         If written's kind is "SeriesType":
@@ -110,6 +126,12 @@ Pull a book on collections.
                 If (cast field-of on (expression, 1))'s kind is "PossessiveAccess":
                     Define method as cast one's method-called on (cast field-of on (expression, 1)) or pass the failure off.
                     Return cast one's kind-of-type on (cast field-of on (method, 2)) or pass the failure off.
+                Done.
+                If (cast field-of on (expression, 1))'s kind is "VariableReference":
+                    If (the entry for cast unquoted on (cast field-of on (cast field-of on (expression, 1), 1)) in one's functions) is void:
+                        Define by-argument as cast one's method-by-argument on (expression) or pass the failure off.
+                        Return cast one's kind-of-type on (cast field-of on (by-argument, 2)) or pass the failure off.
+                    Done.
                 Done.
                 Define called as cast one's function-called on (expression) or pass the failure off.
                 Return cast one's kind-of-type on (cast field-of on (called, 2)) or pass the failure off.
@@ -183,7 +205,24 @@ Pull a book on collections.
     /// A call as C: the function's name and its arguments, in order.
     Bind text or failure to c-call unto emitter, given (the node call):
         If (cast field-of on (call, 1))'s kind is "PossessiveAccess", return cast one's c-method-call on (call) or pass the failure off.
+        If (cast field-of on (call, 1))'s kind is "VariableReference":
+            If (the entry for cast unquoted on (cast field-of on (cast field-of on (call, 1), 1)) in one's functions) is void:
+                Cast one's method-by-argument on (call) or pass the failure off.
+                Return cast one's c-method-call on (cast as-method-call on (call)) or pass the failure off.
+            Done.
+        Done.
         Define called as cast one's function-called on (call) or pass the failure off.
+        Define interface-taking as cast one's takes-interface on (called) or pass the failure off.
+        If interface-taking:
+            Define copy-name as cast one's c-specialized-name on (called, call) or pass the failure off.
+            Define copy-listing as "".
+            For each argument in (cast field-of on (call, 2))'s children, repeat:
+                Define copy-argument as cast one's c-of on (argument) or pass the failure off.
+                If copy-listing is "", the copy-listing becomes copy-argument.
+                Otherwise, the copy-listing becomes "{copy-listing}, {copy-argument}".
+            Done.
+            Return "{copy-name}({copy-listing})".
+        Done.
         Define listing as "".
         For each argument in (cast field-of on (call, 2))'s children, repeat:
             Define argument-c as cast one's c-of on (argument) or pass the failure off.
@@ -368,6 +407,8 @@ Pull a book on collections.
                 Cast one's line on ("{cast one's c-call on (call) or pass the failure off};").
             Done.
             "BindStatement", return a failure (cast not-built on ("a function inside a body")).
+            // An interface was gathered with the program's declarations, and builds nothing itself.
+            "InterfaceDefinition", return.
             // A pull's functions and objects are the program's, gathered with its own; what is left
             // is a block. A region frees nothing yet — see emit-pulled.
             "PullStatement" or "PullRabbitStatement", cast one's emit-pulled on (statement) or pass the failure off.
@@ -396,8 +437,9 @@ Pull a book on collections.
         Done.
         Define outer as one's indent.
         The one's indent becomes outer joined to "    ".
+        If statement's kind is "PullStatement", cast one's emit-pulled-modules on (statement) or pass the failure off.
         For each inner in (cast field-of on (statement, 2))'s children, repeat:
-            If inner's kind is not "BindStatement" and inner's kind is not "ObjectDefinition":
+            If inner's kind is not "BindStatement" and inner's kind is not "ObjectDefinition" and inner's kind is not "InterfaceDefinition":
                 Cast one's emit-statement on (inner) or pass the failure off.
             Done.
         Done.
@@ -478,33 +520,41 @@ Pull a book on collections.
     Done.
 
     /// A function's head as C: what it gives back, its name, and its parameters.
-    Bind text or failure to c-signature unto emitter, given (the node statement):
+    /// `overrides` gives a parameter the kind a copy of the function was asked for; `named` is the
+    /// copy's C name, or "" for the function's own.
+    Bind text or failure to c-signature unto emitter, given (the node statement, the map from text to text overrides, the text named):
         Define gives as cast one's kind-of-type on (cast field-of on (statement, 2)) or pass the failure off.
         Define head as "void".
         If gives is not "void", the head becomes cast c-type on (gives).
         Define listing as "".
         For each parameter in (cast field-of on (statement, 3))'s children, repeat:
             Define taken as cast one's kind-of-type on (cast field-of on (parameter, 1)) or pass the failure off.
+            Define overridden as the entry for cast unquoted on (cast field-of on (parameter, 2)) in overrides.
+            If overridden is not void, the taken becomes overridden.
             If taken is "void", return a failure (cast not-built on ("a parameter of no type")).
             Define one-parameter as "{cast c-type on (taken)} {cast c-name on (cast unquoted on (cast field-of on (parameter, 2)))}".
             If listing is "", the listing becomes one-parameter.
             Otherwise, the listing becomes "{listing}, {one-parameter}".
         Done.
         If listing is "", the listing becomes "void".
-        Return "{head} {cast c-function-name on (cast unquoted on (cast field-of on (statement, 1)))}({listing})".
+        Define function-c as named.
+        If function-c is "", the function-c becomes cast c-function-name on (cast unquoted on (cast field-of on (statement, 1))).
+        Return "{head} {function-c}({listing})".
     Done.
 
     /// One function as C. A body sees its parameters and nothing of the program's top level.
-    Bind text or failure to c-function unto emitter, given (the node statement):
-        Define writer as cast fresh-emitter on (one's functions, one's objects, one's methods).
+    Bind text or failure to c-function unto emitter, given (the node statement, the map from text to text overrides, the text named):
+        Define writer as cast one's sibling.
         For each parameter in (cast field-of on (statement, 3))'s children, repeat:
             Define taken as cast one's kind-of-type on (cast field-of on (parameter, 1)) or pass the failure off.
+            Define overridden as the entry for cast unquoted on (cast field-of on (parameter, 2)) in overrides.
+            If overridden is not void, the taken becomes overridden.
             In writer's kinds, the entry for cast unquoted on (cast field-of on (parameter, 2)) becomes taken.
         Done.
         For each inner in (cast field-of on (statement, 4))'s children, repeat:
             Cast writer's emit-statement on (inner) or pass the failure off.
         Done.
-        Define signature as cast one's c-signature on (statement) or pass the failure off.
+        Define signature as cast one's c-signature on (statement, overrides, named) or pass the failure off.
         Return "{signature} \{\n{writer's body converted to text}\}\n\n".
     Done.
 
@@ -519,6 +569,12 @@ Pull a book on collections.
         Define owners as a series of text.
         Define hoisted as a series of node.
         Cast gather-hoisted on (program, hoisted).
+        Define interfaces as a map from text to node.
+        For each statement in hoisted, repeat:
+            If statement's kind is "InterfaceDefinition":
+                In interfaces, the entry for cast unquoted on (cast field-of on (statement, 1)) becomes statement.
+            Done.
+        Done.
         For each statement in hoisted, repeat:
             If statement's kind is "ObjectDefinition":
                 Define beyond as cast object-beyond on (statement).
@@ -551,7 +607,11 @@ Pull a book on collections.
                 Done.
             Done.
         Done.
-        Define writer as cast fresh-emitter on (functions, objects, methods).
+        Define writer as cast fresh-emitter on (functions, objects, methods, interfaces).
+        For each pair in objects, repeat:
+            Define conformance as cast writer's conformance-beyond on (the value of pair).
+            If conformance is not "", return a failure (cast not-built on (conformance)).
+        Done.
 
         // The objects, each after those its fields hold.
         Define ordered as a series of text.
@@ -583,8 +643,12 @@ Pull a book on collections.
         Define defined as a chase.
         For each statement in hoisted, repeat:
             If statement's kind is "BindStatement" and cast is-nothing on (cast field-of on (statement, 5)):
-                Insert "{cast writer's c-signature on (statement) or pass the failure off};\n" into declared.
-                Insert cast writer's c-function on (statement) or pass the failure off into defined.
+                // One that takes an interface is built only as the copies its calls ask for.
+                Define interface-taking as cast writer's takes-interface on (statement) or pass the failure off.
+                If interface-taking is false:
+                    Insert "{cast writer's c-signature on (statement, a map from text to text, "") or pass the failure off};\n" into declared.
+                    Insert cast writer's c-function on (statement, a map from text to text, "") or pass the failure off into defined.
+                Done.
             Done.
         Done.
         Define place as 0.
@@ -598,6 +662,16 @@ Pull a book on collections.
             If statement's kind is not "BindStatement" and statement's kind is not "ObjectDefinition":
                 Cast writer's emit-statement on (statement) or pass the failure off.
             Done.
+        Done.
+        // Every copy a call asked for — a copy's own calls may ask for more.
+        Define built-copies as 0.
+        While built-copies is less than the number of writer's pending-functions, repeat:
+            Increment built-copies by 1.
+            Define copied as item built-copies of writer's pending-functions.
+            Define copy-name as item built-copies of writer's pending-names.
+            Define copy-kinds as item built-copies of writer's pending-kinds.
+            Insert "{cast writer's c-signature on (copied, copy-kinds, copy-name) or pass the failure off};\n" into declared.
+            Insert cast writer's c-function on (copied, copy-kinds, copy-name) or pass the failure off into defined.
         Done.
         Define out as a chase.
         Insert "#include \"cufet-runtime.h\"\n\n" into out.

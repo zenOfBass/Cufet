@@ -29,7 +29,7 @@ Pull a book on collections.
     /// The C name of the series type that holds a kind.
     Bind text to series-c-name, given (the text element):
         Define object-name as cast object-of on (element).
-        If object-name is not "", return "cser_obj_{replace "-" with "_" in object-name}".
+        If object-name is not "", return "cser_obj_{cast c-ident on (object-name)}".
         Return "cser_{element}".
     Done.
 

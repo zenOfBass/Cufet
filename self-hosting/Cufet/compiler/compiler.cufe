@@ -7,6 +7,7 @@
 
         built                   the program was built
         refused <message>       the parser or the checker refused it (a line break written `\n`)
+        library <message>       it only declares things, so there is nothing to build — as `cufet build` says
         unsupported <what>      this compiler cannot build it yet
         gcc     <message>       the C it wrote did not compile — always this compiler's fault
 
@@ -23,6 +24,24 @@ Pull a book on collections.
         Define flat as replace "\\" with "\\\\" in raw.
         The flat becomes replace "\r" with "" in flat.
         Return replace "\n" with "\\n" in flat.
+    Done.
+
+    /// Whether every statement a file writes at its top level declares something — `Runnable.NothingToRun`.
+    /// A `Pull` whose body only declares is a declaration too; `Pull a rabbit` opens a region, which
+    /// is something a program does.
+    Bind fact to nothing-to-run, given (the node statements):
+        For each statement in statements's children, repeat:
+            If cast is-declaration on (statement) is false, return false.
+        Done.
+        Return true.
+    Done.
+
+    Bind fact to is-declaration, given (the node statement):
+        Define kind as statement's kind.
+        If kind is "PullStatement", return cast nothing-to-run on (cast field-of on (statement, 2)).
+        Return kind is "ObjectDefinition" or kind is "InterfaceDefinition" or kind is "GetterDeclaration"
+            or kind is "SetterDeclaration" or kind is "UnmakerDeclaration" or kind is "OperatorOverloadDeclaration"
+            or kind is "CufetAxiomDefinition" or kind is "BindStatement".
     Done.
 
     /// Whether this runs on Windows, which names a program `.exe` and keeps sockets in a library of
@@ -70,6 +89,11 @@ Pull a book on collections.
             If said starts with "unsupported\t", return "unsupported\tthe checker: {cast flattened on (the characters from 13 to the end of said)}".
             If said starts with "error\t", the said becomes the characters from 7 to the end of said.
             Return "refused\t{cast flattened on (said)}".
+        Done.
+        // A program that only declares is a library, and `cufet build` refuses to build one — asked,
+        // as it asks, of the checked program: the bundled books left out, a folder's neighbours not.
+        If cast nothing-to-run on (handed-on):
+            Return "library\t'{source-file}' declares things but never does anything — there is nothing to run.".
         Done.
         Define source as "".
         Try to:
