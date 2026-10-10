@@ -52,7 +52,7 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     : PipelineTestBase, IClassFixture<CompiledCufetCompiler>
 {
     /// <summary>How many hand-written programs must build and print alike. Raised as it grows; never lowered.</summary>
-    private const int BuiltFloor = 133;
+    private const int BuiltFloor = 154;
 
     private static string[] PreludeArgs =>
         ["--prelude", Path.Combine(RepoRoot, "src", "Interpreter", "Prelude").Replace('\\', '/')];
@@ -204,6 +204,28 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
         "Define object shelf with (the series of text titles):\n    Bind void to add, given (the text title):\n        Insert title into one's titles.\n    Done.\n    Bind number to count:\n        Return the number of one's titles.\n    Done.\nDone.\nDefine books as a new shelf { the titles a series of text }.\nCast books's add on (\"dune\").\nCast books's add on (\"emma\").\nState cast books's count.\nState books.",
         "Define object pair with (the text left, the text right).\nDefine one-pair as a new pair { the left \"a\", the right \"b\" }.\nJudge one-pair's left, where it is:\n    \"a\", state \"starts with a\".\n    Otherwise, state \"something else\".\nDone.",
         "Define object point with (the number across, the number up).\nDefine spot as a new point { the across 1, the up 2 }.\nIf spot is (a new point { the across 1, the up 2 }), state \"same\".",
+        // Pull blocks, regions, series whose items name their type, and series of objects — trees of them included.
+        "Pull a book on collections.\n    State \"inside\".\nDone.\nState \"after\".",
+        "Pull a book on collections.\n    Bind number to twice, given (the number n):\n        Return n * 2.\n    Done.\n    State cast twice on (21).\nDone.",
+        "State cast twice on (4).\nPull a book on collections.\n    Bind number to twice, given (the number n):\n        Return n * 2.\n    Done.\nDone.",
+        "Pull a book on collections.\n    Define object point with (the number across, the number up).\nDone.\nDefine spot as a new point { the across 1, the up 2 }.\nState spot.",
+        "Pull a book on collections.\n    Pull a book on math.\n        State \"nested\".\n    Done.\nDone.",
+        "Define total as 0.\nPull a book on collections.\n    Define step as 5.\n    The total becomes total + step.\nDone.\nState total.",
+        "Pull a rabbit.\n    Define words as a series of text with (\"a\", \"b\").\n    State words.\nDone.",
+        "Define kept as a series of text.\nDefine word as \"x\".\nPull a rabbit.\n    Insert word joined to \"y\" into kept.\n    Define made as \"a\" joined to word.\n    The word becomes made.\nDone.\nState kept.\nState word.",
+        "Bind number to counted, given (the number limit):\n    Define total as 0.\n    Pull a rabbit.\n        For each n in range 1 to limit, repeat:\n            If n is 4, return total.\n            Increment total by n.\n        Done.\n    Done.\n    Return total.\nDone.\nState cast counted on (10).\nState cast counted on (2).",
+        "Pull a rabbit as hopper.\n    State \"named\".\nDone.",
+        "Define scores as a series with (10, 20, 30).\nState scores.\nState the number of scores.",
+        "Define names as a series with (\"grace\", \"hopper\").\nFor each in names, repeat:\n    State it.\nDone.",
+        "Define flags as a series with (true, false, true).\nState flags.",
+        "Define object point with (the number across, the number up).\nDefine spots as a series of point with (a new point { the across 1, the up 2 }, a new point { the across 3, the up 4 }).\nState spots.\nState item 2 of spots.\nState the number of spots.",
+        "Define object point with (the number across, the number up).\nDefine spots as a series of point.\nFor each n in range 1 to 3, repeat:\n    Insert a new point { the across n, the up n * n } into spots.\nDone.\nFor each spot in spots, repeat:\n    State spot's up.\nDone.",
+        "Define object point with (the number across, the number up).\nDefine spots as a series of point with (a new point { the across 1, the up 2 }).\nDefine first-spot as item 1 of spots.\nThe first-spot's up becomes 99.\nState spots.\nState first-spot.",
+        "Define object point with (the number across, the number up).\nDefine spots as a series of point with (a new point { the across 1, the up 2 }, a new point { the across 3, the up 4 }).\nRemove a new point { the across 1, the up 2 } from spots.\nState spots.",
+        "Define object tree with (the text label, the series of tree children).\nDefine leaf as a new tree { the label \"leaf\", the children a series of tree }.\nDefine root as a new tree { the label \"root\", the children a series of tree with (leaf, leaf) }.\nState root.\nState the number of root's children.",
+        "Define object tree with (the text label, the series of tree children):\n    Bind number to size:\n        Define total as 1.\n        For each child in one's children, repeat:\n            Increment total by cast child's size.\n        Done.\n        Return total.\n    Done.\nDone.\nDefine leaf as a new tree { the label \"leaf\", the children a series of tree }.\nDefine middle as a new tree { the label \"middle\", the children a series of tree with (leaf, leaf) }.\nDefine root as a new tree { the label \"root\", the children a series of tree with (middle, leaf) }.\nState cast root's size.",
+        "Define object point with (the number across, the number up).\nBind series of point to diagonal, given (the number count):\n    Define found as a series of point.\n    For each n in range 1 to count, repeat:\n        Insert a new point { the across n, the up n } into found.\n    Done.\n    Return found.\nDone.\nState cast diagonal on (3).",
+        "Define object point with (the number across, the number up).\nDefine one-row as a series of point with (a new point { the across 1, the up 1 }).\nDefine two-row as a series of point with (a new point { the across 1, the up 1 }).\nState one-row is two-row.",
     ];
 
     [Fact]
@@ -253,6 +275,87 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
             Assert.True(matched >= BuiltFloor, $"only {matched} built and print alike, and the floor is {BuiltFloor}.");
         }
         finally { try { Directory.Delete(dir, recursive: true); } catch (IOException) { } }
+    }
+
+    /// <summary>How many programs of `examples/` must build and print alike. Raised as it grows; never lowered.</summary>
+    private const int CorpusFloor = 7;
+
+    /// <remarks>
+    /// ★ The corpus is copied first: the compiler writes each program beside its source. Each program
+    /// it builds runs in its own folder, and the interpreter runs the same file there, as `cufet` would.
+    /// </remarks>
+    [Fact]
+    public void TheCompiledCompiler_BuildsCorpusProgramsThatPrintWhatTheInterpreterPrints()
+    {
+        var dir = Path.Combine(TestScratch.Root, "cufet-selfcorpus-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            CopyFolder(Path.Combine(RepoRoot, "examples"), dir);
+            var files = Directory.GetFiles(dir, "*.cufe", SearchOption.AllDirectories)
+                .Where(f => !Path.GetFileName(f).Equals("blueprint.cufe", StringComparison.OrdinalIgnoreCase))
+                .Order(StringComparer.Ordinal)
+                .ToList();
+            Assert.True(files.Count >= 50, $"only {files.Count} programs in examples/");
+
+            var runtime = compiled.RuntimeFolder.Replace('\\', '/');
+            var got = ByFile(Run(compiled.Exe, ["--runtime", runtime, .. PreludeArgs, .. files], dir));
+
+            int matched = 0;
+            var problems = new List<string>();
+            var unsupported = new List<string>();
+            foreach (var file in files)
+            {
+                string name = Path.GetRelativePath(dir, file).Replace('\\', '/');
+                string said = got.TryGetValue(file, out var lines) && lines.Count > 0 ? lines[0] : "<nothing printed>";
+                if (said.StartsWith("unsupported\t", StringComparison.Ordinal))
+                {
+                    unsupported.Add($"{name}\t{said["unsupported\t".Length..]}");
+                    continue;
+                }
+                if (said != "built") { problems.Add($"{name}: {said}"); continue; }
+                var folder = Path.GetDirectoryName(file)!;
+                var (want, wantExit) = RunIn(CufetExe, [file], folder);
+                var (have, haveExit) = RunIn(Path.ChangeExtension(file, OperatingSystem.IsWindows() ? ".exe" : null), [], folder);
+                if (have == want && haveExit == wantExit) matched++;
+                else problems.Add($"{name} printed differently (exit {wantExit} interpreted, {haveExit} built):\n    interpreted: {Show(want)}\n    built:       {Show(have)}");
+            }
+
+            output.WriteLine($"{matched} of {files.Count} corpus programs built and print alike; {unsupported.Count} not yet:");
+            foreach (var line in unsupported) output.WriteLine("    " + line);
+            Assert.True(problems.Count == 0,
+                $"{problems.Count} of {files.Count} went wrong:\n{string.Join("\n", problems.Take(20))}");
+            Assert.True(matched >= CorpusFloor, $"only {matched} corpus programs built and print alike, and the floor is {CorpusFloor}.");
+        }
+        finally { try { Directory.Delete(dir, recursive: true); } catch (IOException) { } }
+    }
+
+    /// <summary>A program's output and exit code, run in a folder with nothing on its input.</summary>
+    private static (string Output, int Exit) RunIn(string exe, IEnumerable<string> arguments, string folder)
+    {
+        var psi = new System.Diagnostics.ProcessStartInfo(exe)
+        {
+            RedirectStandardOutput = true, RedirectStandardError = true, RedirectStandardInput = true,
+            StandardOutputEncoding = System.Text.Encoding.UTF8, StandardErrorEncoding = System.Text.Encoding.UTF8,
+            UseShellExecute = false, WorkingDirectory = folder,
+        };
+        foreach (var argument in arguments) psi.ArgumentList.Add(argument);
+        using var process = System.Diagnostics.Process.Start(psi)!;
+        process.StandardInput.Close();
+        var stdout = process.StandardOutput.ReadToEndAsync();
+        var stderr = process.StandardError.ReadToEndAsync();
+        process.WaitForExit();
+        _ = stderr.Result;
+        return (stdout.Result, process.ExitCode);
+    }
+
+    private static void CopyFolder(string from, string to)
+    {
+        foreach (var file in Directory.GetFiles(from, "*", SearchOption.AllDirectories))
+        {
+            var target = Path.Combine(to, Path.GetRelativePath(from, file));
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            File.Copy(file, target);
+        }
     }
 
     /// <summary>

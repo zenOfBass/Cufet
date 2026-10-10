@@ -86,10 +86,11 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   recursion, and calls to one declared further down; and series of numbers, text and facts —
   made, ranged, looped over, reached into, changed, shared, and passed to and from functions; and
   objects — made, read, set, copied as the values they are, compared, nested, holding a series,
-  and their methods, written inside the object or bound `unto` it; and it says `unsupported` for
-  anything else rather than writing C that might happen to work. `CompilerParityTests` runs every
-  program it builds and holds it to printing exactly what the interpreter prints, on 133 programs;
-  the C it writes is its own. A program the interpreter stops —
+  and their methods, written inside the object or bound `unto` it; `Pull` blocks and regions, and
+  series of objects, trees of them included; and it says `unsupported` for anything else rather
+  than writing C that might happen to work — a region frees nothing yet. `CompilerParityTests` runs
+  every program it builds and holds it to printing exactly what the interpreter prints, on 154
+  hand-written programs and on 7 of the 67 in `examples/`; the C it writes is its own. A program the interpreter stops —
   a series changed by the loop that runs over it — stops built too, having printed the same.
 
 ### Changed
