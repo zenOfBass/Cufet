@@ -119,6 +119,7 @@ Pull a book on collections.
     Bind text to c-coerce unto emitter, given (the text value, the text source-kind, the text wanted):
         If source-kind is wanted, return value.
         If cast is-voidable on (wanted), return cast one's c-into-voidable on (value, source-kind, wanted).
+        If cast is-failable on (wanted), return cast one's c-into-failable on (value, source-kind, wanted).
         If cast is-union on (wanted) is false, return value.
         Cast one's register-union on (wanted).
         Define wanted-c as cast union-c-name on (wanted).
@@ -305,6 +306,53 @@ Pull a book on collections.
             The one's kinds becomes kept.
         Done.
         Cast one's line on ("\}").
+    Done.
+
+    /// Whether every way through a block leaves it — by `Return`, `Stop`, `Skip` or `Exit`, or an
+    /// `If` with an `Otherwise` whose every branch does. A loop does not count: it may not run.
+    Bind fact to always-leaves, given (the node statements):
+        For each statement in statements's children, repeat:
+            Define kind as statement's kind.
+            If kind is "ReturnStatement" or kind is "StopStatement" or kind is "SkipStatement" or kind is "ExitStatement", return true.
+            If kind is "IfStatement" and cast is-nothing on (cast field-of on (statement, 2)) is false:
+                Define every-arm as cast always-leaves on (cast field-of on (statement, 2)).
+                For each arm in (cast field-of on (statement, 1))'s children, repeat:
+                    If cast always-leaves on (cast field-of on (arm, 2)) is false, the every-arm becomes false.
+                Done.
+                If every-arm, return true.
+            Done.
+        Done.
+        Return false.
+    Done.
+
+    /// The names a guard's failing proves are there: each `<name> is void`, joined by `or`.
+    Bind void to guarded-names unto emitter, given (the node condition, the series of text found):
+        If condition's kind is "BinaryExpression" and (cast field-of on (condition, 2))'s word is "Or":
+            Cast one's guarded-names on (cast field-of on (condition, 1), found).
+            Cast one's guarded-names on (cast field-of on (condition, 3), found).
+            Return.
+        Done.
+        If cast is-void-test on (condition) is false or (cast field-of on (condition, 2))'s word is not "Equal", return.
+        Define tested as cast field-of on (condition, 1).
+        If tested's kind is "VoidLiteral", the tested becomes cast field-of on (condition, 3).
+        If tested's kind is not "VariableReference", return.
+        Define tested-name as cast unquoted on (cast field-of on (tested, 1)).
+        If cast is-voidable on (the entry for tested-name in one's kinds but void is ""), insert tested-name into found.
+    Done.
+
+    /// After a guard — one arm, no `Otherwise`, and an arm that always leaves — what follows runs
+    /// only when its test failed, so each name it tested `is void` reads as its value for the rest
+    /// of the block, as C#'s compiler and the checker have it.
+    Bind void to narrow-after-guard unto emitter, given (the node statement):
+        If cast is-nothing on (cast field-of on (statement, 2)) is false, return.
+        Define arms as (cast field-of on (statement, 1))'s children.
+        If the number of arms is not 1, return.
+        If cast always-leaves on (cast field-of on (item 1 of arms, 2)) is false, return.
+        Define found as a series of text.
+        Cast one's guarded-names on (cast field-of on (item 1 of arms, 1), found).
+        For each name in found, repeat:
+            Cast one's narrow on (name, cast voidable-inner on (the entry for name in one's kinds but void is "")).
+        Done.
     Done.
 
     /// `Judge <a union>, where it is:` by type — `it`, and the judged name, narrowed in each arm to

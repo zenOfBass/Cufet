@@ -106,6 +106,7 @@ Pull a book on collections.
             Return cast one's map-kind-of-type on (key-kind, held) or pass the failure off.
         Done.
         If written's kind is "RecordType", return cast one's record-kind-of-type on (written) or pass the failure off.
+        If written's kind is "FailureType", return cast one's failable-kind-of-type on (written) or pass the failure off.
         Return a failure (cast not-built on ("a {written's kind}")).
     Done.
 
@@ -158,20 +159,8 @@ Pull a book on collections.
                 Done.
                 Return "fact".
             Done.
-            "CastExpression":
-                If (cast field-of on (expression, 1))'s kind is "PossessiveAccess":
-                    Define method as cast one's method-called on (cast field-of on (expression, 1)) or pass the failure off.
-                    Return cast one's kind-of-type on (cast field-of on (method, 2)) or pass the failure off.
-                Done.
-                If (cast field-of on (expression, 1))'s kind is "VariableReference":
-                    If (the entry for cast unquoted on (cast field-of on (cast field-of on (expression, 1), 1)) in one's functions) is void:
-                        Define by-argument as cast one's method-by-argument on (expression) or pass the failure off.
-                        Return cast one's kind-of-type on (cast field-of on (by-argument, 2)) or pass the failure off.
-                    Done.
-                Done.
-                Define called as cast one's function-called on (expression) or pass the failure off.
-                Return cast one's kind-of-type on (cast field-of on (called, 2)) or pass the failure off.
-            Done.
+            // Inside a `Try`, a call that can fail reads as its value.
+            "CastExpression", return cast one's unwrapped-kind on (cast one's call-kind-of on (expression) or pass the failure off).
             "ObjectLiteral":
                 Define object-name as cast unquoted on (cast field-of on (expression, 1)).
                 If (the entry for object-name in one's objects) is void, return a failure (cast not-built on ("a new {object-name}")).
@@ -191,9 +180,26 @@ Pull a book on collections.
             "ProgramArgumentsExpression", return "series of text".
             Otherwise:
                 If cast is-text-operation on (kind), return cast text-operation-kind on (kind).
+                If cast is-failure-expression on (kind), return cast one's failure-kind-of on (expression) or pass the failure off.
                 Return a failure (cast not-built on (kind)).
             Done.
         Done.
+    Done.
+
+    /// The kind a call gives back, as its function declares it.
+    Bind text or failure to call-kind-of unto emitter, given (the node expression):
+        If (cast field-of on (expression, 1))'s kind is "PossessiveAccess":
+            Define method as cast one's method-called on (cast field-of on (expression, 1)) or pass the failure off.
+            Return cast one's kind-of-type on (cast field-of on (method, 2)) or pass the failure off.
+        Done.
+        If (cast field-of on (expression, 1))'s kind is "VariableReference":
+            If (the entry for cast unquoted on (cast field-of on (cast field-of on (expression, 1), 1)) in one's functions) is void:
+                Define by-argument as cast one's method-by-argument on (expression) or pass the failure off.
+                Return cast one's kind-of-type on (cast field-of on (by-argument, 2)) or pass the failure off.
+            Done.
+        Done.
+        Define called as cast one's function-called on (expression) or pass the failure off.
+        Return cast one's kind-of-type on (cast field-of on (called, 2)) or pass the failure off.
     Done.
 
     /// An expression as C.
@@ -233,7 +239,10 @@ Pull a book on collections.
                 Return a failure (cast not-built on ("the operator {operator}")).
             Done.
             "BinaryExpression", return cast one's c-binary on (expression) or pass the failure off.
-            "CastExpression", return cast one's c-call on (expression) or pass the failure off.
+            "CastExpression":
+                Define called-c as cast one's c-call on (expression) or pass the failure off.
+                Return cast one's c-unwrapped on (called-c, cast one's call-kind-of on (expression) or pass the failure off).
+            Done.
             "SeriesLiteral" or "RangeExpression" or "SeriesLength" or "SeriesAccess":
                 Return cast one's c-series-of on (expression) or pass the failure off.
             Done.
@@ -251,6 +260,7 @@ Pull a book on collections.
             Done.
             Otherwise:
                 If cast is-text-operation on (kind), return cast one's c-text-operation on (expression) or pass the failure off.
+                If cast is-failure-expression on (kind), return cast one's c-failure-of on (expression) or pass the failure off.
                 Return a failure (cast not-built on (kind)).
             Done.
         Done.
@@ -366,6 +376,8 @@ Pull a book on collections.
     /// The C type a kind of value is held in.
     Bind text to c-type, given (the text kind):
         If cast is-record on (kind), return cast record-c-name on (kind).
+        If cast is-failable on (kind), return cast failable-c-name on (kind).
+        If kind is "failure", return "CufetFailure".
         If cast is-map on (kind), return "{cast map-c-name on (kind)}*".
         If cast is-mapping on (kind), return "{cast map-c-name on (cast mapping-map on (kind))}_pair".
         If cast is-voidable on (kind), return cast voidable-c-name on (kind).
@@ -380,6 +392,7 @@ Pull a book on collections.
     /// The runtime call that writes a value of a kind, without the line's end.
     Bind text to write-call, given (the text kind, the text value):
         If cast is-record on (kind), return "{cast record-c-name on (kind)}_write({value})".
+        If kind is "failure", return "fputs(\"<failure>\", stdout)".
         If cast is-map on (kind), return "{cast map-c-name on (kind)}_write({value})".
         If cast is-mapping on (kind), return "{cast map-c-name on (cast mapping-map on (kind))}_pair_write({value})".
         If cast is-voidable on (kind), return "{cast voidable-c-name on (kind)}_write({value})".
@@ -470,7 +483,10 @@ Pull a book on collections.
                 In one's kinds, the entry for name becomes stored.
                 In one's kinds, the entry for "@{name}" becomes "".
             Done.
-            "IfStatement", cast one's emit-if on (statement) or pass the failure off.
+            "IfStatement":
+                Cast one's emit-if on (statement) or pass the failure off.
+                Cast one's narrow-after-guard on (statement).
+            Done.
             "WhileStatement":
                 Define condition as cast one's c-of on (cast field-of on (statement, 1)) or pass the failure off.
                 Cast one's line on ("while ({condition}) \{").
@@ -485,12 +501,17 @@ Pull a book on collections.
             Done.
             "ReturnStatement":
                 Define returned as cast field-of on (statement, 1).
-                If cast is-nothing on (returned), cast one's line on ("return;").
+                If cast is-nothing on (returned):
+                    If (the entry for "%return" in one's kinds but void is "") is "failure of void", cast one's line on ("return cfl_void_done();").
+                    Otherwise, cast one's line on ("return;").
+                Done.
                 Otherwise, cast one's line on ("return {cast one's c-of-as on (returned, the entry for "%return" in one's kinds but void is "") or pass the failure off};").
             Done.
             "CastStatement":
                 Define call as cast made on ("CastExpression", a series with (cast field-of on (statement, 1), cast field-of on (statement, 2))).
-                Cast one's line on ("{cast one's c-call on (call) or pass the failure off};").
+                // `… or pass the failure off.`, or inside a `Try`, where a failure goes to the handler.
+                Define passes-off as the number of statement's children is greater than 5 and (cast field-of on (statement, 5))'s word is ":PassesFailureOff".
+                Cast one's emit-failable-cast on (call, passes-off) or pass the failure off.
             Done.
             "BindStatement", return a failure (cast not-built on ("a function inside a body")).
             // An interface was gathered with the program's declarations, and builds nothing itself.
@@ -510,6 +531,7 @@ Pull a book on collections.
             Done.
             "SkipStatement", cast one's line on ("continue;").
             "JudgeStatement", cast one's emit-judge on (statement) or pass the failure off.
+            "TryStatement", cast one's emit-try on (statement) or pass the failure off.
             "MapSetStatement", cast one's emit-map-set on (statement) or pass the failure off.
             "RecordNamedSetStatement", cast one's emit-record-set on (statement) or pass the failure off.
             "ForEachStatement" or "SeriesInsertStatement" or "SeriesRemoveAtStatement" or "SeriesRemoveValueStatement"
@@ -683,6 +705,7 @@ Pull a book on collections.
         For each inner in (cast field-of on (statement, 4))'s children, repeat:
             Cast writer's emit-statement on (inner) or pass the failure off.
         Done.
+        Cast writer's close-failable.
         Define signature as cast one's c-signature on (statement, overrides, named) or pass the failure off.
         Return "{signature} \{\n{writer's body converted to text}\}\n\n".
     Done.
@@ -880,6 +903,9 @@ Pull a book on collections.
             Otherwise if cast is-map on (union):
                 Insert cast c-map-helpers on (union) into union-types.
             Done.
+            Otherwise if cast is-failable on (union):
+                Insert cast c-failable-helpers on (union) into union-types.
+            Done.
             Otherwise if cast is-record on (union):
                 Insert cast c-record-helpers on (union) into union-types.
                 Insert cast c-series-helpers on (union) into union-types.
@@ -899,7 +925,7 @@ Pull a book on collections.
         // A series of a union named ahead of the objects, which may hold one by its address — and
         // how it is written and compared, which an object's own writing calls.
         For each union in writer's union-order, repeat:
-            If cast is-voidable on (union), skip.
+            If cast is-voidable on (union) or cast is-failable on (union), skip.
             // A map is held by its address, so an object may hold one named this far ahead.
             If cast is-map on (union):
                 Insert "typedef struct {cast map-c-name on (union)}_s {cast map-c-name on (union)};\n" into out.

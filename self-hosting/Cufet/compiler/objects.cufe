@@ -281,6 +281,7 @@ Pull a book on collections.
         For each inner in (cast field-of on (method, 4))'s children, repeat:
             Cast writer's emit-statement on (inner) or pass the failure off.
         Done.
+        Cast writer's close-failable.
         Define signature as cast one's c-method-signature on (object-name, method) or pass the failure off.
         Return "{signature} \{\n{writer's body converted to text}\}\n\n".
     Done.

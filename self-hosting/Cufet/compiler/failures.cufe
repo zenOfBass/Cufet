@@ -1,0 +1,250 @@
+/*  Failures — `<type> or failure`, `return a failure …`, `or pass the failure off`, `but on failure`,
+    `Try to: … In case of failure:`, `the message of the failure`, and reading a file, which can fail.
+
+    ★ A value that may be a failure is `{ ok, value, failure }` — the failure the runtime's own
+      `CufetFailure`, a message and a category that is NULL when none was given. Its kind is written
+      `failure of <kind>`, `failure of void` for a call made for its effect.
+
+    ★ INSIDE A `Try`, a call that can fail reads as its value: when it fails, the failure is kept and
+      the program jumps to the handler — out of the middle of an expression, which gcc allows from a
+      statement expression. The emitter's `kinds` map carries the `Try` a statement is in as `%try`,
+      so a handler, a function and a block each see the right one.
+
+    ⚠ `In case of exception` waits: it needs the runtime's own raising, a separate piece.
+*/
+
+Pull a book on collections.
+    Bind fact to is-failable, given (the text kind):
+        Return kind starts with "failure of ".
+    Done.
+
+    /// What a failable kind holds when it is no failure.
+    Bind text to failable-inner, given (the text kind):
+        Return the characters from 12 to the end of kind.
+    Done.
+
+    Bind text to failable-c-name, given (the text kind):
+        Define inner as cast failable-inner on (kind).
+        If inner is "void", return "cfl_void".
+        Return "cfl_{cast c-tag on (inner)}".
+    Done.
+
+    /// A failable's struct, and how one is made from a value, from a failure, or as done.
+    Bind text to c-failable-helpers, given (the text kind):
+        Define type-c as cast failable-c-name on (kind).
+        Define inner as cast failable-inner on (kind).
+        Define out as a chase.
+        If inner is "void":
+            Insert "typedef struct \{ int ok; CufetFailure failure; \} {type-c};\n" into out.
+            Insert "static {type-c} {type-c}_done(void) \{ {type-c} o; memset(&o, 0, sizeof o); o.ok = 1; return o; \}\n" into out.
+        Done.
+        Otherwise:
+            Insert "typedef struct \{ int ok; {cast c-type on (inner)} value; CufetFailure failure; \} {type-c};\n" into out.
+            Insert "static {type-c} {type-c}_some({cast c-type on (inner)} v) \{ {type-c} o; memset(&o, 0, sizeof o); o.ok = 1; o.value = v; return o; \}\n" into out.
+        Done.
+        Insert "static {type-c} {type-c}_fail(CufetFailure f) \{ {type-c} o; memset(&o, 0, sizeof o); o.ok = 0; o.failure = f; return o; \}\n\n" into out.
+        Return out converted to text.
+    Done.
+
+    /// Notes a failable type the program uses, after what it holds.
+    Bind void to register-failable unto emitter, given (the text kind):
+        If (the entry for kind in one's unions) is void:
+            In one's unions, the entry for kind becomes true.
+            Insert kind into one's union-order.
+        Done.
+    Done.
+
+    /// The kind of a written `<type> or failure`.
+    Bind text or failure to failable-kind-of-type unto emitter, given (the node written):
+        Define inner as "void".
+        If (cast field-of on (written, 1))'s kind is not "VoidType":
+            The inner becomes cast one's kind-of-type on (cast field-of on (written, 1)) or pass the failure off.
+        Done.
+        If cast is-failable on (inner), return a failure (cast not-built on ("a failure of a {inner}")).
+        Define kind as "failure of {inner}".
+        Cast one's register-failable on (kind).
+        Return kind.
+    Done.
+
+    /// A value going into a failable place: a failure as one, a value as a success.
+    Bind text to c-into-failable unto emitter, given (the text value, the text source-kind, the text wanted):
+        Define type-c as cast failable-c-name on (wanted).
+        If source-kind is "failure", return "{type-c}_fail({value})".
+        Return "{type-c}_some({cast one's c-coerce on (value, source-kind, cast failable-inner on (wanted))})".
+    Done.
+
+    /// The `Try` a statement is in — the label its failures go to — or "".
+    Bind text to current-try unto emitter:
+        Return the entry for "%try" in one's kinds but void is "".
+    Done.
+
+    /// The kind and C of an expression as it is, outside any `Try` — a failable left failable.
+    Bind text or failure to raw-kind-of unto emitter, given (the node expression):
+        Define kept as cast one's current-try.
+        In one's kinds, the entry for "%try" becomes "".
+        Define kind as cast one's kind-of on (expression) but on failure "".
+        In one's kinds, the entry for "%try" becomes kept.
+        If kind is "", return cast one's kind-of on (expression) or pass the failure off.
+        Return kind.
+    Done.
+
+    Bind text or failure to raw-c-of unto emitter, given (the node expression):
+        Define kept as cast one's current-try.
+        In one's kinds, the entry for "%try" becomes "".
+        Define written as cast one's c-of on (expression) but on failure "".
+        In one's kinds, the entry for "%try" becomes kept.
+        If written is "", return cast one's c-of on (expression) or pass the failure off.
+        Return written.
+    Done.
+
+    /// What a call that can fail reads as here: inside a `Try`, its value.
+    Bind text to unwrapped-kind unto emitter, given (the text kind):
+        If cast is-failable on (kind) and cast one's current-try is not "", return cast failable-inner on (kind).
+        Return kind.
+    Done.
+
+    /// A call that can fail, as C: inside a `Try`, its value — or, when it fails, a jump to the handler.
+    Bind text to c-unwrapped unto emitter, given (the text written, the text kind):
+        Define label as cast one's current-try.
+        If cast is-failable on (kind) is false or label is "", return written.
+        Define taken as "(\{ {cast failable-c-name on (kind)} cf_r = {written}; if (!cf_r.ok) \{ cf_failure_{label} = cf_r.failure; goto cf_try_{label}; \}".
+        If cast failable-inner on (kind) is "void", return "{taken} (void)0; \})".
+        Return "{taken} cf_r.value; \})".
+    Done.
+
+    /// `<call> or pass the failure off` — its value, or the failure handed to this function's caller.
+    Bind text or failure to c-pass-off unto emitter, given (the node held):
+        Define kind as cast one's raw-kind-of on (held) or pass the failure off.
+        Define written as cast one's raw-c-of on (held) or pass the failure off.
+        If cast is-failable on (kind) is false, return written.
+        Define outer as the entry for "%return" in one's kinds but void is "".
+        If cast is-failable on (outer) is false, return a failure (cast not-built on ("passing a failure off from where nothing can fail")).
+        Define taken as "(\{ {cast failable-c-name on (kind)} cf_r = {written}; if (!cf_r.ok) return {cast failable-c-name on (outer)}_fail(cf_r.failure);".
+        If cast failable-inner on (kind) is "void", return "{taken} (void)0; \})".
+        Return "{taken} cf_r.value; \})".
+    Done.
+
+    // ── Expressions ───────────────────────────────────────────────────────
+
+    Bind fact to is-failure-expression, given (the text kind):
+        Return kind is "FailureLiteral" or kind is "FailurePropagate" or kind is "FailureFallback" or kind is "FileReadExpression".
+    Done.
+
+    Bind text or failure to failure-kind-of unto emitter, given (the node expression):
+        Define kind as expression's kind.
+        If kind is "FailureLiteral", return "failure".
+        If kind is "FileReadExpression":
+            Define read-kind as "failure of text".
+            If (cast field-of on (expression, 1))'s word is "AllLines", the read-kind becomes "failure of series of text".
+            Otherwise if (cast field-of on (expression, 1))'s word is not "All", return a failure (cast not-built on ("a file read of {(cast field-of on (expression, 1))'s word}")).
+            Cast one's register-failable on (read-kind).
+            Return cast one's unwrapped-kind on (read-kind).
+        Done.
+        Define held as cast one's raw-kind-of on (cast field-of on (expression, 1)) or pass the failure off.
+        If cast is-failable on (held) is false, return held.
+        Return cast failable-inner on (held).
+    Done.
+
+    Bind text or failure to c-failure-of unto emitter, given (the node expression):
+        Define kind as expression's kind.
+        If kind is "FailureLiteral":
+            Define said as cast one's c-of on (cast field-of on (expression, 1)) or pass the failure off.
+            Define tagged as "NULL".
+            If cast is-nothing on (cast field-of on (expression, 2)) is false:
+                The tagged becomes cast one's c-of on (cast field-of on (expression, 2)) or pass the failure off.
+            Done.
+            Return "((CufetFailure)\{ {said}, {tagged} \})".
+        Done.
+        If kind is "FileReadExpression":
+            Define path-c as cast one's c-of on (cast field-of on (expression, 2)) or pass the failure off.
+            Define read-c as "".
+            Define read-kind as "failure of text".
+            If (cast field-of on (expression, 1))'s word is "AllLines":
+                The read-kind becomes "failure of series of text".
+                The read-c becomes "(\{ cfl_cser_text cf_fr; memset(&cf_fr, 0, sizeof cf_fr); const char** cf_lp; int cf_ln; CufetFailure cf_fe; if (cufet_file_read_lines({path-c}, &cf_lp, &cf_ln, &cf_fe)) \{ cser_text* cf_ls = cser_text_new(); for (int cf_lj = 0; cf_lj < cf_ln; cf_lj++) cser_text_append(cf_ls, cf_lp[cf_lj]); cf_fr.ok = 1; cf_fr.value = cf_ls; \} else cf_fr.failure = cf_fe; cf_fr; \})".
+            Done.
+            Otherwise:
+                The read-c becomes "(\{ cfl_text cf_fr; memset(&cf_fr, 0, sizeof cf_fr); const char* cf_v; CufetFailure cf_fe; if (cufet_file_read_all({path-c}, &cf_v, &cf_fe)) \{ cf_fr.ok = 1; cf_fr.value = cf_v; \} else cf_fr.failure = cf_fe; cf_fr; \})".
+            Done.
+            Cast one's register-failable on (read-kind).
+            Return cast one's c-unwrapped on (read-c, read-kind).
+        Done.
+        If kind is "FailurePropagate", return cast one's c-pass-off on (cast field-of on (expression, 1)) or pass the failure off.
+        // `<call> but on failure <default>` — the default worked out only when the call failed.
+        Define held as cast one's raw-kind-of on (cast field-of on (expression, 1)) or pass the failure off.
+        Define written as cast one's raw-c-of on (cast field-of on (expression, 1)) or pass the failure off.
+        If cast is-failable on (held) is false, return written.
+        Define inner as cast failable-inner on (held).
+        Define fallback as cast one's c-of-as on (cast field-of on (expression, 2), inner) or pass the failure off.
+        Return "(\{ {cast failable-c-name on (held)} cf_r = {written}; cf_r.ok ? cf_r.value : ({fallback}); \})".
+    Done.
+
+    /// `the message of`, `the category of` a failure.
+    Bind text to failure-field-kind, given (the text field-name):
+        If field-name is "message", return "text".
+        If field-name is "category", return "voidable text".
+        Return "".
+    Done.
+
+    Bind text to c-failure-field, given (the text failure-c, the text field-name):
+        If field-name is "message", return "({failure-c}).message".
+        Return "(\{ CufetFailure cf_f = {failure-c}; cf_f.category ? cvo_text_some(cf_f.category) : cvo_text_none(); \})".
+    Done.
+
+    // ── Statements ────────────────────────────────────────────────────────
+
+    /// `Cast <call> or pass the failure off.`, or a call that can fail made inside a `Try`.
+    Bind void or failure to emit-failable-cast unto emitter, given (the node call, the fact passes-off):
+        If passes-off:
+            Cast one's line on ("{cast one's c-pass-off on (call) or pass the failure off};").
+            Return.
+        Done.
+        Cast one's line on ("{cast one's c-of on (call) or pass the failure off};").
+    Done.
+
+    /// `Try to: … In case of failure: …` — a failure inside goes to the handler, which sees it as
+    /// `the failure`, and the program goes on after both.
+    Bind void or failure to emit-try unto emitter, given (the node statement):
+        If cast is-nothing on (cast field-of on (statement, 3)) is false, return a failure (cast not-built on ("In case of exception")).
+        If cast is-nothing on (cast field-of on (statement, 2)), return a failure (cast not-built on ("a Try with no failure handler")).
+        Define label as "{(cast field-of on (statement, 4))'s word}_{(cast field-of on (statement, 5))'s word}".
+        Define outer-try as cast one's current-try.
+        Cast one's line on ("\{").
+        Define outer as one's indent.
+        The one's indent becomes outer joined to "    ".
+        Cast one's line on ("CufetFailure cf_failure_{label}; memset(&cf_failure_{label}, 0, sizeof cf_failure_{label});").
+        Cast one's line on ("\{").
+        In one's kinds, the entry for "%try" becomes label.
+        Cast one's emit-block on (cast field-of on (statement, 1)) or pass the failure off.
+        In one's kinds, the entry for "%try" becomes outer-try.
+        Cast one's line on ("\}").
+        Cast one's line on ("goto cf_tried_{label};").
+        Cast one's line on ("cf_try_{label}: \{").
+        // The handler, in the `Try` around this one — and with `the failure` named.
+        Define kept as a map from text to text.
+        For each pair in one's kinds, repeat:
+            In kept, the entry for the key of pair becomes the value of pair.
+        Done.
+        In one's kinds, the entry for "the failure" becomes "failure".
+        In one's kinds, the entry for "%the failure" becomes "failure".
+        In one's kinds, the entry for "@the failure" becomes "".
+        The one's indent becomes outer joined to "        ".
+        Cast one's line on ("CufetFailure {cast c-name on ("the failure")} = cf_failure_{label};").
+        For each inner in (cast field-of on (statement, 2))'s children, repeat:
+            Cast one's emit-statement on (inner) or pass the failure off.
+        Done.
+        The one's kinds becomes kept.
+        The one's indent becomes outer joined to "    ".
+        Cast one's line on ("\}").
+        Cast one's line on ("cf_tried_{label}: ;").
+        The one's indent becomes outer.
+        Cast one's line on ("\}").
+    Done.
+
+    /// What a function that can only fail or be done says when it reaches its end: done.
+    Bind void to close-failable unto emitter:
+        If (the entry for "%return" in one's kinds but void is "") is "failure of void":
+            Cast one's line on ("return cfl_void_done();").
+        Done.
+    Done.
+Done.
