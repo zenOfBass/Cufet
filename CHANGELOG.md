@@ -61,7 +61,7 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   input and output: files, directories, streams, running programs and piping them, and pipes of
   functions, and axioms: regex patterns, c-language source at its boundary, and cufet blocks placed
   by `Cite`. Anything it cannot judge yet it says so about, rather than accepting — and it judges
-  every one of the 144 corpus files, each checked where it sits, as `cufet check` checks it: inside a
+  every one of the 145 corpus files, each checked where it sits, as `cufet check` checks it: inside a
   project its folder and the folders above it are part of its program, a folder or namespace it
   qualifies is loaded under its own names, a book is loaded from the file beside it, and the blueprint's
   drawing of the tree is read and held to its rules. With `--tree` it also prints the program it hands on, which C#
@@ -71,7 +71,7 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   are — what generics hand on: the templates taken out, the fillings in their place, each call and
   literal naming the filling it reached — and every burying function rebuilt as the machine of steps
   a stash runs on. The test compares that with C#'s, the bundled books left out, and every file and
-  hand-written program both accept hands back the same tree: 140 corpus files and 279 programs. And it says
+  hand-written program both accept hands back the same tree: 141 corpus files and 279 programs. And it says
   what `cufet check` warns of a program that runs, in the same words after `ok` — a keyword opening a
   line in lowercase, one bare-`it` loop inside another, the directory changed after a task started, a
   type definition a later one replaces, and a judgement arm that can never run — held to that on 20
@@ -91,13 +91,16 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   passed for one, as C# builds them — and their defaults; modules and books, pulled and called;
   and closed unions — `is a`, narrowing in an `If` and by elimination, `Judge` by type, and a value
   wrapped wherever it goes into a union; voidables, `but void is` and narrowing by `is not void`;
-  getters; shared `permanently` constants; numbers of up to 29 digits; and the `math` book, built
-  from its own Cufet source as a module is. It says `unsupported` for anything else rather than
+  getters; shared `permanently` constants; numbers of up to 29 digits; the `math` book, built
+  from its own Cufet source as a module is; and maps — made, looked up as voidables, set, asked
+  for a key or an entry, removed from, sized, and looped over in the order their keys were added —
+  and `the <field> of <object>`. It says `unsupported` for anything else rather than
   writing C that might happen to work — a region frees nothing yet — and refuses a file that only
   declares, as `cufet build` does. `CompilerParityTests` runs every program it builds and holds it
-  to printing exactly what the interpreter prints, on 199 hand-written programs and on 14 of the 67
+  to printing exactly what the interpreter prints, on 221 hand-written programs and on 20 of the 67
   in `examples/`; the C it writes is its own. A program the interpreter stops —
-  a series changed by the loop that runs over it — stops built too, having printed the same.
+  a series or a map changed by the loop that runs over it, a missing key removed — stops built
+  too, having printed the same.
 
 ### Changed
 

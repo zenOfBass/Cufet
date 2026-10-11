@@ -52,7 +52,7 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     : PipelineTestBase, IClassFixture<CompiledCufetCompiler>
 {
     /// <summary>How many hand-written programs must build and print alike. Raised as it grows; never lowered.</summary>
-    private const int BuiltFloor = 199;
+    private const int BuiltFloor = 221;
 
     private static string[] PreludeArgs =>
         ["--prelude", Path.Combine(RepoRoot, "src", "Interpreter", "Prelude").Replace('\\', '/')];
@@ -274,6 +274,30 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
         "Pull a book on math.\n    State cast math's log on (10).\n    State cast math's exp on (1).\n    State cast math's power on (2, 10).\n    State cast math's power on (2, 0.5).\nDone.",
         "Pull a book on math.\n    Define radius as 2.\n    State math's pi * radius * radius.\nDone.",
         "State 79228162514264337593543950335.\nState 12345678901234567890123.\nState -98765432109876543210.\nState 0.0000000000000000000000000001.",
+        // Maps: a map from … to …, a map with (…), lookups as voidables, setting, has a key / an entry, Remove, the size of, For each over the pairs.
+        "Define ages as a map from text to number.\nIn ages, the entry for \"alice\" becomes 30.\nIn ages, the entry for \"bob\" becomes 41.\nState ages.\nState the size of ages.",
+        "Define ages as a map with (\"alice\": 30, \"bob\": 41).\nState the entry for \"alice\" in ages.\nState the entry for \"carol\" in ages.\nState from ages, the entry for \"bob\".",
+        "Define ages as a map with (\"alice\": 30).\nState (the entry for \"alice\" in ages but void is 0) + 1.\nState (the entry for \"zed\" in ages but void is -1).",
+        "Define ages as a map with (\"alice\": 30).\nDefine found as the entry for \"alice\" in ages.\nIf found is not void, state found * 2.\nOtherwise, state \"none\".\nDefine missing as the entry for \"x\" in ages.\nIf missing is void, state \"no x\".",
+        "Define ages as a map with (\"alice\": 30, \"bob\": 41).\nIf ages has a key for \"alice\", state \"has alice\".\nIf ages has an entry for \"carol\", state \"has carol\".\nOtherwise, state \"no carol\".\nState ages has a key for \"bob\".",
+        "Define ages as a map with (\"a\": 1, \"b\": 2, \"c\": 3).\nRemove \"b\" from ages.\nState ages.\nIn ages, the entry for \"b\" becomes 20.\nState ages.\nIn ages, the entry for \"a\" becomes 10.\nState ages.",
+        "Define ages as a map with (\"a\": 1, \"b\": 2).\nFor each pair in ages, repeat:\n    State the key of pair.\n    State the value of pair.\nDone.\nFor each pair in ages, state pair.",
+        "Define counts as a map with (\"a\": 1, \"b\": 2).\nFor each pair in counts, repeat:\n    In counts, the entry for the key of pair becomes the value of pair * 10.\nDone.\nState counts.",
+        "Define counts as a map with (\"a\": 1).\nFor each pair in counts, repeat:\n    In counts, the entry for \"z\" becomes 0.\nDone.\nState counts.",
+        "Define words as a map with (1: \"one\", 2: \"two\").\nState words.\nState the entry for 2 in words.\nDefine flags as a map with (true: \"yes\", false: \"no\").\nState the entry for false in flags.",
+        "Define left as a map with (\"a\": 1).\nDefine right as a map with (\"a\": 1).\nState left is right.\nDefine alias as left.\nState left is alias.\nIn alias, the entry for \"b\" becomes 2.\nState left.",
+        "Define maybe as a map from text to voidable number.\nIn maybe, the entry for \"x\" becomes void.\nIn maybe, the entry for \"y\" becomes 5.\nState maybe.\nState maybe has a key for \"x\".\nState maybe has an entry for \"x\".\nState the entry for \"x\" in maybe.\nState the entry for \"y\" in maybe.",
+        "Bind map from text to number to tally, given (the series of text words):\n    Define counts as a map from text to number.\n    For each word in words, repeat:\n        Define current as the entry for word in counts but void is 0.\n        In counts, the entry for word becomes current + 1.\n    Done.\n    Return counts.\nDone.\nState cast tally on (a series of text with (\"x\", \"y\", \"x\", \"z\", \"x\")).",
+        "Bind void to bump, given (the map from text to number counts, the text which):\n    In counts, the entry for which becomes (the entry for which in counts but void is 0) + 1.\nDone.\nDefine counts as a map from text to number.\nCast bump on (counts, \"q\").\nCast bump on (counts, \"q\").\nState counts.",
+        "Define object edge with (the text edge-dest, the number edge-weight).\nDefine adj as a map from text to series of edge.\nDefine fallback as a series of edge.\nDefine edges as (the entry for \"A\" in adj) but void is fallback.\nInsert a new edge { the edge-dest \"B\", the edge-weight 4 } into edges.\nIn adj, the entry for \"A\" becomes edges.\nState adj.\nState the number of (the entry for \"A\" in adj but void is fallback).",
+        "Define groups as a map from text to series of text.\nIn groups, the entry for \"fruit\" becomes a series of text with (\"apple\", \"pear\").\nFor each pair in groups, repeat:\n    For each item-name in the value of pair, state \"{the key of pair}: {item-name}\".\nDone.",
+        "Define nested as a map from text to map from text to number.\nDefine inner as a map with (\"x\": 1).\nIn nested, the entry for \"outer\" becomes inner.\nState nested.\nState the entry for \"outer\" in nested.",
+        "Define object box with (the text label, the map from text to number stock).\nDefine b as a new box { the label \"crate\", the stock a map with (\"nails\": 100) }.\nIn b's stock, the entry for \"screws\" becomes 50.\nState b's stock.\nState b.",
+        "Define scores as a map from text to (number or text).\nIn scores, the entry for \"a\" becomes 1.\nIn scores, the entry for \"b\" becomes \"high\".\nState scores.\nState the entry for \"b\" in scores.",
+        "Define empty as a map from text to number.\nState empty.\nState the size of empty.\nFor each pair in empty, state pair.\nState \"done\".",
+        // `the <field> of <object>`, which means `<object>'s <field>`.
+        "Define object box with (the number size, the text label):\n    Get doubled as number, one's size * 2.\nDone.\nDefine b as a new box { the size 3, the label \"crate\" }.\nState the size of b.\nState the label of b joined to \"!\".\nState the doubled of b.",
+        "Define object link with (the text name, the number weight).\nDefine object chain with (the link head).\nDefine c as a new chain { the head a new link { the name \"first\", the weight 2 } }.\nState the name of the head of c.\nState the weight of (the head of c) + 1.",
     ];
 
     [Fact]
@@ -326,7 +350,7 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     }
 
     /// <summary>How many programs of `examples/` must build and print alike. Raised as it grows; never lowered.</summary>
-    private const int CorpusFloor = 14;
+    private const int CorpusFloor = 20;
 
     /// <remarks>
     /// ★ The corpus is copied first: the compiler writes each program beside its source. Each program
@@ -430,6 +454,10 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
          "was modified during a for-each loop"),
         ("Define xs as a series of number with (1, 2, 3).\nFor each n in xs, repeat:\n    State n.\n    If n is 3, insert 4 into xs.\nDone.\nState xs.",
          "was modified during a for-each loop"),
+        ("Define counts as a map with (\"a\": 1, \"b\": 2).\nFor each pair in counts, repeat:\n    State the key of pair.\n    In counts, the entry for \"z\" becomes 0.\nDone.\nState counts.",
+         "'counts' was modified during a for-each loop"),
+        ("Define ages as a map with (\"a\": 1).\nState ages.\nRemove \"zzz\" from ages.\nState \"not reached\".",
+         "Key not found in map on line 3."),
     ];
 
     [Fact]
