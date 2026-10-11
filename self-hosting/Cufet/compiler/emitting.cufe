@@ -88,7 +88,8 @@ Pull a book on collections.
         Done.
         If written's kind is "VoidableType":
             Define inner as cast one's kind-of-type on (cast field-of on (written, 1)) or pass the failure off.
-            If cast is-scalar on (inner) is false and cast object-of on (inner) is "" and cast is-union on (inner) is false:
+            If cast is-scalar on (inner) is false and cast object-of on (inner) is "" and cast is-union on (inner) is false
+                    and cast element-of on (inner) is "" and cast is-map on (inner) is false:
                 Return a failure (cast not-built on ("a voidable {inner}")).
             Done.
             Cast one's register-union on ("voidable {inner}").
@@ -98,6 +99,11 @@ Pull a book on collections.
             Define element as cast one's kind-of-type on (cast field-of on (written, 1)) or pass the failure off.
             If cast is-element-kind on (element), return "series of {element}".
             Return a failure (cast not-built on ("a series of {element}")).
+        Done.
+        If written's kind is "MapType":
+            Define key-kind as cast one's kind-of-type on (cast field-of on (written, 1)) or pass the failure off.
+            Define held as cast one's kind-of-type on (cast field-of on (written, 2)) or pass the failure off.
+            Return cast one's map-kind-of-type on (key-kind, held) or pass the failure off.
         Done.
         Return a failure (cast not-built on ("a {written's kind}")).
     Done.
@@ -177,6 +183,9 @@ Pull a book on collections.
             "IsTypeCheck", return "fact".
             "VoidLiteral", return "void".
             "ButVoidDefault", return cast one's but-void-kind-of on (expression) or pass the failure off.
+            "MapLiteral" or "MapLookup" or "MapHasKey" or "MapHasEntry" or "RecordNamedAccess":
+                Return cast one's map-kind-of on (expression) or pass the failure off.
+            Done.
             Otherwise, return a failure (cast not-built on (kind)).
         Done.
     Done.
@@ -226,6 +235,9 @@ Pull a book on collections.
             // `void` has no C of its own: it is made into the voidable it goes into.
             "VoidLiteral", return "0".
             "ButVoidDefault", return cast one's c-but-void on (expression) or pass the failure off.
+            "MapLiteral" or "MapLookup" or "MapHasKey" or "MapHasEntry" or "RecordNamedAccess":
+                Return cast one's c-map-of on (expression) or pass the failure off.
+            Done.
             Otherwise, return a failure (cast not-built on (kind)).
         Done.
     Done.
@@ -339,6 +351,8 @@ Pull a book on collections.
 
     /// The C type a kind of value is held in.
     Bind text to c-type, given (the text kind):
+        If cast is-map on (kind), return "{cast map-c-name on (kind)}*".
+        If cast is-mapping on (kind), return "{cast map-c-name on (cast mapping-map on (kind))}_pair".
         If cast is-voidable on (kind), return cast voidable-c-name on (kind).
         If cast is-union on (kind), return cast union-c-name on (kind).
         If cast element-of on (kind) is not "", return "{cast series-c-name on (cast element-of on (kind))}*".
@@ -350,6 +364,8 @@ Pull a book on collections.
 
     /// The runtime call that writes a value of a kind, without the line's end.
     Bind text to write-call, given (the text kind, the text value):
+        If cast is-map on (kind), return "{cast map-c-name on (kind)}_write({value})".
+        If cast is-mapping on (kind), return "{cast map-c-name on (cast mapping-map on (kind))}_pair_write({value})".
         If cast is-voidable on (kind), return "{cast voidable-c-name on (kind)}_write({value})".
         If cast is-union on (kind), return "{cast union-c-name on (kind)}_write({value})".
         If cast element-of on (kind) is not "", return "{cast series-c-name on (cast element-of on (kind))}_write({value})".
@@ -383,6 +399,9 @@ Pull a book on collections.
 
     /// Whether `left` and `right`, two values of `kind`, are equal — as C.
     Bind text to c-equal, given (the text kind, the text left, the text right):
+        // Two maps are equal only when they are one map.
+        If cast is-map on (kind), return "({left} == {right})".
+        If cast is-mapping on (kind), return "{cast map-c-name on (cast mapping-map on (kind))}_pair_eq({left}, {right})".
         If cast is-voidable on (kind), return "{cast voidable-c-name on (kind)}_eq({left}, {right})".
         If cast is-union on (kind), return "{cast union-c-name on (kind)}_eq({left}, {right})".
         If cast element-of on (kind) is not "", return "{cast series-c-name on (cast element-of on (kind))}_eq({left}, {right})".
@@ -467,6 +486,7 @@ Pull a book on collections.
             "StopStatement", cast one's line on ("break;").
             "SkipStatement", cast one's line on ("continue;").
             "JudgeStatement", cast one's emit-judge on (statement) or pass the failure off.
+            "MapSetStatement", cast one's emit-map-set on (statement) or pass the failure off.
             "ForEachStatement" or "SeriesInsertStatement" or "SeriesRemoveAtStatement" or "SeriesRemoveValueStatement"
                     or "SeriesSetStatement":
                 Cast one's emit-series-statement on (statement) or pass the failure off.
@@ -825,6 +845,9 @@ Pull a book on collections.
             If cast is-voidable on (union):
                 Insert cast c-voidable-helpers on (union) into union-types.
             Done.
+            Otherwise if cast is-map on (union):
+                Insert cast c-map-helpers on (union) into union-types.
+            Done.
             Otherwise:
                 Insert cast c-union-helpers on (union) into union-types.
                 Insert cast c-series-helpers on (union) into union-types.
@@ -841,6 +864,12 @@ Pull a book on collections.
         // how it is written and compared, which an object's own writing calls.
         For each union in writer's union-order, repeat:
             If cast is-voidable on (union), skip.
+            // A map is held by its address, so an object may hold one named this far ahead.
+            If cast is-map on (union):
+                Insert "typedef struct {cast map-c-name on (union)}_s {cast map-c-name on (union)};\n" into out.
+                Insert "static void {cast map-c-name on (union)}_write({cast map-c-name on (union)}* m);\n" into out.
+                Skip.
+            Done.
             Define series-type as cast series-c-name on (union).
             Insert "typedef struct {series-type}_s {series-type};\n" into out.
             Insert "static void {series-type}_write({series-type}* s);\n" into out.

@@ -176,6 +176,12 @@ Pull a book on collections.
         Done.
         If kind is "SeriesRemoveValueStatement":
             Define target as cast field-of on (statement, 1).
+            // `Remove <key> from <map>` is written the same way.
+            Define target-kind as cast one's kind-of on (target) or pass the failure off.
+            If cast is-map on (target-kind):
+                Cast one's emit-map-remove on (statement, target-kind) or pass the failure off.
+                Return.
+            Done.
             Define element as cast one's changed-element on (target) or pass the failure off.
             Define series-c as cast one's c-of on (target) or pass the failure off.
             Define value as cast one's c-of on (cast field-of on (statement, 2)) or pass the failure off.
@@ -209,6 +215,10 @@ Pull a book on collections.
         If cast is-nothing on (named) is false, the name becomes cast unquoted on (named).
         Define over as cast field-of on (statement, 2).
         Define held as cast one's kind-of on (over) or pass the failure off.
+        If cast is-map on (held):
+            Cast one's emit-map-for-each on (statement, held) or pass the failure off.
+            Return.
+        Done.
         Define element as cast element-of on (held).
         If element is "", return a failure (cast not-built on ("looping over a {held}")).
         Define series-c as cast one's c-of on (over) or pass the failure off.

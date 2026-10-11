@@ -23,7 +23,9 @@ Pull a book on collections.
         Define inner as cast voidable-inner on (kind).
         If cast is-union on (inner), return "cvo_{cast union-c-name on (inner)}".
         If cast object-of on (inner) is not "", return "cvo_obj_{cast c-ident on (cast object-of on (inner))}".
-        Return "cvo_{inner}".
+        If cast is-scalar on (inner), return "cvo_{inner}".
+        // A series or a map, which a lookup in a map may give.
+        Return "cvo_{cast c-tag on (inner)}".
     Done.
 
     /// A voidable's struct, how one is made, and how it is written and compared.

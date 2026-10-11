@@ -1,0 +1,260 @@
+/*  Maps — `a map from … to …`, `a map with (…)`, `the entry for … in …`, `In … becomes`, `has a
+    key for`, `has an entry for`, `Remove … from`, `the size of`, and `For each` over the pairs.
+
+    ★ A map is SHARED, as a series is, and two maps are the same map only when they are one map.
+      In C it is a pointer to two growable arrays, its keys and its values, kept in the order the
+      keys were first added: a key removed closes the gap behind it, and a key added goes on the end
+      — the order the interpreter visits them in.
+
+    ★ A lookup gives a voidable — flat when the values are voidable already, never a voidable of a
+      voidable.
+
+    ★ Keyed by a number, a text or a fact for now. A loop over a map names a `mapping from K to V`:
+      a key and its value, as they were when the loop began.
+*/
+
+Pull a book on collections.
+    Bind fact to is-map, given (the text kind):
+        Return kind starts with "map from ".
+    Done.
+
+    Bind fact to is-mapping, given (the text kind):
+        Return kind starts with "mapping from ".
+    Done.
+
+    /// What a map is keyed by — one word, as a key is a number, a text or a fact.
+    Bind text to map-key-kind, given (the text kind):
+        Define rest as the characters from 10 to the end of kind.
+        If cast is-mapping on (kind), the rest becomes the characters from 14 to the end of kind.
+        Define space as the position of " " in rest but void is 0.
+        Return the characters from 1 to (space - 1) of rest.
+    Done.
+
+    /// What a map holds.
+    Bind text to map-value-kind, given (the text kind):
+        Define rest as the characters from 10 to the end of kind.
+        If cast is-mapping on (kind), the rest becomes the characters from 14 to the end of kind.
+        Define space as the position of " to " in rest but void is 0.
+        Return the characters from space + 4 to the end of rest.
+    Done.
+
+    /// What a lookup gives: a voidable of the values, flat when they are voidable already.
+    Bind text to looked-up-kind, given (the text kind):
+        Define held as cast map-value-kind on (kind).
+        If cast is-voidable on (held), return held.
+        Return "voidable {held}".
+    Done.
+
+    /// A kind as a word fit for a C name.
+    Bind text to c-tag, given (the text kind):
+        If cast is-scalar on (kind), return kind.
+        Define typed as cast c-type on (kind).
+        If typed ends with "*", return the characters from 1 to (the length of typed - 1) of typed.
+        Return typed.
+    Done.
+
+    Bind text to map-c-name, given (the text kind):
+        Define held as cast map-value-kind on (kind).
+        Return "cmap_{cast map-key-kind on (kind)}_{cast c-tag on (held)}".
+    Done.
+
+    /// The map a mapping comes from.
+    Bind text to mapping-map, given (the text kind):
+        Return "map from {cast map-key-kind on (kind)} to {cast map-value-kind on (kind)}".
+    Done.
+
+    /// Notes a map type the program uses — after what a lookup in it gives, which its helpers return.
+    Bind void to register-map unto emitter, given (the text kind):
+        Cast one's register-union on (cast looked-up-kind on (kind)).
+        If (the entry for kind in one's unions) is void:
+            In one's unions, the entry for kind becomes true.
+            Insert kind into one's union-order.
+        Done.
+    Done.
+
+    /// The kind of a written map type, or a failure when it is beyond this compiler.
+    Bind text or failure to map-kind-of-type unto emitter, given (the text key-kind, the text held):
+        If cast is-scalar on (key-kind) is false, return a failure (cast not-built on ("a map keyed by a {key-kind}")).
+        If held is "void", return a failure (cast not-built on ("a map of void")).
+        Define kind as "map from {key-kind} to {held}".
+        Cast one's register-map on (kind).
+        Return kind.
+    Done.
+
+    /// A map's struct, its pairs, and how a map is made, read, changed and written.
+    Bind text to c-map-helpers, given (the text kind):
+        Define map-c as cast map-c-name on (kind).
+        Define key-kind as cast map-key-kind on (kind).
+        Define held as cast map-value-kind on (kind).
+        Define key-c as cast c-type on (key-kind).
+        Define held-c as cast c-type on (held).
+        Define looked-c as cast c-type on (cast looked-up-kind on (kind)).
+        Define out as a chase.
+        Insert "struct {map-c}_s \{ {key-c}* keys; {held-c}* vals; int len; int cap; \};\n" into out.
+        Insert "typedef struct \{ {key-c} key; {held-c} value; \} {map-c}_pair;\n" into out.
+        Insert "static {map-c}* {map-c}_new(void) \{ {map-c}* m = ({map-c}*)cufet_arena_alloc(sizeof({map-c})); m->keys = NULL; m->vals = NULL; m->len = 0; m->cap = 0; return m; \}\n" into out.
+        Insert "static void {map-c}_ensure({map-c}* m) \{ if (m->len >= m->cap) \{ int nc = m->cap == 0 ? 4 : m->cap * 2; {key-c}* nk = ({key-c}*)cufet_arena_alloc((size_t)nc * sizeof({key-c})); {held-c}* nv = ({held-c}*)cufet_arena_alloc((size_t)nc * sizeof({held-c})); if (m->len > 0) \{ memcpy(nk, m->keys, (size_t)m->len * sizeof({key-c})); memcpy(nv, m->vals, (size_t)m->len * sizeof({held-c})); \} m->keys = nk; m->vals = nv; m->cap = nc; \} \}\n" into out.
+        Insert "static int {map-c}_index({map-c}* m, {key-c} k) \{ for (int i = 0; i < m->len; i++) if ({cast c-equal on (key-kind, "m->keys[i]", "k")}) return i; return -1; \}\n" into out.
+        Insert "static void {map-c}_put({map-c}* m, {key-c} k, {held-c} v) \{ int i = {map-c}_index(m, k); if (i >= 0) \{ m->vals[i] = v; return; \} {map-c}_ensure(m); m->keys[m->len] = k; m->vals[m->len] = v; m->len++; \}\n" into out.
+        If cast is-voidable on (held):
+            Insert "static {looked-c} {map-c}_get({map-c}* m, {key-c} k) \{ {looked-c} r; memset(&r, 0, sizeof r); int i = {map-c}_index(m, k); if (i >= 0) r = m->vals[i]; return r; \}\n" into out.
+            Insert "static int {map-c}_has_entry({map-c}* m, {key-c} k) \{ int i = {map-c}_index(m, k); return i >= 0 && m->vals[i].has; \}\n" into out.
+        Done.
+        Otherwise:
+            Insert "static {looked-c} {map-c}_get({map-c}* m, {key-c} k) \{ {looked-c} r; memset(&r, 0, sizeof r); int i = {map-c}_index(m, k); if (i >= 0) \{ r.has = 1; r.value = m->vals[i]; \} return r; \}\n" into out.
+            Insert "static int {map-c}_has_entry({map-c}* m, {key-c} k) \{ return {map-c}_index(m, k) >= 0; \}\n" into out.
+        Done.
+        Insert "static int {map-c}_has({map-c}* m, {key-c} k) \{ return {map-c}_index(m, k) >= 0; \}\n" into out.
+        Insert "static void {map-c}_remove({map-c}* m, {key-c} k, int line) \{ int i = {map-c}_index(m, k); if (i < 0) cufet_raise(cufet_msgf(\"Key not found in map on line %d.\", line)); if (i < m->len - 1) \{ memmove(&m->keys[i], &m->keys[i + 1], (size_t)(m->len - 1 - i) * sizeof({key-c})); memmove(&m->vals[i], &m->vals[i + 1], (size_t)(m->len - 1 - i) * sizeof({held-c})); \} m->len--; \}\n" into out.
+        Insert "static void {map-c}_write({map-c}* m) \{ fputs(\"map \{\", stdout); for (int i = 0; i < m->len; i++) \{ if (i > 0) fputs(\", \", stdout); {cast write-call on (key-kind, "m->keys[i]")}; fputs(\": \", stdout); {cast write-call on (held, "m->vals[i]")}; \} fputs(\"\}\", stdout); \}\n" into out.
+        Insert "static void {map-c}_pair_write({map-c}_pair p) \{ fputs(\"mapping(\", stdout); {cast write-call on (key-kind, "p.key")}; fputs(\": \", stdout); {cast write-call on (held, "p.value")}; fputs(\")\", stdout); \}\n" into out.
+        Insert "static int {map-c}_pair_eq({map-c}_pair a, {map-c}_pair b) \{ return {cast c-equal on (key-kind, "a.key", "b.key")} && {cast c-equal on (held, "a.value", "b.value")}; \}\n\n" into out.
+        Return out converted to text.
+    Done.
+
+    // ── Expressions ───────────────────────────────────────────────────────
+
+    /// The kind a map expression gives, or a failure when it is beyond this compiler.
+    Bind text or failure to map-kind-of unto emitter, given (the node expression):
+        Define kind as expression's kind.
+        If kind is "MapLiteral":
+            If cast is-nothing on (cast field-of on (expression, 1)) is false:
+                Define key-kind as cast one's kind-of-type on (cast field-of on (expression, 1)) or pass the failure off.
+                Define held as cast one's kind-of-type on (cast field-of on (expression, 2)) or pass the failure off.
+                Return cast one's map-kind-of-type on (key-kind, held) or pass the failure off.
+            Done.
+            // `a map with ("a": 1)` names no types — its first entry does.
+            Define first-entry as item 1 of (cast field-of on (expression, 3))'s children.
+            Define key-kind as cast one's kind-of on (item 1 of first-entry's children) or pass the failure off.
+            Define held as cast one's kind-of on (item 2 of first-entry's children) or pass the failure off.
+            For each written in (cast field-of on (expression, 3))'s children, repeat:
+                Define other-key as cast one's kind-of on (item 1 of written's children) or pass the failure off.
+                Define other-held as cast one's kind-of on (item 2 of written's children) or pass the failure off.
+                If other-key is not key-kind or other-held is not held:
+                    Return a failure (cast not-built on ("a map literal whose entries differ in kind")).
+                Done.
+            Done.
+            Return cast one's map-kind-of-type on (key-kind, held) or pass the failure off.
+        Done.
+        If kind is "MapHasKey" or kind is "MapHasEntry", return "fact".
+        If kind is "MapLookup":
+            Define looked-in as cast one's kind-of on (cast field-of on (expression, 1)) or pass the failure off.
+            If cast is-map on (looked-in) is false, return a failure (cast not-built on ("an entry of a {looked-in}")).
+            Return cast looked-up-kind on (looked-in).
+        Done.
+        // `the size of`, `the key of`, `the value of` — a record's fields are for a later slice.
+        Define field-name as cast unquoted on (cast field-of on (expression, 1)).
+        Define target-kind as cast one's kind-of on (cast field-of on (expression, 2)) or pass the failure off.
+        If cast is-map on (target-kind) and field-name is "size", return "number".
+        If cast is-mapping on (target-kind):
+            If field-name is "key", return cast map-key-kind on (target-kind).
+            If field-name is "value", return cast map-value-kind on (target-kind).
+        Done.
+        If cast object-of on (target-kind) is not "", return cast one's possessive-kind-of on (cast as-possessive on (expression)) or pass the failure off.
+        Return a failure (cast not-built on ("the {field-name} of a {target-kind}")).
+    Done.
+
+    /// `the <field> of <object>` as the `<object>'s <field>` it means.
+    Bind node to as-possessive, given (the node expression):
+        Return cast made on ("PossessiveAccess", a series with (cast field-of on (expression, 2), cast field-of on (expression, 1))).
+    Done.
+
+    /// A map expression as C.
+    Bind text or failure to c-map-of unto emitter, given (the node expression):
+        Define kind as expression's kind.
+        If kind is "MapLiteral":
+            Define map-kind as cast one's map-kind-of on (expression) or pass the failure off.
+            Define map-c as cast map-c-name on (map-kind).
+            Define built as "(\{ {map-c}* cf_m = {map-c}_new();".
+            For each written in (cast field-of on (expression, 3))'s children, repeat:
+                Define key-c as cast one's c-of-as on (item 1 of written's children, cast map-key-kind on (map-kind)) or pass the failure off.
+                Define held-c as cast one's c-of-as on (item 2 of written's children, cast map-value-kind on (map-kind)) or pass the failure off.
+                The built becomes "{built} {map-c}_put(cf_m, {key-c}, {held-c});".
+            Done.
+            Return "{built} cf_m; \})".
+        Done.
+        If kind is "RecordNamedAccess":
+            Define field-name as cast unquoted on (cast field-of on (expression, 1)).
+            Define target as cast field-of on (expression, 2).
+            Cast one's map-kind-of on (expression) or pass the failure off.
+            If cast object-of on (cast one's kind-of on (target) or pass the failure off) is not "":
+                Return cast one's c-possessive on (cast as-possessive on (expression)) or pass the failure off.
+            Done.
+            Define target-c as cast one's c-of on (target) or pass the failure off.
+            If field-name is "size", return "cufet_dec_from_ll(({target-c})->len)".
+            If field-name is "key", return "({target-c}).key".
+            Return "({target-c}).value".
+        Done.
+        Define target as cast field-of on (expression, 1).
+        Define target-kind as cast one's kind-of on (target) or pass the failure off.
+        If cast is-map on (target-kind) is false, return a failure (cast not-built on ("an entry of a {target-kind}")).
+        Define map-c as cast map-c-name on (target-kind).
+        Define target-c as cast one's c-of on (target) or pass the failure off.
+        Define key-c as cast one's c-of-as on (cast field-of on (expression, 2), cast map-key-kind on (target-kind)) or pass the failure off.
+        If kind is "MapHasKey", return "{map-c}_has({target-c}, {key-c})".
+        If kind is "MapHasEntry", return "{map-c}_has_entry({target-c}, {key-c})".
+        Return "{map-c}_get({target-c}, {key-c})".
+    Done.
+
+    // ── Statements ────────────────────────────────────────────────────────
+
+    /// `In <map>, the entry for <key> becomes <value>.`
+    Bind void or failure to emit-map-set unto emitter, given (the node statement):
+        Define target as cast field-of on (statement, 1).
+        Define target-kind as cast one's kind-of on (target) or pass the failure off.
+        If cast is-map on (target-kind) is false, return a failure (cast not-built on ("an entry of a {target-kind}")).
+        Define target-c as cast one's c-of on (target) or pass the failure off.
+        Define key-c as cast one's c-of-as on (cast field-of on (statement, 2), cast map-key-kind on (target-kind)) or pass the failure off.
+        Define held-c as cast one's c-of-as on (cast field-of on (statement, 3), cast map-value-kind on (target-kind)) or pass the failure off.
+        Cast one's line on ("{cast map-c-name on (target-kind)}_put({target-c}, {key-c}, {held-c});").
+    Done.
+
+    /// `Remove <key> from <map>.` — refused, as the language does, when the key is not there.
+    Bind void or failure to emit-map-remove unto emitter, given (the node statement, the text target-kind):
+        Define target-c as cast one's c-of on (cast field-of on (statement, 1)) or pass the failure off.
+        Define key-c as cast one's c-of-as on (cast field-of on (statement, 2), cast map-key-kind on (target-kind)) or pass the failure off.
+        Cast one's line on ("{cast map-c-name on (target-kind)}_remove({target-c}, {key-c}, {(cast field-of on (statement, 3))'s word});").
+    Done.
+
+    /// `For each <name> in <map>, repeat:` — over the pairs as they were when it began. A key added
+    /// or removed while it runs is refused before the next pass, as the interpreter does — and not
+    /// on the way out, which a series loop also checks.
+    Bind void or failure to emit-map-for-each unto emitter, given (the node statement, the text held):
+        Define named as cast field-of on (statement, 1).
+        Define name as "it".
+        If cast is-nothing on (named) is false, the name becomes cast unquoted on (named).
+        Define over as cast field-of on (statement, 2).
+        Define map-c as cast map-c-name on (held).
+        Define key-c as cast c-type on (cast map-key-kind on (held)).
+        Define held-c as cast c-type on (cast map-value-kind on (held)).
+        Define label as "The map".
+        If over's kind is "VariableReference", the label becomes "'{cast unquoted on (cast field-of on (over, 1))}'".
+        Define map-value as cast one's c-of on (over) or pass the failure off.
+        Cast one's line on ("\{").
+        Define kept as a map from text to text.
+        For each pair in one's kinds, repeat:
+            In kept, the entry for the key of pair becomes the value of pair.
+        Done.
+        Define outer as one's indent.
+        The one's indent becomes outer joined to "    ".
+        Cast one's line on ("{map-c}* cf_each = {map-value};").
+        Cast one's line on ("int cf_each_n = cf_each->len;").
+        Cast one's line on ("{key-c}* cf_keys = ({key-c}*)cufet_arena_alloc((size_t)(cf_each_n + 1) * sizeof({key-c}));").
+        Cast one's line on ("{held-c}* cf_vals = ({held-c}*)cufet_arena_alloc((size_t)(cf_each_n + 1) * sizeof({held-c}));").
+        Cast one's line on ("if (cf_each_n > 0) \{ memcpy(cf_keys, cf_each->keys, (size_t)cf_each_n * sizeof({key-c})); memcpy(cf_vals, cf_each->vals, (size_t)cf_each_n * sizeof({held-c})); \}").
+        Cast one's line on ("for (int cf_i = 0; cf_i < cf_each_n; cf_i++) \{").
+        Define mapping-kind as "mapping from {cast map-key-kind on (held)} to {cast map-value-kind on (held)}".
+        In one's kinds, the entry for name becomes mapping-kind.
+        In one's kinds, the entry for "%{name}" becomes mapping-kind.
+        In one's kinds, the entry for "@{name}" becomes "".
+        The one's indent becomes outer joined to "        ".
+        Cast one's line on ("if (cf_each->len != cf_each_n) cufet_raise(cufet_msgf(\"{label} was modified during a for-each loop on line {(cast field-of on (statement, 4))'s word} — collect into a separate series, or use a While loop if you need to change it while looping.\"));").
+        Cast one's line on ("{map-c}_pair {cast c-name on (name)} = \{ cf_keys[cf_i], cf_vals[cf_i] \};").
+        The one's indent becomes outer joined to "    ".
+        Cast one's emit-block on (cast field-of on (statement, 3)) or pass the failure off.
+        Cast one's line on ("\}").
+        The one's indent becomes outer.
+        The one's kinds becomes kept.
+        Cast one's line on ("\}").
+    Done.
+Done.
