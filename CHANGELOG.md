@@ -10,13 +10,15 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Added
 
-- **The compiler written in Cufet builds records, text and patterns.** Records — made, read by
-  name and by place, set, copied as the values they are, compared, and held in series and maps;
-  text — `the length of`, `the characters from … to … of`, `contains`, `starts with` and `ends
-  with`, `the position of`, `replace`, `trimmed` and `split by`; `the arguments`; `Exit`; and
-  patterns, built from the `regex` book's own Cufet source as the `math` book is.
-  `CompilerParityTests` now holds it to the interpreter on 240 hand-written programs and on 22 of
-  the 67 in `examples/`.
+- **The compiler written in Cufet builds records, text, patterns and failures.** Records — made,
+  read by name and by place, set, copied as the values they are, compared, and held in series and
+  maps; text — `the length of`, `the characters from … to … of`, `contains`, `starts with` and
+  `ends with`, `the position of`, `replace`, `trimmed`, `split by` and `converted to number`;
+  `the arguments`; `Exit`; patterns, built from the `regex` book's own Cufet source as the `math`
+  book is; and failures — `or failure`, `return a failure`, `or pass the failure off`, `but on
+  failure`, `Try` with `In case of failure`, and reading a file — with a voidable narrowed after a
+  guard that leaves, as the checker narrows it. `CompilerParityTests` now holds it to the
+  interpreter on 255 hand-written programs and on 27 of the 67 in `examples/`.
 
 ## [0.27.0] — 2026-10-11
 

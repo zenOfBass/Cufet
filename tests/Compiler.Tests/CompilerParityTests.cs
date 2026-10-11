@@ -52,7 +52,7 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     : PipelineTestBase, IClassFixture<CompiledCufetCompiler>
 {
     /// <summary>How many hand-written programs must build and print alike. Raised as it grows; never lowered.</summary>
-    private const int BuiltFloor = 240;
+    private const int BuiltFloor = 255;
 
     private static string[] PreludeArgs =>
         ["--prelude", Path.Combine(RepoRoot, "src", "Interpreter", "Prelude").Replace('\\', '/')];
@@ -318,6 +318,22 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
         "Pull a book on regex.\n    Define regex digits as [^[0-9]+$].\n    State cast digits on (\"123\").\n    State cast digits on (\"12a\").\n    State cast digits on (\"\").\nDone.",
         "Pull a book on regex.\n    Define regex core as [^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$].\n    For each version in a series of text with (\"1.2.3\", \"01.2.3\", \"1.2\", \"10.20.30\"), repeat:\n        State \"{version}: {cast core on (version)}\".\n    Done.\nDone.",
         "Pull a book on regex.\n    Define regex vowel as [[aeiou]].\n    Define regex word-ish as [^\\w+$].\n    State cast vowel on (\"rhythm\").\n    State cast vowel on (\"rabbit\").\n    State cast word-ish on (\"hopper_2\").\n    State cast word-ish on (\"two words\").\nDone.",
+        // Failures — or failure, return a failure, or pass the failure off (as a value and as a statement), but on failure, Try and In case of failure (nested, in loops), the message and category of a failure; converted to number; reading a file that is not there; narrowing after a guard.
+        "Bind number or failure to to-positive, given (the number n):\n    If n is less than 1, return a failure \"{n} is not positive\" of category \"range\".\n    Return n.\nDone.\nState (cast to-positive on (3) but on failure 0).\nState (cast to-positive on (-3) but on failure 0).",
+        "Bind number or failure to to-positive, given (the number n):\n    If n is less than 1, return a failure \"{n} is not positive\" of category \"range\".\n    Return n.\nDone.\nBind number or failure to doubled, given (the number n):\n    Define p as cast to-positive on (n) or pass the failure off.\n    Return p * 2.\nDone.\nState (cast doubled on (4) but on failure -1).\nState (cast doubled on (0) but on failure -1).",
+        "Bind number or failure to to-positive, given (the number n):\n    If n is less than 1, return a failure \"{n} is not positive\" of category \"range\".\n    Return n.\nDone.\nBind number or failure to doubled, given (the number n):\n    Define p as cast to-positive on (n) or pass the failure off.\n    Return p * 2.\nDone.\nTry to:\n    State cast doubled on (5).\n    State cast doubled on (-2).\n    State \"not reached\".\nDone.\nIn case of failure:\n    State the message of the failure.\n    State the category of the failure.\nDone.\nState \"after\".",
+        "Bind void or failure to check, given (the number n):\n    If n is 0, return a failure \"zero\".\nDone.\nTry to:\n    Cast check on (1).\n    State \"one passed\".\n    Cast check on (0).\n    State \"not reached\".\nDone.\nIn case of failure:\n    State the message of the failure.\n    State the category of the failure.\n    State the failure.\nDone.",
+        "Bind void or failure to check, given (the number n):\n    If n is 0, return a failure \"zero\".\nDone.\nBind void or failure to check-both, given (the number n):\n    Cast check on (n) or pass the failure off.\n    Cast check on (n - 1) or pass the failure off.\n    Return.\nDone.\nTry to:\n    Cast check-both on (5).\n    State \"5 passed\".\n    Cast check-both on (1).\nDone.\nIn case of failure:\n    State \"failed: {the message of the failure}\".\nDone.",
+        "Bind number or failure to to-positive, given (the number n):\n    If n is less than 1, return a failure \"{n} is not positive\" of category \"range\".\n    Return n.\nDone.\nFor each n in a series with (2, 0, 3), repeat:\n    Try to:\n        Define p as cast to-positive on (n).\n        State p * 10.\n    Done.\n    In case of failure:\n        State \"skipped {n}\".\n    Done.\nDone.",
+        "Bind number or failure to to-positive, given (the number n):\n    If n is less than 1, return a failure \"{n} is not positive\" of category \"range\".\n    Return n.\nDone.\nTry to:\n    Try to:\n        State cast to-positive on (-1).\n    Done.\n    In case of failure:\n        State \"inner: {the message of the failure}\".\n        State cast to-positive on (-2).\n    Done.\nDone.\nIn case of failure:\n    State \"outer: {the message of the failure}\".\nDone.",
+        "Define err as a failure \"plain\".\nState err.\nState the message of err.\nState the category of err.\nDefine tagged as a failure \"tagged\" of category \"kind\".\nState the category of tagged.",
+        "Bind text or failure to label-of, given (the number n):\n    If n is 0, return a failure \"no label for zero\".\n    Return \"label {n}\".\nDone.\nState (cast label-of on (2) but on failure \"none\").\nState (cast label-of on (0) but on failure \"none\").",
+        "Define object ledger with (the number balance).\nBind void or failure to withdraw unto ledger, given (the number amount):\n    If amount is greater than one's balance, return a failure \"only {one's balance} left\".\n    Decrement one's balance by amount.\nDone.\nDefine account as a new ledger { the balance 10 }.\nTry to:\n    Cast account's withdraw on (4).\n    Cast account's withdraw on (9).\nDone.\nIn case of failure:\n    State \"{the message of the failure}, and {account's balance} is still there\".\nDone.",
+        "Try to:\n    Define body as read all from the file \"nope.txt\".\n    State body.\nDone.\nIn case of failure:\n    State the message of the failure.\nDone.",
+        "State \"42\" converted to number.\nState \"x\" converted to number.\nState \" 7 \" converted to number.\nState \"1e3\" converted to number.\nState \"-0.50\" converted to number.\nState (\"12\" converted to number but void is 0) + 1.",
+        "Bind number or failure to parse-it, given (the text written):\n    Define parsed as written converted to number.\n    If parsed is void, return a failure \"'{written}' is not a number\" of category \"parse\".\n    Return parsed.\nDone.\nTry to:\n    State cast parse-it on (\"12.5\").\n    State cast parse-it on (\"warm\").\nDone.\nIn case of failure:\n    State the message of the failure.\nDone.",
+        "Define whole as \"kept\".\nTry to:\n    The whole becomes read all from the file \"absent-whole.txt\".\nDone.\nIn case of failure:\n    State \"could not read: {the message of the failure}\".\nDone.\nState whole.",
+        "Bind series of text or failure to lines-of, given (the text file-path):\n    Define found as read all lines from the file file-path or pass the failure off.\n    Return found.\nDone.\nState the number of (cast lines-of on (\"missing.txt\") but on failure a series of text).\nTry to:\n    State cast lines-of on (\"also-missing.txt\").\nDone.\nIn case of failure:\n    State the message of the failure.\nDone.",
     ];
 
     [Fact]
@@ -370,7 +386,7 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     }
 
     /// <summary>How many programs of `examples/` must build and print alike. Raised as it grows; never lowered.</summary>
-    private const int CorpusFloor = 22;
+    private const int CorpusFloor = 27;
 
     /// <remarks>
     /// ★ The corpus is copied first: the compiler writes each program beside its source. Each program
