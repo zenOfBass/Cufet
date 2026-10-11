@@ -6,6 +6,18 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- **The compiler written in Cufet builds records, text and patterns.** Records — made, read by
+  name and by place, set, copied as the values they are, compared, and held in series and maps;
+  text — `the length of`, `the characters from … to … of`, `contains`, `starts with` and `ends
+  with`, `the position of`, `replace`, `trimmed` and `split by`; `the arguments`; `Exit`; and
+  patterns, built from the `regex` book's own Cufet source as the `math` book is.
+  `CompilerParityTests` now holds it to the interpreter on 240 hand-written programs and on 22 of
+  the 67 in `examples/`.
+
 ## [0.27.0] — 2026-10-11
 
 ### Added

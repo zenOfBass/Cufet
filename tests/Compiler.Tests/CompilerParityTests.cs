@@ -52,7 +52,7 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     : PipelineTestBase, IClassFixture<CompiledCufetCompiler>
 {
     /// <summary>How many hand-written programs must build and print alike. Raised as it grows; never lowered.</summary>
-    private const int BuiltFloor = 221;
+    private const int BuiltFloor = 240;
 
     private static string[] PreludeArgs =>
         ["--prelude", Path.Combine(RepoRoot, "src", "Interpreter", "Prelude").Replace('\\', '/')];
@@ -298,6 +298,26 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
         // `the <field> of <object>`, which means `<object>'s <field>`.
         "Define object box with (the number size, the text label):\n    Get doubled as number, one's size * 2.\nDone.\nDefine b as a new box { the size 3, the label \"crate\" }.\nState the size of b.\nState the label of b joined to \"!\".\nState the doubled of b.",
         "Define object link with (the text name, the number weight).\nDefine object chain with (the link head).\nDefine c as a new chain { the head a new link { the name \"first\", the weight 2 } }.\nState the name of the head of c.\nState the weight of (the head of c) + 1.",
+        // Records — made, read by name and by place, set, copied as values, compared, in series and maps; text — length, characters from … to, contains, starts/ends with, position, replace, trimmed, split; the arguments; Exit; and patterns, built from the regex book's own source.
+        "Define car as a record with (\"hatchback\", the make \"Honda\", the year 2021).\nState the first of car.\nState the make of car.\nState the year of car + 1.\nState car.",
+        "Define car as a record with (the make \"Honda\", the year 2021).\nThe make of car becomes \"Toyota\".\nState car.\nDefine truck as car.\nThe year of truck becomes 1999.\nState car.\nState truck.\nState car is truck.",
+        "Define pair-of as a record with (1, \"one\").\nState the first of pair-of.\nThe first of pair-of becomes 2.\nState pair-of.",
+        "Define left as a record with (the x 1, the y 2).\nDefine right as a record with (the y 2, the x 1).\nState left is right.\nState right.",
+        "Define parts as a series of records like (the number kind, the text ch).\nInsert a record with (the kind 1, the ch \"a\") into parts.\nInsert a record with (the ch \"b\", the kind 2) into parts.\nFor each part in parts, state \"{the ch of part}{the kind of part}\".\nState parts.\nState the kind of (item 2 of parts).",
+        "Bind record with (the number low, the number high) to span-of, given (the series of number values):\n    Define low as item 1 of values.\n    Define high as item 1 of values.\n    For each value-seen in values, repeat:\n        If value-seen < low, the low becomes value-seen.\n        If value-seen > high, the high becomes value-seen.\n    Done.\n    Return a record with (the low low, the high high).\nDone.\nDefine found as cast span-of on (a series with (4, 9, 2, 7)).\nState the low of found.\nState the high of found.\nState found.",
+        "Define nested as a record with (the inner a record with (the n 5), the label \"outer\").\nState the n of the inner of nested.\nState nested.",
+        "Define scores as a map from text to record like (the number wins, the number losses).\nIn scores, the entry for \"hopper\" becomes a record with (the wins 3, the losses 1).\nState scores.\nDefine found as the entry for \"hopper\" in scores.\nIf found is not void, state the wins of found.",
+        "Define word as \"hello\".\nState the length of word.\nState the length of \"\".\nState the characters from 2 to 4 of word.\nState the characters from 3 to the end of word.",
+        "Define word as \"hello\".\nState word contains \"ell\".\nState word contains \"z\".\nState word starts with \"he\".\nState word ends with \"he\".",
+        "Define pieces as \"a,b,,c\" split by \",\".\nState pieces.\nState the number of pieces.\nFor each piece in \"one two\" split by \" \", state piece.",
+        "State replace \"l\" with \"L\" in \"hello\".\nState \"  padded  \" trimmed joined to \"|\".\nState the position of \"l\" in \"hello\".\nState the position of \"z\" in \"hello\".\nState (the position of \"o\" in \"hello\" but void is 0) + 1.",
+        "Define word as \"héllo wörld\".\nState the length of word.\nState the characters from 2 to 2 of word.\nState the characters from 8 to 8 of word.",
+        "Define word as \"abc\".\nState the characters from 2 to 9 of word.",
+        "State the arguments.\nState the number of the arguments.\nFor each passed in the arguments, state passed.",
+        "State \"before\".\nExit.\nState \"after\".",
+        "Pull a book on regex.\n    Define regex digits as [^[0-9]+$].\n    State cast digits on (\"123\").\n    State cast digits on (\"12a\").\n    State cast digits on (\"\").\nDone.",
+        "Pull a book on regex.\n    Define regex core as [^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$].\n    For each version in a series of text with (\"1.2.3\", \"01.2.3\", \"1.2\", \"10.20.30\"), repeat:\n        State \"{version}: {cast core on (version)}\".\n    Done.\nDone.",
+        "Pull a book on regex.\n    Define regex vowel as [[aeiou]].\n    Define regex word-ish as [^\\w+$].\n    State cast vowel on (\"rhythm\").\n    State cast vowel on (\"rabbit\").\n    State cast word-ish on (\"hopper_2\").\n    State cast word-ish on (\"two words\").\nDone.",
     ];
 
     [Fact]
@@ -350,7 +370,7 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     }
 
     /// <summary>How many programs of `examples/` must build and print alike. Raised as it grows; never lowered.</summary>
-    private const int CorpusFloor = 20;
+    private const int CorpusFloor = 22;
 
     /// <remarks>
     /// ★ The corpus is copied first: the compiler writes each program beside its source. Each program
