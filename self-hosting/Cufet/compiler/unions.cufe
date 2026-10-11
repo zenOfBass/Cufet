@@ -105,7 +105,9 @@ Pull a book on collections.
 
     /// Notes a union type the program uses, so its struct is written.
     Bind void to register-union unto emitter, given (the text kind):
-        If cast is-union on (kind) is false, return.
+        // A voidable of a number, a text or a fact is in every program already.
+        If cast is-voidable on (kind) and cast is-scalar on (cast voidable-inner on (kind)), return.
+        If cast is-union on (kind) is false and cast is-voidable on (kind) is false, return.
         If (the entry for kind in one's unions) is void:
             In one's unions, the entry for kind becomes true.
             Insert kind into one's union-order.
@@ -115,7 +117,9 @@ Pull a book on collections.
     /// A value of kind `from` as one of kind `wanted`: wrapped into a union, converted from a
     /// smaller union, or as it is.
     Bind text to c-coerce unto emitter, given (the text value, the text source-kind, the text wanted):
-        If source-kind is wanted or cast is-union on (wanted) is false, return value.
+        If source-kind is wanted, return value.
+        If cast is-voidable on (wanted), return cast one's c-into-voidable on (value, source-kind, wanted).
+        If cast is-union on (wanted) is false, return value.
         Cast one's register-union on (wanted).
         Define wanted-c as cast union-c-name on (wanted).
         If cast is-union on (source-kind) is false:
@@ -154,6 +158,13 @@ Pull a book on collections.
     /// Narrows a name to some of its cases: it reads as that case's member, or as the smaller union.
     Bind void to narrow unto emitter, given (the text name, the text to-kind):
         Define stored as cast one's stored-kind on (name).
+        // A voidable narrowed to what it holds reads as its value.
+        If cast is-voidable on (stored) and to-kind is cast voidable-inner on (stored):
+            In one's kinds, the entry for "%{name}" becomes stored.
+            In one's kinds, the entry for name becomes to-kind.
+            In one's kinds, the entry for "@{name}" becomes "({cast c-name on (name)}).value".
+            Return.
+        Done.
         If cast is-union on (stored) is false, return.
         In one's kinds, the entry for "%{name}" becomes stored.
         In one's kinds, the entry for name becomes to-kind.
@@ -173,6 +184,20 @@ Pull a book on collections.
     /// by `or` — the name, its tested cases, and whether the test is `is not a`. "" for none.
     Bind map from text to text or failure to narrowing-of unto emitter, given (the node condition):
         Define found as a map from text to text.
+        // `<name> is not void` is a test that it holds its value; `is void`, that it does not.
+        If cast is-void-test on (condition):
+            Define tested as cast field-of on (condition, 1).
+            If tested's kind is "VoidLiteral", the tested becomes cast field-of on (condition, 3).
+            If tested's kind is not "VariableReference", return found.
+            Define tested-name as cast unquoted on (cast field-of on (tested, 1)).
+            Define tested-kind as the entry for tested-name in one's kinds but void is "".
+            If cast is-voidable on (tested-kind) is false, return found.
+            In found, the entry for "name" becomes tested-name.
+            In found, the entry for "cases" becomes cast voidable-inner on (tested-kind).
+            If (cast field-of on (condition, 2))'s word is "Equal", in found, the entry for "negated" becomes "true".
+            Otherwise, in found, the entry for "negated" becomes "false".
+            Return found.
+        Done.
         If condition's kind is "IsTypeCheck":
             Define target as cast field-of on (condition, 1).
             If target's kind is not "VariableReference", return found.

@@ -64,7 +64,7 @@ Pull a book on collections.
 
     /// One file built, or why not — the line printed for it.
     Bind text to built, given (the text source-file, the series of node prelude, the text runtime-folder,
-            the map from text to node shared-trees):
+            the map from text to node shared-trees, the text prelude-folder):
         // ⚠ Loud: a file that cannot be read is not an empty program, which would build.
         Define whole as "".
         Try to:
@@ -97,7 +97,7 @@ Pull a book on collections.
         Done.
         Define source as "".
         Try to:
-            The source becomes cast c-program on (handed-on).
+            The source becomes cast c-program on (handed-on, prelude-folder).
         Done.
         In case of failure:
             Return the message of the failure.
@@ -175,7 +175,7 @@ Pull a book on collections.
         // Each file in a region of its own, as the checker does, so what building it made is gone before the next.
         Pull a rabbit.
             Try to:
-                State cast built on (name, prelude, runtime-folder, shared-trees).
+                State cast built on (name, prelude, runtime-folder, shared-trees, prelude-folder).
             Done.
             In case of failure:
                 State "crash\t{cast flattened on (the message of the failure)}".

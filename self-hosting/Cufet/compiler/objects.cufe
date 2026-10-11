@@ -27,7 +27,6 @@ Pull a book on collections.
     /// What this compiler cannot build in an object yet, or "".
     Bind text to object-beyond, given (the node definition):
         If the number of (cast field-of on (definition, 2))'s children is greater than 0, return "an object with positional fields".
-        If the number of (cast field-of on (definition, 5))'s children is greater than 0, return "an object with getters".
         If the number of (cast field-of on (definition, 6))'s children is greater than 0, return "an object with setters".
         If cast is-nothing on (cast field-of on (definition, 7)) is false, return "an object that embeds another".
         For each place in a series with (12, 13, 14), repeat:
@@ -55,12 +54,20 @@ Pull a book on collections.
         Define held as cast one's kind-of on (cast field-of on (expression, 1)) or pass the failure off.
         Define object-name as cast object-of on (held).
         If object-name is "", return a failure (cast not-built on ("'s on a {held}")).
+        // Not a field: a getter.
+        Define getter as the entry for "{object-name}'s getter {cast unquoted on (cast field-of on (expression, 2))}" in one's methods.
+        If getter is not void, return cast one's kind-of-type on (cast field-of on (getter, 2)) or pass the failure off.
         Return cast one's field-kind on (object-name, cast unquoted on (cast field-of on (expression, 2))) or pass the failure off.
     Done.
 
     Bind text or failure to c-possessive unto emitter, given (the node expression):
         Cast one's possessive-kind-of on (expression) or pass the failure off.
         Define held as cast one's c-of on (cast field-of on (expression, 1)) or pass the failure off.
+        Define object-name as cast object-of on (cast one's kind-of on (cast field-of on (expression, 1)) or pass the failure off).
+        Define member as cast unquoted on (cast field-of on (expression, 2)).
+        If (the entry for "{object-name}'s getter {member}" in one's methods) is not void:
+            Return "{cast c-getter-name on (object-name, member)}({held})".
+        Done.
         Return "({held}).{cast c-name on (cast unquoted on (cast field-of on (expression, 2)))}".
     Done.
 
@@ -130,6 +137,29 @@ Pull a book on collections.
         Return "{cast c-method-name on (object-name, cast unquoted on (cast field-of on (called, 1)))}({listing})".
     Done.
 
+    Bind text to c-getter-name, given (the text object-name, the text getter-name):
+        Return "cg_{cast c-ident on (object-name)}_{cast c-ident on (getter-name)}".
+    Done.
+
+    /// A getter's head as C: what it gives back, its name, and the object it reads — by value, so
+    /// it may read the result of a call as well as a name.
+    Bind text or failure to c-getter-signature unto emitter, given (the text object-name, the node getter):
+        Define gives as cast one's kind-of-type on (cast field-of on (getter, 2)) or pass the failure off.
+        Return "{cast c-type on (gives)} {cast c-getter-name on (object-name, cast unquoted on (cast field-of on (getter, 1)))}({cast c-struct-name on (object-name)} cf_self)".
+    Done.
+
+    /// One getter as C. Its body sees `one`, the object it reads.
+    Bind text or failure to c-getter unto emitter, given (the text object-name, the node getter):
+        Define writer as cast one's sibling.
+        In writer's kinds, the entry for "one" becomes "object {object-name}".
+        In writer's kinds, the entry for "%return" becomes cast one's kind-of-type on (cast field-of on (getter, 2)) or pass the failure off.
+        For each inner in (cast field-of on (getter, 3))'s children, repeat:
+            Cast writer's emit-statement on (inner) or pass the failure off.
+        Done.
+        Define signature as cast one's c-getter-signature on (object-name, getter) or pass the failure off.
+        Return "{signature} \{\n    {cast c-struct-name on (object-name)}* cv_one = &cf_self;\n{writer's body converted to text}\}\n\n".
+    Done.
+
     Bind text to c-method-name, given (the text object-name, the text method-name):
         Return "cm_{cast c-ident on (object-name)}_{cast c-ident on (method-name)}".
     Done.
@@ -181,6 +211,9 @@ Pull a book on collections.
             Define held as cast one's kind-of-type on (cast field-of on (pair, 2)) or pass the failure off.
             // A union's struct comes after the objects it may hold, so an object cannot hold one yet.
             If cast is-union on (held), return a failure (cast not-built on ("an object with a union field")).
+            If cast is-voidable on (held) and cast is-scalar on (cast voidable-inner on (held)) is false:
+                Return a failure (cast not-built on ("an object with a field of a voidable {cast voidable-inner on (held)}")).
+            Done.
             Insert "    {cast c-type on (held)} {cast c-name on (cast unquoted on (cast field-of on (pair, 1)))};\n" into out.
         Done.
         Insert "\} {cast c-struct-name on (object-name)};\n" into out.

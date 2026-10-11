@@ -19,7 +19,8 @@ Pull a book on collections.
         the map from text to node interfaces, the map from text to fact specialized,
         the series of node pending-functions, the series of text pending-names,
         the series of map from text to text pending-kinds, the map from text to fact unions,
-        the series of text union-order).
+        the series of text union-order, the map from text to text constants,
+        the map from text to fact constant-places).
 
     /// An emitter for the program, knowing its functions, objects, methods — a method under
     /// `<object>'s <method>` — and interfaces by name.
@@ -29,7 +30,8 @@ Pull a book on collections.
             the functions functions, the objects objects, the methods methods, the interfaces interfaces,
             the specialized a map from text to fact, the pending-functions a series of node,
             the pending-names a series of text, the pending-kinds a series of map from text to text,
-            the unions a map from text to fact, the union-order a series of text }.
+            the unions a map from text to fact, the union-order a series of text,
+            the constants a map from text to text, the constant-places a map from text to fact }.
     Done.
 
     /// An emitter for another body of the same program — every table shared, the copies asked for
@@ -39,7 +41,8 @@ Pull a book on collections.
             the functions one's functions, the objects one's objects, the methods one's methods,
             the interfaces one's interfaces, the specialized one's specialized,
             the pending-functions one's pending-functions, the pending-names one's pending-names,
-            the pending-kinds one's pending-kinds, the unions one's unions, the union-order one's union-order }.
+            the pending-kinds one's pending-kinds, the unions one's unions, the union-order one's union-order,
+            the constants one's constants, the constant-places one's constant-places }.
     Done.
 
     /// What this compiler cannot build yet, as a failure message.
@@ -83,6 +86,14 @@ Pull a book on collections.
             Cast one's register-union on (union).
             Return union.
         Done.
+        If written's kind is "VoidableType":
+            Define inner as cast one's kind-of-type on (cast field-of on (written, 1)) or pass the failure off.
+            If cast is-scalar on (inner) is false and cast object-of on (inner) is "" and cast is-union on (inner) is false:
+                Return a failure (cast not-built on ("a voidable {inner}")).
+            Done.
+            Cast one's register-union on ("voidable {inner}").
+            Return "voidable {inner}".
+        Done.
         If written's kind is "SeriesType":
             Define element as cast one's kind-of-type on (cast field-of on (written, 1)) or pass the failure off.
             If cast is-element-kind on (element), return "series of {element}".
@@ -105,13 +116,14 @@ Pull a book on collections.
         Define dot as (the position of "." in unsigned but void is 0).
         If dot is greater than 0, the scale becomes the length of unsigned - dot.
         Define digits as replace "." with "" in unsigned.
-        // Nineteen digits fit the low word of the coefficient; more wait for the high one.
-        If the length of digits is greater than 19:
-            Return a failure (cast not-built on ("a number of more than nineteen digits")).
-        Done.
-        // Written without its leading zeros, which C would read as octal.
-        Define coefficient as (digits converted to number but void is 0) converted to text.
-        Return "cufet_dec_lit(0ULL, {coefficient}ULL, {scale}, {sign})".
+        // Written without its leading zeros, which C would read as octal — and split across two
+        // 64-bit words, the high one what is left after the low one is taken out.
+        Define coefficient as digits converted to number but void is 0.
+        Define word-size as 18446744073709551616.
+        Define over as coefficient / word-size.
+        Define high-word as over - over % 1.
+        Define low-word as coefficient - high-word * word-size.
+        Return "cufet_dec_lit({high-word}ULL, {low-word}ULL, {scale}, {sign})".
     Done.
 
     /// The kind of value an expression gives: "number", "text", "fact", or "series of" one of them.
@@ -123,7 +135,9 @@ Pull a book on collections.
             "BooleanLiteral", return "fact".
             "VariableReference":
                 Define known as the entry for cast unquoted on (cast field-of on (expression, 1)) in one's kinds.
-                If known is void, return a failure (cast not-built on ("a name defined where this compiler cannot see it")).
+                // A shared constant is seen from anywhere.
+                If known is void, the known becomes the entry for cast unquoted on (cast field-of on (expression, 1)) in one's constants.
+                If known is void, return a failure (cast not-built on ("the name '{cast unquoted on (cast field-of on (expression, 1))}', defined where this compiler cannot see it")).
                 Return known.
             Done.
             "UnaryExpression":
@@ -161,6 +175,8 @@ Pull a book on collections.
                 Return cast one's series-kind-of on (expression) or pass the failure off.
             Done.
             "IsTypeCheck", return "fact".
+            "VoidLiteral", return "void".
+            "ButVoidDefault", return cast one's but-void-kind-of on (expression) or pass the failure off.
             Otherwise, return a failure (cast not-built on (kind)).
         Done.
     Done.
@@ -207,6 +223,9 @@ Pull a book on collections.
                 Return cast one's c-series-of on (expression) or pass the failure off.
             Done.
             "IsTypeCheck", return cast one's c-type-check on (expression) or pass the failure off.
+            // `void` has no C of its own: it is made into the voidable it goes into.
+            "VoidLiteral", return "0".
+            "ButVoidDefault", return cast one's c-but-void on (expression) or pass the failure off.
             Otherwise, return a failure (cast not-built on (kind)).
         Done.
     Done.
@@ -269,6 +288,7 @@ Pull a book on collections.
     Done.
 
     Bind text or failure to c-binary unto emitter, given (the node expression):
+        If cast is-void-test on (expression), return cast one's c-void-test on (expression) or pass the failure off.
         Define left-side as cast field-of on (expression, 1).
         Define operator as (cast field-of on (expression, 2))'s word.
         Define left as cast one's c-of on (left-side) or pass the failure off.
@@ -319,6 +339,7 @@ Pull a book on collections.
 
     /// The C type a kind of value is held in.
     Bind text to c-type, given (the text kind):
+        If cast is-voidable on (kind), return cast voidable-c-name on (kind).
         If cast is-union on (kind), return cast union-c-name on (kind).
         If cast element-of on (kind) is not "", return "{cast series-c-name on (cast element-of on (kind))}*".
         If cast object-of on (kind) is not "", return cast c-struct-name on (cast object-of on (kind)).
@@ -329,6 +350,7 @@ Pull a book on collections.
 
     /// The runtime call that writes a value of a kind, without the line's end.
     Bind text to write-call, given (the text kind, the text value):
+        If cast is-voidable on (kind), return "{cast voidable-c-name on (kind)}_write({value})".
         If cast is-union on (kind), return "{cast union-c-name on (kind)}_write({value})".
         If cast element-of on (kind) is not "", return "{cast series-c-name on (cast element-of on (kind))}_write({value})".
         If cast object-of on (kind) is not "", return "{cast c-struct-name on (cast object-of on (kind))}_write({value})".
@@ -361,6 +383,7 @@ Pull a book on collections.
 
     /// Whether `left` and `right`, two values of `kind`, are equal — as C.
     Bind text to c-equal, given (the text kind, the text left, the text right):
+        If cast is-voidable on (kind), return "{cast voidable-c-name on (kind)}_eq({left}, {right})".
         If cast is-union on (kind), return "{cast union-c-name on (kind)}_eq({left}, {right})".
         If cast element-of on (kind) is not "", return "{cast series-c-name on (cast element-of on (kind))}_eq({left}, {right})".
         If cast object-of on (kind) is not "", return "{cast c-struct-name on (cast object-of on (kind))}_eq({left}, {right})".
@@ -380,11 +403,13 @@ Pull a book on collections.
                 Cast one's line on ("cufet_out_lock(); {cast write-call on (value-kind, value)}; cufet_nl(); cufet_out_unlock();").
             Done.
             "DefineStatement":
-                // A `permanently` constant waits for a later slice.
-                If (cast field-of on (statement, 3))'s word is "true":
-                    Return a failure (cast not-built on ("a permanent Define")).
-                Done.
                 Define name as cast unquoted on (cast field-of on (statement, 1)).
+                // A shared constant is a global, set where its `Define` stands.
+                If (the entry for cast place-of-define on (statement) in one's constant-places) is not void:
+                    Define shared-kind as the entry for name in one's constants but void is "".
+                    Cast one's line on ("{cast c-name on (name)} = {cast one's c-of-as on (cast field-of on (statement, 2), shared-kind) or pass the failure off};").
+                    Return.
+                Done.
                 Define assigned as cast field-of on (statement, 2).
                 Define value-kind as cast one's kind-of on (assigned) or pass the failure off.
                 // Declared with a type, it holds that type — a union, the value wrapped into it.
@@ -400,7 +425,7 @@ Pull a book on collections.
             "BecomesStatement":
                 Define name as cast unquoted on (cast field-of on (statement, 1)).
                 If (the entry for name in one's kinds) is void:
-                    Return a failure (cast not-built on ("a name defined where this compiler cannot see it")).
+                    Return a failure (cast not-built on ("the name '{name}', defined where this compiler cannot see it")).
                 Done.
                 // Into what the name is stored as — and a narrowed name is narrowed no more.
                 Define stored as cast one's stored-kind on (name).
@@ -462,15 +487,40 @@ Pull a book on collections.
         Done.
         Define outer as one's indent.
         The one's indent becomes outer joined to "    ".
-        If statement's kind is "PullStatement", cast one's emit-pulled-modules on (statement) or pass the failure off.
         For each inner in (cast field-of on (statement, 2))'s children, repeat:
-            If inner's kind is not "BindStatement" and inner's kind is not "ObjectDefinition" and inner's kind is not "InterfaceDefinition":
+            If cast declares-only on (inner) is false:
                 Cast one's emit-statement on (inner) or pass the failure off.
             Done.
         Done.
         The one's indent becomes outer.
         The one's kinds becomes kept.
         Cast one's line on ("\}").
+    Done.
+
+    /// Whether a statement only declares — gathered with the program's declarations, and built there.
+    Bind fact to declares-only, given (the node statement):
+        Define kind as statement's kind.
+        Return kind is "BindStatement" or kind is "ObjectDefinition" or kind is "InterfaceDefinition"
+            or kind is "GetterDeclaration" or kind is "SetterDeclaration".
+    Done.
+
+    /// Where a `Define` stands, as the key its constant is known by.
+    Bind text to place-of-define, given (the node statement):
+        Return "{(cast field-of on (statement, 5))'s word}:{(cast field-of on (statement, 6))'s word}".
+    Done.
+
+    /// The bundled books with a Cufet layer this compiler can build from source.
+    Bind series of text to layered-books:
+        Return a series of text with ("math", "chance", "collections").
+    Done.
+
+    /// Whether a program names something — a book it calls, say — anywhere in it.
+    Bind fact to names-anywhere, given (the node tree, the text name):
+        If tree's kind is "VariableReference" and cast unquoted on (cast field-of on (tree, 1)) is name, return true.
+        For each child in tree's children, repeat:
+            If child's kind is not "atom" and cast names-anywhere on (child, name), return true.
+        Done.
+        Return false.
     Done.
 
     /// The statements hoisting reaches: the top level and every pull's body, rabbits' included.
@@ -590,7 +640,7 @@ Pull a book on collections.
 
     /// The whole program as one C file: the series types, its objects, its functions and methods —
     /// declared first, so any may call any — then what it does.
-    Bind text or failure to c-program, given (the node program):
+    Bind text or failure to c-program, given (the node program, the text prelude-folder):
         Define functions as a map from text to node.
         Define objects as a map from text to node.
         Define methods as a map from text to node.
@@ -598,6 +648,24 @@ Pull a book on collections.
         Define owned as a series of node.
         Define owners as a series of text.
         Define hoisted as a series of node.
+        // A bundled book the program calls is built from its own source, as a module is — its
+        // constants set before anything runs, as the prelude's are.
+        Define book-constants as a series of node.
+        For each book in cast layered-books, repeat:
+            If cast names-anywhere on (program, book):
+                Define layer as cast listed.
+                Try to:
+                    The layer becomes cast parser's program-tree on (read all from the file "{prelude-folder}/{book}.cufe").
+                Done.
+                In case of failure:
+                    Return a failure (cast not-built on ("the {book} book, which could not be read")).
+                Done.
+                For each statement in layer's children, repeat:
+                    Insert statement into hoisted.
+                    If statement's kind is "DefineStatement", insert statement into book-constants.
+                Done.
+            Done.
+        Done.
         Cast gather-hoisted on (program, hoisted).
         Define interfaces as a map from text to node.
         For each statement in hoisted, repeat:
@@ -638,6 +706,42 @@ Pull a book on collections.
             Done.
         Done.
         Define writer as cast fresh-emitter on (functions, objects, methods, interfaces).
+        // Getters, by the object they read: written inside it, or bound `unto` it.
+        Define getters as a series of node.
+        Define getter-owners as a series of text.
+        For each statement in hoisted, repeat:
+            If statement's kind is "ObjectDefinition":
+                For each getter in (cast field-of on (statement, 5))'s children, repeat:
+                    Insert getter into getters.
+                    Insert cast unquoted on (cast field-of on (statement, 1)) into getter-owners.
+                Done.
+            Done.
+            If statement's kind is "GetterDeclaration" and cast is-nothing on (cast field-of on (statement, 4)) is false:
+                Insert statement into getters.
+                Insert cast unquoted on (cast field-of on (statement, 4)) into getter-owners.
+            Done.
+        Done.
+        Define getter-place as 0.
+        For each getter in getters, repeat:
+            Increment getter-place by 1.
+            In methods, the entry for "{item getter-place of getter-owners}'s getter {cast unquoted on (cast field-of on (getter, 1))}" becomes getter.
+        Done.
+        Cast writer's register-pulled-modules on (hoisted).
+        // Every shared constant: a `permanently` the hoist reaches, its kind known before any body is.
+        For each statement in hoisted, repeat:
+            If statement's kind is "DefineStatement" and (cast field-of on (statement, 3))'s word is "true":
+                Define constant-name as cast unquoted on (cast field-of on (statement, 1)).
+                Define constant-kind as "".
+                If cast is-nothing on (cast field-of on (statement, 7)) is false:
+                    The constant-kind becomes cast writer's kind-of-type on (cast field-of on (statement, 7)) or pass the failure off.
+                Done.
+                Otherwise:
+                    The constant-kind becomes cast writer's kind-of on (cast field-of on (statement, 2)) or pass the failure off.
+                Done.
+                In writer's constants, the entry for constant-name becomes constant-kind.
+                In writer's constant-places, the entry for cast place-of-define on (statement) becomes true.
+            Done.
+        Done.
         For each pair in objects, repeat:
             Define conformance as cast writer's conformance-beyond on (the value of pair).
             If conformance is not "", return a failure (cast not-built on (conformance)).
@@ -681,6 +785,13 @@ Pull a book on collections.
                 Done.
             Done.
         Done.
+        Define getter-index as 0.
+        For each getter in getters, repeat:
+            Increment getter-index by 1.
+            Define getter-owner as item getter-index of getter-owners.
+            Insert "{cast writer's c-getter-signature on (getter-owner, getter) or pass the failure off};\n" into declared.
+            Insert cast writer's c-getter on (getter-owner, getter) or pass the failure off into defined.
+        Done.
         Define place as 0.
         For each method in owned, repeat:
             Increment place by 1.
@@ -688,8 +799,12 @@ Pull a book on collections.
             Insert "{cast writer's c-method-signature on (owner, method) or pass the failure off};\n" into declared.
             Insert cast writer's c-method on (owner, method) or pass the failure off into defined.
         Done.
+        // A book's constants first, as the prelude runs before the program.
+        For each constant in book-constants, repeat:
+            Cast writer's emit-statement on (constant) or pass the failure off.
+        Done.
         For each statement in program's children, repeat:
-            If statement's kind is not "BindStatement" and statement's kind is not "ObjectDefinition":
+            If cast declares-only on (statement) is false:
                 Cast writer's emit-statement on (statement) or pass the failure off.
             Done.
         Done.
@@ -703,18 +818,29 @@ Pull a book on collections.
             Insert "{cast writer's c-signature on (copied, copy-kinds, copy-name) or pass the failure off};\n" into declared.
             Insert cast writer's c-function on (copied, copy-kinds, copy-name) or pass the failure off into defined.
         Done.
-        // Every union the program used, each with its series — after the objects they may hold.
+        // Every union the program used, each with its series, and every voidable of an object or a
+        // union — after the objects they may hold. Then the shared constants, now every type is whole.
         Define union-types as a chase.
         For each union in writer's union-order, repeat:
-            Insert cast c-union-helpers on (union) into union-types.
-            Insert cast c-series-helpers on (union) into union-types.
+            If cast is-voidable on (union):
+                Insert cast c-voidable-helpers on (union) into union-types.
+            Done.
+            Otherwise:
+                Insert cast c-union-helpers on (union) into union-types.
+                Insert cast c-series-helpers on (union) into union-types.
+            Done.
+        Done.
+        For each pair in writer's constants, repeat:
+            Insert "static {cast c-type on (the value of pair)} {cast c-name on (the key of pair)};\n" into union-types.
         Done.
         Define out as a chase.
         Insert "#include \"cufet-runtime.h\"\n\n" into out.
         Insert cast c-series-prelude into out.
+        Insert cast c-voidable-prelude into out.
         // A series of a union named ahead of the objects, which may hold one by its address — and
         // how it is written and compared, which an object's own writing calls.
         For each union in writer's union-order, repeat:
+            If cast is-voidable on (union), skip.
             Define series-type as cast series-c-name on (union).
             Insert "typedef struct {series-type}_s {series-type};\n" into out.
             Insert "static void {series-type}_write({series-type}* s);\n" into out.

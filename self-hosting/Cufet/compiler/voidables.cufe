@@ -1,0 +1,101 @@
+/*  Voidables — `voidable number`, `void`, `but void is`, and narrowing by `is not void`.
+
+    ★ A voidable is `{ has, value }`: `has` is 0 for void. A value goes in WRAPPED — the same
+      coercion a union's cases go in by — and comes out by `but void is`, or by narrowing: inside
+      `If x is not void`, `x` reads as its value.
+
+    ★ A voidable of a number, a text or a fact is written into every program, ahead of the
+      objects, so an object may hold one; a voidable of an object or a union is written with the
+      unions, after the objects it holds.
+*/
+
+Pull a book on collections.
+    Bind fact to is-voidable, given (the text kind):
+        Return kind starts with "voidable ".
+    Done.
+
+    /// What a voidable holds when it is not void.
+    Bind text to voidable-inner, given (the text kind):
+        Return the characters from 10 to the end of kind.
+    Done.
+
+    Bind text to voidable-c-name, given (the text kind):
+        Define inner as cast voidable-inner on (kind).
+        If cast is-union on (inner), return "cvo_{cast union-c-name on (inner)}".
+        If cast object-of on (inner) is not "", return "cvo_obj_{cast c-ident on (cast object-of on (inner))}".
+        Return "cvo_{inner}".
+    Done.
+
+    /// A voidable's struct, how one is made, and how it is written and compared.
+    Bind text to c-voidable-helpers, given (the text kind):
+        Define type-c as cast voidable-c-name on (kind).
+        Define inner as cast voidable-inner on (kind).
+        Define held as cast c-type on (inner).
+        Define out as a chase.
+        Insert "typedef struct \{ int has; {held} value; \} {type-c};\n" into out.
+        Insert "static {type-c} {type-c}_some({held} v) \{ {type-c} o; memset(&o, 0, sizeof o); o.has = 1; o.value = v; return o; \}\n" into out.
+        Insert "static {type-c} {type-c}_none(void) \{ {type-c} o; memset(&o, 0, sizeof o); return o; \}\n" into out.
+        Insert "static void {type-c}_write({type-c} o) \{ if (o.has) \{ {cast write-call on (inner, "o.value")}; \} else fputs(\"void\", stdout); \}\n" into out.
+        Insert "static int {type-c}_eq({type-c} a, {type-c} b) \{ if (a.has != b.has) return 0; if (!a.has) return 1; return {cast c-equal on (inner, "a.value", "b.value")}; \}\n\n" into out.
+        Return out converted to text.
+    Done.
+
+    /// Every voidable of a number, a text or a fact.
+    Bind text to c-voidable-prelude:
+        Define out as a chase.
+        For each inner in a series of text with ("number", "text", "fact"), repeat:
+            Insert cast c-voidable-helpers on ("voidable {inner}") into out.
+        Done.
+        Return out converted to text.
+    Done.
+
+    /// A value going into a voidable place: void, wrapped, or as it is.
+    Bind text to c-into-voidable unto emitter, given (the text value, the text source-kind, the text wanted):
+        If source-kind is wanted, return value.
+        Define type-c as cast voidable-c-name on (wanted).
+        If source-kind is "void", return "{type-c}_none()".
+        Define inner as cast voidable-inner on (wanted).
+        Return "{type-c}_some({cast one's c-coerce on (value, source-kind, inner)})".
+    Done.
+
+    // ── Expressions ───────────────────────────────────────────────────────
+
+    /// `<value> but void is <default>` — the value, or the default where it is void; the default
+    /// worked out only then.
+    Bind text or failure to c-but-void unto emitter, given (the node expression):
+        Define held as cast field-of on (expression, 1).
+        Define held-kind as cast one's kind-of on (held) or pass the failure off.
+        Define value as cast one's c-of on (held) or pass the failure off.
+        If cast is-voidable on (held-kind) is false, return value.
+        Define inner as cast voidable-inner on (held-kind).
+        Define fallback as cast one's c-of-as on (cast field-of on (expression, 2), inner) or pass the failure off.
+        Return "(\{ {cast voidable-c-name on (held-kind)} cf_v = {value}; cf_v.has ? cf_v.value : ({fallback}); \})".
+    Done.
+
+    Bind text or failure to but-void-kind-of unto emitter, given (the node expression):
+        Define held-kind as cast one's kind-of on (cast field-of on (expression, 1)) or pass the failure off.
+        If cast is-voidable on (held-kind), return cast voidable-inner on (held-kind).
+        Return held-kind.
+    Done.
+
+    /// `<value> is void` or `is not void`, either side — a voidable's `has`; anything else is never void.
+    Bind text or failure to c-void-test unto emitter, given (the node expression):
+        Define tested as cast field-of on (expression, 1).
+        If tested's kind is "VoidLiteral", the tested becomes cast field-of on (expression, 3).
+        Define tested-kind as cast one's kind-of on (tested) or pass the failure off.
+        Define is-void as "0".
+        If cast is-voidable on (tested-kind):
+            The is-void becomes "(!({cast one's c-of on (tested) or pass the failure off}).has)".
+        Done.
+        If (cast field-of on (expression, 2))'s word is "NotEqual", return "(!{is-void})".
+        Return is-void.
+    Done.
+
+    /// Whether a comparison is with `void`.
+    Bind fact to is-void-test, given (the node expression):
+        If expression's kind is not "BinaryExpression", return false.
+        Define operator as (cast field-of on (expression, 2))'s word.
+        If operator is not "Equal" and operator is not "NotEqual", return false.
+        Return (cast field-of on (expression, 1))'s kind is "VoidLiteral" or (cast field-of on (expression, 3))'s kind is "VoidLiteral".
+    Done.
+Done.
