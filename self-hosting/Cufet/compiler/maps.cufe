@@ -151,6 +151,10 @@ Pull a book on collections.
             If field-name is "value", return cast map-value-kind on (target-kind).
         Done.
         If cast object-of on (target-kind) is not "", return cast one's possessive-kind-of on (cast as-possessive on (expression)) or pass the failure off.
+        If target-kind is "text" and field-name is "length", return "number".
+        If cast is-record on (target-kind) and cast record-field-kind on (target-kind, field-name) is not "":
+            Return cast record-field-kind on (target-kind, field-name).
+        Done.
         Return a failure (cast not-built on ("the {field-name} of a {target-kind}")).
     Done.
 
@@ -181,6 +185,9 @@ Pull a book on collections.
                 Return cast one's c-possessive on (cast as-possessive on (expression)) or pass the failure off.
             Done.
             Define target-c as cast one's c-of on (target) or pass the failure off.
+            Define held-kind as cast one's kind-of on (target) or pass the failure off.
+            If held-kind is "text", return cast c-text-length on (target-c).
+            If cast is-record on (held-kind), return "({target-c}).{cast c-name on (field-name)}".
             If field-name is "size", return "cufet_dec_from_ll(({target-c})->len)".
             If field-name is "key", return "({target-c}).key".
             Return "({target-c}).value".

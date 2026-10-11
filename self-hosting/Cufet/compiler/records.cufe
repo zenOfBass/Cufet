@@ -1,0 +1,256 @@
+/*  Records — `a record with (…)`, `a series of records like (…)`, `the <field> of`, `the first of`,
+    and setting a field.
+
+    ★ A record is a VALUE, as an object is: `Define truck as car` makes a second record, so setting
+      a field of one leaves the other alone. In C it is a struct, copied as structs are.
+
+    ★ Its kind is written `record(<part>;<part>;…)`: a positional field's kind, then each named one
+      as `<name>=<kind>`, the named ones SORTED by name — the order the language keeps them in and
+      prints them in, so two records of the same fields are one kind whatever order they were
+      written in. A part may hold another record; parts are split only outside brackets.
+
+    ★ A record's struct is written with the unions, after the objects it may hold. An object
+      cannot hold a record yet, for the same reason it cannot hold a union.
+*/
+
+Pull a book on collections.
+    Bind fact to is-record, given (the text kind):
+        Return kind starts with "record(".
+    Done.
+
+    /// A record's parts, in order — split at each `;` that is not inside another record's brackets.
+    Bind series of text to record-parts, given (the text kind):
+        Define inner as the characters from 8 to (the length of kind - 1) of kind.
+        Define parts as a series of text.
+        If inner is "", return parts.
+        Define depth as 0.
+        Define begun as 1.
+        Define place as 0.
+        Define total as the length of inner.
+        While place is less than total, repeat:
+            Increment place by 1.
+            Define letter as the characters from place to place of inner.
+            If letter is "(", increment depth by 1.
+            If letter is ")", decrement depth by 1.
+            If letter is ";" and depth is 0:
+                Insert (the characters from begun to (place - 1) of inner) into parts.
+                The begun becomes place + 1.
+            Done.
+        Done.
+        Insert (the characters from begun to total of inner) into parts.
+        Return parts.
+    Done.
+
+    /// A part's name, or "" for a positional one. A name holds no space and no bracket.
+    Bind text to part-name, given (the text part):
+        Define equals as the position of "=" in part but void is 0.
+        If equals is 0, return "".
+        Define named as the characters from 1 to (equals - 1) of part.
+        If named contains " " or named contains "(", return "".
+        Return named.
+    Done.
+
+    /// A part's kind.
+    Bind text to part-kind, given (the text part):
+        Define named as cast part-name on (part).
+        If named is "", return part.
+        Return the characters from (the length of named + 2) to the end of part.
+    Done.
+
+    /// The kind of a named field, or "" when the record has none of that name.
+    Bind text to record-field-kind, given (the text kind, the text field-name):
+        For each part in cast record-parts on (kind), repeat:
+            If cast part-name on (part) is field-name, return cast part-kind on (part).
+        Done.
+        Return "".
+    Done.
+
+    /// How many positional fields a record has — they come first.
+    Bind number to positional-count, given (the text kind):
+        Define counted as 0.
+        For each part in cast record-parts on (kind), repeat:
+            If cast part-name on (part) is "", increment counted by 1.
+        Done.
+        Return counted.
+    Done.
+
+    /// A record kind from its positional kinds and its named ones, the named sorted by name.
+    Bind text to record-kind-of, given (the series of text positional, the map from text to text named):
+        Define names as a series of text.
+        For each pair in named, repeat:
+            Insert the key of pair into names.
+        Done.
+        Define joined-parts as "".
+        For each part in positional, repeat:
+            If joined-parts is "", the joined-parts becomes part.
+            Otherwise, the joined-parts becomes "{joined-parts};{part}".
+        Done.
+        For each field-name in names sorted, repeat:
+            Define part as "{field-name}={the entry for field-name in named but void is ""}".
+            If joined-parts is "", the joined-parts becomes part.
+            Otherwise, the joined-parts becomes "{joined-parts};{part}".
+        Done.
+        Return "record({joined-parts})".
+    Done.
+
+    Bind text to record-c-name, given (the text kind):
+        Define named as "crec".
+        For each part in cast record-parts on (kind), repeat:
+            Define field-name as cast part-name on (part).
+            If field-name is "", the named becomes "{named}_p{cast c-tag on (part)}".
+            Otherwise, the named becomes "{named}_n{cast c-ident on (field-name)}_{cast c-tag on (cast part-kind on (part))}".
+        Done.
+        Return named.
+    Done.
+
+    /// The C member a part is held in: `p<n>` for the nth positional one, the name's for a named one.
+    Bind text to record-member, given (the text part, the number place):
+        Define field-name as cast part-name on (part).
+        If field-name is "", return "p{place}".
+        Return cast c-name on (field-name).
+    Done.
+
+    /// Notes a record type the program uses, so its struct, and its series', are written.
+    Bind void to register-record unto emitter, given (the text kind):
+        If (the entry for kind in one's unions) is void:
+            In one's unions, the entry for kind becomes true.
+            Insert kind into one's union-order.
+        Done.
+    Done.
+
+    /// Whether a record can hold a kind — anything this compiler holds by value or by address.
+    Bind fact to is-field-kind, given (the text kind):
+        Return cast is-element-kind on (kind) or cast element-of on (kind) is not "" or cast is-map on (kind)
+            or cast is-voidable on (kind).
+    Done.
+
+    /// A record's struct, and how it is written and compared.
+    Bind text to c-record-helpers, given (the text kind):
+        Define type-c as cast record-c-name on (kind).
+        Define out as a chase.
+        Insert "typedef struct \{" into out.
+        If the number of cast record-parts on (kind) is 0, insert " char cf_nothing;" into out.
+        Define writes as a chase.
+        Define tests as "1".
+        Define place as 0.
+        For each part in cast record-parts on (kind), repeat:
+            Increment place by 1.
+            Define field-name as cast part-name on (part).
+            Define held as cast part-kind on (part).
+            Define member as cast record-member on (part, place).
+            Insert " {cast c-type on (held)} {member};" into out.
+            If place is greater than 1, insert " fputs(\", \", stdout);" into writes.
+            If field-name is not "", insert " fputs(\"{field-name}: \", stdout);" into writes.
+            Insert " {cast write-call on (held, "r.{member}")};" into writes.
+            The tests becomes "{tests} && {cast c-equal on (held, "a.{member}", "b.{member}")}".
+        Done.
+        Insert " \} {type-c};\n" into out.
+        Insert "static void {type-c}_write({type-c} r) \{ fputs(\"record(\", stdout);{writes converted to text} fputs(\")\", stdout); \}\n" into out.
+        Insert "static int {type-c}_eq({type-c} a, {type-c} b) \{ return {tests}; \}\n\n" into out.
+        Return out converted to text.
+    Done.
+
+    // ── Expressions ───────────────────────────────────────────────────────
+
+    /// The kind of a written record type.
+    Bind text or failure to record-kind-of-type unto emitter, given (the node written):
+        Define positional as a series of text.
+        For each inner in (cast field-of on (written, 1))'s children, repeat:
+            Define held as cast one's kind-of-type on (inner) or pass the failure off.
+            If cast is-field-kind on (held) is false, return a failure (cast not-built on ("a record holding a {held}")).
+            Insert held into positional.
+        Done.
+        Define named as a map from text to text.
+        For each pair in (cast field-of on (written, 2))'s children, repeat:
+            Define held as cast one's kind-of-type on (item 2 of pair's children) or pass the failure off.
+            If cast is-field-kind on (held) is false, return a failure (cast not-built on ("a record holding a {held}")).
+            In named, the entry for cast unquoted on (item 1 of pair's children) becomes held.
+        Done.
+        Define kind as cast record-kind-of on (positional, named).
+        Cast one's register-record on (kind).
+        Return kind.
+    Done.
+
+    /// The kind of `a record with (…)`.
+    Bind text or failure to record-literal-kind unto emitter, given (the node expression):
+        Define positional as a series of text.
+        For each inner in (cast field-of on (expression, 1))'s children, repeat:
+            Define held as cast one's kind-of on (inner) or pass the failure off.
+            If cast is-field-kind on (held) is false, return a failure (cast not-built on ("a record holding a {held}")).
+            Insert held into positional.
+        Done.
+        Define named as a map from text to text.
+        For each pair in (cast field-of on (expression, 2))'s children, repeat:
+            Define held as cast one's kind-of on (item 2 of pair's children) or pass the failure off.
+            If cast is-field-kind on (held) is false, return a failure (cast not-built on ("a record holding a {held}")).
+            In named, the entry for cast unquoted on (item 1 of pair's children) becomes held.
+        Done.
+        Define kind as cast record-kind-of on (positional, named).
+        Cast one's register-record on (kind).
+        Return kind.
+    Done.
+
+    /// `a record with (…)` as C — each field into its member.
+    Bind text or failure to c-record-literal unto emitter, given (the node expression):
+        Define kind as cast one's record-literal-kind on (expression) or pass the failure off.
+        Define assigned as "".
+        Define place as 0.
+        For each inner in (cast field-of on (expression, 1))'s children, repeat:
+            Increment place by 1.
+            Define value as cast one's c-of on (inner) or pass the failure off.
+            If assigned is not "", the assigned becomes "{assigned}, ".
+            The assigned becomes "{assigned}.p{place} = {value}".
+        Done.
+        For each pair in (cast field-of on (expression, 2))'s children, repeat:
+            Define value as cast one's c-of on (item 2 of pair's children) or pass the failure off.
+            If assigned is not "", the assigned becomes "{assigned}, ".
+            The assigned becomes "{assigned}.{cast c-name on (cast unquoted on (item 1 of pair's children))} = {value}".
+        Done.
+        If assigned is "", return "(({cast record-c-name on (kind)})\{ 0 \})".
+        Return "(({cast record-c-name on (kind)})\{ {assigned} \})".
+    Done.
+
+    /// The positional part a place names — the last one when there is no place.
+    Bind text or failure to positional-part unto emitter, given (the text kind, the node index):
+        Define count as cast positional-count on (kind).
+        Define place as count.
+        If cast is-nothing on (index) is false:
+            If index's kind is not "NumberLiteral", return a failure (cast not-built on ("a record's field reached by a computed place")).
+            The place becomes (cast field-of on (index, 1))'s word converted to number but void is 0.
+        Done.
+        If place < 1 or place > count, return a failure (cast not-built on ("a record's field {place} of {count}")).
+        Return "{place}".
+    Done.
+
+    /// The kind of `the first of <record>`, and its C.
+    Bind text or failure to record-item-kind unto emitter, given (the text kind, the node index):
+        Define place as (cast one's positional-part on (kind, index) or pass the failure off) converted to number but void is 1.
+        Return item place of cast record-parts on (kind).
+    Done.
+
+    Bind text or failure to c-record-item unto emitter, given (the text record-c, the text kind, the node index):
+        Define place as cast one's positional-part on (kind, index) or pass the failure off.
+        Return "({record-c}).p{place}".
+    Done.
+
+    // ── Statements ────────────────────────────────────────────────────────
+
+    /// `The <field> of <record> becomes <value>.`
+    Bind void or failure to emit-record-set unto emitter, given (the node statement):
+        Define field-name as cast unquoted on (cast field-of on (statement, 1)).
+        Define target as cast field-of on (statement, 2).
+        Define target-kind as cast one's kind-of on (target) or pass the failure off.
+        Define target-c as cast one's c-of on (target) or pass the failure off.
+        If cast object-of on (target-kind) is not "":
+            Define as-field-set as cast made on ("PossessiveSetStatement", a series with (target, cast field-of on (statement, 1), cast field-of on (statement, 3))).
+            Cast one's emit-field-set on (as-field-set) or pass the failure off.
+            Return.
+        Done.
+        If cast is-record on (target-kind) is false, return a failure (cast not-built on ("setting the {field-name} of a {target-kind}")).
+        If cast is-place on (target) is false, return a failure (cast not-built on ("setting a field of something that is not a name")).
+        Define held as cast record-field-kind on (target-kind, field-name).
+        If held is "", return a failure (cast not-built on ("the {field-name} of a {target-kind}")).
+        Define value as cast one's c-of-as on (cast field-of on (statement, 3), held) or pass the failure off.
+        Cast one's line on ("({target-c}).{cast c-name on (field-name)} = {value};").
+    Done.
+Done.

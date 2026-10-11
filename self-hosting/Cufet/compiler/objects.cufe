@@ -211,6 +211,7 @@ Pull a book on collections.
             Define held as cast one's kind-of-type on (cast field-of on (pair, 2)) or pass the failure off.
             // A union's struct comes after the objects it may hold, so an object cannot hold one yet.
             If cast is-union on (held), return a failure (cast not-built on ("an object with a union field")).
+            If cast is-record on (held), return a failure (cast not-built on ("an object with a record field")).
             If cast is-voidable on (held) and cast is-scalar on (cast voidable-inner on (held)) is false:
                 Return a failure (cast not-built on ("an object with a field of a voidable {cast voidable-inner on (held)}")).
             Done.

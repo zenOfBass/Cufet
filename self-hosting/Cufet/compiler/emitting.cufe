@@ -89,7 +89,7 @@ Pull a book on collections.
         If written's kind is "VoidableType":
             Define inner as cast one's kind-of-type on (cast field-of on (written, 1)) or pass the failure off.
             If cast is-scalar on (inner) is false and cast object-of on (inner) is "" and cast is-union on (inner) is false
-                    and cast element-of on (inner) is "" and cast is-map on (inner) is false:
+                    and cast element-of on (inner) is "" and cast is-map on (inner) is false and cast is-record on (inner) is false:
                 Return a failure (cast not-built on ("a voidable {inner}")).
             Done.
             Cast one's register-union on ("voidable {inner}").
@@ -105,6 +105,7 @@ Pull a book on collections.
             Define held as cast one's kind-of-type on (cast field-of on (written, 2)) or pass the failure off.
             Return cast one's map-kind-of-type on (key-kind, held) or pass the failure off.
         Done.
+        If written's kind is "RecordType", return cast one's record-kind-of-type on (written) or pass the failure off.
         Return a failure (cast not-built on ("a {written's kind}")).
     Done.
 
@@ -186,7 +187,12 @@ Pull a book on collections.
             "MapLiteral" or "MapLookup" or "MapHasKey" or "MapHasEntry" or "RecordNamedAccess":
                 Return cast one's map-kind-of on (expression) or pass the failure off.
             Done.
-            Otherwise, return a failure (cast not-built on (kind)).
+            "RecordLiteral", return cast one's record-literal-kind on (expression) or pass the failure off.
+            "ProgramArgumentsExpression", return "series of text".
+            Otherwise:
+                If cast is-text-operation on (kind), return cast text-operation-kind on (kind).
+                Return a failure (cast not-built on (kind)).
+            Done.
         Done.
     Done.
 
@@ -238,7 +244,15 @@ Pull a book on collections.
             "MapLiteral" or "MapLookup" or "MapHasKey" or "MapHasEntry" or "RecordNamedAccess":
                 Return cast one's c-map-of on (expression) or pass the failure off.
             Done.
-            Otherwise, return a failure (cast not-built on (kind)).
+            "RecordLiteral", return cast one's c-record-literal on (expression) or pass the failure off.
+            // From 1: argument zero is the program's own name, which no two ways of running it agree on.
+            "ProgramArgumentsExpression":
+                Return "(\{ cser_text* cf_args = cser_text_new(); for (int cf_ai = 1; cf_ai < cufet_argc; cf_ai++) cser_text_append(cf_args, (const char*)cufet_argv[cf_ai]); cf_args; \})".
+            Done.
+            Otherwise:
+                If cast is-text-operation on (kind), return cast one's c-text-operation on (expression) or pass the failure off.
+                Return a failure (cast not-built on (kind)).
+            Done.
         Done.
     Done.
 
@@ -351,6 +365,7 @@ Pull a book on collections.
 
     /// The C type a kind of value is held in.
     Bind text to c-type, given (the text kind):
+        If cast is-record on (kind), return cast record-c-name on (kind).
         If cast is-map on (kind), return "{cast map-c-name on (kind)}*".
         If cast is-mapping on (kind), return "{cast map-c-name on (cast mapping-map on (kind))}_pair".
         If cast is-voidable on (kind), return cast voidable-c-name on (kind).
@@ -364,6 +379,7 @@ Pull a book on collections.
 
     /// The runtime call that writes a value of a kind, without the line's end.
     Bind text to write-call, given (the text kind, the text value):
+        If cast is-record on (kind), return "{cast record-c-name on (kind)}_write({value})".
         If cast is-map on (kind), return "{cast map-c-name on (kind)}_write({value})".
         If cast is-mapping on (kind), return "{cast map-c-name on (cast mapping-map on (kind))}_pair_write({value})".
         If cast is-voidable on (kind), return "{cast voidable-c-name on (kind)}_write({value})".
@@ -401,6 +417,7 @@ Pull a book on collections.
     Bind text to c-equal, given (the text kind, the text left, the text right):
         // Two maps are equal only when they are one map.
         If cast is-map on (kind), return "({left} == {right})".
+        If cast is-record on (kind), return "{cast record-c-name on (kind)}_eq({left}, {right})".
         If cast is-mapping on (kind), return "{cast map-c-name on (cast mapping-map on (kind))}_pair_eq({left}, {right})".
         If cast is-voidable on (kind), return "{cast voidable-c-name on (kind)}_eq({left}, {right})".
         If cast is-union on (kind), return "{cast union-c-name on (kind)}_eq({left}, {right})".
@@ -484,9 +501,17 @@ Pull a book on collections.
             "ObjectDefinition", return a failure (cast not-built on ("an object defined inside a body")).
             "PossessiveSetStatement", cast one's emit-field-set on (statement) or pass the failure off.
             "StopStatement", cast one's line on ("break;").
+            "ExitStatement":
+                Define status as "cufet_dec_from_ll(0)".
+                If cast is-nothing on (cast field-of on (statement, 1)) is false:
+                    The status becomes cast one's c-of on (cast field-of on (statement, 1)) or pass the failure off.
+                Done.
+                Cast one's line on ("cufet_exit({status}, {(cast field-of on (statement, 2))'s word});").
+            Done.
             "SkipStatement", cast one's line on ("continue;").
             "JudgeStatement", cast one's emit-judge on (statement) or pass the failure off.
             "MapSetStatement", cast one's emit-map-set on (statement) or pass the failure off.
+            "RecordNamedSetStatement", cast one's emit-record-set on (statement) or pass the failure off.
             "ForEachStatement" or "SeriesInsertStatement" or "SeriesRemoveAtStatement" or "SeriesRemoveValueStatement"
                     or "SeriesSetStatement":
                 Cast one's emit-series-statement on (statement) or pass the failure off.
@@ -531,7 +556,7 @@ Pull a book on collections.
 
     /// The bundled books with a Cufet layer this compiler can build from source.
     Bind series of text to layered-books:
-        Return a series of text with ("math", "chance", "collections").
+        Return a series of text with ("math", "chance", "collections", "regex").
     Done.
 
     /// Whether a program names something — a book it calls, say — anywhere in it.
@@ -614,7 +639,11 @@ Pull a book on collections.
     /// or "". A method bound `unto` an object is built as that object's.
     Bind text or failure to function-beyond, given (the node statement):
         If cast is-nothing on (cast field-of on (statement, 6)) is false, return "a maker".
-        If the number of statement's children is greater than 8, return "a Bind with {(cast field-of on (statement, 9))'s word}".
+        // A pattern is lowered to a function that hands it to the `regex` book's engine.
+        If the number of statement's children is greater than 8:
+            If (cast field-of on (statement, 9))'s word is ":FromAxiomLanguage" and cast unquoted on (cast field-of on (statement, 10)) is "regex", return "".
+            Return "a Bind with {(cast field-of on (statement, 9))'s word}".
+        Done.
         Return "".
     Done.
 
@@ -672,7 +701,8 @@ Pull a book on collections.
         // constants set before anything runs, as the prelude's are.
         Define book-constants as a series of node.
         For each book in cast layered-books, repeat:
-            If cast names-anywhere on (program, book):
+            // A pattern names no book: it calls the `regex` book's engine by its hidden name.
+            If cast names-anywhere on (program, book) or cast names-anywhere on (program, "match in {book}"):
                 Define layer as cast listed.
                 Try to:
                     The layer becomes cast parser's program-tree on (read all from the file "{prelude-folder}/{book}.cufe").
@@ -680,6 +710,8 @@ Pull a book on collections.
                 In case of failure:
                     Return a failure (cast not-built on ("the {book} book, which could not be read")).
                 Done.
+                // Its helpers hidden after it, as the loader hides a bundled book's.
+                Cast checker's make-private on (layer, book, a map from text to text, true, a map from text to text).
                 For each statement in layer's children, repeat:
                     Insert statement into hoisted.
                     If statement's kind is "DefineStatement", insert statement into book-constants.
@@ -847,6 +879,10 @@ Pull a book on collections.
             Done.
             Otherwise if cast is-map on (union):
                 Insert cast c-map-helpers on (union) into union-types.
+            Done.
+            Otherwise if cast is-record on (union):
+                Insert cast c-record-helpers on (union) into union-types.
+                Insert cast c-series-helpers on (union) into union-types.
             Done.
             Otherwise:
                 Insert cast c-union-helpers on (union) into union-types.

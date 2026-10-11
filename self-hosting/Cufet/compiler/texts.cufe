@@ -1,0 +1,60 @@
+/*  Text — `the length of`, `the characters from … to … of`, `contains`, `starts with`, `ends with`,
+    `the position of … in`, `replace … with … in`, `trimmed`, and `split by`.
+
+    ★ Each is the runtime's own call, the one `cufet build` makes, so a text is measured and cut in
+      CHARACTERS — code points — and never in bytes.
+
+    ⚠ `in uppercase` and `in lowercase` wait: the table they need is written into each program
+      rather than kept in the runtime.
+*/
+
+Pull a book on collections.
+    /// Whether an expression is one of the text operations here.
+    Bind fact to is-text-operation, given (the text kind):
+        Return kind is "TextSubstringRange" or kind is "TextContains" or kind is "TextAffixTest" or kind is "TextFind"
+            or kind is "TextReplace" or kind is "TextTrim" or kind is "TextSplit".
+    Done.
+
+    Bind text to text-operation-kind, given (the text kind):
+        If kind is "TextContains" or kind is "TextAffixTest", return "fact".
+        If kind is "TextFind", return "voidable number".
+        If kind is "TextSplit", return "series of text".
+        Return "text".
+    Done.
+
+    /// A text operation as C.
+    Bind text or failure to c-text-operation unto emitter, given (the node expression):
+        Define kind as expression's kind.
+        If kind is "TextFind":
+            Define sought as cast one's c-of on (cast field-of on (expression, 1)) or pass the failure off.
+            Define searched as cast one's c-of on (cast field-of on (expression, 2)) or pass the failure off.
+            Return "(\{ int cf_fd = cufet_str_find({searched}, {sought}); cf_fd ? cvo_number_some(cufet_dec_from_ll(cf_fd)) : cvo_number_none(); \})".
+        Done.
+        Define text-c as cast one's c-of on (cast field-of on (expression, 1)) or pass the failure off.
+        If kind is "TextTrim", return "cufet_str_trim({text-c})".
+        Define second as cast one's c-of on (cast field-of on (expression, 2)) or pass the failure off.
+        If kind is "TextContains", return "(strstr({text-c}, {second}) != NULL)".
+        If kind is "TextAffixTest":
+            If (cast field-of on (expression, 3))'s word is "true", return "cufet_str_ends({text-c}, {second})".
+            Return "cufet_str_starts({text-c}, {second})".
+        Done.
+        If kind is "TextSplit":
+            Return "(\{ cser_text* cf_sp = cser_text_new(); const char** cf_parts; int cf_n = cufet_str_split({text-c}, {second}, &cf_parts, {(cast field-of on (expression, 3))'s word}); for (int cf_j = 0; cf_j < cf_n; cf_j++) cser_text_append(cf_sp, cf_parts[cf_j]); cf_sp; \})".
+        Done.
+        If kind is "TextReplace":
+            Define replacing as cast one's c-of on (cast field-of on (expression, 3)) or pass the failure off.
+            Return "cufet_str_replace({text-c}, {second}, {replacing}, {(cast field-of on (expression, 4))'s word})".
+        Done.
+        // `the characters from … to … of`, to the end when there is no `to`.
+        Define upto as "-1".
+        If cast is-nothing on (cast field-of on (expression, 3)) is false:
+            The upto becomes "cufet_to_int({cast one's c-of on (cast field-of on (expression, 3)) or pass the failure off})".
+        Done.
+        Return "cufet_str_range({text-c}, cufet_to_int({second}), {upto}, {(cast field-of on (expression, 4))'s word})".
+    Done.
+
+    /// `the length of <text>` — in characters.
+    Bind text to c-text-length, given (the text text-c):
+        Return "cufet_dec_from_ll((long long)cufet_u8_len({text-c}))".
+    Done.
+Done.

@@ -23,12 +23,13 @@ Pull a book on collections.
 
     /// Whether a series can hold a kind: one of the three, or an object.
     Bind fact to is-element-kind, given (the text kind):
-        Return cast is-scalar on (kind) or cast object-of on (kind) is not "" or cast is-union on (kind).
+        Return cast is-scalar on (kind) or cast object-of on (kind) is not "" or cast is-union on (kind) or cast is-record on (kind).
     Done.
 
     /// The C name of the series type that holds a kind.
     Bind text to series-c-name, given (the text element):
         If cast is-union on (element), return "cser_{cast union-c-name on (element)}".
+        If cast is-record on (element), return "cser_{cast record-c-name on (element)}".
         Define object-name as cast object-of on (element).
         If object-name is not "", return "cser_obj_{cast c-ident on (object-name)}".
         Return "cser_{element}".
@@ -96,6 +97,7 @@ Pull a book on collections.
         If kind is "SeriesLength", return "number".
         // `item … of`, `the first of`, `the last of`.
         Define held as cast one's kind-of on (cast field-of on (expression, 1)) or pass the failure off.
+        If cast is-record on (held), return cast one's record-item-kind on (held, cast field-of on (expression, 2)) or pass the failure off.
         Define element as cast element-of on (held).
         If element is "", return a failure (cast not-built on ("an item of a {held}")).
         Return element.
@@ -123,7 +125,11 @@ Pull a book on collections.
         Done.
         Define target as cast field-of on (expression, 1).
         Define series-c as cast one's c-of on (target) or pass the failure off.
-        Define element as cast element-of on (cast one's kind-of on (target) or pass the failure off).
+        Define target-kind as cast one's kind-of on (target) or pass the failure off.
+        If kind is "SeriesAccess" and cast is-record on (target-kind):
+            Return cast one's c-record-item on (series-c, target-kind, cast field-of on (expression, 2)) or pass the failure off.
+        Done.
+        Define element as cast element-of on (target-kind).
         If kind is "SeriesLength", return "cufet_dec_from_ll(({series-c})->len)".
         // `item … of`: the series is held once, so it is reached once.
         Define at-line as (cast field-of on (expression, 3))'s word.
@@ -199,6 +205,15 @@ Pull a book on collections.
         Done.
         // `The item … of … becomes …`.
         Define target as cast field-of on (statement, 1).
+        Define set-kind as cast one's kind-of on (target) or pass the failure off.
+        If cast is-record on (set-kind):
+            If cast is-place on (target) is false, return a failure (cast not-built on ("setting a field of something that is not a name")).
+            Define record-c as cast one's c-of on (target) or pass the failure off.
+            Define member as cast one's c-record-item on (record-c, set-kind, cast field-of on (statement, 2)) or pass the failure off.
+            Define part-held as cast one's record-item-kind on (set-kind, cast field-of on (statement, 2)) or pass the failure off.
+            Cast one's line on ("{member} = {cast one's c-of-as on (cast field-of on (statement, 3), part-held) or pass the failure off};").
+            Return.
+        Done.
         Define element as cast one's changed-element on (target) or pass the failure off.
         Define series-c as cast one's c-of on (target) or pass the failure off.
         Define place as cast one's c-place on (cast field-of on (statement, 2), "cf_at", target,
