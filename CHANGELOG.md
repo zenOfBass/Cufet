@@ -148,6 +148,10 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   a parameter, a loop's variable, a handle, a named rabbit or task, or a local `Define` or `Bind`
   binds it for what follows. Both were found by the compiler written in Cufet, which reaches the
   checker by qualifying it.
+- **A refusal in a qualified folder names its functions as they were written.** A folder's file
+  calling its own function wrongly was told `argument 1 of 'helper in lib' must be a number` — the
+  loader's hidden name for `helper`, which the file never wrote. Type names were already put back
+  before a refusal was shown; now functions and constants are too, in both checkers.
 - **`Cast one's consume` colours `one's` as `one`, whole.** The editor's rule for `Cast <name>` took
   the owner of a possessive as the function — `one` came out in a function's colour and its `'s`
   split off in another — when the function is `consume`, reached through `one`. The rule now stands

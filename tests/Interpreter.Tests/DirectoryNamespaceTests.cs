@@ -615,6 +615,28 @@ public class DirectoryNamespaceTests : IDisposable
         Assert.Equal("42", Run(main));
     }
 
+    /// <summary>
+    /// A refusal in a qualified sibling names its hidden function as it was written. Until 2026-10-10
+    /// it said `'helper in parser'` — a name the file never wrote — because only TYPE names went back.
+    /// </summary>
+    [Fact]
+    public void ARefusalInAQualifiedSibling_NamesItsHiddenFunctionAsWritten()
+    {
+        Write("front-end/parser", "helper", """
+            Bind number to helper, given (the number n):
+                Return n + 1.
+            Done.
+            Bind number to doubled, given (the number n):
+                Return cast helper on ("x").
+            Done.
+            """);
+        var main = Write("front-end/checker", "main", """State "{cast parser's doubled on (21)}".""");
+        DrawTree("front-end\n    parser\n    checker");
+        var refusal = Refuses(main);
+        Assert.Contains("argument 1 of 'helper' must be a number", refusal.Message);
+        Assert.DoesNotContain(" in parser", refusal.Message);
+    }
+
     [Fact]
     public void AQualifiedSiblingsHiddenFunction_IsStillReached_WhereALaterLocalTakesItsName()
     {

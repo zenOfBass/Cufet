@@ -1252,6 +1252,8 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
         // A hidden call only inside an arm body.
         new() { ["top/lib/lib.cufe"] = "Bind number to helper, given (the number n):\n    Return n * 2.\nDone.\nBind number to doubled, given (the number n):\n    If n is 21:\n        Return cast helper on (n).\n    Done.\n    Return 0.\nDone.", ["top/app/app.cufe"] = CallsLib },
         new() { ["top/lib/lib.cufe"] = "Bind number to helper, given (the number n):\n    Return n * 2.\nDone.\nBind number to doubled, given (the number n):\n    Judge n, where it is:\n        21:\n            Return cast helper on (n).\n        Done.\n        Otherwise, return 0.\n    Done.\nDone.", ["top/app/app.cufe"] = CallsLib },
+        // A refusal in the sibling names its hidden function as written, not as the loader renamed it.
+        new() { ["top/lib/lib.cufe"] = ProjectHelper + "Bind number to doubled, given (the number n):\n    Return cast helper on (\"x\").\nDone.", ["top/app/app.cufe"] = CallsLib },
     ];
 
     [Fact]

@@ -1208,11 +1208,17 @@ public sealed partial class TypeChecker
     }
 
     /// <summary>
-    /// Every type name this checker made that nobody wrote — a carried type lifted out of its module,
-    /// a book file's private type — longest first, so a name that ends another is replaced after it.
+    /// Every name this checker made that nobody wrote — a carried type lifted out of its module, a
+    /// book file's or a folder's hidden type, function or constant — longest first, so a name that
+    /// ends another is replaced after it.
     /// </summary>
-    private List<string> SynthesizedTypeNames() =>
-        [.. _objectDefs.Keys.Concat(_interfaceDefs.Keys)
+    /// <remarks>
+    /// ⚠ Types alone, until 2026-10-10: a folder's file calling its own hidden function wrongly was
+    /// told about `'helper in lib'`, a name it never wrote. Functions and constants live in the
+    /// global scope, generic ones as templates.
+    /// </remarks>
+    private List<string> SynthesizedNames() =>
+        [.. _objectDefs.Keys.Concat(_interfaceDefs.Keys).Concat(_scopes[0].Keys).Concat(_genericFunctions.Keys)
             .Where(n => n.Contains(" in ", StringComparison.Ordinal))
             .Distinct(StringComparer.Ordinal)
             .OrderByDescending(n => n.Length)];
@@ -4495,7 +4501,7 @@ public sealed partial class TypeChecker
             violationColumn);
     }
 
-    /// <summary>A message with every synthesized type name put back to the name its author wrote.</summary>
+    /// <summary>A message with every synthesized name put back to the name its author wrote.</summary>
     /// <remarks>
     /// ★★ One funnel, for the reason <see cref="SourceMap.Rewrite"/> gives: some 170 refusals put a
     /// type's name into prose, and FormatType alone went through DisplayName — so `field 'high' of
@@ -4507,7 +4513,7 @@ public sealed partial class TypeChecker
     private static string ShowWrittenNames(string message)
     {
         if (CheckingNow.Value is not { } checker) return message;
-        foreach (var name in checker.SynthesizedTypeNames())
+        foreach (var name in checker.SynthesizedNames())
             message = message.Replace(name, ModuleTypeLifting.DisplayName(name), StringComparison.Ordinal);
         return message;
     }
