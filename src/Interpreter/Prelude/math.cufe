@@ -1,9 +1,9 @@
 // The math book, written in Cufet.
 //
 // Same arrangement as collections.cufe: bundled, checked before every program, resolving with
-// the native book as one module. Still native, deliberately: `square-root`, `log` and `power`
-// — the arc's remaining pure-decimal numerics work, and the only members left that are not
-// written here.
+// the native book as one module. Nothing native is left: every member, `square-root`, `log`,
+// `exp` and `power` included, is written here, and the native book survives only to carry the
+// name `math`.
 
 // ★ FILE SCOPE, and private to this file the way an external book's top level is. These are how
 // the series below are ARRANGED, not anything a caller of `math` would want — and before a bundled
