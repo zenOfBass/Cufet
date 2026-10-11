@@ -16,11 +16,18 @@
 
 Pull a book on collections.
 
-    /// `ShowWrittenNames`: a refusal with every lifted type name put back to the one its author
-    /// wrote — longest first, so a name that ends another is replaced after it.
+    /// `ShowWrittenNames`: a refusal with every name the checker made put back to the one its
+    /// author wrote — a lifted type, or a folder's or a book file's hidden type, function or
+    /// constant — longest first, so a name that ends another is replaced after it.
     Bind text to written-names unto checker, given (the text message):
         Define lifted as a series of text.
         For each pair in one's defs, repeat:
+            If the key of pair contains " in ", insert the key of pair into lifted.
+        Done.
+        For each pair in item 1 of one's scopes, repeat:
+            If the key of pair contains " in ", insert the key of pair into lifted.
+        Done.
+        For each pair in one's templates, repeat:
             If the key of pair contains " in ", insert the key of pair into lifted.
         Done.
         Define shown as message.
