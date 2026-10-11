@@ -52,7 +52,7 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     : PipelineTestBase, IClassFixture<CompiledCufetCompiler>
 {
     /// <summary>How many hand-written programs must build and print alike. Raised as it grows; never lowered.</summary>
-    private const int BuiltFloor = 181;
+    private const int BuiltFloor = 199;
 
     private static string[] PreludeArgs =>
         ["--prelude", Path.Combine(RepoRoot, "src", "Interpreter", "Prelude").Replace('\\', '/')];
@@ -255,6 +255,25 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
         "Bind void to show, given (the (number or text) value):\n    If value is a number, state \"number {value}\".\n    Otherwise, state \"text {value}\".\nDone.\nCast show on (3).\nCast show on (\"z\").",
         "Define the (number or text) held as 5.\nIf held is a number:\n    State held + 1.\n    The held becomes \"changed\".\n    State held.\nDone.",
         "Define total as 7.\nState total is a number.\nState total is a text.\nState total is not a text.",
+        // Voidables, getters, shared constants, the math book built from its own source, and numbers of up to 29 digits.
+        "Bind voidable number to halve, given (the number n):\n    If n % 2 is not 0, return void.\n    Return n / 2.\nDone.\nState cast halve on (8).\nState cast halve on (3).",
+        "Bind voidable number to halve, given (the number n):\n    If n % 2 is not 0, return void.\n    Return n / 2.\nDone.\nState (cast halve on (3) but void is 0).\nState (cast halve on (10) but void is 0).",
+        "Bind voidable number to halve, given (the number n):\n    If n % 2 is not 0, return void.\n    Return n / 2.\nDone.\nDefine a-half as cast halve on (8).\nIf a-half is not void, state a-half + 1.\nIf a-half is void, state \"nothing\".",
+        "Bind voidable number to halve, given (the number n):\n    If n % 2 is not 0, return void.\n    Return n / 2.\nDone.\nDefine a-half as cast halve on (7).\nIf a-half is void, state \"nothing\".\nOtherwise, state a-half + 1.",
+        "Define the voidable text label as void.\nState label.\nThe label becomes \"set\".\nState label.\nIf label is not void, state label joined to \"!\".",
+        "Bind voidable number to halve, given (the number n):\n    If n % 2 is not 0, return void.\n    Return n / 2.\nDone.\nState cast halve on (4) is void.\nState cast halve on (5) is void.\nDefine one-half as cast halve on (4).\nDefine two-half as cast halve on (4).\nState one-half is two-half.",
+        "Define separator as \", \" permanently.\nBind text to joined-pair, given (the text left, the text right):\n    Return left joined to separator joined to right.\nDone.\nState cast joined-pair on (\"a\", \"b\").",
+        "Define limit as 3 permanently.\nBind void to count-up:\n    For each n in range 1 to limit, repeat:\n        State n.\n    Done.\nDone.\nCast count-up.\nState limit * 10.",
+        "Pull a rabbit.\n    Define greeting as \"hi\" permanently.\n    Bind text to greet, given (the text who):\n        Return greeting joined to \" \" joined to who.\n    Done.\n    State cast greet on (\"grace\").\nDone.",
+        "Define object box with (the number size):\n    Get doubled as number:\n        Return one's size * 2.\n    Done.\n    Get tripled as number, one's size * 3.\nDone.\nDefine b as a new box { the size 4 }.\nState b's doubled.\nState b's tripled.\nState b's doubled + b's tripled.",
+        "Define object box with (the number size).\nGet area unto box as number:\n    Return one's size * one's size.\nDone.\nDefine b as a new box { the size 5 }.\nState b's area.",
+        "Define object box with (the number size):\n    Get label as text, \"box of {one's size}\".\nDone.\nBind box to made, given (the number size-wanted):\n    Return a new box { the size size-wanted }.\nDone.\nState (cast made on (7))'s label.",
+        "Pull a book on math.\n    State math's pi.\n    State math's e.\nDone.",
+        "Pull a book on math.\n    State cast math's square-root on (2).\n    State cast math's square-root on (-1).\n    State (cast math's square-root on (16) but void is 0).\nDone.",
+        "Pull a book on math.\n    State cast math's floor on (-2.5).\n    State cast math's ceiling on (-2.5).\n    State cast math's round on (2.5).\n    State cast math's round on (-0.5).\n    State cast math's absolute-value on (-7).\nDone.",
+        "Pull a book on math.\n    State cast math's log on (10).\n    State cast math's exp on (1).\n    State cast math's power on (2, 10).\n    State cast math's power on (2, 0.5).\nDone.",
+        "Pull a book on math.\n    Define radius as 2.\n    State math's pi * radius * radius.\nDone.",
+        "State 79228162514264337593543950335.\nState 12345678901234567890123.\nState -98765432109876543210.\nState 0.0000000000000000000000000001.",
     ];
 
     [Fact]
@@ -307,7 +326,7 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     }
 
     /// <summary>How many programs of `examples/` must build and print alike. Raised as it grows; never lowered.</summary>
-    private const int CorpusFloor = 12;
+    private const int CorpusFloor = 14;
 
     /// <remarks>
     /// ★ The corpus is copied first: the compiler writes each program beside its source. Each program
