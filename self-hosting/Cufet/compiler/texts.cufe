@@ -1,18 +1,20 @@
 /*  Text — `the length of`, `the characters from … to … of`, `contains`, `starts with`, `ends with`,
-    `the position of … in`, `replace … with … in`, `trimmed`, and `split by`.
+    `the position of … in`, `replace … with … in`, `trimmed`, `split by`, and `in uppercase` and `in
+    lowercase`.
 
     ★ Each is the runtime's own call, the one `cufet build` makes, so a text is measured and cut in
       CHARACTERS — code points — and never in bytes.
 
-    ⚠ `in uppercase` and `in lowercase` wait: the table they need is written into each program
-      rather than kept in the runtime.
+    ★ `in uppercase` and `in lowercase` read the case table in the shared runtime, which the
+      interpreter's table generates — so both agree by construction.
 */
 
 Pull a book on collections.
     /// Whether an expression is one of the text operations here.
     Bind fact to is-text-operation, given (the text kind):
         Return kind is "TextSubstringRange" or kind is "TextContains" or kind is "TextAffixTest" or kind is "TextFind"
-            or kind is "TextReplace" or kind is "TextTrim" or kind is "TextSplit" or kind is "NumberConvert".
+            or kind is "TextReplace" or kind is "TextTrim" or kind is "TextSplit" or kind is "NumberConvert"
+            or kind is "TextCase".
     Done.
 
     Bind text to text-operation-kind, given (the text kind):
@@ -32,6 +34,11 @@ Pull a book on collections.
         Done.
         Define text-c as cast one's c-of on (cast field-of on (expression, 1)) or pass the failure off.
         If kind is "TextTrim", return "cufet_str_trim({text-c})".
+        // Casing reads the shared runtime's table — the one the interpreter reads too.
+        If kind is "TextCase":
+            If (cast field-of on (expression, 2))'s word is "true", return "cufet_str_upper({text-c})".
+            Return "cufet_str_lower({text-c})".
+        Done.
         // `converted to number` — of a text; void when it is no number.
         If kind is "NumberConvert":
             If (cast one's kind-of on (cast field-of on (expression, 1)) or pass the failure off) is not "text":
