@@ -160,12 +160,12 @@ public class PipelineCaseTests : PipelineTestBase
     }
 
     [Fact]
-    public void TheCaseTable_IsEmittedOnlyWhenTheProgramCasesText()
+    public void TheCaseTable_IsInTheSharedRuntime_AndNotInTheProgram()
     {
-        // ★ The table is ~15 KB of the runtime that gets pasted into EVERY generated file, so it is
-        // gated like the math, chance and process runtimes are. This is the control on that gate:
-        // without it the cost would be silent and permanent, paid by every program that never cases
-        // a character.
+        // ★ Until 2026-10-11 the table was emitted only for a program that cased text, because the
+        // runtime used to be pasted into every generated file. The runtime is one object now, linked
+        // by every program, so the table belongs there — in every build, casing or not — and the
+        // compiler written in Cufet, which links that same runtime, can case text too.
         const string cases = """
             State "é" in uppercase.
             """;
@@ -173,16 +173,22 @@ public class PipelineCaseTests : PipelineTestBase
             State "é".
             """;
 
-        Assert.Contains("cufet_case_upper", EmitC(cases));
-        Assert.DoesNotContain("cufet_case_upper", EmitC(doesNot));
-        Assert.DoesNotContain("cufet_str_case", EmitC(doesNot));
+        var (_, runtimeOfOneThatDoesNot, programThatDoesNot) = Split(doesNot);
+        Assert.Contains("cufet_case_upper", runtimeOfOneThatDoesNot);
+        Assert.Contains("cufet_str_upper", runtimeOfOneThatDoesNot);
+        Assert.DoesNotContain("cufet_case_upper", programThatDoesNot);
+
+        var (header, _, programThatCases) = Split(cases);
+        Assert.Contains("cufet_str_upper", header);
+        Assert.Contains("cufet_str_upper(", programThatCases);
+        Assert.DoesNotContain("cufet_case_upper[]", programThatCases);
     }
 
-    private static string EmitC(string source)
+    private static (string Header, string Runtime, string Program) Split(string source)
     {
         var tokens = new CufetLexer(source).Tokenize();
         var program = new Parser(tokens).Parse();
         program = new TypeChecker().Check(program);
-        return new CodeGenerator().Generate(program);
+        return new CodeGenerator().GenerateSplit(program);
     }
 }

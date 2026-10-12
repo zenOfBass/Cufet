@@ -1073,7 +1073,7 @@ static void cufet_watch_stack(void) {}
     // Text runtime. Text is `const char*` and immutable — every operation allocates a fresh
     // result in the current arena (freed at Done.); literals stay static. Trim/parse are
     // ASCII/invariant (matching the interpreter for ASCII input); CASING IS NOT HERE — it needs a
-    // Unicode table, so it lives in the gated CaseRuntime below and is emitted only when used.
+    // Unicode table, so it lives in CaseRuntime, part of the shared runtime every program links.
     private const string TextRuntime =
 """
 static const char* cufet_str_concat(const char* a, const char* b) {

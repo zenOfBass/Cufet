@@ -19,8 +19,17 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   failure`, `Try` with `In case of failure`, and reading a file — with a voidable narrowed after a
   guard that leaves, as the checker narrows it; chases — made, inserted into as text or as a code
   point, at the end, the start or after a place, read by place, set, removed from, looped over,
-  compared and converted to text — and a series of maps. `CompilerParityTests` now holds it to the
-  interpreter on 267 hand-written programs and on 28 of the 67 in `examples/`.
+  compared and converted to text — a series of maps, and casing. `CompilerParityTests` now holds
+  it to the interpreter on 270 hand-written programs and on 28 of the 67 in `examples/`.
+
+### Changed
+
+- **The case table is part of the shared C runtime.** `in uppercase` and `in lowercase` read a
+  Unicode table, and a built program carried it only when it cased text — a gate from when the
+  runtime was pasted into every generated file. The runtime is one object now, compiled once and
+  linked, so the table lives there in every build; a program that cases text calls into it, and
+  the compiler written in Cufet, which links the same runtime, can case text too. The table still
+  comes from the one the interpreter reads.
 
 ## [0.27.0] — 2026-10-11
 

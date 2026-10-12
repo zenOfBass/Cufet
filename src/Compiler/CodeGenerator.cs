@@ -445,10 +445,6 @@ public sealed partial class CodeGenerator
         _objectDefs.TryGetValue(bookName, out var layerDef)
             ? layerDef.Getters.FirstOrDefault(g => g.Name == member)
             : null;
-    // Set when the program cases text (`in uppercase`/`in lowercase`), so the Unicode case table is
-    // emitted (only then). Worth gating: the table is ~11 KB of the ~1500-line runtime that is
-    // pasted into every generated file, and most programs never case anything.
-    private bool _usesCase;
     // Set when the program uses matrices (the collections book's introduced type), so the matrix
     // runtime is emitted (only then). A matrix is an arena reference type like series/maps.
     private bool _usesMatrix;

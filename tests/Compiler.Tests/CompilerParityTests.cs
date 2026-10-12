@@ -52,7 +52,7 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     : PipelineTestBase, IClassFixture<CompiledCufetCompiler>
 {
     /// <summary>How many hand-written programs must build and print alike. Raised as it grows; never lowered.</summary>
-    private const int BuiltFloor = 267;
+    private const int BuiltFloor = 270;
 
     private static string[] PreludeArgs =>
         ["--prelude", Path.Combine(RepoRoot, "src", "Interpreter", "Prelude").Replace('\\', '/')];
@@ -347,6 +347,10 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
         "Pull a book on collections.\n    Define out as a chase.\n    State out converted to text is \"\".\n    State the number of out.\n    State out.\nDone.",
         "Pull a book on collections.\n    Define scopes as a series of map from text to number.\n    Insert a map from text to number into scopes.\n    In item 1 of scopes, the entry for \"x\" becomes 1.\n    Insert a map with (\"y\": 2) into scopes.\n    State scopes.\n    State the number of scopes.\n    State the entry for \"x\" in item 1 of scopes.\n    Remove the last from scopes.\n    State scopes.\nDone.",
         "Pull a book on collections.\n    Bind number to depth-of, given (the series of map from text to text scopes, the text name):\n        Define place as the number of scopes.\n        While place is greater than 0, repeat:\n            If (item place of scopes) has a key for name, return place.\n            Decrement place by 1.\n        Done.\n        Return 0.\n    Done.\n    Define scopes as a series of map from text to text with (a map with (\"a\": \"outer\"), a map with (\"b\": \"inner\")).\n    State cast depth-of on (scopes, \"a\").\n    State cast depth-of on (scopes, \"b\").\n    State cast depth-of on (scopes, \"z\").\nDone.",
+        // Casing — in uppercase and in lowercase, through the case table in the shared runtime.
+        "State \"Hello, World! 42\" in uppercase.\nState \"Hello, World! 42\" in lowercase.\nState the length of (\"\" in uppercase).",
+        "State \"héllo wörld\" in uppercase.\nState \"ÉCOLE ÀÇ\" in lowercase.\nState \"straße\" in uppercase.\nState \"ĀăĂā\" in lowercase.",
+        "Define word as \"MiXeD\".\nDefine lower as word in lowercase.\nIf lower is \"mixed\", state \"matched\".\nState (word in uppercase) joined to \"!\".",
     ];
 
     [Fact]

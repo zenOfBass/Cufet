@@ -60,8 +60,11 @@ public sealed partial class CodeGenerator
     private static readonly CufetType TVoid    = new VoidType();
     private static readonly CufetType TFailMarker = new FailureMarkerType();
 
-    // Unicode casing runtime — emitted only when a program actually cases text (_usesCase), because
-    // the table is ~11 KB of source and the runtime is pasted into every generated file.
+    // Unicode casing runtime — in the SHARED runtime, every build, whether a program cases text or
+    // not. ⚠ It was gated until 2026-10-11, emitted only for a program that cased text, because the
+    // table is ~11 KB and the runtime used to be pasted into every generated file. RuntimeSplit
+    // ended the pasting — the runtime is one object, compiled once and linked — so the reason was
+    // gone, and the gate kept casing out of the runtime the compiler written in Cufet links.
     //
     // ★ The numbers come from CaseTableData, the SAME table the interpreter reads. That is the whole
     // point: casing used to be implemented twice — ToUpperInvariant here, C's per-byte toupper()
@@ -635,7 +638,7 @@ static const char* cufet_str_lower(const char* s) {
         // table calls the decimal helpers in the preamble.
         if (_usesChase) runtime.AppendLine(ChaseRuntime);
         if (_usesMatrix) runtime.AppendLine(MatrixRuntime);
-        if (_usesCase) runtime.AppendLine(CaseRuntime);
+        runtime.AppendLine(CaseRuntime);
         if (_usesChance) runtime.AppendLine(ChanceRuntime);
         if (_usesProcess) runtime.AppendLine(ProcessRuntime);
         if (_usesSignals || _usesConcurrency) runtime.AppendLine(SignalRuntime);

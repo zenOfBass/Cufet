@@ -296,11 +296,10 @@ public sealed partial class CodeGenerator
         $"if (cufet_cmp({stepVar}, cufet_dec_from_ll(0)) == 0) cufet_raise(cufet_msgf(\"'counting by 0' never makes progress (line {line}).\")); " +
         $"if (cufet_cmp({stepVar}, cufet_dec_from_ll(0)) < 0) cufet_raise(cufet_msgf(\"the step in 'counting by' must be positive (line {line}).\")); ";
 
-    // Casing is the one text operation that needs a table, so it is also the one that has to
-    // announce itself — CaseRuntime is emitted only for programs that reach here.
+    // Casing is the one text operation that needs a table. The table is in the shared runtime —
+    // see CaseRuntime — so a program that cases text only calls into it.
     private string EmitTextCase(TextCase tcase)
     {
-        _usesCase = true;
         var text = EmitExpr(tcase.Text);
         return tcase.Uppercase ? $"cufet_str_upper({text})" : $"cufet_str_lower({text})";
     }
