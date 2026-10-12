@@ -107,6 +107,7 @@ Pull a book on collections.
         Done.
         If written's kind is "RecordType", return cast one's record-kind-of-type on (written) or pass the failure off.
         If written's kind is "FailureType", return cast one's failable-kind-of-type on (written) or pass the failure off.
+        If written's kind is "ChaseType", return "chase".
         Return a failure (cast not-built on ("a {written's kind}")).
     Done.
 
@@ -178,6 +179,7 @@ Pull a book on collections.
             Done.
             "RecordLiteral", return cast one's record-literal-kind on (expression) or pass the failure off.
             "ProgramArgumentsExpression", return "series of text".
+            "ChaseLiteral", return "chase".
             Otherwise:
                 If cast is-text-operation on (kind), return cast text-operation-kind on (kind).
                 If cast is-failure-expression on (kind), return cast one's failure-kind-of on (expression) or pass the failure off.
@@ -254,6 +256,7 @@ Pull a book on collections.
                 Return cast one's c-map-of on (expression) or pass the failure off.
             Done.
             "RecordLiteral", return cast one's c-record-literal on (expression) or pass the failure off.
+            "ChaseLiteral", return "cufet_chase_new()".
             // From 1: argument zero is the program's own name, which no two ways of running it agree on.
             "ProgramArgumentsExpression":
                 Return "(\{ cser_text* cf_args = cser_text_new(); for (int cf_ai = 1; cf_ai < cufet_argc; cf_ai++) cser_text_append(cf_args, (const char*)cufet_argv[cf_ai]); cf_args; \})".
@@ -317,6 +320,8 @@ Pull a book on collections.
     Bind text or failure to c-text-of unto emitter, given (the node expression):
         Define value as cast one's c-of on (expression) or pass the failure off.
         Define kind as cast one's kind-of on (expression) or pass the failure off.
+        // A chase's text is a copy: the chase lives on, apart from it.
+        If kind is "chase", return "cufet_chase_text({value})".
         If cast is-scalar on (kind) is false, return a failure (cast not-built on ("a {kind} as text")).
         If kind is "number", return "cufet_text_from_dec({value})".
         If kind is "fact", return "({value} ? \"true\" : \"false\")".
@@ -377,6 +382,7 @@ Pull a book on collections.
     Bind text to c-type, given (the text kind):
         If cast is-record on (kind), return cast record-c-name on (kind).
         If cast is-failable on (kind), return cast failable-c-name on (kind).
+        If kind is "chase", return "CufetChase*".
         If kind is "failure", return "CufetFailure".
         If cast is-map on (kind), return "{cast map-c-name on (kind)}*".
         If cast is-mapping on (kind), return "{cast map-c-name on (cast mapping-map on (kind))}_pair".
@@ -393,6 +399,7 @@ Pull a book on collections.
     Bind text to write-call, given (the text kind, the text value):
         If cast is-record on (kind), return "{cast record-c-name on (kind)}_write({value})".
         If kind is "failure", return "fputs(\"<failure>\", stdout)".
+        If kind is "chase", return "cufet_write_text(cufet_chase_show({value}))".
         If cast is-map on (kind), return "{cast map-c-name on (kind)}_write({value})".
         If cast is-mapping on (kind), return "{cast map-c-name on (cast mapping-map on (kind))}_pair_write({value})".
         If cast is-voidable on (kind), return "{cast voidable-c-name on (kind)}_write({value})".
@@ -431,6 +438,7 @@ Pull a book on collections.
         // Two maps are equal only when they are one map.
         If cast is-map on (kind), return "({left} == {right})".
         If cast is-record on (kind), return "{cast record-c-name on (kind)}_eq({left}, {right})".
+        If kind is "chase", return "cufet_chase_eq({left}, {right})".
         If cast is-mapping on (kind), return "{cast map-c-name on (cast mapping-map on (kind))}_pair_eq({left}, {right})".
         If cast is-voidable on (kind), return "{cast voidable-c-name on (kind)}_eq({left}, {right})".
         If cast is-union on (kind), return "{cast union-c-name on (kind)}_eq({left}, {right})".
@@ -902,6 +910,7 @@ Pull a book on collections.
             Done.
             Otherwise if cast is-map on (union):
                 Insert cast c-map-helpers on (union) into union-types.
+                Insert cast c-series-helpers on (union) into union-types.
             Done.
             Otherwise if cast is-failable on (union):
                 Insert cast c-failable-helpers on (union) into union-types.
@@ -921,6 +930,7 @@ Pull a book on collections.
         Define out as a chase.
         Insert "#include \"cufet-runtime.h\"\n\n" into out.
         Insert cast c-series-prelude into out.
+        Insert cast c-chase-runtime into out.
         Insert cast c-voidable-prelude into out.
         // A series of a union named ahead of the objects, which may hold one by its address — and
         // how it is written and compared, which an object's own writing calls.
@@ -930,6 +940,10 @@ Pull a book on collections.
             If cast is-map on (union):
                 Insert "typedef struct {cast map-c-name on (union)}_s {cast map-c-name on (union)};\n" into out.
                 Insert "static void {cast map-c-name on (union)}_write({cast map-c-name on (union)}* m);\n" into out.
+                // And a series of them, which an object may hold too.
+                Insert "typedef struct cser_{cast map-c-name on (union)}_s cser_{cast map-c-name on (union)};\n" into out.
+                Insert "static void cser_{cast map-c-name on (union)}_write(cser_{cast map-c-name on (union)}* s);\n" into out.
+                Insert "static int cser_{cast map-c-name on (union)}_eq(cser_{cast map-c-name on (union)}* a, cser_{cast map-c-name on (union)}* b);\n" into out.
                 Skip.
             Done.
             Define series-type as cast series-c-name on (union).
