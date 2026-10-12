@@ -17,8 +17,10 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   `the arguments`; `Exit`; patterns, built from the `regex` book's own Cufet source as the `math`
   book is; and failures — `or failure`, `return a failure`, `or pass the failure off`, `but on
   failure`, `Try` with `In case of failure`, and reading a file — with a voidable narrowed after a
-  guard that leaves, as the checker narrows it. `CompilerParityTests` now holds it to the
-  interpreter on 255 hand-written programs and on 27 of the 67 in `examples/`.
+  guard that leaves, as the checker narrows it; chases — made, inserted into as text or as a code
+  point, at the end, the start or after a place, read by place, set, removed from, looped over,
+  compared and converted to text — and a series of maps. `CompilerParityTests` now holds it to the
+  interpreter on 267 hand-written programs and on 28 of the 67 in `examples/`.
 
 ## [0.27.0] — 2026-10-11
 

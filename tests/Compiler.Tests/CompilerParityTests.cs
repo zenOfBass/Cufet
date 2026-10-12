@@ -52,7 +52,7 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     : PipelineTestBase, IClassFixture<CompiledCufetCompiler>
 {
     /// <summary>How many hand-written programs must build and print alike. Raised as it grows; never lowered.</summary>
-    private const int BuiltFloor = 255;
+    private const int BuiltFloor = 267;
 
     private static string[] PreludeArgs =>
         ["--prelude", Path.Combine(RepoRoot, "src", "Interpreter", "Prelude").Replace('\\', '/')];
@@ -334,6 +334,19 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
         "Bind number or failure to parse-it, given (the text written):\n    Define parsed as written converted to number.\n    If parsed is void, return a failure \"'{written}' is not a number\" of category \"parse\".\n    Return parsed.\nDone.\nTry to:\n    State cast parse-it on (\"12.5\").\n    State cast parse-it on (\"warm\").\nDone.\nIn case of failure:\n    State the message of the failure.\nDone.",
         "Define whole as \"kept\".\nTry to:\n    The whole becomes read all from the file \"absent-whole.txt\".\nDone.\nIn case of failure:\n    State \"could not read: {the message of the failure}\".\nDone.\nState whole.",
         "Bind series of text or failure to lines-of, given (the text file-path):\n    Define found as read all lines from the file file-path or pass the failure off.\n    Return found.\nDone.\nState the number of (cast lines-of on (\"missing.txt\") but on failure a series of text).\nTry to:\n    State cast lines-of on (\"also-missing.txt\").\nDone.\nIn case of failure:\n    State the message of the failure.\nDone.",
+        // Chases — made, inserted into (text or a code point; at the end, the start, or after a place), read by place, set, removed from, looped over, compared, converted to text; and a series of maps.
+        "Pull a book on collections.\n    Define out as a chase.\n    Insert \"hello\" into out.\n    Insert \", world\" into out.\n    State out converted to text.\n    State the number of out.\n    State out.\nDone.",
+        "Pull a book on collections.\n    Define out as a chase.\n    Insert \"bc\" into out.\n    Insert \"a\" into the start of out.\n    Insert \"X\" after item 1 of out.\n    State out converted to text.\nDone.",
+        "Pull a book on collections.\n    Define out as a chase.\n    Insert 72 into out.\n    Insert 105 into out.\n    Insert 33 into the start of out.\n    State out converted to text.\nDone.",
+        "Pull a book on collections.\n    Define out as a chase.\n    Insert \"hello\" into out.\n    State item 1 of out.\n    State the first of out.\n    State the last of out.\n    The item 1 of out becomes \"j\".\n    State out converted to text.\nDone.",
+        "Pull a book on collections.\n    Define out as a chase.\n    Insert \"hello\" into out.\n    Remove item 2 from out.\n    Remove the last from out.\n    State out converted to text.\n    Remove \"l\" from out.\n    State out converted to text.\nDone.",
+        "Pull a book on collections.\n    Define out as a chase.\n    Insert \"héllo wörld\" into out.\n    State the number of out.\n    State item 2 of out.\n    For each letter in out, repeat:\n        If letter is \"ö\", state \"found it\".\n    Done.\nDone.",
+        "Pull a book on collections.\n    Define out as a chase.\n    Insert \"abc\" into out.\n    For each in out, state it.\n    Define copy as out.\n    Insert \"d\" into copy.\n    State out converted to text.\nDone.",
+        "Pull a book on collections.\n    Define left as a chase.\n    Define right as a chase.\n    Insert \"ab\" into left.\n    Insert \"ab\" into right.\n    State left is right.\n    Insert \"c\" into right.\n    State left is right.\nDone.",
+        "Pull a book on collections.\n    Bind text to shouted, given (the text word):\n        Define out as a chase.\n        For each letter in a series of text with (\"h\", \"e\", \"y\"), repeat:\n            Insert letter into out.\n            Insert \"!\" into out.\n        Done.\n        Insert word into out.\n        Return out converted to text.\n    Done.\n    State cast shouted on (\" you\").\nDone.",
+        "Pull a book on collections.\n    Define out as a chase.\n    State out converted to text is \"\".\n    State the number of out.\n    State out.\nDone.",
+        "Pull a book on collections.\n    Define scopes as a series of map from text to number.\n    Insert a map from text to number into scopes.\n    In item 1 of scopes, the entry for \"x\" becomes 1.\n    Insert a map with (\"y\": 2) into scopes.\n    State scopes.\n    State the number of scopes.\n    State the entry for \"x\" in item 1 of scopes.\n    Remove the last from scopes.\n    State scopes.\nDone.",
+        "Pull a book on collections.\n    Bind number to depth-of, given (the series of map from text to text scopes, the text name):\n        Define place as the number of scopes.\n        While place is greater than 0, repeat:\n            If (item place of scopes) has a key for name, return place.\n            Decrement place by 1.\n        Done.\n        Return 0.\n    Done.\n    Define scopes as a series of map from text to text with (a map with (\"a\": \"outer\"), a map with (\"b\": \"inner\")).\n    State cast depth-of on (scopes, \"a\").\n    State cast depth-of on (scopes, \"b\").\n    State cast depth-of on (scopes, \"z\").\nDone.",
     ];
 
     [Fact]
@@ -386,7 +399,7 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     }
 
     /// <summary>How many programs of `examples/` must build and print alike. Raised as it grows; never lowered.</summary>
-    private const int CorpusFloor = 27;
+    private const int CorpusFloor = 28;
 
     /// <remarks>
     /// ★ The corpus is copied first: the compiler writes each program beside its source. Each program
@@ -494,6 +507,12 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
          "'counts' was modified during a for-each loop"),
         ("Define ages as a map with (\"a\": 1).\nState ages.\nRemove \"zzz\" from ages.\nState \"not reached\".",
          "Key not found in map on line 3."),
+        ("Pull a book on collections.\n    Define out as a chase.\n    Insert \"ab\" into out.\n    The item 1 of out becomes \"xy\".\n    State \"not reached\".\nDone.",
+         "Setting one position needs exactly one character"),
+        ("Pull a book on collections.\n    Define out as a chase.\n    Insert \"ab\" into out.\n    State item 5 of out.\nDone.",
+         "'out' has 2 items"),
+        ("Pull a book on collections.\n    Define out as a chase.\n    Insert \"ab\" into out.\n    For each letter in out, repeat:\n        Insert \"c\" into out.\n    Done.\nDone.",
+         "'out' was modified during a for-each loop"),
     ];
 
     [Fact]
