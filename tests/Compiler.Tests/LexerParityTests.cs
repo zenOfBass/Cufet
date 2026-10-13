@@ -150,7 +150,7 @@ public class LexerParityTests
     }
 
     /// <summary>The first difference in each file, or nothing when all of them agree.</summary>
-    private static List<string> Differences(
+    internal static List<string> Differences(
         IEnumerable<(string Name, string Source)> files, Dictionary<string, List<string>> got)
     {
         var problems = new List<string>();
@@ -174,7 +174,7 @@ public class LexerParityTests
         return problems;
     }
 
-    private static IEnumerable<(string, string)> WithSources(IEnumerable<string> names) =>
+    internal static IEnumerable<(string, string)> WithSources(IEnumerable<string> names) =>
         names.Select(n => (n, File.ReadAllText(Path.Combine(RepoRoot, n))));
 
     // ── The tests ───────────────────────────────────────────────────────────

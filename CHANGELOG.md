@@ -19,8 +19,14 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   failure`, `Try` with `In case of failure`, and reading a file — with a voidable narrowed after a
   guard that leaves, as the checker narrows it; chases — made, inserted into as text or as a code
   point, at the end, the start or after a place, read by place, set, removed from, looped over,
-  compared and converted to text — a series of maps, and casing. `CompilerParityTests` now holds
-  it to the interpreter on 270 hand-written programs and on 28 of the 67 in `examples/`.
+  compared and converted to text — a series of maps, casing, choosing a value with `when … otherwise`,
+  `sorted`, a method called on an item of a series or a value made for the call, the first and last
+  characters of a text, and `the current directory`. `CompilerParityTests` now holds it to the
+  interpreter on 286 hand-written programs and on 30 of the 67 in `examples/`.
+- **The compiler written in Cufet builds the lexer written in Cufet** — the first program of its
+  own toolchain to come through. What it builds lexes every Cufet file in the repository exactly
+  as the C# lexer does, in a few seconds where the interpreted lexer takes minutes;
+  `TheCompiledCompiler_BuildsTheLexer_WhichLexesAsCSharpDoes` holds it.
 
 ### Changed
 

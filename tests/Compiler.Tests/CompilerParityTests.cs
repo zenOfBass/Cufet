@@ -52,7 +52,7 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     : PipelineTestBase, IClassFixture<CompiledCufetCompiler>
 {
     /// <summary>How many hand-written programs must build and print alike. Raised as it grows; never lowered.</summary>
-    private const int BuiltFloor = 270;
+    private const int BuiltFloor = 286;
 
     private static string[] PreludeArgs =>
         ["--prelude", Path.Combine(RepoRoot, "src", "Interpreter", "Prelude").Replace('\\', '/')];
@@ -351,6 +351,23 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
         "State \"Hello, World! 42\" in uppercase.\nState \"Hello, World! 42\" in lowercase.\nState the length of (\"\" in uppercase).",
         "State \"héllo wörld\" in uppercase.\nState \"ÉCOLE ÀÇ\" in lowercase.\nState \"straße\" in uppercase.\nState \"ĀăĂā\" in lowercase.",
         "Define word as \"MiXeD\".\nDefine lower as word in lowercase.\nIf lower is \"mixed\", state \"matched\".\nState (word in uppercase) joined to \"!\".",
+        // Choosing a value with when … otherwise, chained and as a union; sorted, in reverse, by a field, of a chase; methods called on an item of a series, a field, a new object or a call's result; the first and last characters of a text; the current directory.
+        "Define n as 5.\nDefine label as \"big\" when n is greater than 3, otherwise \"small\".\nState label.\nState (1 when n is 2, otherwise 2) + 10.",
+        "Define n as 2.\nDefine name as \"one\" when n is 1, otherwise \"two\" when n is 2, otherwise \"many\".\nState name.\nThe n becomes 9.\nState \"one\" when n is 1, otherwise \"two\" when n is 2, otherwise \"many\".",
+        "Define n as 5.\nDefine mixed as 1 when n is 5, otherwise \"x\".\nState mixed.\nIf mixed is a number, state mixed + 1.",
+        "Bind number to loud, given (the number n):\n    State \"called {n}\".\n    Return n.\nDone.\nDefine flag as true.\nDefine picked as 1 when flag, otherwise cast loud on (2).\nState picked.\nThe flag becomes false.\nState 1 when flag, otherwise cast loud on (3).",
+        "Bind text to plural-of, given (the number count):\n    Return \"item\" when count is 1, otherwise \"items\".\nDone.\nFor each count in range 0 to 2, state \"{count} {cast plural-of on (count)}\".",
+        "Define words as a series of text with (\"pear\", \"apple\", \"fig\").\nState words sorted.\nState words sorted in reverse.\nState words.\nDefine nums as a series of number with (3, 1, 2, 1.5, -4).\nState nums sorted.\nState nums sorted in reverse.",
+        "Define entries as a series of records like (the text word, the number count).\nInsert a record with (the word \"b\", the count 2) into entries.\nInsert a record with (the word \"a\", the count 5) into entries.\nInsert a record with (the word \"c\", the count 2) into entries.\nState entries sorted by the count.\nState entries sorted by the count in reverse.\nState entries sorted by the word.",
+        "Define object player with (the text name, the number score).\nDefine players as a series of player.\nInsert a new player { the name \"hopper\", the score 7 } into players.\nInsert a new player { the name \"grace\", the score 9 } into players.\nInsert a new player { the name \"ada\", the score 7 } into players.\nFor each top in players sorted by the score in reverse, state \"{top's name} {top's score}\".",
+        "Define empty as a series of number.\nState empty sorted.\nDefine one-item as a series of text with (\"only\").\nState one-item sorted in reverse.",
+        "Pull a book on collections.\n    Define out as a chase.\n    Insert \"banana\" into out.\n    State (out sorted) converted to text.\n    State (out sorted in reverse) converted to text.\nDone.",
+        "State the first 2 characters of \"hello\".\nState the last 3 characters of \"hello\".\nState the first 9 characters of \"hi\".\nState the last 0 characters of \"hi\" is \"\".\nState the first 1 characters of \"héllo\" joined to the last 4 characters of \"héllo\".",
+        "Define here as the current directory.\nState here is void.\nIf here is not void, state the length of here is greater than 0.",
+        "Define object box with (the number size):\n    Bind void to grow:\n        Increment one's size by 1.\n    Done.\n    Bind number to doubled:\n        Return one's size * 2.\n    Done.\nDone.\nDefine boxes as a series of box with (a new box { the size 4 }, a new box { the size 1 }).\nCast (item 1 of boxes)'s grow.\nCast (the last of boxes)'s grow.\nState boxes.\nState cast (item 1 of boxes)'s doubled.",
+        "Define object box with (the number size):\n    Bind void to grow:\n        Increment one's size by 1.\n    Done.\n    Bind number to doubled:\n        Return one's size * 2.\n    Done.\nDone.\nDefine object pair with (the box held).\nDefine p as a new pair { the held a new box { the size 1 } }.\nCast (p's held)'s grow.\nState p.",
+        "Define object box with (the number size):\n    Bind void to grow:\n        Increment one's size by 1.\n    Done.\n    Bind number to doubled:\n        Return one's size * 2.\n    Done.\nDone.\nState cast (a new box { the size 7 })'s doubled.\nBind box to made, given (the number size-wanted):\n    Return a new box { the size size-wanted }.\nDone.\nState cast (cast made on (3))'s doubled.",
+        "Define object box with (the number size):\n    Bind void to grow:\n        Increment one's size by 1.\n    Done.\n    Bind number to doubled:\n        Return one's size * 2.\n    Done.\nDone.\nDefine boxes as a series of box with (a new box { the size 2 }).\nFor each place in range 1 to 3, repeat:\n    Cast (item 1 of boxes)'s grow.\nDone.\nState boxes.",
     ];
 
     [Fact]
@@ -403,7 +420,7 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     }
 
     /// <summary>How many programs of `examples/` must build and print alike. Raised as it grows; never lowered.</summary>
-    private const int CorpusFloor = 28;
+    private const int CorpusFloor = 30;
 
     /// <remarks>
     /// ★ The corpus is copied first: the compiler writes each program beside its source. Each program
@@ -563,6 +580,45 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
             }
             Assert.True(problems.Count == 0,
                 $"{problems.Count} of {sources.Count} went wrong:\n{string.Join("\n", problems)}");
+        }
+        finally { try { Directory.Delete(dir, recursive: true); } catch (IOException) { } }
+    }
+
+    /// <summary>
+    /// The compiler written in Cufet builds the lexer written in Cufet — the first of the four to
+    /// come through — and what it builds lexes every Cufet file in the repository as C# does.
+    /// </summary>
+    /// <remarks>
+    /// ★ The first self-hosting step, 2026-10-11: Cufet compiling a program of its own toolchain.
+    /// Held to the C# lexer, the same key `TheCompiledLexer_AgreesWithCSharpToo` holds the lexer
+    /// `cufet build` makes to — so a difference here is this compiler's, not the lexer's.
+    /// </remarks>
+    [Fact]
+    public void TheCompiledCompiler_BuildsTheLexer_WhichLexesAsCSharpDoes()
+    {
+        var dir = Directory.CreateDirectory(
+            Path.Combine(TestScratch.Root, "cufet-selflexer-" + Guid.NewGuid().ToString("N"))).FullName;
+        try
+        {
+            foreach (var f in Directory.GetFiles(SelfHostingDir, "*.cufe", SearchOption.AllDirectories))
+            {
+                var to = Path.Combine(dir, Path.GetRelativePath(SelfHostingDir, f));
+                Directory.CreateDirectory(Path.GetDirectoryName(to)!);
+                File.Copy(f, to);
+            }
+            var runtime = compiled.RuntimeFolder.Replace('\\', '/');
+            string entry = "Cufet/lexer/lexer.cufe";
+            var said = ByFile(Run(compiled.Exe, ["--runtime", runtime, .. PreludeArgs, entry], dir));
+            string verdict = said.TryGetValue(entry, out var lines) && lines.Count > 0 ? lines[0] : "<nothing printed>";
+            Assert.True(verdict == "built", $"the lexer did not build: {verdict}");
+
+            var files = Corpus();
+            Assert.True(files.Count >= 80, $"only {files.Count} Cufet files found under {RepoRoot}");
+            string exe = Path.Combine(dir, "Cufet", "lexer", "lexer" + (OperatingSystem.IsWindows() ? ".exe" : ""));
+            var got = ByFile(Run(exe, files, RepoRoot));
+            var problems = Differences(WithSources(files), got);
+            Assert.True(problems.Count == 0,
+                $"{problems.Count} of {files.Count} files lex differently:\n{string.Join("\n", problems)}");
         }
         finally { try { Directory.Delete(dir, recursive: true); } catch (IOException) { } }
     }
