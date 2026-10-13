@@ -387,6 +387,8 @@ Pull a book on collections.
         If cast is-record on (kind), return cast record-c-name on (kind).
         If cast is-failable on (kind), return cast failable-c-name on (kind).
         If kind is "chase", return "CufetChase*".
+        // What a handler has caught: its message — the exception's only part a program can reach.
+        If kind is "exception", return "const char*".
         If kind is "failure", return "CufetFailure".
         If cast is-map on (kind), return "{cast map-c-name on (kind)}*".
         If cast is-mapping on (kind), return "{cast map-c-name on (cast mapping-map on (kind))}_pair".
@@ -404,6 +406,7 @@ Pull a book on collections.
         If cast is-record on (kind), return "{cast record-c-name on (kind)}_write({value})".
         If kind is "failure", return "fputs(\"<failure>\", stdout)".
         If kind is "chase", return "cufet_write_text(cufet_chase_show({value}))".
+        If kind is "exception", return "fputs(\"<exception>\", stdout)".
         If cast is-map on (kind), return "{cast map-c-name on (kind)}_write({value})".
         If cast is-mapping on (kind), return "{cast map-c-name on (cast mapping-map on (kind))}_pair_write({value})".
         If cast is-voidable on (kind), return "{cast voidable-c-name on (kind)}_write({value})".
@@ -502,22 +505,26 @@ Pull a book on collections.
             "WhileStatement":
                 Define condition as cast one's c-of on (cast field-of on (statement, 1)) or pass the failure off.
                 Cast one's line on ("while ({condition}) \{").
+                Define loop-kept as cast one's entering-loop.
                 Cast one's emit-block on (cast field-of on (statement, 2)) or pass the failure off.
+                Cast one's leaving-loop on (loop-kept).
                 Cast one's line on ("\}").
             Done.
             "RepeatUntilStatement":
                 Cast one's line on ("do \{").
+                Define loop-kept as cast one's entering-loop.
                 Cast one's emit-block on (cast field-of on (statement, 1)) or pass the failure off.
+                Cast one's leaving-loop on (loop-kept).
                 Define condition as cast one's c-of on (cast field-of on (statement, 2)) or pass the failure off.
                 Cast one's line on ("\} while (!({condition}));").
             Done.
             "ReturnStatement":
                 Define returned as cast field-of on (statement, 1).
                 If cast is-nothing on (returned):
-                    If (the entry for "%return" in one's kinds but void is "") is "failure of void", cast one's line on ("return cfl_void_done();").
-                    Otherwise, cast one's line on ("return;").
+                    If (the entry for "%return" in one's kinds but void is "") is "failure of void", cast one's line on (cast one's c-return on ("cfl_void_done()")).
+                    Otherwise, cast one's line on (cast one's c-return on ("")).
                 Done.
-                Otherwise, cast one's line on ("return {cast one's c-of-as on (returned, the entry for "%return" in one's kinds but void is "") or pass the failure off};").
+                Otherwise, cast one's line on (cast one's c-return on (cast one's c-of-as on (returned, the entry for "%return" in one's kinds but void is "") or pass the failure off)).
             Done.
             "CastStatement":
                 Define call as cast made on ("CastExpression", a series with (cast field-of on (statement, 1), cast field-of on (statement, 2))).
@@ -533,7 +540,7 @@ Pull a book on collections.
             "PullStatement" or "PullRabbitStatement", cast one's emit-pulled on (statement) or pass the failure off.
             "ObjectDefinition", return a failure (cast not-built on ("an object defined inside a body")).
             "PossessiveSetStatement", cast one's emit-field-set on (statement) or pass the failure off.
-            "StopStatement", cast one's line on ("break;").
+            "StopStatement", cast one's line on (cast one's c-loop-jump on ("break")).
             "ExitStatement":
                 Define status as "cufet_dec_from_ll(0)".
                 If cast is-nothing on (cast field-of on (statement, 1)) is false:
@@ -541,7 +548,11 @@ Pull a book on collections.
                 Done.
                 Cast one's line on ("cufet_exit({status}, {(cast field-of on (statement, 2))'s word});").
             Done.
-            "SkipStatement", cast one's line on ("continue;").
+            "SkipStatement", cast one's line on (cast one's c-loop-jump on ("continue")).
+            "SuppressStatement":
+                Define handler as the entry for "%suppress" in one's kinds but void is "".
+                Cast one's line on ("\{ cf_sup_{handler} = 1; goto cf_done_{handler}; \}").
+            Done.
             "JudgeStatement", cast one's emit-judge on (statement) or pass the failure off.
             "TryStatement", cast one's emit-try on (statement) or pass the failure off.
             "MapSetStatement", cast one's emit-map-set on (statement) or pass the failure off.

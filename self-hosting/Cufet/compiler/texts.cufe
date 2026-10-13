@@ -14,11 +14,12 @@ Pull a book on collections.
     Bind fact to is-text-operation, given (the text kind):
         Return kind is "TextSubstringRange" or kind is "TextContains" or kind is "TextAffixTest" or kind is "TextFind"
             or kind is "TextReplace" or kind is "TextTrim" or kind is "TextSplit" or kind is "NumberConvert"
-            or kind is "TextCase" or kind is "TextSubstringEdge" or kind is "CurrentDirectoryExpression".
+            or kind is "TextCase" or kind is "TextSubstringEdge" or kind is "CurrentDirectoryExpression"
+            or kind is "PathCheckExpression".
     Done.
 
     Bind text to text-operation-kind, given (the text kind):
-        If kind is "TextContains" or kind is "TextAffixTest", return "fact".
+        If kind is "TextContains" or kind is "TextAffixTest" or kind is "PathCheckExpression", return "fact".
         If kind is "TextFind" or kind is "NumberConvert", return "voidable number".
         If kind is "CurrentDirectoryExpression", return "voidable text".
         If kind is "TextSplit", return "series of text".
@@ -39,6 +40,14 @@ Pull a book on collections.
         Done.
         Define text-c as cast one's c-of on (cast field-of on (expression, 1)) or pass the failure off.
         If kind is "TextTrim", return "cufet_str_trim({text-c})".
+        // `the path … exists`, `is a directory`, `is a file`.
+        If kind is "PathCheckExpression":
+            Define asked as (cast field-of on (expression, 2))'s word.
+            If asked is "Exists", return "cufet_path_exists({text-c})".
+            If asked is "IsDirectory", return "cufet_path_is_dir({text-c})".
+            If asked is "IsFile", return "cufet_path_is_file({text-c})".
+            Return a failure (cast not-built on ("the path check {asked}")).
+        Done.
         // `the first <n> characters of`, `the last <n> characters of` — as many as there are.
         If kind is "TextSubstringEdge":
             Define count-c as cast one's c-of on (cast field-of on (expression, 2)) or pass the failure off.

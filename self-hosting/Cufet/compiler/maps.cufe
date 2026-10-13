@@ -153,6 +153,7 @@ Pull a book on collections.
         If cast object-of on (target-kind) is not "", return cast one's possessive-kind-of on (cast as-possessive on (expression)) or pass the failure off.
         If target-kind is "text" and field-name is "length", return "number".
         If target-kind is "failure" and cast failure-field-kind on (field-name) is not "", return cast failure-field-kind on (field-name).
+        If target-kind is "exception" and field-name is "message", return "text".
         If cast is-record on (target-kind) and cast record-field-kind on (target-kind, field-name) is not "":
             Return cast record-field-kind on (target-kind, field-name).
         Done.
@@ -189,6 +190,7 @@ Pull a book on collections.
             Define held-kind as cast one's kind-of on (target) or pass the failure off.
             If held-kind is "text", return cast c-text-length on (target-c).
             If held-kind is "failure", return cast c-failure-field on (target-c, field-name).
+            If held-kind is "exception", return target-c.
             If cast is-record on (held-kind), return "({target-c}).{cast c-name on (field-name)}".
             If field-name is "size", return "cufet_dec_from_ll(({target-c})->len)".
             If field-name is "key", return "({target-c}).key".
@@ -260,7 +262,9 @@ Pull a book on collections.
         Cast one's line on ("if (cf_each->len != cf_each_n) cufet_raise(cufet_msgf(\"{label} was modified during a for-each loop on line {(cast field-of on (statement, 4))'s word} — collect into a separate series, or use a While loop if you need to change it while looping.\"));").
         Cast one's line on ("{map-c}_pair {cast c-name on (name)} = \{ cf_keys[cf_i], cf_vals[cf_i] \};").
         The one's indent becomes outer joined to "    ".
+        Define loop-kept as cast one's entering-loop.
         Cast one's emit-block on (cast field-of on (statement, 3)) or pass the failure off.
+        Cast one's leaving-loop on (loop-kept).
         Cast one's line on ("\}").
         The one's indent becomes outer.
         The one's kinds becomes kept.

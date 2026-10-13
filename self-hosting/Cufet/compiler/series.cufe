@@ -330,7 +330,9 @@ Pull a book on collections.
         Cast one's line on ("if (cf_i >= cf_each_n) break;").
         Cast one's line on ("{cast c-type on (element)} {cast c-name on (name)} = cf_each->data[cf_i];").
         The one's indent becomes outer joined to "    ".
+        Define loop-kept as cast one's entering-loop.
         Cast one's emit-block on (cast field-of on (statement, 3)) or pass the failure off.
+        Cast one's leaving-loop on (loop-kept).
         Cast one's line on ("\}").
         The one's indent becomes outer.
         The one's kinds becomes kept.
