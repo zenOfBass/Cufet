@@ -1,0 +1,34 @@
+/*  Choosing a value — `<value> when <condition>, otherwise <value>`, chained.
+
+    ★ A C ternary, so only the chosen side runs, as the language promises. Both sides go in as the
+      kind of the whole: the same kind when they agree, and the union of the two otherwise — each
+      side wrapped into it. A side that is `void` waits (see chosen-kind).
+*/
+
+Pull a book on collections.
+    /// The kind a choice gives, from the kinds of its two sides.
+    Bind text or failure to chosen-kind unto emitter, given (the node expression):
+        Define taken as cast one's kind-of on (cast field-of on (expression, 1)) or pass the failure off.
+        Define other as cast one's kind-of on (cast field-of on (expression, 3)) or pass the failure off.
+        If taken is other, return taken.
+        // ⚠ Not a voidable: the checker makes `void when …, otherwise 3` a union with a void case,
+        // `(void or number)`, which has no C here yet.
+        If taken is "void" or other is "void", return a failure (cast not-built on ("a choice with void on one side")).
+        For each side in a series of text with (taken, other), repeat:
+            If cast is-scalar on (side) is false and cast object-of on (side) is "" and cast is-union on (side) is false:
+                Return a failure (cast not-built on ("a choice between a {taken} and a {other}")).
+            Done.
+        Done.
+        Define union as cast union-kind-of on (a series of text with (taken, other)).
+        Cast one's register-union on (union).
+        Return union.
+    Done.
+
+    Bind text or failure to c-chosen unto emitter, given (the node expression):
+        Define kind as cast one's chosen-kind on (expression) or pass the failure off.
+        Define condition as cast one's c-of on (cast field-of on (expression, 2)) or pass the failure off.
+        Define taken as cast one's c-of-as on (cast field-of on (expression, 1), kind) or pass the failure off.
+        Define other as cast one's c-of-as on (cast field-of on (expression, 3), kind) or pass the failure off.
+        Return "({condition} ? {taken} : {other})".
+    Done.
+Done.

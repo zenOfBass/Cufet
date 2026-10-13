@@ -111,6 +111,30 @@ Pull a book on collections.
         Return false.
     Done.
 
+    /// The address of an object a method is called on, as C — a name, a field of one, or an item of
+    /// a series, at any depth — or "" when it has none and lives only for the call.
+    Bind text or failure to c-address unto emitter, given (the node receiver):
+        If cast is-place on (receiver), return "&({cast one's c-of on (receiver) or pass the failure off})".
+        If receiver's kind is "SeriesAccess":
+            Define target as cast field-of on (receiver, 1).
+            Define held as cast one's kind-of on (target) or pass the failure off.
+            Define element as cast element-of on (held).
+            If element is "" or cast object-of on (element) is "", return "".
+            Define series-c as cast one's c-of on (target) or pass the failure off.
+            Define place as cast one's c-place on (cast field-of on (receiver, 2), "cf_at", target, (cast field-of on (receiver, 3))'s word) or pass the failure off.
+            Return "(\{ {cast series-c-name on (element)}* cf_at = {series-c}; &cf_at->data[{place}]; \})".
+        Done.
+        If receiver's kind is "PossessiveAccess":
+            Define base as cast one's c-address on (cast field-of on (receiver, 1)) or pass the failure off.
+            If base is "", return "".
+            Define member as cast unquoted on (cast field-of on (receiver, 2)).
+            Define owner as cast object-of on (cast one's kind-of on (cast field-of on (receiver, 1)) or pass the failure off).
+            If owner is "" or (the entry for "{owner}'s getter {member}" in one's methods) is not void, return "".
+            Return "&((*{base}).{cast c-name on (member)})".
+        Done.
+        Return "".
+    Done.
+
     /// The method a call reaches, by `<receiver>'s <method>`.
     Bind node or failure to method-called unto emitter, given (the node callee):
         Define held as cast one's kind-of on (cast field-of on (callee, 1)) or pass the failure off.
@@ -127,14 +151,18 @@ Pull a book on collections.
         Define callee as cast field-of on (call, 1).
         Define called as cast one's method-called on (callee) or pass the failure off.
         Define receiver as cast field-of on (callee, 1).
-        If cast is-place on (receiver) is false:
-            Return a failure (cast not-built on ("a method called on something that is not a name")).
-        Done.
         Define object-name as cast object-of on (cast one's kind-of on (receiver) or pass the failure off).
-        Define listing as "&({cast one's c-of on (receiver) or pass the failure off})".
+        Define method-c as cast c-method-name on (object-name, cast unquoted on (cast field-of on (called, 1))).
         Define rest as cast one's c-arguments on (cast field-of on (called, 3), cast field-of on (call, 2)) or pass the failure off.
-        If rest is not "", the listing becomes "{listing}, {rest}".
-        Return "{cast c-method-name on (object-name, cast unquoted on (cast field-of on (called, 1)))}({listing})".
+        If rest is not "", the rest becomes ", {rest}".
+        // The method changes what it is called on, so it is handed its address — an item of a
+        // series is changed where it sits, as the interpreter changes it.
+        Define address as cast one's c-address on (receiver) or pass the failure off.
+        If address is not "", return "{method-c}({address}{rest})".
+        // Anything else is a value made for the call — a new object, a call's result — and a
+        // method may change it as it likes, so it is held in a place of its own while it runs.
+        Define value as cast one's c-of on (receiver) or pass the failure off.
+        Return "(\{ {cast c-struct-name on (object-name)} cf_recv = {value}; {method-c}(&cf_recv{rest}); \})".
     Done.
 
     Bind text to c-getter-name, given (the text object-name, the text getter-name):

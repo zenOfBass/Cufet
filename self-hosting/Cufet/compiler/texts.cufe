@@ -1,6 +1,6 @@
 /*  Text — `the length of`, `the characters from … to … of`, `contains`, `starts with`, `ends with`,
-    `the position of … in`, `replace … with … in`, `trimmed`, `split by`, and `in uppercase` and `in
-    lowercase`.
+    `the position of … in`, `replace … with … in`, `trimmed`, `split by`, `in uppercase` and `in
+    lowercase`, `the first … characters of` and `the last … characters of`, and `the current directory`.
 
     ★ Each is the runtime's own call, the one `cufet build` makes, so a text is measured and cut in
       CHARACTERS — code points — and never in bytes.
@@ -14,12 +14,13 @@ Pull a book on collections.
     Bind fact to is-text-operation, given (the text kind):
         Return kind is "TextSubstringRange" or kind is "TextContains" or kind is "TextAffixTest" or kind is "TextFind"
             or kind is "TextReplace" or kind is "TextTrim" or kind is "TextSplit" or kind is "NumberConvert"
-            or kind is "TextCase".
+            or kind is "TextCase" or kind is "TextSubstringEdge" or kind is "CurrentDirectoryExpression".
     Done.
 
     Bind text to text-operation-kind, given (the text kind):
         If kind is "TextContains" or kind is "TextAffixTest", return "fact".
         If kind is "TextFind" or kind is "NumberConvert", return "voidable number".
+        If kind is "CurrentDirectoryExpression", return "voidable text".
         If kind is "TextSplit", return "series of text".
         Return "text".
     Done.
@@ -32,8 +33,18 @@ Pull a book on collections.
             Define searched as cast one's c-of on (cast field-of on (expression, 2)) or pass the failure off.
             Return "(\{ int cf_fd = cufet_str_find({searched}, {sought}); cf_fd ? cvo_number_some(cufet_dec_from_ll(cf_fd)) : cvo_number_none(); \})".
         Done.
+        // `the current directory` — void when there is none to report.
+        If kind is "CurrentDirectoryExpression":
+            Return "(\{ const char* cf_cwd = cufet_getcwd(); cf_cwd ? cvo_text_some(cf_cwd) : cvo_text_none(); \})".
+        Done.
         Define text-c as cast one's c-of on (cast field-of on (expression, 1)) or pass the failure off.
         If kind is "TextTrim", return "cufet_str_trim({text-c})".
+        // `the first <n> characters of`, `the last <n> characters of` — as many as there are.
+        If kind is "TextSubstringEdge":
+            Define count-c as cast one's c-of on (cast field-of on (expression, 2)) or pass the failure off.
+            If (cast field-of on (expression, 3))'s word is "true", return "cufet_str_edge({text-c}, cufet_to_int({count-c}), 1)".
+            Return "cufet_str_edge({text-c}, cufet_to_int({count-c}), 0)".
+        Done.
         // Casing reads the shared runtime's table — the one the interpreter reads too.
         If kind is "TextCase":
             If (cast field-of on (expression, 2))'s word is "true", return "cufet_str_upper({text-c})".

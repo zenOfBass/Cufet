@@ -152,6 +152,54 @@ Pull a book on collections.
         Return "cufet_idx_check(cufet_to_int({index-c}), {held}->len, \"{label}\", {at-line}) - 1".
     Done.
 
+    /// `<series> sorted`, `in reverse`, `by the <field>` — a new series, the old one left as it was.
+    Bind text or failure to sorted-kind-of unto emitter, given (the node expression):
+        Define held as cast one's kind-of on (cast field-of on (expression, 1)) or pass the failure off.
+        If held is "chase", return "chase".
+        If cast element-of on (held) is "", return a failure (cast not-built on ("sorting a {held}")).
+        If cast is-nothing on (cast field-of on (expression, 6)) is false, return a failure (cast not-built on ("sorting by a function")).
+        Return held.
+    Done.
+
+    /// The key a sort compares: the element, or its field.
+    Bind text or failure to sort-key-kind unto emitter, given (the text element, the node by-field):
+        If cast is-nothing on (by-field), return element.
+        Define field-name as cast unquoted on (by-field).
+        If cast is-record on (element), return cast record-field-kind on (element, field-name).
+        If cast object-of on (element) is not "", return cast one's field-kind on (cast object-of on (element), field-name) or pass the failure off.
+        Return "".
+    Done.
+
+    /// A sort as C: a copy, put in order by a stable insertion sort — equal keys keep their order, as
+    /// the interpreter's does. Numbers compare as numbers; text by its bytes, as `cufet build` has it.
+    Bind text or failure to c-sorted unto emitter, given (the node expression):
+        Define held as cast one's sorted-kind-of on (expression) or pass the failure off.
+        Define series-c as cast one's c-of on (cast field-of on (expression, 1)) or pass the failure off.
+        Define reversed as (cast field-of on (expression, 3))'s word is "true".
+        If held is "chase":
+            If reversed, return "cufet_chase_sorted({series-c}, 1)".
+            Return "cufet_chase_sorted({series-c}, 0)".
+        Done.
+        Define element as cast element-of on (held).
+        Define by-field as cast field-of on (expression, 2).
+        Define key-kind as cast one's sort-key-kind on (element, by-field) or pass the failure off.
+        Define left-key as "cf_dst->data[cf_j]".
+        Define right-key as "cf_k".
+        If cast is-nothing on (by-field) is false:
+            Define member as cast c-name on (cast unquoted on (by-field)).
+            The left-key becomes "(cf_dst->data[cf_j]).{member}".
+            The right-key becomes "(cf_k).{member}".
+        Done.
+        Define compared as "".
+        If key-kind is "number", the compared becomes "cufet_cmp({left-key}, {right-key})".
+        Otherwise if key-kind is "text", the compared becomes "strcmp({left-key}, {right-key})".
+        Otherwise, return a failure (cast not-built on ("sorting by a {key-kind}")).
+        Define out-of-order as "({compared}) > 0".
+        If reversed, the out-of-order becomes "({compared}) < 0".
+        Define series-type as cast series-c-name on (element).
+        Return "(\{ {series-type}* cf_src = {series-c}; {series-type}* cf_dst = {series-type}_new(); for (int cf_i = 0; cf_i < cf_src->len; cf_i++) {series-type}_append(cf_dst, cf_src->data[cf_i]); for (int cf_a = 1; cf_a < cf_dst->len; cf_a++) \{ {cast c-type on (element)} cf_k = cf_dst->data[cf_a]; int cf_j = cf_a - 1; while (cf_j >= 0 && {out-of-order}) \{ cf_dst->data[cf_j + 1] = cf_dst->data[cf_j]; cf_j--; \} cf_dst->data[cf_j + 1] = cf_k; \} cf_dst; \})".
+    Done.
+
     // ── Statements ────────────────────────────────────────────────────────
 
     /// The kind of a series' elements, for a statement that changes it.

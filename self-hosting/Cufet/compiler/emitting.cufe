@@ -180,6 +180,8 @@ Pull a book on collections.
             "RecordLiteral", return cast one's record-literal-kind on (expression) or pass the failure off.
             "ProgramArgumentsExpression", return "series of text".
             "ChaseLiteral", return "chase".
+            "ConditionalExpression", return cast one's chosen-kind on (expression) or pass the failure off.
+            "SortExpression", return cast one's sorted-kind-of on (expression) or pass the failure off.
             Otherwise:
                 If cast is-text-operation on (kind), return cast text-operation-kind on (kind).
                 If cast is-failure-expression on (kind), return cast one's failure-kind-of on (expression) or pass the failure off.
@@ -257,6 +259,8 @@ Pull a book on collections.
             Done.
             "RecordLiteral", return cast one's c-record-literal on (expression) or pass the failure off.
             "ChaseLiteral", return "cufet_chase_new()".
+            "ConditionalExpression", return cast one's c-chosen on (expression) or pass the failure off.
+            "SortExpression", return cast one's c-sorted on (expression) or pass the failure off.
             // From 1: argument zero is the program's own name, which no two ways of running it agree on.
             "ProgramArgumentsExpression":
                 Return "(\{ cser_text* cf_args = cser_text_new(); for (int cf_ai = 1; cf_ai < cufet_argc; cf_ai++) cser_text_append(cf_args, (const char*)cufet_argv[cf_ai]); cf_args; \})".
