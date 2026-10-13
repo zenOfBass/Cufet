@@ -57,7 +57,7 @@ public class ParserParityTests(ITestOutputHelper output, CompiledCufetParser com
 
     // ── The comparison ──────────────────────────────────────────────────────
 
-    private static (int Parsed, List<string> Problems, List<string> Unsupported) Compare(
+    internal static (int Parsed, List<string> Problems, List<string> Unsupported) Compare(
         Dictionary<string, List<string>> got, IEnumerable<(string Name, string Source)> files)
     {
         int parsed = 0;

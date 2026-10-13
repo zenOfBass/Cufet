@@ -52,7 +52,7 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     : PipelineTestBase, IClassFixture<CompiledCufetCompiler>
 {
     /// <summary>How many hand-written programs must build and print alike. Raised as it grows; never lowered.</summary>
-    private const int BuiltFloor = 286;
+    private const int BuiltFloor = 299;
 
     private static string[] PreludeArgs =>
         ["--prelude", Path.Combine(RepoRoot, "src", "Interpreter", "Prelude").Replace('\\', '/')];
@@ -368,6 +368,21 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
         "Define object box with (the number size):\n    Bind void to grow:\n        Increment one's size by 1.\n    Done.\n    Bind number to doubled:\n        Return one's size * 2.\n    Done.\nDone.\nDefine object pair with (the box held).\nDefine p as a new pair { the held a new box { the size 1 } }.\nCast (p's held)'s grow.\nState p.",
         "Define object box with (the number size):\n    Bind void to grow:\n        Increment one's size by 1.\n    Done.\n    Bind number to doubled:\n        Return one's size * 2.\n    Done.\nDone.\nState cast (a new box { the size 7 })'s doubled.\nBind box to made, given (the number size-wanted):\n    Return a new box { the size size-wanted }.\nDone.\nState cast (cast made on (3))'s doubled.",
         "Define object box with (the number size):\n    Bind void to grow:\n        Increment one's size by 1.\n    Done.\n    Bind number to doubled:\n        Return one's size * 2.\n    Done.\nDone.\nDefine boxes as a series of box with (a new box { the size 2 }).\nFor each place in range 1 to 3, repeat:\n    Cast (item 1 of boxes)'s grow.\nDone.\nState boxes.",
+        // Exceptions — In case of exception, the exception renamed, Suppress, raised again by default, nested, beside In case of failure, and a Try left early by Return, Stop, Skip or a failure passed off; path checks.
+        "Try to:\n    State 1 / 0.\n    State \"not reached\".\nDone.\nIn case of exception:\n    State the message of the exception.\n    State the exception.\n    Suppress the exception.\nDone.\nState \"after\".",
+        "Try to:\n    Define xs as a series of number with (1).\n    State item 3 of xs.\nDone.\nIn case of exception (the trouble):\n    State \"caught: {the message of the trouble}\".\n    Suppress the exception.\nDone.\nState \"after\".",
+        "Bind number to risky, given (the number n):\n    Return 10 / n.\nDone.\nTry to:\n    State cast risky on (2).\n    State cast risky on (0).\nDone.\nIn case of exception:\n    State \"from a call: {the message of the exception}\".\n    Suppress the exception.\nDone.",
+        "Try to:\n    Try to:\n        State 1 / 0.\n    Done.\n    In case of exception:\n        State \"inner\".\n    Done.\nDone.\nIn case of exception:\n    State \"outer: {the message of the exception}\".\n    Suppress the exception.\nDone.\nState \"done\".",
+        "Bind number to early, given (the number n):\n    Try to:\n        If n is 1, return 5.\n        State 1 / 0.\n    Done.\n    In case of exception:\n        Suppress the exception.\n    Done.\n    Return 0.\nDone.\nState cast early on (1).\nState cast early on (2).\nTry to:\n    State 1 / 0.\nDone.\nIn case of exception:\n    State \"later caught: {the message of the exception}\".\n    Suppress the exception.\nDone.\n",
+        "For each n in range 1 to 3, repeat:\n    Try to:\n        If n is 2, stop.\n        State n.\n    Done.\n    In case of exception:\n        Suppress the exception.\n    Done.\nDone.\nTry to:\n    State 1 / 0.\nDone.\nIn case of exception:\n    State \"later caught: {the message of the exception}\".\n    Suppress the exception.\nDone.\n",
+        "For each n in range 1 to 3, repeat:\n    Try to:\n        If n is 2, skip.\n        State n.\n    Done.\n    In case of exception:\n        Suppress the exception.\n    Done.\nDone.\nTry to:\n    State 1 / 0.\nDone.\nIn case of exception:\n    State \"later caught: {the message of the exception}\".\n    Suppress the exception.\nDone.\n",
+        "Bind number or failure to checked, given (the number n):\n    If n is 0, return a failure \"zero\".\n    Return n.\nDone.\nBind number or failure to passes, given (the number n):\n    Try to:\n        Define got as cast checked on (n) or pass the failure off.\n        Return got.\n    Done.\n    In case of exception:\n        Suppress the exception.\n    Done.\n    Return -1.\nDone.\nState (cast passes on (0) but on failure 99).\nTry to:\n    State 1 / 0.\nDone.\nIn case of exception:\n    State \"later caught: {the message of the exception}\".\n    Suppress the exception.\nDone.\n",
+        "Bind number or failure to checked, given (the number n):\n    If n is 0, return a failure \"zero\".\n    Return n.\nDone.\nFor each n in a series with (0, 2, 5), repeat:\n    Try to:\n        Define got as cast checked on (n).\n        State 10 / (got - 2).\n    Done.\n    In case of failure:\n        State \"failed: {the message of the failure}\".\n    Done.\n    In case of exception:\n        State \"faulted: {the message of the exception}\".\n        Suppress the exception.\n    Done.\nDone.",
+        "Try to:\n    State 1 / 0.\nDone.\nIn case of exception:\n    State \"handled once\".\n    Try to:\n        State 2 / 0.\n    Done.\n    In case of exception:\n        State \"handled inside the handler\".\n        Suppress the exception.\n    Done.\n    Suppress the exception.\nDone.\nState \"after both\".",
+        "State the path \".\" exists.\nState the path \".\" is a directory.\nState the path \".\" is a file.\nState the path \"surely-not-here.txt\" exists.\nState the path \"surely-not-here.txt\" is a file.",
+        // A Try left early by Return or Stop, then a fault in a Try that was already open — a frame left behind would catch it instead (found by sabotage: the first probes always faulted in a NEW Try, which hides one).
+        "Bind number to early, given (the number n):\n    Try to:\n        If n is 1, return 5.\n        State 1 / 0.\n    Done.\n    In case of exception:\n        Suppress the exception.\n    Done.\n    Return 0.\nDone.\nTry to:\n    State cast early on (1).\n    State 1 / 0.\nDone.\nIn case of exception:\n    State \"the outer Try caught it: {the message of the exception}\".\n    Suppress the exception.\nDone.",
+        "Try to:\n    For each n in range 1 to 3, repeat:\n        Try to:\n            If n is 2, stop.\n        Done.\n        In case of exception:\n            Suppress the exception.\n        Done.\n    Done.\n    State 1 / 0.\nDone.\nIn case of exception:\n    State \"the outer Try caught it after the stop\".\n    Suppress the exception.\nDone.",
     ];
 
     [Fact]
@@ -420,7 +435,7 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     }
 
     /// <summary>How many programs of `examples/` must build and print alike. Raised as it grows; never lowered.</summary>
-    private const int CorpusFloor = 30;
+    private const int CorpusFloor = 31;
 
     /// <remarks>
     /// ★ The corpus is copied first: the compiler writes each program beside its source. Each program
@@ -534,6 +549,14 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
          "'out' has 2 items"),
         ("Pull a book on collections.\n    Define out as a chase.\n    Insert \"ab\" into out.\n    For each letter in out, repeat:\n        Insert \"c\" into out.\n    Done.\nDone.",
          "'out' was modified during a for-each loop"),
+        ("Try to:\n    State 1 / 0.\nDone.\nIn case of exception:\n    State \"handled, and raised again\".\nDone.\nState \"not reached\".",
+         "Division by zero"),
+        ("Try to:\n    Define xs as a series of number.\n    State the last of xs.\nDone.\nIn case of exception:\n    State \"seen\".\nDone.",
+         "'xs' is empty"),
+        // A Try left early, then a fault with no Try at all: the program stops, rather than jumping
+        // into the frame of a Try that is gone.
+        ("Bind number to early, given (the number n):\n    Try to:\n        If n is 1, return 5.\n    Done.\n    In case of exception:\n        Suppress the exception.\n    Done.\n    Return 0.\nDone.\nState cast early on (1).\nState 1 / 0.\nState \"not reached\".",
+         "Division by zero"),
     ];
 
     [Fact]
@@ -600,27 +623,61 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
             Path.Combine(TestScratch.Root, "cufet-selflexer-" + Guid.NewGuid().ToString("N"))).FullName;
         try
         {
-            foreach (var f in Directory.GetFiles(SelfHostingDir, "*.cufe", SearchOption.AllDirectories))
-            {
-                var to = Path.Combine(dir, Path.GetRelativePath(SelfHostingDir, f));
-                Directory.CreateDirectory(Path.GetDirectoryName(to)!);
-                File.Copy(f, to);
-            }
-            var runtime = compiled.RuntimeFolder.Replace('\\', '/');
-            string entry = "Cufet/lexer/lexer.cufe";
-            var said = ByFile(Run(compiled.Exe, ["--runtime", runtime, .. PreludeArgs, entry], dir));
-            string verdict = said.TryGetValue(entry, out var lines) && lines.Count > 0 ? lines[0] : "<nothing printed>";
-            Assert.True(verdict == "built", $"the lexer did not build: {verdict}");
-
+            string exe = BuiltByTheCufetCompiler("lexer", dir);
             var files = Corpus();
             Assert.True(files.Count >= 80, $"only {files.Count} Cufet files found under {RepoRoot}");
-            string exe = Path.Combine(dir, "Cufet", "lexer", "lexer" + (OperatingSystem.IsWindows() ? ".exe" : ""));
             var got = ByFile(Run(exe, files, RepoRoot));
             var problems = Differences(WithSources(files), got);
             Assert.True(problems.Count == 0,
                 $"{problems.Count} of {files.Count} files lex differently:\n{string.Join("\n", problems)}");
         }
         finally { try { Directory.Delete(dir, recursive: true); } catch (IOException) { } }
+    }
+
+    /// <summary>
+    /// The compiler written in Cufet builds the parser written in Cufet, and what it builds parses
+    /// every Cufet file in the repository into the tree C#'s parser builds.
+    /// </summary>
+    /// <remarks>
+    /// ★ The second of the four, 2026-10-12. Held to <c>Parser.cs</c> through the same printed tree
+    /// `TheCompiledParser_BuildsTheSameTreeAsCSharp_ForEveryFile` holds `cufet build`'s parser to.
+    /// </remarks>
+    [Fact]
+    public void TheCompiledCompiler_BuildsTheParser_WhichParsesAsCSharpDoes()
+    {
+        var dir = Directory.CreateDirectory(
+            Path.Combine(TestScratch.Root, "cufet-selfparser-" + Guid.NewGuid().ToString("N"))).FullName;
+        try
+        {
+            string exe = BuiltByTheCufetCompiler("parser", dir);
+            var files = Corpus();
+            Assert.True(files.Count >= 80, $"only {files.Count} Cufet files found under {RepoRoot}");
+            var (parsed, problems, unsupported) = ParserParityTests.Compare(ByFile(Run(exe, files, RepoRoot)), WithSources(files));
+            Assert.True(problems.Count == 0,
+                $"{problems.Count} of {files.Count} files parse differently:\n{string.Join("\n", problems.Take(20))}");
+            Assert.True(parsed >= 100, $"only {parsed} files parse alike. Not yet:\n{string.Join("\n", unsupported)}");
+        }
+        finally { try { Directory.Delete(dir, recursive: true); } catch (IOException) { } }
+    }
+
+    /// <summary>
+    /// A copy of `self-hosting/` with one of its programs — `lexer`, `parser`, … — built by the
+    /// compiler written in Cufet; the program's path. Fails the test if it does not build.
+    /// </summary>
+    private string BuiltByTheCufetCompiler(string entry, string dir)
+    {
+        foreach (var f in Directory.GetFiles(SelfHostingDir, "*.cufe", SearchOption.AllDirectories))
+        {
+            var to = Path.Combine(dir, Path.GetRelativePath(SelfHostingDir, f));
+            Directory.CreateDirectory(Path.GetDirectoryName(to)!);
+            File.Copy(f, to);
+        }
+        var runtime = compiled.RuntimeFolder.Replace('\\', '/');
+        string source = $"Cufet/{entry}/{entry}.cufe";
+        var said = ByFile(Run(compiled.Exe, ["--runtime", runtime, .. PreludeArgs, source], dir));
+        string verdict = said.TryGetValue(source, out var lines) && lines.Count > 0 ? lines[0] : "<nothing printed>";
+        Assert.True(verdict == "built", $"the {entry} did not build: {verdict}");
+        return Path.Combine(dir, "Cufet", entry, entry + (OperatingSystem.IsWindows() ? ".exe" : ""));
     }
 
     /// <summary>Output with its line breaks and tabs shown, so a difference in either is visible.</summary>

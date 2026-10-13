@@ -21,12 +21,14 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   point, at the end, the start or after a place, read by place, set, removed from, looped over,
   compared and converted to text — a series of maps, casing, choosing a value with `when … otherwise`,
   `sorted`, a method called on an item of a series or a value made for the call, the first and last
-  characters of a text, and `the current directory`. `CompilerParityTests` now holds it to the
-  interpreter on 286 hand-written programs and on 30 of the 67 in `examples/`.
-- **The compiler written in Cufet builds the lexer written in Cufet** — the first program of its
-  own toolchain to come through. What it builds lexes every Cufet file in the repository exactly
-  as the C# lexer does, in a few seconds where the interpreted lexer takes minutes;
-  `TheCompiledCompiler_BuildsTheLexer_WhichLexesAsCSharpDoes` holds it.
+  characters of a text, `the current directory`, path checks, and exceptions — `In case of
+  exception`, raised again unless suppressed, with a `Try` left early by `Return`, `Stop`, `Skip`
+  or a failure closing what it leaves. `CompilerParityTests` now holds it to the interpreter on
+  299 hand-written programs and on 31 of the 67 in `examples/`.
+- **The compiler written in Cufet builds the lexer and the parser written in Cufet** — the first
+  two programs of its own toolchain to come through. What it builds lexes and parses every Cufet
+  file in the repository exactly as C# does; `TheCompiledCompiler_BuildsTheLexer_WhichLexesAsCSharpDoes`
+  and `TheCompiledCompiler_BuildsTheParser_WhichParsesAsCSharpDoes` hold them.
 
 ### Changed
 
