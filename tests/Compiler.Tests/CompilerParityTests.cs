@@ -52,7 +52,7 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     : PipelineTestBase, IClassFixture<CompiledCufetCompiler>
 {
     /// <summary>How many hand-written programs must build and print alike. Raised as it grows; never lowered.</summary>
-    private const int BuiltFloor = 299;
+    private const int BuiltFloor = 303;
 
     private static string[] PreludeArgs =>
         ["--prelude", Path.Combine(RepoRoot, "src", "Interpreter", "Prelude").Replace('\\', '/')];
@@ -383,6 +383,11 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
         // A Try left early by Return or Stop, then a fault in a Try that was already open — a frame left behind would catch it instead (found by sabotage: the first probes always faulted in a NEW Try, which hides one).
         "Bind number to early, given (the number n):\n    Try to:\n        If n is 1, return 5.\n        State 1 / 0.\n    Done.\n    In case of exception:\n        Suppress the exception.\n    Done.\n    Return 0.\nDone.\nTry to:\n    State cast early on (1).\n    State 1 / 0.\nDone.\nIn case of exception:\n    State \"the outer Try caught it: {the message of the exception}\".\n    Suppress the exception.\nDone.",
         "Try to:\n    For each n in range 1 to 3, repeat:\n        Try to:\n            If n is 2, stop.\n        Done.\n        In case of exception:\n            Suppress the exception.\n        Done.\n    Done.\n    State 1 / 0.\nDone.\nIn case of exception:\n    State \"the outer Try caught it after the stop\".\n    Suppress the exception.\nDone.",
+        // A folder's contents, which can fail; the environment variable.
+        "State the environment variable \"SURELY_NOT_SET_XYZ\".\nState (the environment variable \"SURELY_NOT_SET_XYZ\") is void.\nDefine os-name as the environment variable \"OS\" but void is \"none\".\nState the length of os-name is greater than 0.",
+        "Try to:\n    Define found as the contents of the directory \"nowhere-at-all\".\n    State found.\nDone.\nIn case of failure:\n    State the message of the failure.\nDone.",
+        "Try to:\n    Define found as the contents of the directory \".\".\n    State the number of found is greater than 0.\nDone.\nIn case of failure:\n    State \"could not list\".\nDone.",
+        "Bind series of text or failure to listed, given (the text folder):\n    Define found as the contents of the directory folder or pass the failure off.\n    Return found.\nDone.\nState the number of (cast listed on (\"also-nowhere\") but on failure a series of text).",
     ];
 
     [Fact]
