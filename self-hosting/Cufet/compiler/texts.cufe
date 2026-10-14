@@ -1,6 +1,6 @@
 /*  Text — `the length of`, `the characters from … to … of`, `contains`, `starts with`, `ends with`,
     `the position of … in`, `replace … with … in`, `trimmed`, `split by`, `in uppercase` and `in
-    lowercase`, `the first … characters of` and `the last … characters of`, and `the current directory`.
+    lowercase`, `the first … characters of` and `the last … characters of`, `the current directory`, and `the environment variable`.
 
     ★ Each is the runtime's own call, the one `cufet build` makes, so a text is measured and cut in
       CHARACTERS — code points — and never in bytes.
@@ -15,13 +15,13 @@ Pull a book on collections.
         Return kind is "TextSubstringRange" or kind is "TextContains" or kind is "TextAffixTest" or kind is "TextFind"
             or kind is "TextReplace" or kind is "TextTrim" or kind is "TextSplit" or kind is "NumberConvert"
             or kind is "TextCase" or kind is "TextSubstringEdge" or kind is "CurrentDirectoryExpression"
-            or kind is "PathCheckExpression".
+            or kind is "PathCheckExpression" or kind is "EnvironmentVariableExpression".
     Done.
 
     Bind text to text-operation-kind, given (the text kind):
         If kind is "TextContains" or kind is "TextAffixTest" or kind is "PathCheckExpression", return "fact".
         If kind is "TextFind" or kind is "NumberConvert", return "voidable number".
-        If kind is "CurrentDirectoryExpression", return "voidable text".
+        If kind is "CurrentDirectoryExpression" or kind is "EnvironmentVariableExpression", return "voidable text".
         If kind is "TextSplit", return "series of text".
         Return "text".
     Done.
@@ -40,6 +40,10 @@ Pull a book on collections.
         Done.
         Define text-c as cast one's c-of on (cast field-of on (expression, 1)) or pass the failure off.
         If kind is "TextTrim", return "cufet_str_trim({text-c})".
+        // `the environment variable <name>` — void when it is not set.
+        If kind is "EnvironmentVariableExpression":
+            Return "(\{ const char* cf_ev = cufet_getenv({text-c}); cf_ev ? cvo_text_some(cf_ev) : cvo_text_none(); \})".
+        Done.
         // `the path … exists`, `is a directory`, `is a file`.
         If kind is "PathCheckExpression":
             Define asked as (cast field-of on (expression, 2))'s word.

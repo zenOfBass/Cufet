@@ -1,5 +1,6 @@
 /*  Failures — `<type> or failure`, `return a failure …`, `or pass the failure off`, `but on failure`,
-    `Try to: … In case of failure:`, `the message of the failure`, and reading a file, which can fail.
+    `Try to: … In case of failure:`, `the message of the failure`, and reading a file or a folder's
+    contents, which can fail.
 
     ★ A value that may be a failure is `{ ok, value, failure }` — the failure the runtime's own
       `CufetFailure`, a message and a category that is NULL when none was given. Its kind is written
@@ -132,12 +133,17 @@ Pull a book on collections.
     // ── Expressions ───────────────────────────────────────────────────────
 
     Bind fact to is-failure-expression, given (the text kind):
-        Return kind is "FailureLiteral" or kind is "FailurePropagate" or kind is "FailureFallback" or kind is "FileReadExpression".
+        Return kind is "FailureLiteral" or kind is "FailurePropagate" or kind is "FailureFallback" or kind is "FileReadExpression"
+            or kind is "DirectoryContentsExpression".
     Done.
 
     Bind text or failure to failure-kind-of unto emitter, given (the node expression):
         Define kind as expression's kind.
         If kind is "FailureLiteral", return "failure".
+        If kind is "DirectoryContentsExpression":
+            Cast one's register-failable on ("failure of series of text").
+            Return cast one's unwrapped-kind on ("failure of series of text").
+        Done.
         If kind is "FileReadExpression":
             Define read-kind as "failure of text".
             If (cast field-of on (expression, 1))'s word is "AllLines", the read-kind becomes "failure of series of text".
@@ -173,6 +179,13 @@ Pull a book on collections.
             Done.
             Cast one's register-failable on (read-kind).
             Return cast one's c-unwrapped on (read-c, read-kind).
+        Done.
+        // `the contents of the directory <path>` — its entries' names, or a failure.
+        If kind is "DirectoryContentsExpression":
+            Define folder-c as cast one's c-of on (cast field-of on (expression, 1)) or pass the failure off.
+            Cast one's register-failable on ("failure of series of text").
+            Define listed-c as "(\{ cfl_cser_text cf_dc; memset(&cf_dc, 0, sizeof cf_dc); const char** cf_di; int cf_dn; CufetFailure cf_de; if (cufet_dir_contents({folder-c}, &cf_di, &cf_dn, &cf_de)) \{ cser_text* cf_ds = cser_text_new(); for (int cf_i = 0; cf_i < cf_dn; cf_i++) cser_text_append(cf_ds, cf_di[cf_i]); cf_dc.ok = 1; cf_dc.value = cf_ds; \} else cf_dc.failure = cf_de; cf_dc; \})".
+            Return cast one's c-unwrapped on (listed-c, "failure of series of text").
         Done.
         If kind is "FailurePropagate", return cast one's c-pass-off on (cast field-of on (expression, 1)) or pass the failure off.
         // `<call> but on failure <default>` — the default worked out only when the call failed.
