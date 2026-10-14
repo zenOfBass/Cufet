@@ -344,6 +344,17 @@ Pull a book on collections.
         If (operator is "Equal" or operator is "NotEqual") and (cast is-union on (left-kind) or cast is-union on (right-kind)):
             Return cast one's c-union-equal on (expression) or pass the failure off.
         Done.
+        // A voidable compared with a value of what it holds: the value goes in as a voidable, so
+        // `void` is unequal to it and a held value is compared as itself.
+        If (operator is "Equal" or operator is "NotEqual") and left-kind is not right-kind:
+            If cast is-voidable on (left-kind):
+                The right becomes cast one's c-coerce on (right, right-kind, left-kind).
+            Done.
+            Otherwise if cast is-voidable on (right-kind):
+                The left becomes cast one's c-coerce on (left, left-kind, right-kind).
+                The left-kind becomes right-kind.
+            Done.
+        Done.
         If cast is-scalar on (left-kind) is false:
             If operator is "Equal", return "({cast c-equal on (left-kind, left, right)})".
             If operator is "NotEqual", return "(!{cast c-equal on (left-kind, left, right)})".
@@ -555,6 +566,7 @@ Pull a book on collections.
             Done.
             "JudgeStatement", cast one's emit-judge on (statement) or pass the failure off.
             "TryStatement", cast one's emit-try on (statement) or pass the failure off.
+            "FileWriteStatement", cast one's emit-file-write on (statement) or pass the failure off.
             "MapSetStatement", cast one's emit-map-set on (statement) or pass the failure off.
             "RecordNamedSetStatement", cast one's emit-record-set on (statement) or pass the failure off.
             "ForEachStatement" or "SeriesInsertStatement" or "SeriesRemoveAtStatement" or "SeriesRemoveValueStatement"

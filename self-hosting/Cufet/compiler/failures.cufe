@@ -134,7 +134,7 @@ Pull a book on collections.
 
     Bind fact to is-failure-expression, given (the text kind):
         Return kind is "FailureLiteral" or kind is "FailurePropagate" or kind is "FailureFallback" or kind is "FileReadExpression"
-            or kind is "DirectoryContentsExpression".
+            or kind is "DirectoryContentsExpression" or kind is "RunExpression".
     Done.
 
     Bind text or failure to failure-kind-of unto emitter, given (the node expression):
@@ -144,6 +144,7 @@ Pull a book on collections.
             Cast one's register-failable on ("failure of series of text").
             Return cast one's unwrapped-kind on ("failure of series of text").
         Done.
+        If kind is "RunExpression", return cast one's unwrapped-kind on (cast one's run-kind or pass the failure off).
         If kind is "FileReadExpression":
             Define read-kind as "failure of text".
             If (cast field-of on (expression, 1))'s word is "AllLines", the read-kind becomes "failure of series of text".
@@ -187,6 +188,10 @@ Pull a book on collections.
             Define listed-c as "(\{ cfl_cser_text cf_dc; memset(&cf_dc, 0, sizeof cf_dc); const char** cf_di; int cf_dn; CufetFailure cf_de; if (cufet_dir_contents({folder-c}, &cf_di, &cf_dn, &cf_de)) \{ cser_text* cf_ds = cser_text_new(); for (int cf_i = 0; cf_i < cf_dn; cf_i++) cser_text_append(cf_ds, cf_di[cf_i]); cf_dc.ok = 1; cf_dc.value = cf_ds; \} else cf_dc.failure = cf_de; cf_dc; \})".
             Return cast one's c-unwrapped on (listed-c, "failure of series of text").
         Done.
+        If kind is "RunExpression":
+            Define run-c as cast one's c-run on (expression) or pass the failure off.
+            Return cast one's c-unwrapped on (run-c, cast one's run-kind or pass the failure off).
+        Done.
         If kind is "FailurePropagate", return cast one's c-pass-off on (cast field-of on (expression, 1)) or pass the failure off.
         // `<call> but on failure <default>` — the default worked out only when the call failed.
         Define held as cast one's raw-kind-of on (cast field-of on (expression, 1)) or pass the failure off.
@@ -207,6 +212,56 @@ Pull a book on collections.
     Bind text to c-failure-field, given (the text failure-c, the text field-name):
         If field-name is "message", return "({failure-c}).message".
         Return "(\{ CufetFailure cf_f = {failure-c}; cf_f.category ? cvo_text_some(cf_f.category) : cvo_text_none(); \})".
+    Done.
+
+    // ── Running a program ─────────────────────────────────────────────────
+
+    /// What `run` gives: the record of what the program did, or a failure when it could not start.
+    Bind text or failure to run-kind unto emitter:
+        Define named as a map from text to text.
+        In named, the entry for "errors" becomes "text".
+        In named, the entry for "exit-code" becomes "number".
+        In named, the entry for "output" becomes "text".
+        Define record-kind as cast record-kind-of on (a series of text, named).
+        Cast one's register-record on (record-kind).
+        Cast one's register-failable on ("failure of {record-kind}").
+        Return "failure of {record-kind}".
+    Done.
+
+    /// `run <program> with arguments …` as C — the runtime's own call, the one `cufet build` makes:
+    /// the program's output and errors kept apart, or, `with the terminal`, its own.
+    Bind text or failure to c-run unto emitter, given (the node expression):
+        Define kind as cast one's run-kind or pass the failure off.
+        Define record-kind as cast failable-inner on (kind).
+        Define record-c as cast record-c-name on (record-kind).
+        Define type-c as cast failable-c-name on (kind).
+        Define program-c as cast one's c-of on (cast field-of on (expression, 1)) or pass the failure off.
+        // The arguments: written out, or a series of them — with the program's name first, as argv has it.
+        Define argv-c as "".
+        If cast is-nothing on (cast field-of on (expression, 3)):
+            Define spelled-out as "(char*)cf_pg".
+            For each argument in (cast field-of on (expression, 2))'s children, repeat:
+                The spelled-out becomes "{spelled-out}, (char*)({cast one's c-of on (argument) or pass the failure off})".
+            Done.
+            The argv-c becomes "char* cf_av[] = \{ {spelled-out}, (char*)0 \};".
+        Done.
+        Otherwise:
+            Define series-c as cast one's c-of on (cast field-of on (expression, 3)) or pass the failure off.
+            The argv-c becomes "cser_text* cf_avs = {series-c}; char** cf_av = (char**)cufet_arena_alloc((size_t)(cf_avs->len + 2) * sizeof(char*)); cf_av[0] = (char*)cf_pg; for (int cf_ai = 0; cf_ai < cf_avs->len; cf_ai++) cf_av[cf_ai + 1] = (char*)cf_avs->data[cf_ai]; cf_av[cf_avs->len + 1] = (char*)0;".
+        Done.
+        // `with input ""` hands the program an end of input at once; none leaves it reading this one's.
+        Define input-c as "NULL".
+        If cast is-nothing on (cast field-of on (expression, 7)) is false:
+            The input-c becomes cast one's c-of on (cast field-of on (expression, 7)) or pass the failure off.
+        Done.
+        Define done-c as "cf_run.ok = 1; cf_run.value = ({record-c})\{ .{cast c-name on ("errors")} = cf_se, .{cast c-name on ("exit-code")} = cufet_dec_from_ll(cf_ex), .{cast c-name on ("output")} = cf_so \};".
+        Define call-c as "cufet_run_capture(cf_pg, cf_av, {input-c}, &cf_so, &cf_se, &cf_ex, &cf_e)".
+        // `with the terminal`: the child has this program's own streams, so nothing comes back but its exit code.
+        If (cast field-of on (expression, 6))'s word is "true":
+            The call-c becomes "cufet_run_inherit(cf_pg, cf_av, &cf_e, &cf_ex)".
+            The done-c becomes "cf_so = \"\"; cf_se = \"\"; {done-c}".
+        Done.
+        Return "(\{ const char* cf_pg = {program-c}; {argv-c} {type-c} cf_run; memset(&cf_run, 0, sizeof cf_run); const char* cf_so = 0; const char* cf_se = 0; int cf_ex = 0; CufetFailure cf_e; if ({call-c}) \{ {done-c} \} else cf_run.failure = cf_e; cf_run; \})".
     Done.
 
     // ── Statements ────────────────────────────────────────────────────────
@@ -353,6 +408,22 @@ Pull a book on collections.
         Cast one's line on ("cf_tried_{label}: ;").
         The one's indent becomes outer.
         Cast one's line on ("\}").
+    Done.
+
+    /// `Write <text> to the file <path>.` and `Append …` — inside a `Try`, a failure goes to its
+    /// handler; outside one it has nowhere to go, and the program says why and stops, as `cufet build`'s does.
+    Bind void or failure to emit-file-write unto emitter, given (the node statement):
+        Define appending as "0".
+        If (cast field-of on (statement, 1))'s word is "true", the appending becomes "1".
+        Define written-c as cast one's c-of on (cast field-of on (statement, 2)) or pass the failure off.
+        Define path-c as cast one's c-of on (cast field-of on (statement, 3)) or pass the failure off.
+        Cast one's register-failable on ("failure of void").
+        Define write-c as "(\{ cfl_void cf_w; memset(&cf_w, 0, sizeof cf_w); CufetFailure cf_we; if (cufet_file_write({path-c}, {written-c}, {appending}, &cf_we)) cf_w.ok = 1; else cf_w.failure = cf_we; cf_w; \})".
+        If cast one's current-try is not "":
+            Cast one's line on ("{cast one's c-unwrapped on (write-c, "failure of void")};").
+            Return.
+        Done.
+        Cast one's line on ("\{ cfl_void cf_w = {write-c}; if (!cf_w.ok) \{ fprintf(stderr, \"%s\\n\", cf_w.failure.message); exit(1); \} \}").
     Done.
 
     /// What a function that can only fail or be done says when it reaches its end: done.
