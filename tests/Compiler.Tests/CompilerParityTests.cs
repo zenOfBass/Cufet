@@ -52,7 +52,7 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     : PipelineTestBase, IClassFixture<CompiledCufetCompiler>
 {
     /// <summary>How many hand-written programs must build and print alike. Raised as it grows; never lowered.</summary>
-    private const int BuiltFloor = 303;
+    private const int BuiltFloor = 309;
 
     private static string[] PreludeArgs =>
         ["--prelude", Path.Combine(RepoRoot, "src", "Interpreter", "Prelude").Replace('\\', '/')];
@@ -388,6 +388,13 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
         "Try to:\n    Define found as the contents of the directory \"nowhere-at-all\".\n    State found.\nDone.\nIn case of failure:\n    State the message of the failure.\nDone.",
         "Try to:\n    Define found as the contents of the directory \".\".\n    State the number of found is greater than 0.\nDone.\nIn case of failure:\n    State \"could not list\".\nDone.",
         "Bind series of text or failure to listed, given (the text folder):\n    Define found as the contents of the directory folder or pass the failure off.\n    Return found.\nDone.\nState the number of (cast listed on (\"also-nowhere\") but on failure a series of text).",
+        // Running a program — its exit code, output and errors, or a failure when it cannot start; writing a file; a voidable compared with a value of what it holds (found by the compiler compiling itself).
+        "Define ages as a map with (\"a\": 1).\nState (the entry for \"a\" in ages) is 1.\nState (the entry for \"b\" in ages) is 1.\nState 1 is (the entry for \"a\" in ages).\nState (the entry for \"a\" in ages) is not 2.\nDefine label as a map with (\"k\": \"true\").\nIf (the entry for \"k\" in label) is \"true\", state \"yes\".\nIf (the entry for \"z\" in label) is \"true\", state \"no\".",
+        "Try to:\n    Write \"x\" to the file \"surely-no-such-folder-here/f.txt\".\n    State \"not reached\".\nDone.\nIn case of failure:\n    State the message of the failure.\nDone.\nTry to:\n    Append \"x\" to the file \"surely-no-such-folder-here/g.txt\".\nDone.\nIn case of failure:\n    State \"append: {the message of the failure}\".\nDone.",
+        "Define flags as a series of text with (\"-dumpversion\").\nTry to:\n    Define outcome as run \"gcc\" with arguments flags.\n    State the exit-code of outcome.\n    State the length of the output of outcome is greater than 0.\n    State the errors of outcome.\nDone.\nIn case of failure:\n    State the message of the failure.\nDone.",
+        "Try to:\n    Define outcome as run \"gcc\" with arguments a series of text with (\"-x\", \"c\", \"-fsyntax-only\", \"no-such-file.c\").\n    State the exit-code of outcome is 0.\n    State the length of the errors of outcome is greater than 0.\nDone.\nIn case of failure:\n    State \"could not start\".\nDone.",
+        "Try to:\n    Define outcome as run \"surely-no-such-program-anywhere\" with arguments a series of text.\n    State \"not reached\".\nDone.\nIn case of failure:\n    State \"failed to start\".\nDone.",
+        "Bind number or failure to exit-of, given (the series of text flags):\n    Define outcome as run \"gcc\" with arguments flags or pass the failure off.\n    Return the exit-code of outcome.\nDone.\nState (cast exit-of on (a series of text with (\"-dumpversion\")) but on failure -1).",
     ];
 
     [Fact]
@@ -663,6 +670,55 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
             Assert.True(parsed >= 100, $"only {parsed} files parse alike. Not yet:\n{string.Join("\n", unsupported)}");
         }
         finally { try { Directory.Delete(dir, recursive: true); } catch (IOException) { } }
+    }
+
+    /// <summary>
+    /// The compiler written in Cufet compiles ITSELF, and the compiler that makes compiles it again
+    /// into the very same C — the fixed point a self-hosting compiler is held to.
+    /// </summary>
+    /// <remarks>
+    /// ★★ 2026-10-13. Stage 1 is the compiler `CompiledCufetCompiler` builds with `cufet build`;
+    /// stage 2 is what stage 1 makes of `compiler.cufe`; stage 2 then compiles `compiler.cufe`
+    /// again. The C stage 2 writes must be byte for byte the C stage 1 wrote: a compiler that built
+    /// itself subtly wrong would write different C, or none.
+    /// </remarks>
+    [Fact]
+    public void TheCompiledCompiler_CompilesItself_ToAFixedPoint()
+    {
+        string root = Directory.CreateDirectory(
+            Path.Combine(TestScratch.Root, "cufet-selfcompiler-" + Guid.NewGuid().ToString("N"))).FullName;
+        try
+        {
+            string stageOneDir = Directory.CreateDirectory(Path.Combine(root, "one")).FullName;
+            string stageTwo = BuiltByTheCufetCompiler("compiler", stageOneDir);
+            string stageOneC = Path.Combine(stageOneDir, "Cufet", "compiler", "compiler.c");
+
+            string stageTwoDir = Directory.CreateDirectory(Path.Combine(root, "two")).FullName;
+            foreach (var f in Directory.GetFiles(SelfHostingDir, "*.cufe", SearchOption.AllDirectories))
+            {
+                var to = Path.Combine(stageTwoDir, Path.GetRelativePath(SelfHostingDir, f));
+                Directory.CreateDirectory(Path.GetDirectoryName(to)!);
+                File.Copy(f, to);
+            }
+            var runtime = compiled.RuntimeFolder.Replace('\\', '/');
+            string source = "Cufet/compiler/compiler.cufe";
+            var said = ByFile(Run(stageTwo, ["--runtime", runtime, .. PreludeArgs, source], stageTwoDir));
+            string verdict = said.TryGetValue(source, out var lines) && lines.Count > 0 ? lines[0] : "<nothing printed>";
+            Assert.True(verdict == "built", $"the self-built compiler did not build itself: {verdict}");
+
+            string stageTwoC = Path.Combine(stageTwoDir, "Cufet", "compiler", "compiler.c");
+            string one = File.ReadAllText(stageOneC), two = File.ReadAllText(stageTwoC);
+            if (one != two)
+            {
+                int at = 0;
+                while (at < one.Length && at < two.Length && one[at] == two[at]) at++;
+                int line = one[..at].Count(c => c == '\n') + 1;
+                Assert.Fail($"the self-built compiler writes different C for itself, first at line {line}:\n"
+                    + $"    stage 1: {Show(one[at..Math.Min(one.Length, at + 120)])}\n"
+                    + $"    stage 2: {Show(two[at..Math.Min(two.Length, at + 120)])}");
+            }
+        }
+        finally { try { Directory.Delete(root, recursive: true); } catch (IOException) { } }
     }
 
     /// <summary>

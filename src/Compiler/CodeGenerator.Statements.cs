@@ -508,7 +508,6 @@ public sealed partial class CodeGenerator
                 // ★ Launched for its effect: the child inherits stdio, so nothing is captured and
                 // there is no record to build. Only the launch can fail — a nonzero exit is an
                 // ordinary outcome the statement form simply does not report.
-                _usesProcess = true;
                 int rid = _freshId++;
                 string prog = $"cf_rp{rid}";
                 _preEmits.Add($"const char* {prog} = {EmitExpr(runStmt.Program)};");
@@ -3595,7 +3594,6 @@ public sealed partial class CodeGenerator
     // failure of any stage becomes the `or failure`; a ran-but-nonzero command is a success record.
     private string EmitRunRaw(IExpression expr)
     {
-        _usesProcess = true;
         string cr   = RegisterRecordStruct(RunResultRecordType);
         string cfl  = RegisterFailableStruct(new FailureType(RunResultRecordType));
         string fErr = MangleName("errors"), fExit = MangleName("exit-code"), fOut = MangleName("output");

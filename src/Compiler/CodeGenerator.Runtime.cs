@@ -1623,7 +1623,11 @@ static int cufet_dir_contents(const char* path, const char*** out_items, int* ou
     // for the terminal form — matching the interpreter's no-shell direct exec
     // (ProcessStartInfo.ArgumentList) with separate stdout/stderr + exit code.
     //
-    // Emitted ONLY when a program uses `run`/pipe, so non-run programs compile anywhere.
+    // ★ In the SHARED runtime, every build, whether a program runs anything or not. ⚠ It was gated
+    // until 2026-10-13, emitted only for a program that used `run`, "so non-run programs compile
+    // anywhere" — but both platforms have both forms now, and it compiles clean on each (MEASURED:
+    // mingw gcc on Windows, gcc 16 on Linux, `-Wall`). The gate kept `run` out of the runtime the
+    // compiler written in Cufet links, and that compiler runs gcc.
     // ★ BOTH forms now exist on both platforms: the terminal form through `_spawnvp`, the
     // capturing form through CreatePipe + CreateProcess with PeekNamedPipe draining, which is the
     // Windows answer to the POSIX side's `poll` — neither pipe may be read to the end before the
@@ -1706,9 +1710,8 @@ static const char* cufet_win_quote(const char* arg) {
    POSIX side needs fork + an exec-status pipe only to tell "no such program" from "it ran and
    failed"; here `_spawnvp` answers that directly by returning -1 with errno set.
 
-   ⚠ The capturing form is NOT here. `cufet_run_capture` needs separated stdout and stderr, which
-   on Windows means CreateProcess with explicit handles rather than a spawn — a bigger piece, and
-   what `shell` and `repl` still wait on.
+   The capturing form, with stdout and stderr separated, is `cufet_run_capture` below: CreateProcess
+   with explicit handles rather than a spawn, which is why it is a function of its own.
 
    ⚠⚠ ARGUMENT QUOTING IS THE PLATFORM'S, NOT OURS. POSIX passes argv as a vector all the way to
    the child; Windows joins it into one command line and the child pulls it apart again, so an

@@ -418,8 +418,6 @@ public sealed partial class CodeGenerator
       + ExcPopStmts(point.ExcDepth)
       + ArenaPopStmts(point.RabbitDepth, mergeArenas);
 
-    // Set when the program uses `run`/pipe, so the POSIX subprocess runtime is emitted (only then).
-    private bool _usesProcess;
 
     // Arc 1 (stdlib/books): books are BUILTIN + compile-time-resolved (no dynamic linking). A
     // `Pull a book on <name>` registers a compile-time alias (localName → canonical book name) so

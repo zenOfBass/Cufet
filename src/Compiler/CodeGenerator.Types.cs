@@ -640,7 +640,7 @@ static const char* cufet_str_lower(const char* s) {
         if (_usesMatrix) runtime.AppendLine(MatrixRuntime);
         runtime.AppendLine(CaseRuntime);
         if (_usesChance) runtime.AppendLine(ChanceRuntime);
-        if (_usesProcess) runtime.AppendLine(ProcessRuntime);
+        runtime.AppendLine(ProcessRuntime);
         if (_usesSignals || _usesConcurrency) runtime.AppendLine(SignalRuntime);
         if (_usesConcurrency) runtime.AppendLine(ConcurrencyRuntime);
 

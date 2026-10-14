@@ -22,14 +22,20 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   compared and converted to text — a series of maps, casing, choosing a value with `when … otherwise`,
   `sorted`, a method called on an item of a series or a value made for the call, the first and last
   characters of a text, `the current directory`, `the environment variable`, path checks, a
-  folder's contents, and exceptions — `In case of exception`, raised again unless suppressed, with
-  a `Try` left early by `Return`, `Stop`, `Skip` or a failure closing what it leaves.
-  `CompilerParityTests` now holds it to the interpreter on 303 hand-written programs and on 31 of
-  the 67 in `examples/`.
-- **The compiler written in Cufet builds the lexer and the parser written in Cufet** — the first
-  two programs of its own toolchain to come through. What it builds lexes and parses every Cufet
-  file in the repository exactly as C# does; `TheCompiledCompiler_BuildsTheLexer_WhichLexesAsCSharpDoes`
-  and `TheCompiledCompiler_BuildsTheParser_WhichParsesAsCSharpDoes` hold them.
+  folder's contents, exceptions — `In case of exception`, raised again unless suppressed, with a
+  `Try` left early by `Return`, `Stop`, `Skip` or a failure closing what it leaves — writing a file,
+  and `run`. `CompilerParityTests` now holds it to the interpreter on 309 hand-written programs and
+  on 31 of the 67 in `examples/`.
+- **The compiler written in Cufet compiles itself.** The compiler it builds from its own source
+  compiles that source again into the very same C, byte for byte — the fixed point a self-hosting
+  compiler is held to — and builds every program the first one does, printing the same.
+  `TheCompiledCompiler_CompilesItself_ToAFixedPoint` holds it.
+- **The compiler written in Cufet builds the lexer and the parser written in Cufet**, and what it
+  builds lexes and parses every Cufet file in the repository exactly as C# does;
+  `TheCompiledCompiler_BuildsTheLexer_WhichLexesAsCSharpDoes` and
+  `TheCompiledCompiler_BuildsTheParser_WhichParsesAsCSharpDoes` hold them. It builds the checker too,
+  which agrees with C#'s build of it file for file — until, regions not yet freeing anything, a
+  long run over many files outgrows memory.
 
 ### Changed
 
@@ -39,6 +45,10 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   linked, so the table lives there in every build; a program that cases text calls into it, and
   the compiler written in Cufet, which links the same runtime, can case text too. The table still
   comes from the one the interpreter reads.
+- **Running a program is part of the shared C runtime too.** `run` was built into a program only
+  when it used it, "so non-run programs compile anywhere" — but both platforms have both forms now,
+  and the subprocess runtime compiles cleanly with gcc on Windows and on Linux. Every build links it,
+  so the compiler written in Cufet, which runs gcc, can be built by itself.
 
 ## [0.27.0] — 2026-10-11
 
