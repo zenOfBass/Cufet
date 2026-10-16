@@ -27,10 +27,9 @@ Pull a book on collections.
     /// What this compiler cannot build in an object yet, or "".
     Bind text to object-beyond, given (the node definition):
         If the number of (cast field-of on (definition, 2))'s children is greater than 0, return "an object with positional fields".
-        If the number of (cast field-of on (definition, 6))'s children is greater than 0, return "an object with setters".
         If cast is-nothing on (cast field-of on (definition, 7)) is false, return "an object that embeds another".
-        For each place in a series with (12, 13, 14), repeat:
-            If the number of (cast field-of on (definition, place))'s children is greater than 0, return "an object with defaults, blanks or carried types".
+        For each place in a series with (12, 13), repeat:
+            If the number of (cast field-of on (definition, place))'s children is greater than 0, return "an object with blanks or carried types".
         Done.
         Return "".
     Done.
@@ -71,20 +70,32 @@ Pull a book on collections.
         Return "({held}).{cast c-name on (cast unquoted on (cast field-of on (expression, 2)))}".
     Done.
 
-    /// `a new <object> { the <field> <value>, … }`, every field given.
+    /// The object a literal makes: the filled-in copy the checker chose for an object with blanks
+    /// — `stack of number` for `a new stack of number` — or the name written.
+    Bind text to literal-object-name, given (the node expression):
+        Define resolved as cast keyed-field on (expression, ":ResolvedTypeName").
+        If resolved is not void, return cast unquoted on (resolved).
+        Return cast unquoted on (cast field-of on (expression, 1)).
+    Done.
+
+    /// `a new <object> { the <field> <value>, … }` — the fields left out given their defaults, which
+    /// the checker lists beside the literal, so each is made afresh where the object is.
     Bind text or failure to c-object-literal unto emitter, given (the node expression):
-        Define object-name as cast unquoted on (cast field-of on (expression, 1)).
+        Define object-name as cast literal-object-name on (expression).
         Define definition as the entry for object-name in one's objects.
         If definition is void, return a failure (cast not-built on ("a new {object-name}")).
         If the number of (cast field-of on (expression, 2))'s children is greater than 0:
             Return a failure (cast not-built on ("an object given its fields by position")).
         Done.
-        If the number of (cast field-of on (expression, 6))'s children is greater than 0:
-            Return a failure (cast not-built on ("an object made with defaults")).
+        Define handed-fields as a series of node.
+        For each pair in (cast field-of on (expression, 3))'s children, insert pair into handed-fields.
+        Define filled as cast keyed-field on (expression, ":FilledDefaults").
+        If filled is not void:
+            For each pair in filled's children, insert pair into handed-fields.
         Done.
         Define supplied as a map from text to fact.
         Define listing as "".
-        For each pair in (cast field-of on (expression, 3))'s children, repeat:
+        For each pair in handed-fields, repeat:
             Define field as cast unquoted on (cast field-of on (pair, 1)).
             In supplied, the entry for field becomes true.
             Define wanted as cast one's field-kind on (object-name, field) or pass the failure off.
@@ -189,6 +200,33 @@ Pull a book on collections.
         Return "{signature} \{\n    {cast c-struct-name on (object-name)}* cv_one = &cf_self;\n{writer's body converted to text}\}\n\n".
     Done.
 
+    Bind text to c-setter-name, given (the text object-name, the text setter-name):
+        Return "cs_{cast c-ident on (object-name)}_{cast c-ident on (setter-name)}".
+    Done.
+
+    /// A setter's head as C: the object it changes, by address, and the value it is handed.
+    Bind text or failure to c-setter-signature unto emitter, given (the text object-name, the node setter):
+        Define taken as cast one's kind-of-type on (cast field-of on (setter, 2)) or pass the failure off.
+        Define setter-name as cast unquoted on (cast field-of on (setter, 1)).
+        Return "void {cast c-setter-name on (object-name, setter-name)}({cast c-struct-name on (object-name)}* cv_one, {cast c-type on (taken)} {cast c-name on (cast unquoted on (cast field-of on (setter, 3)))})".
+    Done.
+
+    /// One setter as C. Inside it, `one's <its field> becomes …` writes the field itself — `%setter`
+    /// names that field — where anywhere else the same words call the setter.
+    Bind text or failure to c-setter unto emitter, given (the text object-name, the node setter):
+        Define writer as cast one's sibling.
+        Cast writer's line on ("int cf_ab = cufet_arena_top; int cf_fo = cufet_alloc_override; (void)cf_ab; (void)cf_fo;").
+        In writer's kinds, the entry for "one" becomes "object {object-name}".
+        In writer's kinds, the entry for "%return" becomes "void".
+        In writer's kinds, the entry for "%setter" becomes cast unquoted on (cast field-of on (setter, 1)).
+        In writer's kinds, the entry for cast unquoted on (cast field-of on (setter, 3)) becomes cast one's kind-of-type on (cast field-of on (setter, 2)) or pass the failure off.
+        For each inner in (cast field-of on (setter, 4))'s children, repeat:
+            Cast writer's emit-statement on (inner) or pass the failure off.
+        Done.
+        Define signature as cast one's c-setter-signature on (object-name, setter) or pass the failure off.
+        Return "{signature} \{\n{writer's body converted to text}\}\n\n".
+    Done.
+
     Bind text to c-method-name, given (the text object-name, the text method-name):
         Return "cm_{cast c-ident on (object-name)}_{cast c-ident on (method-name)}".
     Done.
@@ -203,8 +241,20 @@ Pull a book on collections.
         Define object-name as cast object-of on (held).
         If object-name is "", return a failure (cast not-built on ("setting a field of a {held}")).
         Define field as cast unquoted on (cast field-of on (statement, 2)).
-        Define wanted as cast one's field-kind on (object-name, field) or pass the failure off.
         Define target-c as cast one's c-of on (target) or pass the failure off.
+        // A setter takes the write — except `one`'s own field, written inside that field's setter.
+        Define setter as the entry for "{object-name}'s setter {field}" in one's methods.
+        Define bypassed as target's kind is "VariableReference" and cast unquoted on (cast field-of on (target, 1)) is "one"
+            and false.
+        If setter is not void:
+            If bypassed is false:
+                Define handed as cast one's kind-of-type on (cast field-of on (setter, 2)) or pass the failure off.
+                Define handed-c as cast one's c-of-as on (cast field-of on (statement, 3), handed) or pass the failure off.
+                Cast one's line on ("{cast c-setter-name on (object-name, field)}(&({target-c}), {handed-c});").
+                Return.
+            Done.
+        Done.
+        Define wanted as cast one's field-kind on (object-name, field) or pass the failure off.
         Define value as cast one's c-of-as on (cast field-of on (statement, 3), wanted) or pass the failure off.
         Cast one's line on ("({target-c}).{cast c-name on (field)} = {value};").
     Done.
@@ -241,7 +291,9 @@ Pull a book on collections.
             // A union's struct comes after the objects it may hold, so an object cannot hold one yet.
             If cast is-union on (held), return a failure (cast not-built on ("an object with a union field")).
             If cast is-record on (held), return a failure (cast not-built on ("an object with a record field")).
-            If cast is-function on (held), return a failure (cast not-built on ("an object with a function field")).
+            If cast is-function on (held) and cast is-early-function on (held) is false:
+                Return a failure (cast not-built on ("an object with a field of a {held}")).
+            Done.
             If cast is-voidable on (held) and cast is-scalar on (cast voidable-inner on (held)) is false:
                 Return a failure (cast not-built on ("an object with a field of a voidable {cast voidable-inner on (held)}")).
             Done.

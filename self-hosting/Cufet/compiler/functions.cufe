@@ -86,6 +86,21 @@ Pull a book on collections.
         Return cast c-type on (gives).
     Done.
 
+    /// Whether a function kind's struct can be written ahead of the objects, so an object may hold
+    /// one: everything it takes and gives is named by then — a number, a text, a fact, or a series
+    /// or map, held by its address.
+    Bind fact to is-early-function, given (the text kind):
+        Define parts as cast function-takes on (kind).
+        Insert cast function-gives on (kind) into parts.
+        For each part in parts, repeat:
+            Define element as cast element-of on (part).
+            Define named-ahead as cast is-scalar on (part) or part is "void" or cast is-map on (part)
+                or cast is-scalar on (element) or (element is not "" and cast object-of on (element) is not "").
+            If named-ahead is false, return false.
+        Done.
+        Return true.
+    Done.
+
     /// A function kind's struct.
     Bind text to c-function-helpers, given (the text kind):
         Define param-list as "void*".
@@ -338,8 +353,8 @@ Pull a book on collections.
     Bind fact or failure to calls-value unto emitter, given (the node call):
         Define callee as cast field-of on (call, 1).
         If callee's kind is "VariableReference":
+            If (the entry for cast call-target on (call) in one's functions) is not void, return false.
             Define called-name as cast unquoted on (cast field-of on (callee, 1)).
-            If (the entry for called-name in one's functions) is not void, return false.
             Return cast is-function on (cast one's stored-kind on (called-name)).
         Done.
         If callee's kind is "PossessiveAccess":

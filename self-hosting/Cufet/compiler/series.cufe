@@ -112,11 +112,15 @@ Pull a book on collections.
         Define kind as expression's kind.
         If kind is "SeriesLiteral":
             Define element as cast element-of on (cast one's series-kind-of on (expression) or pass the failure off).
-            Define built as "{cast series-c-name on (element)}_new()".
+            Define series-c as cast series-c-name on (element).
+            If the number of (cast field-of on (expression, 1))'s children is 0, return "{series-c}_new()".
+            // One statement per item, so the items are worked out in the order they are written —
+            // C leaves the order of a call's arguments open, and gcc takes them last first.
+            Define built as "(\{ {series-c}* cf_sl = {series-c}_new();".
             For each written in (cast field-of on (expression, 1))'s children, repeat:
-                The built becomes "{cast series-c-name on (element)}_append({built}, {cast one's c-of-as on (written, element) or pass the failure off})".
+                The built becomes "{built} cf_sl = {series-c}_append(cf_sl, {cast one's c-of-as on (written, element) or pass the failure off});".
             Done.
-            Return built.
+            Return "{built} cf_sl; \})".
         Done.
         If kind is "RangeExpression":
             Define lowest as cast one's c-of on (cast field-of on (expression, 1)) or pass the failure off.

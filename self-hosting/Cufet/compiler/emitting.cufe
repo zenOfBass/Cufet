@@ -175,7 +175,7 @@ Pull a book on collections.
             // Inside a `Try`, a call that can fail reads as its value.
             "CastExpression", return cast one's unwrapped-kind on (cast one's call-kind-of on (expression) or pass the failure off).
             "ObjectLiteral":
-                Define object-name as cast unquoted on (cast field-of on (expression, 1)).
+                Define object-name as cast literal-object-name on (expression).
                 If (the entry for object-name in one's objects) is void, return a failure (cast not-built on ("a new {object-name}")).
                 Return "object {object-name}".
             Done.
@@ -213,7 +213,7 @@ Pull a book on collections.
             Return cast one's kind-of-type on (cast field-of on (method, 2)) or pass the failure off.
         Done.
         If (cast field-of on (expression, 1))'s kind is "VariableReference":
-            If (the entry for cast unquoted on (cast field-of on (cast field-of on (expression, 1), 1)) in one's functions) is void:
+            If (the entry for cast call-target on (expression) in one's functions) is void:
                 Define by-argument as cast one's method-by-argument on (expression) or pass the failure off.
                 Return cast one's kind-of-type on (cast field-of on (by-argument, 2)) or pass the failure off.
             Done.
@@ -296,13 +296,31 @@ Pull a book on collections.
         Done.
     Done.
 
+    /// The field a tree leaves after a key such as `:ResolvedTypeName`, or void when it has none.
+    Bind voidable node to keyed-field, given (the node whole, the text key):
+        Define place as 0.
+        For each part in whole's children, repeat:
+            Increment place by 1.
+            If part's word is key and place is less than the number of whole's children, return item (place + 1) of whole's children.
+        Done.
+        Return void.
+    Done.
+
+    /// The name a call reaches its function by: the filled-in copy the checker chose for a function
+    /// with a blank, or the name written.
+    Bind text to call-target, given (the node call):
+        Define resolved as cast keyed-field on (call, ":ResolvedFunctionName").
+        If resolved is not void, return cast unquoted on (resolved).
+        Return cast unquoted on (cast field-of on (cast field-of on (call, 1), 1)).
+    Done.
+
     /// The function a call reaches — one of the program's own, called by its name.
     Bind node or failure to function-called unto emitter, given (the node call):
         Define callee as cast field-of on (call, 1).
         If callee's kind is not "VariableReference":
             Return a failure (cast not-built on ("a call of a {callee's kind}")).
         Done.
-        Define called as the entry for cast unquoted on (cast field-of on (callee, 1)) in one's functions.
+        Define called as the entry for cast call-target on (call) in one's functions.
         If called is void, return a failure (cast not-built on ("a call of something other than the program's own function")).
         Return called.
     Done.
@@ -312,7 +330,7 @@ Pull a book on collections.
         If (cast one's calls-value on (call) or pass the failure off), return cast one's c-value-call on (call) or pass the failure off.
         If (cast field-of on (call, 1))'s kind is "PossessiveAccess", return cast one's c-method-call on (call) or pass the failure off.
         If (cast field-of on (call, 1))'s kind is "VariableReference":
-            If (the entry for cast unquoted on (cast field-of on (cast field-of on (call, 1), 1)) in one's functions) is void:
+            If (the entry for cast call-target on (call) in one's functions) is void:
                 Cast one's method-by-argument on (call) or pass the failure off.
                 Return cast one's c-method-call on (cast as-method-call on (call)) or pass the failure off.
             Done.
@@ -732,10 +750,9 @@ Pull a book on collections.
         Cast one's line on ("\}").
     Done.
 
-    /// What this compiler cannot build in a function yet — a maker, a template or anything marked —
-    /// or "". A method bound `unto` an object is built as that object's.
+    /// What this compiler cannot build in a function yet — anything marked — or "". A method bound
+    /// `unto` an object is built as that object's; a maker is a function giving back its object.
     Bind text or failure to function-beyond, given (the node statement):
-        If cast is-nothing on (cast field-of on (statement, 6)) is false, return "a maker".
         // A pattern is lowered to a function that hands it to the `regex` book's engine.
         If the number of statement's children is greater than 8:
             If (cast field-of on (statement, 9))'s word is ":FromAxiomLanguage" and cast unquoted on (cast field-of on (statement, 10)) is "regex", return "".
@@ -877,6 +894,26 @@ Pull a book on collections.
             Increment getter-place by 1.
             In methods, the entry for "{item getter-place of getter-owners}'s getter {cast unquoted on (cast field-of on (getter, 1))}" becomes getter.
         Done.
+        // Setters the same way: written inside the object, or bound `unto` it.
+        Define setters as a series of node.
+        Define setter-owners as a series of text.
+        For each statement in hoisted, repeat:
+            If statement's kind is "ObjectDefinition":
+                For each setter in (cast field-of on (statement, 6))'s children, repeat:
+                    Insert setter into setters.
+                    Insert cast unquoted on (cast field-of on (statement, 1)) into setter-owners.
+                Done.
+            Done.
+            If statement's kind is "SetterDeclaration" and cast is-nothing on (cast field-of on (statement, 5)) is false:
+                Insert statement into setters.
+                Insert cast unquoted on (cast field-of on (statement, 5)) into setter-owners.
+            Done.
+        Done.
+        Define setter-place as 0.
+        For each setter in setters, repeat:
+            Increment setter-place by 1.
+            In methods, the entry for "{item setter-place of setter-owners}'s setter {cast unquoted on (cast field-of on (setter, 1))}" becomes setter.
+        Done.
         Cast writer's register-pulled-modules on (hoisted).
         // Every shared constant: a `permanently` the hoist reaches, its kind known before any body is.
         For each statement in hoisted, repeat:
@@ -943,6 +980,13 @@ Pull a book on collections.
             Insert "{cast writer's c-getter-signature on (getter-owner, getter) or pass the failure off};\n" into declared.
             Insert cast writer's c-getter on (getter-owner, getter) or pass the failure off into defined.
         Done.
+        Define setter-index as 0.
+        For each setter in setters, repeat:
+            Increment setter-index by 1.
+            Define setter-owner as item setter-index of setter-owners.
+            Insert "{cast writer's c-setter-signature on (setter-owner, setter) or pass the failure off};\n" into declared.
+            Insert cast writer's c-setter on (setter-owner, setter) or pass the failure off into defined.
+        Done.
         Define place as 0.
         For each method in owned, repeat:
             Increment place by 1.
@@ -981,7 +1025,8 @@ Pull a book on collections.
                 Insert cast c-series-helpers on (union) into union-types.
             Done.
             Otherwise if cast is-function on (union):
-                Insert cast c-function-helpers on (union) into union-types.
+                // One an object may hold is written ahead of the objects instead.
+                If cast is-early-function on (union) is false, insert cast c-function-helpers on (union) into union-types.
                 Insert cast c-series-helpers on (union) into union-types.
             Done.
             Otherwise if cast is-failable on (union):
@@ -1025,6 +1070,9 @@ Pull a book on collections.
             Insert "typedef struct {series-type}_s {series-type};\n" into out.
             Insert "static void {series-type}_write({series-type}* s);\n" into out.
             Insert "static int {series-type}_eq({series-type}* a, {series-type}* b);\n" into out.
+        Done.
+        For each union in writer's union-order, repeat:
+            If cast is-function on (union) and cast is-early-function on (union), insert cast c-function-helpers on (union) into out.
         Done.
         Insert structs converted to text into out.
         Insert union-types converted to text into out.
