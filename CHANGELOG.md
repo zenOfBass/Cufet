@@ -56,6 +56,15 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   and the subprocess runtime compiles cleanly with gcc on Windows and on Linux. Every build links it,
   so the compiler written in Cufet, which runs gcc, can be built by itself.
 
+### Fixed
+
+- **REFERENCE says what a closure does to a captured object.** It listed objects with series and
+  maps as captured "live", so that a change made through the closure would show outside it. No
+  implementation ever did that: an object is a value, and a closure captures a snapshot of it — as a
+  record, a number or a text — while a series or a map is the live one. Both backends agreed and a
+  test held them to it; the sentence was wrong from the day it was written. It now says so, with a
+  checked example.
+
 ## [0.27.0] — 2026-10-11
 
 ### Added

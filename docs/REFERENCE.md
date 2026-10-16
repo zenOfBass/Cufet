@@ -2849,11 +2849,28 @@ State cast add-five on (10).          → 15
 ```
 
 Capture follows the same value/reference split used everywhere else in
-Cufet: value types (`number`, `text`, `fact`) are captured as a snapshot at
-declaration time, so later changes to the outer variable don't affect an
-already-created closure; reference types (series, maps, objects) capture the
-live instance, so mutations through the closure are visible in the outer
-scope and vice versa.
+Cufet: values (`number`, `text`, `fact`, objects and records) are captured as a
+snapshot at declaration time, so later changes to the outer variable don't
+affect an already-created closure, and a change the closure makes to its copy
+doesn't reach the outer variable; series and maps capture the live instance,
+so mutations through the closure are visible in the outer scope and vice versa.
+
+```cufet
+Define object box with (the number size).
+Define b as a new box { the size 1 }.
+Define seen as a series of number.
+Define poke as a function:
+    The size of b becomes 99.
+    Insert 99 into seen.
+Done.
+Cast poke.
+State b.
+State seen.
+```
+```output
+box(size: 1)
+(99)
+```
 
 #### Lambda literals (anonymous functions)
 
