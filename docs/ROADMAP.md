@@ -231,11 +231,41 @@ the calling: these wait only for a turn.
   this. Met writing the Cufet lexer, which moved its state into an object and its helpers into
   `unto` methods to get the hoisting. *Blocker:* none known.
 
+- **`void when …, otherwise 3` is a union with a void case, not a voidable.** It is typed
+  `(void or number)`, so `but void is` on it is refused — *"'(void or number)' can never be void"* —
+  where a reader expects the voidable a `void` usually makes. Met writing the compiler written in
+  Cufet, which cannot build such a choice yet. Whether it is meant is not known. *Blocker:* none known.
+
+- **`the environment variable "X" is void` reads as `the environment variable ("X" is void)`.** The
+  name takes the whole comparison, so it is refused as comparing a text to a void, which does not
+  point at the cause; brackets around the variable are the fix. Met once, writing a probe.
+  *Blocker:* none known.
+
 ### Tooling
 
 - **The checker written in Cufet is slow to hold against C#.** Comparing it on ~750 hand-written
   programs and the corpus takes over ten minutes, and one that fills a generic is checked twice,
   as C# checks it. Not profiled — where the time goes is not known. *Blocker:* none known.
+
+- **Regions in the compiler written in Cufet keep what they could free.** A rabbit that hands one of
+  its own values out is merged into the region below at its `Done`, where `cufet build` copies the
+  value out and frees the rest. MEASURED: the checker it builds peaks at 3.5 GB over the repository's
+  141 files, against 1.46 GB for `cufet build`'s. Deep copies, one per kind, would close it.
+  *Blocker:* none known.
+
+- **Parts of the C runtime are still written into a program only when it uses them** — matrices,
+  `chance`, signals and concurrency. The compiler written in Cufet links the shared runtime alone,
+  so it will need each; the case table and `run` already moved, once their gates' reasons measured
+  stale. One policy for the rest — shared unless a gate's reason measures true — would settle them
+  together. *Blocker:* none known.
+
+- **Examples that read a file are tested only when it is missing.** `CompilerParityTests` runs each
+  corpus program from its own folder, but `semver`, `readings` and `logtriage` read
+  `examples/assets/…` from the repository root, as their headers say — so the test sees "not
+  found" on both sides, and the read that works is checked by hand only. *Blocker:* none known.
+
+- **A self-built program that fails to start is called "the lexer".** `LexerParityTests.Run`
+  names every program that way in its error, whatever it ran. *Blocker:* none known.
 
 ## Deferred — blocked, or waiting for a program that needs it
 
