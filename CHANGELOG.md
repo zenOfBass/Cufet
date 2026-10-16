@@ -26,8 +26,10 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   `Try` left early by `Return`, `Stop`, `Skip` or a failure closing what it leaves — writing a file,
   `run`, and functions as values: a named function stored, passed and kept in a series, lambdas, a
   `Bind` inside a body — calling itself, if it likes — a function that returns a function, the
-  captures a closure makes, and `sorted by` a function. `CompilerParityTests` now holds it to the
-  interpreter on 330 hand-written programs and on 33 of the 67 in `examples/`.
+  captures a closure makes, and `sorted by` a function; objects with field defaults, with blanks
+  — `a new stack of number` — and with setters, makers and function fields, and functions with a
+  blank. `CompilerParityTests` now holds it to the interpreter on 342 hand-written programs and on
+  37 of the 67 in `examples/`.
 - **The compiler written in Cufet compiles itself.** The compiler it builds from its own source
   compiles that source again into the very same C, byte for byte — the fixed point a self-hosting
   compiler is held to — and builds every program the first one does, printing the same.
@@ -64,6 +66,9 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   record, a number or a text — while a series or a map is the live one. Both backends agreed and a
   test held them to it; the sentence was wrong from the day it was written. It now says so, with a
   checked example.
+- **The compiler written in Cufet works out a series' items in the order they are written.** It
+  built `a series of number with (…)` as calls nested in calls, whose arguments C may work out in
+  any order — and gcc took them last first, so items with side effects ran backwards.
 
 ## [0.27.0] — 2026-10-11
 
