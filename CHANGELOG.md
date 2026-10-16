@@ -24,18 +24,22 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   characters of a text, `the current directory`, `the environment variable`, path checks, a
   folder's contents, exceptions — `In case of exception`, raised again unless suppressed, with a
   `Try` left early by `Return`, `Stop`, `Skip` or a failure closing what it leaves — writing a file,
-  and `run`. `CompilerParityTests` now holds it to the interpreter on 309 hand-written programs and
+  and `run`. `CompilerParityTests` now holds it to the interpreter on 320 hand-written programs and
   on 31 of the 67 in `examples/`.
 - **The compiler written in Cufet compiles itself.** The compiler it builds from its own source
   compiles that source again into the very same C, byte for byte — the fixed point a self-hosting
   compiler is held to — and builds every program the first one does, printing the same.
   `TheCompiledCompiler_CompilesItself_ToAFixedPoint` holds it.
-- **The compiler written in Cufet builds the lexer and the parser written in Cufet**, and what it
-  builds lexes and parses every Cufet file in the repository exactly as C# does;
-  `TheCompiledCompiler_BuildsTheLexer_WhichLexesAsCSharpDoes` and
-  `TheCompiledCompiler_BuildsTheParser_WhichParsesAsCSharpDoes` hold them. It builds the checker too,
-  which agrees with C#'s build of it file for file — until, regions not yet freeing anything, a
-  long run over many files outgrows memory.
+- **The compiler written in Cufet builds the lexer, the parser and the checker written in Cufet**,
+  and what it builds lexes, parses and checks every Cufet file in the repository exactly as C#
+  does; `TheCompiledCompiler_BuildsTheLexer_WhichLexesAsCSharpDoes`,
+  `TheCompiledCompiler_BuildsTheParser_WhichParsesAsCSharpDoes` and
+  `TheCompiledCompiler_BuildsTheChecker_WhichChecksAsCSharpDoes` hold them.
+- **The compiler written in Cufet frees a region at its `Done`.** A `Pull a rabbit` gets an arena of
+  its own, and a store into something older than the rabbit sends what it makes to that older
+  arena, as `cufet build` does. Where a rabbit hands out a value of its own, its arena is kept
+  rather than copied out of — nothing still in use is freed, at the cost of memory kept. Before
+  this the checker it builds ran out of memory over a long list of files.
 
 ### Changed
 

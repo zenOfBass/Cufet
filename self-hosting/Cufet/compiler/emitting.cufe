@@ -20,7 +20,7 @@ Pull a book on collections.
         the series of node pending-functions, the series of text pending-names,
         the series of map from text to text pending-kinds, the map from text to fact unions,
         the series of text union-order, the map from text to text constants,
-        the map from text to fact constant-places).
+        the map from text to fact constant-places, the map from text to fact kept-rabbits).
 
     /// An emitter for the program, knowing its functions, objects, methods — a method under
     /// `<object>'s <method>` — and interfaces by name.
@@ -31,7 +31,8 @@ Pull a book on collections.
             the specialized a map from text to fact, the pending-functions a series of node,
             the pending-names a series of text, the pending-kinds a series of map from text to text,
             the unions a map from text to fact, the union-order a series of text,
-            the constants a map from text to text, the constant-places a map from text to fact }.
+            the constants a map from text to text, the constant-places a map from text to fact,
+            the kept-rabbits a map from text to fact }.
     Done.
 
     /// An emitter for another body of the same program — every table shared, the copies asked for
@@ -42,7 +43,8 @@ Pull a book on collections.
             the interfaces one's interfaces, the specialized one's specialized,
             the pending-functions one's pending-functions, the pending-names one's pending-names,
             the pending-kinds one's pending-kinds, the unions one's unions, the union-order one's union-order,
-            the constants one's constants, the constant-places one's constant-places }.
+            the constants one's constants, the constant-places one's constant-places,
+            the kept-rabbits one's kept-rabbits }.
     Done.
 
     /// What this compiler cannot build yet, as a failure message.
@@ -468,6 +470,12 @@ Pull a book on collections.
     Done.
 
     Bind void or failure to emit-statement unto emitter, given (the node statement):
+        // A store into something older than the rabbit it stands in — see regions.cufe.
+        Define escaping as cast one's escapes-to on (statement).
+        If escaping is not less than 0:
+            Cast one's emit-escaping-store on (statement, escaping) or pass the failure off.
+            Return.
+        Done.
         Define kind as statement's kind.
         Judge kind, where it is:
             "StateStatement":
@@ -495,6 +503,7 @@ Pull a book on collections.
                 In one's kinds, the entry for name becomes value-kind.
                 In one's kinds, the entry for "%{name}" becomes value-kind.
                 In one's kinds, the entry for "@{name}" becomes "".
+                Cast one's declared-here on (name).
                 Cast one's line on ("{cast c-type on (value-kind)} {cast c-name on (name)} = {value};").
             Done.
             "BecomesStatement":
@@ -548,7 +557,8 @@ Pull a book on collections.
             "InterfaceDefinition", return.
             // A pull's functions and objects are the program's, gathered with its own; what is left
             // is a block. A region frees nothing yet — see emit-pulled.
-            "PullStatement" or "PullRabbitStatement", cast one's emit-pulled on (statement) or pass the failure off.
+            "PullStatement", cast one's emit-pulled on (statement) or pass the failure off.
+            "PullRabbitStatement", cast one's emit-rabbit on (statement) or pass the failure off.
             "ObjectDefinition", return a failure (cast not-built on ("an object defined inside a body")).
             "PossessiveSetStatement", cast one's emit-field-set on (statement) or pass the failure off.
             "StopStatement", cast one's line on (cast one's c-loop-jump on ("break")).
@@ -730,6 +740,7 @@ Pull a book on collections.
     /// One function as C. A body sees its parameters and nothing of the program's top level.
     Bind text or failure to c-function unto emitter, given (the node statement, the map from text to text overrides, the text named):
         Define writer as cast one's sibling.
+        Cast writer's line on ("int cf_ab = cufet_arena_top; int cf_fo = cufet_alloc_override; (void)cf_ab; (void)cf_fo;").
         In writer's kinds, the entry for "%return" becomes cast one's kind-of-type on (cast field-of on (statement, 2)) or pass the failure off.
         For each parameter in (cast field-of on (statement, 3))'s children, repeat:
             Define taken as cast one's kind-of-type on (cast field-of on (parameter, 1)) or pass the failure off.
@@ -988,6 +999,7 @@ Pull a book on collections.
         Insert "    CUFET_STDOUT_BINARY();\n" into out.
         Insert "    cufet_watch_stack();\n" into out.
         Insert "    cufet_arena_push();\n" into out.
+        Insert "    int cf_ab = cufet_arena_top; int cf_fo = cufet_alloc_override; (void)cf_ab; (void)cf_fo;\n" into out.
         Insert writer's body converted to text into out.
         Insert "    cufet_arena_pop();\n" into out.
         Insert "    return 0;\n" into out.

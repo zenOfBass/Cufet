@@ -256,6 +256,7 @@ Pull a book on collections.
         Cast one's line on ("for (int cf_i = 0; cf_i < cf_each_n; cf_i++) \{").
         Define mapping-kind as "mapping from {cast map-key-kind on (held)} to {cast map-value-kind on (held)}".
         In one's kinds, the entry for name becomes mapping-kind.
+        Cast one's declared-here on (name).
         In one's kinds, the entry for "%{name}" becomes mapping-kind.
         In one's kinds, the entry for "@{name}" becomes "".
         The one's indent becomes outer joined to "        ".

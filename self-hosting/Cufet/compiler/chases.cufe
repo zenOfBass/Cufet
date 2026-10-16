@@ -318,6 +318,7 @@ Pull a book on collections.
         Cast one's line on ("int cf_each_n = cf_each->len;").
         Cast one's line on ("for (int cf_i = 0; ; cf_i++) \{").
         In one's kinds, the entry for name becomes "text".
+        Cast one's declared-here on (name).
         In one's kinds, the entry for "%{name}" becomes "text".
         In one's kinds, the entry for "@{name}" becomes "".
         The one's indent becomes outer joined to "        ".

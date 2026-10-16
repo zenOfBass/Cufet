@@ -52,7 +52,7 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     : PipelineTestBase, IClassFixture<CompiledCufetCompiler>
 {
     /// <summary>How many hand-written programs must build and print alike. Raised as it grows; never lowered.</summary>
-    private const int BuiltFloor = 309;
+    private const int BuiltFloor = 320;
 
     private static string[] PreludeArgs =>
         ["--prelude", Path.Combine(RepoRoot, "src", "Interpreter", "Prelude").Replace('\\', '/')];
@@ -395,6 +395,18 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
         "Try to:\n    Define outcome as run \"gcc\" with arguments a series of text with (\"-x\", \"c\", \"-fsyntax-only\", \"no-such-file.c\").\n    State the exit-code of outcome is 0.\n    State the length of the errors of outcome is greater than 0.\nDone.\nIn case of failure:\n    State \"could not start\".\nDone.",
         "Try to:\n    Define outcome as run \"surely-no-such-program-anywhere\" with arguments a series of text.\n    State \"not reached\".\nDone.\nIn case of failure:\n    State \"failed to start\".\nDone.",
         "Bind number or failure to exit-of, given (the series of text flags):\n    Define outcome as run \"gcc\" with arguments flags or pass the failure off.\n    Return the exit-code of outcome.\nDone.\nState (cast exit-of on (a series of text with (\"-dumpversion\")) but on failure -1).",
+        // Regions — a rabbit frees what it made, and keeps what got out: stores into something older, grown past capacity, a value of the rabbit's own handed out, nested rabbits, Return, Stop, Skip, a failure and an exception out of one.
+        "For each round in range 1 to 50, repeat:\n    Pull a rabbit.\n        Define words as a series of text.\n        For each n in range 1 to 20, repeat:\n            Insert \"word {n}\" into words.\n        Done.\n        If round is 50, state the number of words.\n    Done.\nDone.",
+        "Define label as \"\".\nDefine kept as a series of text.\nDefine counts as a map from text to number.\nDefine object box with (the text name).\nDefine b as a new box { the name \"first\" }.\nPull a rabbit.\n    For each n in range 1 to 20, repeat:\n        The label becomes \"label {n}\".\n        Insert \"kept {n}\" into kept.\n        In counts, the entry for \"k{n}\" becomes n * 2.\n    Done.\n    The name of b becomes \"made {label}\".\nDone.\nState label.\nState the number of kept.\nState item 20 of kept.\nState the entry for \"k20\" in counts.\nState b.",
+        "Define held as \"\".\nPull a rabbit.\n    Define inner as a series of text.\n    For each n in range 1 to 12, repeat:\n        Insert \"inner {n}\" into inner.\n    Done.\n    Define one-word as item 12 of inner joined to \" and more\".\n    The held becomes one-word.\nDone.\nState held.",
+        "Define outer as a series of text.\nPull a rabbit.\n    Define inner as a series of text with (\"a\", \"b\", \"c\").\n    For each item-word in inner, repeat:\n        Insert item-word joined to \"!\" into outer.\n        Insert item-word into outer.\n    Done.\nDone.\nState outer.",
+        "Define outer as a series of text.\nPull a rabbit.\n    Define middle as a series of text.\n    Pull a rabbit.\n        Insert \"deep\" into middle.\n        Insert \"deeper\" into outer.\n    Done.\n    Insert item 1 of middle into outer.\nDone.\nState outer.",
+        "Bind series of text to made, given (the number count):\n    Pull a rabbit.\n        Define found as a series of text.\n        For each n in range 1 to count, repeat:\n            Insert \"made {n}\" into found.\n        Done.\n        Return found.\n    Done.\nDone.\nDefine got as cast made on (10).\nState the number of got.\nState item 10 of got.",
+        "Bind text to first-long, given (the series of text words):\n    For each word in words, repeat:\n        Pull a rabbit.\n            Define shouted as word in uppercase.\n            If the length of shouted is greater than 3, return shouted joined to \"!\".\n        Done.\n    Done.\n    Return \"none\".\nDone.\nState cast first-long on (a series of text with (\"a\", \"bb\", \"cccc\", \"ddddd\")).",
+        "Define kept as a series of text.\nFor each n in range 1 to 10, repeat:\n    Pull a rabbit.\n        Define here as \"n{n}\".\n        If n is 3, skip.\n        If n is 6, stop.\n        Insert here into kept.\n    Done.\nDone.\nState kept.",
+        "Bind number or failure to checked, given (the number n):\n    If n is 0, return a failure \"zero at {n}\".\n    Return n.\nDone.\nDefine kept as a series of text.\nTry to:\n    Pull a rabbit.\n        Insert \"before\" into kept.\n        Define got as cast checked on (0).\n        Insert \"not reached\" into kept.\n    Done.\nDone.\nIn case of failure:\n    State the message of the failure.\nDone.\nState kept.",
+        "Define kept as a series of text.\nTry to:\n    Pull a rabbit.\n        Insert \"made {1 + 1}\" into kept.\n        State 1 / 0.\n    Done.\nDone.\nIn case of exception:\n    State \"caught\".\n    Suppress the exception.\nDone.\nState kept.\nInsert \"after\" into kept.\nState kept.",
+        "Bind text to joined-up, given (the series of text parts):\n    Define out as \"\".\n    For each part in parts, the out becomes out joined to part.\n    Return out.\nDone.\nDefine result as \"\".\nPull a rabbit.\n    Define pieces as a series of text with (\"x\", \"y\", \"z\").\n    The result becomes cast joined-up on (pieces).\nDone.\nState result.",
     ];
 
     [Fact]
@@ -668,6 +680,50 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
             Assert.True(problems.Count == 0,
                 $"{problems.Count} of {files.Count} files parse differently:\n{string.Join("\n", problems.Take(20))}");
             Assert.True(parsed >= 100, $"only {parsed} files parse alike. Not yet:\n{string.Join("\n", unsupported)}");
+        }
+        finally { try { Directory.Delete(dir, recursive: true); } catch (IOException) { } }
+    }
+
+    /// <summary>
+    /// The compiler written in Cufet builds the checker written in Cufet, and what it builds checks
+    /// every example program as `TypeChecker` does — the same verdict, and for each it accepts, the
+    /// same checked tree.
+    /// </summary>
+    /// <remarks>
+    /// ★ 2026-10-13, the day regions began freeing: until then this checker ran out of memory over a
+    /// long list of files (16 GB, MEASURED), because a `Pull a rabbit` around each file freed nothing.
+    /// ⚠ The examples only, not the large `self-hosting/` folders — over all 141 files the run takes
+    /// minutes. Measured by hand that day: identical to `cufet build`'s checker on all 141.
+    /// </remarks>
+    [Fact]
+    public void TheCompiledCompiler_BuildsTheChecker_WhichChecksAsCSharpDoes()
+    {
+        var dir = Directory.CreateDirectory(
+            Path.Combine(TestScratch.Root, "cufet-selfchecker-" + Guid.NewGuid().ToString("N"))).FullName;
+        try
+        {
+            string exe = BuiltByTheCufetCompiler("checker", dir);
+            var files = Corpus().Where(f => f.StartsWith("examples/", StringComparison.Ordinal)
+                                         && !f.EndsWith("/blueprint.cufe", StringComparison.Ordinal)).ToList();
+            Assert.True(files.Count >= 60, $"only {files.Count} example programs found under {RepoRoot}");
+            var got = ByFile(Run(exe, ["--tree", .. PreludeArgs, .. files], RepoRoot));
+            var problems = new List<string>();
+            int trees = 0;
+            foreach (var name in files)
+            {
+                var at = Path.Combine(RepoRoot, name);
+                string want = CheckerAnswer.ExpectedAt(at);
+                string have = got.TryGetValue(name, out var lines) && lines.Count > 0 ? lines[0] : "<nothing printed>";
+                if (have != want) { problems.Add($"{name}:\n    C#:    {want}\n    Cufet: {have}"); continue; }
+                if (want != "ok") continue;
+                string wantTree = CheckerAnswer.CheckedTreeAt(at)!;
+                string haveTree = string.Join("\n", lines!.Skip(1).Where(l => !l.StartsWith("warning\t", StringComparison.Ordinal)));
+                if (haveTree != wantTree) problems.Add($"{name}: the checked tree differs");
+                else trees++;
+            }
+            Assert.True(problems.Count == 0,
+                $"{problems.Count} of {files.Count} are checked differently:\n{string.Join("\n", problems.Take(10))}");
+            Assert.True(trees >= 50, $"only {trees} checked trees matched");
         }
         finally { try { Directory.Delete(dir, recursive: true); } catch (IOException) { } }
     }

@@ -325,6 +325,7 @@ Pull a book on collections.
         // the interpreter does (GRAMMAR: "The for-each body cannot add or remove elements").
         Cast one's line on ("for (int cf_i = 0; ; cf_i++) \{").
         In one's kinds, the entry for name becomes element.
+        Cast one's declared-here on (name).
         The one's indent becomes outer joined to "        ".
         Cast one's line on ("if (cf_each->len != cf_each_n) cufet_raise(cufet_msgf(\"'{cast series-label on (over)}' was modified during a for-each loop on line {(cast field-of on (statement, 4))'s word} — collect into a separate series, or use a While loop if you need to change it while looping.\"));").
         Cast one's line on ("if (cf_i >= cf_each_n) break;").

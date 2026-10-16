@@ -1,0 +1,175 @@
+/*  Regions — `Pull a rabbit.`: what is made inside one is freed at its `Done`.
+
+    ★ A rabbit is an ARENA: entered with `cufet_arena_push`, left with `cufet_arena_pop`, and every
+      allocation inside lands in it — text, series, maps, chases, whatever a called function makes.
+
+    ★ A STORE INTO SOMETHING OLDER — `becomes` on a name, `Insert`, setting an entry, an item or a
+      field, of something declared further out — runs with the runtime's allocation override
+      pointed at that older arena. What the store makes, and the container's own growth, land there,
+      and outlive the rabbit as the thing they went into does.
+
+    ★ A store of something that ALREADY LIVES in a younger arena — a name declared inside, a field
+      of one, a value reached through one — cannot be moved by the override. Rather than copy it,
+      every rabbit it may live in is KEPT: at its `Done` its arena is merged into the one below
+      (`cufet_arena_merge_down`) instead of freed. Nothing still reachable is ever freed; the cost is
+      memory kept, and only by rabbits that hand their own values out.
+
+    ★ A way out of a rabbit other than its `Done` — `Return`, `Stop`, `Skip`, a failure, a caught
+      exception — MERGES too, for the same reason, and puts the allocation override back.
+
+    ★ Depths are counted from the frame: a function starts at whatever arena its caller was in
+      (`cf_ab`), and a name declared `d` rabbits into it lives at `cf_ab + d` — as C#'s compiler has it.
+      The `kinds` map carries `%rabbit` (how deep this statement is), `^<name>` (how deep a name was
+      declared), `%rabbits` (the labels of the rabbits open here, outermost first), and `%loop-rabbit`
+      and `%try-rabbit` (how deep the loop and the failure's `Try` around it began).
+*/
+
+Pull a book on collections.
+    /// How many rabbits deep this statement is, in this function.
+    Bind number to rabbits-open unto emitter:
+        Return (the entry for "%rabbit" in one's kinds but void is "0") converted to number but void is 0.
+    Done.
+
+    /// How many rabbits deep a name was declared — 0, outside them all, for one not seen declared.
+    Bind number to declared-depth unto emitter, given (the text name):
+        Return (the entry for "^{name}" in one's kinds but void is "0") converted to number but void is 0.
+    Done.
+
+    /// Notes where a name was declared: here.
+    Bind void to declared-here unto emitter, given (the text name):
+        In one's kinds, the entry for "^{name}" becomes "{cast one's rabbits-open}".
+    Done.
+
+    /// The name a place is reached through — `x`, `x's field`, `item 2 of x`, the entry of `x` — or "".
+    Bind text to root-name, given (the node place):
+        Define kind as place's kind.
+        If kind is "VariableReference", return cast unquoted on (cast field-of on (place, 1)).
+        If kind is "PossessiveAccess" or kind is "SeriesAccess" or kind is "MapLookup":
+            Return cast root-name on (cast field-of on (place, 1)).
+        Done.
+        If kind is "RecordNamedAccess", return cast root-name on (cast field-of on (place, 2)).
+        Return "".
+    Done.
+
+    /// Whether an expression reaches anything declared deeper than `depth` — a value that already
+    /// lives in a younger arena, or holds something that does.
+    Bind fact to reaches-deeper unto emitter, given (the node expression, the number depth):
+        If expression's kind is "VariableReference":
+            Define reached as cast unquoted on (cast field-of on (expression, 1)).
+            // A number or a fact is held as itself, in no arena, wherever it was declared.
+            Define reached-kind as cast one's stored-kind on (reached).
+            If reached-kind is "number" or reached-kind is "fact", return false.
+            Return cast one's declared-depth on (reached) is greater than depth.
+        Done.
+        For each child in expression's children, repeat:
+            If cast one's reaches-deeper on (child, depth), return true.
+        Done.
+        Return false.
+    Done.
+
+    /// The C for the arena `depth` rabbits into this frame.
+    Bind text to arena-at, given (the number depth):
+        If depth is 0, return "cf_ab".
+        Return "cf_ab + {depth}".
+    Done.
+
+    /// What a store writes into, and the value it stores — for the statements that store.
+    Bind node to stored-into, given (the node statement):
+        Define kind as statement's kind.
+        If kind is "BecomesStatement":
+            Return cast made on ("VariableReference", a series with (cast field-of on (statement, 1))).
+        Done.
+        If kind is "MapSetStatement" or kind is "SeriesSetStatement" or kind is "PossessiveSetStatement", return cast field-of on (statement, 1).
+        If kind is "SeriesInsertStatement" or kind is "RecordNamedSetStatement", return cast field-of on (statement, 2).
+        Return cast listed.
+    Done.
+
+    Bind node to stored-value, given (the node statement):
+        Define kind as statement's kind.
+        If kind is "BecomesStatement", return cast field-of on (statement, 2).
+        If kind is "SeriesInsertStatement", return cast field-of on (statement, 1).
+        If kind is "MapSetStatement" or kind is "SeriesSetStatement" or kind is "PossessiveSetStatement" or kind is "RecordNamedSetStatement":
+            Return cast field-of on (statement, 3).
+        Done.
+        Return cast listed.
+    Done.
+
+    /// How deep the thing a statement stores into was declared, when that is shallower than here —
+    /// an escaping store — or -1.
+    Bind number to escapes-to unto emitter, given (the node statement):
+        Define kind as statement's kind.
+        If kind is not "BecomesStatement" and kind is not "MapSetStatement" and kind is not "SeriesSetStatement"
+                and kind is not "PossessiveSetStatement" and kind is not "SeriesInsertStatement"
+                and kind is not "RecordNamedSetStatement":
+            Return -1.
+        Done.
+        // Already inside the store this one is: it is being emitted, not asked about.
+        If (the entry for "%storing" in one's kinds but void is "") is "yes", return -1.
+        Define root as cast root-name on (cast stored-into on (statement)).
+        If root is "" or root is "one", return -1.
+        Define target as cast one's declared-depth on (root).
+        If target is less than cast one's rabbits-open, return target.
+        Return -1.
+    Done.
+
+    /// Keeps every open rabbit deeper than `depth`: something of theirs now lives on outside them.
+    Bind void to keep-rabbits-below unto emitter, given (the number depth):
+        Define place as 0.
+        For each label in (the entry for "%rabbits" in one's kinds but void is "") split by ",", repeat:
+            If label is not "":
+                Increment place by 1.
+                If place is greater than depth, in one's kept-rabbits, the entry for label becomes true.
+            Done.
+        Done.
+    Done.
+
+    /// A store, emitted with what it makes sent to the arena of what it stores into — and the
+    /// rabbits in between kept when what it stores already lives in one of them.
+    Bind void or failure to emit-escaping-store unto emitter, given (the node statement, the number target):
+        If cast one's reaches-deeper on (cast stored-value on (statement), target), cast one's keep-rabbits-below on (target).
+        Cast one's line on ("\{ int cf_ov = cufet_alloc_override; cufet_alloc_override = {cast arena-at on (target)};").
+        In one's kinds, the entry for "%storing" becomes "yes".
+        Cast one's emit-statement on (statement) or pass the failure off.
+        In one's kinds, the entry for "%storing" becomes "".
+        Cast one's line on ("cufet_alloc_override = cf_ov; \}").
+    Done.
+
+    /// `Pull a rabbit.` — its own arena, freed at `Done` unless something in it was handed out.
+    Bind void or failure to emit-rabbit unto emitter, given (the node statement):
+        // ⚠ A rabbit's NAME (`Pull a rabbit as hopper.`) is not bound: the region is built, and a use
+        // of the name is refused where it is met, as a name this compiler cannot see.
+        Define label as "r{(cast field-of on (statement, 3))'s word}_{(cast field-of on (statement, 4))'s word}".
+        Cast one's line on ("cufet_arena_push();").
+        Cast one's line on ("\{").
+        Define kept as cast one's kinds-kept.
+        In one's kinds, the entry for "%rabbit" becomes "{cast one's rabbits-open + 1}".
+        In one's kinds, the entry for "%rabbits" becomes "{the entry for "%rabbits" in one's kinds but void is ""},{label}".
+        Define outer as one's indent.
+        The one's indent becomes outer joined to "    ".
+        For each inner in (cast field-of on (statement, 2))'s children, repeat:
+            If cast declares-only on (inner) is false:
+                Cast one's emit-statement on (inner) or pass the failure off.
+            Done.
+        Done.
+        The one's indent becomes outer.
+        The one's kinds becomes kept.
+        Cast one's line on ("\}").
+        If (the entry for label in one's kept-rabbits) is not void:
+            Cast one's line on ("cufet_arena_merge_down();").
+        Done.
+        Otherwise:
+            Cast one's line on ("cufet_arena_pop();").
+        Done.
+    Done.
+
+    /// The C that leaves the rabbits opened since `depth`, keeping what they hold — or "".
+    Bind text to c-leaving-rabbits unto emitter, given (the text depth):
+        Define left as cast one's rabbits-open - (depth converted to number but void is 0).
+        If left is less than 1, return "".
+        Define out as "".
+        For each place in range 1 to left, repeat:
+            The out becomes "{out}cufet_arena_merge_down(); ".
+        Done.
+        Return out.
+    Done.
+Done.
