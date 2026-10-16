@@ -245,7 +245,7 @@ Pull a book on collections.
         // A setter takes the write — except `one`'s own field, written inside that field's setter.
         Define setter as the entry for "{object-name}'s setter {field}" in one's methods.
         Define bypassed as target's kind is "VariableReference" and cast unquoted on (cast field-of on (target, 1)) is "one"
-            and false.
+            and (the entry for "%setter" in one's kinds) is field.
         If setter is not void:
             If bypassed is false:
                 Define handed as cast one's kind-of-type on (cast field-of on (setter, 2)) or pass the failure off.
