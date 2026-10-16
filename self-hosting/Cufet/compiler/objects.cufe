@@ -241,6 +241,7 @@ Pull a book on collections.
             // A union's struct comes after the objects it may hold, so an object cannot hold one yet.
             If cast is-union on (held), return a failure (cast not-built on ("an object with a union field")).
             If cast is-record on (held), return a failure (cast not-built on ("an object with a record field")).
+            If cast is-function on (held), return a failure (cast not-built on ("an object with a function field")).
             If cast is-voidable on (held) and cast is-scalar on (cast voidable-inner on (held)) is false:
                 Return a failure (cast not-built on ("an object with a field of a voidable {cast voidable-inner on (held)}")).
             Done.

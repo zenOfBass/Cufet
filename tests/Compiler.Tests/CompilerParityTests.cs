@@ -52,7 +52,7 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     : PipelineTestBase, IClassFixture<CompiledCufetCompiler>
 {
     /// <summary>How many hand-written programs must build and print alike. Raised as it grows; never lowered.</summary>
-    private const int BuiltFloor = 320;
+    private const int BuiltFloor = 330;
 
     private static string[] PreludeArgs =>
         ["--prelude", Path.Combine(RepoRoot, "src", "Interpreter", "Prelude").Replace('\\', '/')];
@@ -407,6 +407,17 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
         "Bind number or failure to checked, given (the number n):\n    If n is 0, return a failure \"zero at {n}\".\n    Return n.\nDone.\nDefine kept as a series of text.\nTry to:\n    Pull a rabbit.\n        Insert \"before\" into kept.\n        Define got as cast checked on (0).\n        Insert \"not reached\" into kept.\n    Done.\nDone.\nIn case of failure:\n    State the message of the failure.\nDone.\nState kept.",
         "Define kept as a series of text.\nTry to:\n    Pull a rabbit.\n        Insert \"made {1 + 1}\" into kept.\n        State 1 / 0.\n    Done.\nDone.\nIn case of exception:\n    State \"caught\".\n    Suppress the exception.\nDone.\nState kept.\nInsert \"after\" into kept.\nState kept.",
         "Bind text to joined-up, given (the series of text parts):\n    Define out as \"\".\n    For each part in parts, the out becomes out joined to part.\n    Return out.\nDone.\nDefine result as \"\".\nPull a rabbit.\n    Define pieces as a series of text with (\"x\", \"y\", \"z\").\n    The result becomes cast joined-up on (pieces).\nDone.\nState result.",
+        // Functions as values — a named function stored, passed, in a series and printed; lambdas; a function returning a function; captures as snapshots, a series captured live; a Bind inside a body calling itself; sorted by a function.
+        "Bind number to double, given (the number x): Return x * 2. Done.\nDefine twice as double.\nState cast twice on (21).\nBind number to apply, given (the number value, the number function transform given (the number)):\n    Return cast transform on (value).\nDone.\nState cast apply on (5, double).\nState twice.",
+        "Bind number to double, given (the number x): Return x * 2. Done.\nDefine triple as a function given (the number x): Return x * 3. Done.\nDefine ops as a series of number function given (the number) with (double, triple).\nState cast the first of ops on (5).\nFor each op in ops, repeat:\n    State cast op on (10).\nDone.\nState the number of ops.",
+        "Bind number to apply, given (the number value, the number function transform given (the number)):\n    Return cast transform on (value).\nDone.\nState cast apply on (10, a function given (the number x): Return x * 2. Done).\nDefine shout as a function given (the text word): Return word in uppercase joined to \"!\". Done.\nState cast shout on (\"hey\").\nDefine say as a function given (the text word): State \"said {word}\". Done.\nCast say on (\"hi\").",
+        "Bind number function given (the number) to make-adder, given (the number n):\n    Bind number to adder, given (the number x):\n        Return x + n.\n    Done.\n    Return adder.\nDone.\nDefine add-five as cast make-adder on (5).\nDefine add-ten as cast make-adder on (10).\nState cast add-five on (1).\nState cast add-ten on (1).\nState cast add-five on (100).",
+        "Define rate as 2.\nDefine scaled as a function given (the number x): Return x * rate. Done.\nThe rate becomes 100.\nState cast scaled on (5).\nDefine label as \"before\".\nDefine show as a function given (the text tail): Return label joined to tail. Done.\nThe label becomes \"after\".\nState cast show on (\"!\").",
+        "Define seen as a series of text.\nDefine note as a function given (the text word): Insert word into seen. Done.\nCast note on (\"a\").\nCast note on (\"b\").\nState seen.\nDefine object box with (the number size).\nDefine b as a new box { the size 1 }.\nDefine grow as a function given (the number by-much): The size of b becomes b's size + by-much. Done.\nCast grow on (4).\nState b.",
+        "Bind number to sum-to, given (the number limit):\n    Bind number to go, given (the number n):\n        If n is 0, return 0.\n        Return n + cast go on (n - 1).\n    Done.\n    Return cast go on (limit).\nDone.\nState cast sum-to on (10).",
+        "Bind number function given (the number) to make-scaler, given (the number factor):\n    Return a function given (the number x):\n        Define inner as a function given (the number y): Return y * factor. Done.\n        Return cast inner on (x) + 1.\n    Done.\nDone.\nDefine by-three as cast make-scaler on (3).\nState cast by-three on (5).",
+        "Bind number to len-of, given (the text word):\n    State \"key of {word}\".\n    Return the length of word.\nDone.\nDefine words as a series of text with (\"pear\", \"fig\", \"banana\", \"kiwi\").\nState words sorted by len-of.\nState words sorted by a function given (the text w): Return the length of w. Done.\nState words sorted by len-of in reverse.\nState words sorted by a function given (the text w): Return the characters from 2 to 2 of w. Done.",
+        "Bind number to double, given (the number x): Return x * 2. Done.\nDefine negate as a function given (the number x): Return 0 - x. Done.\nDefine chosen as double.\nFor each n in range 1 to 3, repeat:\n    If n is 3, the chosen becomes negate.\n    State cast chosen on (n).\nDone.",
     ];
 
     [Fact]
@@ -459,7 +470,7 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     }
 
     /// <summary>How many programs of `examples/` must build and print alike. Raised as it grows; never lowered.</summary>
-    private const int CorpusFloor = 31;
+    private const int CorpusFloor = 33;
 
     /// <remarks>
     /// ★ The corpus is copied first: the compiler writes each program beside its source. Each program

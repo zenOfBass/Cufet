@@ -20,7 +20,9 @@ Pull a book on collections.
         the series of node pending-functions, the series of text pending-names,
         the series of map from text to text pending-kinds, the map from text to fact unions,
         the series of text union-order, the map from text to text constants,
-        the map from text to fact constant-places, the map from text to fact kept-rabbits).
+        the map from text to fact constant-places, the map from text to fact kept-rabbits,
+        the series of text lambda-types, the series of text lambda-protos, the series of text lambda-code,
+        the map from text to text inferred).
 
     /// An emitter for the program, knowing its functions, objects, methods — a method under
     /// `<object>'s <method>` — and interfaces by name.
@@ -32,7 +34,8 @@ Pull a book on collections.
             the pending-names a series of text, the pending-kinds a series of map from text to text,
             the unions a map from text to fact, the union-order a series of text,
             the constants a map from text to text, the constant-places a map from text to fact,
-            the kept-rabbits a map from text to fact }.
+            the kept-rabbits a map from text to fact, the lambda-types a series of text,
+            the lambda-protos a series of text, the lambda-code a series of text, the inferred a map from text to text }.
     Done.
 
     /// An emitter for another body of the same program — every table shared, the copies asked for
@@ -44,7 +47,8 @@ Pull a book on collections.
             the pending-functions one's pending-functions, the pending-names one's pending-names,
             the pending-kinds one's pending-kinds, the unions one's unions, the union-order one's union-order,
             the constants one's constants, the constant-places one's constant-places,
-            the kept-rabbits one's kept-rabbits }.
+            the kept-rabbits one's kept-rabbits, the lambda-types one's lambda-types,
+            the lambda-protos one's lambda-protos, the lambda-code one's lambda-code, the inferred one's inferred }.
     Done.
 
     /// What this compiler cannot build yet, as a failure message.
@@ -110,6 +114,7 @@ Pull a book on collections.
         If written's kind is "RecordType", return cast one's record-kind-of-type on (written) or pass the failure off.
         If written's kind is "FailureType", return cast one's failable-kind-of-type on (written) or pass the failure off.
         If written's kind is "ChaseType", return "chase".
+        If written's kind is "FunctionType", return cast one's function-kind-of-type on (written) or pass the failure off.
         Return a failure (cast not-built on ("a {written's kind}")).
     Done.
 
@@ -148,6 +153,11 @@ Pull a book on collections.
                 Define known as the entry for cast unquoted on (cast field-of on (expression, 1)) in one's kinds.
                 // A shared constant is seen from anywhere.
                 If known is void, the known becomes the entry for cast unquoted on (cast field-of on (expression, 1)) in one's constants.
+                // A function of the program's own, named where a value goes.
+                If known is void:
+                    Define named-function as the entry for cast unquoted on (cast field-of on (expression, 1)) in one's functions.
+                    If named-function is not void, return cast one's bound-kind on (named-function) or pass the failure off.
+                Done.
                 If known is void, return a failure (cast not-built on ("the name '{cast unquoted on (cast field-of on (expression, 1))}', defined where this compiler cannot see it")).
                 Return known.
             Done.
@@ -182,6 +192,7 @@ Pull a book on collections.
             "RecordLiteral", return cast one's record-literal-kind on (expression) or pass the failure off.
             "ProgramArgumentsExpression", return "series of text".
             "ChaseLiteral", return "chase".
+            "LambdaLiteral", return cast one's lambda-kind on (expression) or pass the failure off.
             "ConditionalExpression", return cast one's chosen-kind on (expression) or pass the failure off.
             "SortExpression", return cast one's sorted-kind-of on (expression) or pass the failure off.
             Otherwise:
@@ -194,6 +205,9 @@ Pull a book on collections.
 
     /// The kind a call gives back, as its function declares it.
     Bind text or failure to call-kind-of unto emitter, given (the node expression):
+        If (cast one's calls-value on (expression) or pass the failure off):
+            Return cast function-gives on (cast one's kind-of on (cast field-of on (expression, 1)) or pass the failure off).
+        Done.
         If (cast field-of on (expression, 1))'s kind is "PossessiveAccess":
             Define method as cast one's method-called on (cast field-of on (expression, 1)) or pass the failure off.
             Return cast one's kind-of-type on (cast field-of on (method, 2)) or pass the failure off.
@@ -222,6 +236,9 @@ Pull a book on collections.
             "VariableReference":
                 Cast one's kind-of on (expression) or pass the failure off.
                 Define name as cast unquoted on (cast field-of on (expression, 1)).
+                If (the entry for name in one's kinds) is void and (the entry for name in one's constants) is void and (the entry for name in one's functions) is not void:
+                    Return cast one's c-named-function on (name) or pass the failure off.
+                Done.
                 // Inside a method, `one` is the object it was called on, held by its address.
                 If name is "one", return "(*cv_one)".
                 // A narrowed name reads as its case, or as the smaller union.
@@ -261,6 +278,10 @@ Pull a book on collections.
             Done.
             "RecordLiteral", return cast one's c-record-literal on (expression) or pass the failure off.
             "ChaseLiteral", return "cufet_chase_new()".
+            "LambdaLiteral":
+                Define lambda-label as "{(cast field-of on (expression, 3))'s word}_{(cast field-of on (expression, 4))'s word}".
+                Return cast one's c-closure on (cast field-of on (expression, 1), cast field-of on (expression, 2), "", "?", lambda-label) or pass the failure off.
+            Done.
             "ConditionalExpression", return cast one's c-chosen on (expression) or pass the failure off.
             "SortExpression", return cast one's c-sorted on (expression) or pass the failure off.
             // From 1: argument zero is the program's own name, which no two ways of running it agree on.
@@ -288,6 +309,7 @@ Pull a book on collections.
 
     /// A call as C: the function's name and its arguments, in order.
     Bind text or failure to c-call unto emitter, given (the node call):
+        If (cast one's calls-value on (call) or pass the failure off), return cast one's c-value-call on (call) or pass the failure off.
         If (cast field-of on (call, 1))'s kind is "PossessiveAccess", return cast one's c-method-call on (call) or pass the failure off.
         If (cast field-of on (call, 1))'s kind is "VariableReference":
             If (the entry for cast unquoted on (cast field-of on (cast field-of on (call, 1), 1)) in one's functions) is void:
@@ -400,6 +422,7 @@ Pull a book on collections.
         If cast is-record on (kind), return cast record-c-name on (kind).
         If cast is-failable on (kind), return cast failable-c-name on (kind).
         If kind is "chase", return "CufetChase*".
+        If cast is-function on (kind), return cast function-c-name on (kind).
         // What a handler has caught: its message — the exception's only part a program can reach.
         If kind is "exception", return "const char*".
         If kind is "failure", return "CufetFailure".
@@ -419,6 +442,7 @@ Pull a book on collections.
         If cast is-record on (kind), return "{cast record-c-name on (kind)}_write({value})".
         If kind is "failure", return "fputs(\"<failure>\", stdout)".
         If kind is "chase", return "cufet_write_text(cufet_chase_show({value}))".
+        If cast is-function on (kind), return "fputs(\"<function>\", stdout)".
         If kind is "exception", return "fputs(\"<exception>\", stdout)".
         If cast is-map on (kind), return "{cast map-c-name on (kind)}_write({value})".
         If cast is-mapping on (kind), return "{cast map-c-name on (cast mapping-map on (kind))}_pair_write({value})".
@@ -459,6 +483,7 @@ Pull a book on collections.
         If cast is-map on (kind), return "({left} == {right})".
         If cast is-record on (kind), return "{cast record-c-name on (kind)}_eq({left}, {right})".
         If kind is "chase", return "cufet_chase_eq({left}, {right})".
+        If cast is-function on (kind), return "(({left}).fn == ({right}).fn && ({left}).env == ({right}).env)".
         If cast is-mapping on (kind), return "{cast map-c-name on (cast mapping-map on (kind))}_pair_eq({left}, {right})".
         If cast is-voidable on (kind), return "{cast voidable-c-name on (kind)}_eq({left}, {right})".
         If cast is-union on (kind), return "{cast union-c-name on (kind)}_eq({left}, {right})".
@@ -540,11 +565,16 @@ Pull a book on collections.
             Done.
             "ReturnStatement":
                 Define returned as cast field-of on (statement, 1).
+                Define gives as the entry for "%return" in one's kinds but void is "".
                 If cast is-nothing on (returned):
-                    If (the entry for "%return" in one's kinds but void is "") is "failure of void", cast one's line on (cast one's c-return on ("cfl_void_done()")).
+                    If gives is "failure of void", cast one's line on (cast one's c-return on ("cfl_void_done()")).
                     Otherwise, cast one's line on (cast one's c-return on ("")).
                 Done.
-                Otherwise, cast one's line on (cast one's c-return on (cast one's c-of-as on (returned, the entry for "%return" in one's kinds but void is "") or pass the failure off)).
+                // A lambda's first pass, working out what it gives back.
+                Otherwise if gives is "?":
+                    Cast one's line on ("return {cast one's noted-return on (returned) or pass the failure off};").
+                Done.
+                Otherwise, cast one's line on (cast one's c-return on (cast one's c-of-as on (returned, gives) or pass the failure off)).
             Done.
             "CastStatement":
                 Define call as cast made on ("CastExpression", a series with (cast field-of on (statement, 1), cast field-of on (statement, 2))).
@@ -552,7 +582,7 @@ Pull a book on collections.
                 Define passes-off as the number of statement's children is greater than 5 and (cast field-of on (statement, 5))'s word is ":PassesFailureOff".
                 Cast one's emit-failable-cast on (call, passes-off) or pass the failure off.
             Done.
-            "BindStatement", return a failure (cast not-built on ("a function inside a body")).
+            "BindStatement", cast one's emit-local-bind on (statement) or pass the failure off.
             // An interface was gathered with the program's declarations, and builds nothing itself.
             "InterfaceDefinition", return.
             // A pull's functions and objects are the program's, gathered with its own; what is left
@@ -950,6 +980,10 @@ Pull a book on collections.
                 Insert cast c-map-helpers on (union) into union-types.
                 Insert cast c-series-helpers on (union) into union-types.
             Done.
+            Otherwise if cast is-function on (union):
+                Insert cast c-function-helpers on (union) into union-types.
+                Insert cast c-series-helpers on (union) into union-types.
+            Done.
             Otherwise if cast is-failable on (union):
                 Insert cast c-failable-helpers on (union) into union-types.
             Done.
@@ -962,6 +996,9 @@ Pull a book on collections.
                 Insert cast c-series-helpers on (union) into union-types.
             Done.
         Done.
+        For each written in writer's lambda-types, repeat:
+            Insert written into union-types.
+        Done.
         For each pair in writer's constants, repeat:
             Insert "static {cast c-type on (the value of pair)} {cast c-name on (the key of pair)};\n" into union-types.
         Done.
@@ -973,7 +1010,7 @@ Pull a book on collections.
         // A series of a union named ahead of the objects, which may hold one by its address — and
         // how it is written and compared, which an object's own writing calls.
         For each union in writer's union-order, repeat:
-            If cast is-voidable on (union) or cast is-failable on (union), skip.
+            If cast is-voidable on (union) or cast is-failable on (union) or cast is-function on (union) or union starts with "thunk:", skip.
             // A map is held by its address, so an object may hold one named this far ahead.
             If cast is-map on (union):
                 Insert "typedef struct {cast map-c-name on (union)}_s {cast map-c-name on (union)};\n" into out.
@@ -992,8 +1029,14 @@ Pull a book on collections.
         Insert structs converted to text into out.
         Insert union-types converted to text into out.
         Insert declared converted to text into out.
+        For each written in writer's lambda-protos, repeat:
+            Insert written into out.
+        Done.
         Insert "\n" into out.
         Insert defined converted to text into out.
+        For each written in writer's lambda-code, repeat:
+            Insert written into out.
+        Done.
         Insert "int main(int argc, char** argv) \{\n" into out.
         Insert "    cufet_set_args(argc, argv);\n" into out.
         Insert "    CUFET_STDOUT_BINARY();\n" into out.

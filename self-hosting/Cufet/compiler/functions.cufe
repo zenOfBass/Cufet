@@ -1,0 +1,369 @@
+/*  Functions as values — a function type, a named function passed or stored, `a function given
+    (…): … Done.`, a `Bind` inside a body, and a call of any of them.
+
+    ★ A function value is `{ fn, env }`: a C function taking the environment first, then its
+      arguments, and the environment it was made with. Its kind is written `function(R;P1;P2)` —
+      what it gives back, then what it takes — split as a record's parts are.
+
+    ★ A named function used as a value goes through a THUNK, which drops the environment it never
+      had. A lambda, or a `Bind` written inside a body, is a static C function of its own, and its
+      environment holds what it captured — copied when it is made, as the language has it: a
+      number, a text, a fact, an object is a snapshot, and a series or a map, held by its address,
+      is the same series or map. Inside, a captured name reads through the environment, the way a
+      narrowed name reads through its case (`@<name>`).
+
+    ★ A `Bind` inside a body may call ITSELF: inside, its own name is the value made of its function
+      and the environment it was given.
+
+    ★ A lambda's result is worked out from its body — a first pass over it, in a writer of its own,
+      notes what its first `Return` gives — and the second pass writes it.
+
+    ⚠ An object holding a function waits: the function's struct comes after the objects.
+*/
+
+Pull a book on collections.
+    Bind fact to is-function, given (the text kind):
+        Return kind starts with "function(".
+    Done.
+
+    /// A function kind's parts — what it gives back, then what it takes — split outside brackets.
+    Bind series of text to function-parts, given (the text kind):
+        Define inner as the characters from 10 to (the length of kind - 1) of kind.
+        Define parts as a series of text.
+        Define depth as 0.
+        Define begun as 1.
+        Define place as 0.
+        Define total as the length of inner.
+        While place is less than total, repeat:
+            Increment place by 1.
+            Define letter as the characters from place to place of inner.
+            If letter is "(", increment depth by 1.
+            If letter is ")", decrement depth by 1.
+            If letter is ";" and depth is 0:
+                Insert (the characters from begun to (place - 1) of inner) into parts.
+                The begun becomes place + 1.
+            Done.
+        Done.
+        Insert (the characters from begun to total of inner) into parts.
+        Return parts.
+    Done.
+
+    Bind text to function-gives, given (the text kind):
+        Return item 1 of cast function-parts on (kind).
+    Done.
+
+    Bind series of text to function-takes, given (the text kind):
+        Define taken as a series of text.
+        Define place as 0.
+        For each part in cast function-parts on (kind), repeat:
+            Increment place by 1.
+            If place is greater than 1, insert part into taken.
+        Done.
+        Return taken.
+    Done.
+
+    Bind text to function-kind-from, given (the text gives, the series of text takes):
+        Define written as "function({gives}".
+        For each part in takes, repeat:
+            The written becomes "{written};{part}".
+        Done.
+        Return "{written})".
+    Done.
+
+    Bind text to function-c-name, given (the text kind):
+        Define gives-tag as "void".
+        If cast function-gives on (kind) is not "void", the gives-tag becomes cast c-tag on (cast function-gives on (kind)).
+        Define named as "cfn_r{gives-tag}".
+        For each part in cast function-takes on (kind), repeat:
+            The named becomes "{named}_{cast c-tag on (part)}".
+        Done.
+        Return named.
+    Done.
+
+    /// The C type a function gives back — `void` for none.
+    Bind text to c-gives, given (the text gives):
+        If gives is "void", return "void".
+        Return cast c-type on (gives).
+    Done.
+
+    /// A function kind's struct.
+    Bind text to c-function-helpers, given (the text kind):
+        Define param-list as "void*".
+        For each part in cast function-takes on (kind), repeat:
+            The param-list becomes "{param-list}, {cast c-type on (part)}".
+        Done.
+        Return "typedef struct \{ {cast c-gives on (cast function-gives on (kind))} (*fn)({param-list}); void* env; \} {cast function-c-name on (kind)};\n".
+    Done.
+
+    Bind void to register-function unto emitter, given (the text kind):
+        If (the entry for kind in one's unions) is void:
+            In one's unions, the entry for kind becomes true.
+            Insert kind into one's union-order.
+        Done.
+    Done.
+
+    /// The kind of a written function type.
+    Bind text or failure to function-kind-of-type unto emitter, given (the node written):
+        Define takes as a series of text.
+        For each taken in (cast field-of on (written, 1))'s children, repeat:
+            Define taken-kind as cast one's kind-of-type on (taken) or pass the failure off.
+            Insert taken-kind into takes.
+        Done.
+        Define gives as "void".
+        If (cast field-of on (written, 2))'s kind is not "VoidType":
+            The gives becomes cast one's kind-of-type on (cast field-of on (written, 2)) or pass the failure off.
+        Done.
+        Define kind as cast function-kind-from on (gives, takes).
+        Cast one's register-function on (kind).
+        Return kind.
+    Done.
+
+    /// The kind a function declared with `Bind` has as a value.
+    Bind text or failure to bound-kind unto emitter, given (the node bound):
+        Define takes as a series of text.
+        For each parameter in (cast field-of on (bound, 3))'s children, repeat:
+            Define taken-kind as cast one's kind-of-type on (cast field-of on (parameter, 1)) or pass the failure off.
+            Insert taken-kind into takes.
+        Done.
+        Define gives as cast one's kind-of-type on (cast field-of on (bound, 2)) or pass the failure off.
+        Define kind as cast function-kind-from on (gives, takes).
+        Cast one's register-function on (kind).
+        Return kind.
+    Done.
+
+    // ── A named function as a value ───────────────────────────────────────
+
+    /// A top-level function, as a value: through a thunk that drops the environment.
+    Bind text or failure to c-named-function unto emitter, given (the text name):
+        Define bound as the entry for name in one's functions but void is cast listed.
+        Define kind as cast one's bound-kind on (bound) or pass the failure off.
+        Define thunk as "cft_{cast c-ident on (name)}".
+        If (the entry for "thunk:{name}" in one's unions) is void:
+            In one's unions, the entry for "thunk:{name}" becomes true.
+            Define param-list as "void* cf_env".
+            Define passed as "".
+            Define place as 0.
+            For each part in cast function-takes on (kind), repeat:
+                Increment place by 1.
+                The param-list becomes "{param-list}, {cast c-type on (part)} cf_a{place}".
+                If passed is not "", the passed becomes "{passed}, ".
+                The passed becomes "{passed}cf_a{place}".
+            Done.
+            Define head as "static {cast c-gives on (cast function-gives on (kind))} {thunk}({param-list})".
+            Insert "{head};\n" into one's lambda-protos.
+            Define gives-back as "return ".
+            If cast function-gives on (kind) is "void", the gives-back becomes "".
+            Insert "{head} \{ (void)cf_env; {gives-back}{cast c-function-name on (name)}({passed}); \}\n\n" into one's lambda-code.
+        Done.
+        Return "(({cast function-c-name on (kind)})\{ {thunk}, NULL \})".
+    Done.
+
+    // ── Lambdas and a Bind inside a body ──────────────────────────────────
+
+    /// The names a body reads that are NOT its own — what a function made here captures: each one
+    /// this place knows that the body neither takes nor declares.
+    Bind void to free-names unto emitter, given (the node tree, the map from text to fact own, the map from text to fact found):
+        Define kind as tree's kind.
+        If kind is "DefineStatement" or kind is "BindStatement", in own, the entry for cast unquoted on (cast field-of on (tree, 1)) becomes true.
+        If kind is "ForEachStatement" and cast is-nothing on (cast field-of on (tree, 1)) is false:
+            In own, the entry for cast unquoted on (cast field-of on (tree, 1)) becomes true.
+        Done.
+        If kind is "VariableReference":
+            Define read as cast unquoted on (cast field-of on (tree, 1)).
+            If (the entry for read in own) is void and (the entry for read in one's kinds) is not void, in found, the entry for read becomes true.
+            Return.
+        Done.
+        For each child in tree's children, repeat:
+            Cast one's free-names on (child, own, found).
+        Done.
+    Done.
+
+    /// A function written here — `a function given (…): … Done.` or a `Bind` inside a body — built as
+    /// a C function of its own, and the value that holds it and what it captured. `named` is the
+    /// Bind's name, "" for a lambda; `gives` what it gives back, "?" to work it out from its body.
+    Bind text or failure to c-closure unto emitter, given (the node parameters, the node body, the text named,
+            the text gives, the text label):
+        // Its parameters, and what it captures — every name the body reads that this place knows.
+        Define takes as a series of text.
+        Define taken-names as a series of text.
+        Define own as a map from text to fact.
+        For each parameter in parameters's children, repeat:
+            Define taken-kind as cast one's kind-of-type on (cast field-of on (parameter, 1)) or pass the failure off.
+            Insert taken-kind into takes.
+            Define taken-name as cast unquoted on (cast field-of on (parameter, 2)).
+            Insert taken-name into taken-names.
+            In own, the entry for taken-name becomes true.
+        Done.
+        If named is not "", in own, the entry for named becomes true.
+        Define found as a map from text to fact.
+        For each statement in body's children, repeat:
+            Cast one's free-names on (statement, own, found).
+        Done.
+        If (the entry for "one" in found) is not void, return a failure (cast not-built on ("a function written in a method that uses 'one'")).
+        Define captured as a series of text.
+        For each pair in found, repeat:
+            If cast one's stored-kind on (the key of pair) is not "", insert the key of pair into captured.
+        Done.
+        Define env-type as "cenv_{label}".
+        Define fn-name as "cf_lam_{label}".
+
+        // What it gives back: written, or worked out by a first pass over the body.
+        Define result as gives.
+        If result is "?":
+            Define trial as cast one's sibling.
+            Cast trial's enter-closure on (takes, taken-names, captured, one's kinds, named, "?", label, fn-name, env-type).
+            In one's inferred, the entry for label becomes "void".
+            In one's inferred, the entry for "?{label}" becomes "".
+            For each statement in body's children, repeat:
+                Cast trial's emit-statement on (statement) or pass the failure off.
+            Done.
+            The result becomes the entry for label in one's inferred but void is "void".
+        Done.
+        Define kind as cast function-kind-from on (result, takes).
+        Cast one's register-function on (kind).
+        Define value-type as cast function-c-name on (kind).
+        If named is "", in one's inferred, the entry for "λ{label}" becomes kind.
+
+        // The environment, and the function — written once, with its own writer, however often
+        // its kind or its C is asked for.
+        If (the entry for "built:{label}" in one's inferred) is void:
+            In one's inferred, the entry for "built:{label}" becomes "yes".
+            Cast one's build-closure on (takes, taken-names, captured, named, result, label, fn-name, env-type, body) or pass the failure off.
+        Done.
+
+        // The value: an environment filled with what it captured, as it is now.
+        Define filled as "{env-type}* cf_e = ({env-type}*)cufet_arena_alloc(sizeof({env-type})); memset(cf_e, 0, sizeof({env-type}));".
+        For each name in captured, repeat:
+            // Stored as it is stored here — read through this function's own environment, when it
+            // was captured from further out too, and never as a narrowed case.
+            Define captured-c as cast c-name on (name).
+            Define redirected as the entry for "@{name}" in one's kinds but void is "".
+            If redirected starts with "(cf_env->" or redirected starts with "((cfn_", the captured-c becomes redirected.
+            The filled becomes "{filled} cf_e->{cast c-name on (name)} = {captured-c};".
+        Done.
+        Return "(\{ {filled} ({value-type})\{ {fn-name}, cf_e \}; \})".
+    Done.
+
+    /// The environment's struct and the C function, written once.
+    Bind void or failure to build-closure unto emitter, given (the series of text takes, the series of text taken-names,
+            the series of text captured, the text named, the text result, the text label, the text fn-name,
+            the text env-type, the node body):
+        Define fields as "char cf_nothing;".
+        For each name in captured, repeat:
+            The fields becomes "{fields} {cast c-type on (cast one's stored-kind on (name))} {cast c-name on (name)};".
+        Done.
+        Insert "typedef struct \{ {fields} \} {env-type};\n" into one's lambda-types.
+        Define writer as cast one's sibling.
+        Cast writer's enter-closure on (takes, taken-names, captured, one's kinds, named, result, label, fn-name, env-type).
+        For each statement in body's children, repeat:
+            Cast writer's emit-statement on (statement) or pass the failure off.
+        Done.
+        Cast writer's close-failable.
+        Define param-list as "void* cf_envp".
+        Define place as 0.
+        For each taken in takes, repeat:
+            Increment place by 1.
+            The param-list becomes "{param-list}, {cast c-type on (taken)} {cast c-name on (item place of taken-names)}".
+        Done.
+        Define head as "static {cast c-gives on (result)} {fn-name}({param-list})".
+        Insert "{head};\n" into one's lambda-protos.
+        Insert "{head} \{\n    {env-type}* cf_env = ({env-type}*)cf_envp; (void)cf_env;\n{writer's body converted to text}\}\n\n" into one's lambda-code.
+    Done.
+
+    /// A writer's kinds set for a function written here: what it takes, what it captured — read
+    /// through its environment — its own name, if it has one, and what it gives back.
+    Bind void to enter-closure unto emitter, given (the series of text takes, the series of text taken-names,
+            the series of text captured, the map from text to text outer, the text named, the text gives,
+            the text label, the text fn-name, the text env-type):
+        Cast one's line on ("int cf_ab = cufet_arena_top; int cf_fo = cufet_alloc_override; (void)cf_ab; (void)cf_fo;").
+        For each name in captured, repeat:
+            Define captured-kind as the entry for "%{name}" in outer but void is (the entry for name in outer but void is "").
+            In one's kinds, the entry for name becomes captured-kind.
+            In one's kinds, the entry for "%{name}" becomes captured-kind.
+            In one's kinds, the entry for "@{name}" becomes "(cf_env->{cast c-name on (name)})".
+        Done.
+        Define place as 0.
+        For each taken in takes, repeat:
+            Increment place by 1.
+            In one's kinds, the entry for item place of taken-names becomes taken.
+        Done.
+        In one's kinds, the entry for "%return" becomes gives.
+        In one's kinds, the entry for "%closure" becomes label.
+        If named is not "":
+            Define self-kind as cast function-kind-from on (gives, takes).
+            In one's kinds, the entry for named becomes self-kind.
+            In one's kinds, the entry for "%{named}" becomes self-kind.
+            In one's kinds, the entry for "@{named}" becomes "(({cast function-c-name on (self-kind)})\{ {fn-name}, cf_envp \})".
+        Done.
+    Done.
+
+    /// While a lambda's result is worked out: what its first `Return` gives is noted.
+    Bind text or failure to noted-return unto emitter, given (the node returned):
+        Define label as the entry for "%closure" in one's kinds but void is "".
+        Define returned-kind as cast one's kind-of on (returned) or pass the failure off.
+        If (the entry for "?{label}" in one's inferred but void is "") is "":
+            In one's inferred, the entry for label becomes returned-kind.
+            In one's inferred, the entry for "?{label}" becomes "noted".
+        Done.
+        Return cast one's c-of on (returned) or pass the failure off.
+    Done.
+
+    /// `Bind … given (…): … Done.` inside a body — a local name holding the function it makes.
+    Bind void or failure to emit-local-bind unto emitter, given (the node statement):
+        If the number of statement's children is greater than 8, return a failure (cast not-built on ("a Bind with {(cast field-of on (statement, 9))'s word} inside a body")).
+        Define name as cast unquoted on (cast field-of on (statement, 1)).
+        Define gives as cast one's kind-of-type on (cast field-of on (statement, 2)) or pass the failure off.
+        Define label as "{(cast field-of on (statement, 7))'s word}_{(cast field-of on (statement, 8))'s word}".
+        Define value as cast one's c-closure on (cast field-of on (statement, 3), cast field-of on (statement, 4), name, gives, label) or pass the failure off.
+        Define kind as cast one's bound-kind on (statement) or pass the failure off.
+        In one's kinds, the entry for name becomes kind.
+        In one's kinds, the entry for "%{name}" becomes kind.
+        In one's kinds, the entry for "@{name}" becomes "".
+        Cast one's declared-here on (name).
+        Cast one's line on ("{cast function-c-name on (kind)} {cast c-name on (name)} = {value};").
+    Done.
+
+    /// `a function given (…): … Done.` — its kind, and its C.
+    Bind text or failure to lambda-kind unto emitter, given (the node expression):
+        Define label as "{(cast field-of on (expression, 3))'s word}_{(cast field-of on (expression, 4))'s word}".
+        Define known as the entry for "λ{label}" in one's inferred but void is "".
+        If known is not "", return known.
+        Cast one's c-closure on (cast field-of on (expression, 1), cast field-of on (expression, 2), "", "?", label) or pass the failure off.
+        Return the entry for "λ{label}" in one's inferred but void is "".
+    Done.
+
+    // ── Calling a function value ──────────────────────────────────────────
+
+    /// Whether a call reaches a function VALUE rather than a function or a method by its name.
+    Bind fact or failure to calls-value unto emitter, given (the node call):
+        Define callee as cast field-of on (call, 1).
+        If callee's kind is "VariableReference":
+            Define called-name as cast unquoted on (cast field-of on (callee, 1)).
+            If (the entry for called-name in one's functions) is not void, return false.
+            Return cast is-function on (cast one's stored-kind on (called-name)).
+        Done.
+        If callee's kind is "PossessiveAccess":
+            Define owner-kind as cast one's kind-of on (cast field-of on (callee, 1)) or pass the failure off.
+            Define owner as cast object-of on (owner-kind).
+            If owner is not "" and (the entry for "{owner}'s {cast unquoted on (cast field-of on (callee, 2))}" in one's methods) is not void, return false.
+        Done.
+        Define callee-kind as cast one's kind-of on (callee) but on failure "".
+        Return cast is-function on (callee-kind).
+    Done.
+
+    /// A call of a function value, as C: through its function, with its environment first.
+    Bind text or failure to c-value-call unto emitter, given (the node call):
+        Define callee as cast field-of on (call, 1).
+        Define kind as cast one's kind-of on (callee) or pass the failure off.
+        Define callee-c as cast one's c-of on (callee) or pass the failure off.
+        Define takes as cast function-takes on (kind).
+        Define param-list as "cf_fv.env".
+        Define place as 0.
+        For each argument in (cast field-of on (call, 2))'s children, repeat:
+            Increment place by 1.
+            Define argument-c as cast one's c-of-as on (argument, item place of takes) or pass the failure off.
+            The param-list becomes "{param-list}, {argument-c}".
+        Done.
+        Return "(\{ {cast function-c-name on (kind)} cf_fv = {callee-c}; cf_fv.fn({param-list}); \})".
+    Done.
+Done.

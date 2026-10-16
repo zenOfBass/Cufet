@@ -24,8 +24,10 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   characters of a text, `the current directory`, `the environment variable`, path checks, a
   folder's contents, exceptions — `In case of exception`, raised again unless suppressed, with a
   `Try` left early by `Return`, `Stop`, `Skip` or a failure closing what it leaves — writing a file,
-  and `run`. `CompilerParityTests` now holds it to the interpreter on 320 hand-written programs and
-  on 31 of the 67 in `examples/`.
+  `run`, and functions as values: a named function stored, passed and kept in a series, lambdas, a
+  `Bind` inside a body — calling itself, if it likes — a function that returns a function, the
+  captures a closure makes, and `sorted by` a function. `CompilerParityTests` now holds it to the
+  interpreter on 330 hand-written programs and on 33 of the 67 in `examples/`.
 - **The compiler written in Cufet compiles itself.** The compiler it builds from its own source
   compiles that source again into the very same C, byte for byte — the fixed point a self-hosting
   compiler is held to — and builds every program the first one does, printing the same.
