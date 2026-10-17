@@ -28,8 +28,10 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   `Bind` inside a body — calling itself, if it likes — a function that returns a function, the
   captures a closure makes, and `sorted by` a function; objects with field defaults, with blanks
   — `a new stack of number` — and with setters, makers and function fields, and functions with a
-  blank. `CompilerParityTests` now holds it to the interpreter on 348 hand-written programs and on
-  37 of the 67 in `examples/`.
+  blank; a named rabbit, a region of the writer's own (`and region`), stashes — `bury` and
+  `unbury` — a series of series or of voidables, and a function written in a method that reads
+  `one`. `CompilerParityTests` now holds it to the interpreter on 358 hand-written programs and on
+  40 of the 67 in `examples/`.
 - **The compiler written in Cufet compiles itself.** The compiler it builds from its own source
   compiles that source again into the very same C, byte for byte — the fixed point a self-hosting
   compiler is held to — and builds every program the first one does, printing the same.
@@ -81,6 +83,11 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   `cast c's apply on (10)` checked clean, though `'s` in a cast names a method: the interpreter then
   died looking for the method, and `cufet build` refused it. Both checkers now refuse it, pointing at
   `cast the apply of c on (…)`, which reads the field and calls what it holds.
+- **`For each` over a stash made by a call drains that one stash.** `For each even in cast
+  evens-of on (hopper)` called `evens-of` again on every turn, so each turn took the first value of
+  a fresh stash and the loop never ended — on both backends, since both run the loop the checker
+  writes for it, which is why the oracle never saw it. The stash is now made once, before the loop;
+  a loop over a name was already right and is unchanged.
 - **The compiler written in Cufet works out operands in the order they are written** — a series'
   items, which it built as calls nested in calls, and a call's arguments and an operator's sides,
   as `cufet build` now does.

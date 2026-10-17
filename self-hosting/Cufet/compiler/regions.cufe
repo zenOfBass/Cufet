@@ -134,14 +134,26 @@ Pull a book on collections.
         Cast one's line on ("cufet_alloc_override = cf_ov; \}").
     Done.
 
-    /// `Pull a rabbit.` — its own arena, freed at `Done` unless something in it was handed out.
+    /// `Pull a rabbit.` — its own arena, freed at `Done` unless something in it was handed out. A
+    /// named one (`Pull a rabbit as hopper.`) is a value too: its name, as the interpreter's is.
     Bind void or failure to emit-rabbit unto emitter, given (the node statement):
-        // ⚠ A rabbit's NAME (`Pull a rabbit as hopper.`) is not bound: the region is built, and a use
-        // of the name is refused where it is met, as a name this compiler cannot see.
+        Define named as "".
+        If cast is-nothing on (cast field-of on (statement, 1)) is false, the named becomes cast unquoted on (cast field-of on (statement, 1)).
+        Cast one's emit-region on (statement, named) or pass the failure off.
+    Done.
+
+    /// A region's block — a rabbit's, or a pulled object's that says `and region` — with `named`
+    /// bound to the rabbit inside it, or "" for none.
+    Bind void or failure to emit-region unto emitter, given (the node statement, the text named):
         Define label as "r{(cast field-of on (statement, 3))'s word}_{(cast field-of on (statement, 4))'s word}".
         Cast one's line on ("cufet_arena_push();").
         Cast one's line on ("\{").
         Define kept as cast one's kinds-kept.
+        If named is not "":
+            Cast one's line on ("    cufet_rabbit {cast c-name on (named)} = \{ \"{named}\" \};").
+            Cast one's line on ("    (void){cast c-name on (named)};").
+            In one's kinds, the entry for named becomes "rabbit".
+        Done.
         In one's kinds, the entry for "%rabbit" becomes "{cast one's rabbits-open + 1}".
         In one's kinds, the entry for "%rabbits" becomes "{the entry for "%rabbits" in one's kinds but void is ""},{label}".
         Define outer as one's indent.

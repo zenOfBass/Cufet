@@ -165,7 +165,18 @@ Pull a book on collections.
         Define shadows as cast one's look-up on (name) is not void.
         Define spot as "{line-atom's word}:{column-atom's word}".
 
-        Define taken as cast made on ("UnburyExpression", a series with (cast field-of on (statement, 2), line-atom, column-atom)).
+        // ⚠⚠ The stash is worked out ONCE, before the loop, under a hidden name — unburying the
+        // source itself on every turn made a fresh stash each turn when it was a call. A name stays
+        // as it is, as C# leaves it.
+        Define source as cast field-of on (statement, 2).
+        Define hidden as "stash_drain_{line-atom's word}_{column-atom's word}".
+        Define held as source.
+        If source's kind is not "VariableReference":
+            The held becomes cast made on ("DefineStatement", a series with (cast quoted on (hidden), source, cast flag on (false),
+                cast flag on (false), line-atom, column-atom, cast nothing)).
+            The source becomes cast made on ("VariableReference", a series with (cast quoted on (hidden), line-atom, column-atom)).
+        Done.
+        Define taken as cast made on ("UnburyExpression", a series with (source, line-atom, column-atom)).
         Define take as cast made on ("DefineStatement", a series with (cast quoted on (name), taken, cast flag on (false),
             cast flag on (shadows), line-atom, column-atom, cast nothing)).
         Define alive as cast made on ("BinaryExpression", a series with (
@@ -182,6 +193,17 @@ Pull a book on collections.
         Cast inner's add on (cast made on ("IfStatement", a series with (arms, stopping))).
         Define drain as cast made on ("RepeatUntilStatement", a series with (inner,
             cast made on ("BooleanLiteral", a series with (cast flag on (false), line-atom, column-atom)))).
+        // ★ `If true` is a block, nothing more: one statement stands for the loop, and the tree has
+        // no plain block to hold the stash's name beside it.
+        If held's kind is "DefineStatement":
+            Define block as cast listed.
+            Cast block's add on (held).
+            Cast block's add on (drain).
+            Define opened as cast listed.
+            Cast opened's add on (cast made on ("ConditionArm", a series with (
+                cast made on ("BooleanLiteral", a series with (cast flag on (true), line-atom, column-atom)), block))).
+            The drain becomes cast made on ("IfStatement", a series with (opened, cast nothing)).
+        Done.
         // Kept, so the loop it stands for can be replaced by it once checking is over.
         In one's stash-drains, the entry for spot becomes drain.
         Cast one's enter-scope.

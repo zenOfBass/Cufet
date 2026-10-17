@@ -122,13 +122,26 @@ public sealed partial class TypeChecker
     /// checker had gone home would have to be trusted instead.
     /// </para>
     /// </remarks>
-    private static RepeatUntilStatement StashDrainLoop(ForEachStatement forEach, bool shadows)
+    private static IStatement StashDrainLoop(ForEachStatement forEach, bool shadows)
     {
         var name = forEach.IteratorName ?? "it";
         int line = forEach.Line, column = forEach.Column;
 
+        // ⚠⚠ The stash is worked out ONCE, before the loop. Unburying `forEach.Series` itself on every
+        // turn was harmless for a name and wrong for anything else: `For each even in cast evens-of
+        // on (hopper)` made a fresh stash each turn and printed its first value forever, on both
+        // backends alike. A name stays as it is, so every tree built before this is unchanged.
+        IExpression source = forEach.Series;
+        DefineStatement? held = null;
+        if (forEach.Series is not VariableReference)
+        {
+            var hidden = $"stash_drain_{line}_{column}";
+            held = new DefineStatement(hidden, forEach.Series, Permanent: false, Shadow: false, line, column);
+            source = new VariableReference(hidden, line, column);
+        }
+
         var take = new DefineStatement(
-            name, new UnburyExpression(forEach.Series, line, column),
+            name, new UnburyExpression(source, line, column),
             Permanent: false, Shadow: shadows, line, column);
 
         // ⚠ `is not void` with the body in the ARM, not `is void` with a `Stop` and the body after
@@ -144,7 +157,12 @@ public sealed partial class TypeChecker
                 forEach.Body)],
             ElseBody: [new StopStatement()]);
 
-        return new RepeatUntilStatement([take, alive], new BooleanLiteral(false, line, column));
+        var drain = new RepeatUntilStatement([take, alive], new BooleanLiteral(false, line, column));
+        if (held is null) return drain;
+        // ★ `If true` is a BLOCK, nothing more: the drain replaces one statement with one statement,
+        // and the tree has no plain block to hold the stash's name beside its loop.
+        return new IfStatement(
+            [new ConditionArm(new BooleanLiteral(true, line, column), [held, drain])], ElseBody: null);
     }
 
     private void CheckSeriesAdd(SeriesInsertStatement add)

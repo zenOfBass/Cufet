@@ -34,8 +34,7 @@ Pull a book on collections.
     Bind text to conformance-beyond unto emitter, given (the node definition):
         For each conformed in (cast field-of on (definition, 8))'s children, repeat:
             Define name as cast unquoted on (conformed).
-            If name is "region", return "an object that is a region".
-            If name is not "module" and name is not "book" and (the entry for name in one's interfaces) is void:
+            If name is not "region" and name is not "module" and name is not "book" and (the entry for name in one's interfaces) is void:
                 Return "an object conforming to '{name}'".
             Done.
         Done.

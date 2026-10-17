@@ -157,4 +157,47 @@ public class PipelineBuryTests : PipelineTestBase
             """;
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
+
+    // ⚠⚠ A `For each` over a stash that is not a name — a call — worked the call out again on every
+    // turn, so each turn drained a FRESH stash and the loop printed its first value forever, on
+    // both backends alike. The stash is now made once, before the loop: at the top level, and
+    // inside a burying function, where the loop is split across its buries.
+    [Fact]
+    public void AForEachOverACall_DrainsOneStash_NotAFreshOneEachTurn()
+    {
+        const string src = """
+            Bind number to counting-up, given (the rabbit helper, the number first-value):
+                Define next as first-value.
+                Repeat:
+                    Have helper bury next.
+                    The next becomes next + 1.
+                Until false.
+            Done.
+            Bind number to evens-of, given (the rabbit helper):
+                Define tries as 0.
+                For each value in cast counting-up on (helper, 1), repeat:
+                    Increment tries by 1.
+                    If value is greater than 8 or tries is 20:
+                        Stop.
+                    Done.
+                    If value % 2 is 0:
+                        Have helper bury value.
+                    Done.
+                Done.
+            Done.
+
+            Pull a rabbit as hopper.
+                Define turns as 0.
+                For each even in cast evens-of on (hopper), repeat:
+                    State even.
+                    Increment turns by 1.
+                    If turns is 6, stop.
+                Done.
+            Done.
+            """;
+        // ⚠ The `tries` and `turns` caps are what make the old fault FAIL rather than hang — both
+        // loops ran forever, and the interpreter runs inside the test, where no timeout can stop it.
+        Assert.Equal("2\n4\n6\n8\n".ReplaceLineEndings(), InterpretRaw(src).ReplaceLineEndings());
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
 }

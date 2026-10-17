@@ -214,7 +214,6 @@ Pull a book on collections.
         For each statement in body's children, repeat:
             Cast one's free-names on (statement, own, found).
         Done.
-        If (the entry for "one" in found) is not void, return a failure (cast not-built on ("a function written in a method that uses 'one'")).
         Define captured as a series of text.
         For each pair in found, repeat:
             If cast one's stored-kind on (the key of pair) is not "", insert the key of pair into captured.
@@ -252,6 +251,8 @@ Pull a book on collections.
             // Stored as it is stored here — read through this function's own environment, when it
             // was captured from further out too, and never as a narrowed case.
             Define captured-c as cast c-name on (name).
+            // `one` is held by its address in a method; what is captured is the object, a snapshot.
+            If name is "one", the captured-c becomes "(*cv_one)".
             Define redirected as the entry for "@{name}" in one's kinds but void is "".
             If redirected starts with "(cf_env->" or redirected starts with "((cfn_", the captured-c becomes redirected.
             The filled becomes "{filled} cf_e->{cast c-name on (name)} = {captured-c};".
