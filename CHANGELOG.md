@@ -28,7 +28,7 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   `Bind` inside a body — calling itself, if it likes — a function that returns a function, the
   captures a closure makes, and `sorted by` a function; objects with field defaults, with blanks
   — `a new stack of number` — and with setters, makers and function fields, and functions with a
-  blank. `CompilerParityTests` now holds it to the interpreter on 342 hand-written programs and on
+  blank. `CompilerParityTests` now holds it to the interpreter on 348 hand-written programs and on
   37 of the 67 in `examples/`.
 - **The compiler written in Cufet compiles itself.** The compiler it builds from its own source
   compiles that source again into the very same C, byte for byte — the fixed point a self-hosting
@@ -66,9 +66,16 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   record, a number or a text — while a series or a map is the live one. Both backends agreed and a
   test held them to it; the sentence was wrong from the day it was written. It now says so, with a
   checked example.
-- **The compiler written in Cufet works out a series' items in the order they are written.** It
-  built `a series of number with (…)` as calls nested in calls, whose arguments C may work out in
-  any order — and gcc took them last first, so items with side effects ran backwards.
+- **`cufet build` works out operands left to right, as the interpreter does.** C leaves the order
+  of a call's arguments open, and gcc took them last first: `cast add on (cast tick on (c), cast
+  tick on (c))` printed 21 built and 12 interpreted, and `a - b` subtracted the wrong way round
+  whenever both sides called something. A call's arguments, the two sides of an operator and of a
+  join are now bound in the order written wherever two of them could do something. No program in
+  `examples/` had two such operands, which is why the oracle never saw it;
+  `PipelineEvaluationOrderTests` holds it now.
+- **The compiler written in Cufet works out operands in the order they are written** — a series'
+  items, which it built as calls nested in calls, and a call's arguments and an operator's sides,
+  as `cufet build` now does.
 
 ## [0.27.0] — 2026-10-11
 

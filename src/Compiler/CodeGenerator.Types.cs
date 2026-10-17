@@ -891,9 +891,9 @@ static const char* cufet_str_lower(const char* s) {
             _ifaceSpecReq[specName] = (bind, owner, concretes);
         }
 
-        var emitted = (receiverPrefix == null ? Enumerable.Empty<string>() : new[] { receiverPrefix })
-                      .Concat(callArgs.Select(EmitExpr));
-        return $"{specName}({string.Join(", ", emitted)})";
+        var prefix = receiverPrefix == null ? Enumerable.Empty<string>() : new[] { receiverPrefix };
+        return InOrder(callArgs, callArgs.Select(EmitExpr).ToList(),
+            a => $"{specName}({string.Join(", ", prefix.Concat(a))})");
     }
 
     // Emits one specialization: the SAME body, with each interface parameter re-typed to the

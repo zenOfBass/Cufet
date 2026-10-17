@@ -43,6 +43,30 @@ public sealed partial class CodeGenerator
                 : EmitExpr(args[i]);
     }
 
+    // ★ C leaves the order of a call's arguments open — gcc works them out last first — while the
+    // interpreter goes left to right. So where two or more operands could do something, each is
+    // bound to a temporary first, in the order written, and `build` is handed the temporaries.
+    // `__auto_type` names each without emitting it twice, which matters for an operand that jumps
+    // to a Try's handler. A literal or a plain name is left in place: no call can change a local,
+    // since a closure captures a snapshot, so where it is read does not matter.
+    private string InOrder(IReadOnlyList<IExpression> operands, IReadOnlyList<string> emitted,
+                           Func<IReadOnlyList<string>, string> build)
+    {
+        static bool OrderFree(IExpression e) =>
+            e is NumberLiteral or StringLiteral or BooleanLiteral or VoidLiteral or VariableReference;
+        if (operands.Count(e => !OrderFree(e)) < 2) return build(emitted);
+        var bound = new StringBuilder("({ ");
+        var names = new List<string>();
+        for (int i = 0; i < emitted.Count; i++)
+        {
+            if (i < operands.Count && OrderFree(operands[i])) { names.Add(emitted[i]); continue; }
+            string tmp = $"cf_q{_freshId++}";
+            bound.Append($"__auto_type {tmp} = {emitted[i]}; ");
+            names.Add(tmp);
+        }
+        return bound.Append(build(names)).Append("; })").ToString();
+    }
+
     // Is `name` bound by a Bind ANYWHERE in the program? Used only to tell an unresolved call that
     // is a typo from one that is a forward reference, so each gets the message that fits it. The
     // question is deliberately coarse — it decides which sentence to print, never what to emit.
@@ -736,8 +760,8 @@ public sealed partial class CodeGenerator
         // Recursion inside a nested Bind: its own name → a direct self-call reusing the current env.
         if (funcExpr is VariableReference svr && _closureSelf is { } self && svr.Name == self.Name)
         {
-            var selfArgs = new[] { "cf_envp" }.Concat(args.Select(EmitExpr));
-            return $"{self.ClosFn}({string.Join(", ", selfArgs)})";
+            return InOrder(args, args.Select(EmitExpr).ToList(),
+                a => $"{self.ClosFn}({string.Join(", ", new[] { "cf_envp" }.Concat(a))})");
         }
         if (funcExpr is VariableReference vr)
         {
@@ -755,7 +779,8 @@ public sealed partial class CodeGenerator
                 // `cd_box` straight into a `cun_0` parameter: the checker was happy, `check
                 // --native` was happy, and gcc refused it. Every other slot already went through
                 // EmitAsType; this one was missed.
-                return $"{MangleName(vr.Name)}({string.Join(", ", EmitArgsAsParams(vr.Name, args))})";
+                return InOrder(args, EmitArgsAsParams(vr.Name, args).ToList(),
+                    a => $"{MangleName(vr.Name)}({string.Join(", ", a)})");
             }
 
             // A function-VALUED variable (Define f as …) → an indirect call through the {fn, env} value.
@@ -770,8 +795,9 @@ public sealed partial class CodeGenerator
                 string recv = $"&(({AddressableReceiver(args[0])}){suffix})";
                 if (_ifaceMethods.TryGetValue((owner, vr.Name), out var ifm))
                     return EmitSpecializedCall(ifm, owner, args.Skip(1).ToList(), recv);
-                var call = new[] { recv }.Concat(args.Skip(1).Select(EmitExpr));
-                return $"{MethodCName(owner, vr.Name)}({string.Join(", ", call)})";
+                var rest = args.Skip(1).ToList();
+                return InOrder(rest, rest.Select(EmitExpr).ToList(),
+                    a => $"{MethodCName(owner, vr.Name)}({string.Join(", ", new[] { recv }.Concat(a))})");
             }
             // ★ Two very different faults reached this line with one message, and the message
             // named the wrong one. A nested Bind is a CLOSURE, emitted where it stands, so a call
@@ -807,8 +833,8 @@ public sealed partial class CodeGenerator
                 string lRecv = $"&(({EmitCType(ObjType(bookName))}){{0}})";
                 if (_ifaceMethods.TryGetValue((lOwner, bpa.Member), out var lIfm))
                     return EmitSpecializedCall(lIfm, lOwner, args, lRecv);
-                var lCall = new[] { lRecv }.Concat(args.Select(EmitExpr));
-                return $"{MethodCName(lOwner, bpa.Member)}({string.Join(", ", lCall)})";
+                return InOrder(args, args.Select(EmitExpr).ToList(),
+                    a => $"{MethodCName(lOwner, bpa.Member)}({string.Join(", ", new[] { lRecv }.Concat(a))})");
             }
             return EmitBookFunction(bookName, bpa.Member, args);
         }
@@ -819,8 +845,8 @@ public sealed partial class CodeGenerator
             string recv = $"&(({AddressableReceiver(pa.Target)}){suffix})";
             if (_ifaceMethods.TryGetValue((owner, pa.Member), out var ifpm))
                 return EmitSpecializedCall(ifpm, owner, args, recv);
-            var call = new[] { recv }.Concat(args.Select(EmitExpr));
-            return $"{MethodCName(owner, pa.Member)}({string.Join(", ", call)})";
+            return InOrder(args, args.Select(EmitExpr).ToList(),
+                a => $"{MethodCName(owner, pa.Member)}({string.Join(", ", new[] { recv }.Concat(a))})");
         }
 
         // Any other expression yielding a function value (e.g. an element of a series of functions) →
@@ -864,8 +890,8 @@ public sealed partial class CodeGenerator
         string val = EmitExpr(funcExpr);
         string tmp = $"cf_fn{_freshId++}";
         _preEmits.Add($"{cfn} {tmp} = {val};");
-        var call = new[] { $"{tmp}.env" }.Concat(args.Select(EmitExpr));
-        return $"{tmp}.fn({string.Join(", ", call)})";
+        return InOrder(args, args.Select(EmitExpr).ToList(),
+            a => $"{tmp}.fn({string.Join(", ", new[] { $"{tmp}.env" }.Concat(a))})");
     }
 
     // The free variables a lambda / nested-Bind body captures: referenced enclosing locals not defined
@@ -1203,7 +1229,8 @@ public sealed partial class CodeGenerator
         if (OverloadFor(b) is { } ovl)
         {
             var ort = OverloadReturnType(ovl.LeftTypeName, ovl.RightTypeName, b.Op);
-            string call = $"{OverloadFnName(ovl.LeftTypeName, ovl.RightTypeName, b.Op)}({EmitExpr(b.Left)}, {EmitExpr(b.Right)})";
+            string call = InOrder(new[] { b.Left, b.Right }, new[] { EmitExpr(b.Left), EmitExpr(b.Right) },
+                both => $"{OverloadFnName(ovl.LeftTypeName, ovl.RightTypeName, b.Op)}({both[0]}, {both[1]})");
             return ort is FailureType oft
                 ? EmitFallibleCheckGoto(call, RegisterFailableStruct(oft))
                 : call;
@@ -1221,7 +1248,16 @@ public sealed partial class CodeGenerator
 
         string L = EmitExpr(b.Left);
         string R = EmitExpr(b.Right);
+        // `and` and `or` on facts already go left to right, and must not work out their right side
+        // when the left decides.
+        if (b.Op is TokenType.And or TokenType.Or && TypeOf(b.Left) is not BitsType)
+            return EmitBinaryOf(b, L, R);
+        return InOrder(new[] { b.Left, b.Right }, new[] { L, R }, both => EmitBinaryOf(b, both[0], both[1]));
+    }
 
+    // A binary operator over operands already emitted — `L` and `R` are each read once or more.
+    private string EmitBinaryOf(BinaryExpression b, string L, string R)
+    {
         switch (b.Op)
         {
             // Bit-pattern arithmetic, before the decimal path — the operands are CufetBits,
