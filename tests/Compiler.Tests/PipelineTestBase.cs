@@ -120,6 +120,9 @@ public abstract class PipelineTestBase
         return binPath;
     }
 
+    /// <summary>How long one built program may run before the test stops it and fails.</summary>
+    protected const int ProgramTimeoutMs = 120_000;
+
     /// <summary>Runs an already-compiled binary once and returns its stdout.</summary>
     protected static string RunBinary(string binPath, string? stdin = null)
     {
@@ -153,9 +156,18 @@ public abstract class PipelineTestBase
             // as soon as the second fills its buffer while nobody is reading it.
             var stdoutTask = proc.StandardOutput.ReadToEndAsync();
             var stderrTask = proc.StandardError.ReadToEndAsync();
+            // ⚠ A program that never stops must make the test fail, not hang the run: a sabotage
+            // that turned a setter into an endless loop sat there until killed by hand.
+            if (!proc.WaitForExit(ProgramTimeoutMs))
+            {
+                try { proc.Kill(entireProcessTree: true); } catch (InvalidOperationException) { }
+                proc.WaitForExit();
+                throw new Xunit.Sdk.XunitException(
+                    $"The compiled binary did not finish within {ProgramTimeoutMs / 1000} s, and was stopped.\n" +
+                    $"stdout so far:\n{stdoutTask.GetAwaiter().GetResult()}");
+            }
             var output = stdoutTask.GetAwaiter().GetResult();
             var errors = stderrTask.GetAwaiter().GetResult();
-            proc.WaitForExit();
 
             // A CRASH is never a legitimate outcome for one of these programs — a Cufet runtime
             // error exits cleanly with a message. Negative codes (POSIX signals as .NET reports

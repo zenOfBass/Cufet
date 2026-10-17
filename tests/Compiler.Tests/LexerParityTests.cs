@@ -113,6 +113,9 @@ public class LexerParityTests
 
     // ── The Cufet side ──────────────────────────────────────────────────────
 
+    /// <summary>How long one run of a self-built tool over a whole batch of files may take.</summary>
+    private const int BatchTimeoutMs = 30 * 60_000;
+
     internal static string Run(string exe, IEnumerable<string> arguments, string workingDirectory)
     {
         var psi = new ProcessStartInfo(exe)
@@ -127,10 +130,19 @@ public class LexerParityTests
 
         using var p = Process.Start(psi)!;
         var stderr = p.StandardError.ReadToEndAsync();
-        string stdout = p.StandardOutput.ReadToEnd();
-        p.WaitForExit(300_000);
-        Assert.True(p.ExitCode == 0, $"the lexer exited {p.ExitCode}:\n{stderr.Result}");
-        return stdout;
+        var stdout = p.StandardOutput.ReadToEndAsync();
+        // ⚠ The wait has to come BEFORE reading to the end — a read to the end of a program that never
+        // stops never ends, so the limit used to be unreachable. ⚠ And it is a BATCH limit: one run of
+        // the self-built compiler builds every hand-written program with gcc, which took over 300 s —
+        // the old limit, which could not fire, had never been long enough.
+        if (!p.WaitForExit(BatchTimeoutMs))
+        {
+            try { p.Kill(entireProcessTree: true); } catch (InvalidOperationException) { }
+            p.WaitForExit();
+            Assert.Fail($"{Path.GetFileName(exe)} did not finish within {BatchTimeoutMs / 60_000} minutes, and was stopped.");
+        }
+        Assert.True(p.ExitCode == 0, $"{Path.GetFileName(exe)} exited {p.ExitCode}:\n{stderr.Result}");
+        return stdout.Result;
     }
 
     /// <summary>The lexer's output, split at its `file` headers.</summary>

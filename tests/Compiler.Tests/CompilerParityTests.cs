@@ -565,7 +565,13 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
         process.StandardInput.Close();
         var stdout = process.StandardOutput.ReadToEndAsync();
         var stderr = process.StandardError.ReadToEndAsync();
-        process.WaitForExit();
+        if (!process.WaitForExit(ProgramTimeoutMs))
+        {
+            try { process.Kill(entireProcessTree: true); } catch (InvalidOperationException) { }
+            process.WaitForExit();
+            throw new Xunit.Sdk.XunitException(
+                $"{Path.GetFileName(exe)} did not finish within {ProgramTimeoutMs / 1000} s, and was stopped.");
+        }
         _ = stderr.Result;
         return (stdout.Result, process.ExitCode);
     }
@@ -649,7 +655,13 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
                 process.StandardInput.Close();
                 var stdout = process.StandardOutput.ReadToEndAsync();
                 var stderr = process.StandardError.ReadToEndAsync();
-                process.WaitForExit();
+                if (!process.WaitForExit(ProgramTimeoutMs))
+                {
+                    try { process.Kill(entireProcessTree: true); } catch (InvalidOperationException) { }
+                    process.WaitForExit();
+                    problems.Add($"{name} did not finish within {ProgramTimeoutMs / 1000} s, and was stopped");
+                    continue;
+                }
                 // What it printed before it stopped, then that it stopped, and why.
                 string want = InterpretThroughFaultRaw(source);
                 if (stdout.Result != want)

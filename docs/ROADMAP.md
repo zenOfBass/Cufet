@@ -264,9 +264,6 @@ the calling: these wait only for a turn.
   `examples/assets/…` from the repository root, as their headers say — so the test sees "not
   found" on both sides, and the read that works is checked by hand only. *Blocker:* none known.
 
-- **A self-built program that fails to start is called "the lexer".** `LexerParityTests.Run`
-  names every program that way in its error, whatever it ran. *Blocker:* none known.
-
 ## Deferred — blocked, or waiting for a program that needs it
 
 ### Language
