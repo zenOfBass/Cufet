@@ -249,9 +249,11 @@ Pull a book on collections.
             "ObjectLiteral", return cast one's c-object-literal on (expression) or pass the failure off.
             "PossessiveAccess", return cast one's c-possessive on (expression) or pass the failure off.
             "TextJoin":
-                Define left as cast one's c-of on (cast field-of on (expression, 1)) or pass the failure off.
-                Define right as cast one's c-of on (cast field-of on (expression, 2)) or pass the failure off.
-                Return "cufet_str_concat({left}, {right})".
+                Define joined-left as cast one's c-of on (cast field-of on (expression, 1)) or pass the failure off.
+                Define joined-right as cast one's c-of on (cast field-of on (expression, 2)) or pass the failure off.
+                Define sides as a series of text with (joined-left, joined-right).
+                Define prefix as cast order-prefix on (a series of node with (cast field-of on (expression, 1), cast field-of on (expression, 2)), sides).
+                Return cast in-order on (prefix, "cufet_str_concat({item 1 of sides}, {item 2 of sides})").
             Done.
             "TextConvert", return cast one's c-text-of on (cast field-of on (expression, 1)) or pass the failure off.
             "UnaryExpression":
@@ -336,19 +338,65 @@ Pull a book on collections.
             Done.
         Done.
         Define called as cast one's function-called on (call) or pass the failure off.
-        Define listing as cast one's c-arguments on (cast field-of on (called, 3), cast field-of on (call, 2)) or pass the failure off.
+        Define handed-c as cast one's c-arguments on (cast field-of on (called, 3), cast field-of on (call, 2)) or pass the failure off.
+        Define listing as item 2 of handed-c.
         Define interface-taking as cast one's takes-interface on (called) or pass the failure off.
         If interface-taking:
             Define copy-name as cast one's c-specialized-name on (called, call) or pass the failure off.
-            Return "{copy-name}({listing})".
+            Return cast in-order on (item 1 of handed-c, "{copy-name}({listing})").
         Done.
-        Return "{cast c-function-name on (cast unquoted on (cast field-of on (called, 1)))}({listing})".
+        Return cast in-order on (item 1 of handed-c, "{cast c-function-name on (cast unquoted on (cast field-of on (called, 1)))}({listing})").
+    Done.
+
+    // ── Working operands out in order ─────────────────────────────────────
+    //
+    // ★ C leaves the order of a call's arguments open — gcc works them out last first — while the
+    // interpreter goes left to right. So where two or more operands could do something, each is
+    // bound to a temporary first, in the order written. A literal or a plain name stays in place:
+    // no call can change a local, since a closure captures a snapshot.
+    //
+    // ★ The temporaries are named by place, `cf_o1`, `cf_o2`…: an operand's own temporaries live in
+    // a block of their own inside it, so the same names nested cannot meet.
+
+    /// Whether it cannot matter when an operand is worked out.
+    Bind fact to is-order-free, given (the node operand):
+        Define kind as operand's kind.
+        Return kind is "NumberLiteral" or kind is "StringLiteral" or kind is "BooleanLiteral" or kind is "VoidLiteral"
+            or kind is "VariableReference".
+    Done.
+
+    /// What binds the operands that need it to temporaries, in order — "" when fewer than two do.
+    /// Each one bound is swapped for its temporary in `emitted`.
+    Bind text to order-prefix, given (the series of node operands, the series of text emitted):
+        Define busy as 0.
+        For each operand in operands, repeat:
+            If cast is-order-free on (operand) is false, increment busy by 1.
+        Done.
+        If busy is less than 2, return "".
+        Define prefix as "".
+        Define place as 0.
+        For each operand in operands, repeat:
+            Increment place by 1.
+            If cast is-order-free on (operand) is false:
+                The prefix becomes "{prefix}__auto_type cf_o{place} = {item place of emitted}; ".
+                Item place of emitted becomes "cf_o{place}".
+            Done.
+        Done.
+        Return prefix.
+    Done.
+
+    /// What was built from the temporaries, inside the block that binds them.
+    Bind text to in-order, given (the text prefix, the text built):
+        If prefix is "", return built.
+        Return "(\{ {prefix}{built}; \})".
     Done.
 
     /// A call's arguments as C, each as the kind its parameter wants — wrapped into a union where
-    /// the parameter is one. One passed for an interface is the object it is.
-    Bind text or failure to c-arguments unto emitter, given (the node parameters, the node handed):
-        Define listing as "".
+    /// the parameter is one. One passed for an interface is the object it is. Gives back what binds
+    /// them in order (see `order-prefix`), then the list.
+    Bind series of text or failure to c-arguments unto emitter, given (the node parameters, the node handed):
+        Define operands as a series of node.
+        Define emitted as a series of text.
         Define place as 0.
         For each argument in handed's children, repeat:
             Increment place by 1.
@@ -356,10 +404,16 @@ Pull a book on collections.
             Define argument-c as "".
             If wanted starts with "interface ", the argument-c becomes cast one's c-of on (argument) or pass the failure off.
             Otherwise, the argument-c becomes cast one's c-of-as on (argument, wanted) or pass the failure off.
+            Insert argument into operands.
+            Insert argument-c into emitted.
+        Done.
+        Define prefix as cast order-prefix on (operands, emitted).
+        Define listing as "".
+        For each argument-c in emitted, repeat:
             If listing is "", the listing becomes argument-c.
             Otherwise, the listing becomes "{listing}, {argument-c}".
         Done.
-        Return listing.
+        Return a series of text with (prefix, listing).
     Done.
 
     /// An expression as C text, whatever its kind — what `converted to text` and a hole make.
@@ -378,8 +432,24 @@ Pull a book on collections.
         If cast is-void-test on (expression), return cast one's c-void-test on (expression) or pass the failure off.
         Define left-side as cast field-of on (expression, 1).
         Define operator as (cast field-of on (expression, 2))'s word.
-        Define left as cast one's c-of on (left-side) or pass the failure off.
-        Define right as cast one's c-of on (cast field-of on (expression, 3)) or pass the failure off.
+        Define left-c as cast one's c-of on (left-side) or pass the failure off.
+        Define right-c as cast one's c-of on (cast field-of on (expression, 3)) or pass the failure off.
+        Define sides as a series of text with (left-c, right-c).
+        // `and` and `or` go left to right already, and must not work out their right side when the
+        // left decides.
+        Define prefix as "".
+        If operator is not "And" and operator is not "Or":
+            The prefix becomes cast order-prefix on (a series of node with (left-side, cast field-of on (expression, 3)), sides).
+        Done.
+        Return cast in-order on (prefix, cast one's c-binary-of on (expression, item 1 of sides, item 2 of sides) or pass the failure off).
+    Done.
+
+    /// A binary operator over its operands already as C.
+    Bind text or failure to c-binary-of unto emitter, given (the node expression, the text left-c, the text right-c):
+        Define left-side as cast field-of on (expression, 1).
+        Define operator as (cast field-of on (expression, 2))'s word.
+        Define left as left-c.
+        Define right as right-c.
         Define at-line as (cast field-of on (expression, 4))'s word.
         Define left-kind as cast one's kind-of on (left-side) or pass the failure off.
         Define right-kind as cast one's kind-of on (cast field-of on (expression, 3)) or pass the failure off.

@@ -372,13 +372,20 @@ Pull a book on collections.
         Define kind as cast one's kind-of on (callee) or pass the failure off.
         Define callee-c as cast one's c-of on (callee) or pass the failure off.
         Define takes as cast function-takes on (kind).
-        Define param-list as "cf_fv.env".
+        Define operands as a series of node.
+        Define emitted as a series of text.
         Define place as 0.
         For each argument in (cast field-of on (call, 2))'s children, repeat:
             Increment place by 1.
             Define argument-c as cast one's c-of-as on (argument, item place of takes) or pass the failure off.
+            Insert argument into operands.
+            Insert argument-c into emitted.
+        Done.
+        Define prefix as cast order-prefix on (operands, emitted).
+        Define param-list as "cf_fv.env".
+        For each argument-c in emitted, repeat:
             The param-list becomes "{param-list}, {argument-c}".
         Done.
-        Return "(\{ {cast function-c-name on (kind)} cf_fv = {callee-c}; cf_fv.fn({param-list}); \})".
+        Return "(\{ {cast function-c-name on (kind)} cf_fv = {callee-c}; {cast in-order on (prefix, "cf_fv.fn({param-list})")}; \})".
     Done.
 Done.

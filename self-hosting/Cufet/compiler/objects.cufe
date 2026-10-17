@@ -164,16 +164,17 @@ Pull a book on collections.
         Define receiver as cast field-of on (callee, 1).
         Define object-name as cast object-of on (cast one's kind-of on (receiver) or pass the failure off).
         Define method-c as cast c-method-name on (object-name, cast unquoted on (cast field-of on (called, 1))).
-        Define rest as cast one's c-arguments on (cast field-of on (called, 3), cast field-of on (call, 2)) or pass the failure off.
+        Define handed-c as cast one's c-arguments on (cast field-of on (called, 3), cast field-of on (call, 2)) or pass the failure off.
+        Define rest as item 2 of handed-c.
         If rest is not "", the rest becomes ", {rest}".
         // The method changes what it is called on, so it is handed its address — an item of a
         // series is changed where it sits, as the interpreter changes it.
         Define address as cast one's c-address on (receiver) or pass the failure off.
-        If address is not "", return "{method-c}({address}{rest})".
+        If address is not "", return cast in-order on (item 1 of handed-c, "{method-c}({address}{rest})").
         // Anything else is a value made for the call — a new object, a call's result — and a
         // method may change it as it likes, so it is held in a place of its own while it runs.
         Define value as cast one's c-of on (receiver) or pass the failure off.
-        Return "(\{ {cast c-struct-name on (object-name)} cf_recv = {value}; {method-c}(&cf_recv{rest}); \})".
+        Return "(\{ {cast c-struct-name on (object-name)} cf_recv = {value}; {cast in-order on (item 1 of handed-c, "{method-c}(&cf_recv{rest})")}; \})".
     Done.
 
     Bind text to c-getter-name, given (the text object-name, the text getter-name):
