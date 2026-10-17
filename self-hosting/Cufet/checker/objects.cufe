@@ -865,6 +865,14 @@ Pull a book on collections.
         Done.
         Define field as cast one's field-type-of on (owner, member).
         If field is not void:
+            // ⚠ `'s` in a cast names a METHOD, so a field holding a function is refused there,
+            // pointing at the form that reads the field — as C# refuses it.
+            If called-here and (cast one's resolved on (field))'s kind is "FunctionType":
+                Define spoken as "{cast expression-words on (cast field-of on (said, 1))}'s {member}".
+                Return a failure (cast refusal-of on ("'{member}' is a field of '{owner}' that holds a function, not a method", "",
+                    at-row, "call '{spoken}' as a method",
+                    "Read the field and call what it holds: 'cast the {member} of {cast expression-words on (cast field-of on (said, 1))} on (…)'.")).
+            Done.
             If cast is-reference-type on (cast one's resolved on (field)), cast one's record-member-depth on (said, cast field-of on (said, 1), owner, member).
             Return field.
         Done.

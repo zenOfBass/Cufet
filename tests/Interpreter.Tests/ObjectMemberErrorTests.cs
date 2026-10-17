@@ -61,12 +61,9 @@ public class ObjectMemberErrorTests
     }
 
     private const string Charge =
-        "Bind number to halve, given (the number price): Return price / 2. Done.
-"
-      + "Define object charge with (the text label, the number function apply given (the number)).
-"
-      + "Define c as a new charge { the label \"half\", the apply halve }.
-";
+        "Bind number to halve, given (the number price): Return price / 2. Done.\n"
+      + "Define object charge with (the text label, the number function apply given (the number)).\n"
+      + "Define c as a new charge { the label \"half\", the apply halve }.\n";
 
     [Fact]
     public void AFieldHoldingAFunction_CalledAsAMethod_IsRefusedBeforeItRuns()

@@ -77,6 +77,10 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   refused for a missing `label` though `label` had a default: the checker filled in `box of point`
   without the template's defaults. The checker written in Cufet carried them, so the two checkers
   disagreed; `CheckerParityTests` now holds them to the same answer.
+- **Calling a field that holds a function as if it were a method is refused when checked.**
+  `cast c's apply on (10)` checked clean, though `'s` in a cast names a method: the interpreter then
+  died looking for the method, and `cufet build` refused it. Both checkers now refuse it, pointing at
+  `cast the apply of c on (…)`, which reads the field and calls what it holds.
 - **The compiler written in Cufet works out operands in the order they are written** — a series'
   items, which it built as calls nested in calls, and a call's arguments and an operator's sides,
   as `cufet build` now does.
