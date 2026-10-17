@@ -1298,6 +1298,10 @@ public sealed partial class TypeChecker
         // (`the voidable stack of number next`) finds the entry instead of filling forever.
         _instantiated[name] = concrete;
         _fillingArguments[name] = (filled.Name, arguments);
+        // ⚠ A filling's defaults are the template's, and a literal of it may leave those fields
+        // out. The hoist registers defaults for ordinary definitions only — it skips templates —
+        // so without this `a new box of point { the inside … }` was refused for a missing label.
+        if (concrete.FieldDefaults is { Count: > 0 } defaults) _fieldDefaults[name] = defaults;
         _objectDefs[name] = new ObjectType(
             name, concrete.PositionalTypes, concrete.NamedFields,
             concrete.Methods.Select(m => (m.Name,

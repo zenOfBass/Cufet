@@ -73,6 +73,10 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   join are now bound in the order written wherever two of them could do something. No program in
   `examples/` had two such operands, which is why the oracle never saw it;
   `PipelineEvaluationOrderTests` holds it now.
+- **An object with a blank keeps its field defaults.** `a new box of point { the inside … }` was
+  refused for a missing `label` though `label` had a default: the checker filled in `box of point`
+  without the template's defaults. The checker written in Cufet carried them, so the two checkers
+  disagreed; `CheckerParityTests` now holds them to the same answer.
 - **The compiler written in Cufet works out operands in the order they are written** — a series'
   items, which it built as calls nested in calls, and a call's arguments and an operator's sides,
   as `cufet build` now does.

@@ -1180,6 +1180,13 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
         "Bind number to measure:\n    Define object square with (the number edge).\n    Bind number to area unto square:\n        Return one's edge * one's edge.\n    Done.\n    Define s as a new square { the edge 4 }.\n    Return cast s's area.\nDone.\nState cast measure.",
         "Define shape as an interface for { The number function area, The text function describe }.\nBind void to setup:\n    Bind text to describe unto shape:\n        Return \"area {(cast area on one) converted to text}\".\n    Done.\nDone.\nDefine object square with (the number side) and shape.\nBind number to area unto square:\n    Return one's side * one's side.\nDone.\nState cast describe on (a new square { the side 5 }).",
         "Define object square with (the number edge).\nBind void to setup:\n    Get area unto square as number:\n        Return one's edge * one's edge.\n    Done.\nDone.\nDefine s as a new square { the edge 3 }.\nState s's area.",
+        // An object with a blank keeps its defaults in each filling, and a default of the wrong kind for one is refused.
+        "Define object point with (the number x, the number y).\nDefine object box of thing with (the thing inside, the text label with default \"box\").\nDefine b as a new box of point { the inside a new point { the x 1, the y 2 } }.\nDefine c as a new box of number { the inside 5, the label \"crate\" }.\nState b.\nState c.",
+        "Define object stack of element with (the text name, the series of element items with default a series of element).\nDefine one-stack as a new stack of number { the name \"a\" }.\nDefine two-stack as a new stack of number { the name \"b\" }.\nInsert 3 into one-stack's items.\nState one-stack.\nState two-stack.\nDefine words as a new stack of text { the name \"w\" }.\nInsert \"hi\" into words's items.\nState words.",
+        "Define object box of thing with (the thing inside, the thing spare with default 0).\nDefine b as a new box of text { the inside \"x\" }.\nState b.",
+        // A field holding a function is called by reading it: `'s` in a cast names a method, so it is refused for the field.
+        "Bind number to halve, given (the number price): Return price / 2. Done.\nDefine object charge with (the text label, the number function apply given (the number)).\nDefine c as a new charge { the label \"half\", the apply halve }.\nState cast c's apply on (10).",
+        "Bind number to halve, given (the number price): Return price / 2. Done.\nDefine object charge with (the text label, the number function apply given (the number)).\nDefine c as a new charge { the label \"half\", the apply halve }.\nState cast the apply of c on (10).",
     ];
 
     /// <remarks>

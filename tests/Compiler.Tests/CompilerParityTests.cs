@@ -52,7 +52,7 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     : PipelineTestBase, IClassFixture<CompiledCufetCompiler>
 {
     /// <summary>How many hand-written programs must build and print alike. Raised as it grows; never lowered.</summary>
-    private const int BuiltFloor = 348;
+    private const int BuiltFloor = 350;
 
     private static string[] PreludeArgs =>
         ["--prelude", Path.Combine(RepoRoot, "src", "Interpreter", "Prelude").Replace('\\', '/')];
@@ -438,6 +438,9 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
         "Bind number to tick, given (the series of number seen):\n    Insert 0 into seen.\n    State \"tick {the number of seen}\".\n    Return the number of seen.\nDone.\nDefine c as a series of number.\nDefine object pad with (the number base):\n    Bind number to mix, given (the number x, the number y):\n        Return one's base + x * 10 + y.\n    Done.\nDone.\nDefine p as a new pad { the base 100 }.\nState cast mix on (p, cast tick on (c), cast tick on (c)).\nState cast p's mix on (cast tick on (c), cast tick on (c)).\nDefine f as a function given (the number x, the number y): Return x * 10 + y. Done.\nState cast f on (cast tick on (c), cast tick on (c)).",
         "Bind number to tick, given (the series of number seen):\n    Insert 0 into seen.\n    State \"tick {the number of seen}\".\n    Return the number of seen.\nDone.\nDefine c as a series of number.\nBind number or failure to checked, given (the number x):\n    State \"checking {x}\".\n    If x is greater than 2, return a failure \"too big\".\n    Return x.\nDone.\nBind number to add, given (the number x, the number y):\n    Return x * 10 + y.\nDone.\nTry to:\n    State cast add on (cast checked on (1), cast checked on (2)).\n    State cast add on (cast checked on (3), cast checked on (cast tick on (c))).\nDone.\nIn case of failure:\n    State \"failed: {the message of the failure}\".\nDone.\nState the number of c.",
         "Bind number to tick, given (the series of number seen):\n    Insert 0 into seen.\n    State \"tick {the number of seen}\".\n    Return the number of seen.\nDone.\nDefine c as a series of number.\nIf cast tick on (c) is 5 and cast tick on (c) is 2, State \"both\".\nState the number of c.",
+        // Defaults in an object with a blank, carried into each filling.
+        "Define object point with (the number x, the number y).\nDefine object box of thing with (the thing inside, the text label with default \"box\").\nDefine b as a new box of point { the inside a new point { the x 1, the y 2 } }.\nDefine c as a new box of number { the inside 5, the label \"crate\" }.\nState b.\nState c.",
+        "Define object stack of element with (the text name, the series of element items with default a series of element).\nDefine one-stack as a new stack of number { the name \"a\" }.\nDefine two-stack as a new stack of number { the name \"b\" }.\nInsert 3 into one-stack's items.\nState one-stack.\nState two-stack.\nDefine words as a new stack of text { the name \"w\" }.\nInsert \"hi\" into words's items.\nState words.",
     ];
 
     [Fact]

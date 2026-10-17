@@ -1135,6 +1135,15 @@ public sealed partial class TypeChecker
         }
 
         var fieldType = FindFieldInOtOrPromoted(ot, poss.Member);
+        // ⚠ `'s` in a cast names a METHOD. A field holding a function checked clean as one, and then
+        // the interpreter died looking for the method and `cufet build` refused it — so it is
+        // refused here, pointing at the form that reads the field.
+        if (fieldType is FunctionType && calledHere)
+            throw TypeError(
+                $"'{poss.Member}' is a field of '{ot.Name}' that holds a function, not a method",
+                null, poss.Line, poss.Column,
+                $"call '{FormatExpr(poss)}' as a method",
+                $"Read the field and call what it holds: 'cast the {poss.Member} of {FormatExpr(poss.Target)} on (…)'.");
         if (fieldType != null)
         {
             if (IsReferenceType(fieldType))

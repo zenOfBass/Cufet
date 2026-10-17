@@ -127,4 +127,34 @@ public class PipelineFieldDefaultTests : PipelineTestBase
         Assert.Equal("42\n".ReplaceLineEndings(), InterpretRaw(src).ReplaceLineEndings());
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
+
+    // ★ A filling of an object with a blank carries the template's defaults. The checker filled the
+    // type without them, so leaving such a field out was refused as missing — while the Cufet
+    // checker, which carries them, accepted the same program.
+    [Fact]
+    public void AnObjectWithABlank_KeepsItsDefaults_InEachFilling()
+    {
+        const string src = """
+            Define object point with (the number x, the number y).
+            Define object box of thing with (the thing inside, the text label with default "box").
+            Define object stack of element with (the text name, the series of element items with default a series of element).
+            Define b as a new box of point { the inside a new point { the x 1, the y 2 } }.
+            Define c as a new box of number { the inside 5, the label "crate" }.
+            Define one-stack as a new stack of number { the name "a" }.
+            Define two-stack as a new stack of number { the name "b" }.
+            Insert 3 into one-stack's items.
+            State b.
+            State c.
+            State one-stack.
+            State two-stack.
+            """;
+        Assert.Equal("""
+            box of point(inside: point(x: 1, y: 2), label: box)
+            box of number(inside: 5, label: crate)
+            stack of number(items: (3), name: a)
+            stack of number(items: (), name: b)
+
+            """.ReplaceLineEndings(), InterpretRaw(src).ReplaceLineEndings());
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
 }
