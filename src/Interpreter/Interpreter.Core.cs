@@ -2691,6 +2691,11 @@ public sealed partial class Interpreter
         // name in one. A module has no fields (one with fields is refused at the pull), so there
         // is never anything inside the parentheses.
         BookValue bkv    => $"{bkv.Name}()",
+        // ★ A set prints as the collection of things it reads as — its elements in the order they
+        // went in, spelled as a series is — not as the map it is stored as. It used to print
+        // `map {zoe: zoe, adam: adam}`: the storage, showing through. Ahead of the map's arm,
+        // since a set IS a dictionary underneath.
+        CufetSet set     => "(" + string.Join(", ", set.Values.Select(Format)) + ")",
         Dictionary<object, object> dict =>
             "map {" + string.Join(", ", dict.Select(kvp => $"{Format(kvp.Key)}: {Format(kvp.Value)}")) + "}",
         MappingValue mv  => $"mapping({Format(mv.Key)}: {Format(mv.Value)})",

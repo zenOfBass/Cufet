@@ -594,6 +594,24 @@ public class PipelineSeriesTests : PipelineTestBase
     }
 
     [Fact]
+    public void Set_PrintsAsItsElements_MatchesInterpreter()
+    {
+        const string src = """
+            Pull a book on collections.
+                Define seen as a set of text with ("zoe", "adam").
+                Insert "mira" into seen.
+                State seen.
+                Define marks as a set of number.
+                State marks.
+                Insert 3 into marks.
+                State "marks: {the number of marks}".
+                State marks.
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
     public void Set_OfNumbers_MatchesInterpreter()
     {
         const string src = """

@@ -1386,9 +1386,11 @@ public sealed partial class CodeGenerator
         ObjectType ot => $"{ObjStructName(ot.Name)}_write({valExpr})",
         VoidableType vt => $"{RegisterVoidableStruct(vt)}_write({valExpr})",
         MapType mt => $"{RegisterMapStruct(mt)}_write({valExpr})",
-        // Printed through the map it is stored as — key and value are the same element, so what
-        // comes out names each member twice. ⚠ Worth a shape of its own the day anyone prints one.
-        SetType st => $"{RegisterSetStruct(st)}_write({valExpr})",
+        // ★ Printed as the collection it reads as — its elements in the order they went in, spelled
+        // as a series is — not through the map it is stored as, which named each member twice.
+        SetType st => $"({{ {RegisterSetStruct(st)}* cf_sw = {valExpr}; fputs(\"(\", stdout); "
+                    + $"for (int cf_si = 0; cf_si < cf_sw->len; cf_si++) {{ if (cf_si > 0) fputs(\", \", stdout); "
+                    + $"{WriteCall("cf_sw->vals[cf_si]", st.ElementType)}; }} fputs(\")\", stdout); }})",
         MatrixType => $"cufet_mat_write({valExpr})",
         // ★★ Shown as the COLLECTION it is — `(h, e, l, l, o)` — never as the text it will become.
         // A reader must never mistake a buffer for a `text`; when the text is what you want,

@@ -78,6 +78,22 @@ public class SetTests
     }
 
     [Fact]
+    public void ASetPrintsAsItsElements_InTheOrderTheyWentIn()
+    {
+        // ⚠ It printed `map {zoe: zoe, adam: adam}` — the map it is stored as, naming each member
+        // twice. A set reads as a collection of things, so it prints as a series does.
+        Assert.Equal("(zoe, adam, mira)\n()", Run(Book + """
+                Define seen as a set of text with ("zoe", "adam").
+                Insert "mira" into seen.
+                Insert "zoe" into seen.
+                State seen.
+                Define nothing-yet as a set of number.
+                State nothing-yet.
+            Done.
+            """));
+    }
+
+    [Fact]
     public void AnEmptySetCountsZero()
     {
         Assert.Equal("0", Run(Book + """

@@ -591,7 +591,12 @@ Pull a book on collections.
         If kind is "failure", return "fputs(\"<failure>\", stdout)".
         If kind is "chase", return "cufet_write_text(cufet_chase_show({value}))".
         If kind is "bits", return "cufet_write_bits({value})".
-        If cast is-set on (kind), return "{cast map-c-name on (cast set-storage on (kind))}_write({value})".
+        // A set prints as the collection it reads as — its elements in the order they went in,
+        // spelled as a series is — not as the map it is stored as.
+        If cast is-set on (kind):
+            Define element-write as cast write-call on (cast set-element on (kind), "cf_sw->vals[cf_si]").
+            Return "(\{ {cast map-c-name on (cast set-storage on (kind))}* cf_sw = {value}; fputs(\"(\", stdout); for (int cf_si = 0; cf_si < cf_sw->len; cf_si++) \{ if (cf_si > 0) fputs(\", \", stdout); {element-write}; \} fputs(\")\", stdout); \})".
+        Done.
         // Printed as the object the prelude says it is — one with no fields — as the interpreter does.
         If kind is "rabbit", return "fputs(\"rabbit()\", stdout)".
         If cast is-function on (kind), return "fputs(\"<function>\", stdout)".
