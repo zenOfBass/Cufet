@@ -272,6 +272,20 @@ adam
 mira
 ```
 
+**It prints as what it holds**, in that same order and spelled as a series is — a set reads as a
+collection of things, not as the map it is stored as:
+
+```cufet
+Pull a book on collections.
+    Define seen as a set of text with ("zoe", "adam").
+    Insert "mira" into seen.
+    State seen.
+Done.
+```
+```output
+(zoe, adam, mira)
+```
+
 ★★ **A set is a map with the value removed**, and it is stored as exactly that: the element keyed to
 itself. So what may be an element, how elements compare, and the iteration order are the map's
 answers already — see [Maps in REFERENCE.md](REFERENCE.md#maps) for which types may be a key.

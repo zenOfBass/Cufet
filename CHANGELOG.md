@@ -52,6 +52,10 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Changed
 
+- **A set prints as what it holds.** `State seen.` printed `map {zoe: zoe, adam: adam}` — the map a
+  set is stored as, naming each member twice. It now prints `(zoe, adam)`, its elements in the order
+  they went in and spelled as a series is, since a set reads as a collection of things. The same on
+  both backends; BOOKS.md says so, with a checked example.
 - **The case table is part of the shared C runtime.** `in uppercase` and `in lowercase` read a
   Unicode table, and a built program carried it only when it cased text — a gate from when the
   runtime was pasted into every generated file. The runtime is one object now, compiled once and
