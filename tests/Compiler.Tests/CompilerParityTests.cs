@@ -52,7 +52,7 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     : PipelineTestBase, IClassFixture<CompiledCufetCompiler>
 {
     /// <summary>How many hand-written programs must build and print alike. Raised as it grows; never lowered.</summary>
-    private const int BuiltFloor = 367;
+    private const int BuiltFloor = 375;
 
     private static string[] PreludeArgs =>
         ["--prelude", Path.Combine(RepoRoot, "src", "Interpreter", "Prelude").Replace('\\', '/')];
@@ -461,6 +461,15 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
         "State 0xFF is 0b11111111.\nState 0x00FF is 0xFF.\nState 0b1 is not 0b10.\nState 0b0101 is less than 0x6.\nState 0xA is greater than 0b1001.\nState 0b11 is not greater than 0x3.",
         "State the width of 0x0F.\nState the width of 0b101.\nState 0b0 at 3 bits.\nDefine n as 6.\nState 0b1 at n bits.\nState 0b00000001 at 2 bits.\nState the width of (0b1 at n bits).",
         "Define object flagset with (the text name, the bits mask).\nDefine modes as a series of flagset with (a new flagset { the name \"read\", the mask 0b100 }, a new flagset { the name \"write\", the mask 0b010 }).\nFor each mode in modes, repeat:\n    State \"{mode's name} = {mode's mask}\".\nDone.\nDefine by-name as a map from text to bits with (\"exec\" : 0b001).\nState the entry for \"exec\" in by-name but void is 0b0.\nState the entry for \"none\" in by-name but void is 0b0.\nBind bits to both, given (the bits left-mask, the bits right-mask):\n    Return left-mask or right-mask.\nDone.\nState cast both on (0b100, 0b001).\nDefine masks as a series of bits with (0x1, 0x2, 0x4).\nState masks.\nDefine combined as 0x0.\nFor each m in masks, the combined becomes combined or m.\nState combined.\nState modes.",
+        // Sets, streams, operator overloads, and a voidable union narrowed twice.
+        "Define seen as a set of text with (\"b\", \"a\").\nInsert \"c\" into seen.\nInsert \"a\" into seen.\nState seen.\nState seen has \"a\".\nState seen has \"z\".\nState the number of seen.\nFor each s in seen, repeat:\n    State s.\nDone.\nDefine nums as a set of number.\nState nums.\nDefine other as a set of text with (\"a\", \"b\", \"c\").\nState seen is other.\nState seen is seen.",
+        "Bind void to note, given (the set of number marks, the number value):\n    Insert value into marks.\nDone.\nDefine marks as a set of number.\nFor each n in a series of number with (3, 1, 3, 2, 1), repeat:\n    If marks has n, state \"again {n}\".\n    Otherwise, cast note on (marks, n).\nDone.\nState marks.\nState the number of marks.",
+        "Define first as read a line from the input.\nState first but void is \"(nobody)\".\nState \"[{read all from the input}]\".\nState the number of (read all lines from the input).\nIf (read a line from the input) is void, state \"still nobody\".",
+        "Write \"a\" to the output.\nWrite \"b\" to the output.\nState \"c\".\nWrite \"d\" joined to \"\\n\" to the output.\nBind void to say, given (the writable stream of text target, the text what):\n    Write what to target.\nDone.\nCast say on (the output, \"through a parameter\\n\").",
+        "Try to:\n    With the file \"no-such-file.txt\" open for reading as src:\n        State read all from src.\n    Done.\nDone.\nIn case of failure:\n    State \"could not open: {the message of the failure}\".\nDone.\nState \"after\".",
+        "Define object vec2 with (the number x, the number y).\nBind overloading +, given (the lhs is a vec2, the rhs is a vec2):\n    Return a new vec2 { the x lhs's x + rhs's x, the y lhs's y + rhs's y }.\nDone.\nBind overloading *, given (the lhs is a vec2, the rhs is a number):\n    Return a new vec2 { the x lhs's x * rhs, the y lhs's y * rhs }.\nDone.\nBind overloading *, given (the lhs is a number, the rhs is a vec2):\n    Return a new vec2 { the x rhs's x * lhs, the y rhs's y * lhs }.\nDone.\nBind overloading *, given (the lhs is a vec2, the rhs is a vec2):\n    Return lhs's x * rhs's x + lhs's y * rhs's y.\nDone.\nDefine here as a new vec2 { the x 3, the y 4 }.\nDefine step as a new vec2 { the x 1, the y 2 }.\nState here + step.\nState here * 2.\nState 2 * here.\nState here * step.\nState here + step + step.\nState (here + step) * 10.\nState 3 * 4.\nBind vec2 to doubled, given (the vec2 v):\n    Return v + v.\nDone.\nState cast doubled on (here).",
+        "Define object money with (the number cents).\nBind overloading -, given (the lhs is a money, the rhs is a money):\n    If lhs's cents is less than rhs's cents:\n        Return a new money { the cents 0 }.\n    Done.\n    Return a new money { the cents lhs's cents - rhs's cents }.\nDone.\nBind overloading /, given (the lhs is a money, the rhs is a number):\n    Return a new money { the cents lhs's cents / rhs }.\nDone.\nDefine wallet as a new money { the cents 500 }.\nState wallet - a new money { the cents 120 }.\nState wallet - a new money { the cents 900 }.\nState wallet / 4.",
+        "Define settings as a map from text to (text or number) with (\"host\" : \"localhost\", \"port\" : 80).\nDefine host as the entry for \"host\" in settings.\nIf host is not void, if host is a text, state \"connecting to {host}\".\nDefine port as the entry for \"port\" in settings.\nIf port is not void, if port is a number, state \"port {port + 1}\".\nIf host is not void:\n    If host is a text:\n        State \"block form {host}\".\n    Done.\nDone.",
     ];
 
     [Fact]
@@ -513,7 +522,7 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     }
 
     /// <summary>How many programs of `examples/` must build and print alike. Raised as it grows; never lowered.</summary>
-    private const int CorpusFloor = 43;
+    private const int CorpusFloor = 47;
 
     /// <remarks>
     /// ★ The corpus is copied first: the compiler writes each program beside its source. Each program
@@ -650,6 +659,11 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
          "Modulo by zero on line 2."),
         ("State \"before\".\nState 0b1 shifted left by 70.",
          "does not fit in 64 bits"),
+        // A set changed while looped over; a file that cannot be opened, with no Try to catch it.
+        ("Define seen as a set of text with (\"a\", \"b\").\nFor each s in seen, repeat:\n    State s.\n    Insert s joined to \"!\" into seen.\nDone.",
+         "was modified during a for-each loop"),
+        ("State \"before\".\nWith the file \"no-such-file.txt\" open for reading as src:\n    State read all from src.\nDone.\nState \"never\".",
+         "the file 'no-such-file.txt' was not found"),
     ];
 
     [Fact]

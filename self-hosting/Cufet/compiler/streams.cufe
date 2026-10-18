@@ -1,0 +1,128 @@
+/*  Streams — `the input`, `the output`, `read a line from`, `read all from`, `read all lines from`,
+    `Write … to <stream>`, and `With the file … open for reading as <name>: … Done.`
+
+    ★ A stream is the C library's `FILE*`; `the input` is `stdin` and `the output` is `stdout`, as in
+      `cufet build`.
+
+    ★★ An open file is closed on EVERY way out of its block. Each one is registered with the
+      runtime, which a caught exception's handler empties down to where its `Try` began — so a jump
+      past the block closes it. Every other way out is known where it is written: `%files` lists the
+      files open here, innermost last, and `%loop-files` and `%try-files` how many were open when
+      the loop and the failure's `Try` around it began — the same bookkeeping `%rabbits` keeps.
+*/
+
+Pull a book on collections.
+    Bind fact to is-stream, given (the text kind):
+        Return kind is "readable stream" or kind is "writable stream".
+    Done.
+
+    /// The kind a stream name of the language's own stands for, or "" for any other name.
+    Bind text to standard-stream-kind, given (the text name):
+        If name is "input", return "readable stream".
+        If name is "output", return "writable stream".
+        Return "".
+    Done.
+
+    Bind text to standard-stream-c, given (the text name):
+        If name is "input", return "stdin".
+        Return "stdout".
+    Done.
+
+    /// The kind a read gives: a line — void at the end — everything, or every line.
+    Bind text to stream-read-kind, given (the node expression):
+        Define form as (cast field-of on (expression, 1))'s word.
+        If form is "Line", return "voidable text".
+        If form is "AllLines", return "series of text".
+        Return "text".
+    Done.
+
+    /// A read as C.
+    Bind text or failure to c-read unto emitter, given (the node expression):
+        Define form as (cast field-of on (expression, 1))'s word.
+        Define stream-c as cast one's c-of on (cast field-of on (expression, 2)) or pass the failure off.
+        If form is "All", return "cufet_stream_read_all({stream-c})".
+        If form is "Line":
+            Return "(\{ const char* cf_rl = cufet_stream_read_line({stream-c}); cf_rl ? cvo_text_some(cf_rl) : cvo_text_none(); \})".
+        Done.
+        Return "(\{ FILE* cf_rs = {stream-c}; cser_text* cf_rln = cser_text_new(); const char* cf_ln; while ((cf_ln = cufet_stream_read_line(cf_rs)) != NULL) cser_text_append(cf_rln, cf_ln); cf_rln; \})".
+    Done.
+
+    /// `Write <text> to <stream>.` — as it is, no line's end added; flushed when it is the standard
+    /// output, so a prompt shows before the read that waits for its answer.
+    Bind void or failure to emit-stream-write unto emitter, given (the node statement):
+        Define value-c as cast one's c-of on (cast field-of on (statement, 1)) or pass the failure off.
+        Define stream-c as cast one's c-of on (cast field-of on (statement, 2)) or pass the failure off.
+        Cast one's line on ("\{ FILE* cf_ws = {stream-c}; fputs({value-c}, cf_ws); if (cf_ws == stdout) fflush(cf_ws); \}").
+    Done.
+
+    // ── Files open in a block ─────────────────────────────────────────────
+
+    /// How many files are open here.
+    Bind number to files-open unto emitter:
+        Define open-names as the entry for "%files" in one's kinds but void is "".
+        If open-names is "", return 0.
+        Return the number of (open-names split by ",").
+    Done.
+
+    /// The C that closes the files opened since `depth`, innermost first — or "".
+    Bind text to c-leaving-files unto emitter, given (the text depth):
+        Define open-names as the entry for "%files" in one's kinds but void is "".
+        If open-names is "", return "".
+        Define names as open-names split by ",".
+        Define keep as depth converted to number but void is 0.
+        Define out as "".
+        Define place as the number of names.
+        While place is greater than keep, repeat:
+            The out becomes "{out}cufet_close_file({item place of names}); ".
+            Decrement place by 1.
+        Done.
+        Return out.
+    Done.
+
+    /// `With the file <path> open for reading as <name>: … Done.` — the file opened, its body run,
+    /// and the file closed however the body is left.
+    Bind void or failure to emit-with-open unto emitter, given (the node statement):
+        Define reading as (cast field-of on (statement, 1))'s word is "Reading".
+        Define mode as "wb".
+        Define stream-kind as "writable stream".
+        If reading:
+            The mode becomes "rb".
+            The stream-kind becomes "readable stream".
+        Done.
+        Define name as cast unquoted on (cast field-of on (statement, 3)).
+        Define stream-c as cast c-name on (name).
+        Define path-c as cast one's c-of on (cast field-of on (statement, 2)) or pass the failure off.
+        Cast one's line on ("\{").
+        Define kept as cast one's kinds-kept.
+        Define outer as one's indent.
+        The one's indent becomes outer joined to "    ".
+        Cast one's line on ("const char* cf_op = {path-c};").
+        Cast one's line on ("FILE* {stream-c} = cufet_fopen(cf_op, \"{mode}\");").
+        // Failing to open is a failure: to the `Try`'s handler, or — with none — said and stopped.
+        Cast one's register-failable on ("failure of void").
+        Define opened as "(\{ cfl_void cf_w; memset(&cf_w, 0, sizeof cf_w); if ({stream-c}) cf_w.ok = 1; else cf_w.failure = cufet_file_failure(cf_op, errno); cf_w; \})".
+        If cast one's current-try is not "":
+            Cast one's line on ("{cast one's c-unwrapped on (opened, "failure of void")};").
+        Done.
+        Otherwise:
+            Cast one's line on ("\{ cfl_void cf_w = {opened}; if (!cf_w.ok) \{ fprintf(stderr, \"%s\\n\", cf_w.failure.message); exit(1); \} \}").
+        Done.
+        Cast one's line on ("cufet_reg_file({stream-c});").
+        In one's kinds, the entry for name becomes stream-kind.
+        Cast one's declared-here on (name).
+        In one's kinds, the entry for "%{name}" becomes stream-kind.
+        In one's kinds, the entry for "@{name}" becomes "".
+        Define open-names as the entry for "%files" in one's kinds but void is "".
+        If open-names is "", in one's kinds, the entry for "%files" becomes stream-c.
+        Otherwise, in one's kinds, the entry for "%files" becomes "{open-names},{stream-c}".
+        For each inner in (cast field-of on (statement, 4))'s children, repeat:
+            If cast declares-only on (inner) is false:
+                Cast one's emit-statement on (inner) or pass the failure off.
+            Done.
+        Done.
+        Cast one's line on ("cufet_close_file({stream-c});").
+        The one's indent becomes outer.
+        The one's kinds becomes kept.
+        Cast one's line on ("\}").
+    Done.
+Done.

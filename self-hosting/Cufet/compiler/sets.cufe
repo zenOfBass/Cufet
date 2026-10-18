@@ -1,0 +1,113 @@
+/*  Sets — `a set of text with (…)`, `has`, inserting, `the number of`, and looping over one.
+
+    ★ A set is the map it is stored as: each element its own key AND its own value, as in
+      `cufet build`. So membership asks the key, inserting what is already there changes nothing,
+      looping hands back the values in the order they went in — and a set prints as that map, as the
+      interpreter prints it.
+*/
+
+Pull a book on collections.
+    Bind fact to is-set, given (the text kind):
+        Return kind starts with "set of ".
+    Done.
+
+    /// What a set holds.
+    Bind text to set-element, given (the text kind):
+        Return the characters from 8 to the end of kind.
+    Done.
+
+    /// The map a set is stored as.
+    Bind text to set-storage, given (the text kind):
+        Define element as cast set-element on (kind).
+        Return "map from {element} to {element}".
+    Done.
+
+    /// The kind of a set of `element`, its map noted for writing — or a failure for an element no
+    /// map can be keyed by yet.
+    Bind text or failure to set-kind-of-element unto emitter, given (the text element):
+        If cast is-scalar on (element) is false, return a failure (cast not-built on ("a set of {element}")).
+        Cast one's map-kind-of-type on (element, element) or pass the failure off.
+        Return "set of {element}".
+    Done.
+
+    /// The kind of a set expression.
+    Bind text or failure to set-kind-of unto emitter, given (the node expression):
+        If expression's kind is "SetHasMember", return "fact".
+        Define element as "void".
+        If cast is-nothing on (cast field-of on (expression, 1)) is false:
+            The element becomes cast one's kind-of-type on (cast field-of on (expression, 1)) or pass the failure off.
+        Done.
+        Otherwise if the number of (cast field-of on (expression, 2))'s children is greater than 0:
+            The element becomes cast one's kind-of on (item 1 of (cast field-of on (expression, 2))'s children) or pass the failure off.
+        Done.
+        Return cast one's set-kind-of-element on (element) or pass the failure off.
+    Done.
+
+    /// A set expression as C: a literal, its elements put in order, or a membership test.
+    Bind text or failure to c-set-of unto emitter, given (the node expression):
+        If expression's kind is "SetHasMember":
+            Define set-kind as cast one's kind-of on (cast field-of on (expression, 1)) or pass the failure off.
+            Define set-c as cast one's c-of on (cast field-of on (expression, 1)) or pass the failure off.
+            Define member-c as cast one's c-of-as on (cast field-of on (expression, 2), cast set-element on (set-kind)) or pass the failure off.
+            Return "{cast map-c-name on (cast set-storage on (set-kind))}_has({set-c}, {member-c})".
+        Done.
+        Define set-kind as cast one's set-kind-of on (expression) or pass the failure off.
+        Define map-c as cast map-c-name on (cast set-storage on (set-kind)).
+        Define built as "(\{ {map-c}* cf_set = {map-c}_new();".
+        For each written in (cast field-of on (expression, 2))'s children, repeat:
+            Define element-c as cast one's c-of-as on (written, cast set-element on (set-kind)) or pass the failure off.
+            The built becomes "{built} \{ __auto_type cf_el = {element-c}; {map-c}_put(cf_set, cf_el, cf_el); \}".
+        Done.
+        Return "{built} cf_set; \})".
+    Done.
+
+    /// `Insert <value> into <set>.` — put as its own key, so a second insert changes nothing.
+    Bind void or failure to emit-set-insert unto emitter, given (the node statement, the text set-kind):
+        Define map-c as cast map-c-name on (cast set-storage on (set-kind)).
+        Define value-c as cast one's c-of-as on (cast field-of on (statement, 1), cast set-element on (set-kind)) or pass the failure off.
+        Define set-c as cast one's c-of on (cast field-of on (statement, 2)) or pass the failure off.
+        Cast one's line on ("\{ __auto_type cf_el = {value-c}; {map-c}_put({set-c}, cf_el, cf_el); \}").
+    Done.
+
+    /// `For each <name> in <set>, repeat:` — over the elements there when it began, in the order
+    /// they went in.
+    Bind void or failure to emit-set-for-each unto emitter, given (the node statement, the text set-kind):
+        Define named as cast field-of on (statement, 1).
+        Define name as "it".
+        If cast is-nothing on (named) is false, the name becomes cast unquoted on (named).
+        Define over as cast field-of on (statement, 2).
+        Define element as cast set-element on (set-kind).
+        Define map-c as cast map-c-name on (cast set-storage on (set-kind)).
+        Define element-c as cast c-type on (element).
+        Define label as "The set".
+        If over's kind is "VariableReference", the label becomes "'{cast unquoted on (cast field-of on (over, 1))}'".
+        Define set-value as cast one's c-of on (over) or pass the failure off.
+        Cast one's line on ("\{").
+        Define kept as a map from text to text.
+        For each pair in one's kinds, repeat:
+            In kept, the entry for the key of pair becomes the value of pair.
+        Done.
+        Define outer as one's indent.
+        The one's indent becomes outer joined to "    ".
+        Cast one's line on ("{map-c}* cf_each = {set-value};").
+        Cast one's line on ("int cf_each_n = cf_each->len;").
+        Cast one's line on ("{element-c}* cf_vals = ({element-c}*)cufet_arena_alloc((size_t)(cf_each_n + 1) * sizeof({element-c}));").
+        Cast one's line on ("if (cf_each_n > 0) memcpy(cf_vals, cf_each->vals, (size_t)cf_each_n * sizeof({element-c}));").
+        Cast one's line on ("for (int cf_i = 0; cf_i < cf_each_n; cf_i++) \{").
+        In one's kinds, the entry for name becomes element.
+        Cast one's declared-here on (name).
+        In one's kinds, the entry for "%{name}" becomes element.
+        In one's kinds, the entry for "@{name}" becomes "".
+        The one's indent becomes outer joined to "        ".
+        Cast one's line on ("if (cf_each->len != cf_each_n) cufet_raise(cufet_msgf(\"{label} was modified during a for-each loop on line {(cast field-of on (statement, 4))'s word} — collect into a separate series, or use a While loop if you need to change it while looping.\"));").
+        Cast one's line on ("{element-c} {cast c-name on (name)} = cf_vals[cf_i];").
+        The one's indent becomes outer joined to "    ".
+        Define loop-kept as cast one's entering-loop.
+        Cast one's emit-block on (cast field-of on (statement, 3)) or pass the failure off.
+        Cast one's leaving-loop on (loop-kept).
+        Cast one's line on ("\}").
+        The one's indent becomes outer.
+        The one's kinds becomes kept.
+        Cast one's line on ("\}").
+    Done.
+Done.

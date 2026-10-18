@@ -74,6 +74,12 @@ Pull a book on collections.
         If written's kind is "TextType", return "text".
         If written's kind is "FactType", return "fact".
         If written's kind is "BitsType", return "bits".
+        If written's kind is "ReadableStreamType", return "readable stream".
+        If written's kind is "WritableStreamType", return "writable stream".
+        If written's kind is "SetType":
+            Define member-kind as cast one's kind-of-type on (cast field-of on (written, 1)) or pass the failure off.
+            Return cast one's set-kind-of-element on (member-kind) or pass the failure off.
+        Done.
         If written's kind is "ObjectType":
             Define object-name as cast unquoted on (cast field-of on (written, 1)).
             If (the entry for object-name in one's objects) is not void, return "object {object-name}".
@@ -159,6 +165,9 @@ Pull a book on collections.
             "StringLiteral" or "TextJoin" or "TextConvert", return "text".
             "BooleanLiteral", return "fact".
             "VariableReference":
+                If cast standard-stream-kind on (cast unquoted on (cast field-of on (expression, 1))) is not "":
+                    Return cast standard-stream-kind on (cast unquoted on (cast field-of on (expression, 1))).
+                Done.
                 Define known as the entry for cast unquoted on (cast field-of on (expression, 1)) in one's kinds.
                 // A shared constant is seen from anywhere.
                 If known is void, the known becomes the entry for cast unquoted on (cast field-of on (expression, 1)) in one's constants.
@@ -179,6 +188,8 @@ Pull a book on collections.
                 Return "number".
             Done.
             "BinaryExpression":
+                Define reached as cast one's overload-for on (expression) or pass the failure off.
+                If reached is not void, return cast one's overload-gives on (reached) or pass the failure off.
                 Define operator as (cast field-of on (expression, 2))'s word.
                 If (cast one's kind-of on (cast field-of on (expression, 1)) or pass the failure off) is "bits":
                     Return cast bits-binary-kind on (operator).
@@ -212,6 +223,8 @@ Pull a book on collections.
             "ConditionalExpression", return cast one's chosen-kind on (expression) or pass the failure off.
             "UnburyExpression", return cast one's kind-of on (cast as-resumed on (expression)) or pass the failure off.
             "BitsLiteral" or "BitsShift" or "BitsConvert" or "BitsAtWidth", return "bits".
+            "SetLiteral" or "SetHasMember", return cast one's set-kind-of on (expression) or pass the failure off.
+            "ReadExpression", return cast stream-read-kind on (expression).
             // `converted to number` cannot fail from bits — 64 bits always fit — and may from text.
             "NumberConvert":
                 If (cast one's kind-of on (cast field-of on (expression, 1)) or pass the failure off) is "bits", return "number".
@@ -259,6 +272,7 @@ Pull a book on collections.
             "VariableReference":
                 Cast one's kind-of on (expression) or pass the failure off.
                 Define name as cast unquoted on (cast field-of on (expression, 1)).
+                If cast standard-stream-kind on (name) is not "", return cast standard-stream-c on (name).
                 If (the entry for name in one's kinds) is void and (the entry for name in one's constants) is void and (the entry for name in one's functions) is not void:
                     Return cast one's c-named-function on (name) or pass the failure off.
                 Done.
@@ -273,6 +287,8 @@ Pull a book on collections.
             "ObjectLiteral", return cast one's c-object-literal on (expression) or pass the failure off.
             "UnburyExpression", return cast one's c-of on (cast as-resumed on (expression)) or pass the failure off.
             "BitsLiteral" or "BitsShift" or "BitsConvert" or "BitsAtWidth", return cast one's c-bits-of on (expression) or pass the failure off.
+            "SetLiteral" or "SetHasMember", return cast one's c-set-of on (expression) or pass the failure off.
+            "ReadExpression", return cast one's c-read on (expression) or pass the failure off.
             "PossessiveAccess", return cast one's c-possessive on (expression) or pass the failure off.
             "TextJoin":
                 Define joined-left as cast one's c-of on (cast field-of on (expression, 1)) or pass the failure off.
@@ -449,6 +465,11 @@ Pull a book on collections.
     Bind text or failure to c-text-of unto emitter, given (the node expression):
         Define value as cast one's c-of on (expression) or pass the failure off.
         Define kind as cast one's kind-of on (expression) or pass the failure off.
+        Return cast c-text-from on (kind, value) or pass the failure off.
+    Done.
+
+    /// A value of a kind, already as C, as C text.
+    Bind text or failure to c-text-from, given (the text kind, the text value):
         // A chase's text is a copy: the chase lives on, apart from it.
         If kind is "chase", return "cufet_chase_text({value})".
         If kind is "bits", return cast c-bits-text on (value).
@@ -460,6 +481,8 @@ Pull a book on collections.
 
     Bind text or failure to c-binary unto emitter, given (the node expression):
         If cast is-void-test on (expression), return cast one's c-void-test on (expression) or pass the failure off.
+        Define overloaded as cast one's overload-for on (expression) or pass the failure off.
+        If overloaded is not void, return cast one's c-overload-call on (expression, overloaded) or pass the failure off.
         Define left-side as cast field-of on (expression, 1).
         Define operator as (cast field-of on (expression, 2))'s word.
         Define left-c as cast one's c-of on (left-side) or pass the failure off.
@@ -545,6 +568,8 @@ Pull a book on collections.
         If kind is "chase", return "CufetChase*".
         If kind is "rabbit", return "cufet_rabbit".
         If kind is "bits", return "CufetBits".
+        If cast is-stream on (kind), return "FILE*".
+        If cast is-set on (kind), return "{cast map-c-name on (cast set-storage on (kind))}*".
         If cast is-function on (kind), return cast function-c-name on (kind).
         // What a handler has caught: its message — the exception's only part a program can reach.
         If kind is "exception", return "const char*".
@@ -566,6 +591,7 @@ Pull a book on collections.
         If kind is "failure", return "fputs(\"<failure>\", stdout)".
         If kind is "chase", return "cufet_write_text(cufet_chase_show({value}))".
         If kind is "bits", return "cufet_write_bits({value})".
+        If cast is-set on (kind), return "{cast map-c-name on (cast set-storage on (kind))}_write({value})".
         // Printed as the object the prelude says it is — one with no fields — as the interpreter does.
         If kind is "rabbit", return "fputs(\"rabbit()\", stdout)".
         If cast is-function on (kind), return "fputs(\"<function>\", stdout)".
@@ -611,6 +637,8 @@ Pull a book on collections.
         If kind is "chase", return "cufet_chase_eq({left}, {right})".
         If kind is "rabbit", return "cufet_rabbit_eq({left}, {right})".
         If kind is "bits", return "(({left}).value == ({right}).value)".
+        // Two sets are equal only when they are one set, as two maps are.
+        If cast is-set on (kind), return "({left} == {right})".
         If cast is-function on (kind), return "(({left}).fn == ({right}).fn && ({left}).env == ({right}).env)".
         If cast is-mapping on (kind), return "{cast map-c-name on (cast mapping-map on (kind))}_pair_eq({left}, {right})".
         If cast is-voidable on (kind), return "{cast voidable-c-name on (kind)}_eq({left}, {right})".
@@ -735,6 +763,8 @@ Pull a book on collections.
             "JudgeStatement", cast one's emit-judge on (statement) or pass the failure off.
             "TryStatement", cast one's emit-try on (statement) or pass the failure off.
             "FileWriteStatement", cast one's emit-file-write on (statement) or pass the failure off.
+            "WithOpenStatement", cast one's emit-with-open on (statement) or pass the failure off.
+            "WriteToStreamStatement", cast one's emit-stream-write on (statement) or pass the failure off.
             "MapSetStatement", cast one's emit-map-set on (statement) or pass the failure off.
             "RecordNamedSetStatement", cast one's emit-record-set on (statement) or pass the failure off.
             "ForEachStatement" or "SeriesInsertStatement" or "SeriesRemoveAtStatement" or "SeriesRemoveValueStatement"
@@ -795,7 +825,7 @@ Pull a book on collections.
     Bind fact to declares-only, given (the node statement):
         Define kind as statement's kind.
         Return kind is "BindStatement" or kind is "ObjectDefinition" or kind is "InterfaceDefinition"
-            or kind is "GetterDeclaration" or kind is "SetterDeclaration".
+            or kind is "GetterDeclaration" or kind is "SetterDeclaration" or kind is "OperatorOverloadDeclaration".
     Done.
 
     /// Where a `Define` stands, as the key its constant is known by.
@@ -1048,6 +1078,17 @@ Pull a book on collections.
             Increment setter-place by 1.
             In methods, the entry for "{item setter-place of setter-owners}'s setter {cast unquoted on (cast field-of on (setter, 1))}" becomes setter.
         Done.
+        // Operator overloads, each by its operator and its ordered pair of operand types.
+        Define overloads as a series of node.
+        For each statement in hoisted, repeat:
+            If statement's kind is "OperatorOverloadDeclaration":
+                Insert statement into overloads.
+                // Noted before any body is written, so every operator in one may ask.
+                In writer's inferred, the entry for "%overloads" becomes "yes".
+                In methods, the entry for cast overload-key on ((cast field-of on (statement, 1))'s word,
+                    cast unquoted on (cast field-of on (statement, 4)), cast unquoted on (cast field-of on (statement, 5))) becomes statement.
+            Done.
+        Done.
         Cast writer's register-pulled-modules on (hoisted).
         // Every shared constant: a `permanently` the hoist reaches, its kind known before any body is.
         For each statement in hoisted, repeat:
@@ -1113,6 +1154,10 @@ Pull a book on collections.
             Define getter-owner as item getter-index of getter-owners.
             Insert "{cast writer's c-getter-signature on (getter-owner, getter) or pass the failure off};\n" into declared.
             Insert cast writer's c-getter on (getter-owner, getter) or pass the failure off into defined.
+        Done.
+        For each overload in overloads, repeat:
+            Insert "{cast writer's c-overload-signature on (overload) or pass the failure off};\n" into declared.
+            Insert cast writer's c-overload on (overload) or pass the failure off into defined.
         Done.
         Define setter-index as 0.
         For each setter in setters, repeat:

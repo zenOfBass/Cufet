@@ -166,19 +166,29 @@ Pull a book on collections.
             In one's kinds, the entry for "@{name}" becomes "({cast c-name on (name)}).value".
             Return.
         Done.
-        If cast is-union on (stored) is false, return.
+        // A voidable of a union, already narrowed past void, narrows within the union it holds —
+        // `If host is not void, if host is a text, …` — read through its value.
+        Define base as stored.
+        Define held as cast c-name on (name).
+        If cast is-voidable on (stored) and cast is-union on (cast voidable-inner on (stored)):
+            If (the entry for name in one's kinds) is not stored:
+                The base becomes cast voidable-inner on (stored).
+                The held becomes "({held}).value".
+            Done.
+        Done.
+        If cast is-union on (base) is false, return.
         In one's kinds, the entry for "%{name}" becomes stored.
         In one's kinds, the entry for name becomes to-kind.
-        If to-kind is stored:
-            In one's kinds, the entry for "@{name}" becomes "".
+        If to-kind is base:
+            If base is stored, in one's kinds, the entry for "@{name}" becomes "".
+            Otherwise, in one's kinds, the entry for "@{name}" becomes held.
             Return.
         Done.
-        Define held as cast c-name on (name).
         If cast is-union on (to-kind) is false:
-            In one's kinds, the entry for "@{name}" becomes "({held}).case_{cast case-tag on (stored, to-kind)}".
+            In one's kinds, the entry for "@{name}" becomes "({held}).case_{cast case-tag on (base, to-kind)}".
             Return.
         Done.
-        In one's kinds, the entry for "@{name}" becomes cast one's c-coerce on (held, stored, to-kind).
+        In one's kinds, the entry for "@{name}" becomes cast one's c-coerce on (held, base, to-kind).
     Done.
 
     /// What a condition narrows: a test `<name> is a <type>`, or a group of them on one name joined

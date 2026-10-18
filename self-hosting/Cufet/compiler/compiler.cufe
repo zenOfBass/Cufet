@@ -39,7 +39,7 @@ Pull a book on collections.
     Bind fact to is-declaration, given (the node statement):
         Define kind as statement's kind.
         If kind is "PullStatement", return cast nothing-to-run on (cast field-of on (statement, 2)).
-        Return kind is "ObjectDefinition" or kind is "InterfaceDefinition" or kind is "GetterDeclaration"
+        Return kind is "ObjectDefinition" or kind is "InterfaceDefinition" or kind is "OperatorOverloadDeclaration" or kind is "GetterDeclaration"
             or kind is "SetterDeclaration" or kind is "UnmakerDeclaration" or kind is "OperatorOverloadDeclaration"
             or kind is "CufetAxiomDefinition" or kind is "BindStatement".
     Done.

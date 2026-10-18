@@ -282,6 +282,11 @@ Pull a book on collections.
                 Cast one's emit-chase-insert on (statement) or pass the failure off.
                 Return.
             Done.
+            Define insert-kind as cast one's kind-of on (target) or pass the failure off.
+            If cast is-set on (insert-kind):
+                Cast one's emit-set-insert on (statement, insert-kind) or pass the failure off.
+                Return.
+            Done.
             Define element as cast one's changed-element on (target) or pass the failure off.
             Define series-c as cast one's c-of on (target) or pass the failure off.
             Define value as cast one's c-of-as on (cast field-of on (statement, 1), element) or pass the failure off.
@@ -362,6 +367,10 @@ Pull a book on collections.
         Define held as cast one's kind-of on (over) or pass the failure off.
         If cast is-map on (held):
             Cast one's emit-map-for-each on (statement, held) or pass the failure off.
+            Return.
+        Done.
+        If cast is-set on (held):
+            Cast one's emit-set-for-each on (statement, held) or pass the failure off.
             Return.
         Done.
         If held is "chase":

@@ -1,0 +1,114 @@
+/*  Operator overloads — `Bind overloading +, given (the lhs is a vec2, the rhs is a vec2): … Done.`
+
+    ★ An overload is a function on an ORDERED pair of operand types: `vec2 * number` and
+      `number * vec2` are two declarations. Its C name carries the operator and both type names, so
+      no two can meet — and an operator whose two sides make a declared pair calls it, instead of
+      doing what the operator would otherwise do.
+
+    ★ An overload writes no result type: it gives what its `Return` gives, worked out from its body
+      with its two operands known.
+*/
+
+Pull a book on collections.
+    /// The key an overload is known by among the methods: its operator and both operand types.
+    Bind text to overload-key, given (the text operator, the text left-name, the text right-name):
+        Return "overload {operator} {left-name} {right-name}".
+    Done.
+
+    Bind text to c-overload-name, given (the text operator, the text left-name, the text right-name):
+        Return "cfo_{operator}_{cast c-ident on (left-name)}_{cast c-ident on (right-name)}".
+    Done.
+
+    /// The name an operand type is declared by — an object's name, or a number, a text, a fact or
+    /// bits as itself — or "" for a kind no overload can name.
+    Bind text to operand-name, given (the text kind):
+        If cast object-of on (kind) is not "", return cast object-of on (kind).
+        If cast is-scalar on (kind) or kind is "bits", return kind.
+        Return "".
+    Done.
+
+    /// The kind an operand type name stands for.
+    Bind text to operand-kind unto emitter, given (the text type-name):
+        If (the entry for type-name in one's objects) is not void, return "object {type-name}".
+        Return type-name.
+    Done.
+
+    /// The overload a binary expression reaches, or void when its two sides make no declared pair.
+    Bind voidable node or failure to overload-for unto emitter, given (the node expression):
+        // Most programs declare none, and then no operator need ask what its sides are.
+        If (the entry for "%overloads" in one's inferred) is void, return void.
+        Define operator as (cast field-of on (expression, 2))'s word.
+        If operator is not "Plus" and operator is not "Minus" and operator is not "Star" and operator is not "Slash", return void.
+        Define left-name as cast operand-name on (cast one's kind-of on (cast field-of on (expression, 1)) or pass the failure off).
+        Define right-name as cast operand-name on (cast one's kind-of on (cast field-of on (expression, 3)) or pass the failure off).
+        If left-name is "" or right-name is "", return void.
+        Return the entry for cast overload-key on (operator, left-name, right-name) in one's methods.
+    Done.
+
+    /// The first `Return` anywhere in a body, or void for none.
+    Bind voidable node to first-return, given (the node body):
+        For each statement in body's children, repeat:
+            If statement's kind is "ReturnStatement", return statement.
+            For each part in statement's children, repeat:
+                If part's kind is "list" or part's kind is "ConditionArm":
+                    Define found as cast first-return on (part).
+                    If found is not void, return found.
+                Done.
+            Done.
+        Done.
+        Return void.
+    Done.
+
+    /// A writer whose kinds know an overload's two operands.
+    Bind emitter to overload-writer unto emitter, given (the node declaration):
+        Define writer as cast one's sibling.
+        In writer's kinds, the entry for cast unquoted on (cast field-of on (declaration, 2)) becomes cast one's operand-kind on (cast unquoted on (cast field-of on (declaration, 4))).
+        In writer's kinds, the entry for cast unquoted on (cast field-of on (declaration, 3)) becomes cast one's operand-kind on (cast unquoted on (cast field-of on (declaration, 5))).
+        Return writer.
+    Done.
+
+    /// What an overload gives: the kind of what its `Return` gives.
+    Bind text or failure to overload-gives unto emitter, given (the node declaration):
+        Define returned as cast first-return on (cast field-of on (declaration, 6)).
+        If returned is void, return a failure (cast not-built on ("an overload that gives nothing back")).
+        Define value as cast field-of on (returned, 1).
+        If cast is-nothing on (value), return a failure (cast not-built on ("an overload that gives nothing back")).
+        If cast is-failure-expression on (value's kind), return a failure (cast not-built on ("an overload that can fail")).
+        Define writer as cast one's overload-writer on (declaration).
+        Return cast writer's kind-of on (value) or pass the failure off.
+    Done.
+
+    /// An overload's head as C.
+    Bind text or failure to c-overload-signature unto emitter, given (the node declaration):
+        Define operator as (cast field-of on (declaration, 1))'s word.
+        Define left-type as cast unquoted on (cast field-of on (declaration, 4)).
+        Define right-type as cast unquoted on (cast field-of on (declaration, 5)).
+        Define gives as cast one's overload-gives on (declaration) or pass the failure off.
+        Define left-c as "{cast c-type on (cast one's operand-kind on (left-type))} {cast c-name on (cast unquoted on (cast field-of on (declaration, 2)))}".
+        Define right-c as "{cast c-type on (cast one's operand-kind on (right-type))} {cast c-name on (cast unquoted on (cast field-of on (declaration, 3)))}".
+        Return "{cast c-type on (gives)} {cast c-overload-name on (operator, left-type, right-type)}({left-c}, {right-c})".
+    Done.
+
+    /// One overload as C.
+    Bind text or failure to c-overload unto emitter, given (the node declaration):
+        Define writer as cast one's overload-writer on (declaration).
+        Cast writer's line on ("int cf_ab = cufet_arena_top; int cf_fo = cufet_alloc_override; (void)cf_ab; (void)cf_fo;").
+        In writer's kinds, the entry for "%return" becomes cast one's overload-gives on (declaration) or pass the failure off.
+        For each inner in (cast field-of on (declaration, 6))'s children, repeat:
+            Cast writer's emit-statement on (inner) or pass the failure off.
+        Done.
+        Define signature as cast one's c-overload-signature on (declaration) or pass the failure off.
+        Return "{signature} \{\n{writer's body converted to text}\}\n\n".
+    Done.
+
+    /// A call of the overload a binary expression reaches, its two sides worked out in order.
+    Bind text or failure to c-overload-call unto emitter, given (the node expression, the node declaration):
+        Define left-c as cast one's c-of on (cast field-of on (expression, 1)) or pass the failure off.
+        Define right-c as cast one's c-of on (cast field-of on (expression, 3)) or pass the failure off.
+        Define sides as a series of text with (left-c, right-c).
+        Define prefix as cast order-prefix on (a series of node with (cast field-of on (expression, 1), cast field-of on (expression, 3)), sides).
+        Define called as cast c-overload-name on ((cast field-of on (declaration, 1))'s word,
+            cast unquoted on (cast field-of on (declaration, 4)), cast unquoted on (cast field-of on (declaration, 5))).
+        Return cast in-order on (prefix, "{called}({item 1 of sides}, {item 2 of sides})").
+    Done.
+Done.
