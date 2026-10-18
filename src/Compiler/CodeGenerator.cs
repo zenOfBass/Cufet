@@ -443,15 +443,7 @@ public sealed partial class CodeGenerator
         _objectDefs.TryGetValue(bookName, out var layerDef)
             ? layerDef.Getters.FirstOrDefault(g => g.Name == member)
             : null;
-    // Set when the program uses matrices (the collections book's introduced type), so the matrix
-    // runtime is emitted (only then). A matrix is an arena reference type like series/maps.
-    private bool _usesMatrix;
     private bool _usesChase;
-    // Set when the program uses the chance book's randomness nodes, so the PRNG runtime is emitted.
-    // Per the settled fork: ANY C PRNG + invariant-testing — NOT bit-identity with System.Random
-    // (unseeded .NET is xoshiro256**, nondeterministic-by-design; the seeded-port is a documented
-    // follow-on in the gap audit). Seeded runs are self-consistent WITHIN a backend.
-    private bool _usesChance;
 
     // CONC.E — set when the program uses interrupt constructs (`Yield.`, `an interrupt is requested`,
     // `Acknowledge the interrupt.`) or concurrency (blocked channel-waits are made interruptible). When
@@ -642,7 +634,7 @@ public sealed partial class CodeGenerator
             // ⚠ TText as well as the inner type: a failure carries a message and a category, and
             // both are copied across a task boundary now, so their copy helper has to exist.
             case FailureType ft: RegisterFailableStruct(ft); RegisterChanElem(ft.Inner, false); RegisterChanElem(TText, false); break;
-            case MatrixType: _usesMatrix = true; break;
+            case MatrixType: break;   // a matrix crosses as itself; nothing to register
             case ChaseType:  _usesChase  = true; break;
             case RecordType rt:
                 RegisterRecordStruct(rt);
@@ -1196,9 +1188,12 @@ public sealed partial class CodeGenerator
 
     // ── Chance (Arc 1E) ───────────────────────────────────────────────────────
 
+    // The chance book's randomness. Per the settled fork: ANY C PRNG + invariant-testing — NOT
+    // bit-identity with System.Random (unseeded .NET is xoshiro256**, nondeterministic by design;
+    // the seeded port is a documented follow-on in the gap audit). Seeded runs are self-consistent
+    // WITHIN a backend.
     private string EmitRandomNumber(RandomNumber rn)
     {
-        _usesChance = true;
         string lo = EmitExpr(rn.Low);
         string hi = EmitExpr(rn.High);
         return $"cufet_random_number({lo}, {hi}, {rn.Line})";
@@ -1206,7 +1201,6 @@ public sealed partial class CodeGenerator
 
     private string EmitRandomGuess()
     {
-        _usesChance = true;
         return "(cufet_rng_below(2) == 1)";   // a fact, uniform over {true, false}
     }
 
@@ -1214,7 +1208,6 @@ public sealed partial class CodeGenerator
     // else a uniform pick. Element-type-general (the series-of-T payoff).
     private string EmitRandomItem(RandomItem ri)
     {
-        _usesChance = true;
         var st = (SeriesType)TypeOf(ri.Series);
         string cvd = RegisterVoidableStruct(new VoidableType(st.ElementType));
         string src = EmitExpr(ri.Series);
@@ -1230,7 +1223,6 @@ public sealed partial class CodeGenerator
     // downward with j in [0, i] — the interpreter's exact procedure (over a different PRNG).
     private string EmitRandomlyShuffled(RandomlyShuffled rs)
     {
-        _usesChance = true;
         var st = (SeriesType)TypeOf(rs.Series);
         string ser = RegisterSeriesStruct(st);
         string src = EmitExpr(rs.Series);
@@ -1247,7 +1239,7 @@ public sealed partial class CodeGenerator
 
     // ── Matrix (Arc 1D) ───────────────────────────────────────────────────────
 
-    private string MatrixCType() { _usesMatrix = true; return "CufetMatrix*"; }
+    private string MatrixCType() => "CufetMatrix*";
 
     private string ChaseCType() { _usesChase = true; return "CufetChase*"; }
 
@@ -1267,7 +1259,6 @@ public sealed partial class CodeGenerator
     // The scaled matrix, inline — the matrix operand first, whichever side it was written on.
     private string EmitMatrixScale(BinaryExpression b)
     {
-        _usesMatrix = true;
         bool matrixOnLeft = TypeOf(b.Left) is MatrixType;
         string mat    = EmitExpr(matrixOnLeft ? b.Left  : b.Right);
         string factor = EmitExpr(matrixOnLeft ? b.Right : b.Left);
@@ -1279,7 +1270,6 @@ public sealed partial class CodeGenerator
     // deterministic message + "dimension-mismatch" category.
     private string EmitMatrixOpRaw(BinaryExpression b)
     {
-        _usesMatrix = true;
         string cfl = RegisterFailableStruct(new FailureType(MatrixType.Instance));
         string l = EmitExpr(b.Left);
         string r = EmitExpr(b.Right);
@@ -1299,7 +1289,6 @@ public sealed partial class CodeGenerator
 
     private string EmitMatrixSized(MatrixSized ms)
     {
-        _usesMatrix = true;
         string r = EmitExpr(ms.Rows);
         string c = EmitExpr(ms.Cols);
         string f = ms.Fill != null ? EmitExpr(ms.Fill) : "cufet_dec_from_ll(0)";
@@ -1308,7 +1297,6 @@ public sealed partial class CodeGenerator
 
     private string EmitMatrixAccess(MatrixAccess ma)
     {
-        _usesMatrix = true;
         string m = EmitExpr(ma.Matrix);
         string r = EmitExpr(ma.Row);
         string c = EmitExpr(ma.Col);
@@ -1322,7 +1310,6 @@ public sealed partial class CodeGenerator
 
     private string EmitMatrixLiteral(MatrixLiteral ml)
     {
-        _usesMatrix = true;
         int rows = ml.Rows.Count, cols = ml.Rows[0].Count;
         int id = _freshId++;
         string tmp = $"cf_mt{id}";

@@ -66,6 +66,11 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   when it used it, "so non-run programs compile anywhere" — but both platforms have both forms now,
   and the subprocess runtime compiles cleanly with gcc on Windows and on Linux. Every build links it,
   so the compiler written in Cufet, which runs gcc, can be built by itself.
+- **So are matrices, `chance`, signals and concurrency.** Each was built into a program only when
+  it used it. Measured with all four in every build: no warning from gcc on Windows or Linux at
+  `-Wall -Wextra`, no new link flag, nothing run before `main`, and about 14 KB more on a
+  hello-world. What `main` sets up for interrupts and tasks still waits for a program that uses
+  them; only the definitions moved — so the compiler written in Cufet can reach all four.
 
 ### Fixed
 

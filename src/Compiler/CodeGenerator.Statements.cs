@@ -736,7 +736,6 @@ public sealed partial class CodeGenerator
             {
                 // `Seed the chance with N.` — reseed the PRNG (seed truncated to integer, like the
                 // interpreter's (int)(decimal) cast). Guarantee: self-consistent WITHIN this backend.
-                _usesChance = true;
                 string seed = EmitExpr(ss.Seed);
                 FlushPreEmits(sb, indent);
                 sb.AppendLine($"{indent}cufet_rng_seed(cufet_to_int({seed}));");
@@ -943,7 +942,6 @@ public sealed partial class CodeGenerator
 
             case MatrixSetStatement ms:
             {
-                _usesMatrix = true;
                 // Matrix, then row, then column, then value — the interpreter's evaluation order,
                 // so a program whose indices have side effects sequences the same on both.
                 string matExpr = EmitExpr(ms.Matrix);

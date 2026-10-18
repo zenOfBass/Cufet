@@ -636,13 +636,20 @@ static const char* cufet_str_lower(const char* s) {
         // Their order RELATIVE TO EACH OTHER still matters and is preserved: the signal substrate
         // supplies the interrupt flag the concurrency runtime's channel-wait checks, and the case
         // table calls the decimal helpers in the preamble.
+        // ★ The matrix, chance, signal and concurrency runtimes are in every build, as the case table
+        // and `run` are. Each used to be written only into a program that used it, from when the
+        // runtime was pasted into every file; MEASURED 2026-10-18 with all four in: no warning on mingw
+        // or WSL gcc at -Wall -Wextra, no new link flag, nothing run before main, the suite unchanged,
+        // about 14 KB on a hello-world. The compiler written in Cufet links this runtime alone, so a
+        // gate here kept these out of its reach. What `main` sets up for signals and tasks stays
+        // behind its flags — only the definitions moved.
         if (_usesChase) runtime.AppendLine(ChaseRuntime);
-        if (_usesMatrix) runtime.AppendLine(MatrixRuntime);
+        runtime.AppendLine(MatrixRuntime);
         runtime.AppendLine(CaseRuntime);
-        if (_usesChance) runtime.AppendLine(ChanceRuntime);
+        runtime.AppendLine(ChanceRuntime);
         runtime.AppendLine(ProcessRuntime);
-        if (_usesSignals || _usesConcurrency) runtime.AppendLine(SignalRuntime);
-        if (_usesConcurrency) runtime.AppendLine(ConcurrencyRuntime);
+        runtime.AppendLine(SignalRuntime);
+        runtime.AppendLine(ConcurrencyRuntime);
 
         // ── Series + map struct forward declarations (so value structs can hold their pointers) ──
         EmitSeriesForwardDecls(sb);
