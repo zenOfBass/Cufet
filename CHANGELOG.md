@@ -30,9 +30,11 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   — `a new stack of number` — and with setters, makers and function fields, and functions with a
   blank; a named rabbit, a region of the writer's own (`and region`), stashes — `bury` and
   `unbury` — a series of series or of voidables, a function written in a method that reads
-  `one`, and bits — literals, arithmetic, the gates, shifts, `converted to hex` and back,
-  `the width of` and `at … bits`. `CompilerParityTests` now holds it to the interpreter on 367
-  hand-written programs and on 43 of the 67 in `examples/`.
+  `one`, bits — literals, arithmetic, the gates, shifts, `converted to hex` and back,
+  `the width of` and `at … bits` — sets, streams — `the input`, `the output`, reading a line,
+  everything or every line, `Write … to` and `With the file … open`, its file closed however
+  the block is left — and operator overloads. `CompilerParityTests` now holds it to the
+  interpreter on 375 hand-written programs and on 47 of the 67 in `examples/`.
 - **The compiler written in Cufet compiles itself.** The compiler it builds from its own source
   compiles that source again into the very same C, byte for byte — the fixed point a self-hosting
   compiler is held to — and builds every program the first one does, printing the same.
