@@ -152,6 +152,7 @@ Pull a book on collections.
         Done.
         If cast object-of on (target-kind) is not "", return cast one's possessive-kind-of on (cast as-possessive on (expression)) or pass the failure off.
         If target-kind is "text" and field-name is "length", return "number".
+        If target-kind is "bits" and field-name is "width", return "number".
         If target-kind is "failure" and cast failure-field-kind on (field-name) is not "", return cast failure-field-kind on (field-name).
         If target-kind is "exception" and field-name is "message", return "text".
         If cast is-record on (target-kind) and cast record-field-kind on (target-kind, field-name) is not "":
@@ -189,6 +190,7 @@ Pull a book on collections.
             Define target-c as cast one's c-of on (target) or pass the failure off.
             Define held-kind as cast one's kind-of on (target) or pass the failure off.
             If held-kind is "text", return cast c-text-length on (target-c).
+            If held-kind is "bits", return "cufet_dec_from_ll(({target-c}).width)".
             If held-kind is "failure", return cast c-failure-field on (target-c, field-name).
             If held-kind is "exception", return target-c.
             If cast is-record on (held-kind), return "({target-c}).{cast c-name on (field-name)}".

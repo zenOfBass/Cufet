@@ -1,0 +1,77 @@
+/*  Bits — `0xFF`, `0b1010`, the arithmetic and the gates over them, `shifted left by`,
+    `converted to hex`, `converted to number`, and a pattern written or set in a text.
+
+    ★ A bits value is the runtime's `CufetBits` — its value, the base it is shown in and its width —
+      passed by value. Everything it does is a runtime call `cufet build` makes too, so a result's
+      base and width come out of one place for both compilers.
+
+    ★ Two patterns compare on their VALUE alone: `0xFF`, `0x00FF` and `0b11111111` are one pattern
+      written three ways, so a width is never what tells two apart.
+*/
+
+Pull a book on collections.
+    /// Whether an expression gives a bits value by what it is, whatever it is made from.
+    Bind fact to is-bits-expression, given (the text kind):
+        Return kind is "BitsLiteral" or kind is "BitsShift" or kind is "BitsConvert" or kind is "BitsAtWidth".
+    Done.
+
+    /// A bits expression as C.
+    Bind text or failure to c-bits-of unto emitter, given (the node expression):
+        Define kind as expression's kind.
+        If kind is "BitsLiteral":
+            Define base as cast unquoted on (cast field-of on (expression, 2)).
+            Return "((CufetBits)\{ {(cast field-of on (expression, 1))'s word}ULL, '{base}', {(cast field-of on (expression, 3))'s word} \})".
+        Done.
+        Define target-c as cast one's c-of on (cast field-of on (expression, 1)) or pass the failure off.
+        If kind is "BitsShift":
+            Define left as "0".
+            If (cast field-of on (expression, 2))'s word is "true", the left becomes "1".
+            Define amount-c as cast one's c-of on (cast field-of on (expression, 3)) or pass the failure off.
+            Return "cufet_bits_shift({target-c}, {amount-c}, {left}, {(cast field-of on (expression, 4))'s word})".
+        Done.
+        If kind is "BitsConvert":
+            Define base as cast unquoted on (cast field-of on (expression, 2)).
+            Return "cufet_bits_from_number({target-c}, '{base}', {(cast field-of on (expression, 3))'s word})".
+        Done.
+        Define width-c as cast one's c-of on (cast field-of on (expression, 2)) or pass the failure off.
+        Return "cufet_bits_at_width({target-c}, {width-c}, {(cast field-of on (expression, 3))'s word})".
+    Done.
+
+    /// A binary operator over two bits values already as C: arithmetic and the gates give bits —
+    /// the gates are calls, not `&&`, since combining two patterns needs both — and a comparison
+    /// gives a fact, on the values alone.
+    Bind text or failure to c-bits-binary, given (the text operator, the text left, the text right, the text at-line):
+        Judge operator, where it is:
+            "Plus", return "cufet_bits_add({left}, {right}, {at-line})".
+            "Minus", return "cufet_bits_sub({left}, {right}, {at-line})".
+            "Star", return "cufet_bits_mul({left}, {right}, {at-line})".
+            "Slash", return "cufet_bits_div({left}, {right}, {at-line})".
+            "Percent", return "cufet_bits_mod({left}, {right}, {at-line})".
+            "And", return "cufet_bits_and({left}, {right})".
+            "Or", return "cufet_bits_or({left}, {right})".
+            "Xor", return "cufet_bits_xor({left}, {right})".
+            "Equal", return "(({left}).value == ({right}).value)".
+            "NotEqual", return "(({left}).value != ({right}).value)".
+            "Lt", return "(({left}).value < ({right}).value)".
+            "Gt", return "(({left}).value > ({right}).value)".
+            "Lte", return "(({left}).value <= ({right}).value)".
+            "Gte", return "(({left}).value >= ({right}).value)".
+            Otherwise, return a failure (cast not-built on ("the operator {operator} on bits")).
+        Done.
+    Done.
+
+    /// What a binary operator gives when its left side is bits: bits for arithmetic and the
+    /// gates, a fact for a comparison.
+    Bind text to bits-binary-kind, given (the text operator):
+        If operator is "Plus" or operator is "Minus" or operator is "Star" or operator is "Slash" or operator is "Percent"
+                or operator is "And" or operator is "Or" or operator is "Xor":
+            Return "bits".
+        Done.
+        Return "fact".
+    Done.
+
+    /// A bits value as the text it shows as — `0xFF`, prefix and all — in a buffer of its own.
+    Bind text to c-bits-text, given (the text value):
+        Return "(\{ char* cf_bt = (char*)cufet_arena_alloc(80); cufet_format_bits(cf_bt, 80, {value}); cf_bt; \})".
+    Done.
+Done.

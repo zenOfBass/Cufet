@@ -105,8 +105,8 @@ Pull a book on collections.
 
     /// Notes a union type the program uses, so its struct is written.
     Bind void to register-union unto emitter, given (the text kind):
-        // A voidable of a number, a text or a fact is in every program already.
-        If cast is-voidable on (kind) and cast is-scalar on (cast voidable-inner on (kind)), return.
+        // A voidable of a number, a text, a fact or bits is in every program already.
+        If cast is-voidable on (kind) and (cast is-scalar on (cast voidable-inner on (kind)) or cast voidable-inner on (kind) is "bits"), return.
         If cast is-union on (kind) is false and cast is-voidable on (kind) is false, return.
         If (the entry for kind in one's unions) is void:
             In one's unions, the entry for kind becomes true.

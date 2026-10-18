@@ -1869,9 +1869,20 @@ write = 0b010
 0b001
 ```
 
-★ **A width is display, not data.** A stored pattern keeps the width it was built with, but no
-program can read that width back as a number — so a format whose field widths vary must carry
-them itself, in a second field. That is a known gap, and both halves of it are on the roadmap.
+★ **A width is data.** A program reads it back with `the width of`, and states one with
+`at … bits` — the only way to ask for leading zeros no operand held. Widening always works;
+narrowing is refused when it would drop a set bit.
+
+```cufet
+State the width of 0x0F.
+State 0b0 at 3 bits.
+State 0b00000001 at 2 bits.
+```
+```output
+8
+0b000
+0b01
+```
 
 See [`examples/systems/permissions.cufe`](../examples/systems/permissions.cufe) for a worked Unix-permissions
 program using all of this.

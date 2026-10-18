@@ -45,7 +45,7 @@ Pull a book on collections.
     /// Every voidable of a number, a text or a fact.
     Bind text to c-voidable-prelude:
         Define out as a chase.
-        For each inner in a series of text with ("number", "text", "fact"), repeat:
+        For each inner in a series of text with ("number", "text", "fact", "bits"), repeat:
             Insert cast c-voidable-helpers on ("voidable {inner}") into out.
         Done.
         Return out converted to text.

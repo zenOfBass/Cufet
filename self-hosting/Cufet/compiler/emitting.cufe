@@ -73,6 +73,7 @@ Pull a book on collections.
         If written's kind is "NumberType", return "number".
         If written's kind is "TextType", return "text".
         If written's kind is "FactType", return "fact".
+        If written's kind is "BitsType", return "bits".
         If written's kind is "ObjectType":
             Define object-name as cast unquoted on (cast field-of on (written, 1)).
             If (the entry for object-name in one's objects) is not void, return "object {object-name}".
@@ -97,7 +98,8 @@ Pull a book on collections.
         If written's kind is "VoidableType":
             Define inner as cast one's kind-of-type on (cast field-of on (written, 1)) or pass the failure off.
             If cast is-scalar on (inner) is false and cast object-of on (inner) is "" and cast is-union on (inner) is false
-                    and cast element-of on (inner) is "" and cast is-map on (inner) is false and cast is-record on (inner) is false:
+                    and cast element-of on (inner) is "" and cast is-map on (inner) is false and cast is-record on (inner) is false
+                    and inner is not "bits":
                 Return a failure (cast not-built on ("a voidable {inner}")).
             Done.
             Cast one's register-union on ("voidable {inner}").
@@ -169,11 +171,18 @@ Pull a book on collections.
                 Return known.
             Done.
             "UnaryExpression":
-                If (cast field-of on (expression, 1))'s word is "Not", return "fact".
+                If (cast field-of on (expression, 1))'s word is "Not":
+                    // `not` on bits flips every bit, and is bits.
+                    If (cast one's kind-of on (cast field-of on (expression, 2)) or pass the failure off) is "bits", return "bits".
+                    Return "fact".
+                Done.
                 Return "number".
             Done.
             "BinaryExpression":
                 Define operator as (cast field-of on (expression, 2))'s word.
+                If (cast one's kind-of on (cast field-of on (expression, 1)) or pass the failure off) is "bits":
+                    Return cast bits-binary-kind on (operator).
+                Done.
                 If operator is "Plus" or operator is "Minus" or operator is "Star" or operator is "Slash" or operator is "Percent":
                     Return "number".
                 Done.
@@ -202,6 +211,12 @@ Pull a book on collections.
             "LambdaLiteral", return cast one's lambda-kind on (expression) or pass the failure off.
             "ConditionalExpression", return cast one's chosen-kind on (expression) or pass the failure off.
             "UnburyExpression", return cast one's kind-of on (cast as-resumed on (expression)) or pass the failure off.
+            "BitsLiteral" or "BitsShift" or "BitsConvert" or "BitsAtWidth", return "bits".
+            // `converted to number` cannot fail from bits — 64 bits always fit — and may from text.
+            "NumberConvert":
+                If (cast one's kind-of on (cast field-of on (expression, 1)) or pass the failure off) is "bits", return "number".
+                Return "voidable number".
+            Done.
             "SortExpression", return cast one's sorted-kind-of on (expression) or pass the failure off.
             Otherwise:
                 If cast is-text-operation on (kind), return cast text-operation-kind on (kind).
@@ -257,6 +272,7 @@ Pull a book on collections.
             Done.
             "ObjectLiteral", return cast one's c-object-literal on (expression) or pass the failure off.
             "UnburyExpression", return cast one's c-of on (cast as-resumed on (expression)) or pass the failure off.
+            "BitsLiteral" or "BitsShift" or "BitsConvert" or "BitsAtWidth", return cast one's c-bits-of on (expression) or pass the failure off.
             "PossessiveAccess", return cast one's c-possessive on (expression) or pass the failure off.
             "TextJoin":
                 Define joined-left as cast one's c-of on (cast field-of on (expression, 1)) or pass the failure off.
@@ -270,6 +286,9 @@ Pull a book on collections.
                 Define operand as cast one's c-of on (cast field-of on (expression, 2)) or pass the failure off.
                 Define operator as (cast field-of on (expression, 1))'s word.
                 If operator is "Minus", return "cufet_neg({operand})".
+                If operator is "Not" and (cast one's kind-of on (cast field-of on (expression, 2)) or pass the failure off) is "bits":
+                    Return "cufet_bits_not({operand})".
+                Done.
                 If operator is "Not", return "(!{operand})".
                 Return a failure (cast not-built on ("the operator {operator}")).
             Done.
@@ -432,6 +451,7 @@ Pull a book on collections.
         Define kind as cast one's kind-of on (expression) or pass the failure off.
         // A chase's text is a copy: the chase lives on, apart from it.
         If kind is "chase", return "cufet_chase_text({value})".
+        If kind is "bits", return cast c-bits-text on (value).
         If cast is-scalar on (kind) is false, return a failure (cast not-built on ("a {kind} as text")).
         If kind is "number", return "cufet_text_from_dec({value})".
         If kind is "fact", return "({value} ? \"true\" : \"false\")".
@@ -461,6 +481,9 @@ Pull a book on collections.
         Define left as left-c.
         Define right as right-c.
         Define at-line as (cast field-of on (expression, 4))'s word.
+        If (cast one's kind-of on (left-side) or pass the failure off) is "bits":
+            Return cast c-bits-binary on (operator, left, right, at-line) or pass the failure off.
+        Done.
         Define left-kind as cast one's kind-of on (left-side) or pass the failure off.
         Define right-kind as cast one's kind-of on (cast field-of on (expression, 3)) or pass the failure off.
         If (operator is "Equal" or operator is "NotEqual") and (cast is-union on (left-kind) or cast is-union on (right-kind)):
@@ -521,6 +544,7 @@ Pull a book on collections.
         If cast is-failable on (kind), return cast failable-c-name on (kind).
         If kind is "chase", return "CufetChase*".
         If kind is "rabbit", return "cufet_rabbit".
+        If kind is "bits", return "CufetBits".
         If cast is-function on (kind), return cast function-c-name on (kind).
         // What a handler has caught: its message — the exception's only part a program can reach.
         If kind is "exception", return "const char*".
@@ -541,6 +565,7 @@ Pull a book on collections.
         If cast is-record on (kind), return "{cast record-c-name on (kind)}_write({value})".
         If kind is "failure", return "fputs(\"<failure>\", stdout)".
         If kind is "chase", return "cufet_write_text(cufet_chase_show({value}))".
+        If kind is "bits", return "cufet_write_bits({value})".
         // Printed as the object the prelude says it is — one with no fields — as the interpreter does.
         If kind is "rabbit", return "fputs(\"rabbit()\", stdout)".
         If cast is-function on (kind), return "fputs(\"<function>\", stdout)".
@@ -585,6 +610,7 @@ Pull a book on collections.
         If cast is-record on (kind), return "{cast record-c-name on (kind)}_eq({left}, {right})".
         If kind is "chase", return "cufet_chase_eq({left}, {right})".
         If kind is "rabbit", return "cufet_rabbit_eq({left}, {right})".
+        If kind is "bits", return "(({left}).value == ({right}).value)".
         If cast is-function on (kind), return "(({left}).fn == ({right}).fn && ({left}).env == ({right}).env)".
         If cast is-mapping on (kind), return "{cast map-c-name on (cast mapping-map on (kind))}_pair_eq({left}, {right})".
         If cast is-voidable on (kind), return "{cast voidable-c-name on (kind)}_eq({left}, {right})".

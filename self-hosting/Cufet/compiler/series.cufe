@@ -25,7 +25,7 @@ Pull a book on collections.
     Bind fact to is-element-kind, given (the text kind):
         If cast element-of on (kind) is not "", return cast is-element-kind on (cast element-of on (kind)).
         If cast is-voidable on (kind), return cast is-element-kind on (cast voidable-inner on (kind)).
-        Return cast is-scalar on (kind) or cast object-of on (kind) is not "" or cast is-union on (kind) or cast is-record on (kind)
+        Return cast is-scalar on (kind) or kind is "bits" or cast object-of on (kind) is not "" or cast is-union on (kind) or cast is-record on (kind)
             or cast is-map on (kind) or cast is-function on (kind).
     Done.
 
@@ -84,7 +84,7 @@ Pull a book on collections.
     /// Every series type a program may use, and the range that makes a series of numbers.
     Bind text to c-series-prelude:
         Define out as a chase.
-        For each element in a series of text with ("number", "text", "fact"), repeat:
+        For each element in a series of text with ("number", "text", "fact", "bits"), repeat:
             Insert cast c-series-helpers on (element) into out.
         Done.
         Insert "static cser_number* cser_number_range(CufetDec from, CufetDec to, CufetDec step, int line) \{\n" into out.

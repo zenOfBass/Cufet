@@ -65,8 +65,8 @@ Pull a book on collections.
         Done.
         // `converted to number` — of a text; void when it is no number.
         If kind is "NumberConvert":
-            If (cast one's kind-of on (cast field-of on (expression, 1)) or pass the failure off) is not "text":
-                Return a failure (cast not-built on ("converting bits to a number")).
+            If (cast one's kind-of on (cast field-of on (expression, 1)) or pass the failure off) is "bits":
+                Return "cufet_bits_to_number({text-c})".
             Done.
             Return "(\{ CufetDec cf_pn; cufet_parse_number({text-c}, &cf_pn) ? cvo_number_some(cf_pn) : cvo_number_none(); \})".
         Done.

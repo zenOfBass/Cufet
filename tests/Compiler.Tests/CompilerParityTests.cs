@@ -52,7 +52,7 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     : PipelineTestBase, IClassFixture<CompiledCufetCompiler>
 {
     /// <summary>How many hand-written programs must build and print alike. Raised as it grows; never lowered.</summary>
-    private const int BuiltFloor = 360;
+    private const int BuiltFloor = 367;
 
     private static string[] PreludeArgs =>
         ["--prelude", Path.Combine(RepoRoot, "src", "Interpreter", "Prelude").Replace('\\', '/')];
@@ -453,6 +453,14 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
         // A `For each` over a call drains one stash, made before the loop.
         "Bind number to counting-up, given (the rabbit helper, the number first-value):\n    Define next as first-value.\n    Repeat:\n        Have helper bury next.\n        The next becomes next + 1.\n    Until false.\nDone.\nBind number to evens-of, given (the rabbit helper):\n    Define inner as cast counting-up on (helper, 1).\n    For each value in inner, repeat:\n        If value is greater than 8:\n            Stop.\n        Done.\n        If value % 2 is 0:\n            Have helper bury value.\n        Done.\n    Done.\nDone.\nPull a rabbit as hopper.\n    Define n as 0.\n    For each even in cast evens-of on (hopper), repeat:\n        State \"even {even}\".\n        Increment n by 1.\n        If n is 6, stop.\n    Done.\nDone.",
         "Bind number to counting-up, given (the rabbit helper, the number first-value):\n    Define next as first-value.\n    Repeat:\n        Have helper bury next.\n        The next becomes next + 1.\n    Until false.\nDone.\nBind number to evens-of, given (the rabbit helper):\n    Define tries as 0.\n    For each value in cast counting-up on (helper, 1), repeat:\n        Increment tries by 1.\n        If value is greater than 8 or tries is 20:\n            Stop.\n        Done.\n        If value % 2 is 0:\n            Have helper bury value.\n        Done.\n    Done.\nDone.\nPull a rabbit as hopper.\n    Define evens as cast evens-of on (hopper).\n    For each even in evens, repeat:\n        State \"even {even}\".\n    Done.\n    For each word in a series of text with (\"x\", \"y\"), repeat:\n        State word.\n    Done.\nDone.",
+        // Bits: literals, arithmetic, gates, shifts, conversions, comparing, widths, held in a series, map and object.
+        "Define high as 0xFF.\nDefine low as 0b1010.\nState high.\nState low.\nState high + low.\nState low + high.\nState high - low.\nState low * 0b11.\nState high / 0b10.\nState high % 0b111.",
+        "Define flags as 0b1111.\nState flags and not 0b0100.\nState 0xFF and 0b1010.\nState 0b1010 and 0xFF.\nState 0b1100 or 0b0011.\nState 0b1100 xor 0b1010.\nState not 0b0000.",
+        "State 0b0001 shifted left by 3.\nState 0xFF shifted right by 4.\nState 0b00001111 shifted left by 2.\nState 0b1 shifted left by 2.\nState 0b0 shifted left by 2.\nDefine steps as 3.\nState 0b1 shifted left by (steps + 1).",
+        "State 255 converted to hex.\nState 10 converted to binary.\nState 0xFF converted to number.\nState (0xFF converted to number) + 1.\nState 0xFF converted to text.\nDefine mask as 0b101.\nState \"mask is {mask}\".\nDefine total as 200 + 55.\nState total converted to hex.",
+        "State 0xFF is 0b11111111.\nState 0x00FF is 0xFF.\nState 0b1 is not 0b10.\nState 0b0101 is less than 0x6.\nState 0xA is greater than 0b1001.\nState 0b11 is not greater than 0x3.",
+        "State the width of 0x0F.\nState the width of 0b101.\nState 0b0 at 3 bits.\nDefine n as 6.\nState 0b1 at n bits.\nState 0b00000001 at 2 bits.\nState the width of (0b1 at n bits).",
+        "Define object flagset with (the text name, the bits mask).\nDefine modes as a series of flagset with (a new flagset { the name \"read\", the mask 0b100 }, a new flagset { the name \"write\", the mask 0b010 }).\nFor each mode in modes, repeat:\n    State \"{mode's name} = {mode's mask}\".\nDone.\nDefine by-name as a map from text to bits with (\"exec\" : 0b001).\nState the entry for \"exec\" in by-name but void is 0b0.\nState the entry for \"none\" in by-name but void is 0b0.\nBind bits to both, given (the bits left-mask, the bits right-mask):\n    Return left-mask or right-mask.\nDone.\nState cast both on (0b100, 0b001).\nDefine masks as a series of bits with (0x1, 0x2, 0x4).\nState masks.\nDefine combined as 0x0.\nFor each m in masks, the combined becomes combined or m.\nState combined.\nState modes.",
     ];
 
     [Fact]
@@ -505,7 +513,7 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     }
 
     /// <summary>How many programs of `examples/` must build and print alike. Raised as it grows; never lowered.</summary>
-    private const int CorpusFloor = 40;
+    private const int CorpusFloor = 43;
 
     /// <remarks>
     /// ★ The corpus is copied first: the compiler writes each program beside its source. Each program
@@ -633,6 +641,15 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
         // into the frame of a Try that is gone.
         ("Bind number to early, given (the number n):\n    Try to:\n        If n is 1, return 5.\n    Done.\n    In case of exception:\n        Suppress the exception.\n    Done.\n    Return 0.\nDone.\nState cast early on (1).\nState 1 / 0.\nState \"not reached\".",
          "Division by zero"),
+        // Bits that cannot be: a width too narrow for the value, a division by zero, a shift past 64 bits.
+        ("Define n as 1.\nState \"before\".\nState 0xFF at n bits.",
+         "1 bits cannot hold this value"),
+        ("Define zero as 0b0.\nState \"before\".\nState 0b1010 / zero.",
+         "Division by zero on line 3."),
+        ("Define zero as 0b0.\nState 0b1010 % zero.",
+         "Modulo by zero on line 2."),
+        ("State \"before\".\nState 0b1 shifted left by 70.",
+         "does not fit in 64 bits"),
     ];
 
     [Fact]
