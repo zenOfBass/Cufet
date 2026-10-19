@@ -75,6 +75,10 @@ Pull a book on collections.
         If written's kind is "FactType", return "fact".
         If written's kind is "BitsType", return "bits".
         If written's kind is "ReadableStreamType", return "readable stream".
+        If written's kind is "ChannelType":
+            Define carried as cast one's kind-of-type on (cast field-of on (written, 1)) or pass the failure off.
+            Return "channel of {carried}".
+        Done.
         If written's kind is "WritableStreamType", return "writable stream".
         If written's kind is "SetType":
             Define member-kind as cast one's kind-of-type on (cast field-of on (written, 1)) or pass the failure off.
@@ -225,6 +229,23 @@ Pull a book on collections.
             "BitsLiteral" or "BitsShift" or "BitsConvert" or "BitsAtWidth", return "bits".
             "SetLiteral" or "SetHasMember", return cast one's set-kind-of on (expression) or pass the failure off.
             "ReadExpression", return cast stream-read-kind on (expression).
+            "ChannelCreation":
+                Define carried as cast one's kind-of-type on (cast field-of on (expression, 1)) or pass the failure off.
+                Return "channel of {carried}".
+            Done.
+            "InterruptRequestedExpression", return "fact".
+            "DeliveryExpression":
+                Define from-channel as cast one's kind-of on (cast field-of on (expression, 1)) or pass the failure off.
+                Define delivered as "voidable {cast channel-element on (from-channel)}".
+                Cast one's register-union on (delivered).
+                Return delivered.
+            Done.
+            "AwaitedResultExpression":
+                Define task-kind as cast one's kind-of on (cast field-of on (expression, 1)) or pass the failure off.
+                If cast is-task-handle on (task-kind) is false, return a failure (cast not-built on ("awaiting a {task-kind}")).
+                // Inside a `Try`, a task that can fail reads as its value, as a call that can does.
+                Return cast one's unwrapped-kind on (cast task-result on (task-kind)).
+            Done.
             // `converted to number` cannot fail from bits — 64 bits always fit — and may from text.
             "NumberConvert":
                 If (cast one's kind-of on (cast field-of on (expression, 1)) or pass the failure off) is "bits", return "number".
@@ -289,6 +310,10 @@ Pull a book on collections.
             "BitsLiteral" or "BitsShift" or "BitsConvert" or "BitsAtWidth", return cast one's c-bits-of on (expression) or pass the failure off.
             "SetLiteral" or "SetHasMember", return cast one's c-set-of on (expression) or pass the failure off.
             "ReadExpression", return cast one's c-read on (expression) or pass the failure off.
+            "ChannelCreation", return cast one's c-channel on (expression) or pass the failure off.
+            "InterruptRequestedExpression", return "(cufet_interrupted ? 1 : 0)".
+            "DeliveryExpression", return cast one's c-delivery on (expression) or pass the failure off.
+            "AwaitedResultExpression", return cast one's c-awaited on (expression) or pass the failure off.
             "PossessiveAccess", return cast one's c-possessive on (expression) or pass the failure off.
             "TextJoin":
                 Define joined-left as cast one's c-of on (cast field-of on (expression, 1)) or pass the failure off.
@@ -569,6 +594,8 @@ Pull a book on collections.
         If kind is "rabbit", return "cufet_rabbit".
         If kind is "bits", return "CufetBits".
         If cast is-stream on (kind), return "FILE*".
+        If cast is-channel on (kind), return "cufet_chan*".
+        If cast is-task-handle on (kind), return "cufet_rbox*".
         If cast is-set on (kind), return "{cast map-c-name on (cast set-storage on (kind))}*".
         If cast is-function on (kind), return cast function-c-name on (kind).
         // What a handler has caught: its message — the exception's only part a program can reach.
@@ -725,6 +752,11 @@ Pull a book on collections.
                 Cast one's line on ("\} while (!({condition}));").
             Done.
             "ReturnStatement":
+                // Inside a task, a `Return` publishes to its box.
+                If (the entry for "%task" in one's kinds) is not void:
+                    Cast one's emit-task-return on (statement) or pass the failure off.
+                    Return.
+                Done.
                 Define returned as cast field-of on (statement, 1).
                 Define gives as the entry for "%return" in one's kinds but void is "".
                 If cast is-nothing on (returned):
@@ -769,6 +801,13 @@ Pull a book on collections.
             "TryStatement", cast one's emit-try on (statement) or pass the failure off.
             "FileWriteStatement", cast one's emit-file-write on (statement) or pass the failure off.
             "WithOpenStatement", cast one's emit-with-open on (statement) or pass the failure off.
+            "SendStatement", cast one's emit-send on (statement) or pass the failure off.
+            "PipeExpression", cast one's emit-run-pipe on (statement) or pass the failure off.
+            // `Yield.` — an interrupt checkpoint; the operating system hands out the turns.
+            "YieldStatement", cast one's line on ("cufet_checkpoint();").
+            "AcknowledgeInterruptStatement", cast one's line on ("cufet_interrupted = 0;").
+            "CloseStatement", cast one's emit-close on (statement) or pass the failure off.
+            "LaunchTaskStatement", cast one's emit-launch on (statement) or pass the failure off.
             "WriteToStreamStatement", cast one's emit-stream-write on (statement) or pass the failure off.
             "MapSetStatement", cast one's emit-map-set on (statement) or pass the failure off.
             "RecordNamedSetStatement", cast one's emit-record-set on (statement) or pass the failure off.
@@ -1043,6 +1082,7 @@ Pull a book on collections.
             Done.
         Done.
         Define writer as cast fresh-emitter on (functions, objects, methods, interfaces).
+        If cast uses-tasks on (program), in writer's inferred, the entry for "%tasks" becomes "yes".
         // Getters, by the object they read: written inside it, or bound `unto` it.
         Define getters as a series of node.
         Define getter-owners as a series of text.
@@ -1201,6 +1241,8 @@ Pull a book on collections.
         // union — after the objects they may hold. Then the shared constants, now every type is whole.
         Define union-types as a chase.
         For each union in writer's union-order, repeat:
+            // Copy families are written after every type, below.
+            If cast copied-kind on (union) is not "", skip.
             // A series of series, or of voidables: the series that holds them.
             If cast held-element on (union) is not "":
                 Insert cast c-series-helpers on (cast held-element on (union)) into union-types.
@@ -1229,6 +1271,7 @@ Pull a book on collections.
                 Insert cast c-series-helpers on (union) into union-types.
             Done.
         Done.
+        Insert cast writer's c-copy-families or pass the failure off into union-types.
         For each written in writer's lambda-types, repeat:
             Insert written into union-types.
         Done.
@@ -1243,6 +1286,7 @@ Pull a book on collections.
         // A series of a union named ahead of the objects, which may hold one by its address — and
         // how it is written and compared, which an object's own writing calls.
         For each union in writer's union-order, repeat:
+            If cast copied-kind on (union) is not "", skip.
             // A series of series or of voidables, named ahead so an object may hold one by its address.
             If cast held-element on (union) is not "":
                 Define held-series as cast series-c-name on (cast held-element on (union)).
@@ -1283,6 +1327,8 @@ Pull a book on collections.
         Insert "    cufet_set_args(argc, argv);\n" into out.
         Insert "    CUFET_STDOUT_BINARY();\n" into out.
         Insert "    cufet_watch_stack();\n" into out.
+        Define has-tasks as (the entry for "%tasks" in writer's inferred) is not void.
+        If has-tasks or cast uses-interrupts on (program), insert cast c-main-signals on (has-tasks) into out.
         Insert "    cufet_arena_push();\n" into out.
         Insert "    int cf_ab = cufet_arena_top; int cf_fo = cufet_alloc_override; (void)cf_ab; (void)cf_fo;\n" into out.
         Insert writer's body converted to text into out.

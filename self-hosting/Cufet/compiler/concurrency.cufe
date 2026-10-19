@@ -1,0 +1,294 @@
+/*  Concurrency — `Have rabbit start a task`, channels (`a channel of …`, `Send … through`, `Close`,
+    `the delivery from`) and `the awaited result of`.
+
+    ★ A task is a thread, and its rabbit is where it ends: a rabbit that may start one keeps a slot
+      per task — the thread, the box its result goes into, where a fault it does not handle is
+      written — and a list of the channels made in it. At its `Done` it joins every task, raises
+      what went unhandled, and frees the boxes and the channels: so no task outlives its rabbit.
+      All of it is `cufet build`'s, and the runtime both link.
+
+    ★ What crosses a thread is copied whole (copies.cufe): a message, what a task captured, what a
+      named task hands back. A task gets its OWN copy of everything it captures — so one that
+      changes a capture is refused, since the change would be seen by no one outside it.
+
+    ★ Kinds: `channel of K`, and `task of K` for a named task that hands back a K — the name holds
+      the box its result is published to. `%task-rabbit` names the rabbit whose slots a task or a
+      channel made here goes into; `%task` is what a task's `Return` publishes, inside one.
+*/
+
+Pull a book on collections.
+    Bind fact to is-channel, given (the text kind):
+        Return kind starts with "channel of ".
+    Done.
+
+    Bind text to channel-element, given (the text kind):
+        Return the characters from 12 to the end of kind.
+    Done.
+
+    Bind fact to is-task-handle, given (the text kind):
+        Return kind starts with "task of ".
+    Done.
+
+    Bind text to task-result, given (the text kind):
+        Return the characters from 9 to the end of kind.
+    Done.
+
+    /// Whether a program starts a task or makes a channel anywhere.
+    Bind fact to uses-tasks, given (the node tree):
+        If tree's kind is "LaunchTaskStatement" or tree's kind is "ChannelCreation", return true.
+        For each child in tree's children, repeat:
+            If cast uses-tasks on (child), return true.
+        Done.
+        Return false.
+    Done.
+
+    /// Whether a program asks about interrupts anywhere — `Yield`, `an interrupt is requested`,
+    /// acknowledging one.
+    Bind fact to uses-interrupts, given (the node tree):
+        If tree's kind is "YieldStatement" or tree's kind is "InterruptRequestedExpression" or tree's kind is "AcknowledgeInterruptStatement":
+            Return true.
+        Done.
+        For each child in tree's children, repeat:
+            If cast uses-interrupts on (child), return true.
+        Done.
+        Return false.
+    Done.
+
+    /// What `main` sets up in a program with tasks or interrupts: a fault in a task reported to its
+    /// rabbit, and — on POSIX — Ctrl-C caught, landing here to tear down and leave with 130.
+    Bind text to c-main-signals, given (the fact tasks):
+        Define freeing as "".
+        If tasks, the freeing becomes "        cufet_free_all_chans();\n".
+        Return "    cufet_worker_fault_fn = cufet_worker_fault;\n#if defined(__unix__) || defined(__APPLE__)\n    cufet_install_sigint();\n    if (CUFET_SETJMP(cufet_thread_top)) \{\n        cufet_close_files_from(0);\n        while (cufet_arena_top >= 0) cufet_arena_pop();\n{freeing}        fflush(stdout); return 130;\n    \}\n    cufet_pad_set = 1;\n#endif\n".
+    Done.
+
+    // ── A rabbit that may start tasks ─────────────────────────────────────
+
+    /// What a rabbit that may start tasks keeps, at its start.
+    Bind text to c-task-slots, given (the text label):
+        Return "pthread_t cf_thr_{label}[CUFET_TASK_MAX]; int cf_nthr_{label} = 0; cufet_chan* cf_chan_{label}[CUFET_TASK_MAX]; int cf_nchan_{label} = 0; cufet_rbox* cf_rbox_{label}[CUFET_TASK_MAX] = \{0\}; char* cf_fault_{label}[CUFET_TASK_MAX] = \{0\}; (void)cf_thr_{label}; (void)cf_chan_{label}; (void)cf_rbox_{label};".
+    Done.
+
+    /// What it does at its `Done`: every task joined, what went unhandled raised, the boxes and the
+    /// channels freed — then a check for an interrupt that arrived while it waited.
+    Bind text to c-task-teardown, given (the text label):
+        Return "for (int cf_ji = 0; cf_ji < cf_nthr_{label}; cf_ji++) pthread_join(cf_thr_{label}[cf_ji], NULL); cufet_raise_task_faults(cf_fault_{label}, cf_rbox_{label}, cf_nthr_{label}); for (int cf_bi = 0; cf_bi < cf_nthr_{label}; cf_bi++) cufet_rbox_free(cf_rbox_{label}[cf_bi]); for (int cf_ci = 0; cf_ci < cf_nchan_{label}; cf_ci++) cufet_chan_free_if_live(cf_chan_{label}[cf_ci]); cufet_checkpoint();".
+    Done.
+
+    // ── Channels ──────────────────────────────────────────────────────────
+
+    /// `a channel of K`, made in the rabbit around it, which frees it.
+    Bind text or failure to c-channel unto emitter, given (the node expression):
+        Define label as the entry for "%task-rabbit" in one's kinds but void is "".
+        If label is "", return a failure (cast not-built on ("a channel made outside a rabbit")).
+        Define element as cast one's kind-of-type on (cast field-of on (expression, 1)) or pass the failure off.
+        Cast one's register-copy on (element) or pass the failure off.
+        Return "(\{ cufet_chan* cf_ch = cufet_chan_new({cast copy-family on (element)}_freeenv); cf_chan_{label}[cf_nchan_{label}++] = cf_ch; cf_ch; \})".
+    Done.
+
+    /// `the delivery from <channel>` — the next value, copied into this thread's arena; void once
+    /// the channel is empty and closed.
+    Bind text or failure to c-delivery unto emitter, given (the node expression):
+        Define held as cast one's kind-of on (cast field-of on (expression, 1)) or pass the failure off.
+        Define element as cast channel-element on (held).
+        Cast one's register-copy on (element) or pass the failure off.
+        Define delivered as "voidable {element}".
+        Cast one's register-union on (delivered).
+        Define channel-c as cast one's c-of on (cast field-of on (expression, 1)) or pass the failure off.
+        Define named as cast copy-family on (element).
+        Return "(\{ void* cf_de = NULL; int cf_dh = cufet_chan_recv({channel-c}, &cf_de); if (cf_dh < 0) \{ cufet_checkpoint(); cf_dh = 0; \} {cast voidable-c-name on (delivered)} cf_dv; memset(&cf_dv, 0, sizeof cf_dv); if (cf_dh) \{ cf_dv.has = 1; cf_dv.value = {named}_arenacopy(cf_de); {named}_freeenv(cf_de); \} cf_dv; \})".
+    Done.
+
+    /// `Send <value> through <channel>.` — the value copied onto the heap and queued.
+    Bind void or failure to emit-send unto emitter, given (the node statement):
+        Define held as cast one's kind-of on (cast field-of on (statement, 2)) or pass the failure off.
+        Define element as cast channel-element on (held).
+        Cast one's register-copy on (element) or pass the failure off.
+        Define value-c as cast one's c-of-as on (cast field-of on (statement, 1), element) or pass the failure off.
+        Define channel-c as cast one's c-of on (cast field-of on (statement, 2)) or pass the failure off.
+        Cast one's line on ("cufet_chan_send({channel-c}, {cast copy-family on (element)}_heapenv({value-c}));").
+    Done.
+
+    Bind void or failure to emit-close unto emitter, given (the node statement):
+        Define channel-c as cast one's c-of on (cast field-of on (statement, 1)) or pass the failure off.
+        Cast one's line on ("cufet_chan_close({channel-c});").
+    Done.
+
+    // ── Tasks ─────────────────────────────────────────────────────────────
+
+    /// Whether a task's body changes a name it captured.
+    Bind fact to task-changes, given (the node tree, the text name):
+        Define kind as tree's kind.
+        Define target as cast stored-into on (tree).
+        If kind is "SeriesRemoveAtStatement" or kind is "SeriesRemoveValueStatement", the target becomes cast field-of on (tree, 1).
+        If target's kind is not "list" and cast root-name on (target) is name, return true.
+        For each child in tree's children, repeat:
+            If cast task-changes on (child, name), return true.
+        Done.
+        Return false.
+    Done.
+
+    /// Whether a captured kind crosses as itself — it holds no arena memory: a number, a fact, bits,
+    /// a rabbit, or a channel or a task's box, which are shared, not copied.
+    Bind fact to crosses-as-itself, given (the text kind):
+        Return cast is-plain-copy on (kind) or cast is-channel on (kind) or cast is-task-handle on (kind).
+    Done.
+
+    /// `Have rabbit start a task [as <name>]: … Done.` — a thread, its captures copied in at the
+    /// start, run in an arena of its own, joined by the rabbit at its `Done`.
+    Bind void or failure to emit-launch unto emitter, given (the node statement):
+        Define rabbit-label as the entry for "%task-rabbit" in one's kinds but void is "".
+        If rabbit-label is "", return a failure (cast not-built on ("a task started outside a rabbit")).
+        Define label as "{(cast field-of on (statement, 3))'s word}_{(cast field-of on (statement, 4))'s word}".
+        Define body as cast field-of on (statement, 2).
+        Define task-name as "".
+        If cast is-nothing on (cast field-of on (statement, 1)) is false, the task-name becomes cast unquoted on (cast field-of on (statement, 1)).
+
+        // What it captures: every name its body reads that is known here.
+        Define found as a map from text to fact.
+        For each inner in body's children, repeat:
+            Cast one's free-names on (inner, a map from text to fact, found).
+        Done.
+        Define captured as a series of text.
+        For each pair in found, repeat:
+            Define name as the key of pair.
+            If name is "one", return a failure (cast not-built on ("a task that reads 'one'")).
+            If cast task-changes on (body, name), return a failure (cast not-built on ("a task that changes '{name}', which it captured")).
+            Insert name into captured.
+        Done.
+
+        // What a named task hands back: what its `Return` gives, worked out by a first pass.
+        Define result as "void".
+        If task-name is not "":
+            Define trial as cast one's task-writer on (captured, "?", label).
+            For each inner in body's children, repeat:
+                Cast trial's emit-statement on (inner) or pass the failure off.
+            Done.
+            The result becomes the entry for "task_{label}" in one's inferred but void is "void".
+            // One that can hand back a failure hands back a failable of what it gives otherwise.
+            If (the entry for "fails:task_{label}" in one's inferred) is not void:
+                The result becomes "failure of {result}".
+                Cast one's register-failable on (result).
+            Done.
+        Done.
+        If result is not "void", cast one's register-copy on (result) or pass the failure off.
+
+        // The thread's argument: its box, where its fault goes, and each capture.
+        Define fields as "cufet_rbox* cf_selfbox; char** cf_faultslot;".
+        Define filled as "".
+        Define unpacked as "".
+        For each name in captured, repeat:
+            Define held as the entry for name in one's kinds but void is "".
+            Define member as cast c-name on (name).
+            Define captured-c as member.
+            Define redirected as the entry for "@{name}" in one's kinds but void is "".
+            If redirected is not "", the captured-c becomes redirected.
+            If cast crosses-as-itself on (held):
+                The fields becomes "{fields} {cast c-type on (held)} {member};".
+                The filled becomes "{filled} cf_a->{member} = {captured-c};".
+                The unpacked becomes "{unpacked}    {cast c-type on (held)} {member} = cf_a->{member}; (void){member};\n".
+            Done.
+            Otherwise:
+                Cast one's register-copy on (held) or pass the failure off.
+                The fields becomes "{fields} void* {member};".
+                The filled becomes "{filled} cf_a->{member} = {cast copy-family on (held)}_heapenv({captured-c});".
+                The unpacked becomes "{unpacked}    {cast c-type on (held)} {member} = {cast copy-family on (held)}_arenacopy(cf_a->{member}); {cast copy-family on (held)}_freeenv(cf_a->{member}); (void){member};\n".
+            Done.
+        Done.
+
+        // The thread itself, written once with its own writer.
+        If (the entry for "built:task_{label}" in one's inferred) is void:
+            In one's inferred, the entry for "built:task_{label}" becomes "yes".
+            Define writer as cast one's task-writer on (captured, result, label).
+            For each inner in body's children, repeat:
+                Cast writer's emit-statement on (inner) or pass the failure off.
+            Done.
+            Insert "struct cft_arg_{label} \{ {fields} \};\n" into one's lambda-types.
+            Define head as "static void* cft_task_{label}(void* argp)".
+            Insert "{head};\n" into one's lambda-protos.
+            Define thread as a chase.
+            Insert "{head} \{\n    cufet_watch_stack();\n    struct cft_arg_{label}* cf_a = (struct cft_arg_{label}*)argp;\n    cufet_arena_push();\n    cufet_fault_slot = cf_a->cf_faultslot;\n" into thread.
+            Insert unpacked into thread.
+            Insert "    if (CUFET_SETJMP(cufet_thread_top) == 0) \{ cufet_pad_set = 1;\n" into thread.
+            Insert writer's body converted to text into thread.
+            // Reached when the body falls off its end, or is abandoned at its landing pad by an
+            // interrupt or a fault: nothing to hand back, but the box is published, so no awaiter
+            // waits for ever — with the fault beside it, when there was one.
+            Insert "    \}\n    cufet_close_files_from(0);\n    cufet_rbox_set_fault(cf_a->cf_selfbox, *cf_a->cf_faultslot);\n    cufet_rbox_publish(cf_a->cf_selfbox, NULL);\n    cufet_arena_pop();\n    free(cf_a);\n    return NULL;\n\}\n\n" into thread.
+            Insert thread converted to text into one's lambda-code.
+        Done.
+
+        // A named task's box, under its own name, so an await reaches it.
+        Define box as "NULL".
+        If task-name is not "" and result is not "void":
+            Cast one's line on ("cufet_rbox* {cast c-name on (task-name)} = cufet_rbox_new({cast copy-family on (result)}_freeenv);").
+            In one's kinds, the entry for task-name becomes "task of {result}".
+            Cast one's declared-here on (task-name).
+            In one's kinds, the entry for "%{task-name}" becomes "task of {result}".
+            In one's kinds, the entry for "@{task-name}" becomes "".
+            The box becomes cast c-name on (task-name).
+        Done.
+        Define recorded as "".
+        If box is not "NULL", the recorded becomes " cf_rbox_{rabbit-label}[cf_nthr_{rabbit-label}] = {box};".
+        Cast one's line on ("\{ struct cft_arg_{label}* cf_a = (struct cft_arg_{label}*)malloc(sizeof(struct cft_arg_{label}));{filled} cf_a->cf_selfbox = {box};{recorded} cf_a->cf_faultslot = &cf_fault_{rabbit-label}[cf_nthr_{rabbit-label}]; pthread_create(&cf_thr_{rabbit-label}[cf_nthr_{rabbit-label}++], NULL, cft_task_{label}, cf_a); \}").
+    Done.
+
+    /// A writer for a task's body: its captures known by their kinds, as plain names in its own
+    /// frame, and `%task` set to what its `Return` publishes — "?" on the pass that works it out.
+    Bind emitter to task-writer unto emitter, given (the series of text captured, the text result, the text label):
+        Define writer as cast one's sibling.
+        Cast writer's line on ("int cf_ab = cufet_arena_top; int cf_fo = cufet_alloc_override; (void)cf_ab; (void)cf_fo;").
+        For each name in captured, repeat:
+            Define held as the entry for name in one's kinds but void is "".
+            In writer's kinds, the entry for name becomes held.
+            In writer's kinds, the entry for "%{name}" becomes held.
+            In writer's kinds, the entry for "@{name}" becomes "".
+        Done.
+        In writer's kinds, the entry for "%task" becomes result.
+        In writer's kinds, the entry for "%return" becomes result.
+        In writer's kinds, the entry for "%closure" becomes "task_{label}".
+        Return writer.
+    Done.
+
+    /// `Return` inside a task: the value, copied onto the heap before this thread's arena goes, is
+    /// published to its box — after everything the task opened is closed, so the awaiter it wakes
+    /// never runs alongside its cleanup. A task with no box drops the value but still works it out.
+    Bind void or failure to emit-task-return unto emitter, given (the node statement):
+        Define result as the entry for "%task" in one's kinds but void is "void".
+        Define returned as cast field-of on (statement, 1).
+        Define leaving as "{cast one's c-leaving on ("0")}{cast one's c-leaving-rabbits on ("0")}{cast one's c-leaving-files on ("0")}".
+        If result is "?":
+            If cast is-nothing on (returned) is false:
+                // `Return a failure …` makes the task one that can fail; any other gives its kind.
+                If returned's kind is "FailureLiteral":
+                    In one's inferred, the entry for "fails:{the entry for "%closure" in one's kinds but void is ""}" becomes "yes".
+                Done.
+                Otherwise, cast one's noted-return on (returned) or pass the failure off.
+            Done.
+            Cast one's line on ("\{ {leaving}cufet_arena_pop(); free(cf_a); return NULL; \}").
+            Return.
+        Done.
+        If result is not "void" and cast is-nothing on (returned) is false:
+            Define returned-c as cast one's c-of-as on (returned, result) or pass the failure off.
+            Cast one's line on ("\{ void* cf_tret = {cast copy-family on (result)}_heapenv({returned-c}); {leaving}cufet_close_files_from(0); cufet_arena_pop(); cufet_rbox_publish(cf_a->cf_selfbox, cf_tret); free(cf_a); return NULL; \}").
+            Return.
+        Done.
+        Define dropped as "".
+        If cast is-nothing on (returned) is false:
+            The dropped becomes "(void)({cast one's c-of on (returned) or pass the failure off}); ".
+        Done.
+        Cast one's line on ("\{ {dropped}{leaving}cufet_close_files_from(0); cufet_rbox_publish(cf_a->cf_selfbox, NULL); cufet_arena_pop(); free(cf_a); return NULL; \}").
+    Done.
+
+    /// `the awaited result of <task>` — waits for its box, then copies what it holds into this
+    /// thread's arena. A task that ended in a fault hands the fault on here instead.
+    Bind text or failure to c-awaited unto emitter, given (the node expression):
+        Define handle as cast one's kind-of on (cast field-of on (expression, 1)) or pass the failure off.
+        If cast is-task-handle on (handle) is false, return a failure (cast not-built on ("awaiting a {handle}")).
+        Define result as cast task-result on (handle).
+        Define box-c as cast one's c-of on (cast field-of on (expression, 1)) or pass the failure off.
+        Define result-c as cast c-type on (result).
+        Define awaited-c as "(\{ {result-c} cf_ares; void* cf_ar = cufet_rbox_await({box-c}); if (cf_ar) cf_ares = {cast copy-family on (result)}_arenacopy(cf_ar); else \{ char* cf_af = cufet_rbox_take_fault({box-c}); if (cf_af) cufet_raise(cf_af); cufet_checkpoint(); memset(&cf_ares, 0, sizeof cf_ares); \} cf_ares; \})".
+        Return cast one's c-unwrapped on (awaited-c, result).
+    Done.
+Done.

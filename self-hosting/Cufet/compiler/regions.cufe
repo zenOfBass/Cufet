@@ -156,6 +156,12 @@ Pull a book on collections.
         Done.
         In one's kinds, the entry for "%rabbit" becomes "{cast one's rabbits-open + 1}".
         In one's kinds, the entry for "%rabbits" becomes "{the entry for "%rabbits" in one's kinds but void is ""},{label}".
+        // A rabbit in a program that starts tasks keeps their slots, and joins them at its `Done`.
+        Define keeps-tasks as statement's kind is "PullRabbitStatement" and (the entry for "%tasks" in one's inferred) is not void.
+        If keeps-tasks:
+            Cast one's line on ("    {cast c-task-slots on (label)}").
+            In one's kinds, the entry for "%task-rabbit" becomes label.
+        Done.
         Define outer as one's indent.
         The one's indent becomes outer joined to "    ".
         For each inner in (cast field-of on (statement, 2))'s children, repeat:
@@ -163,6 +169,7 @@ Pull a book on collections.
                 Cast one's emit-statement on (inner) or pass the failure off.
             Done.
         Done.
+        If keeps-tasks, cast one's line on (cast c-task-teardown on (label)).
         The one's indent becomes outer.
         The one's kinds becomes kept.
         Cast one's line on ("\}").

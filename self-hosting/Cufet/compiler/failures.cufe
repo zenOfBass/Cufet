@@ -134,7 +134,7 @@ Pull a book on collections.
 
     Bind fact to is-failure-expression, given (the text kind):
         Return kind is "FailureLiteral" or kind is "FailurePropagate" or kind is "FailureFallback" or kind is "FileReadExpression"
-            or kind is "DirectoryContentsExpression" or kind is "RunExpression".
+            or kind is "DirectoryContentsExpression" or kind is "RunExpression" or kind is "PipeExpression".
     Done.
 
     Bind text or failure to failure-kind-of unto emitter, given (the node expression):
@@ -144,7 +144,7 @@ Pull a book on collections.
             Cast one's register-failable on ("failure of series of text").
             Return cast one's unwrapped-kind on ("failure of series of text").
         Done.
-        If kind is "RunExpression", return cast one's unwrapped-kind on (cast one's run-kind or pass the failure off).
+        If kind is "RunExpression" or kind is "PipeExpression", return cast one's unwrapped-kind on (cast one's run-kind or pass the failure off).
         If kind is "FileReadExpression":
             Define read-kind as "failure of text".
             If (cast field-of on (expression, 1))'s word is "AllLines", the read-kind becomes "failure of series of text".
@@ -191,6 +191,10 @@ Pull a book on collections.
         If kind is "RunExpression":
             Define run-c as cast one's c-run on (expression) or pass the failure off.
             Return cast one's c-unwrapped on (run-c, cast one's run-kind or pass the failure off).
+        Done.
+        If kind is "PipeExpression":
+            Define piped-c as cast one's c-run-pipe on (expression) or pass the failure off.
+            Return cast one's c-unwrapped on (piped-c, cast one's run-kind or pass the failure off).
         Done.
         If kind is "FailurePropagate", return cast one's c-pass-off on (cast field-of on (expression, 1)) or pass the failure off.
         // `<call> but on failure <default>` — the default worked out only when the call failed.
@@ -262,6 +266,69 @@ Pull a book on collections.
             The done-c becomes "cf_so = \"\"; cf_se = \"\"; {done-c}".
         Done.
         Return "(\{ const char* cf_pg = {program-c}; {argv-c} {type-c} cf_run; memset(&cf_run, 0, sizeof cf_run); const char* cf_so = 0; const char* cf_se = 0; int cf_ex = 0; CufetFailure cf_e; if ({call-c}) \{ {done-c} \} else cf_run.failure = cf_e; cf_run; \})".
+    Done.
+
+    /// The programs a pipe runs, left to right — `run "seq" | run "grep" | run "wc"`.
+    Bind series of node or failure to piped-stages, given (the node expression):
+        Define stages as a series of node.
+        If expression's kind is "RunExpression":
+            Insert expression into stages.
+            Return stages.
+        Done.
+        If expression's kind is not "PipeExpression", return a failure (cast not-built on ("a pipe of a {expression's kind}")).
+        For each stage in cast piped-stages on (cast field-of on (expression, 1)) or pass the failure off, insert stage into stages.
+        For each stage in cast piped-stages on (cast field-of on (expression, 2)) or pass the failure off, insert stage into stages.
+        Return stages.
+    Done.
+
+    /// One program of a pipe made ready to run: its name in `cf_pg<n>`, its argv in `cf_av<n>`.
+    Bind text or failure to c-run-stage unto emitter, given (the node stage, the number place):
+        If (cast field-of on (stage, 6))'s word is "true", return a failure (cast not-built on ("a pipe stage given the terminal")).
+        Define program-c as cast one's c-of on (cast field-of on (stage, 1)) or pass the failure off.
+        If cast is-nothing on (cast field-of on (stage, 3)) is false, return a failure (cast not-built on ("a pipe stage given its arguments as a series")).
+        Define spelled-out as "(char*)cf_pg{place}".
+        For each argument in (cast field-of on (stage, 2))'s children, repeat:
+            The spelled-out becomes "{spelled-out}, (char*)({cast one's c-of on (argument) or pass the failure off})".
+        Done.
+        Return "const char* cf_pg{place} = {program-c}; char* cf_av{place}[] = \{ {spelled-out}, (char*)0 \};".
+    Done.
+
+    /// `run … | run …` — each program run in turn, fed what the one before it wrote, as the
+    /// interpreter runs them: the errors of all of them, the last non-zero exit, the last output.
+    /// A program that cannot be started is the pipe's failure.
+    Bind text or failure to c-run-pipe unto emitter, given (the node expression):
+        Define kind as cast one's run-kind or pass the failure off.
+        Define record-c as cast record-c-name on (cast failable-inner on (kind)).
+        Define type-c as cast failable-c-name on (kind).
+        Define stages as cast piped-stages on (expression) or pass the failure off.
+        Define prepared as "".
+        Define first-input as "NULL".
+        If cast is-nothing on (cast field-of on (item 1 of stages, 7)) is false:
+            The first-input becomes cast one's c-of on (cast field-of on (item 1 of stages, 7)) or pass the failure off.
+        Done.
+        Define chained as "".
+        Define place as 0.
+        For each stage in stages, repeat:
+            Increment place by 1.
+            The prepared becomes "{prepared} {cast one's c-run-stage on (stage, place) or pass the failure off}".
+            The chained becomes "{chained} if (cf_ok) \{ if (cufet_run_capture(cf_pg{place}, cf_av{place}, cf_cur, &cf_so, &cf_se, &cf_ex, &cf_e)) \{ cf_eagg = cufet_str_concat(cf_eagg, cf_se); if (cf_ex != 0) cf_code = cf_ex; cf_cur = cf_so; \} else \{ cf_run.failure = cf_e; cf_ok = 0; \} \}".
+        Done.
+        Define done-c as "cf_run.ok = 1; cf_run.value = ({record-c})\{ .{cast c-name on ("errors")} = cf_eagg, .{cast c-name on ("exit-code")} = cufet_dec_from_ll(cf_code), .{cast c-name on ("output")} = cf_cur ? cf_cur : \"\" \};".
+        Return "(\{{prepared} {type-c} cf_run; memset(&cf_run, 0, sizeof cf_run); const char* cf_so = 0; const char* cf_se = 0; int cf_ex = 0; CufetFailure cf_e; const char* cf_cur = {first-input}; const char* cf_eagg = \"\"; int cf_code = 0; int cf_ok = 1;{chained} if (cf_ok) \{ {done-c} \} cf_run; \})".
+    Done.
+
+    /// `run … | run ….` written as a statement — what the last program wrote goes to this program's
+    /// output, and what they all said on their errors to its errors, as a shell has it.
+    Bind void or failure to emit-run-pipe unto emitter, given (the node statement):
+        Define kind as cast one's run-kind or pass the failure off.
+        Define piped-c as cast one's c-run-pipe on (statement) or pass the failure off.
+        Define record-kind as cast failable-inner on (kind).
+        Define shown as "fputs(cf_pr.value.{cast c-name on ("errors")}, stderr); fputs(cf_pr.value.{cast c-name on ("output")}, stdout);".
+        If cast one's current-try is not "":
+            Cast one's line on ("\{ {cast failable-c-name on (kind)} cf_pr = {piped-c}; if (!cf_pr.ok) \{ cf_failure_{cast one's current-try} = cf_pr.failure; {cast one's c-leaving on (the entry for "%try-exc" in one's kinds but void is "0")}{cast one's c-leaving-rabbits on (the entry for "%try-rabbit" in one's kinds but void is "0")}{cast one's c-leaving-files on (the entry for "%try-files" in one's kinds but void is "0")}goto cf_try_{cast one's current-try}; \} {shown} \}").
+            Return.
+        Done.
+        Cast one's line on ("\{ {cast failable-c-name on (kind)} cf_pr = {piped-c}; if (!cf_pr.ok) \{ fprintf(stderr, \"%s\\n\", cf_pr.failure.message); exit(1); \} {shown} \}").
     Done.
 
     // ── Statements ────────────────────────────────────────────────────────

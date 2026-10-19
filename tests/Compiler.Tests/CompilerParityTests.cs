@@ -52,7 +52,7 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     : PipelineTestBase, IClassFixture<CompiledCufetCompiler>
 {
     /// <summary>How many hand-written programs must build and print alike. Raised as it grows; never lowered.</summary>
-    private const int BuiltFloor = 375;
+    private const int BuiltFloor = 383;
 
     private static string[] PreludeArgs =>
         ["--prelude", Path.Combine(RepoRoot, "src", "Interpreter", "Prelude").Replace('\\', '/')];
@@ -470,6 +470,15 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
         "Define object vec2 with (the number x, the number y).\nBind overloading +, given (the lhs is a vec2, the rhs is a vec2):\n    Return a new vec2 { the x lhs's x + rhs's x, the y lhs's y + rhs's y }.\nDone.\nBind overloading *, given (the lhs is a vec2, the rhs is a number):\n    Return a new vec2 { the x lhs's x * rhs, the y lhs's y * rhs }.\nDone.\nBind overloading *, given (the lhs is a number, the rhs is a vec2):\n    Return a new vec2 { the x rhs's x * lhs, the y rhs's y * lhs }.\nDone.\nBind overloading *, given (the lhs is a vec2, the rhs is a vec2):\n    Return lhs's x * rhs's x + lhs's y * rhs's y.\nDone.\nDefine here as a new vec2 { the x 3, the y 4 }.\nDefine step as a new vec2 { the x 1, the y 2 }.\nState here + step.\nState here * 2.\nState 2 * here.\nState here * step.\nState here + step + step.\nState (here + step) * 10.\nState 3 * 4.\nBind vec2 to doubled, given (the vec2 v):\n    Return v + v.\nDone.\nState cast doubled on (here).",
         "Define object money with (the number cents).\nBind overloading -, given (the lhs is a money, the rhs is a money):\n    If lhs's cents is less than rhs's cents:\n        Return a new money { the cents 0 }.\n    Done.\n    Return a new money { the cents lhs's cents - rhs's cents }.\nDone.\nBind overloading /, given (the lhs is a money, the rhs is a number):\n    Return a new money { the cents lhs's cents / rhs }.\nDone.\nDefine wallet as a new money { the cents 500 }.\nState wallet - a new money { the cents 120 }.\nState wallet - a new money { the cents 900 }.\nState wallet / 4.",
         "Define settings as a map from text to (text or number) with (\"host\" : \"localhost\", \"port\" : 80).\nDefine host as the entry for \"host\" in settings.\nIf host is not void, if host is a text, state \"connecting to {host}\".\nDefine port as the entry for \"port\" in settings.\nIf port is not void, if port is a number, state \"port {port + 1}\".\nIf host is not void:\n    If host is a text:\n        State \"block form {host}\".\n    Done.\nDone.",
+        // Tasks and channels: each printing in one order only.
+        "Pull a rabbit.\n    Define base as 40.\n    Have rabbit start a task as adder:\n        Return base + 2.\n    Done.\n    State the awaited result of adder.\n    State \"after\".\nDone.\nState \"done\".",
+        "Pull a rabbit.\n    Have rabbit start a task:\n        State \"in the task\".\n    Done.\nDone.\nState \"after the rabbit\".",
+        "Pull a rabbit.\n    Define ch as a channel of number.\n    Have rabbit start a task:\n        For each n in range 1 to 4, repeat:\n            Send n * 10 through ch.\n        Done.\n        Close ch.\n    Done.\n    Define got as the delivery from ch.\n    While got is not void, repeat:\n        State got.\n        The got becomes the delivery from ch.\n    Done.\nDone.",
+        "Pull a rabbit.\n    Define words as a series of text with (\"a\", \"bb\", \"ccc\").\n    Have rabbit start a task as shouted:\n        Define out as a series of text.\n        For each w in words, insert w in uppercase into out.\n        Return out.\n    Done.\n    Define back as the awaited result of shouted.\n    State back.\n    State words.\nDone.",
+        "Pull a rabbit.\n    Define ch-list as a channel of series of series of number.\n    Define ch-map as a channel of map from text to series of number.\n    Have rabbit start a task as producer:\n        Define inner as a series of number with (10, 20, 30).\n        Define outer as a series of series of number.\n        Insert inner into outer.\n        Send outer through ch-list.\n        Insert 999 into inner.\n        Close ch-list.\n        Define data as a map from text to series of number.\n        In data, the entry for \"batch\" becomes inner.\n        Send data through ch-map.\n        Close ch-map.\n    Done.\n    Define received as the delivery from ch-list.\n    While received is not void, repeat:\n        Define holding as received but void is (a series of series of number).\n        State holding.\n        The received becomes the delivery from ch-list.\n    Done.\n    Define delivered as the delivery from ch-map.\n    While delivered is not void, repeat:\n        State delivered but void is (a map from text to series of number).\n        The delivered becomes the delivery from ch-map.\n    Done.\nDone.",
+        "Define object point with (the number x, the number y).\nPull a rabbit.\n    Define ch as a channel of point.\n    Have rabbit start a task:\n        Send a new point { the x 1, the y 2 } through ch.\n        Send a new point { the x 3, the y 4 } through ch.\n        Close ch.\n    Done.\n    Define p as the delivery from ch.\n    While p is not void, repeat:\n        State p but void is (a new point { the x 0, the y 0 }).\n        The p becomes the delivery from ch.\n    Done.\n    Have rabbit start a task as pair:\n        Return a record with (the left 5, the right \"five\").\n    Done.\n    State the awaited result of pair.\nDone.",
+        "Pull a rabbit.\n    Have rabbit start a task as first:\n        Return 6.\n    Done.\n    Have rabbit start a task as second:\n        Return (the awaited result of first) * 7.\n    Done.\n    State the awaited result of second.\nDone.",
+        "Bind number to square, given (the number n):\n    Return n * n.\nDone.\nFor each round in range 1 to 2, repeat:\n    Pull a rabbit.\n        Define next-round as round + 1.\n        Have rabbit start a task as worker:\n            Return cast square on (next-round).\n        Done.\n        State \"round {round}: {the awaited result of worker}\".\n    Done.\nDone.",
     ];
 
     [Fact]
@@ -521,8 +530,13 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
         finally { try { Directory.Delete(dir, recursive: true); } catch (IOException) { } }
     }
 
+    /// <summary>Examples whose output is legitimately not reproducible — ExampleOracleTests'
+    /// NonDeterministicSkips, for the same reasons: the two backends' random generators differ, and
+    /// which worker takes which item is the scheduler's to decide.</summary>
+    private static readonly HashSet<string> NotReproducible = ["markov.cufe", "work-queue.cufe"];
+
     /// <summary>How many programs of `examples/` must build and print alike. Raised as it grows; never lowered.</summary>
-    private const int CorpusFloor = 47;
+    private const int CorpusFloor = 53;
 
     /// <remarks>
     /// ★ The corpus is copied first: the compiler writes each program beside its source. Each program
@@ -567,6 +581,14 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
                 if (said != "built") { problems.Add($"{name}: {said}"); continue; }
                 var (want, wantExit) = RunIn(CufetExe, [file], folder);
                 var (have, haveExit) = RunIn(Path.ChangeExtension(file, OperatingSystem.IsWindows() ? ".exe" : null), [], folder);
+                // ★ The two whose output is the platform's to decide get ExampleOracleTests' weaker bar:
+                // both run, and both run cleanly.
+                if (NotReproducible.Contains(Path.GetFileName(file)))
+                {
+                    if (wantExit == 0 && haveExit == 0) matched++;
+                    else problems.Add($"{name} did not run cleanly (exit {wantExit} interpreted, {haveExit} built)");
+                    continue;
+                }
                 if (have == want && haveExit == wantExit) matched++;
                 else problems.Add($"{name} printed differently (exit {wantExit} interpreted, {haveExit} built):\n    interpreted: {Show(want)}\n    built:       {Show(have)}");
             }
@@ -664,6 +686,9 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
          "was modified during a for-each loop"),
         ("State \"before\".\nWith the file \"no-such-file.txt\" open for reading as src:\n    State read all from src.\nDone.\nState \"never\".",
          "the file 'no-such-file.txt' was not found"),
+        // A task that faults with nobody awaiting it: its rabbit raises it at its Done.
+        ("State \"before\".\nPull a rabbit.\n    Define zero as 0.\n    Have rabbit start a task:\n        State 10 / zero.\n    Done.\nDone.\nState \"never\".",
+         "Division by zero on line 5."),
     ];
 
     [Fact]

@@ -1,0 +1,218 @@
+/*  Deep copies — a value of any kind copied whole, so it can cross from one thread to another.
+
+    ★ Arenas are per thread, so nothing a task makes may be read where another thread's arena holds
+      it. A value that crosses — a message sent through a channel, what a task captured, what a named
+      task hands back — is copied onto the heap on one side and into the receiver's own arena on
+      the other, then the heap copy is freed: `cufet build`'s channel bridge, kind by kind.
+
+    ★ One family per kind: `ccp_<kind>_copy(v, alloc)` copies into whatever `alloc` hands out,
+      `ccp_<kind>_freeheap(v)` frees a heap copy, and three wrappers make the crossing itself —
+      `heapenv` (to the heap, in an envelope), `arenacopy` (out of the envelope, into this thread's
+      arena) and `freeenv` (the envelope, freed). A kind's family is noted as `copy:<kind>` among
+      the generated types, after the families of everything it holds.
+*/
+
+Pull a book on collections.
+    Bind text to copy-family, given (the text kind):
+        Return "ccp_{cast c-tag on (kind)}".
+    Done.
+
+    /// Whether a kind is copied by assignment alone — it holds no address.
+    Bind fact to is-plain-copy, given (the text kind):
+        Return kind is "number" or kind is "fact" or kind is "bits" or kind is "rabbit".
+    Done.
+
+    /// The kinds a value of `kind` holds, whose families its own calls.
+    Bind series of text or failure to copied-parts unto emitter, given (the text kind):
+        Define parts as a series of text.
+        If cast is-plain-copy on (kind) or kind is "text", return parts.
+        If cast element-of on (kind) is not "":
+            Insert cast element-of on (kind) into parts.
+            Return parts.
+        Done.
+        If cast is-map on (kind):
+            Insert cast map-key-kind on (kind) into parts.
+            Insert cast map-value-kind on (kind) into parts.
+            Return parts.
+        Done.
+        If cast is-record on (kind):
+            For each part in cast record-parts on (kind), insert cast part-kind on (part) into parts.
+            Return parts.
+        Done.
+        If cast object-of on (kind) is not "":
+            Define definition as the entry for cast object-of on (kind) in one's objects.
+            If definition is void, return a failure (cast not-built on ("copying a {kind}")).
+            For each pair in (cast field-of on (definition, 3))'s children, repeat:
+                Define field-kind as cast one's kind-of-type on (cast field-of on (pair, 2)) or pass the failure off.
+                Insert field-kind into parts.
+            Done.
+            Return parts.
+        Done.
+        If cast is-union on (kind):
+            For each inner in cast kind-cases on (kind), insert inner into parts.
+            Return parts.
+        Done.
+        If cast is-voidable on (kind):
+            Insert cast voidable-inner on (kind) into parts.
+            Return parts.
+        Done.
+        If cast is-failable on (kind):
+            Insert "text" into parts.
+            If cast failable-inner on (kind) is not "void", insert cast failable-inner on (kind) into parts.
+            Return parts.
+        Done.
+        Return a failure (cast not-built on ("a {kind} crossing to another task")).
+    Done.
+
+    /// Notes a kind's copy family, and the families of everything it holds.
+    Bind void or failure to register-copy unto emitter, given (the text kind):
+        Define entry as "copy:{kind}".
+        If (the entry for entry in one's unions) is not void, return.
+        // Noted before what it holds, so a kind that holds itself stops here.
+        In one's unions, the entry for entry becomes true.
+        For each part in cast one's copied-parts on (kind) or pass the failure off, repeat:
+            Cast one's register-copy on (part) or pass the failure off.
+        Done.
+        Insert entry into one's union-order.
+    Done.
+
+    /// The kind a `copy:` entry names, or "".
+    Bind text to copied-kind, given (the text entry):
+        If entry starts with "copy:", return the characters from 6 to the end of entry.
+        Return "".
+    Done.
+
+    /// What copies one value of a kind, as the body of its `copy`.
+    Bind text or failure to c-copy-body unto emitter, given (the text kind):
+        Define type-c as cast c-type on (kind).
+        If cast is-plain-copy on (kind), return "(void)a; return v;".
+        If kind is "text", return "if (!v) return v; size_t n = strlen(v) + 1; char* r = (char*)a(n); memcpy(r, v, n); return r;".
+        If cast element-of on (kind) is not "":
+            Define element as cast element-of on (kind).
+            Define series-c as cast series-c-name on (element).
+            Define held-c as cast c-type on (element).
+            Return "if (!v) return v; {series-c}* r = ({series-c}*)a(sizeof({series-c})); r->len = v->len; r->cap = v->len; r->data = v->len ? ({held-c}*)a((size_t)v->len * sizeof({held-c})) : NULL; for (int i = 0; i < v->len; i++) r->data[i] = {cast copy-family on (element)}_copy(v->data[i], a); return r;".
+        Done.
+        If cast is-map on (kind):
+            Define map-c as cast map-c-name on (kind).
+            Define key-kind as cast map-key-kind on (kind).
+            Define held as cast map-value-kind on (kind).
+            Define key-c as cast c-type on (key-kind).
+            Define held-c as cast c-type on (held).
+            Return "if (!v) return v; {map-c}* r = ({map-c}*)a(sizeof({map-c})); r->len = v->len; r->cap = v->len; r->keys = v->len ? ({key-c}*)a((size_t)v->len * sizeof({key-c})) : NULL; r->vals = v->len ? ({held-c}*)a((size_t)v->len * sizeof({held-c})) : NULL; for (int i = 0; i < v->len; i++) \{ r->keys[i] = {cast copy-family on (key-kind)}_copy(v->keys[i], a); r->vals[i] = {cast copy-family on (held)}_copy(v->vals[i], a); \} return r;".
+        Done.
+        Define body as "{type-c} r = v; (void)a;".
+        If cast is-record on (kind):
+            Define place as 0.
+            For each part in cast record-parts on (kind), repeat:
+                Increment place by 1.
+                Define member as cast record-member on (part, place).
+                The body becomes "{body} r.{member} = {cast copy-family on (cast part-kind on (part))}_copy(v.{member}, a);".
+            Done.
+            Return "{body} return r;".
+        Done.
+        If cast object-of on (kind) is not "":
+            Define definition as the entry for cast object-of on (kind) in one's objects but void is cast listed.
+            For each pair in (cast field-of on (definition, 3))'s children, repeat:
+                Define field-kind as cast one's kind-of-type on (cast field-of on (pair, 2)) or pass the failure off.
+                Define member as cast c-name on (cast unquoted on (cast field-of on (pair, 1))).
+                The body becomes "{body} r.{member} = {cast copy-family on (field-kind)}_copy(v.{member}, a);".
+            Done.
+            Return "{body} return r;".
+        Done.
+        If cast is-union on (kind):
+            Define arms as "".
+            Define place as 0.
+            For each inner in cast kind-cases on (kind), repeat:
+                The arms becomes "{arms} case {place}: r.case_{place} = {cast copy-family on (inner)}_copy(v.case_{place}, a); break;".
+                Increment place by 1.
+            Done.
+            Return "{body} switch (v.tag) \{{arms} \} return r;".
+        Done.
+        If cast is-voidable on (kind):
+            Return "{body} if (v.has) r.value = {cast copy-family on (cast voidable-inner on (kind))}_copy(v.value, a); return r;".
+        Done.
+        // A failable: its value when it worked, its message and category when it did not — built
+        // texts live in the arena of the thread that made them, which may be gone by the time
+        // anyone reads them.
+        Define value-copy as "".
+        If cast failable-inner on (kind) is not "void":
+            The value-copy becomes "if (v.ok) r.value = {cast copy-family on (cast failable-inner on (kind))}_copy(v.value, a); ".
+        Done.
+        Return "{body} {value-copy}if (!v.ok) \{ r.failure.message = ccp_text_copy(v.failure.message, a); r.failure.category = v.failure.category ? ccp_text_copy(v.failure.category, a) : NULL; \} return r;".
+    Done.
+
+    /// What frees a heap copy of a kind, as the body of its `freeheap`.
+    Bind text or failure to c-free-body unto emitter, given (the text kind):
+        If cast is-plain-copy on (kind), return "(void)v;".
+        If kind is "text", return "free((void*)v);".
+        If cast element-of on (kind) is not "":
+            Return "if (!v) return; for (int i = 0; i < v->len; i++) {cast copy-family on (cast element-of on (kind))}_freeheap(v->data[i]); free(v->data); free(v);".
+        Done.
+        If cast is-map on (kind):
+            Return "if (!v) return; for (int i = 0; i < v->len; i++) \{ {cast copy-family on (cast map-key-kind on (kind))}_freeheap(v->keys[i]); {cast copy-family on (cast map-value-kind on (kind))}_freeheap(v->vals[i]); \} free(v->keys); free(v->vals); free(v);".
+        Done.
+        Define body as "(void)v;".
+        If cast is-record on (kind):
+            Define place as 0.
+            For each part in cast record-parts on (kind), repeat:
+                Increment place by 1.
+                The body becomes "{body} {cast copy-family on (cast part-kind on (part))}_freeheap(v.{cast record-member on (part, place)});".
+            Done.
+            Return body.
+        Done.
+        If cast object-of on (kind) is not "":
+            Define definition as the entry for cast object-of on (kind) in one's objects but void is cast listed.
+            For each pair in (cast field-of on (definition, 3))'s children, repeat:
+                Define field-kind as cast one's kind-of-type on (cast field-of on (pair, 2)) or pass the failure off.
+                The body becomes "{body} {cast copy-family on (field-kind)}_freeheap(v.{cast c-name on (cast unquoted on (cast field-of on (pair, 1)))});".
+            Done.
+            Return body.
+        Done.
+        If cast is-union on (kind):
+            Define arms as "".
+            Define place as 0.
+            For each inner in cast kind-cases on (kind), repeat:
+                The arms becomes "{arms} case {place}: {cast copy-family on (inner)}_freeheap(v.case_{place}); break;".
+                Increment place by 1.
+            Done.
+            Return "{body} switch (v.tag) \{{arms} \}".
+        Done.
+        If cast is-voidable on (kind):
+            Return "{body} if (v.has) {cast copy-family on (cast voidable-inner on (kind))}_freeheap(v.value);".
+        Done.
+        Define value-free as "".
+        If cast failable-inner on (kind) is not "void":
+            The value-free becomes "if (v.ok) {cast copy-family on (cast failable-inner on (kind))}_freeheap(v.value); ".
+        Done.
+        Return "{body} {value-free}if (!v.ok) \{ free((void*)v.failure.message); free((void*)v.failure.category); \}".
+    Done.
+
+    /// Every copy family the program noted, declared first so each may call any other, then each
+    /// one's body, then the three wrappers that make a crossing.
+    Bind text or failure to c-copy-families unto emitter:
+        Define kinds-noted as a series of text.
+        For each entry in one's union-order, repeat:
+            If cast copied-kind on (entry) is not "", insert cast copied-kind on (entry) into kinds-noted.
+        Done.
+        If the number of kinds-noted is 0, return "".
+        Define out as a chase.
+        Insert "typedef void* (*cufet_alloc_fn)(size_t);\n" into out.
+        For each kind in kinds-noted, repeat:
+            Define type-c as cast c-type on (kind).
+            Define named as cast copy-family on (kind).
+            Insert "static {type-c} {named}_copy({type-c} v, cufet_alloc_fn a);\nstatic void {named}_freeheap({type-c} v);\n" into out.
+        Done.
+        For each kind in kinds-noted, repeat:
+            Define type-c as cast c-type on (kind).
+            Define named as cast copy-family on (kind).
+            Insert "static {type-c} {named}_copy({type-c} v, cufet_alloc_fn a) \{ {cast one's c-copy-body on (kind) or pass the failure off} \}\n" into out.
+            Insert "static void {named}_freeheap({type-c} v) \{ {cast one's c-free-body on (kind) or pass the failure off} \}\n" into out.
+            Insert "static void* {named}_heapenv({type-c} v) \{ void* e = malloc(sizeof({type-c})); *({type-c}*)e = {named}_copy(v, malloc); return e; \}\n" into out.
+            Insert "static {type-c} {named}_arenacopy(void* e) \{ return {named}_copy(*({type-c}*)e, cufet_arena_alloc); \}\n" into out.
+            Insert "static void {named}_freeenv(void* e) \{ {named}_freeheap(*({type-c}*)e); free(e); \}\n" into out.
+        Done.
+        Insert "\n" into out.
+        Return out converted to text.
+    Done.
+Done.
