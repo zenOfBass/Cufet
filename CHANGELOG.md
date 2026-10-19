@@ -33,8 +33,12 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   `one`, bits — literals, arithmetic, the gates, shifts, `converted to hex` and back,
   `the width of` and `at … bits` — sets, streams — `the input`, `the output`, reading a line,
   everything or every line, `Write … to` and `With the file … open`, its file closed however
-  the block is left — and operator overloads. `CompilerParityTests` now holds it to the
-  interpreter on 375 hand-written programs and on 47 of the 67 in `examples/`.
+  the block is left — operator overloads, and concurrency: tasks, named and awaited, failing or
+  not, channels — sent through, closed, delivered from — what crosses a thread copied whole,
+  every task joined at its rabbit's `Done`, interrupts, and pipes of programs.
+  `CompilerParityTests` now holds it to the interpreter on 383 hand-written programs and on 53
+  of the 67 in `examples/` — two of them, `markov` and `work-queue`, to running cleanly rather
+  than to the same output, since the backends' random generators and the scheduler decide those.
 - **The compiler written in Cufet compiles itself.** The compiler it builds from its own source
   compiles that source again into the very same C, byte for byte — the fixed point a self-hosting
   compiler is held to — and builds every program the first one does, printing the same.
