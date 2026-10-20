@@ -89,7 +89,8 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   of a call's arguments open, and gcc took them last first: `cast add on (cast tick on (c), cast
   tick on (c))` printed 21 built and 12 interpreted, and `a - b` subtracted the wrong way round
   whenever both sides called something. A call's arguments, the two sides of an operator and of a
-  join are now bound in the order written wherever two of them could do something. No program in
+  join, and a matrix's parts — an item written or read, `a matrix with … by …`, and matrix
+  arithmetic — are now bound in the order written wherever two of them could do something. No program in
   `examples/` had two such operands, which is why the oracle never saw it;
   `PipelineEvaluationOrderTests` holds it now.
 - **An object with a blank keeps its field defaults.** `a new box of point { the inside … }` was

@@ -1256,13 +1256,13 @@ public sealed partial class CodeGenerator
         && ((TypeOf(b.Left) is MatrixType && TypeOf(b.Right) is NumberType)
          || (TypeOf(b.Left) is NumberType && TypeOf(b.Right) is MatrixType));
 
-    // The scaled matrix, inline — the matrix operand first, whichever side it was written on.
+    // The scaled matrix, inline — its two sides worked out in the order written, then handed to the
+    // runtime matrix first, whichever side it was written on.
     private string EmitMatrixScale(BinaryExpression b)
     {
         bool matrixOnLeft = TypeOf(b.Left) is MatrixType;
-        string mat    = EmitExpr(matrixOnLeft ? b.Left  : b.Right);
-        string factor = EmitExpr(matrixOnLeft ? b.Right : b.Left);
-        return $"cufet_mat_scale({mat}, {factor})";
+        return InOrder(new[] { b.Left, b.Right }, new[] { EmitExpr(b.Left), EmitExpr(b.Right) },
+            both => matrixOnLeft ? $"cufet_mat_scale({both[0]}, {both[1]})" : $"cufet_mat_scale({both[1]}, {both[0]})");
     }
 
     // The raw `matrix or failure` (cfl) for a matrix binary op: the runtime fn returns NULL on a
@@ -1281,26 +1281,26 @@ public sealed partial class CodeGenerator
         };
         int id = _freshId++;
         _preEmits.Add(
-            $"{cfl} cf_mx{id}; {{ CufetMatrix* cf_mr{id} = {fn}({l}, {r}); " +
+            $"{cfl} cf_mx{id}; {{ CufetMatrix* cf_mr{id} = {InOrder(new[] { b.Left, b.Right }, new[] { l, r }, both => $"{fn}({both[0]}, {both[1]})")}; " +
             $"if (cf_mr{id}) {{ cf_mx{id}.is_failure = 0; cf_mx{id}.val = cf_mr{id}; cf_mx{id}.message = 0; cf_mx{id}.category = 0; }} " +
             $"else {{ cf_mx{id}.is_failure = 1; cf_mx{id}.message = \"{msg}\"; cf_mx{id}.category = \"dimension-mismatch\"; }} }}");
         return $"cf_mx{id}";
     }
 
+    // The rows, the columns, then the fill — in the order written, as the interpreter has them.
     private string EmitMatrixSized(MatrixSized ms)
     {
-        string r = EmitExpr(ms.Rows);
-        string c = EmitExpr(ms.Cols);
-        string f = ms.Fill != null ? EmitExpr(ms.Fill) : "cufet_dec_from_ll(0)";
-        return $"cufet_mat_sized({r}, {c}, {f}, {ms.Line})";
+        var operands = ms.Fill != null ? new[] { ms.Rows, ms.Cols, ms.Fill } : new[] { ms.Rows, ms.Cols };
+        return InOrder(operands, operands.Select(EmitExpr).ToList(),
+            sides => $"cufet_mat_sized({sides[0]}, {sides[1]}, {(sides.Count > 2 ? sides[2] : "cufet_dec_from_ll(0)")}, {ms.Line})");
     }
 
+    // The matrix, the row, then the column.
     private string EmitMatrixAccess(MatrixAccess ma)
     {
-        string m = EmitExpr(ma.Matrix);
-        string r = EmitExpr(ma.Row);
-        string c = EmitExpr(ma.Col);
-        return $"cufet_mat_get({m}, cufet_to_int({r}), cufet_to_int({c}), {ma.Line})";
+        var operands = new[] { ma.Matrix, ma.Row, ma.Col };
+        return InOrder(operands, operands.Select(EmitExpr).ToList(),
+            sides => $"cufet_mat_get({sides[0]}, cufet_to_int({sides[1]}), cufet_to_int({sides[2]}), {ma.Line})");
     }
 
     // `a matrix with ((1, 2), (3, 4))` — dimensions are literal-known; elements evaluated row-major

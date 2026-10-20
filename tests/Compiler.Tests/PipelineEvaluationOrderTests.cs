@@ -99,4 +99,36 @@ public class PipelineEvaluationOrderTests : PipelineTestBase
             """;
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
+
+    // A matrix's parts were the four the 2026-10-16 fix missed: an item written or read, the sized
+    // form and scaling each handed C their parts as arguments, so a set worked out its value first.
+    [Fact]
+    public void AMatrixsParts_AreWorkedOutInOrder()
+    {
+        const string src = Tick + """
+            Pull a book on collections.
+                Bind matrix to grid, given (the series of number seen):
+                    Insert 0 into seen.
+                    State "grid {the number of seen}".
+                    Return a matrix with ((1, 2), (3, 4)).
+                Done.
+                Define m as a matrix with 3 by 3.
+                The item at (cast tick on (c), cast tick on (c)) of m becomes cast tick on (c).
+                The item at (1, 1) of cast grid on (c) becomes cast tick on (c).
+                State m.
+                State item at (cast tick on (c) - 4, cast tick on (c) - 4) of m.
+                State item at (1, cast tick on (c) - 7) of cast grid on (c).
+                State a matrix with cast tick on (c) - 9 by cast tick on (c) - 9 filled with cast tick on (c).
+                State cast grid on (c) * cast tick on (c).
+                State cast tick on (c) * cast grid on (c).
+                Try to:
+                    State cast grid on (c) + cast grid on (c).
+                Done.
+                In case of failure:
+                    State "failed".
+                Done.
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
 }

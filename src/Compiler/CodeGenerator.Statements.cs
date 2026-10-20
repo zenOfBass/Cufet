@@ -944,13 +944,11 @@ public sealed partial class CodeGenerator
             {
                 // Matrix, then row, then column, then value — the interpreter's evaluation order,
                 // so a program whose indices have side effects sequences the same on both.
-                string matExpr = EmitExpr(ms.Matrix);
-                string rowExpr = EmitExpr(ms.Row);
-                string colExpr = EmitExpr(ms.Col);
-                string valExpr = EmitExpr(ms.Value);
+                var operands = new[] { ms.Matrix, ms.Row, ms.Col, ms.Value };
+                string stored = InOrder(operands, operands.Select(EmitExpr).ToList(),
+                    sides => $"cufet_mat_set({sides[0]}, cufet_to_int({sides[1]}), cufet_to_int({sides[2]}), {sides[3]}, {ms.Line})");
                 FlushPreEmits(sb, indent);
-                sb.AppendLine($"{indent}cufet_mat_set({matExpr}, cufet_to_int({rowExpr}), " +
-                              $"cufet_to_int({colExpr}), {valExpr}, {ms.Line});");
+                sb.AppendLine($"{indent}{stored};");
                 break;
             }
 
