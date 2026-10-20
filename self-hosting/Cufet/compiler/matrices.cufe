@@ -1,0 +1,145 @@
+/*  Matrices — `a matrix with ((1, 2), (3, 4))`, `a matrix with 2 by 3 filled with 0`,
+    `item at (r, c) of m`, `The item at (r, c) of m becomes v.`, `the rows of m`, `the columns of m`,
+    and the arithmetic: `m * 2` and `2 * m`, and `+`, `-` and `*` between two matrices.
+
+    ★ A matrix is the runtime's own `CufetMatrix*`, numbers row by row in the arena, counted from 1
+      and bounds-checked by the runtime with the interpreter's messages.
+
+    ★ Scaling cannot fail — there are no sizes to disagree — so it gives a matrix. Two matrices
+      added, taken away or multiplied CAN fail, when their sizes do not fit: that gives
+      `failure of matrix`, read as its value inside a `Try` as a call that can fail is.
+*/
+
+Pull a book on collections.
+    /// Whether a binary expression is matrix arithmetic: a matrix on either side of `+`, `-` or `*`.
+    Bind fact or failure to is-matrix-binary unto emitter, given (the node expression):
+        Define operator as (cast field-of on (expression, 2))'s word.
+        If operator is not "Plus" and operator is not "Minus" and operator is not "Star", return false.
+        Define left-kind as cast one's kind-of on (cast field-of on (expression, 1)) or pass the failure off.
+        Define right-kind as cast one's kind-of on (cast field-of on (expression, 3)) or pass the failure off.
+        Return left-kind is "matrix" or right-kind is "matrix".
+    Done.
+
+    /// What matrix arithmetic gives, as it reads here: scaling a matrix, the sum, difference or
+    /// product of two — which may fail.
+    Bind text or failure to matrix-binary-kind unto emitter, given (the node expression):
+        Define left-kind as cast one's kind-of on (cast field-of on (expression, 1)) or pass the failure off.
+        Define right-kind as cast one's kind-of on (cast field-of on (expression, 3)) or pass the failure off.
+        If left-kind is "matrix" and right-kind is "matrix":
+            Cast one's register-failable on ("failure of matrix").
+            Return cast one's unwrapped-kind on ("failure of matrix").
+        Done.
+        Return "matrix".
+    Done.
+
+    /// Matrix arithmetic as C, its two sides worked out in the order written.
+    Bind text or failure to c-matrix-binary unto emitter, given (the node expression):
+        Define left-side as cast field-of on (expression, 1).
+        Define right-side as cast field-of on (expression, 3).
+        Define left-kind as cast one's kind-of on (left-side) or pass the failure off.
+        Define right-kind as cast one's kind-of on (right-side) or pass the failure off.
+        Define left-c as cast one's c-of on (left-side) or pass the failure off.
+        Define right-c as cast one's c-of on (right-side) or pass the failure off.
+        Define sides as a series of text with (left-c, right-c).
+        Define prefix as cast order-prefix on (a series of node with (left-side, right-side), sides).
+        If left-kind is not "matrix", return cast in-order on (prefix, "cufet_mat_scale({item 2 of sides}, {item 1 of sides})").
+        If right-kind is not "matrix", return cast in-order on (prefix, "cufet_mat_scale({item 1 of sides}, {item 2 of sides})").
+        Define operator as (cast field-of on (expression, 2))'s word.
+        Define called as "cufet_mat_mul".
+        Define said as "left matrix columns must equal right matrix rows for matrix product".
+        If operator is "Plus":
+            The called becomes "cufet_mat_add".
+            The said becomes "matrices must have equal dimensions for addition".
+        Done.
+        Otherwise if operator is "Minus":
+            The called becomes "cufet_mat_sub".
+            The said becomes "matrices must have equal dimensions for subtraction".
+        Done.
+        Cast one's register-failable on ("failure of matrix").
+        Define type-c as cast failable-c-name on ("failure of matrix").
+        Define worked as "(\{ CufetMatrix* cf_mr = {called}({item 1 of sides}, {item 2 of sides}); cf_mr ? {type-c}_some(cf_mr) : {type-c}_fail((CufetFailure)\{ \"{said}\", \"dimension-mismatch\" \}); \})".
+        Return cast one's c-unwrapped on (cast in-order on (prefix, worked), "failure of matrix").
+    Done.
+
+    /// The kind of a matrix expression: a matrix, or the number an item is.
+    Bind text to matrix-kind-of, given (the node expression):
+        If expression's kind is "MatrixAccess", return "number".
+        Return "matrix".
+    Done.
+
+    /// A matrix expression as C.
+    Bind text or failure to c-matrix-of unto emitter, given (the node expression):
+        Define kind as expression's kind.
+        Define at-line as "".
+        If kind is "MatrixLiteral":
+            // Its rows as written, each element worked out in order, row by row.
+            Define rows as (cast field-of on (expression, 1))'s children.
+            Define width as the number of (item 1 of rows)'s children.
+            Define built as "(\{ CufetMatrix* cf_mt = cufet_mat_new({the number of rows}, {width});".
+            Define place as 0.
+            For each row in rows, repeat:
+                For each element in row's children, repeat:
+                    Define element-c as cast one's c-of-as on (element, "number") or pass the failure off.
+                    The built becomes "{built} cf_mt->data[{place}] = {element-c};".
+                    Increment place by 1.
+                Done.
+            Done.
+            Return "{built} cf_mt; \})".
+        Done.
+        If kind is "MatrixSized":
+            The at-line becomes (cast field-of on (expression, 4))'s word.
+            Define operands as a series of node with (cast field-of on (expression, 1), cast field-of on (expression, 2)).
+            Define emitted as a series of text.
+            Define rows-c as cast one's c-of-as on (cast field-of on (expression, 1), "number") or pass the failure off.
+            Insert rows-c into emitted.
+            Define columns-c as cast one's c-of-as on (cast field-of on (expression, 2), "number") or pass the failure off.
+            Insert columns-c into emitted.
+            Define filled as "cufet_dec_from_ll(0)".
+            If cast is-nothing on (cast field-of on (expression, 3)) is false:
+                Insert cast field-of on (expression, 3) into operands.
+                Define fill-c as cast one's c-of-as on (cast field-of on (expression, 3), "number") or pass the failure off.
+                Insert fill-c into emitted.
+            Done.
+            Define prefix as cast order-prefix on (operands, emitted).
+            If the number of emitted is 3, the filled becomes item 3 of emitted.
+            Return cast in-order on (prefix, "cufet_mat_sized({item 1 of emitted}, {item 2 of emitted}, {filled}, {at-line})").
+        Done.
+        // `item at (r, c) of m` — the matrix, then the row, then the column.
+        The at-line becomes (cast field-of on (expression, 4))'s word.
+        Define operands as a series of node with (cast field-of on (expression, 1), cast field-of on (expression, 2), cast field-of on (expression, 3)).
+        Define emitted as a series of text.
+        Define matrix-c as cast one's c-of on (cast field-of on (expression, 1)) or pass the failure off.
+        Insert matrix-c into emitted.
+        Define row-c as cast one's c-of-as on (cast field-of on (expression, 2), "number") or pass the failure off.
+        Insert row-c into emitted.
+        Define column-c as cast one's c-of-as on (cast field-of on (expression, 3), "number") or pass the failure off.
+        Insert column-c into emitted.
+        Define prefix as cast order-prefix on (operands, emitted).
+        Return cast in-order on (prefix, "cufet_mat_get({item 1 of emitted}, cufet_to_int({item 2 of emitted}), cufet_to_int({item 3 of emitted}), {at-line})").
+    Done.
+
+    /// `The item at (r, c) of m becomes v.` — the matrix, the row, the column, then the value.
+    Bind void or failure to emit-matrix-set unto emitter, given (the node statement):
+        Define operands as a series of node with (cast field-of on (statement, 1), cast field-of on (statement, 2), cast field-of on (statement, 3), cast field-of on (statement, 4)).
+        Define emitted as a series of text.
+        Define matrix-c as cast one's c-of on (cast field-of on (statement, 1)) or pass the failure off.
+        Insert matrix-c into emitted.
+        Define row-c as cast one's c-of-as on (cast field-of on (statement, 2), "number") or pass the failure off.
+        Insert row-c into emitted.
+        Define column-c as cast one's c-of-as on (cast field-of on (statement, 3), "number") or pass the failure off.
+        Insert column-c into emitted.
+        Define value-c as cast one's c-of-as on (cast field-of on (statement, 4), "number") or pass the failure off.
+        Insert value-c into emitted.
+        Define prefix as cast order-prefix on (operands, emitted).
+        Define at-line as (cast field-of on (statement, 5))'s word.
+        Define stored as "cufet_mat_set({item 1 of emitted}, cufet_to_int({item 2 of emitted}), cufet_to_int({item 3 of emitted}), {item 4 of emitted}, {at-line})".
+        If prefix is "", cast one's line on ("{stored};").
+        Otherwise, cast one's line on ("\{ {prefix}{stored}; \}").
+    Done.
+
+    /// `the rows of m`, `the columns of m` as C.
+    Bind text to c-matrix-count, given (the text matrix-c, the text field-name):
+        If field-name is "rows", return "cufet_dec_from_ll(({matrix-c})->rows)".
+        Return "cufet_dec_from_ll(({matrix-c})->cols)".
+    Done.
+Done.

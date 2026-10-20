@@ -52,7 +52,7 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     : PipelineTestBase, IClassFixture<CompiledCufetCompiler>
 {
     /// <summary>How many hand-written programs must build and print alike. Raised as it grows; never lowered.</summary>
-    private const int BuiltFloor = 383;
+    private const int BuiltFloor = 398;
 
     private static string[] PreludeArgs =>
         ["--prelude", Path.Combine(RepoRoot, "src", "Interpreter", "Prelude").Replace('\\', '/')];
@@ -479,6 +479,22 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
         "Define object point with (the number x, the number y).\nPull a rabbit.\n    Define ch as a channel of point.\n    Have rabbit start a task:\n        Send a new point { the x 1, the y 2 } through ch.\n        Send a new point { the x 3, the y 4 } through ch.\n        Close ch.\n    Done.\n    Define p as the delivery from ch.\n    While p is not void, repeat:\n        State p but void is (a new point { the x 0, the y 0 }).\n        The p becomes the delivery from ch.\n    Done.\n    Have rabbit start a task as pair:\n        Return a record with (the left 5, the right \"five\").\n    Done.\n    State the awaited result of pair.\nDone.",
         "Pull a rabbit.\n    Have rabbit start a task as first:\n        Return 6.\n    Done.\n    Have rabbit start a task as second:\n        Return (the awaited result of first) * 7.\n    Done.\n    State the awaited result of second.\nDone.",
         "Bind number to square, given (the number n):\n    Return n * n.\nDone.\nFor each round in range 1 to 2, repeat:\n    Pull a rabbit.\n        Define next-round as round + 1.\n        Have rabbit start a task as worker:\n            Return cast square on (next-round).\n        Done.\n        State \"round {round}: {the awaited result of worker}\".\n    Done.\nDone.",
+        // Matrices, and maps keyed by a record of keys.
+        "Pull a book on collections.\n    Define m as a matrix with ((1, 2, 3), (4, 5, 6)).\n    State m.\n    State item at (2, 3) of m.\n    The item at (1, 2) of m becomes 20.\n    State m.\n    State \"{the rows of m} by {the columns of m}\".\nDone.",
+        "Pull a book on collections.\n    Bind matrix to made, given (the number h, the number w):\n        Return a matrix with h by w filled with 7.\n    Done.\n    Bind void to marked, given (the matrix board):\n        The item at (the rows of board, the columns of board) of board becomes -1.\n    Done.\n    Define z as a matrix with 2 by 3.\n    State z.\n    Define m as cast made on (3, 2).\n    Cast marked on (m).\n    State m.\nDone.",
+        "Pull a book on collections.\n    Define m as a matrix with ((1, 2), (3, 4)).\n    State m * 2.\n    State 3 * m.\n    State m * 0.5.\n    State m.\nDone.",
+        "Pull a book on collections.\n    Define m as a matrix with ((1, 2), (3, 4)).\n    Define n as a matrix with ((5, 6), (7, 8)).\n    Define wide as a matrix with ((1, 2, 3), (4, 5, 6)).\n    Try to:\n        State m + n.\n        State n - m.\n        State m * n.\n        State m * wide.\n    Done.\n    In case of failure:\n        State \"failed: {the message of the failure}\".\n    Done.\nDone.",
+        "Pull a book on collections.\n    Define m as a matrix with ((1, 2), (3, 4)).\n    Define wide as a matrix with ((1, 2, 3), (4, 5, 6)).\n    Try to:\n        State m + wide.\n    Done.\n    In case of failure:\n        State \"{the message of the failure} [{the category of the failure but void is \"none\"}]\".\n    Done.\n    Try to:\n        State m - wide.\n    Done.\n    In case of failure:\n        State the message of the failure.\n    Done.\n    Try to:\n        State wide * m.\n    Done.\n    In case of failure:\n        State the message of the failure.\n    Done.\n    State \"after\".\nDone.",
+        "Pull a book on collections.\n    Bind matrix or failure to summed, given (the matrix left, the matrix right):\n        Define total as left + right or pass the failure off.\n        Return total * 10.\n    Done.\n    Define m as a matrix with ((1, 2), (3, 4)).\n    Define wide as a matrix with ((1, 2, 3), (4, 5, 6)).\n    State m + wide but on failure m.\n    State m * m but on failure wide.\n    Define back as cast summed on (m, m) but on failure wide.\n    State back.\n    Define gone as cast summed on (m, wide) but on failure wide.\n    State gone.\n    Try to:\n        State cast summed on (wide, m).\n    Done.\n    In case of failure:\n        State \"caught: {the message of the failure}\".\n    Done.\nDone.",
+        "Pull a book on collections.\n    Define m as a matrix with ((1, 2), (3, 4)).\n    Define same as m.\n    Define other as a matrix with ((1, 2), (3, 4)).\n    State m is same.\n    State m is other.\n    State m is not other.\n    The item at (1, 1) of same becomes 9.\n    State m.\nDone.",
+        "Pull a book on collections.\n    Bind number to said, given (the number n):\n        State \"working out {n}\".\n        Return n.\n    Done.\n    Bind matrix to grid, given (the text why):\n        State \"the matrix for {why}\".\n        Return a matrix with ((1, 2), (3, 4)).\n    Done.\n    The item at (cast said on (1), cast said on (2)) of cast grid on (\"a set\") becomes cast said on (5).\n    State item at (cast said on (2), cast said on (1)) of cast grid on (\"a read\").\n    State a matrix with cast said on (1) by cast said on (2) filled with cast said on (3).\n    State a matrix with ((cast said on (1), cast said on (2)), (cast said on (3), cast said on (4))).\n    State cast grid on (\"scaled\") * cast said on (2).\n    State cast said on (3) * cast grid on (\"scaled again\").\nDone.",
+        "Pull a book on collections.\n    Define m as a matrix with 3 by 4.\n    For each r in range 1 to the rows of m, repeat:\n        For each c in range 1 to the columns of m, repeat:\n            The item at (r, c) of m becomes r * 10 + c.\n        Done.\n    Done.\n    Define total as 0.\n    For each r in range 1 to the rows of m, repeat:\n        For each c in range 1 to the columns of m, repeat:\n            Increment total by item at (r, c) of m.\n        Done.\n    Done.\n    State m.\n    State total.\nDone.",
+        "Pull a book on collections.\n    Define kept as a matrix with 1 by 1.\n    Pull a rabbit.\n        Define made as a matrix with ((1, 2), (3, 4)).\n        The kept becomes made * 3.\n    Done.\n    State kept.\nDone.",
+        "Pull a book on collections.\n    Define object board with (the text name, the matrix cells).\n    Define b as a new board { the name \"tiny\", the cells a matrix with ((0, 1), (1, 0)) }.\n    The item at (1, 1) of b's cells becomes 5.\n    State b's name.\n    State b's cells.\n    State item at (2, 1) of b's cells.\nDone.",
+        "Pull a book on collections.\n    Bind matrix or failure to squared, given (the matrix m):\n        Return m * m or pass the failure off.\n    Done.\n    Try to:\n        State cast squared on (a matrix with ((1, 1), (1, 0))).\n        State cast squared on (a matrix with ((1, 2, 3), (4, 5, 6))).\n    Done.\n    In case of failure:\n        State \"failed: {the message of the failure}\".\n    Done.\nDone.",
+        "Define grid as a map from record like (number, number) to text.\nIn grid, the entry for a record with (0, 0) becomes \"start\".\nIn grid, the entry for a record with (3, 4) becomes \"treasure\".\nIn grid, the entry for a record with (0, 0) becomes \"home\".\nState the size of grid.\nState the entry for a record with (3, 4) in grid but void is \"none\".\nState the entry for a record with (4, 3) in grid but void is \"none\".\nState grid has a key for a record with (0, 0).\nState grid.\nRemove a record with (0, 0) from grid.\nFor each pair in grid, state \"{the first of the key of pair} {the second of the key of pair} {the value of pair}\".",
+        "Define spots as a map from record like (the number x, the text tag) to number.\nIn spots, the entry for a record with (the x 1, the tag \"a\") becomes 10.\nIn spots, the entry for a record with (the tag \"a\", the x 1) becomes 20.\nState spots.\nDefine deep as a map from record like (number, record like (text, fact)) to text.\nIn deep, the entry for a record with (1, a record with (\"x\", true)) becomes \"found\".\nState the entry for a record with (1, a record with (\"x\", true)) in deep but void is \"none\".\nState the entry for a record with (1, a record with (\"x\", false)) in deep but void is \"none\".",
+        "Define flags as a map from bits to text.\nIn flags, the entry for 0xA becomes \"ten\".\nState the entry for 0b1010 in flags but void is \"none\".\nDefine maybe as a map from voidable number to text.\nIn maybe, the entry for void becomes \"nothing\".\nIn maybe, the entry for 3 becomes \"three\".\nState maybe.\nDefine either as a map from (number or text) to text.\nIn either, the entry for 7 becomes \"number seven\".\nIn either, the entry for \"seven\" becomes \"text seven\".\nState either.\nState the entry for \"seven\" in either but void is \"none\".",
     ];
 
     [Fact]
@@ -536,7 +552,7 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     private static readonly HashSet<string> NotReproducible = ["markov.cufe", "work-queue.cufe"];
 
     /// <summary>How many programs of `examples/` must build and print alike. Raised as it grows; never lowered.</summary>
-    private const int CorpusFloor = 53;
+    private const int CorpusFloor = 56;
 
     /// <remarks>
     /// ★ The corpus is copied first: the compiler writes each program beside its source. Each program
@@ -689,6 +705,15 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
         // A task that faults with nobody awaiting it: its rabbit raises it at its Done.
         ("State \"before\".\nPull a rabbit.\n    Define zero as 0.\n    Have rabbit start a task:\n        State 10 / zero.\n    Done.\nDone.\nState \"never\".",
          "Division by zero on line 5."),
+        // A matrix read or written outside its sizes, or made with a size that is no count.
+        ("Pull a book on collections.\n    Define m as a matrix with ((1, 2), (3, 4)).\n    State \"before\".\n    State item at (3, 1) of m.\nDone.",
+         "Row index 3 is out of range — this matrix has 2 row(s) (line 4)."),
+        ("Pull a book on collections.\n    Define m as a matrix with ((1, 2), (3, 4)).\n    The item at (1, 0) of m becomes 1.\nDone.",
+         "Column index 0 is out of range — this matrix has 2 column(s) (line 3)."),
+        ("Pull a book on collections.\n    Define h as 1.5.\n    State a matrix with h by 2.\nDone.",
+         "Matrix row count must be a positive whole number, but got 1.5 (line 3)."),
+        ("Pull a book on collections.\n    Define w as 0.\n    State a matrix with 2 by w filled with 1.\nDone.",
+         "Matrix column count must be a positive whole number, but got 0 (line 3)."),
     ];
 
     [Fact]

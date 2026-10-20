@@ -9,8 +9,9 @@
     ★ A lookup gives a voidable — flat when the values are voidable already, never a voidable of a
       voidable.
 
-    ★ Keyed by a number, a text or a fact for now. A loop over a map names a `mapping from K to V`:
-      a key and its value, as they were when the loop began.
+    ★ Keyed by a number, a text or a fact, or by a record whose fields are keys themselves — two
+      records of equal fields are one key. A loop over a map names a `mapping from K to V`: a key
+      and its value, as they were when the loop began.
 */
 
 Pull a book on collections.
@@ -22,20 +23,55 @@ Pull a book on collections.
         Return kind starts with "mapping from ".
     Done.
 
-    /// What a map is keyed by — one word, as a key is a number, a text or a fact.
+    /// How long a map's key is in what follows `map from ` — up to the first ` to ` outside a
+    /// record's brackets. No key can hold a map, so no key holds a ` to ` of its own.
+    Bind number to key-length, given (the text rest):
+        Define depth as 0.
+        Define place as 0.
+        While place is less than the length of rest, repeat:
+            Increment place by 1.
+            Define letter as the characters from place to place of rest.
+            If letter is "(", increment depth by 1.
+            If letter is ")", decrement depth by 1.
+            If depth is 0 and the characters from place to (place + 3) of rest is " to ", return place - 1.
+        Done.
+        Return place.
+    Done.
+
+    /// What follows `map from ` or `mapping from `.
+    Bind text to map-rest, given (the text kind):
+        If cast is-mapping on (kind), return the characters from 14 to the end of kind.
+        Return the characters from 10 to the end of kind.
+    Done.
+
+    /// What a map is keyed by.
     Bind text to map-key-kind, given (the text kind):
-        Define rest as the characters from 10 to the end of kind.
-        If cast is-mapping on (kind), the rest becomes the characters from 14 to the end of kind.
-        Define space as the position of " " in rest but void is 0.
-        Return the characters from 1 to (space - 1) of rest.
+        Define rest as cast map-rest on (kind).
+        Return the characters from 1 to cast key-length on (rest) of rest.
     Done.
 
     /// What a map holds.
     Bind text to map-value-kind, given (the text kind):
-        Define rest as the characters from 10 to the end of kind.
-        If cast is-mapping on (kind), the rest becomes the characters from 14 to the end of kind.
-        Define space as the position of " to " in rest but void is 0.
-        Return the characters from space + 4 to the end of rest.
+        Define rest as cast map-rest on (kind).
+        Return the characters from (cast key-length on (rest) + 5) to the end of rest.
+    Done.
+
+    /// Whether a kind can key a map: a number, a text, a fact or bits, a voidable or a union of
+    /// keys, or a record of keys.
+    Bind fact to is-key-kind, given (the text kind):
+        If cast is-scalar on (kind) or kind is "bits", return true.
+        If cast is-voidable on (kind), return cast is-key-kind on (cast voidable-inner on (kind)).
+        If cast is-union on (kind):
+            For each union-case in cast kind-cases on (kind), repeat:
+                If cast is-key-kind on (union-case) is false, return false.
+            Done.
+            Return true.
+        Done.
+        If cast is-record on (kind) is false, return false.
+        For each part in cast record-parts on (kind), repeat:
+            If cast is-key-kind on (cast part-kind on (part)) is false, return false.
+        Done.
+        Return true.
     Done.
 
     /// What a lookup gives: a voidable of the values, flat when they are voidable already.
@@ -55,7 +91,7 @@ Pull a book on collections.
 
     Bind text to map-c-name, given (the text kind):
         Define held as cast map-value-kind on (kind).
-        Return "cmap_{cast map-key-kind on (kind)}_{cast c-tag on (held)}".
+        Return "cmap_{cast c-tag on (cast map-key-kind on (kind))}_{cast c-tag on (held)}".
     Done.
 
     /// The map a mapping comes from.
@@ -74,7 +110,7 @@ Pull a book on collections.
 
     /// The kind of a written map type, or a failure when it is beyond this compiler.
     Bind text or failure to map-kind-of-type unto emitter, given (the text key-kind, the text held):
-        If cast is-scalar on (key-kind) is false, return a failure (cast not-built on ("a map keyed by a {key-kind}")).
+        If cast is-key-kind on (key-kind) is false, return a failure (cast not-built on ("a map keyed by a {key-kind}")).
         If held is "void", return a failure (cast not-built on ("a map of void")).
         Define kind as "map from {key-kind} to {held}".
         Cast one's register-map on (kind).
@@ -153,6 +189,7 @@ Pull a book on collections.
         If cast object-of on (target-kind) is not "", return cast one's possessive-kind-of on (cast as-possessive on (expression)) or pass the failure off.
         If target-kind is "text" and field-name is "length", return "number".
         If target-kind is "bits" and field-name is "width", return "number".
+        If target-kind is "matrix" and (field-name is "rows" or field-name is "columns"), return "number".
         If target-kind is "failure" and cast failure-field-kind on (field-name) is not "", return cast failure-field-kind on (field-name).
         If target-kind is "exception" and field-name is "message", return "text".
         If cast is-record on (target-kind) and cast record-field-kind on (target-kind, field-name) is not "":
@@ -191,6 +228,7 @@ Pull a book on collections.
             Define held-kind as cast one's kind-of on (target) or pass the failure off.
             If held-kind is "text", return cast c-text-length on (target-c).
             If held-kind is "bits", return "cufet_dec_from_ll(({target-c}).width)".
+            If held-kind is "matrix", return cast c-matrix-count on (target-c, field-name).
             If held-kind is "failure", return cast c-failure-field on (target-c, field-name).
             If held-kind is "exception", return target-c.
             If cast is-record on (held-kind), return "({target-c}).{cast c-name on (field-name)}".

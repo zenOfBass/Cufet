@@ -133,6 +133,7 @@ Pull a book on collections.
         If written's kind is "RecordType", return cast one's record-kind-of-type on (written) or pass the failure off.
         If written's kind is "FailureType", return cast one's failable-kind-of-type on (written) or pass the failure off.
         If written's kind is "ChaseType", return "chase".
+        If written's kind is "MatrixType", return "matrix".
         If written's kind is "FunctionType", return cast one's function-kind-of-type on (written) or pass the failure off.
         Return a failure (cast not-built on ("a {written's kind}")).
     Done.
@@ -194,6 +195,7 @@ Pull a book on collections.
             "BinaryExpression":
                 Define reached as cast one's overload-for on (expression) or pass the failure off.
                 If reached is not void, return cast one's overload-gives on (reached) or pass the failure off.
+                If (cast one's is-matrix-binary on (expression) or pass the failure off), return cast one's matrix-binary-kind on (expression) or pass the failure off.
                 Define operator as (cast field-of on (expression, 2))'s word.
                 If (cast one's kind-of on (cast field-of on (expression, 1)) or pass the failure off) is "bits":
                     Return cast bits-binary-kind on (operator).
@@ -228,6 +230,7 @@ Pull a book on collections.
             "UnburyExpression", return cast one's kind-of on (cast as-resumed on (expression)) or pass the failure off.
             "BitsLiteral" or "BitsShift" or "BitsConvert" or "BitsAtWidth", return "bits".
             "SetLiteral" or "SetHasMember", return cast one's set-kind-of on (expression) or pass the failure off.
+            "MatrixLiteral" or "MatrixSized" or "MatrixAccess", return cast matrix-kind-of on (expression).
             "ReadExpression", return cast stream-read-kind on (expression).
             "ChannelCreation":
                 Define carried as cast one's kind-of-type on (cast field-of on (expression, 1)) or pass the failure off.
@@ -309,6 +312,7 @@ Pull a book on collections.
             "UnburyExpression", return cast one's c-of on (cast as-resumed on (expression)) or pass the failure off.
             "BitsLiteral" or "BitsShift" or "BitsConvert" or "BitsAtWidth", return cast one's c-bits-of on (expression) or pass the failure off.
             "SetLiteral" or "SetHasMember", return cast one's c-set-of on (expression) or pass the failure off.
+            "MatrixLiteral" or "MatrixSized" or "MatrixAccess", return cast one's c-matrix-of on (expression) or pass the failure off.
             "ReadExpression", return cast one's c-read on (expression) or pass the failure off.
             "ChannelCreation", return cast one's c-channel on (expression) or pass the failure off.
             "InterruptRequestedExpression", return "(cufet_interrupted ? 1 : 0)".
@@ -508,6 +512,7 @@ Pull a book on collections.
         If cast is-void-test on (expression), return cast one's c-void-test on (expression) or pass the failure off.
         Define overloaded as cast one's overload-for on (expression) or pass the failure off.
         If overloaded is not void, return cast one's c-overload-call on (expression, overloaded) or pass the failure off.
+        If (cast one's is-matrix-binary on (expression) or pass the failure off), return cast one's c-matrix-binary on (expression) or pass the failure off.
         Define left-side as cast field-of on (expression, 1).
         Define operator as (cast field-of on (expression, 2))'s word.
         Define left-c as cast one's c-of on (left-side) or pass the failure off.
@@ -591,6 +596,7 @@ Pull a book on collections.
         If cast is-record on (kind), return cast record-c-name on (kind).
         If cast is-failable on (kind), return cast failable-c-name on (kind).
         If kind is "chase", return "CufetChase*".
+        If kind is "matrix", return "CufetMatrix*".
         If kind is "rabbit", return "cufet_rabbit".
         If kind is "bits", return "CufetBits".
         If cast is-stream on (kind), return "FILE*".
@@ -618,6 +624,7 @@ Pull a book on collections.
         If kind is "failure", return "fputs(\"<failure>\", stdout)".
         If kind is "chase", return "cufet_write_text(cufet_chase_show({value}))".
         If kind is "bits", return "cufet_write_bits({value})".
+        If kind is "matrix", return "cufet_mat_write({value})".
         // A set prints as the collection it reads as — its elements in the order they went in,
         // spelled as a series is — not as the map it is stored as.
         If cast is-set on (kind):
@@ -669,6 +676,8 @@ Pull a book on collections.
         If kind is "chase", return "cufet_chase_eq({left}, {right})".
         If kind is "rabbit", return "cufet_rabbit_eq({left}, {right})".
         If kind is "bits", return "(({left}).value == ({right}).value)".
+        // Two matrices are equal only when they are one matrix, as the interpreter has it.
+        If kind is "matrix", return "({left} == {right})".
         // Two sets are equal only when they are one set, as two maps are.
         If cast is-set on (kind), return "({left} == {right})".
         If cast is-function on (kind), return "(({left}).fn == ({right}).fn && ({left}).env == ({right}).env)".
@@ -810,6 +819,7 @@ Pull a book on collections.
             "LaunchTaskStatement", cast one's emit-launch on (statement) or pass the failure off.
             "WriteToStreamStatement", cast one's emit-stream-write on (statement) or pass the failure off.
             "MapSetStatement", cast one's emit-map-set on (statement) or pass the failure off.
+            "MatrixSetStatement", cast one's emit-matrix-set on (statement) or pass the failure off.
             "RecordNamedSetStatement", cast one's emit-record-set on (statement) or pass the failure off.
             "ForEachStatement" or "SeriesInsertStatement" or "SeriesRemoveAtStatement" or "SeriesRemoveValueStatement"
                     or "SeriesSetStatement":
