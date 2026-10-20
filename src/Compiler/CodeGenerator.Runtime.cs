@@ -162,20 +162,30 @@ static int cufet_checksum_file(const char* path, unsigned long long* out) {
    calls take this same lock individually, so holding it across them is exactly what it is for, and
    an unthreaded program pays one uncontended lock per line.
 
-   No-op off POSIX: tasks are pthreads-only, so a Windows build has no second thread to race. */
+   ★ Windows too. This was a no-op there, on the reason that tasks are pthreads-only and so a
+   Windows build had no second thread to race — false once tasks built under mingw, whose
+   winpthreads gives real threads. Two tasks each printing 3000 series came out with about 2000 of
+   the 6000 lines spliced, on every run. mingw has no flockfile; its C runtime's `_lock_file` is
+   the same recursive per-stream lock its own fputs takes, so it is the same thing by another name.
+   Anything else, with no threads to race, keeps the no-op. */
 #if defined(__unix__) || defined(__APPLE__)
 /* ⚠⚠ DEPTH-COUNTED, because a fault can jump out from INSIDE the lock. The generated code
    evaluates a value where it stands — `cufet_out_lock(); write(cv_risky(x)); cufet_out_unlock();`
    — so a raise in `cv_risky` longjmps straight past the unlock. While an unhandled fault ended
    the process that cost nothing; once a worker began unwinding to its landing pad instead, the
    stranded flockfile deadlocked every other thread that printed.
-   ★★ Windows could not see it: there the lock is a no-op, so the whole suite stayed green while
-   Linux CI sat at the job timeout. The counter exists on both platforms so the release below
+   ★★ Windows could not see it: there the lock was a no-op then, so the whole suite stayed green
+   while Linux CI sat at the job timeout. The counter exists everywhere so the release below
    compiles identically; only the locking differs. */
 static _Thread_local int cufet_out_depth = 0;
 #define cufet_out_lock()   do { flockfile(stdout);   cufet_out_depth++; } while (0)
 #define cufet_out_unlock() do { cufet_out_depth--;   funlockfile(stdout); } while (0)
 #define CUFET_OUT_RELEASE_ALL() do { while (cufet_out_depth > 0) { cufet_out_depth--; funlockfile(stdout); } } while (0)
+#elif defined(_WIN32)
+static _Thread_local int cufet_out_depth = 0;
+#define cufet_out_lock()   do { _lock_file(stdout);   cufet_out_depth++; } while (0)
+#define cufet_out_unlock() do { cufet_out_depth--;   _unlock_file(stdout); } while (0)
+#define CUFET_OUT_RELEASE_ALL() do { while (cufet_out_depth > 0) { cufet_out_depth--; _unlock_file(stdout); } } while (0)
 #else
 static _Thread_local int cufet_out_depth = 0;
 #define cufet_out_lock()   ((void)0)

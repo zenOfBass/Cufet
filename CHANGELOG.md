@@ -85,6 +85,11 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   record, a number or a text — while a series or a map is the live one. Both backends agreed and a
   test held them to it; the sentence was wrong from the day it was written. It now says so, with a
   checked example.
+- **Two tasks printing at once no longer splice their lines on Windows.** A built program locks its
+  output for the whole of each `State`, but on Windows the lock did nothing, on the reason that a
+  Windows build had no second thread — untrue since tasks build under mingw. Two tasks each printing
+  3000 series came out with about 2000 of their 6000 lines spliced, on every run. Windows now takes
+  the C runtime's own per-stream lock; `PipelineTaskTests.TwoTasksPrinting_NeverSpliceALine` holds it.
 - **`cufet build` works out operands left to right, as the interpreter does.** C leaves the order
   of a call's arguments open, and gcc took them last first: `cast add on (cast tick on (c), cast
   tick on (c))` printed 21 built and 12 interpreted, and `a - b` subtracted the wrong way round

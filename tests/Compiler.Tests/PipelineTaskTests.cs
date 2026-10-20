@@ -872,4 +872,28 @@ public class PipelineTaskTests : PipelineTestBase
         Assert.Equal("inside 7\nclosed 7\nafter\n".ReplaceLineEndings(), InterpretRaw(src).ReplaceLineEndings());
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
+
+    // ★ One State is one line, from two tasks at once — on Windows too. The runtime's stream lock
+    // was a no-op there, on the reason that a Windows build had no second thread; mingw's
+    // winpthreads gives it real ones, and this program came out with about 2000 of its 6000 lines
+    // spliced, on every run. A series is several writes, which is what gives a splice room.
+    [Fact]
+    public void TwoTasksPrinting_NeverSpliceALine()
+    {
+        const string src = """
+            Pull a rabbit.
+                Have rabbit start a task:
+                    For each n in range 1 to 3000, repeat:
+                        State a series of text with ("left", "left", "left").
+                    Done.
+                Done.
+                Have rabbit start a task:
+                    For each n in range 1 to 3000, repeat:
+                        State a series of text with ("right", "right", "right").
+                    Done.
+                Done.
+            Done.
+            """;
+        AssertSameLinesInAnyOrder(InterpretRaw(src), CompileRaw(src));
+    }
 }
