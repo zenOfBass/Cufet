@@ -4987,6 +4987,7 @@ The exceptions are few and each is noted where it arises:
 
 #### Platform notes
 
-Concurrency, subprocesses, and signal handling use POSIX facilities and need Linux,
-macOS, or WSL. On Windows with mingw, programs that avoid those features compile and run
-normally; programs that use them will not build.
+Concurrency and subprocesses build and run on Windows with mingw as they do on Linux and
+macOS. Signal handling is the exception: mingw has no POSIX signals, so a program compiled
+there is always ended by Ctrl-C — `an interrupt is requested` never becomes true, and
+`Acknowledge the interrupt.` has nothing to clear.

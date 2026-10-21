@@ -37,8 +37,8 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   not, channels — sent through, closed, delivered from — what crosses a thread copied whole,
   every task joined at its rabbit's `Done`, interrupts, and pipes of programs — and matrices,
   maps keyed by a record of keys, unmakers, run on every way out of a block, and pipes of
-  functions — `Output`, and `for each … from the input`.
-  `CompilerParityTests` now holds it to the interpreter on 416 hand-written programs and on 58
+  functions — `Output`, and `for each … from the input` — and the chance book.
+  `CompilerParityTests` now holds it to the interpreter on 421 hand-written programs and on 59
   of the 67 in `examples/` — two of them, `markov` and `work-queue`, to running cleanly rather
   than to the same output, since the backends' random generators and the scheduler decide those.
 - **The compiler written in Cufet compiles itself.** The compiler it builds from its own source
@@ -80,6 +80,10 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **REFERENCE's platform notes say what builds on Windows.** They said a program using
+  concurrency, subprocesses or signal handling would not build under mingw. The first two build and
+  run there as everywhere; only signal handling differs — a Windows build is always ended by Ctrl-C,
+  since mingw has no POSIX signals.
 - **REFERENCE says what a closure does to a captured object.** It listed objects with series and
   maps as captured "live", so that a change made through the closure would show outside it. No
   implementation ever did that: an object is a value, and a closure captures a snapshot of it — as a

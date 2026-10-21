@@ -52,7 +52,7 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     : PipelineTestBase, IClassFixture<CompiledCufetCompiler>
 {
     /// <summary>How many hand-written programs must build and print alike. Raised as it grows; never lowered.</summary>
-    private const int BuiltFloor = 416;
+    private const int BuiltFloor = 421;
 
     private static string[] PreludeArgs =>
         ["--prelude", Path.Combine(RepoRoot, "src", "Interpreter", "Prelude").Replace('\\', '/')];
@@ -515,6 +515,12 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
         "Bind void to people:\n    Output a record with (the name \"ada\", the age 36).\n    Output a record with (the name \"bob\", the age 12).\n    Output a record with (the name \"cy\", the age 50).\n    Output a record with (the name \"di\", the age 70).\nDone.\nBind void to adults:\n    For each person from the input:\n        If the age of person is less than 18, skip.\n        Output the name of person.\n    Done.\nDone.\nBind void to first-two:\n    Define seen as 0.\n    For each name from the input:\n        State name.\n        Increment seen by 1.\n        If seen is 2, stop.\n    Done.\n    State \"seen {seen}\".\nDone.\npeople | adults | first-two.",
         "Bind void to some:\n    Output 3.\n    Output 1.\nDone.\nBind void to doubled:\n    For each n from the input, output n * 2.\nDone.\nBind void to said:\n    For each n from the input, state n.\nDone.\nBind void to twice:\n    some | said.\n    some | doubled | said.\nDone.\nFor each round in range 1 to 2, repeat:\n    State \"round {round}\".\n    Cast twice.\nDone.",
         "Bind void to letters:\n    For each letter in a series of text with (\"x\", \"y\", \"z\"), output letter in uppercase.\nDone.\nBind void to printed:\n    For each letter from the input, state \"[{letter}]\".\nDone.\nletters | printed.",
+        // The chance book: each prints only what the draw does not decide — the backends' generators differ.
+        "Pull a book on chance.\n    Define outside as 0.\n    Define fractional as 0.\n    For each n in range 1 to 1000, repeat:\n        Define roll as a random number from 1 to 6.\n        If roll is less than 1 or roll is greater than 6, increment outside by 1.\n        If roll % 1 is not 0, increment fractional by 1.\n    Done.\n    State \"outside {outside}, fractional {fractional}\".\n    State a random number from 4 to 4.\n    State a random number from 2.5 to 2.9.\n    State a random number from -2.5 to -2.1.\n    State a random number from -1 to -1.\nDone.",
+        "Pull a book on chance.\n    Define seen as a series of number with (0, 0, 0).\n    For each n in range 1 to 600, repeat:\n        Define face as a random number from 1 to 3.\n        Item face of seen becomes item face of seen + 1.\n    Done.\n    State \"every face: {item 1 of seen is greater than 0 and item 2 of seen is greater than 0 and item 3 of seen is greater than 0}\".\n    State \"total: {item 1 of seen + item 2 of seen + item 3 of seen}\".\n    Define heads as 0.\n    Define tails as 0.\n    For each n in range 1 to 400, repeat:\n        If a random guess, increment heads by 1.\n        Otherwise, increment tails by 1.\n    Done.\n    State \"both: {heads is greater than 0 and tails is greater than 0}, total {heads + tails}\".\nDone.",
+        "Pull a book on chance.\n    Define names as a series of text with (\"ada\", \"bob\", \"cy\").\n    Define strays as 0.\n    For each n in range 1 to 300, repeat:\n        Define pick as a random item from names but void is \"none\".\n        If pick is not \"ada\" and pick is not \"bob\" and pick is not \"cy\", increment strays by 1.\n    Done.\n    State \"strays: {strays}\".\n    Define empty as a series of text.\n    State a random item from empty but void is \"nothing to pick\".\n    State a random item from a series of number with (7) but void is 0.\n    Define pairs as a series of records like (text, number) with (a record with (\"x\", 1)).\n    Define drawn as a random item from pairs.\n    If drawn is not void, state the first of drawn.\nDone.",
+        "Pull a book on chance.\n    Define original as a series of number with (5, 3, 9, 1, 7).\n    For each n in range 1 to 50, repeat:\n        Define mixed as randomly shuffled original.\n        If (mixed sorted) is not (original sorted), state \"lost an item\".\n        If the number of mixed is not 5, state \"wrong length\".\n    Done.\n    State original.\n    Define kept as randomly shuffled original.\n    Insert 100 into kept.\n    State the number of original.\n    State randomly shuffled a series of text with (\"only\").\n    Define nothing as a series of number.\n    State randomly shuffled nothing.\nDone.",
+        "Pull a book on chance.\n    Bind series of number to draws:\n        Define out as a series of number.\n        For each n in range 1 to 20, insert a random number from 1 to 1000 into out.\n        Insert (a random item from a series of number with (10, 20, 30) but void is 0) into out.\n        For each kept in randomly shuffled a series of number with (1, 2, 3, 4), insert kept into out.\n        If a random guess, insert 1 into out.\n        Otherwise, insert 0 into out.\n        Return out.\n    Done.\n    Seed the chance with 42.\n    Define first as cast draws.\n    Seed the chance with 42.\n    Define second as cast draws.\n    State first is second.\n    Seed the chance with 42.7.\n    Define cut as cast draws.\n    State cut is first.\nDone.",
     ];
 
     [Fact]
@@ -572,7 +578,7 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     private static readonly HashSet<string> NotReproducible = ["markov.cufe", "work-queue.cufe"];
 
     /// <summary>How many programs of `examples/` must build and print alike. Raised as it grows; never lowered.</summary>
-    private const int CorpusFloor = 58;
+    private const int CorpusFloor = 59;
 
     /// <remarks>
     /// ★ The corpus is copied first: the compiler writes each program beside its source. Each program
@@ -739,6 +745,9 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
          "Division by zero on line 9."),
         ("Define object res with (the text name).\nBind unmaking a res to closing:\n    State \"closed {one's name}\".\nDone.\nBind void to opens:\n    Define inside as a new res { the name \"function body\" }.\nDone.\nDefine top as a new res { the name \"top\" }.\nCast opens.\nDefine zero as 0.\nState \"before\".\nState 1 / zero.",
          "Division by zero on line 12."),
+        // A random number whose low is above its high.
+        ("Pull a book on chance.\n    Define low as 9.\n    State \"before\".\n    State a random number from low to 3.\nDone.",
+         "Random number range is invalid: low (9) is greater than high (3) (line 4)."),
     ];
 
     [Fact]

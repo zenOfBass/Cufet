@@ -256,6 +256,7 @@ Pull a book on collections.
             Done.
             "SortExpression", return cast one's sorted-kind-of on (expression) or pass the failure off.
             Otherwise:
+                If cast is-random-expression on (kind), return cast one's random-kind-of on (expression) or pass the failure off.
                 If cast is-text-operation on (kind), return cast text-operation-kind on (kind).
                 If cast is-failure-expression on (kind), return cast one's failure-kind-of on (expression) or pass the failure off.
                 Return a failure (cast not-built on (kind)).
@@ -365,6 +366,7 @@ Pull a book on collections.
                 Return "(\{ cser_text* cf_args = cser_text_new(); for (int cf_ai = 1; cf_ai < cufet_argc; cf_ai++) cser_text_append(cf_args, (const char*)cufet_argv[cf_ai]); cf_args; \})".
             Done.
             Otherwise:
+                If cast is-random-expression on (kind), return cast one's c-random-of on (expression) or pass the failure off.
                 If cast is-text-operation on (kind), return cast one's c-text-operation on (expression) or pass the failure off.
                 If cast is-failure-expression on (kind), return cast one's c-failure-of on (expression) or pass the failure off.
                 Return a failure (cast not-built on (kind)).
@@ -830,6 +832,7 @@ Pull a book on collections.
             "WriteToStreamStatement", cast one's emit-stream-write on (statement) or pass the failure off.
             "MapSetStatement", cast one's emit-map-set on (statement) or pass the failure off.
             "MatrixSetStatement", cast one's emit-matrix-set on (statement) or pass the failure off.
+            "SeedChanceStatement", cast one's emit-seed on (statement) or pass the failure off.
             "RecordNamedSetStatement", cast one's emit-record-set on (statement) or pass the failure off.
             "ForEachStatement" or "SeriesInsertStatement" or "SeriesRemoveAtStatement" or "SeriesRemoveValueStatement"
                     or "SeriesSetStatement":

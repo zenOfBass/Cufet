@@ -1,0 +1,60 @@
+/*  Randomness — the chance book: `a random number from 1 to 6`, `a random item from xs`,
+    `randomly shuffled xs`, `a random guess`, and `Seed the chance with <n>.`
+
+    ★ Drawn from the shared runtime's generator, as `cufet build`'s are — not the interpreter's, so
+      a draw is not the interpreter's draw, seeded or not. What is the same is everything the
+      draw does not decide: the bounds, inclusive and cut to whole numbers; void from an empty
+      series; a shuffle that is a new series holding the same items; the message for a range whose
+      low is above its high. Seeding repeats a run within this backend.
+*/
+
+Pull a book on collections.
+    Bind fact to is-random-expression, given (the text kind):
+        Return kind is "RandomNumber" or kind is "RandomItem" or kind is "RandomlyShuffled" or kind is "RandomGuess".
+    Done.
+
+    /// What a draw gives: a number, a fact, an item that may be void, or the series shuffled.
+    Bind text or failure to random-kind-of unto emitter, given (the node expression):
+        Define kind as expression's kind.
+        If kind is "RandomNumber", return "number".
+        If kind is "RandomGuess", return "fact".
+        Define drawn-from as cast one's kind-of on (cast field-of on (expression, 1)) or pass the failure off.
+        Define element as cast element-of on (drawn-from).
+        If element is "", return a failure (cast not-built on ("a draw from a {drawn-from}")).
+        If kind is "RandomlyShuffled", return drawn-from.
+        If cast is-voidable on (element), return a failure (cast not-built on ("a random item from a series of {element}")).
+        Cast one's register-union on ("voidable {element}").
+        Return "voidable {element}".
+    Done.
+
+    /// A draw as C.
+    Bind text or failure to c-random-of unto emitter, given (the node expression):
+        Define kind as expression's kind.
+        If kind is "RandomGuess", return "(cufet_rng_below(2) == 1)".
+        If kind is "RandomNumber":
+            Define low-c as cast one's c-of-as on (cast field-of on (expression, 1), "number") or pass the failure off.
+            Define high-c as cast one's c-of-as on (cast field-of on (expression, 2), "number") or pass the failure off.
+            Define sides as a series of text with (low-c, high-c).
+            Define prefix as cast order-prefix on (a series of node with (cast field-of on (expression, 1), cast field-of on (expression, 2)), sides).
+            Return cast in-order on (prefix, "cufet_random_number({item 1 of sides}, {item 2 of sides}, {(cast field-of on (expression, 3))'s word})").
+        Done.
+        Define drawn-from as cast one's kind-of on (cast field-of on (expression, 1)) or pass the failure off.
+        Define element as cast element-of on (drawn-from).
+        Define series-c as cast series-c-name on (element).
+        Define source-c as cast one's c-of on (cast field-of on (expression, 1)) or pass the failure off.
+        If kind is "RandomItem":
+            Define item-kind as cast one's random-kind-of on (expression) or pass the failure off.
+            Define item-c as cast voidable-c-name on (item-kind).
+            Return "(\{ {series-c}* cf_ri = {source-c}; {item-c} cf_rr; memset(&cf_rr, 0, sizeof cf_rr); if (cf_ri->len > 0) \{ cf_rr.has = 1; cf_rr.value = cf_ri->data[cufet_rng_below(cf_ri->len)]; \} cf_rr; \})".
+        Done.
+        // A new series, the original left as it was, shuffled from the end down — the interpreter's
+        // own procedure, over another generator.
+        Return "(\{ {series-c}* cf_sh = {source-c}; {series-c}* cf_sd = {series-c}_new(); for (int cf_i = 0; cf_i < cf_sh->len; cf_i++) {series-c}_append(cf_sd, cf_sh->data[cf_i]); for (int cf_i = cf_sd->len - 1; cf_i > 0; cf_i--) \{ long long cf_j = cufet_rng_below(cf_i + 1); {cast c-type on (element)} cf_t = cf_sd->data[cf_i]; cf_sd->data[cf_i] = cf_sd->data[cf_j]; cf_sd->data[cf_j] = cf_t; \} cf_sd; \})".
+    Done.
+
+    /// `Seed the chance with <n>.` — the generator started again from `n`, cut to a whole number.
+    Bind void or failure to emit-seed unto emitter, given (the node statement):
+        Define seed-c as cast one's c-of-as on (cast field-of on (statement, 1), "number") or pass the failure off.
+        Cast one's line on ("cufet_rng_seed(cufet_to_int({seed-c}));").
+    Done.
+Done.
