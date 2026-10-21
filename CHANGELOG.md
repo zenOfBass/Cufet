@@ -36,8 +36,8 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   the block is left — operator overloads, and concurrency: tasks, named and awaited, failing or
   not, channels — sent through, closed, delivered from — what crosses a thread copied whole,
   every task joined at its rabbit's `Done`, interrupts, and pipes of programs — and matrices,
-  and maps keyed by a record of keys.
-  `CompilerParityTests` now holds it to the interpreter on 398 hand-written programs and on 56
+  maps keyed by a record of keys, and unmakers, run on every way out of a block.
+  `CompilerParityTests` now holds it to the interpreter on 409 hand-written programs and on 57
   of the 67 in `examples/` — two of them, `markov` and `work-queue`, to running cleanly rather
   than to the same output, since the backends' random generators and the scheduler decide those.
 - **The compiler written in Cufet compiles itself.** The compiler it builds from its own source

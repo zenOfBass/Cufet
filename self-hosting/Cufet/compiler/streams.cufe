@@ -115,11 +115,13 @@ Pull a book on collections.
         Define open-names as the entry for "%files" in one's kinds but void is "".
         If open-names is "", in one's kinds, the entry for "%files" becomes stream-c.
         Otherwise, in one's kinds, the entry for "%files" becomes "{open-names},{stream-c}".
+        Define begun as cast one's opening-scope.
         For each inner in (cast field-of on (statement, 4))'s children, repeat:
             If cast declares-only on (inner) is false:
                 Cast one's emit-statement on (inner) or pass the failure off.
             Done.
         Done.
+        Cast one's closing-scope on (begun).
         Cast one's line on ("cufet_close_file({stream-c});").
         The one's indent becomes outer.
         The one's kinds becomes kept.

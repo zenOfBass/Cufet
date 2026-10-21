@@ -1,0 +1,97 @@
+/*  Unmakers — `Bind unmaking a <type> to <name>: … Done.`, run when a binding's block ends.
+
+    ★ An object `Define`d inside a block — an `If`'s arm, a loop's body, a `Try`, a pull, a rabbit,
+      a task's body — is put on the runtime's registry of unmakers (`cufet_reg_unmaker`) where it is
+      defined, and unmade at the block's end, last made first. A function's own body is not a block,
+      and nor is the program's top level: a `Define` there is never unmade, as the interpreter has it.
+
+    ★ Every other way out is known where it is written, as an open file's is: `%unmade` counts the
+      unmakers this frame has registered and not yet run, and a `Return`, a `Stop`, a `Skip`, a
+      failure to a `Try` or one passed off runs those registered since the place it goes to —
+      `cufet_run_unmakers_to(cufet_num - <how many>)`. The `kinds` map unwinds with each block, so
+      the count does too. A fault runs them itself: `cufet_raise` unmakes down to the `Try` that
+      catches it, or all of them when none does.
+
+    ★ A program with no unmakers writes none of this.
+*/
+
+Pull a book on collections.
+    /// Whether the program declares any unmaker.
+    Bind fact to uses-unmakers unto emitter:
+        Return (the entry for "%unmakers" in one's inferred) is not void.
+    Done.
+
+    Bind text to c-unmaker-name, given (the text object-name):
+        Return "cu_{cast c-ident on (object-name)}".
+    Done.
+
+    /// Whether objects of a kind are unmade.
+    Bind fact to is-unmade unto emitter, given (the text kind):
+        Define object-name as cast object-of on (kind).
+        If object-name is "", return false.
+        Return (the entry for "unmaker:{object-name}" in one's inferred) is not void.
+    Done.
+
+    /// How many unmakers this frame has registered here and not yet run.
+    Bind number to unmakers-open unto emitter:
+        Return (the entry for "%unmade" in one's kinds but void is "0") converted to number but void is 0.
+    Done.
+
+    /// The C that runs the unmakers registered since `depth`, last first — or "".
+    Bind text to c-leaving-unmakers unto emitter, given (the text depth):
+        Define left as cast one's unmakers-open - (depth converted to number but void is 0).
+        If left is less than 1, return "".
+        Return "cufet_run_unmakers_to(cufet_num - {left}); ".
+    Done.
+
+    /// Opens a block: what is defined in it is unmade at its end. Gives back where it began.
+    Bind text to opening-scope unto emitter:
+        If cast one's uses-unmakers, in one's kinds, the entry for "%in-block" becomes "yes".
+        Return "{cast one's unmakers-open}".
+    Done.
+
+    /// Closes a block, unmaking what it made — from where it began.
+    Bind void to closing-scope unto emitter, given (the text begun):
+        Define closing as cast one's c-leaving-unmakers on (begun).
+        If closing is not "", cast one's line on (closing).
+    Done.
+
+    /// After a `Define`: registers the object it made, when it is one that is unmade and it was
+    /// made inside a block.
+    Bind void to register-unmade unto emitter, given (the text name, the text kind):
+        If (the entry for "%in-block" in one's kinds but void is "") is not "yes", return.
+        If cast one's is-unmade on (kind) is false, return.
+        Cast one's line on ("cufet_reg_unmaker(&{cast c-name on (name)}, {cast c-unmaker-name on (cast object-of on (kind))});").
+        In one's kinds, the entry for "%unmade" becomes "{cast one's unmakers-open + 1}".
+    Done.
+
+    /// Notes each unmaker the program declares, before any body is written.
+    Bind void to note-unmakers unto emitter, given (the series of node hoisted):
+        For each statement in hoisted, repeat:
+            If statement's kind is "UnmakerDeclaration":
+                In one's inferred, the entry for "%unmakers" becomes "yes".
+                In one's inferred, the entry for "unmaker:{cast unquoted on (cast field-of on (statement, 2))}" becomes "yes".
+            Done.
+        Done.
+    Done.
+
+    Bind text to c-unmaker-signature, given (the node declaration):
+        Return "static void {cast c-unmaker-name on (cast unquoted on (cast field-of on (declaration, 2)))}(void* cf_p)".
+    Done.
+
+    /// One unmaker as C: a function the registry calls with the object's address, which its body
+    /// sees as `one`.
+    Bind text or failure to c-unmaker unto emitter, given (the node declaration):
+        Define object-name as cast unquoted on (cast field-of on (declaration, 2)).
+        Define struct-c as cast c-struct-name on (object-name).
+        Define writer as cast one's sibling.
+        Cast writer's line on ("{struct-c}* cv_one = ({struct-c}*)cf_p; (void)cv_one;").
+        Cast writer's line on ("int cf_ab = cufet_arena_top; int cf_fo = cufet_alloc_override; (void)cf_ab; (void)cf_fo;").
+        In writer's kinds, the entry for "one" becomes "object {object-name}".
+        In writer's kinds, the entry for "%return" becomes "void".
+        For each inner in (cast field-of on (declaration, 3))'s children, repeat:
+            Cast writer's emit-statement on (inner) or pass the failure off.
+        Done.
+        Return "{cast c-unmaker-signature on (declaration)} \{\n{writer's body converted to text}\}\n\n".
+    Done.
+Done.

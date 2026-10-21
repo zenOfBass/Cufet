@@ -52,7 +52,7 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     : PipelineTestBase, IClassFixture<CompiledCufetCompiler>
 {
     /// <summary>How many hand-written programs must build and print alike. Raised as it grows; never lowered.</summary>
-    private const int BuiltFloor = 398;
+    private const int BuiltFloor = 409;
 
     private static string[] PreludeArgs =>
         ["--prelude", Path.Combine(RepoRoot, "src", "Interpreter", "Prelude").Replace('\\', '/')];
@@ -495,6 +495,18 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
         "Define grid as a map from record like (number, number) to text.\nIn grid, the entry for a record with (0, 0) becomes \"start\".\nIn grid, the entry for a record with (3, 4) becomes \"treasure\".\nIn grid, the entry for a record with (0, 0) becomes \"home\".\nState the size of grid.\nState the entry for a record with (3, 4) in grid but void is \"none\".\nState the entry for a record with (4, 3) in grid but void is \"none\".\nState grid has a key for a record with (0, 0).\nState grid.\nRemove a record with (0, 0) from grid.\nFor each pair in grid, state \"{the first of the key of pair} {the second of the key of pair} {the value of pair}\".",
         "Define spots as a map from record like (the number x, the text tag) to number.\nIn spots, the entry for a record with (the x 1, the tag \"a\") becomes 10.\nIn spots, the entry for a record with (the tag \"a\", the x 1) becomes 20.\nState spots.\nDefine deep as a map from record like (number, record like (text, fact)) to text.\nIn deep, the entry for a record with (1, a record with (\"x\", true)) becomes \"found\".\nState the entry for a record with (1, a record with (\"x\", true)) in deep but void is \"none\".\nState the entry for a record with (1, a record with (\"x\", false)) in deep but void is \"none\".",
         "Define flags as a map from bits to text.\nIn flags, the entry for 0xA becomes \"ten\".\nState the entry for 0b1010 in flags but void is \"none\".\nDefine maybe as a map from voidable number to text.\nIn maybe, the entry for void becomes \"nothing\".\nIn maybe, the entry for 3 becomes \"three\".\nState maybe.\nDefine either as a map from (number or text) to text.\nIn either, the entry for 7 becomes \"number seven\".\nIn either, the entry for \"seven\" becomes \"text seven\".\nState either.\nState the entry for \"seven\" in either but void is \"none\".",
+        // Unmakers: every way out of a block.
+        "Define object res with (the text name).\nBind unmaking a res to closing:\n    State \"closed {one's name}\".\nDone.\nIf true:\n    Define first as a new res { the name \"first\" }.\n    Define second as a new res { the name \"second\" }.\n    State \"in the block\".\nDone.\nState \"after\".",
+        "Define object res with (the text name).\nBind unmaking a res to closing:\n    State \"closed {one's name}\".\nDone.\nBind void to opens:\n    Define inside as a new res { the name \"function body\" }.\n    State \"in the function\".\nDone.\nDefine top as a new res { the name \"top\" }.\nCast opens.\nState \"end\".",
+        "Define object res with (the text name).\nBind unmaking a res to closing:\n    State \"closed {one's name}\".\nDone.\nFor each n in range 1 to 4, repeat:\n    Define per-round as a new res { the name \"round {n}\" }.\n    If n is 2, skip.\n    If n is 3, stop.\n    State \"through {n}\".\nDone.\nDefine k as 0.\nWhile k is less than 2, repeat:\n    Define held as a new res { the name \"while {k}\" }.\n    Increment k by 1.\nDone.\nState \"after the loops\".",
+        "Define object res with (the text name).\nBind unmaking a res to closing:\n    State \"closed {one's name}\".\nDone.\nBind number to found, given (the number wanted):\n    If true:\n        Define outer as a new res { the name \"outer\" }.\n        For each n in range 1 to 5, repeat:\n            Define inner as a new res { the name \"inner {n}\" }.\n            If n is wanted, return n * 10.\n        Done.\n    Done.\n    Return 0.\nDone.\nState cast found on (2).\nState cast found on (9).",
+        "Define object res with (the text name).\nBind unmaking a res to closing:\n    State \"closed {one's name}\".\nDone.\nBind number or failure to checked, given (the number n):\n    If n is greater than 2, return a failure \"too big\".\n    Return n.\nDone.\nTry to:\n    If true:\n        Define guard as a new res { the name \"guard\" }.\n        State cast checked on (1).\n        State cast checked on (5).\n        State \"not reached\".\n    Done.\nDone.\nIn case of failure:\n    Define handler as a new res { the name \"handler\" }.\n    State \"failed: {the message of the failure}\".\nDone.\nState \"after\".",
+        "Define object res with (the text name).\nBind unmaking a res to closing:\n    State \"closed {one's name}\".\nDone.\nDefine zero as 0.\nTry to:\n    If true:\n        Define guard as a new res { the name \"guard\" }.\n        State 1 / zero.\n    Done.\nDone.\nIn case of exception:\n    State \"caught\".\n    Suppress the exception.\nDone.\nState \"after\".",
+        "Define object res with (the text name).\nBind unmaking a res to closing:\n    State \"closed {one's name}\".\nDone.\nBind res to made:\n    If true:\n        Define made-one as a new res { the name \"made\" }.\n        Return made-one.\n    Done.\n    Return a new res { the name \"never\" }.\nDone.\nIf true:\n    Define original as a new res { the name \"original\" }.\n    Define copy as original.\n    Define got as cast made.\n    State \"got {got's name}\".\nDone.",
+        "Define object res with (the text name).\nBind unmaking a res to closing:\n    State \"closed {one's name}\".\nDone.\nPull a rabbit as hopper.\n    Define shared as a new res { the name \"rabbit's\" }.\n    Have hopper start a task as job:\n        Define own as a new res { the name \"task's\" }.\n        Return 7.\n    Done.\n    State \"awaited {the awaited result of job}\".\nDone.\nState \"after\".",
+        "Define object counter with (the text label, the number count):\n    Bind text to described:\n        Return \"{one's label} at {one's count}\".\n    Done.\nDone.\nBind unmaking a counter to report:\n    State \"unmade {cast described on one}\".\nDone.\nPull a book on collections.\n    Define kept as a new counter { the label \"book\", the count 1 }.\n    Define words as a series of text with (\"a\").\n    State \"in the pull\".\nDone.\nDefine pick as 2.\nJudge pick, where it is:\n    1, state \"one\".\n    2:\n        Define armed as a new counter { the label \"arm\", the count 2 }.\n        The count of armed becomes 3.\n    Done.\n    Otherwise, state \"other\".\nDone.\nState \"end\".",
+        "Define object res with (the text name).\nBind unmaking a res to closing:\n    State \"closed {one's name}\".\nDone.\nDefine object lock with (the number id).\nBind unmaking a lock to releasing:\n    State \"released {one's id}\".\nDone.\nIf true:\n    Define a-res as a new res { the name \"r1\" }.\n    Define a-lock as a new lock { the id 1 }.\n    Define b-res as a new res { the name \"r2\" }.\n    If true:\n        Define b-lock as a new lock { the id 2 }.\n    Done.\n    State \"middle\".\nDone.",
+        "Define object res with (the text name).\nBind unmaking a res to closing:\n    State \"closed {one's name}\".\nDone.\nPull a rabbit as hopper.\n    Define shared as a new res { the name \"rabbit's\" }.\n    Define go as a channel of number.\n    Have hopper start a task:\n        Define got as the delivery from go.\n        For each n in range 1 to 200, repeat:\n            State \"line {n}\".\n        Done.\n    Done.\n    Send 1 through go.\nDone.\nState \"after\".",
     ];
 
     [Fact]
@@ -552,7 +564,7 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     private static readonly HashSet<string> NotReproducible = ["markov.cufe", "work-queue.cufe"];
 
     /// <summary>How many programs of `examples/` must build and print alike. Raised as it grows; never lowered.</summary>
-    private const int CorpusFloor = 56;
+    private const int CorpusFloor = 57;
 
     /// <remarks>
     /// ★ The corpus is copied first: the compiler writes each program beside its source. Each program
@@ -714,6 +726,11 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
          "Matrix row count must be a positive whole number, but got 1.5 (line 3)."),
         ("Pull a book on collections.\n    Define w as 0.\n    State a matrix with 2 by w filled with 1.\nDone.",
          "Matrix column count must be a positive whole number, but got 0 (line 3)."),
+        // A fault that ends the program still unmakes what the blocks it leaves hold.
+        ("Define object res with (the text name).\nBind unmaking a res to closing:\n    State \"closed {one's name}\".\nDone.\nDefine zero as 0.\nIf true:\n    Define doomed as a new res { the name \"doomed\" }.\n    State \"before\".\n    State 1 / zero.\nDone.",
+         "Division by zero on line 9."),
+        ("Define object res with (the text name).\nBind unmaking a res to closing:\n    State \"closed {one's name}\".\nDone.\nBind void to opens:\n    Define inside as a new res { the name \"function body\" }.\nDone.\nDefine top as a new res { the name \"top\" }.\nCast opens.\nDefine zero as 0.\nState \"before\".\nState 1 / zero.",
+         "Division by zero on line 12."),
     ];
 
     [Fact]

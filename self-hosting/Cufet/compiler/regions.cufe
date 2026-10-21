@@ -164,12 +164,15 @@ Pull a book on collections.
         Done.
         Define outer as one's indent.
         The one's indent becomes outer joined to "    ".
+        Define begun as cast one's opening-scope.
         For each inner in (cast field-of on (statement, 2))'s children, repeat:
             If cast declares-only on (inner) is false:
                 Cast one's emit-statement on (inner) or pass the failure off.
             Done.
         Done.
         If keeps-tasks, cast one's line on (cast c-task-teardown on (label)).
+        // Unmade after its tasks are joined: they may still be reading what it made.
+        Cast one's closing-scope on (begun).
         The one's indent becomes outer.
         The one's kinds becomes kept.
         Cast one's line on ("\}").

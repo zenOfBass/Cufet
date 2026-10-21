@@ -112,7 +112,7 @@ Pull a book on collections.
     Bind text to c-unwrapped unto emitter, given (the text written, the text kind):
         Define label as cast one's current-try.
         If cast is-failable on (kind) is false or label is "", return written.
-        Define leaving as "{cast one's c-leaving on (the entry for "%try-exc" in one's kinds but void is "0")}{cast one's c-leaving-rabbits on (the entry for "%try-rabbit" in one's kinds but void is "0")}{cast one's c-leaving-files on (the entry for "%try-files" in one's kinds but void is "0")}".
+        Define leaving as "{cast one's c-leaving-unmakers on (the entry for "%try-um" in one's kinds but void is "0")}{cast one's c-leaving on (the entry for "%try-exc" in one's kinds but void is "0")}{cast one's c-leaving-rabbits on (the entry for "%try-rabbit" in one's kinds but void is "0")}{cast one's c-leaving-files on (the entry for "%try-files" in one's kinds but void is "0")}".
         Define taken as "(\{ {cast failable-c-name on (kind)} cf_r = {written}; if (!cf_r.ok) \{ cf_failure_{label} = cf_r.failure; {leaving}goto cf_try_{label}; \}".
         If cast failable-inner on (kind) is "void", return "{taken} (void)0; \})".
         Return "{taken} cf_r.value; \})".
@@ -125,7 +125,7 @@ Pull a book on collections.
         If cast is-failable on (kind) is false, return written.
         Define outer as the entry for "%return" in one's kinds but void is "".
         If cast is-failable on (outer) is false, return a failure (cast not-built on ("passing a failure off from where nothing can fail")).
-        Define taken as "(\{ {cast failable-c-name on (kind)} cf_r = {written}; if (!cf_r.ok) \{ {cast one's c-leaving on ("0")}{cast one's c-leaving-rabbits on ("0")}{cast one's c-leaving-files on ("0")}cufet_alloc_override = cf_fo; return {cast failable-c-name on (outer)}_fail(cf_r.failure); \}".
+        Define taken as "(\{ {cast failable-c-name on (kind)} cf_r = {written}; if (!cf_r.ok) \{ {cast one's c-leaving-unmakers on ("0")}{cast one's c-leaving on ("0")}{cast one's c-leaving-rabbits on ("0")}{cast one's c-leaving-files on ("0")}cufet_alloc_override = cf_fo; return {cast failable-c-name on (outer)}_fail(cf_r.failure); \}".
         If cast failable-inner on (kind) is "void", return "{taken} (void)0; \})".
         Return "{taken} cf_r.value; \})".
     Done.
@@ -325,7 +325,7 @@ Pull a book on collections.
         Define record-kind as cast failable-inner on (kind).
         Define shown as "fputs(cf_pr.value.{cast c-name on ("errors")}, stderr); fputs(cf_pr.value.{cast c-name on ("output")}, stdout);".
         If cast one's current-try is not "":
-            Cast one's line on ("\{ {cast failable-c-name on (kind)} cf_pr = {piped-c}; if (!cf_pr.ok) \{ cf_failure_{cast one's current-try} = cf_pr.failure; {cast one's c-leaving on (the entry for "%try-exc" in one's kinds but void is "0")}{cast one's c-leaving-rabbits on (the entry for "%try-rabbit" in one's kinds but void is "0")}{cast one's c-leaving-files on (the entry for "%try-files" in one's kinds but void is "0")}goto cf_try_{cast one's current-try}; \} {shown} \}").
+            Cast one's line on ("\{ {cast failable-c-name on (kind)} cf_pr = {piped-c}; if (!cf_pr.ok) \{ cf_failure_{cast one's current-try} = cf_pr.failure; {cast one's c-leaving-unmakers on (the entry for "%try-um" in one's kinds but void is "0")}{cast one's c-leaving on (the entry for "%try-exc" in one's kinds but void is "0")}{cast one's c-leaving-rabbits on (the entry for "%try-rabbit" in one's kinds but void is "0")}{cast one's c-leaving-files on (the entry for "%try-files" in one's kinds but void is "0")}goto cf_try_{cast one's current-try}; \} {shown} \}").
             Return.
         Done.
         Cast one's line on ("\{ {cast failable-c-name on (kind)} cf_pr = {piped-c}; if (!cf_pr.ok) \{ fprintf(stderr, \"%s\\n\", cf_pr.failure.message); exit(1); \} {shown} \}").
@@ -359,7 +359,7 @@ Pull a book on collections.
     /// A `Return`, closing every exception `Try` it leaves first — its value worked out before
     /// that, so a fault in it is still caught.
     Bind text to c-return unto emitter, given (the text value):
-        Define leaving as "{cast one's c-leaving on ("0")}{cast one's c-leaving-rabbits on ("0")}{cast one's c-leaving-files on ("0")}cufet_alloc_override = cf_fo; ".
+        Define leaving as "{cast one's c-leaving-unmakers on ("0")}{cast one's c-leaving on ("0")}{cast one's c-leaving-rabbits on ("0")}{cast one's c-leaving-files on ("0")}cufet_alloc_override = cf_fo; ".
         If leaving is "":
             If value is "", return "return;".
             Return "return {value};".
@@ -371,17 +371,18 @@ Pull a book on collections.
 
     /// `Stop` or `Skip` — closing the exception `Try`s opened inside the loop it leaves.
     Bind text to c-loop-jump unto emitter, given (the text jump):
-        Define leaving as "{cast one's c-leaving on (the entry for "%loop-exc" in one's kinds but void is "0")}{cast one's c-leaving-rabbits on (the entry for "%loop-rabbit" in one's kinds but void is "0")}{cast one's c-leaving-files on (the entry for "%loop-files" in one's kinds but void is "0")}".
+        Define leaving as "{cast one's c-leaving-unmakers on (the entry for "%loop-um" in one's kinds but void is "0")}{cast one's c-leaving on (the entry for "%loop-exc" in one's kinds but void is "0")}{cast one's c-leaving-rabbits on (the entry for "%loop-rabbit" in one's kinds but void is "0")}{cast one's c-leaving-files on (the entry for "%loop-files" in one's kinds but void is "0")}".
         If leaving is "", return "{jump};".
         Return "\{ {leaving}{jump}; \}".
     Done.
 
     /// Marks the start of a loop's body, so a `Stop` in it knows what it leaves. Gives back what to put back.
     Bind text to entering-loop unto emitter:
-        Define kept as "{the entry for "%loop-exc" in one's kinds but void is "0"}/{the entry for "%loop-rabbit" in one's kinds but void is "0"}/{the entry for "%loop-files" in one's kinds but void is "0"}".
+        Define kept as "{the entry for "%loop-exc" in one's kinds but void is "0"}/{the entry for "%loop-rabbit" in one's kinds but void is "0"}/{the entry for "%loop-files" in one's kinds but void is "0"}/{the entry for "%loop-um" in one's kinds but void is "0"}".
         In one's kinds, the entry for "%loop-exc" becomes "{cast one's exceptions-open}".
         In one's kinds, the entry for "%loop-rabbit" becomes "{cast one's rabbits-open}".
         In one's kinds, the entry for "%loop-files" becomes "{cast one's files-open}".
+        In one's kinds, the entry for "%loop-um" becomes "{cast one's unmakers-open}".
         Return kept.
     Done.
 
@@ -390,6 +391,7 @@ Pull a book on collections.
         In one's kinds, the entry for "%loop-exc" becomes item 1 of parts.
         In one's kinds, the entry for "%loop-rabbit" becomes item 2 of parts.
         In one's kinds, the entry for "%loop-files" becomes item 3 of parts.
+        In one's kinds, the entry for "%loop-um" becomes item 4 of parts.
     Done.
 
     /// The name a handler's exception is bound to: `the exception`, or the name it was given.
@@ -416,6 +418,7 @@ Pull a book on collections.
         Define outer-try-exc as the entry for "%try-exc" in one's kinds but void is "0".
         Define outer-try-rabbit as the entry for "%try-rabbit" in one's kinds but void is "0".
         Define outer-try-files as the entry for "%try-files" in one's kinds but void is "0".
+        Define outer-try-um as the entry for "%try-um" in one's kinds but void is "0".
         Define outer-exc as "{cast one's exceptions-open}".
         Cast one's line on ("\{").
         Define outer as one's indent.
@@ -435,12 +438,14 @@ Pull a book on collections.
             In one's kinds, the entry for "%try-exc" becomes outer-exc.
             In one's kinds, the entry for "%try-rabbit" becomes "{cast one's rabbits-open}".
             In one's kinds, the entry for "%try-files" becomes "{cast one's files-open}".
+            In one's kinds, the entry for "%try-um" becomes "{cast one's unmakers-open}".
         Done.
         Cast one's emit-block on (cast field-of on (statement, 1)) or pass the failure off.
         In one's kinds, the entry for "%try" becomes outer-try.
         In one's kinds, the entry for "%try-exc" becomes outer-try-exc.
         In one's kinds, the entry for "%try-rabbit" becomes outer-try-rabbit.
         In one's kinds, the entry for "%try-files" becomes outer-try-files.
+        In one's kinds, the entry for "%try-um" becomes outer-try-um.
         In one's kinds, the entry for "%exc" becomes outer-exc.
         Cast one's line on ("\}").
         If catching, cast one's line on ("cufet_exc_top--;").
@@ -455,9 +460,11 @@ Pull a book on collections.
             In one's kinds, the entry for "@the failure" becomes "".
             The one's indent becomes outer joined to "        ".
             Cast one's line on ("CufetFailure {cast c-name on ("the failure")} = cf_failure_{label};").
+            Define failure-begun as cast one's opening-scope.
             For each inner in (cast field-of on (statement, 2))'s children, repeat:
                 Cast one's emit-statement on (inner) or pass the failure off.
             Done.
+            Cast one's closing-scope on (failure-begun).
             The one's kinds becomes kept.
             The one's indent becomes outer joined to "    ".
             Cast one's line on ("\}").
@@ -476,9 +483,11 @@ Pull a book on collections.
             In one's kinds, the entry for "%suppress" becomes label.
             The one's indent becomes outer joined to "        ".
             Cast one's line on ("const char* {cast c-name on (bound)} = cf_xmsg_{label};").
+            Define exception-begun as cast one's opening-scope.
             For each inner in (cast field-of on (statement, 3))'s children, repeat:
                 Cast one's emit-statement on (inner) or pass the failure off.
             Done.
+            Cast one's closing-scope on (exception-begun).
             The one's kinds becomes kept.
             The one's indent becomes outer joined to "    ".
             Cast one's line on ("\}").

@@ -200,9 +200,11 @@ Pull a book on collections.
         If (the entry for "built:task_{label}" in one's inferred) is void:
             In one's inferred, the entry for "built:task_{label}" becomes "yes".
             Define writer as cast one's task-writer on (captured, result, label).
+            Define task-begun as cast writer's opening-scope.
             For each inner in body's children, repeat:
                 Cast writer's emit-statement on (inner) or pass the failure off.
             Done.
+            Cast writer's closing-scope on (task-begun).
             Insert "struct cft_arg_{label} \{ {fields} \};\n" into one's lambda-types.
             Define head as "static void* cft_task_{label}(void* argp)".
             Insert "{head};\n" into one's lambda-protos.
@@ -256,7 +258,7 @@ Pull a book on collections.
     Bind void or failure to emit-task-return unto emitter, given (the node statement):
         Define result as the entry for "%task" in one's kinds but void is "void".
         Define returned as cast field-of on (statement, 1).
-        Define leaving as "{cast one's c-leaving on ("0")}{cast one's c-leaving-rabbits on ("0")}{cast one's c-leaving-files on ("0")}".
+        Define leaving as "{cast one's c-leaving-unmakers on ("0")}{cast one's c-leaving on ("0")}{cast one's c-leaving-rabbits on ("0")}{cast one's c-leaving-files on ("0")}".
         If result is "?":
             If cast is-nothing on (returned) is false:
                 // `Return a failure …` makes the task one that can fail; any other gives its kind.

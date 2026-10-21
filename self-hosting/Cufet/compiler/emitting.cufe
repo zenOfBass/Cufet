@@ -661,9 +661,11 @@ Pull a book on collections.
         Done.
         Define outer as one's indent.
         The one's indent becomes outer joined to "    ".
+        Define begun as cast one's opening-scope.
         For each statement in statements's children, repeat:
             Cast one's emit-statement on (statement) or pass the failure off.
         Done.
+        Cast one's closing-scope on (begun).
         The one's indent becomes outer.
         The one's kinds becomes kept.
     Done.
@@ -704,8 +706,10 @@ Pull a book on collections.
                 Define said as cast field-of on (statement, 1).
                 Define value as cast one's c-of on (said) or pass the failure off.
                 Define value-kind as cast one's kind-of on (said) or pass the failure off.
-                // Locked for the whole line: a `State` is several writes.
-                Cast one's line on ("cufet_out_lock(); {cast write-call on (value-kind, value)}; cufet_nl(); cufet_out_unlock();").
+                // Locked for the whole line: a `State` is several writes. The value is worked out
+                // before the lock is taken — it may wait on a task that prints, which a lock held
+                // across the wait would keep from printing for ever.
+                Cast one's line on ("\{ __auto_type cf_said = {value}; cufet_out_lock(); {cast write-call on (value-kind, "cf_said")}; cufet_nl(); cufet_out_unlock(); \}").
             Done.
             "DefineStatement":
                 Define name as cast unquoted on (cast field-of on (statement, 1)).
@@ -727,6 +731,7 @@ Pull a book on collections.
                 In one's kinds, the entry for "@{name}" becomes "".
                 Cast one's declared-here on (name).
                 Cast one's line on ("{cast c-type on (value-kind)} {cast c-name on (name)} = {value};").
+                Cast one's register-unmade on (name, value-kind).
             Done.
             "BecomesStatement":
                 Define name as cast unquoted on (cast field-of on (statement, 1)).
@@ -865,11 +870,13 @@ Pull a book on collections.
         Done.
         Define outer as one's indent.
         The one's indent becomes outer joined to "    ".
+        Define begun as cast one's opening-scope.
         For each inner in (cast field-of on (statement, 2))'s children, repeat:
             If cast declares-only on (inner) is false:
                 Cast one's emit-statement on (inner) or pass the failure off.
             Done.
         Done.
+        Cast one's closing-scope on (begun).
         The one's indent becomes outer.
         The one's kinds becomes kept.
         Cast one's line on ("\}").
@@ -879,7 +886,8 @@ Pull a book on collections.
     Bind fact to declares-only, given (the node statement):
         Define kind as statement's kind.
         Return kind is "BindStatement" or kind is "ObjectDefinition" or kind is "InterfaceDefinition"
-            or kind is "GetterDeclaration" or kind is "SetterDeclaration" or kind is "OperatorOverloadDeclaration".
+            or kind is "GetterDeclaration" or kind is "SetterDeclaration" or kind is "OperatorOverloadDeclaration"
+            or kind is "UnmakerDeclaration".
     Done.
 
     /// Where a `Define` stands, as the key its constant is known by.
@@ -1145,6 +1153,8 @@ Pull a book on collections.
             Done.
         Done.
         Cast writer's register-pulled-modules on (hoisted).
+        // Unmakers, each by its object — noted before any body is written, so every `Define` may ask.
+        Cast writer's note-unmakers on (hoisted).
         // Every shared constant: a `permanently` the hoist reaches, its kind known before any body is.
         For each statement in hoisted, repeat:
             If statement's kind is "DefineStatement" and (cast field-of on (statement, 3))'s word is "true":
@@ -1213,6 +1223,12 @@ Pull a book on collections.
         For each overload in overloads, repeat:
             Insert "{cast writer's c-overload-signature on (overload) or pass the failure off};\n" into declared.
             Insert cast writer's c-overload on (overload) or pass the failure off into defined.
+        Done.
+        For each statement in hoisted, repeat:
+            If statement's kind is "UnmakerDeclaration":
+                Insert "{cast c-unmaker-signature on (statement)};\n" into declared.
+                Insert cast writer's c-unmaker on (statement) or pass the failure off into defined.
+            Done.
         Done.
         Define setter-index as 0.
         For each setter in setters, repeat:
