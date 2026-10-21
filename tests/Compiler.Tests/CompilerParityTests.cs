@@ -52,7 +52,7 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     : PipelineTestBase, IClassFixture<CompiledCufetCompiler>
 {
     /// <summary>How many hand-written programs must build and print alike. Raised as it grows; never lowered.</summary>
-    private const int BuiltFloor = 409;
+    private const int BuiltFloor = 416;
 
     private static string[] PreludeArgs =>
         ["--prelude", Path.Combine(RepoRoot, "src", "Interpreter", "Prelude").Replace('\\', '/')];
@@ -507,6 +507,14 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
         "Define object counter with (the text label, the number count):\n    Bind text to described:\n        Return \"{one's label} at {one's count}\".\n    Done.\nDone.\nBind unmaking a counter to report:\n    State \"unmade {cast described on one}\".\nDone.\nPull a book on collections.\n    Define kept as a new counter { the label \"book\", the count 1 }.\n    Define words as a series of text with (\"a\").\n    State \"in the pull\".\nDone.\nDefine pick as 2.\nJudge pick, where it is:\n    1, state \"one\".\n    2:\n        Define armed as a new counter { the label \"arm\", the count 2 }.\n        The count of armed becomes 3.\n    Done.\n    Otherwise, state \"other\".\nDone.\nState \"end\".",
         "Define object res with (the text name).\nBind unmaking a res to closing:\n    State \"closed {one's name}\".\nDone.\nDefine object lock with (the number id).\nBind unmaking a lock to releasing:\n    State \"released {one's id}\".\nDone.\nIf true:\n    Define a-res as a new res { the name \"r1\" }.\n    Define a-lock as a new lock { the id 1 }.\n    Define b-res as a new res { the name \"r2\" }.\n    If true:\n        Define b-lock as a new lock { the id 2 }.\n    Done.\n    State \"middle\".\nDone.",
         "Define object res with (the text name).\nBind unmaking a res to closing:\n    State \"closed {one's name}\".\nDone.\nPull a rabbit as hopper.\n    Define shared as a new res { the name \"rabbit's\" }.\n    Define go as a channel of number.\n    Have hopper start a task:\n        Define got as the delivery from go.\n        For each n in range 1 to 200, repeat:\n            State \"line {n}\".\n        Done.\n    Done.\n    Send 1 through go.\nDone.\nState \"after\".",
+        // Task pipes: function stages, each fed what the one before outputs.
+        "Bind void to emit-numbers:\n    Output 1.\n    Output 2.\n    Output 3.\n    Output 4.\nDone.\nBind void to keep-even:\n    For each n from the input:\n        If n % 2 is 0, output n.\n    Done.\nDone.\nBind void to show:\n    For each n from the input:\n        State \"kept {n converted to text}\".\n    Done.\nDone.\nemit-numbers | keep-even | show.\nState \"after the pipe\".",
+        "Bind void to emit-words:\n    Output \"a\".\n    Output \"bbb\".\n    Output \"cc\".\nDone.\nBind void to lengths:\n    For each w from the input:\n        Output the length of w.\n    Done.\nDone.\nBind void to show:\n    For each n from the input:\n        State \"len {n}\".\n    Done.\nDone.\nemit-words | lengths | show.",
+        "Bind void to report, given (the series of number sums):\n    Bind void to emit-sums, for each s in sums, output s.\n    Bind void to keep-large, for each s from the input, if s is greater than 20, output s.\n    Bind void to print-labelled, for each s from the input, state \"large: {s}\".\n    emit-sums | keep-large | print-labelled.\n    State \"reported\".\nDone.\nCast report on (a series of number with (15, 40, 65, 7)).\nCast report on (a series of number with (21)).",
+        "Bind void to counts:\n    For each n in range 1 to 4, output n.\nDone.\nBind void to squares:\n    For each n from the input:\n        Define squared as n * n.\n        Output squared.\n    Done.\nDone.\nBind void to grouped:\n    Define held as a series of number.\n    For each n from the input:\n        Insert n into held.\n        If the number of held is 2:\n            Output held.\n            The held becomes a series of number.\n        Done.\n    Done.\nDone.\nBind void to shown:\n    For each pair from the input, state pair.\nDone.\ncounts | squares | grouped | shown.",
+        "Bind void to people:\n    Output a record with (the name \"ada\", the age 36).\n    Output a record with (the name \"bob\", the age 12).\n    Output a record with (the name \"cy\", the age 50).\n    Output a record with (the name \"di\", the age 70).\nDone.\nBind void to adults:\n    For each person from the input:\n        If the age of person is less than 18, skip.\n        Output the name of person.\n    Done.\nDone.\nBind void to first-two:\n    Define seen as 0.\n    For each name from the input:\n        State name.\n        Increment seen by 1.\n        If seen is 2, stop.\n    Done.\n    State \"seen {seen}\".\nDone.\npeople | adults | first-two.",
+        "Bind void to some:\n    Output 3.\n    Output 1.\nDone.\nBind void to doubled:\n    For each n from the input, output n * 2.\nDone.\nBind void to said:\n    For each n from the input, state n.\nDone.\nBind void to twice:\n    some | said.\n    some | doubled | said.\nDone.\nFor each round in range 1 to 2, repeat:\n    State \"round {round}\".\n    Cast twice.\nDone.",
+        "Bind void to letters:\n    For each letter in a series of text with (\"x\", \"y\", \"z\"), output letter in uppercase.\nDone.\nBind void to printed:\n    For each letter from the input, state \"[{letter}]\".\nDone.\nletters | printed.",
     ];
 
     [Fact]
@@ -564,7 +572,7 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     private static readonly HashSet<string> NotReproducible = ["markov.cufe", "work-queue.cufe"];
 
     /// <summary>How many programs of `examples/` must build and print alike. Raised as it grows; never lowered.</summary>
-    private const int CorpusFloor = 57;
+    private const int CorpusFloor = 58;
 
     /// <remarks>
     /// ★ The corpus is copied first: the compiler writes each program beside its source. Each program

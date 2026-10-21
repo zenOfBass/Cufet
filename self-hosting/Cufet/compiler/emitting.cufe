@@ -816,7 +816,12 @@ Pull a book on collections.
             "FileWriteStatement", cast one's emit-file-write on (statement) or pass the failure off.
             "WithOpenStatement", cast one's emit-with-open on (statement) or pass the failure off.
             "SendStatement", cast one's emit-send on (statement) or pass the failure off.
-            "PipeExpression", cast one's emit-run-pipe on (statement) or pass the failure off.
+            "PipeExpression":
+                If cast is-task-pipe on (statement), cast one's emit-task-pipe on (statement) or pass the failure off.
+                Otherwise, cast one's emit-run-pipe on (statement) or pass the failure off.
+            Done.
+            "OutputStatement", cast one's emit-output on (statement) or pass the failure off.
+            "ForEachFromInputStatement", cast one's emit-from-input on (statement) or pass the failure off.
             // `Yield.` — an interrupt checkpoint; the operating system hands out the turns.
             "YieldStatement", cast one's line on ("cufet_checkpoint();").
             "AcknowledgeInterruptStatement", cast one's line on ("cufet_interrupted = 0;").
@@ -1015,6 +1020,7 @@ Pull a book on collections.
         Define writer as cast one's sibling.
         Cast writer's line on ("int cf_ab = cufet_arena_top; int cf_fo = cufet_alloc_override; (void)cf_ab; (void)cf_fo;").
         In writer's kinds, the entry for "%return" becomes cast one's kind-of-type on (cast field-of on (statement, 2)) or pass the failure off.
+        Cast writer's feed-stage on (cast unquoted on (cast field-of on (statement, 1))).
         For each parameter in (cast field-of on (statement, 3))'s children, repeat:
             Define taken as cast one's kind-of-type on (cast field-of on (parameter, 1)) or pass the failure off.
             Define overridden as the entry for cast unquoted on (cast field-of on (parameter, 2)) in overrides.
@@ -1155,6 +1161,8 @@ Pull a book on collections.
         Cast writer's register-pulled-modules on (hoisted).
         // Unmakers, each by its object — noted before any body is written, so every `Define` may ask.
         Cast writer's note-unmakers on (hoisted).
+        // What every pipe stage is fed — told before any stage's body is written.
+        Cast writer's note-pipes on (program) or pass the failure off.
         // Every shared constant: a `permanently` the hoist reaches, its kind known before any body is.
         For each statement in hoisted, repeat:
             If statement's kind is "DefineStatement" and (cast field-of on (statement, 3))'s word is "true":

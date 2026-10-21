@@ -306,6 +306,7 @@ Pull a book on collections.
         In one's kinds, the entry for "%return" becomes gives.
         In one's kinds, the entry for "%closure" becomes label.
         If named is not "":
+            Cast one's feed-stage on (named).
             Define self-kind as cast function-kind-from on (gives, takes).
             In one's kinds, the entry for named becomes self-kind.
             In one's kinds, the entry for "%{named}" becomes self-kind.

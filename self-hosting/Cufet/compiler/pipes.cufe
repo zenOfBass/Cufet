@@ -1,0 +1,243 @@
+/*  Task pipes — `emit-numbers | keep-even | show.`, `Output <value>.`, and
+    `For each <name> from the input: … Done.`
+
+    ★ Each stage is a function run on a thread of its own, by the runtime's `cufet_pipe_stage`, with
+      a channel between each stage and the next: what one outputs, the next takes from the input.
+      A stage that returns closes its output, so the end runs down the pipe; the pipe joins every
+      stage, then frees its channels. Each channel is first in, first out, so what a pipe prints is
+      what the interpreter's buffered stages print.
+
+    ★ `from the input` names no type, so what a stage is fed is worked out before any body is
+      written: each pipe walked left to right, a stage fed what the one before it outputs first —
+      as the checker has it. `inferred` keeps it as `pipe-in:<stage>`, and a stage's writer as
+      `%pipe-in`. What crosses a channel is copied whole, as what crosses into a task is.
+*/
+
+Pull a book on collections.
+    /// A pipe's stages, left to right.
+    Bind void to gather-stages, given (the node pipe, the series of node stages):
+        If pipe's kind is "PipeExpression":
+            Cast gather-stages on (cast field-of on (pipe, 1), stages).
+            Cast gather-stages on (cast field-of on (pipe, 2), stages).
+            Return.
+        Done.
+        Insert pipe into stages.
+    Done.
+
+    /// Whether a pipe joins functions rather than programs.
+    Bind fact to is-task-pipe, given (the node pipe):
+        Define stages as a series of node.
+        Cast gather-stages on (pipe, stages).
+        Return (item 1 of stages)'s kind is not "RunExpression".
+    Done.
+
+    /// Every `Bind` anywhere in a tree, by its name.
+    Bind void to gather-binds, given (the node tree, the map from text to node binds):
+        If tree's kind is "BindStatement", in binds, the entry for cast unquoted on (cast field-of on (tree, 1)) becomes tree.
+        For each child in tree's children, repeat:
+            If child's kind is not "atom", cast gather-binds on (child, binds).
+        Done.
+    Done.
+
+    /// A writer for looking inside a `Bind`: what this place knows, and its parameters.
+    Bind emitter or failure to stage-scope unto emitter, given (the node bound):
+        Define scope as cast one's sibling.
+        For each pair in one's kinds, repeat:
+            In scope's kinds, the entry for the key of pair becomes the value of pair.
+        Done.
+        For each parameter in (cast field-of on (bound, 3))'s children, repeat:
+            Define taken as cast one's kind-of-type on (cast field-of on (parameter, 1)) or pass the failure off.
+            In scope's kinds, the entry for cast unquoted on (cast field-of on (parameter, 2)) becomes taken.
+        Done.
+        Return scope.
+    Done.
+
+    /// The statement lists a statement holds — its bodies and its arms'.
+    Bind series of node to held-lists, given (the node statement):
+        Define lists as a series of node.
+        For each part in statement's children, repeat:
+            If part's kind is "list", insert part into lists.
+            If part's kind is "ConditionArm":
+                For each piece in part's children, repeat:
+                    If piece's kind is "list", insert piece into lists.
+                Done.
+            Done.
+        Done.
+        Return lists.
+    Done.
+
+    /// What a stage's statements first output, fed `fed` — or "" when that cannot be told.
+    Bind text to first-output unto emitter, given (the node statements, the text fed):
+        For each statement in statements's children, repeat:
+            Define kind as statement's kind.
+            If kind is "OutputStatement", return cast one's kind-of on (cast field-of on (statement, 1)) but on failure "".
+            If kind is "DefineStatement":
+                Define defined as cast one's kind-of on (cast field-of on (statement, 2)) but on failure "".
+                If defined is not "", in one's kinds, the entry for cast unquoted on (cast field-of on (statement, 1)) becomes defined.
+            Done.
+            Otherwise if kind is "ForEachFromInputStatement":
+                In one's kinds, the entry for cast unquoted on (cast field-of on (statement, 1)) becomes fed.
+                Define inner as cast one's first-output on (cast field-of on (statement, 2), fed).
+                If inner is not "", return inner.
+            Done.
+            Otherwise if kind is "ForEachStatement":
+                Define over as cast one's kind-of on (cast field-of on (statement, 2)) but on failure "".
+                Define iterator as "it".
+                If cast is-nothing on (cast field-of on (statement, 1)) is false, the iterator becomes cast unquoted on (cast field-of on (statement, 1)).
+                In one's kinds, the entry for iterator becomes cast element-of on (over).
+                Define inner as cast one's first-output on (cast field-of on (statement, 3), fed).
+                If inner is not "", return inner.
+            Done.
+            Otherwise:
+                For each held in cast held-lists on (statement), repeat:
+                    Define inner as cast one's first-output on (held, fed).
+                    If inner is not "", return inner.
+                Done.
+            Done.
+        Done.
+        Return "".
+    Done.
+
+    /// Notes what each stage of a pipe is fed.
+    Bind void or failure to note-pipe unto emitter, given (the node pipe, the map from text to node binds):
+        Define stages as a series of node.
+        Cast gather-stages on (pipe, stages).
+        Define fed as "".
+        For each stage in stages, repeat:
+            If stage's kind is not "VariableReference", return.
+            Define name as cast unquoted on (cast field-of on (stage, 1)).
+            Define bound as the entry for name in binds.
+            If bound is void, return.
+            If fed is not "", in one's inferred, the entry for "pipe-in:{name}" becomes fed.
+            Define scope as cast one's stage-scope on (bound) or pass the failure off.
+            The fed becomes cast scope's first-output on (cast field-of on (bound, 4), fed).
+        Done.
+    Done.
+
+    /// Walks statements, noting the stages of every pipe met — inside each `Bind` with what that
+    /// `Bind` sees, so a stage reading what it captured is still told.
+    Bind void or failure to note-pipes-in unto emitter, given (the node statements, the map from text to node binds):
+        For each statement in statements's children, repeat:
+            Define kind as statement's kind.
+            If kind is "DefineStatement":
+                Define defined as cast one's kind-of on (cast field-of on (statement, 2)) but on failure "".
+                If defined is not "", in one's kinds, the entry for cast unquoted on (cast field-of on (statement, 1)) becomes defined.
+            Done.
+            Otherwise if kind is "BindStatement":
+                Define scope as cast one's stage-scope on (statement) or pass the failure off.
+                Cast scope's note-pipes-in on (cast field-of on (statement, 4), binds) or pass the failure off.
+            Done.
+            Otherwise if kind is "PipeExpression":
+                Cast one's note-pipe on (statement, binds) or pass the failure off.
+            Done.
+            Otherwise:
+                For each held in cast held-lists on (statement), repeat:
+                    Cast one's note-pipes-in on (held, binds) or pass the failure off.
+                Done.
+            Done.
+        Done.
+    Done.
+
+    /// Notes what every stage in the program is fed, before any body is written.
+    Bind void or failure to note-pipes unto emitter, given (the node program):
+        If cast names-anywhere-kind on (program, "PipeExpression") is false, return.
+        Define binds as a map from text to node.
+        Cast gather-binds on (program, binds).
+        Define scope as cast one's sibling.
+        Cast scope's note-pipes-in on (program, binds) or pass the failure off.
+    Done.
+
+    /// Whether a tree holds a node of a kind anywhere.
+    Bind fact to names-anywhere-kind, given (the node tree, the text wanted):
+        If tree's kind is wanted, return true.
+        For each child in tree's children, repeat:
+            If child's kind is not "atom" and cast names-anywhere-kind on (child, wanted), return true.
+        Done.
+        Return false.
+    Done.
+
+    /// A stage's writer, told what the stage is fed.
+    Bind void to feed-stage unto emitter, given (the text name):
+        Define fed as the entry for "pipe-in:{name}" in one's inferred.
+        If fed is not void, in one's kinds, the entry for "%pipe-in" becomes fed.
+    Done.
+
+    // ── Statements ────────────────────────────────────────────────────────
+
+    /// `Output <value>.` — copied whole onto the heap and sent down this stage's output.
+    Bind void or failure to emit-output unto emitter, given (the node statement):
+        Define held as cast one's kind-of on (cast field-of on (statement, 1)) or pass the failure off.
+        Cast one's register-copy on (held) or pass the failure off.
+        Define value-c as cast one's c-of on (cast field-of on (statement, 1)) or pass the failure off.
+        Cast one's line on ("cufet_chan_send(cufet_pipe_out, {cast copy-family on (held)}_heapenv({value-c}));").
+    Done.
+
+    /// `For each <name> from the input:` — each value the stage before sends, until it is done.
+    Bind void or failure to emit-from-input unto emitter, given (the node statement):
+        Define fed as the entry for "%pipe-in" in one's kinds but void is "".
+        If fed is "", return a failure (cast not-built on ("a stage that no pipe feeds")).
+        Cast one's register-copy on (fed) or pass the failure off.
+        Define family as cast copy-family on (fed).
+        Define name as cast unquoted on (cast field-of on (statement, 1)).
+        Cast one's line on ("for (;;) \{").
+        Define kept as cast one's kinds-kept.
+        Define outer as one's indent.
+        The one's indent becomes outer joined to "    ".
+        Cast one's line on ("void* cf_pe = NULL; int cf_ph = cufet_chan_recv(cufet_pipe_in, &cf_pe);").
+        Cast one's line on ("if (cf_ph < 0) \{ cufet_checkpoint(); break; \}").
+        Cast one's line on ("if (cf_ph == 0) break;").
+        Cast one's line on ("{cast c-type on (fed)} {cast c-name on (name)} = {family}_arenacopy(cf_pe); {family}_freeenv(cf_pe);").
+        In one's kinds, the entry for name becomes fed.
+        Cast one's declared-here on (name).
+        In one's kinds, the entry for "%{name}" becomes fed.
+        In one's kinds, the entry for "@{name}" becomes "".
+        The one's indent becomes outer.
+        Define loop-kept as cast one's entering-loop.
+        Cast one's emit-block on (cast field-of on (statement, 2)) or pass the failure off.
+        Cast one's leaving-loop on (loop-kept).
+        The one's kinds becomes kept.
+        Cast one's line on ("\}").
+    Done.
+
+    /// `a | b | c.` of functions — each stage on its own thread, a channel between each and the
+    /// next, every stage joined before the statement after.
+    Bind void or failure to emit-task-pipe unto emitter, given (the node pipe):
+        Define stages as a series of node.
+        Cast gather-stages on (pipe, stages).
+        Define label as "{(cast field-of on (pipe, 3))'s word}_{(cast field-of on (pipe, 4))'s word}".
+        Define count as the number of stages.
+        Cast one's line on ("\{").
+        Define outer as one's indent.
+        The one's indent becomes outer joined to "    ".
+        Define place as 0.
+        For each stage in stages, repeat:
+            Increment place by 1.
+            Define stage-kind as cast one's kind-of on (stage) or pass the failure off.
+            If cast is-function on (stage-kind) is false or cast function-gives on (stage-kind) is not "void" or the number of cast function-takes on (stage-kind) is not 0:
+                Return a failure (cast not-built on ("a pipe stage that is a {stage-kind}")).
+            Done.
+            Define stage-c as cast one's c-of on (stage) or pass the failure off.
+            Cast one's line on ("{cast function-c-name on (stage-kind)} cf_pstg_{label}_{place} = {stage-c};").
+        Done.
+        Cast one's line on ("cufet_chan* cf_pch_{label}[{count - 1}];").
+        For each joint in range 1 to count - 1, repeat:
+            Define fed-stage as item (joint + 1) of stages.
+            Define fed as the entry for "pipe-in:{cast unquoted on (cast field-of on (fed-stage, 1))}" in one's inferred but void is "".
+            If fed is "", return a failure (cast not-built on ("a pipe whose stage {joint} outputs nothing this compiler can tell")).
+            Cast one's register-copy on (fed) or pass the failure off.
+            Cast one's line on ("cf_pch_{label}[{joint - 1}] = cufet_chan_new({cast copy-family on (fed)}_freeenv);").
+        Done.
+        Cast one's line on ("pthread_t cf_pth_{label}[{count}];").
+        For each step in range 1 to count, repeat:
+            Define taking as "NULL".
+            If step is greater than 1, the taking becomes "cf_pch_{label}[{step - 2}]".
+            Define giving as "NULL".
+            If step is less than count, the giving becomes "cf_pch_{label}[{step - 1}]".
+            Cast one's line on ("\{ cufet_pipe_arg* cf_pa = (cufet_pipe_arg*)malloc(sizeof(cufet_pipe_arg)); cf_pa->in = {taking}; cf_pa->out = {giving}; cf_pa->fn = cf_pstg_{label}_{step}.fn; cf_pa->env = cf_pstg_{label}_{step}.env; pthread_create(&cf_pth_{label}[{step - 1}], NULL, cufet_pipe_stage, cf_pa); \}").
+        Done.
+        Cast one's line on ("for (int cf_pj = 0; cf_pj < {count}; cf_pj++) pthread_join(cf_pth_{label}[cf_pj], NULL);").
+        Cast one's line on ("for (int cf_pf = 0; cf_pf < {count - 1}; cf_pf++) cufet_chan_free(cf_pch_{label}[cf_pf]);").
+        The one's indent becomes outer.
+        Cast one's line on ("\}").
+    Done.
+Done.
