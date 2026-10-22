@@ -266,6 +266,13 @@ Pull a book on collections.
             Return.
         Done.
         If value-kind is not "text", return a failure (cast not-built on ("inserting a {value-kind} into a chase")).
+        // At the end, decoded straight onto it, as `cufet build` does. Anywhere else the text is
+        // decoded apart first, to know how far to move what follows — a chase of its own, every time,
+        // which at the end cost the compiled checker 19 million chases on one file.
+        If at is "cf_ch->len":
+            Cast one's line on ("\{ CufetChase* cf_ch = {chase-c}; cufet_chase_append(cf_ch, {value}); \}").
+            Return.
+        Done.
         Cast one's line on ("\{ CufetChase* cf_ch = {chase-c}; cufet_chase_insert(cf_ch, {at}, {value}); \}").
     Done.
 

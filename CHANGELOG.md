@@ -99,6 +99,12 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   record, a number or a text — while a series or a map is the live one. Both backends agreed and a
   test held them to it; the sentence was wrong from the day it was written. It now says so, with a
   checked example.
+- **The checker built by the compiler written in Cufet uses half the memory it did.** Over the
+  repository's 163 files it peaked at 4,886 MB and took 857 s, against 2,085 MB and 478 s for the
+  same checker built by `cufet build`. Every function ran exactly as often in both; the difference
+  was one lowering. `Insert <text> into <chase>` at the end decoded the text into a chase of its own
+  first — 19 million of them while checking one file — where `cufet build` decodes it straight onto
+  the chase. It does the same now: 2,291 MB and 497 s.
 - **Two tasks printing at once no longer splice their lines on Windows.** A built program locks its
   output for the whole of each `State`, but on Windows the lock did nothing, on the reason that a
   Windows build had no second thread — untrue since tasks build under mingw. Two tasks each printing
