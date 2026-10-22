@@ -104,7 +104,7 @@ public abstract class PipelineTestBase
 
         try
         {
-            File.WriteAllText(Path.Combine(tmp, RuntimeSplit.HeaderFileName), header);
+            RuntimeSplit.WriteHeaders(tmp, header);
             File.WriteAllText(cPath, programSource);
 
             var gcc    = new GccInvoker();

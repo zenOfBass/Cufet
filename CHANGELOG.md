@@ -37,10 +37,13 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   not, channels — sent through, closed, delivered from — what crosses a thread copied whole,
   every task joined at its rabbit's `Done`, interrupts, and pipes of programs — and matrices,
   maps keyed by a record of keys, unmakers, run on every way out of a block, and pipes of
-  functions — `Output`, and `for each … from the input` — and the chance book.
-  `CompilerParityTests` now holds it to the interpreter on 421 hand-written programs and on 59
-  of the 67 in `examples/` — two of them, `markov` and `work-queue`, to running cleanly rather
-  than to the same output, since the backends' random generators and the scheduler decide those.
+  functions — `Output`, and `for each … from the input` — the chance book, and axioms: `cufet`
+  ones, and C-language ones — what crosses each way, an address read through and given back with
+  `and free it with`, and an axiom passed around as a value.
+  `CompilerParityTests` now holds it to the interpreter on 434 hand-written programs and on every
+  program in `examples/`, all 62 of them — the other 5 are libraries. Two, `markov` and
+  `work-queue`, are held to running cleanly rather than to the same output, since the backends'
+  random generators and the scheduler decide those.
 - **The compiler written in Cufet compiles itself.** The compiler it builds from its own source
   compiles that source again into the very same C, byte for byte — the fixed point a self-hosting
   compiler is held to — and builds every program the first one does, printing the same.
@@ -77,6 +80,12 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   `-Wall -Wextra`, no new link flag, nothing run before `main`, and about 14 KB more on a
   hello-world. What `main` sets up for interrupts and tasks still waits for a program that uses
   them; only the definitions moved — so the compiler written in Cufet can reach all four.
+- **What a program with foreign source opens with is a file beside the runtime: `cufet-foreign.h`.**
+  The headers an axiom may assume, the guards on what it gives back, and the one double-to-decimal
+  conversion were pasted into each such program. `emit-c` and `build` now write them as a header
+  next to `cufet-runtime.h`, and the program includes it, so the compiler written in Cufet reads
+  the same text from the runtime folder instead of carrying a copy. The text itself is unchanged,
+  and the interpreter's shim still compiles the same.
 
 ### Fixed
 

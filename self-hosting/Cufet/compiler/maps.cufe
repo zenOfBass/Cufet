@@ -84,6 +84,9 @@ Pull a book on collections.
     /// A kind as a word fit for a C name.
     Bind text to c-tag, given (the text kind):
         If cast is-scalar on (kind), return kind.
+        // An axiom shares a function's struct but not its series, which print it as `<axiom>`.
+        If kind starts with "axiom ", return "ax_{cast c-tag on (the characters from 7 to the end of kind)}".
+        If kind is "address", return "address".
         Define typed as cast c-type on (kind).
         If typed ends with "*", return the characters from 1 to (the length of typed - 1) of typed.
         Return typed.

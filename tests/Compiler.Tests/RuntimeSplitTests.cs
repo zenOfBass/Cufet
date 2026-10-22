@@ -258,7 +258,7 @@ public class RuntimeSplitTests
         var work = Directory.CreateTempSubdirectory("cufet-symcheck-");
         try
         {
-            File.WriteAllText(Path.Combine(work.FullName, RuntimeSplit.HeaderFileName), header);
+            RuntimeSplit.WriteHeaders(work.FullName, header);
             foreach (var name in RuntimeSplit.DefinedFunctions(runtime).Take(3))
             {
                 // ⚠ An external pointer INITIALIZED with the address, not `&f != 0` inside main.

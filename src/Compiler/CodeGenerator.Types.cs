@@ -698,23 +698,12 @@ static const char* cufet_str_lower(const char* s) {
             // the middle would compile the first half of the program under one macro environment
             // and the second half under another. One state for the whole file is the only version
             // of this worth reasoning about.
-            sb.Insert(0, ForeignC.Headers + "\n" + ForeignC.GuardMacro + "\n"
-                       + ForeignC.WholeResultType + "\n" + ForeignC.RealResultType + "\n"
-                       + ForeignC.RealConversion + "\n\n");
+            // ★ An include of the file every runtime folder now carries, so the compiler written in
+            // Cufet emits the same line instead of a copy of the text. The single-file form below
+            // puts the text itself in its place. See RuntimeSplit.ForeignHeader.
+            sb.Insert(0, ForeignInclude);
 
             sb.AppendLine("// ── Foreign axioms (source this program was given, taken as written) ──");
-            // ★ A whole number arriving from C, read the way its own C type says. `is_unsigned` is
-            // decided at C compile time by CUFET_C_UNSIGNED, so a `size_t` above 2^63 arrives as
-            // the number it is instead of a negative one — the coefficient is 128 bits wide, so
-            // neither branch can lose anything. The interpreter's C# twin is ForeignShim.ReadResult
-            // and the two have to agree on both branches.
-            sb.AppendLine("static CufetDec cufet_dec_from_ull(unsigned long long v) {");
-            sb.AppendLine("    CufetDec d; d.scale = 0; d.sign = 0; d.coef = (unsigned __int128)v; return d;");
-            sb.AppendLine("}");
-            sb.AppendLine($"static CufetDec cufet_dec_from_foreign({ForeignC.WholeResultCType} w) {{");
-            sb.AppendLine("    return w.is_unsigned ? cufet_dec_from_ull(w.bits)");
-            sb.AppendLine("                        : cufet_dec_from_ll((long long)w.bits);");
-            sb.AppendLine("}");
             // ★★ Preambles FIRST, then the wrappers — a wrapper may call a helper a preamble
             // declares, and C needs it declared above the use. This is the whole point of the
             // resultless form: shared source that every axiom in the program can see.
@@ -782,7 +771,8 @@ static const char* cufet_str_lower(const char* s) {
 
         _lastRuntime = runtime.ToString();
         _lastProgram = sb.ToString();
-        return _lastRuntime + _lastProgram;
+        // One file has no folder beside it to include from, so it carries the foreign header itself.
+        return _lastRuntime + _lastProgram.Replace(ForeignInclude, RuntimeSplit.ForeignHeader + "\n");
     }
 
     // The two halves of the most recent Generate, kept so a caller that wants them separately does
@@ -790,6 +780,9 @@ static const char* cufet_str_lower(const char* s) {
     // exactly what the split form compiles, rather than a second code path that can drift from it.
     private string _lastRuntime = "";
     private string _lastProgram = "";
+
+    /// <summary>How a split program reaches the foreign header — the first line of one that has foreign source.</summary>
+    private static readonly string ForeignInclude = $"#include \"{RuntimeSplit.ForeignHeaderFileName}\"\n\n";
 
     /// <summary>
     /// The program and the fixed runtime as separate translation units, plus the header that

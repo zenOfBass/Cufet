@@ -109,7 +109,7 @@ Pull a book on collections.
             Define inner as cast one's kind-of-type on (cast field-of on (written, 1)) or pass the failure off.
             If cast is-scalar on (inner) is false and cast object-of on (inner) is "" and cast is-union on (inner) is false
                     and cast element-of on (inner) is "" and cast is-map on (inner) is false and cast is-record on (inner) is false
-                    and inner is not "bits":
+                    and inner is not "bits" and inner is not "address":
                 Return a failure (cast not-built on ("a voidable {inner}")).
             Done.
             Cast one's register-union on ("voidable {inner}").
@@ -134,6 +134,8 @@ Pull a book on collections.
         If written's kind is "FailureType", return cast one's failable-kind-of-type on (written) or pass the failure off.
         If written's kind is "ChaseType", return "chase".
         If written's kind is "MatrixType", return "matrix".
+        If written's kind is "AddressType", return "address".
+        If written's kind is "AxiomType", return cast one's axiom-kind-of-type on (written) or pass the failure off.
         If written's kind is "FunctionType", return cast one's function-kind-of-type on (written) or pass the failure off.
         Return a failure (cast not-built on ("a {written's kind}")).
     Done.
@@ -206,7 +208,17 @@ Pull a book on collections.
                 Return "fact".
             Done.
             // Inside a `Try`, a call that can fail reads as its value.
-            "CastExpression", return cast one's unwrapped-kind on (cast one's call-kind-of on (expression) or pass the failure off).
+            "CastExpression":
+                // An axiom run by its name gives what its declaration says, and cannot fail.
+                Define axiom as cast keyed-field on (expression, ":RunsAxiom").
+                If axiom is not void, return cast one's axiom-result-kind on (axiom) or pass the failure off.
+                Return cast one's unwrapped-kind on (cast one's call-kind-of on (expression) or pass the failure off).
+            Done.
+            "AxiomLiteral", return cast one's axiom-kind on (expression) or pass the failure off.
+            "ForeignTextAt":
+                Cast one's register-union on ("voidable text").
+                Return "voidable text".
+            Done.
             "ObjectLiteral":
                 Define object-name as cast literal-object-name on (expression).
                 If (the entry for object-name in one's objects) is void, return a failure (cast not-built on ("a new {object-name}")).
@@ -339,7 +351,10 @@ Pull a book on collections.
                 Return a failure (cast not-built on ("the operator {operator}")).
             Done.
             "BinaryExpression", return cast one's c-binary on (expression) or pass the failure off.
+            "AxiomLiteral", return cast one's c-axiom-value on (expression) or pass the failure off.
+            "ForeignTextAt", return cast one's c-text-at on (expression) or pass the failure off.
             "CastExpression":
+                If (cast keyed-field on (expression, ":RunsAxiom")) is not void, return cast one's c-axiom-call on (expression) or pass the failure off.
                 Define called-c as cast one's c-call on (expression) or pass the failure off.
                 Return cast one's c-unwrapped on (called-c, cast one's call-kind-of on (expression) or pass the failure off).
             Done.
@@ -599,6 +614,7 @@ Pull a book on collections.
         If cast is-failable on (kind), return cast failable-c-name on (kind).
         If kind is "chase", return "CufetChase*".
         If kind is "matrix", return "CufetMatrix*".
+        If kind is "address", return "void*".
         If kind is "rabbit", return "cufet_rabbit".
         If kind is "bits", return "CufetBits".
         If cast is-stream on (kind), return "FILE*".
@@ -627,6 +643,9 @@ Pull a book on collections.
         If kind is "chase", return "cufet_write_text(cufet_chase_show({value}))".
         If kind is "bits", return "cufet_write_bits({value})".
         If kind is "matrix", return "cufet_mat_write({value})".
+        // An address prints as what it is, never as its value — two runs get different pointers.
+        If kind is "address", return "fputs(\"<address>\", stdout)".
+        If kind starts with "axiom ", return "fputs(\"<axiom>\", stdout)".
         // A set prints as the collection it reads as — its elements in the order they went in,
         // spelled as a series is — not as the map it is stored as.
         If cast is-set on (kind):
@@ -682,6 +701,7 @@ Pull a book on collections.
         If kind is "bits", return "(({left}).value == ({right}).value)".
         // Two matrices are equal only when they are one matrix, as the interpreter has it.
         If kind is "matrix", return "({left} == {right})".
+        If kind is "address", return "({left} == {right})".
         // Two sets are equal only when they are one set, as two maps are.
         If cast is-set on (kind), return "({left} == {right})".
         If cast is-function on (kind), return "(({left}).fn == ({right}).fn && ({left}).env == ({right}).env)".
@@ -714,6 +734,10 @@ Pull a book on collections.
                 Cast one's line on ("\{ __auto_type cf_said = {value}; cufet_out_lock(); {cast write-call on (value-kind, "cf_said")}; cufet_nl(); cufet_out_unlock(); \}").
             Done.
             "DefineStatement":
+                If (cast field-of on (statement, 2))'s kind is "AxiomLiteral":
+                    Cast one's emit-axiom-define on (statement) or pass the failure off.
+                    Return.
+                Done.
                 Define name as cast unquoted on (cast field-of on (statement, 1)).
                 // A shared constant is a global, set where its `Define` stands.
                 If (the entry for cast place-of-define on (statement) in one's constant-places) is not void:
@@ -786,6 +810,11 @@ Pull a book on collections.
                 Otherwise, cast one's line on (cast one's c-return on (cast one's c-of-as on (returned, gives) or pass the failure off)).
             Done.
             "CastStatement":
+                // An axiom run for what it does; what it gives back is dropped.
+                If (cast keyed-field on (statement, ":RunsAxiom")) is not void:
+                    Cast one's line on ("(void)({cast one's c-axiom-call on (statement) or pass the failure off});").
+                    Return.
+                Done.
                 Define call as cast made on ("CastExpression", a series with (cast field-of on (statement, 1), cast field-of on (statement, 2))).
                 // `… or pass the failure off.`, or inside a `Try`, where a failure goes to the handler.
                 Define passes-off as the number of statement's children is greater than 5 and (cast field-of on (statement, 5))'s word is ":PassesFailureOff".
@@ -987,12 +1016,22 @@ Pull a book on collections.
     /// What this compiler cannot build in a function yet — anything marked — or "". A method bound
     /// `unto` an object is built as that object's; a maker is a function giving back its object.
     Bind text or failure to function-beyond, given (the node statement):
-        // A pattern is lowered to a function that hands it to the `regex` book's engine.
+        // A pattern is lowered to a function that hands it to the `regex` book's engine, and a
+        // `cufet` axiom that says what it gives back to the function it holds — both ordinary.
         If the number of statement's children is greater than 8:
-            If (cast field-of on (statement, 9))'s word is ":FromAxiomLanguage" and cast unquoted on (cast field-of on (statement, 10)) is "regex", return "".
+            If cast is-lowered-axiom on (statement), return "".
             Return "a Bind with {(cast field-of on (statement, 9))'s word}".
         Done.
         Return "".
+    Done.
+
+    /// Whether a `Bind` was lowered from an axiom into an ordinary function — a pattern, or a
+    /// `cufet` axiom; the mark is left only so the checker can ask for the book.
+    Bind fact to is-lowered-axiom, given (the node statement):
+        If the number of statement's children is not greater than 9, return false.
+        If (cast field-of on (statement, 9))'s word is not ":FromAxiomLanguage", return false.
+        Define language as cast unquoted on (cast field-of on (statement, 10)).
+        Return language is "regex" or language is "cufet".
     Done.
 
     /// A function's head as C: what it gives back, its name, and its parameters.
@@ -1021,7 +1060,7 @@ Pull a book on collections.
     /// One function as C. A body sees its parameters and nothing of the program's top level.
     Bind text or failure to c-function unto emitter, given (the node statement, the map from text to text overrides, the text named):
         Define writer as cast one's sibling.
-        Cast writer's line on ("int cf_ab = cufet_arena_top; int cf_fo = cufet_alloc_override; (void)cf_ab; (void)cf_fo;").
+        Cast writer's line on (cast writer's frame-start).
         In writer's kinds, the entry for "%return" becomes cast one's kind-of-type on (cast field-of on (statement, 2)) or pass the failure off.
         Cast writer's feed-stage on (cast unquoted on (cast field-of on (statement, 1))).
         For each parameter in (cast field-of on (statement, 3))'s children, repeat:
@@ -1164,6 +1203,9 @@ Pull a book on collections.
         Cast writer's register-pulled-modules on (hoisted).
         // Unmakers, each by its object — noted before any body is written, so every `Define` may ask.
         Cast writer's note-unmakers on (hoisted).
+        // Foreign source: whether there is any, whether anything it acquires is given back, and the
+        // source an axiom with no result is — pasted above everything that may call into it.
+        Cast writer's note-foreign on (program, hoisted).
         // What every pipe stage is fed — told before any stage's body is written.
         Cast writer's note-pipes on (program) or pass the failure off.
         // Every shared constant: a `permanently` the hoist reaches, its kind known before any body is.
@@ -1317,6 +1359,8 @@ Pull a book on collections.
         Done.
         Define out as a chase.
         Insert "#include \"cufet-runtime.h\"\n\n" into out.
+        // What foreign source needs above it — beside the runtime's header, in the runtime folder.
+        If (the entry for "%foreign" in writer's inferred) is not void, insert "#include \"cufet-foreign.h\"\n\n" into out.
         Insert cast c-series-prelude into out.
         Insert cast c-chase-runtime into out.
         Insert cast c-voidable-prelude into out.
@@ -1367,7 +1411,7 @@ Pull a book on collections.
         Define has-tasks as (the entry for "%tasks" in writer's inferred) is not void.
         If has-tasks or cast uses-interrupts on (program), insert cast c-main-signals on (has-tasks) into out.
         Insert "    cufet_arena_push();\n" into out.
-        Insert "    int cf_ab = cufet_arena_top; int cf_fo = cufet_alloc_override; (void)cf_ab; (void)cf_fo;\n" into out.
+        Insert "    {cast writer's frame-start}\n" into out.
         Insert writer's body converted to text into out.
         Insert "    cufet_arena_pop();\n" into out.
         Insert "    return 0;\n" into out.

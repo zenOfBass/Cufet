@@ -54,6 +54,8 @@ Pull a book on collections.
         If cast is-union on (element), return "cser_{cast union-c-name on (element)}".
         If cast is-record on (element), return "cser_{cast record-c-name on (element)}".
         If cast is-map on (element), return "cser_{cast map-c-name on (element)}".
+        // A series of axioms is its own type, so it prints them as `<axiom>`.
+        If element starts with "axiom ", return "cser_ax_{cast function-c-name on (element)}".
         If cast is-function on (element), return "cser_{cast function-c-name on (element)}".
         Define object-name as cast object-of on (element).
         If object-name is not "", return "cser_obj_{cast c-ident on (object-name)}".

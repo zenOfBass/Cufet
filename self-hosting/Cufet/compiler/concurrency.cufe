@@ -239,7 +239,7 @@ Pull a book on collections.
     /// frame, and `%task` set to what its `Return` publishes — "?" on the pass that works it out.
     Bind emitter to task-writer unto emitter, given (the series of text captured, the text result, the text label):
         Define writer as cast one's sibling.
-        Cast writer's line on ("int cf_ab = cufet_arena_top; int cf_fo = cufet_alloc_override; (void)cf_ab; (void)cf_fo;").
+        Cast writer's line on (cast writer's frame-start).
         For each name in captured, repeat:
             Define held as the entry for name in one's kinds but void is "".
             In writer's kinds, the entry for name becomes held.

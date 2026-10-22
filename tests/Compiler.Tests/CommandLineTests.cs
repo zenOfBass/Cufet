@@ -548,7 +548,8 @@ public class CommandLineTests
             File.Delete(file);
             foreach (var leftover in new[] { emitted, named,
                                              Path.Combine(dir, "cufet-runtime.c"),
-                                             Path.Combine(dir, "cufet-runtime.h") })
+                                             Path.Combine(dir, "cufet-runtime.h"),
+                                             Path.Combine(dir, "cufet-foreign.h") })
                 if (File.Exists(leftover)) File.Delete(leftover);
         }
     }

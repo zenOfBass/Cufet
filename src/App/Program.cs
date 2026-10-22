@@ -274,11 +274,12 @@ static void EmitC(string sourcePath, string outPath)
         var outDir = Path.GetDirectoryName(Path.GetFullPath(outPath))!;
         Directory.CreateDirectory(outDir);
         File.WriteAllText(outPath, programSource);
-        File.WriteAllText(Path.Combine(outDir, RuntimeSplit.HeaderFileName), header);
+        RuntimeSplit.WriteHeaders(outDir, header);
         File.WriteAllText(Path.Combine(outDir, RuntimeSplit.SourceFileName), runtimeSource);
         Console.WriteLine($"Emitted: {outPath}");
         Console.WriteLine($"         {Path.Combine(outDir, RuntimeSplit.SourceFileName)}");
         Console.WriteLine($"         {Path.Combine(outDir, RuntimeSplit.HeaderFileName)}");
+        Console.WriteLine($"         {Path.Combine(outDir, RuntimeSplit.ForeignHeaderFileName)}");
     }
     catch (LexerException e) { RefuseToRun(e); }
     catch (ParseException e) { RefuseToRun(e); }
@@ -1207,7 +1208,7 @@ static void Build(string sourcePath)
         try
         {
             var cPath = Path.Combine(work.FullName, baseName + ".c");
-            File.WriteAllText(Path.Combine(work.FullName, RuntimeSplit.HeaderFileName), header);
+            RuntimeSplit.WriteHeaders(work.FullName, header);
             File.WriteAllText(cPath, programSource);
 
             var gcc    = new GccInvoker();

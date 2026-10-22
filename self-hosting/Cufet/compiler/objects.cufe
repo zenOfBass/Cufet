@@ -191,7 +191,7 @@ Pull a book on collections.
     /// One getter as C. Its body sees `one`, the object it reads.
     Bind text or failure to c-getter unto emitter, given (the text object-name, the node getter):
         Define writer as cast one's sibling.
-        Cast writer's line on ("int cf_ab = cufet_arena_top; int cf_fo = cufet_alloc_override; (void)cf_ab; (void)cf_fo;").
+        Cast writer's line on (cast writer's frame-start).
         In writer's kinds, the entry for "one" becomes "object {object-name}".
         In writer's kinds, the entry for "%return" becomes cast one's kind-of-type on (cast field-of on (getter, 2)) or pass the failure off.
         For each inner in (cast field-of on (getter, 3))'s children, repeat:
@@ -216,7 +216,7 @@ Pull a book on collections.
     /// names that field — where anywhere else the same words call the setter.
     Bind text or failure to c-setter unto emitter, given (the text object-name, the node setter):
         Define writer as cast one's sibling.
-        Cast writer's line on ("int cf_ab = cufet_arena_top; int cf_fo = cufet_alloc_override; (void)cf_ab; (void)cf_fo;").
+        Cast writer's line on (cast writer's frame-start).
         In writer's kinds, the entry for "one" becomes "object {object-name}".
         In writer's kinds, the entry for "%return" becomes "void".
         In writer's kinds, the entry for "%setter" becomes cast unquoted on (cast field-of on (setter, 1)).
@@ -355,7 +355,7 @@ Pull a book on collections.
     /// One method as C. Its body sees `one` and its parameters.
     Bind text or failure to c-method unto emitter, given (the text object-name, the node method):
         Define writer as cast one's sibling.
-        Cast writer's line on ("int cf_ab = cufet_arena_top; int cf_fo = cufet_alloc_override; (void)cf_ab; (void)cf_fo;").
+        Cast writer's line on (cast writer's frame-start).
         In writer's kinds, the entry for "one" becomes "object {object-name}".
         In writer's kinds, the entry for "%return" becomes cast one's kind-of-type on (cast field-of on (method, 2)) or pass the failure off.
         For each parameter in (cast field-of on (method, 3))'s children, repeat:

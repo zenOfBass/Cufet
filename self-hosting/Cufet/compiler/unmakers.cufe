@@ -5,12 +5,16 @@
       defined, and unmade at the block's end, last made first. A function's own body is not a block,
       and nor is the program's top level: a `Define` there is never unmade, as the interpreter has it.
 
-    ★ Every other way out is known where it is written, as an open file's is: `%unmade` counts the
-      unmakers this frame has registered and not yet run, and a `Return`, a `Stop`, a `Skip`, a
-      failure to a `Try` or one passed off runs those registered since the place it goes to —
-      `cufet_run_unmakers_to(cufet_num - <how many>)`. The `kinds` map unwinds with each block, so
-      the count does too. A fault runs them itself: `cufet_raise` unmakes down to the `Try` that
-      catches it, or all of them when none does.
+    ★ Each block notes how deep the registry is where it begins — `int cf_um<depth> = cufet_num;`,
+      `<depth>` how many blocks deep it is in its frame — and runs back to that at its end. Every
+      other way out runs back to where it goes: a `Return` or a failure passed off to the frame's
+      own `cf_umb`, a `Stop` or a `Skip` to the loop body's, a failure to its `Try`'s body's. A
+      fault runs them itself: `cufet_raise` unmakes down to the `Try` that catches it, or all of
+      them when none does.
+
+    ★ A depth noted where it is reached, rather than counted where it is written, because not
+      everything registered is a `Define`: what `and free it with` names is registered only when C
+      handed something back, and from inside an expression that may not be worked out at all.
 
     ★ A program with no unmakers writes none of this.
 */
@@ -32,25 +36,44 @@ Pull a book on collections.
         Return (the entry for "unmaker:{object-name}" in one's inferred) is not void.
     Done.
 
-    /// How many unmakers this frame has registered here and not yet run.
-    Bind number to unmakers-open unto emitter:
-        Return (the entry for "%unmade" in one's kinds but void is "0") converted to number but void is 0.
+    /// The line every frame opens with: where its arena and allocation began — and, when the
+    /// program unmakes anything, how deep the registry was, which a `Return` runs back to.
+    Bind text to frame-start unto emitter:
+        Define opened as "int cf_ab = cufet_arena_top; int cf_fo = cufet_alloc_override; (void)cf_ab; (void)cf_fo;".
+        If cast one's uses-unmakers, return "{opened} int cf_umb = cufet_num; (void)cf_umb;".
+        Return opened.
     Done.
 
-    /// The C that runs the unmakers registered since `depth`, last first — or "".
+    /// How many blocks deep this statement is, in this frame.
+    Bind number to blocks-open unto emitter:
+        Return (the entry for "%blocks" in one's kinds but void is "0") converted to number but void is 0.
+    Done.
+
+    /// The depth the NEXT block opened here will note — what a loop or a `Try` runs back to, being
+    /// what its body notes when it begins.
+    Bind text to next-block-depth unto emitter:
+        If cast one's uses-unmakers is false, return "".
+        Return "cf_um{cast one's blocks-open + 1}".
+    Done.
+
+    /// The C that runs back to a noted depth — the frame's own for "0" — or "" with none to run.
     Bind text to c-leaving-unmakers unto emitter, given (the text depth):
-        Define left as cast one's unmakers-open - (depth converted to number but void is 0).
-        If left is less than 1, return "".
-        Return "cufet_run_unmakers_to(cufet_num - {left}); ".
+        If cast one's uses-unmakers is false or depth is "", return "".
+        If depth is "0", return "cufet_run_unmakers_to(cf_umb); ".
+        Return "cufet_run_unmakers_to({depth}); ".
     Done.
 
-    /// Opens a block: what is defined in it is unmade at its end. Gives back where it began.
+    /// Opens a block: what is defined in it is unmade at its end. Gives back the depth it noted.
     Bind text to opening-scope unto emitter:
-        If cast one's uses-unmakers, in one's kinds, the entry for "%in-block" becomes "yes".
-        Return "{cast one's unmakers-open}".
+        If cast one's uses-unmakers is false, return "".
+        Define noted as cast one's next-block-depth.
+        In one's kinds, the entry for "%blocks" becomes "{cast one's blocks-open + 1}".
+        In one's kinds, the entry for "%in-block" becomes "yes".
+        Cast one's line on ("int {noted} = cufet_num; (void){noted};").
+        Return noted.
     Done.
 
-    /// Closes a block, unmaking what it made — from where it began.
+    /// Closes a block, unmaking what it made — back to where it began.
     Bind void to closing-scope unto emitter, given (the text begun):
         Define closing as cast one's c-leaving-unmakers on (begun).
         If closing is not "", cast one's line on (closing).
@@ -62,7 +85,6 @@ Pull a book on collections.
         If (the entry for "%in-block" in one's kinds but void is "") is not "yes", return.
         If cast one's is-unmade on (kind) is false, return.
         Cast one's line on ("cufet_reg_unmaker(&{cast c-name on (name)}, {cast c-unmaker-name on (cast object-of on (kind))});").
-        In one's kinds, the entry for "%unmade" becomes "{cast one's unmakers-open + 1}".
     Done.
 
     /// Notes each unmaker the program declares, before any body is written.
@@ -86,7 +108,7 @@ Pull a book on collections.
         Define struct-c as cast c-struct-name on (object-name).
         Define writer as cast one's sibling.
         Cast writer's line on ("{struct-c}* cv_one = ({struct-c}*)cf_p; (void)cv_one;").
-        Cast writer's line on ("int cf_ab = cufet_arena_top; int cf_fo = cufet_alloc_override; (void)cf_ab; (void)cf_fo;").
+        Cast writer's line on (cast writer's frame-start).
         In writer's kinds, the entry for "one" becomes "object {object-name}".
         In writer's kinds, the entry for "%return" becomes "void".
         For each inner in (cast field-of on (declaration, 3))'s children, repeat:

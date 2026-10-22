@@ -1,0 +1,394 @@
+/*  Foreign code — `Define c-language number answer as [6 * 7].`, its calls, what it hands back,
+    `the text at <address>`, `and free it with <axiom>`, and an axiom passed around as a value.
+
+    ★ Each axiom is wrapped in a C function of its own, once per distinct axiom: its text with each
+      `the <parameter>` swapped for that parameter's C name, behind a guard that refuses at C
+      compile time a value that cannot come back as what the axiom said it gives. The guards, the
+      result types and the one double-to-decimal conversion are `cufet-foreign.h`, which every
+      runtime folder carries — the same text `cufet build` and the interpreter's shim use.
+
+    ★ What comes back is converted as the declaration says: a whole number read the way its own C
+      type says, a fact as 1 or 0, a text COPIED out of C's memory, a floating number as the
+      decimal the shared conversion made, a pointer as itself — and C's NULL, wherever it can
+      arrive, as void.
+
+    ★ `and free it with` is registered where the pointer is ACQUIRED — not where it is named — once
+      per acquisition, and only when C gave one; it runs as an unmaker does, at the end of the
+      block, on every way out.
+
+    ★ An axiom as a value is a thunk: it marshals its Cufet arguments into C, calls the wrapper and
+      converts what comes back, through the same two pieces a direct call uses. Its kind is
+      `axiom function(…)`: the struct a function value has, printed as `<axiom>`.
+
+    ★ An axiom that says nothing about a result is SOURCE: pasted above every wrapper, so the
+      wrappers may call what it declares.
+*/
+
+Pull a book on collections.
+    // ── Kinds ─────────────────────────────────────────────────────────────
+
+    /// The word after a key such as `:Language`, unquoted — or "" when the node has none.
+    Bind text to keyed-word, given (the node whole, the text key):
+        Define found as cast keyed-field on (whole, key).
+        If found is void, return "".
+        Return cast unquoted on (found).
+    Done.
+
+    /// The kind of an axiom's result, as its declaration writes it.
+    Bind text or failure to axiom-result-kind unto emitter, given (the node axiom):
+        Define written as cast keyed-field on (axiom, ":ReturnType").
+        If written is void, return a failure (cast not-built on ("running an axiom that gives nothing back")).
+        Define result as cast one's kind-of-type on (written) or pass the failure off.
+        If result is "voidable text" or result is "voidable number" or result is "voidable address":
+            Cast one's register-union on (result).
+        Done.
+        Return result.
+    Done.
+
+    /// What an axiom is handed — its parameters' kinds, and their names.
+    Bind series of text or failure to axiom-taken-kinds unto emitter, given (the node axiom):
+        Define taken as a series of text.
+        Define declared-parameters as cast keyed-field on (axiom, ":Parameters").
+        If declared-parameters is void, return taken.
+        For each parameter in declared-parameters's children, repeat:
+            Define taken-kind as cast one's kind-of-type on (item 1 of parameter's children) or pass the failure off.
+            Insert taken-kind into taken.
+        Done.
+        Return taken.
+    Done.
+
+    Bind series of text to axiom-taken-names, given (the node axiom):
+        Define named as a series of text.
+        Define declared-parameters as cast keyed-field on (axiom, ":Parameters").
+        If declared-parameters is void, return named.
+        For each parameter in declared-parameters's children, repeat:
+            Insert cast unquoted on (item 2 of parameter's children) into named.
+        Done.
+        Return named.
+    Done.
+
+    /// The kind an axiom has as a value.
+    Bind text or failure to axiom-kind unto emitter, given (the node axiom):
+        Define result as cast one's axiom-result-kind on (axiom) or pass the failure off.
+        Define taken as cast one's axiom-taken-kinds on (axiom) or pass the failure off.
+        Define plain as cast function-kind-from on (result, taken).
+        Cast one's register-function on (plain).
+        // Noted as itself too, so a series of axioms gets helpers of its own.
+        Cast one's register-function on ("axiom {plain}").
+        Return "axiom {plain}".
+    Done.
+
+    /// A written `<language> <result> axiom given (…)`.
+    Bind text or failure to axiom-kind-of-type unto emitter, given (the node written):
+        Define result as cast one's kind-of-type on (cast field-of on (written, 2)) or pass the failure off.
+        If result is "voidable text" or result is "voidable number" or result is "voidable address":
+            Cast one's register-union on (result).
+        Done.
+        Define taken as a series of text.
+        For each part in (cast field-of on (written, 3))'s children, repeat:
+            Define taken-kind as cast one's kind-of-type on (part) or pass the failure off.
+            Insert taken-kind into taken.
+        Done.
+        Define plain as cast function-kind-from on (result, taken).
+        Cast one's register-function on (plain).
+        // Noted as itself too, so a series of axioms gets helpers of its own.
+        Cast one's register-function on ("axiom {plain}").
+        Return "axiom {plain}".
+    Done.
+
+    // ── The wrapper ───────────────────────────────────────────────────────
+
+    /// The C type an axiom's wrapper hands back, before it is converted.
+    Bind text or failure to axiom-result-c, given (the text result):
+        If result is "number", return "CufetForeignWhole".
+        If result is "fact", return "int".
+        If result is "voidable text", return "const char*".
+        If result is "voidable number", return "CufetForeignReal".
+        If result is "voidable address", return "void*".
+        Return a failure (cast not-built on ("an axiom giving back a {result}")).
+    Done.
+
+    /// The C type a parameter arrives in.
+    Bind text or failure to axiom-parameter-c, given (the text taken):
+        If taken is "number", return "long long".
+        If taken is "fact", return "int".
+        If taken is "text", return "const char*".
+        If taken is "address", return "void*".
+        Return a failure (cast not-built on ("handing a {taken} to an axiom")).
+    Done.
+
+    Bind text or failure to axiom-parameter-list, given (the series of text taken):
+        If the number of taken is 0, return "void".
+        Define listing as "".
+        Define place as 0.
+        For each part in taken, repeat:
+            If place is greater than 0, the listing becomes "{listing}, ".
+            Define part-c as cast axiom-parameter-c on (part) or pass the failure off.
+            The listing becomes "{listing}{part-c} cufet_p{place}".
+            Increment place by 1.
+        Done.
+        Return listing.
+    Done.
+
+    /// Whether a letter belongs to a Cufet name, so `the read` is not found inside `the read-only`.
+    Bind fact to is-name-letter, given (the text letter):
+        If letter is "", return false.
+        Return "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-" contains letter.
+    Done.
+
+    Bind fact to is-space-letter, given (the text letter):
+        Return letter is " " or letter is "\t" or letter is "\n" or letter is "\r".
+    Done.
+
+    /// The text with every `the <name>` — the article in any case, the name exact — made `cufet_p<index>`.
+    Bind text to spliced-one, given (the text source, the text name, the number index):
+        Define out as a chase.
+        Define total as the length of source.
+        Define place as 1.
+        While place is not greater than total, repeat:
+            Define found as 0.
+            Define preceding as "".
+            If place is greater than 1, the preceding becomes the characters from (place - 1) to (place - 1) of source.
+            If place + 2 is not greater than total and cast is-name-letter on (preceding) is false:
+                If (the characters from place to (place + 2) of source) in lowercase is "the":
+                    Define gap as place + 3.
+                    While gap is not greater than total and cast is-space-letter on (the characters from gap to gap of source), repeat:
+                        Increment gap by 1.
+                    Done.
+                    Define name-end as gap + the length of name - 1.
+                    If gap is greater than place + 3 and name-end is not greater than total:
+                        If (the characters from gap to name-end of source) is name:
+                            Define following as "".
+                            If name-end is less than total, the following becomes the characters from (name-end + 1) to (name-end + 1) of source.
+                            If cast is-name-letter on (following) is false, the found becomes name-end.
+                        Done.
+                    Done.
+                Done.
+            Done.
+            If found is greater than 0:
+                Insert "cufet_p{index}" into out.
+                The place becomes found + 1.
+            Done.
+            Otherwise:
+                Insert (the characters from place to place of source) into out.
+                Increment place by 1.
+            Done.
+        Done.
+        Return out converted to text.
+    Done.
+
+    /// The text with every parameter spliced in — the longest name first, so `the read` does not
+    /// take part of `the read-only`.
+    Bind text to spliced, given (the text source, the series of text names):
+        Define done-names as a map from text to fact.
+        Define out as source.
+        For each round in range 1 to the number of names, repeat:
+            Define longest as 0.
+            Define place as 0.
+            For each name in names, repeat:
+                Increment place by 1.
+                If (the entry for name in done-names) is void:
+                    If longest is 0 or the length of name is greater than the length of item longest of names, the longest becomes place.
+                Done.
+            Done.
+            If longest is greater than 0:
+                In done-names, the entry for item longest of names becomes true.
+                The out becomes cast spliced-one on (out, item longest of names, longest - 1).
+            Done.
+        Done.
+        Return out.
+    Done.
+
+    /// The comment that keeps the foreign text findable in the C.
+    Bind text to axiom-banner, given (the text language, the text source):
+        Define one-line as replace "\r" with " " in source.
+        The one-line becomes replace "\n" with " " in one-line.
+        The one-line becomes replace "*/" with "* /" in one-line.
+        Return "/* {language} axiom: {one-line} */".
+    Done.
+
+    /// The wrapper for an axiom, written once for each distinct one — its name.
+    Bind text or failure to axiom-wrapper unto emitter, given (the node axiom):
+        Define language as cast keyed-word on (axiom, ":Language").
+        Define source as cast unquoted on (cast field-of on (axiom, 1)).
+        Define result as cast one's axiom-result-kind on (axiom) or pass the failure off.
+        Define result-c as cast axiom-result-c on (result) or pass the failure off.
+        Define taken as cast one's axiom-taken-kinds on (axiom) or pass the failure off.
+        Define listing as cast axiom-parameter-list on (taken) or pass the failure off.
+        Define spliced-text as cast spliced on (source, cast axiom-taken-names on (axiom)).
+        Define identity as "axiom:{language}|{result-c}|{listing}|{spliced-text}".
+        Define known as the entry for identity in one's inferred.
+        If known is not void, return known.
+        Define count as (the entry for "%axioms" in one's inferred but void is "0") converted to number but void is 0.
+        Define name as "cufet_axiom_{count}".
+        In one's inferred, the entry for "%axioms" becomes "{count + 1}".
+        In one's inferred, the entry for identity becomes name.
+        Define guard as "".
+        Define returned as "({spliced-text})".
+        If result is "number":
+            The guard becomes "    _Static_assert(CUFET_C_WHOLE({spliced-text}), \"this axiom is returned as a number, so it has to produce a C whole number (not a float or a double)\");\n".
+            The returned becomes "(CufetForeignWhole)\{ (unsigned long long)({spliced-text}), CUFET_C_UNSIGNED({spliced-text}) \}".
+        Done.
+        If result is "fact", the returned becomes "({spliced-text}) ? 1 : 0".
+        If result is "voidable text":
+            The guard becomes "    _Static_assert(CUFET_C_TEXT({spliced-text}), \"this axiom is returned as a text, so it has to produce a C string (a char* or const char*)\");\n".
+        Done.
+        If result is "voidable number":
+            The guard becomes "    _Static_assert(CUFET_C_REAL({spliced-text}), \"this axiom is returned as a voidable number, so it has to produce a C floating-point value (a float, a double or a long double); a whole number is returned as a plain number\");\n".
+            The returned becomes "cufet_real_from_double((double)({spliced-text}))".
+        Done.
+        If result is "voidable address":
+            The guard becomes "    _Static_assert(CUFET_C_ADDRESS({spliced-text}), \"this axiom is returned as a voidable address, so it has to produce a C pointer\");\n".
+            The returned becomes "(void*)({spliced-text})".
+        Done.
+        Insert "{cast axiom-banner on (language, source)}\nstatic {result-c} {name}({listing}) \{\n{guard}    return {returned};\n\}\n\n" into one's lambda-protos.
+        Return name.
+    Done.
+
+    // ── Crossing ──────────────────────────────────────────────────────────
+
+    /// One value on its way into C: a number range-checked, never truncated.
+    Bind text to axiom-argument, given (the text taken, the text value, the text at-line):
+        If taken is "number", return "cufet_foreign_ll({value}, {at-line})".
+        If taken is "fact", return "(({value}) ? 1 : 0)".
+        Return value.
+    Done.
+
+    /// What a wrapper hands back, as the Cufet value the declaration promised.
+    Bind text or failure to axiom-result unto emitter, given (the node axiom, the text result, the text call):
+        If result is "number", return "cufet_dec_from_foreign({call})".
+        If result is "fact", return call.
+        Define voidable-c as cast voidable-c-name on (result).
+        If result is "voidable text":
+            Return "(\{ const char* cf_fx = {call}; cf_fx = cf_fx ? cufet_arena_str_at(cufet_arena_top, cf_fx) : (const char*)0; cf_fx ? {voidable-c}_some(cf_fx) : ({voidable-c})\{ 0 \}; \})".
+        Done.
+        If result is "voidable number":
+            Return "(\{ CufetForeignReal cf_fr = {call}; cf_fr.ok ? {voidable-c}_some(cufet_dec_lit(cf_fr.hi, cf_fr.lo, cf_fr.scale, cf_fr.sign)) : ({voidable-c})\{ 0 \}; \})".
+        Done.
+        // A pointer is the value itself; a release names what gives it back, registered here, once.
+        Define released as "".
+        Define release as cast keyed-field on (axiom, ":ReleaseAxiom").
+        If release is not void:
+            Define release-name as cast one's axiom-wrapper on (release) or pass the failure off.
+            Define thunk as "{release-name}_release".
+            If (the entry for "released:{thunk}" in one's inferred) is void:
+                In one's inferred, the entry for "released:{thunk}" becomes "yes".
+                Insert "static void {thunk}(void* cufet_held) \{ (void){release-name}(cufet_held); \}\n\n" into one's lambda-protos.
+            Done.
+            The released becomes "if (cf_fa) cufet_reg_unmaker(cf_fa, {thunk}); ".
+        Done.
+        Return "(\{ void* cf_fa = {call}; {released}cf_fa ? {voidable-c}_some(cf_fa) : ({voidable-c})\{ 0 \}; \})".
+    Done.
+
+    /// A call of an axiom by its name: each argument worked out in order and handed over as C wants it.
+    Bind text or failure to c-axiom-call unto emitter, given (the node call):
+        Define axiom as cast keyed-field on (call, ":RunsAxiom").
+        If axiom is void, return a failure (cast not-built on ("a call of an axiom the checker did not name")).
+        Define wrapper as cast one's axiom-wrapper on (axiom) or pass the failure off.
+        Define result as cast one's axiom-result-kind on (axiom) or pass the failure off.
+        Define taken as cast one's axiom-taken-kinds on (axiom) or pass the failure off.
+        Define at-line as (cast field-of on (call, 3))'s word.
+        Define operands as a series of node.
+        Define emitted as a series of text.
+        Define place as 0.
+        For each argument in (cast field-of on (call, 2))'s children, repeat:
+            Increment place by 1.
+            Define argument-c as cast one's c-of-as on (argument, item place of taken) or pass the failure off.
+            Insert argument into operands.
+            Insert argument-c into emitted.
+        Done.
+        Define prefix as cast order-prefix on (operands, emitted).
+        Define listing as "".
+        The place becomes 0.
+        For each argument-c in emitted, repeat:
+            Increment place by 1.
+            If place is greater than 1, the listing becomes "{listing}, ".
+            The listing becomes "{listing}{cast axiom-argument on (item place of taken, argument-c, at-line)}".
+        Done.
+        Define crossed-back as cast one's axiom-result on (axiom, result, "{wrapper}({listing})") or pass the failure off.
+        Return cast in-order on (prefix, crossed-back).
+    Done.
+
+    /// An axiom as a value: a thunk that crosses as a direct call does, and the struct that holds it.
+    Bind text or failure to c-axiom-value unto emitter, given (the node axiom):
+        Define kind as cast one's axiom-kind on (axiom) or pass the failure off.
+        Define wrapper as cast one's axiom-wrapper on (axiom) or pass the failure off.
+        Define thunk as "{wrapper}_value".
+        If (the entry for "valued:{thunk}" in one's inferred) is void:
+            In one's inferred, the entry for "valued:{thunk}" becomes "yes".
+            Define result as cast one's axiom-result-kind on (axiom) or pass the failure off.
+            Define taken as cast one's axiom-taken-kinds on (axiom) or pass the failure off.
+            Define at-line as (cast field-of on (axiom, 2))'s word.
+            Define declared as "void* cufet_env".
+            Define listing as "".
+            Define place as 0.
+            For each part in taken, repeat:
+                The declared becomes "{declared}, {cast c-type on (part)} p{place}".
+                If place is greater than 0, the listing becomes "{listing}, ".
+                The listing becomes "{listing}{cast axiom-argument on (part, "p{place}", at-line)}".
+                Increment place by 1.
+            Done.
+            Define head as "static {cast c-type on (result)} {thunk}({declared})".
+            Insert "{head};\n" into one's lambda-protos.
+            Define crossed-back as cast one's axiom-result on (axiom, result, "{wrapper}({listing})") or pass the failure off.
+            Insert "{head} \{ (void)cufet_env; return {crossed-back}; \}\n\n" into one's lambda-code.
+        Done.
+        Return "(({cast function-c-name on (kind)})\{ {thunk}, NULL \})".
+    Done.
+
+    /// `the text at <address>` — copied out, as an axiom's text is; void through a void address.
+    Bind text or failure to c-text-at unto emitter, given (the node expression):
+        Define address as cast field-of on (expression, 1).
+        Define address-kind as cast one's kind-of on (address) or pass the failure off.
+        Define address-c as cast one's c-of on (address) or pass the failure off.
+        Cast one's register-union on ("voidable text").
+        Define voidable-c as cast voidable-c-name on ("voidable text").
+        Define raw as "(const char*)cf_th".
+        If address-kind is "voidable address", the raw becomes "(cf_th.has ? (const char*)cf_th.value : (const char*)0)".
+        Return "(\{ __auto_type cf_th = {address-c}; const char* cf_ta = {raw}; const char* cf_tc = cf_ta ? cufet_arena_str_at(cufet_arena_top, cf_ta) : (const char*)0; cf_tc ? {voidable-c}_some(cf_tc) : ({voidable-c})\{ 0 \}; \})".
+    Done.
+
+    // ── The program ───────────────────────────────────────────────────────
+
+    /// Whether a tree holds a word anywhere — a key such as `:ReleaseAxiom` among them.
+    Bind fact to holds-word, given (the node tree, the text wanted):
+        If tree's word is wanted, return true.
+        For each child in tree's children, repeat:
+            If cast holds-word on (child, wanted), return true.
+        Done.
+        Return false.
+    Done.
+
+    /// Before any body is written: whether the program holds foreign source, whether anything it
+    /// acquires is given back — which needs the unmaker registry — and each axiom's source pasted.
+    Bind void to note-foreign unto emitter, given (the node program, the series of node hoisted):
+        If cast names-anywhere-kind on (program, "AxiomLiteral") is false, return.
+        In one's inferred, the entry for "%foreign" becomes "yes".
+        If cast holds-word on (program, ":ReleaseAxiom"), in one's inferred, the entry for "%unmakers" becomes "yes".
+        For each statement in hoisted, repeat:
+            If statement's kind is "DefineStatement" and (cast field-of on (statement, 2))'s kind is "AxiomLiteral":
+                Define axiom as cast field-of on (statement, 2).
+                If (cast keyed-field on (axiom, ":ReturnType")) is void:
+                    Define language as cast keyed-word on (axiom, ":Language").
+                    Define source as cast unquoted on (cast field-of on (axiom, 1)).
+                    Insert "{cast axiom-banner on (language, source)}\n{source}\n\n" into one's lambda-protos.
+                Done.
+            Done.
+        Done.
+    Done.
+
+    /// `Define <language> <result> <name> … as [ … ].` — the name holds the axiom as a value; one
+    /// that gives nothing back is source, pasted above, and defines nothing here.
+    Bind void or failure to emit-axiom-define unto emitter, given (the node statement):
+        Define axiom as cast field-of on (statement, 2).
+        If (cast keyed-field on (axiom, ":ReturnType")) is void, return.
+        Define name as cast unquoted on (cast field-of on (statement, 1)).
+        Define kind as cast one's axiom-kind on (axiom) or pass the failure off.
+        Define value-c as cast one's c-axiom-value on (axiom) or pass the failure off.
+        In one's kinds, the entry for name becomes kind.
+        In one's kinds, the entry for "%{name}" becomes kind.
+        In one's kinds, the entry for "@{name}" becomes "".
+        Cast one's declared-here on (name).
+        Cast one's line on ("{cast function-c-name on (kind)} {cast c-name on (name)} = {value-c}; (void){cast c-name on (name)};").
+    Done.
+Done.

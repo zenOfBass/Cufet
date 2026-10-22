@@ -92,7 +92,7 @@ Pull a book on collections.
     /// One overload as C.
     Bind text or failure to c-overload unto emitter, given (the node declaration):
         Define writer as cast one's overload-writer on (declaration).
-        Cast writer's line on ("int cf_ab = cufet_arena_top; int cf_fo = cufet_alloc_override; (void)cf_ab; (void)cf_fo;").
+        Cast writer's line on (cast writer's frame-start).
         In writer's kinds, the entry for "%return" becomes cast one's overload-gives on (declaration) or pass the failure off.
         For each inner in (cast field-of on (declaration, 6))'s children, repeat:
             Cast writer's emit-statement on (inner) or pass the failure off.

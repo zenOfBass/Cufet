@@ -23,12 +23,19 @@
 
 Pull a book on collections.
     Bind fact to is-function, given (the text kind):
-        Return kind starts with "function(".
+        Return kind starts with "function(" or kind starts with "axiom function(".
+    Done.
+
+    /// A function kind without the mark an axiom's carries — the two share a struct.
+    Bind text to plain-function, given (the text kind):
+        If kind starts with "axiom ", return the characters from 7 to the end of kind.
+        Return kind.
     Done.
 
     /// A function kind's parts — what it gives back, then what it takes — split outside brackets.
     Bind series of text to function-parts, given (the text kind):
-        Define inner as the characters from 10 to (the length of kind - 1) of kind.
+        Define plain as cast plain-function on (kind).
+        Define inner as the characters from 10 to (the length of plain - 1) of plain.
         Define parts as a series of text.
         Define depth as 0.
         Define begun as 1.
@@ -107,7 +114,9 @@ Pull a book on collections.
         For each part in cast function-takes on (kind), repeat:
             The param-list becomes "{param-list}, {cast c-type on (part)}".
         Done.
-        Return "typedef struct \{ {cast c-gives on (cast function-gives on (kind))} (*fn)({param-list}); void* env; \} {cast function-c-name on (kind)};\n".
+        // Guarded: an axiom's kind and a function's of the same shape are one struct, written once.
+        Define struct-c as cast function-c-name on (kind).
+        Return "#ifndef {struct-c}_DEFINED\n#define {struct-c}_DEFINED\ntypedef struct \{ {cast c-gives on (cast function-gives on (kind))} (*fn)({param-list}); void* env; \} {struct-c};\n#endif\n".
     Done.
 
     Bind void to register-function unto emitter, given (the text kind):
@@ -291,7 +300,7 @@ Pull a book on collections.
     Bind void to enter-closure unto emitter, given (the series of text takes, the series of text taken-names,
             the series of text captured, the map from text to text outer, the text named, the text gives,
             the text label, the text fn-name, the text env-type):
-        Cast one's line on ("int cf_ab = cufet_arena_top; int cf_fo = cufet_alloc_override; (void)cf_ab; (void)cf_fo;").
+        Cast one's line on (cast one's frame-start).
         For each name in captured, repeat:
             Define captured-kind as the entry for "%{name}" in outer but void is (the entry for name in outer but void is "").
             In one's kinds, the entry for name becomes captured-kind.
@@ -327,7 +336,7 @@ Pull a book on collections.
 
     /// `Bind … given (…): … Done.` inside a body — a local name holding the function it makes.
     Bind void or failure to emit-local-bind unto emitter, given (the node statement):
-        If the number of statement's children is greater than 8, return a failure (cast not-built on ("a Bind with {(cast field-of on (statement, 9))'s word} inside a body")).
+        If the number of statement's children is greater than 8 and cast is-lowered-axiom on (statement) is false, return a failure (cast not-built on ("a Bind with {(cast field-of on (statement, 9))'s word} inside a body")).
         Define name as cast unquoted on (cast field-of on (statement, 1)).
         Define gives as cast one's kind-of-type on (cast field-of on (statement, 2)) or pass the failure off.
         Define label as "{(cast field-of on (statement, 7))'s word}_{(cast field-of on (statement, 8))'s word}".
