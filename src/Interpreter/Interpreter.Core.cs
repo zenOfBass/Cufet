@@ -1273,13 +1273,14 @@ public sealed partial class Interpreter
                     var ssName = ss.Series is VariableReference ssVr ? ssVr.Name : "this expression";
                     int ssAt = ResolveIndex(ss.Index, ssChase.Count, ssName, ss.Line);
                     var one = new CufetChase();
-                    one.Append((string)Evaluate(ss.Value));
+                    var ssText = (string)Evaluate(ss.Value);
+                    one.Append(ssText);
                     // ⚠ Exactly one character. Taking the first and dropping the rest would be a
                     // silent resolution, which this language refuses everywhere else — and Insert
                     // is already the operation that takes however many.
                     if (one.Count != 1)
                         throw new RuntimeException(
-                            $"Setting one position needs exactly one character, and \"{(string)Evaluate(ss.Value)}\" is {one.Count}. " +
+                            $"Setting one position needs exactly one character, and \"{ssText}\" is {one.Count}. " +
                             $"This happened on line {ss.Line}.");
                     ssChase[ssAt] = one[0];
                     break;

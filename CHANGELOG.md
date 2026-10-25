@@ -113,14 +113,24 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   Windows build had no second thread — untrue since tasks build under mingw. Two tasks each printing
   3000 series came out with about 2000 of their 6000 lines spliced, on every run. Windows now takes
   the C runtime's own per-stream lock; `PipelineTaskTests.TwoTasksPrinting_NeverSpliceALine` holds it.
-- **`cufet build` works out operands left to right, as the interpreter does.** C leaves the order
+- **`cufet build` works out operands in the order the interpreter does.** C leaves the order
   of a call's arguments open, and gcc took them last first: `cast add on (cast tick on (c), cast
   tick on (c))` printed 21 built and 12 interpreted, and `a - b` subtracted the wrong way round
   whenever both sides called something. A call's arguments, the two sides of an operator and of a
-  join, and a matrix's parts — an item written or read, `a matrix with … by …`, and matrix
-  arithmetic — are now bound in the order written wherever two of them could do something. No program in
-  `examples/` had two such operands, which is why the oracle never saw it;
-  `PipelineEvaluationOrderTests` holds it now.
+  join, a matrix's parts, the text operations, map lookups and `has a key for`, set membership, and
+  every statement that changes a series, chase, map or set are now bound in the interpreter's order
+  wherever two of them could do something. That order is not always the one written: the
+  interpreter works out the thing operated on first, so `replace a with b in t` and `the characters
+  from a to b of t` work out `t` first, `the entry for k in m` works out `m` first, and `Insert v
+  into s` works out `s` first. No program in `examples/` had two such operands, which is why the
+  oracle never saw it; `PipelineEvaluationOrderTests` holds it now.
+- **`cufet build` no longer calls a collection twice.** A series or chase reached through a call
+  was pasted into the C twice — once for its length, once for its item — so `item 1 of cast row on
+  (c)`, `the last of`, `Item … of … becomes`, and every chase form called `row` twice, and `Insert
+  <call> into <set>` worked its value out twice. Each is worked out once now;
+  `PipelineEvaluationOrderTests.ACollectionWorkedOutFromACall_IsWorkedOutOnce` holds it. The
+  interpreter had one such slip of its own: setting a position of a chase to more than one character
+  worked the value out a second time for the message.
 - **An object with a blank keeps its field defaults.** `a new box of point { the inside … }` was
   refused for a missing `label` though `label` had a default: the checker filled in `box of point`
   without the template's defaults. The checker written in Cufet carried them, so the two checkers
@@ -137,9 +147,10 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 - **REFERENCE says a bits width can be read and stated.** It still called a width "display, not
   data" that no program could read back, long after `the width of` and `at … bits` shipped; it now
   says what they do, with a checked example.
-- **The compiler written in Cufet works out operands in the order they are written** — a series'
-  items, which it built as calls nested in calls, and a call's arguments and an operator's sides,
-  as `cufet build` now does.
+- **The compiler written in Cufet works out operands in the interpreter's order** — a series'
+  items, which it built as calls nested in calls, a call's arguments and an operator's sides, and
+  the text operations, map lookups, set membership and the statements that change a collection, as
+  `cufet build` now does.
 
 ## [0.27.0] — 2026-10-11
 

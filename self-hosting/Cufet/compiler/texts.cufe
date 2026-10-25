@@ -30,13 +30,17 @@ Pull a book on collections.
     Bind text or failure to c-text-operation unto emitter, given (the node expression):
         Define kind as expression's kind.
         If kind is "TextFind":
-            Define sought as cast one's c-of on (cast field-of on (expression, 1)) or pass the failure off.
-            Define searched as cast one's c-of on (cast field-of on (expression, 2)) or pass the failure off.
-            Return "(\{ int cf_fd = cufet_str_find({searched}, {sought}); cf_fd ? cvo_number_some(cufet_dec_from_ll(cf_fd)) : cvo_number_none(); \})".
+            Define found as cast one's c-fields-in-order on (expression, 1, 2) or pass the failure off.
+            Return cast in-order on (item 1 of found, "(\{ int cf_fd = cufet_str_find({item 3 of found}, {item 2 of found}); cf_fd ? cvo_number_some(cufet_dec_from_ll(cf_fd)) : cvo_number_none(); \})").
         Done.
         // `the current directory` — void when there is none to report.
         If kind is "CurrentDirectoryExpression":
             Return "(\{ const char* cf_cwd = cufet_getcwd(); cf_cwd ? cvo_text_some(cf_cwd) : cvo_text_none(); \})".
+        Done.
+        // Those with more than one operand, each worked out in turn.
+        If kind is "TextSubstringEdge" or kind is "TextContains" or kind is "TextAffixTest" or kind is "TextSplit"
+                or kind is "TextReplace" or kind is "TextSubstringRange":
+            Return cast one's c-text-of-several on (expression) or pass the failure off.
         Done.
         Define text-c as cast one's c-of on (cast field-of on (expression, 1)) or pass the failure off.
         If kind is "TextTrim", return "cufet_str_trim({text-c})".
@@ -52,12 +56,6 @@ Pull a book on collections.
             If asked is "IsFile", return "cufet_path_is_file({text-c})".
             Return a failure (cast not-built on ("the path check {asked}")).
         Done.
-        // `the first <n> characters of`, `the last <n> characters of` — as many as there are.
-        If kind is "TextSubstringEdge":
-            Define count-c as cast one's c-of on (cast field-of on (expression, 2)) or pass the failure off.
-            If (cast field-of on (expression, 3))'s word is "true", return "cufet_str_edge({text-c}, cufet_to_int({count-c}), 1)".
-            Return "cufet_str_edge({text-c}, cufet_to_int({count-c}), 0)".
-        Done.
         // Casing reads the shared runtime's table — the one the interpreter reads too.
         If kind is "TextCase":
             If (cast field-of on (expression, 2))'s word is "true", return "cufet_str_upper({text-c})".
@@ -70,25 +68,39 @@ Pull a book on collections.
             Done.
             Return "(\{ CufetDec cf_pn; cufet_parse_number({text-c}, &cf_pn) ? cvo_number_some(cf_pn) : cvo_number_none(); \})".
         Done.
-        Define second as cast one's c-of on (cast field-of on (expression, 2)) or pass the failure off.
-        If kind is "TextContains", return "(strstr({text-c}, {second}) != NULL)".
+        Return a failure (cast not-built on (kind)).
+    Done.
+
+    /// A text operation of two or three operands as C, the operands worked out in turn.
+    Bind text or failure to c-text-of-several unto emitter, given (the node expression):
+        Define kind as expression's kind.
+        Define last as 2.
+        If kind is "TextReplace", the last becomes 3.
+        If kind is "TextSubstringRange" and cast is-nothing on (cast field-of on (expression, 3)) is false, the last becomes 3.
+        Define sides as cast one's c-fields-in-order on (expression, 1, last) or pass the failure off.
+        Define prefix as item 1 of sides.
+        Define text-c as item 2 of sides.
+        Define second as item 3 of sides.
+        // `the first <n> characters of`, `the last <n> characters of` — as many as there are.
+        If kind is "TextSubstringEdge":
+            If (cast field-of on (expression, 3))'s word is "true", return cast in-order on (prefix, "cufet_str_edge({text-c}, cufet_to_int({second}), 1)").
+            Return cast in-order on (prefix, "cufet_str_edge({text-c}, cufet_to_int({second}), 0)").
+        Done.
+        If kind is "TextContains", return cast in-order on (prefix, "(strstr({text-c}, {second}) != NULL)").
         If kind is "TextAffixTest":
-            If (cast field-of on (expression, 3))'s word is "true", return "cufet_str_ends({text-c}, {second})".
-            Return "cufet_str_starts({text-c}, {second})".
+            If (cast field-of on (expression, 3))'s word is "true", return cast in-order on (prefix, "cufet_str_ends({text-c}, {second})").
+            Return cast in-order on (prefix, "cufet_str_starts({text-c}, {second})").
         Done.
         If kind is "TextSplit":
-            Return "(\{ cser_text* cf_sp = cser_text_new(); const char** cf_parts; int cf_n = cufet_str_split({text-c}, {second}, &cf_parts, {(cast field-of on (expression, 3))'s word}); for (int cf_j = 0; cf_j < cf_n; cf_j++) cser_text_append(cf_sp, cf_parts[cf_j]); cf_sp; \})".
+            Return cast in-order on (prefix, "(\{ cser_text* cf_sp = cser_text_new(); const char** cf_parts; int cf_n = cufet_str_split({text-c}, {second}, &cf_parts, {(cast field-of on (expression, 3))'s word}); for (int cf_j = 0; cf_j < cf_n; cf_j++) cser_text_append(cf_sp, cf_parts[cf_j]); cf_sp; \})").
         Done.
         If kind is "TextReplace":
-            Define replacing as cast one's c-of on (cast field-of on (expression, 3)) or pass the failure off.
-            Return "cufet_str_replace({text-c}, {second}, {replacing}, {(cast field-of on (expression, 4))'s word})".
+            Return cast in-order on (prefix, "cufet_str_replace({text-c}, {second}, {item 4 of sides}, {(cast field-of on (expression, 4))'s word})").
         Done.
         // `the characters from … to … of`, to the end when there is no `to`.
         Define upto as "-1".
-        If cast is-nothing on (cast field-of on (expression, 3)) is false:
-            The upto becomes "cufet_to_int({cast one's c-of on (cast field-of on (expression, 3)) or pass the failure off})".
-        Done.
-        Return "cufet_str_range({text-c}, cufet_to_int({second}), {upto}, {(cast field-of on (expression, 4))'s word})".
+        If last is 3, the upto becomes "cufet_to_int({item 4 of sides})".
+        Return cast in-order on (prefix, "cufet_str_range({text-c}, cufet_to_int({second}), {upto}, {(cast field-of on (expression, 4))'s word})").
     Done.
 
     /// `the length of <text>` — in characters.

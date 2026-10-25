@@ -245,9 +245,12 @@ Pull a book on collections.
         Define map-c as cast map-c-name on (target-kind).
         Define target-c as cast one's c-of on (target) or pass the failure off.
         Define key-c as cast one's c-of-as on (cast field-of on (expression, 2), cast map-key-kind on (target-kind)) or pass the failure off.
-        If kind is "MapHasKey", return "{map-c}_has({target-c}, {key-c})".
-        If kind is "MapHasEntry", return "{map-c}_has_entry({target-c}, {key-c})".
-        Return "{map-c}_get({target-c}, {key-c})".
+        // The map first, then the key, as the interpreter works them out — whichever is written first.
+        Define sides as a series of text with (target-c, key-c).
+        Define prefix as cast order-prefix on (a series of node with (target, cast field-of on (expression, 2)), sides).
+        If kind is "MapHasKey", return cast in-order on (prefix, "{map-c}_has({item 1 of sides}, {item 2 of sides})").
+        If kind is "MapHasEntry", return cast in-order on (prefix, "{map-c}_has_entry({item 1 of sides}, {item 2 of sides})").
+        Return cast in-order on (prefix, "{map-c}_get({item 1 of sides}, {item 2 of sides})").
     Done.
 
     // ── Statements ────────────────────────────────────────────────────────
@@ -260,14 +263,18 @@ Pull a book on collections.
         Define target-c as cast one's c-of on (target) or pass the failure off.
         Define key-c as cast one's c-of-as on (cast field-of on (statement, 2), cast map-key-kind on (target-kind)) or pass the failure off.
         Define held-c as cast one's c-of-as on (cast field-of on (statement, 3), cast map-value-kind on (target-kind)) or pass the failure off.
-        Cast one's line on ("{cast map-c-name on (target-kind)}_put({target-c}, {key-c}, {held-c});").
+        Define sides as a series of text with (target-c, key-c, held-c).
+        Define prefix as cast order-prefix on (a series of node with (target, cast field-of on (statement, 2), cast field-of on (statement, 3)), sides).
+        Cast one's line on (cast in-order-statement on (prefix, "{cast map-c-name on (target-kind)}_put({item 1 of sides}, {item 2 of sides}, {item 3 of sides});")).
     Done.
 
     /// `Remove <key> from <map>.` — refused, as the language does, when the key is not there.
     Bind void or failure to emit-map-remove unto emitter, given (the node statement, the text target-kind):
         Define target-c as cast one's c-of on (cast field-of on (statement, 1)) or pass the failure off.
         Define key-c as cast one's c-of-as on (cast field-of on (statement, 2), cast map-key-kind on (target-kind)) or pass the failure off.
-        Cast one's line on ("{cast map-c-name on (target-kind)}_remove({target-c}, {key-c}, {(cast field-of on (statement, 3))'s word});").
+        Define sides as a series of text with (target-c, key-c).
+        Define prefix as cast order-prefix on (a series of node with (cast field-of on (statement, 1), cast field-of on (statement, 2)), sides).
+        Cast one's line on (cast in-order-statement on (prefix, "{cast map-c-name on (target-kind)}_remove({item 1 of sides}, {item 2 of sides}, {(cast field-of on (statement, 3))'s word});")).
     Done.
 
     /// `For each <name> in <map>, repeat:` — over the pairs as they were when it began. A key added

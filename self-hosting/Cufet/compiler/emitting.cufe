@@ -482,6 +482,35 @@ Pull a book on collections.
         Return "(\{ {prefix}{built}; \})".
     Done.
 
+    /// A statement built from the temporaries, in a block of its own that binds them first.
+    Bind text to in-order-statement, given (the text prefix, the text built):
+        If prefix is "", return built.
+        Return "\{ {prefix}{built} \}".
+    Done.
+
+    /// The operands of a node, fields `first` to `last`, as C — what binds them in order (see
+    /// `order-prefix`), then each one's C. ★ The interpreter works a node's operands out in the
+    /// order its fields come, which is not always the order written: `replace a with b in t` and
+    /// `the characters from a to b of t` work out `t` first, and `the entry for k in m` works out `m`.
+    /// ⚠ Save `Insert`, whose value field comes before the series it goes into: the series is first.
+    Bind series of text or failure to c-fields-in-order unto emitter, given (the node expression, the number first, the number last):
+        Define operands as a series of node.
+        Define emitted as a series of text.
+        Define place as first.
+        While place is not greater than last, repeat:
+            Define operand as cast field-of on (expression, place).
+            Insert operand into operands.
+            Define operand-c as cast one's c-of on (operand) or pass the failure off.
+            Insert operand-c into emitted.
+            Increment place by 1.
+        Done.
+        Define gathered as a series of text with (cast order-prefix on (operands, emitted)).
+        For each operand-c in emitted, repeat:
+            Insert operand-c into gathered.
+        Done.
+        Return gathered.
+    Done.
+
     /// A call's arguments as C, each as the kind its parameter wants — wrapped into a union where
     /// the parameter is one. One passed for an interface is the object it is. Gives back what binds
     /// them in order (see `order-prefix`), then the list.

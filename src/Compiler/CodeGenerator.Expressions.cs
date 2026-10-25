@@ -49,12 +49,20 @@ public sealed partial class CodeGenerator
     // `__auto_type` names each without emitting it twice, which matters for an operand that jumps
     // to a Try's handler. A literal or a plain name is left in place: no call can change a local,
     // since a closure captures a snapshot, so where it is read does not matter.
+    //
+    // ★ `pastedTwice`: `build` writes an operand into its C more than once — a series is read for
+    // its length and again for its item — so even ONE operand that does something is bound, or it
+    // would do it twice. `Item 1 of cast row on (c) becomes 10` called `row` twice until 2026-10-24.
+    //
+    // ★ Not every node's operands go in the order written: the interpreter works out the thing
+    // operated on first — `replace a with b in t` works out `t` first, `the entry for k in m`
+    // works out `m` — so each caller hands its operands over in the interpreter's order.
     private string InOrder(IReadOnlyList<IExpression> operands, IReadOnlyList<string> emitted,
-                           Func<IReadOnlyList<string>, string> build)
+                           Func<IReadOnlyList<string>, string> build, bool pastedTwice = false)
     {
         static bool OrderFree(IExpression e) =>
             e is NumberLiteral or StringLiteral or BooleanLiteral or VoidLiteral or VariableReference;
-        if (operands.Count(e => !OrderFree(e)) < 2) return build(emitted);
+        if (operands.Count(e => !OrderFree(e)) < (pastedTwice ? 1 : 2)) return build(emitted);
         var bound = new StringBuilder("({ ");
         var names = new List<string>();
         for (int i = 0; i < emitted.Count; i++)
@@ -280,8 +288,11 @@ public sealed partial class CodeGenerator
     {
         string cvd = RegisterVoidableStruct(new VoidableType(TNumber));
         int id = _freshId++;
-        _preEmits.Add($"int cf_fd{id} = cufet_str_find({EmitExpr(tf.Text)}, {EmitExpr(tf.Substring)});");
-        return $"(cf_fd{id} ? ({cvd}){{ .has = 1, .val = cufet_dec_from_ll(cf_fd{id}) }} : ({cvd}){{ .has = 0 }})";
+        // ★ In place, not hoisted ahead of the statement: hoisted, it ran before every operand
+        // written to its left. The substring first, then the text — the interpreter's order.
+        return InOrder(new[] { tf.Substring, tf.Text }, new[] { EmitExpr(tf.Substring), EmitExpr(tf.Text) },
+            both => $"({{ int cf_fd{id} = cufet_str_find({both[1]}, {both[0]}); "
+                  + $"cf_fd{id} ? ({cvd}){{ .has = 1, .val = cufet_dec_from_ll(cf_fd{id}) }} : ({cvd}){{ .has = 0 }}; }})");
     }
 
     // `<text> split by <delim>` → a series of text (arena series of arena substrings). Matches
@@ -331,13 +342,13 @@ public sealed partial class CodeGenerator
     private string EmitTextSplit(TextSplit ts)
     {
         string name = RegisterSeriesStruct(new SeriesType(TText));
-        string textExpr  = EmitExpr(ts.Text);
-        string delimExpr = EmitExpr(ts.Delimiter);
         int id = _freshId++;
         string tmp = $"cs_{id}", parts = $"cf_sp{id}", n = $"cf_spn{id}", j = $"cf_spj{id}";
-        _preEmits.Add($"{name}* {tmp} = {name}_new();");
-        _preEmits.Add($"{{ const char** {parts}; int {n} = cufet_str_split({textExpr}, {delimExpr}, &{parts}, {ts.Line}); for (int {j} = 0; {j} < {n}; {j}++) {name}_append({tmp}, {parts}[{j}]); }}");
-        return tmp;
+        // In place, as `the position of` is — see EmitTextFind.
+        return InOrder(new[] { ts.Text, ts.Delimiter }, new[] { EmitExpr(ts.Text), EmitExpr(ts.Delimiter) },
+            both => $"({{ {name}* {tmp} = {name}_new(); const char** {parts}; "
+                  + $"int {n} = cufet_str_split({both[0]}, {both[1]}, &{parts}, {ts.Line}); "
+                  + $"for (int {j} = 0; {j} < {n}; {j}++) {name}_append({tmp}, {parts}[{j}]); {tmp}; }})");
     }
 
     // A file read is a fallible expression: build the raw `cfl` (read into arena, or a failure
@@ -656,22 +667,25 @@ public sealed partial class CodeGenerator
         if (tt is ObjectType ot)
             return $"({EmitExpr(sa.Target)}).p{ObjectPositionalIndex(ot.Name, sa.Index)}";
 
-        string targetExpr = EmitExpr(sa.Target);
         string nm = SeriesDisplayName(sa.Target);
+        // The series, then the place. The series is read twice — for its length, then its item.
+        var operands = sa.Index == null ? new[] { sa.Target } : new[] { sa.Target, sa.Index };
+        var emitted = operands.Select(EmitExpr).ToList();
         // ★ A chase reads through the SAME bounds checks a series does, so an out-of-range message
         // is word for word the one a series gives. Only the element differs: `->data` here is code
         // points, and what comes back has to be text.
         if (tt is ChaseType)
         {
             _usesChase = true;
-            return sa.Index == null
-                ? $"cufet_chase_at({targetExpr}, cufet_last_check(({targetExpr})->len, \"{nm}\", {sa.Line}))"
-                : $"cufet_chase_at({targetExpr}, cufet_idx_check(cufet_to_int({EmitExpr(sa.Index)}), ({targetExpr})->len, \"{nm}\", {sa.Line}))";
+            return InOrder(operands, emitted, p => sa.Index == null
+                ? $"cufet_chase_at({p[0]}, cufet_last_check(({p[0]})->len, \"{nm}\", {sa.Line}))"
+                : $"cufet_chase_at({p[0]}, cufet_idx_check(cufet_to_int({p[1]}), ({p[0]})->len, \"{nm}\", {sa.Line}))",
+                pastedTwice: true);
         }
-        if (sa.Index == null)
-            return $"({targetExpr})->data[cufet_last_check(({targetExpr})->len, \"{nm}\", {sa.Line}) - 1]";
-        string idxExpr = EmitExpr(sa.Index);
-        return $"({targetExpr})->data[cufet_idx_check(cufet_to_int({idxExpr}), ({targetExpr})->len, \"{nm}\", {sa.Line}) - 1]";
+        return InOrder(operands, emitted, p => sa.Index == null
+            ? $"({p[0]})->data[cufet_last_check(({p[0]})->len, \"{nm}\", {sa.Line}) - 1]"
+            : $"({p[0]})->data[cufet_idx_check(cufet_to_int({p[1]}), ({p[0]})->len, \"{nm}\", {sa.Line}) - 1]",
+            pastedTwice: true);
     }
 
     // The name used in OOB messages — the interpreter passes the variable's name (quoted inside

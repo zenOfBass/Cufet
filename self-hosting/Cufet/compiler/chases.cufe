@@ -255,14 +255,24 @@ Pull a book on collections.
         Define value as cast one's c-of on (cast field-of on (statement, 1)) or pass the failure off.
         Define value-kind as cast one's kind-of on (cast field-of on (statement, 1)) or pass the failure off.
         Define at-line as (cast field-of on (statement, 5))'s word.
+        // The chase, then the value, then the place, as the interpreter works them out.
+        Define operands as a series of node with (target, cast field-of on (statement, 1)).
+        Define sides as a series of text with (chase-c, value).
+        If (cast field-of on (statement, 4))'s word is not "true" and cast is-nothing on (cast field-of on (statement, 3)) is false:
+            Insert cast field-of on (statement, 3) into operands.
+            Define after-c as cast one's c-of on (cast field-of on (statement, 3)) or pass the failure off.
+            Insert after-c into sides.
+        Done.
+        Define prefix as cast order-prefix on (operands, sides).
+        Define bound as "{prefix}CufetChase* cf_ch = {item 1 of sides};".
+        The value becomes item 2 of sides.
         Define at as "cf_ch->len".
         If (cast field-of on (statement, 4))'s word is "true", the at becomes "0".
-        Otherwise if cast is-nothing on (cast field-of on (statement, 3)) is false:
-            Define after-c as cast one's c-of on (cast field-of on (statement, 3)) or pass the failure off.
-            The at becomes "(int)cufet_idx_check(cufet_to_int({after-c}), cf_ch->len, \"{cast chase-label on (target)}\", {at-line})".
+        Otherwise if the number of sides is 3:
+            The at becomes "(int)cufet_idx_check(cufet_to_int({item 3 of sides}), cf_ch->len, \"{cast chase-label on (target)}\", {at-line})".
         Done.
         If value-kind is "number":
-            Cast one's line on ("\{ CufetChase* cf_ch = {chase-c}; cufet_chase_insert_point(cf_ch, {at}, cufet_code_point({value}, {at-line})); \}").
+            Cast one's line on ("\{ {bound} cufet_chase_insert_point(cf_ch, {at}, cufet_code_point({value}, {at-line})); \}").
             Return.
         Done.
         If value-kind is not "text", return a failure (cast not-built on ("inserting a {value-kind} into a chase")).
@@ -270,27 +280,28 @@ Pull a book on collections.
         // decoded apart first, to know how far to move what follows — a chase of its own, every time,
         // which at the end cost the compiled checker 19 million chases on one file.
         If at is "cf_ch->len":
-            Cast one's line on ("\{ CufetChase* cf_ch = {chase-c}; cufet_chase_append(cf_ch, {value}); \}").
+            Cast one's line on ("\{ {bound} cufet_chase_append(cf_ch, {value}); \}").
             Return.
         Done.
-        Cast one's line on ("\{ CufetChase* cf_ch = {chase-c}; cufet_chase_insert(cf_ch, {at}, {value}); \}").
+        Cast one's line on ("\{ {bound} cufet_chase_insert(cf_ch, {at}, {value}); \}").
     Done.
 
     /// `Remove item … from`, `Remove the last from`, and `Remove "<character>" from` a chase.
     Bind void or failure to emit-chase-remove unto emitter, given (the node statement):
         Define target as cast field-of on (statement, 1).
-        Define chase-c as cast one's c-of on (target) or pass the failure off.
         Define label as cast chase-label on (target).
-        If statement's kind is "SeriesRemoveValueStatement":
-            Define one-c as cast one's c-of on (cast field-of on (statement, 2)) or pass the failure off.
-            Cast one's line on ("cufet_chase_remove_value({chase-c}, {one-c}, \"{label}\", {(cast field-of on (statement, 3))'s word});").
+        If cast is-nothing on (cast field-of on (statement, 2)):
+            Define chase-c as cast one's c-of on (target) or pass the failure off.
+            Cast one's line on ("cufet_chase_remove_at({chase-c}, -1, \"{label}\", {(cast field-of on (statement, 3))'s word});").
             Return.
         Done.
-        Define index-c as "-1".
-        If cast is-nothing on (cast field-of on (statement, 2)) is false:
-            The index-c becomes "cufet_to_int({cast one's c-of on (cast field-of on (statement, 2)) or pass the failure off})".
+        // The chase first, then what goes, as the interpreter works them out.
+        Define sides as cast one's c-fields-in-order on (statement, 1, 2) or pass the failure off.
+        If statement's kind is "SeriesRemoveValueStatement":
+            Cast one's line on (cast in-order-statement on (item 1 of sides, "cufet_chase_remove_value({item 2 of sides}, {item 3 of sides}, \"{label}\", {(cast field-of on (statement, 3))'s word});")).
+            Return.
         Done.
-        Cast one's line on ("cufet_chase_remove_at({chase-c}, {index-c}, \"{label}\", {(cast field-of on (statement, 3))'s word});").
+        Cast one's line on (cast in-order-statement on (item 1 of sides, "cufet_chase_remove_at({item 2 of sides}, cufet_to_int({item 3 of sides}), \"{label}\", {(cast field-of on (statement, 3))'s word});")).
     Done.
 
     /// `The item … of <chase> becomes <character>.`
@@ -300,11 +311,21 @@ Pull a book on collections.
         Define label as cast chase-label on (target).
         Define at-line as (cast field-of on (statement, 4))'s word.
         Define value as cast one's c-of on (cast field-of on (statement, 3)) or pass the failure off.
-        Define placed-at as "cufet_last_check(cf_ch->len, \"{label}\", {at-line})".
-        If cast is-nothing on (cast field-of on (statement, 2)) is false:
-            The placed-at becomes "cufet_idx_check(cufet_to_int({cast one's c-of on (cast field-of on (statement, 2)) or pass the failure off}), cf_ch->len, \"{label}\", {at-line})".
+        // The chase, then the place, then the character, as the interpreter works them out.
+        Define index as cast field-of on (statement, 2).
+        Define operands as a series of node with (target, cast field-of on (statement, 3)).
+        Define sides as a series of text with (chase-c, value).
+        If cast is-nothing on (index) is false:
+            Define index-c as cast one's c-of on (index) or pass the failure off.
+            The operands becomes a series of node with (target, index, cast field-of on (statement, 3)).
+            The sides becomes a series of text with (chase-c, index-c, value).
         Done.
-        Cast one's line on ("\{ CufetChase* cf_ch = {chase-c}; cufet_chase_set(cf_ch, (int){placed-at}, {value}, {at-line}); \}").
+        Define prefix as cast order-prefix on (operands, sides).
+        Define placed-at as "cufet_last_check(cf_ch->len, \"{label}\", {at-line})".
+        If the number of sides is 3:
+            The placed-at becomes "cufet_idx_check(cufet_to_int({item 2 of sides}), cf_ch->len, \"{label}\", {at-line})".
+        Done.
+        Cast one's line on ("\{ {prefix}CufetChase* cf_ch = {item 1 of sides}; cufet_chase_set(cf_ch, (int){placed-at}, {item (the number of sides) of sides}, {at-line}); \}").
     Done.
 
     /// `For each <name> in <chase>` — each character, as a text. Changing the chase while it runs is

@@ -176,9 +176,14 @@ Pull a book on collections.
     /// The zero-based place of an item in the series `held` names in C — `_` for the last — checked
     /// against its length, as the language refuses an item that is not there.
     Bind text or failure to c-place unto emitter, given (the node index, the text held, the node target, the text at-line):
+        If cast is-nothing on (index), return cast c-place-at on ("", held, target, at-line).
+        Return cast c-place-at on (cast one's c-of on (index) or pass the failure off, held, target, at-line).
+    Done.
+
+    /// `c-place` with the index already as C — "" for the last.
+    Bind text to c-place-at, given (the text index-c, the text held, the node target, the text at-line):
         Define label as cast series-label on (target).
-        If cast is-nothing on (index), return "cufet_last_check({held}->len, \"{label}\", {at-line}) - 1".
-        Define index-c as cast one's c-of on (index) or pass the failure off.
+        If index-c is "", return "cufet_last_check({held}->len, \"{label}\", {at-line}) - 1".
         Return "cufet_idx_check(cufet_to_int({index-c}), {held}->len, \"{label}\", {at-line}) - 1".
     Done.
 
@@ -292,17 +297,26 @@ Pull a book on collections.
             Define element as cast one's changed-element on (target) or pass the failure off.
             Define series-c as cast one's c-of on (target) or pass the failure off.
             Define value as cast one's c-of-as on (cast field-of on (statement, 1), element) or pass the failure off.
-            If (cast field-of on (statement, 4))'s word is "true":
-                Cast one's line on ("{cast series-c-name on (element)}_prepend({series-c}, {value});").
-                Return.
-            Done.
+            // The series, then the value, then the place, as the interpreter works them out.
+            Define operands as a series of node with (target, cast field-of on (statement, 1)).
+            Define sides as a series of text with (series-c, value).
             Define following as cast field-of on (statement, 3).
-            If cast is-nothing on (following):
-                Cast one's line on ("{cast series-c-name on (element)}_append({series-c}, {value});").
+            If cast is-nothing on (following) is false:
+                Insert following into operands.
+                Define following-c as cast one's c-of on (following) or pass the failure off.
+                Insert following-c into sides.
+            Done.
+            Define prefix as cast order-prefix on (operands, sides).
+            Define series-type as cast series-c-name on (element).
+            If (cast field-of on (statement, 4))'s word is "true":
+                Cast one's line on (cast in-order-statement on (prefix, "{series-type}_prepend({item 1 of sides}, {item 2 of sides});")).
                 Return.
             Done.
-            Define following-c as cast one's c-of on (following) or pass the failure off.
-            Cast one's line on ("{cast series-c-name on (element)}_insert_after({series-c}, cufet_to_int({following-c}), {value});").
+            If cast is-nothing on (following):
+                Cast one's line on (cast in-order-statement on (prefix, "{series-type}_append({item 1 of sides}, {item 2 of sides});")).
+                Return.
+            Done.
+            Cast one's line on (cast in-order-statement on (prefix, "{series-type}_insert_after({item 1 of sides}, cufet_to_int({item 3 of sides}), {item 2 of sides});")).
             Return.
         Done.
         If kind is "SeriesRemoveValueStatement":
@@ -318,9 +332,8 @@ Pull a book on collections.
                 Return.
             Done.
             Define element as cast one's changed-element on (target) or pass the failure off.
-            Define series-c as cast one's c-of on (target) or pass the failure off.
-            Define value as cast one's c-of on (cast field-of on (statement, 2)) or pass the failure off.
-            Cast one's line on ("{cast series-c-name on (element)}_remove_value({series-c}, {value});").
+            Define sides as cast one's c-fields-in-order on (statement, 1, 2) or pass the failure off.
+            Cast one's line on (cast in-order-statement on (item 1 of sides, "{cast series-c-name on (element)}_remove_value({item 2 of sides}, {item 3 of sides});")).
             Return.
         Done.
         If kind is "SeriesRemoveAtStatement":
@@ -353,10 +366,22 @@ Pull a book on collections.
         Done.
         Define element as cast one's changed-element on (target) or pass the failure off.
         Define series-c as cast one's c-of on (target) or pass the failure off.
-        Define place as cast one's c-place on (cast field-of on (statement, 2), "cf_at", target,
-            (cast field-of on (statement, 4))'s word) or pass the failure off.
         Define value as cast one's c-of-as on (cast field-of on (statement, 3), element) or pass the failure off.
-        Cast one's line on ("\{ {cast series-c-name on (element)}* cf_at = {series-c}; cf_at->data[{place}] = {value}; \}").
+        // The series, then the place, then the value — C leaves an assignment's two sides unordered.
+        Define index as cast field-of on (statement, 2).
+        Define operands as a series of node with (target, cast field-of on (statement, 3)).
+        Define sides as a series of text with (series-c, value).
+        If cast is-nothing on (index) is false:
+            Define index-c as cast one's c-of on (index) or pass the failure off.
+            The operands becomes a series of node with (target, index, cast field-of on (statement, 3)).
+            The sides becomes a series of text with (series-c, index-c, value).
+        Done.
+        Define prefix as cast order-prefix on (operands, sides).
+        Define place as cast c-place-at on ("", "cf_at", target, (cast field-of on (statement, 4))'s word).
+        If cast is-nothing on (index) is false:
+            The place becomes cast c-place-at on (item 2 of sides, "cf_at", target, (cast field-of on (statement, 4))'s word).
+        Done.
+        Cast one's line on ("\{ {prefix}{cast series-c-name on (element)}* cf_at = {item 1 of sides}; cf_at->data[{place}] = {item (the number of sides) of sides}; \}").
     Done.
 
     /// `For each <name> in <series>, repeat:` — over the items there when it began, as in C#. The

@@ -49,7 +49,9 @@ Pull a book on collections.
             Define set-kind as cast one's kind-of on (cast field-of on (expression, 1)) or pass the failure off.
             Define set-c as cast one's c-of on (cast field-of on (expression, 1)) or pass the failure off.
             Define member-c as cast one's c-of-as on (cast field-of on (expression, 2), cast set-element on (set-kind)) or pass the failure off.
-            Return "{cast map-c-name on (cast set-storage on (set-kind))}_has({set-c}, {member-c})".
+            Define sides as a series of text with (set-c, member-c).
+            Define prefix as cast order-prefix on (a series of node with (cast field-of on (expression, 1), cast field-of on (expression, 2)), sides).
+            Return cast in-order on (prefix, "{cast map-c-name on (cast set-storage on (set-kind))}_has({item 1 of sides}, {item 2 of sides})").
         Done.
         Define set-kind as cast one's set-kind-of on (expression) or pass the failure off.
         Define map-c as cast map-c-name on (cast set-storage on (set-kind)).
@@ -66,7 +68,10 @@ Pull a book on collections.
         Define map-c as cast map-c-name on (cast set-storage on (set-kind)).
         Define value-c as cast one's c-of-as on (cast field-of on (statement, 1), cast set-element on (set-kind)) or pass the failure off.
         Define set-c as cast one's c-of on (cast field-of on (statement, 2)) or pass the failure off.
-        Cast one's line on ("\{ __auto_type cf_el = {value-c}; {map-c}_put({set-c}, cf_el, cf_el); \}").
+        // The set first, then the value, as the interpreter works them out.
+        Define sides as a series of text with (set-c, value-c).
+        Define prefix as cast order-prefix on (a series of node with (cast field-of on (statement, 2), cast field-of on (statement, 1)), sides).
+        Cast one's line on ("\{ {prefix}__auto_type cf_el = {item 2 of sides}; {map-c}_put({item 1 of sides}, cf_el, cf_el); \}").
     Done.
 
     /// `For each <name> in <set>, repeat:` — over the elements there when it began, in the order

@@ -28,6 +28,24 @@ public sealed partial class CodeGenerator
     // Wraps a container-growing store (series append/insert, map put) in the allocation override, so
     // the CONTAINER'S OWN growth (`_ensure`'s realloc) lands in the destination's arena too — not
     // just the value. Without this the backing array itself is freed by the inner rabbit's Done.
+    /// <summary>
+    /// What `Item <n> of <series> becomes <value>` works out, in the interpreter's order: the series,
+    /// then the place (none for `the last`), then the value — each one's hoisted lines flushed in turn.
+    /// </summary>
+    private (List<IExpression> Operands, List<string> Emitted) PlacedOperands(StringBuilder sb, string indent, SeriesSetStatement ss)
+    {
+        var operands = new List<IExpression> { ss.Series };
+        if (ss.Index != null) operands.Add(ss.Index);
+        operands.Add(ss.Value);
+        var emitted = new List<string>();
+        foreach (var operand in operands)
+        {
+            emitted.Add(EmitExpr(operand));
+            FlushPreEmits(sb, indent);
+        }
+        return (operands, emitted);
+    }
+
     private void EmitStoreWithEscape(StringBuilder sb, string indent, int? escapeToDepth, string stmt)
     {
         if (escapeToDepth is not { } d) { sb.AppendLine($"{indent}{stmt}"); return; }
@@ -805,41 +823,37 @@ public sealed partial class CodeGenerator
                     // character has. Everything below is shared with the text form, so the only
                     // difference is which helper puts the characters in.
                     bool byPoint = TypeOf(sa.Value) == TNumber;
-                    string chaseVal = EmitExpr(sa.Value);
+                    // The chase, then the value, then the place — the interpreter's order. The
+                    // chase is read twice where there is a place, for its length.
+                    bool placed = !sa.ToStart && sa.AfterIndex != null;
+                    var chOperands = new List<IExpression> { sa.Series, sa.Value };
+                    var chEmitted = new List<string> { EmitExpr(sa.Series) };
                     FlushPreEmits(sb, indent);
-                    string chaseTarget = EmitExpr(sa.Series);
+                    chEmitted.Add(EmitExpr(sa.Value));
                     FlushPreEmits(sb, indent);
-
-                    if (byPoint)
+                    if (placed)
                     {
-                        string point = $"cufet_code_point({chaseVal}, {sa.Line})";
-                        string at =
-                            sa.ToStart ? "0"
-                          : sa.AfterIndex == null ? $"({chaseTarget})->len"
-                          : $"(int)cufet_idx_check(cufet_to_int({EmitExpr(sa.AfterIndex)}), "
-                          + $"({chaseTarget})->len, \"{SeriesDisplayName(sa.Series)}\", {sa.Line})";
+                        chOperands.Add(sa.AfterIndex!);
+                        chEmitted.Add(EmitExpr(sa.AfterIndex!));
                         FlushPreEmits(sb, indent);
-                        sb.AppendLine($"{indent}cufet_chase_insert_point({chaseTarget}, {at}, {point});");
-                        break;
                     }
+                    string chNm = SeriesDisplayName(sa.Series);
 
                     // ⚠⚠ POSITION is honoured here, and was not until 2026-09-12 — this emitted a
                     // bare append for every form, so `Insert "!" into the start of out` appended.
                     // The interpreter had the identical bug, so the two backends AGREED and the
                     // oracle saw nothing: the blind spot is always "wrong in the same way twice".
-                    if (sa.ToStart)
-                        sb.AppendLine($"{indent}cufet_chase_insert({chaseTarget}, 0, {chaseVal});");
-                    else if (sa.AfterIndex == null)
-                        sb.AppendLine($"{indent}cufet_chase_append({chaseTarget}, {chaseVal});");
-                    else
+                    string chInserted = InOrder(chOperands, chEmitted, p =>
                     {
-                        string afterIdx = EmitExpr(sa.AfterIndex);
-                        FlushPreEmits(sb, indent);
-                        sb.AppendLine(
-                            $"{indent}cufet_chase_insert({chaseTarget}, "
-                          + $"(int)cufet_idx_check(cufet_to_int({afterIdx}), ({chaseTarget})->len, "
-                          + $"\"{SeriesDisplayName(sa.Series)}\", {sa.Line}), {chaseVal});");
-                    }
+                        string at = sa.ToStart ? "0"
+                                  : !placed ? $"({p[0]})->len"
+                                  : $"(int)cufet_idx_check(cufet_to_int({p[2]}), ({p[0]})->len, \"{chNm}\", {sa.Line})";
+                        if (byPoint) return $"cufet_chase_insert_point({p[0]}, {at}, cufet_code_point({p[1]}, {sa.Line}))";
+                        return !sa.ToStart && !placed
+                            ? $"cufet_chase_append({p[0]}, {p[1]})"
+                            : $"cufet_chase_insert({p[0]}, {at}, {p[1]})";
+                    }, pastedTwice: true);
+                    sb.AppendLine($"{indent}{chInserted};");
                     break;
                 }
                 // ★ A SET takes the same verb and stores the value as its own key. `_put` is
@@ -850,32 +864,39 @@ public sealed partial class CodeGenerator
                 {
                     var setAsMap    = SetStorage(setTargetType);
                     string setName  = RegisterMapStruct(setAsMap);
-                    string setValue = EmitAsType(sa.Value, setAsMap.ValueType);
-                    FlushPreEmits(sb, indent);
+                    // The set, then the value — the interpreter's order. The value is put as its
+                    // own key, so it is pasted twice.
                     string setExpr = EmitExpr(sa.Series);
                     FlushPreEmits(sb, indent);
-                    sb.AppendLine($"{indent}{setName}_put({setExpr}, {setValue}, {setValue});");
+                    string setValue = EmitAsType(sa.Value, setAsMap.ValueType);
+                    FlushPreEmits(sb, indent);
+                    string put = InOrder(new[] { sa.Series, sa.Value }, new[] { setExpr, setValue },
+                        both => $"{setName}_put({both[0]}, {both[1]}, {both[1]})", pastedTwice: true);
+                    sb.AppendLine($"{indent}{put};");
                     break;
                 }
 
                 string ser = SeriesStructOf(sa.Series);
                 // Coerce into the series' ELEMENT type so adding to a catalogue widens into the union.
                 var saElem = (TypeOf(sa.Series) as SeriesType)?.ElementType;
-                string valExpr = EmitAsType(sa.Value, saElem);
-                valExpr = EmitEscapeCopy(valExpr, saElem, sa.EscapeToDepth);   // ESC.2
+                // The series, then the value, then the place — the interpreter's order, though
+                // the value is written first.
+                var insOperands = new List<IExpression> { sa.Series, sa.Value };
+                var insEmitted = new List<string> { EmitExpr(sa.Series) };
                 FlushPreEmits(sb, indent);
-                string serExpr = EmitExpr(sa.Series);
+                insEmitted.Add(EmitEscapeCopy(EmitAsType(sa.Value, saElem), saElem, sa.EscapeToDepth));   // ESC.2
                 FlushPreEmits(sb, indent);
-                if (sa.ToStart)
-                    EmitStoreWithEscape(sb, indent, sa.EscapeToDepth, $"{ser}_prepend({serExpr}, {valExpr});");
-                else if (sa.AfterIndex == null)
-                    EmitStoreWithEscape(sb, indent, sa.EscapeToDepth, $"{ser}_append({serExpr}, {valExpr});");
-                else
+                if (!sa.ToStart && sa.AfterIndex != null)
                 {
-                    string idxExpr = EmitExpr(sa.AfterIndex);
+                    insOperands.Add(sa.AfterIndex);
+                    insEmitted.Add(EmitExpr(sa.AfterIndex));
                     FlushPreEmits(sb, indent);
-                    EmitStoreWithEscape(sb, indent, sa.EscapeToDepth, $"{ser}_insert({serExpr}, cufet_to_int({idxExpr}), {valExpr});");
                 }
+                string inserted = InOrder(insOperands, insEmitted, p =>
+                    sa.ToStart ? $"{ser}_prepend({p[0]}, {p[1]})"
+                  : sa.AfterIndex == null ? $"{ser}_append({p[0]}, {p[1]})"
+                  : $"{ser}_insert({p[0]}, cufet_to_int({p[2]}), {p[1]})");
+                EmitStoreWithEscape(sb, indent, sa.EscapeToDepth, $"{inserted};");
                 break;
             }
 
@@ -885,9 +906,16 @@ public sealed partial class CodeGenerator
                 string chSer = EmitExpr(sra.Series);
                 FlushPreEmits(sb, indent);
                 string chNm = SeriesDisplayName(sra.Series);
-                string chIdx = sra.Index == null ? "-1" : $"cufet_to_int({EmitExpr(sra.Index)})";
+                if (sra.Index == null)
+                {
+                    sb.AppendLine($"{indent}cufet_chase_remove_at({chSer}, -1, \"{chNm}\", {sra.Line});");
+                    break;
+                }
+                string chIdx = EmitExpr(sra.Index);
                 FlushPreEmits(sb, indent);
-                sb.AppendLine($"{indent}cufet_chase_remove_at({chSer}, {chIdx}, \"{chNm}\", {sra.Line});");
+                string chRemoved = InOrder(new[] { sra.Series, sra.Index }, new[] { chSer, chIdx },
+                    both => $"cufet_chase_remove_at({both[0]}, cufet_to_int({both[1]}), \"{chNm}\", {sra.Line})");
+                sb.AppendLine($"{indent}{chRemoved};");
                 break;
             }
 
@@ -902,7 +930,9 @@ public sealed partial class CodeGenerator
                 {
                     string idxExpr = EmitExpr(sra.Index);
                     FlushPreEmits(sb, indent);
-                    sb.AppendLine($"{indent}{ser}_remove_at({serExpr}, cufet_to_int({idxExpr}));");
+                    string removed = InOrder(new[] { sra.Series, sra.Index }, new[] { serExpr, idxExpr },
+                        both => $"{ser}_remove_at({both[0]}, cufet_to_int({both[1]}))");
+                    sb.AppendLine($"{indent}{removed};");
                 }
                 break;
             }
@@ -914,8 +944,9 @@ public sealed partial class CodeGenerator
                 string chaseExpr = EmitExpr(srv.Series);
                 string oneExpr = EmitExpr(srv.Value);
                 FlushPreEmits(sb, indent);
-                sb.AppendLine($"{indent}cufet_chase_remove_value({chaseExpr}, {oneExpr}, "
-                            + $"\"{SeriesDisplayName(srv.Series)}\", {srv.Line});");
+                string chDropped = InOrder(new[] { srv.Series, srv.Value }, new[] { chaseExpr, oneExpr },
+                    both => $"cufet_chase_remove_value({both[0]}, {both[1]}, \"{SeriesDisplayName(srv.Series)}\", {srv.Line})");
+                sb.AppendLine($"{indent}{chDropped};");
                 break;
             }
 
@@ -925,18 +956,23 @@ public sealed partial class CodeGenerator
                 string mapExpr = EmitExpr(srv.Series);
                 string keyExpr = EmitAsType(srv.Value, removeFrom.KeyType);
                 FlushPreEmits(sb, indent);
-                sb.AppendLine($"{indent}{RegisterMapStruct(removeFrom)}_remove({mapExpr}, {keyExpr}, {srv.Line});");
+                string unkeyed = InOrder(new[] { srv.Series, srv.Value }, new[] { mapExpr, keyExpr },
+                    both => $"{RegisterMapStruct(removeFrom)}_remove({both[0]}, {both[1]}, {srv.Line})");
+                sb.AppendLine($"{indent}{unkeyed};");
                 break;
             }
 
             case SeriesRemoveValueStatement srv:
             {
                 string ser = SeriesStructOf(srv.Series);
-                string valExpr = EmitAsType(srv.Value, (TypeOf(srv.Series) as SeriesType)?.ElementType);
-                FlushPreEmits(sb, indent);
+                // The series, then the value — the interpreter's order.
                 string serExpr = EmitExpr(srv.Series);
                 FlushPreEmits(sb, indent);
-                sb.AppendLine($"{indent}{ser}_remove_value({serExpr}, {valExpr});");
+                string valExpr = EmitAsType(srv.Value, (TypeOf(srv.Series) as SeriesType)?.ElementType);
+                FlushPreEmits(sb, indent);
+                string dropped = InOrder(new[] { srv.Series, srv.Value }, new[] { serExpr, valExpr },
+                    both => $"{ser}_remove_value({both[0]}, {both[1]})");
+                sb.AppendLine($"{indent}{dropped};");
                 break;
             }
 
@@ -968,34 +1004,31 @@ public sealed partial class CodeGenerator
             case SeriesSetStatement ss when TypeOf(ss.Series) is ChaseType:
             {
                 _usesChase = true;
-                string chSer = EmitExpr(ss.Series);
-                FlushPreEmits(sb, indent);
-                string chVal = EmitExpr(ss.Value);
-                FlushPreEmits(sb, indent);
                 string chNm = SeriesDisplayName(ss.Series);
-                string chWhere = ss.Index == null
-                    ? $"cufet_last_check({chSer}->len, \"{chNm}\", {ss.Line})"
-                    : $"cufet_idx_check(cufet_to_int({EmitExpr(ss.Index)}), {chSer}->len, \"{chNm}\", {ss.Line})";
-                FlushPreEmits(sb, indent);
-                sb.AppendLine($"{indent}cufet_chase_set({chSer}, (int){chWhere}, {chVal}, {ss.Line});");
+                var (chOperands, chEmitted) = PlacedOperands(sb, indent, ss);
+                string chSet = InOrder(chOperands, chEmitted, p =>
+                {
+                    string where = ss.Index == null
+                        ? $"cufet_last_check(({p[0]})->len, \"{chNm}\", {ss.Line})"
+                        : $"cufet_idx_check(cufet_to_int({p[1]}), ({p[0]})->len, \"{chNm}\", {ss.Line})";
+                    return $"cufet_chase_set({p[0]}, (int){where}, {p[^1]}, {ss.Line})";
+                }, pastedTwice: true);
+                sb.AppendLine($"{indent}{chSet};");
                 break;
             }
 
             case SeriesSetStatement ss:
             {
-                string serExpr = EmitExpr(ss.Series);
-                FlushPreEmits(sb, indent);
-                string valExpr = EmitExpr(ss.Value);
-                FlushPreEmits(sb, indent);
                 string setNm = SeriesDisplayName(ss.Series);
-                if (ss.Index == null)
-                    sb.AppendLine($"{indent}{serExpr}->data[cufet_last_check({serExpr}->len, \"{setNm}\", {ss.Line}) - 1] = {valExpr};");
-                else
+                var (setOperands, setEmitted) = PlacedOperands(sb, indent, ss);
+                string stored = InOrder(setOperands, setEmitted, p =>
                 {
-                    string idxExpr = EmitExpr(ss.Index);
-                    FlushPreEmits(sb, indent);
-                    sb.AppendLine($"{indent}{serExpr}->data[cufet_idx_check(cufet_to_int({idxExpr}), {serExpr}->len, \"{setNm}\", {ss.Line}) - 1] = {valExpr};");
-                }
+                    string where = ss.Index == null
+                        ? $"cufet_last_check(({p[0]})->len, \"{setNm}\", {ss.Line})"
+                        : $"cufet_idx_check(cufet_to_int({p[1]}), ({p[0]})->len, \"{setNm}\", {ss.Line})";
+                    return $"({p[0]})->data[{where} - 1] = {p[^1]}";
+                }, pastedTwice: true);
+                sb.AppendLine($"{indent}{stored};");
                 break;
             }
 
@@ -1020,7 +1053,10 @@ public sealed partial class CodeGenerator
                 string keyExpr = EmitEscapeCopy(EmitExpr(mss.Key), keyType, mss.KeyEscapeToDepth);   // ESC.3
                 string valExpr = EmitEscapeCopy(EmitAsType(mss.Value, valType), valType, mss.EscapeToDepth);   // ESC.2
                 FlushPreEmits(sb, indent);
-                EmitStoreWithEscape(sb, indent, mss.EscapeToDepth, $"{name}_put({mapExpr}, {keyExpr}, {valExpr});");
+                // The map, then the key, then the value — the interpreter's order.
+                string put = InOrder(new[] { mss.Map, mss.Key, mss.Value }, new[] { mapExpr, keyExpr, valExpr },
+                    all => $"{name}_put({all[0]}, {all[1]}, {all[2]})");
+                EmitStoreWithEscape(sb, indent, mss.EscapeToDepth, $"{put};");
                 break;
             }
 
@@ -3120,11 +3156,16 @@ public sealed partial class CodeGenerator
         ConditionalExpression ce => EmitConditional(ce),
         SetLiteral sl3        => EmitSetLiteral(sl3),
         // A set is a map of element→element, so membership is the map's own `_has`.
-        SetHasMember shm      => $"{SetName(shm.Set)}_has({EmitExpr(shm.Set)}, {EmitExpr(shm.Value)})",
+        SetHasMember shm      => InOrder(new[] { shm.Set, shm.Value }, new[] { EmitExpr(shm.Set), EmitExpr(shm.Value) },
+                                         both => $"{SetName(shm.Set)}_has({both[0]}, {both[1]})"),
         MapLiteral ml         => EmitMapLiteral(ml),
-        MapLookup mlk         => $"{MapName(mlk.Map)}_get({EmitExpr(mlk.Map)}, {EmitExpr(mlk.Key)})",
-        MapHasKey mhk         => $"{MapName(mhk.Map)}_has({EmitExpr(mhk.Map)}, {EmitExpr(mhk.Key)})",
-        MapHasEntry mhe       => $"{MapName(mhe.Map)}_has_entry({EmitExpr(mhe.Map)}, {EmitExpr(mhe.Key)})",
+        // The map, then the key — the interpreter's order, whichever is written first.
+        MapLookup mlk         => InOrder(new[] { mlk.Map, mlk.Key }, new[] { EmitExpr(mlk.Map), EmitExpr(mlk.Key) },
+                                         both => $"{MapName(mlk.Map)}_get({both[0]}, {both[1]})"),
+        MapHasKey mhk         => InOrder(new[] { mhk.Map, mhk.Key }, new[] { EmitExpr(mhk.Map), EmitExpr(mhk.Key) },
+                                         both => $"{MapName(mhk.Map)}_has({both[0]}, {both[1]})"),
+        MapHasEntry mhe       => InOrder(new[] { mhe.Map, mhe.Key }, new[] { EmitExpr(mhe.Map), EmitExpr(mhe.Key) },
+                                         both => $"{MapName(mhe.Map)}_has_entry({both[0]}, {both[1]})"),
         FailureFallback ff    => EmitFailureFallback(ff),
         FailurePropagate fp   => EmitFailurePropagate(fp),
         TextJoin tj           => InOrder(new[] { tj.Left, tj.Right }, new[] { EmitExpr(tj.Left), EmitExpr(tj.Right) },
@@ -3132,12 +3173,21 @@ public sealed partial class CodeGenerator
         TextConvert tc        => EmitTextConvert(tc),
         NumberConvert nc      => EmitNumberConvert(nc),
         ForeignTextAt fta     => EmitForeignTextAt(fta),
-        TextContains tcn      => $"(strstr({EmitExpr(tcn.Text)}, {EmitExpr(tcn.Substring)}) != NULL)",
-        TextAffixTest tat     => $"{(tat.AtEnd ? "cufet_str_ends" : "cufet_str_starts")}({EmitExpr(tat.Text)}, {EmitExpr(tat.Affix)})",
+        TextContains tcn      => InOrder(new[] { tcn.Text, tcn.Substring }, new[] { EmitExpr(tcn.Text), EmitExpr(tcn.Substring) },
+                                         both => $"(strstr({both[0]}, {both[1]}) != NULL)"),
+        TextAffixTest tat     => InOrder(new[] { tat.Text, tat.Affix }, new[] { EmitExpr(tat.Text), EmitExpr(tat.Affix) },
+                                         both => $"{(tat.AtEnd ? "cufet_str_ends" : "cufet_str_starts")}({both[0]}, {both[1]})"),
         TextFind tf           => EmitTextFind(tf),
-        TextSubstringRange r  => $"cufet_str_range({EmitExpr(r.Text)}, cufet_to_int({EmitExpr(r.From)}), {(r.To != null ? $"cufet_to_int({EmitExpr(r.To)})" : "-1")}, {r.Line})",
-        TextSubstringEdge e   => $"cufet_str_edge({EmitExpr(e.Text)}, cufet_to_int({EmitExpr(e.Count)}), {(e.FromStart ? "1" : "0")})",
-        TextReplace rp        => $"cufet_str_replace({EmitExpr(rp.Text)}, {EmitExpr(rp.Old)}, {EmitExpr(rp.New)}, {rp.Line})",
+        // The text first, then the bounds — the interpreter's order, though the text is written last.
+        TextSubstringRange r  => r.To is { } upto
+            ? InOrder(new[] { r.Text, r.From, upto }, new[] { EmitExpr(r.Text), EmitExpr(r.From), EmitExpr(upto) },
+                      all => $"cufet_str_range({all[0]}, cufet_to_int({all[1]}), cufet_to_int({all[2]}), {r.Line})")
+            : InOrder(new[] { r.Text, r.From }, new[] { EmitExpr(r.Text), EmitExpr(r.From) },
+                      both => $"cufet_str_range({both[0]}, cufet_to_int({both[1]}), -1, {r.Line})"),
+        TextSubstringEdge e   => InOrder(new[] { e.Text, e.Count }, new[] { EmitExpr(e.Text), EmitExpr(e.Count) },
+                                         both => $"cufet_str_edge({both[0]}, cufet_to_int({both[1]}), {(e.FromStart ? "1" : "0")})"),
+        TextReplace rp        => InOrder(new[] { rp.Text, rp.Old, rp.New }, new[] { EmitExpr(rp.Text), EmitExpr(rp.Old), EmitExpr(rp.New) },
+                                         all => $"cufet_str_replace({all[0]}, {all[1]}, {all[2]}, {rp.Line})"),
         TextCase tcs          => EmitTextCase(tcs),
         TextTrim tt           => $"cufet_str_trim({EmitExpr(tt.Text)})",
         TextSplit ts          => EmitTextSplit(ts),
