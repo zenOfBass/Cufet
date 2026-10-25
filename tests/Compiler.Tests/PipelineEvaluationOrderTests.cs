@@ -287,4 +287,135 @@ public class PipelineEvaluationOrderTests : PipelineTestBase
             """;
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
+
+    // ★ A step `cufet build` lifts out of an expression — the temporary of `but void is`, the check
+    // and jump of a fallible call in a Try — ran before the whole statement until 2026-10-25, so
+    // ahead of every operand written to its left, in a plain call or a `+` as much as anywhere.
+    [Fact]
+    public void APreliminaryStep_RunsWhereItIsWritten()
+    {
+        const string src = """
+            Bind number to at, given (the series of number seen, the number made):
+                Insert 0 into seen.
+                State "at {the number of seen} {made}".
+                Return made.
+            Done.
+            Bind voidable number to maybe, given (the series of number seen, the number made):
+                Insert 0 into seen.
+                State "maybe {the number of seen} {made}".
+                Return made.
+            Done.
+            Bind number to add, given (the number x, the number y):
+                Return x * 10 + y.
+            Done.
+            Bind number or failure to checked, given (the series of number seen, the number x):
+                Insert 0 into seen.
+                State "checking {the number of seen} {x}".
+                Return x.
+            Done.
+            Define c as a series of number.
+            State cast add on (cast at on (c, 1), cast maybe on (c, 2) but void is 0).
+            State cast at on (c, 1) + (cast maybe on (c, 2) but void is 0).
+            Try to:
+                State cast add on (cast at on (c, 1), cast checked on (c, 2)).
+                State cast at on (c, 1) + cast checked on (c, 2).
+            Done.
+            In case of failure:
+                State "failed".
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    // ⚠ Worse than out of order: lifted ahead of the statement, the step ran even where its
+    // expression never does — the right side of an `and` whose left side was false — and a series
+    // or map literal used as an argument was built ahead of the arguments to its left.
+    [Fact]
+    public void APreliminaryStep_DoesNotRunWhereItsExpressionDoesNot()
+    {
+        const string src = """
+            Bind number to at, given (the series of number seen, the number made):
+                Insert 0 into seen.
+                State "at {the number of seen} {made}".
+                Return made.
+            Done.
+            Bind voidable number to maybe, given (the series of number seen, the number made):
+                Insert 0 into seen.
+                State "maybe {the number of seen} {made}".
+                Return made.
+            Done.
+            Bind number or failure to checked, given (the series of number seen, the number x):
+                Insert 0 into seen.
+                State "checking {the number of seen} {x}".
+                Return x.
+            Done.
+            Bind number to add, given (the number x, the number y):
+                Return x * 10 + y.
+            Done.
+            Define c as a series of number.
+
+            State "-- lazy".
+            If cast at on (c, 1) is 5 and (cast maybe on (c, 2) but void is 0) is 2, state "both".
+            If cast at on (c, 1) is 5 and (cast checked on (c, 2) but on failure 0) is 2, state "both".
+            State the number of c.
+
+            State "-- literals".
+            State cast add on (cast at on (c, 1), item 1 of (a series of number with (cast at on (c, 2)))).
+            State cast add on (cast at on (c, 1), the entry for "a" in (a map with ("a" : cast at on (c, 2))) but void is 0).
+            State cast add on (cast at on (c, 1), cast checked on (c, 2) but on failure 0).
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    // These were refused, since a lifted step had nowhere right to go: an `Otherwise if` arm, an
+    // `until`. A `While` re-ran its condition's steps by rewriting the loop. Kept in place, each
+    // simply runs when its condition does. A set literal also put each item as its own key by
+    // pasting it twice, so an item that was a call ran twice.
+    [Fact]
+    public void AConditionWithAPreliminaryStep_Builds_WhereverItIsWritten()
+    {
+        const string src = """
+            Bind number to at, given (the series of number seen, the number made):
+                Insert 0 into seen.
+                State "at {the number of seen} {made}".
+                Return made.
+            Done.
+            Bind voidable number to maybe, given (the series of number seen, the number made):
+                Insert 0 into seen.
+                State "maybe {the number of seen} {made}".
+                Return made.
+            Done.
+            Bind text to word, given (the series of number seen, the text made):
+                Insert 0 into seen.
+                State "word {the number of seen} {made}".
+                Return made.
+            Done.
+            Define c as a series of number.
+
+            State "-- otherwise if".
+            If cast at on (c, 1) is 1, state "first".
+            Otherwise if (cast maybe on (c, 2) but void is 0) is 2, state "second".
+            If cast at on (c, 1) is 2, state "first".
+            Otherwise if (cast maybe on (c, 2) but void is 0) is 2, state "second".
+
+            State "-- until".
+            Define n as 0.
+            Repeat:
+                Increment n by 1.
+            Until (cast maybe on (c, n) but void is 0) is 3.
+
+            State "-- while".
+            Define k as 0.
+            While (cast maybe on (c, k) but void is 0) is less than 2, repeat:
+                Increment k by 1.
+            Done.
+
+            State "-- set literal".
+            Pull a book on collections.
+                Define seen-words as a set of text with (cast word on (c, "a"), cast word on (c, "b")).
+                State seen-words.
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
 }

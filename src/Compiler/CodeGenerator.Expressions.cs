@@ -565,8 +565,9 @@ public sealed partial class CodeGenerator
         _preEmits.Add($"{name}* {tmp} = {name}_new();");
         foreach (var element in sl.Elements)
         {
+            // Put as its own key, so worked out once and pasted twice.
             string value = EmitAsType(element, mt.ValueType);
-            _preEmits.Add($"{name}_put({tmp}, {value}, {value});");
+            _preEmits.Add($"{{ __auto_type cf_el = {value}; {name}_put({tmp}, cf_el, cf_el); }}");
         }
         return tmp;
     }
@@ -639,8 +640,7 @@ public sealed partial class CodeGenerator
     }
 
     // Emits a series literal as a named temporary, registering construction
-    // statements in _preEmits. The caller must FlushPreEmits before using
-    // the returned variable name in a statement.
+    // statements in _preEmits — which EmitExpr keeps inside the expression.
     private string EmitSeriesLiteral(SeriesLiteral sl)
     {
         var elemType = SeriesElementType(sl);

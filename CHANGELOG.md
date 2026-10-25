@@ -124,6 +124,16 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   from a to b of t` work out `t` first, `the entry for k in m` works out `m` first, and `Insert v
   into s` works out `s` first. No program in `examples/` had two such operands, which is why the
   oracle never saw it; `PipelineEvaluationOrderTests` holds it now.
+- **`cufet build` runs an expression's preliminary steps where the expression is.** Some
+  expressions need a step before their value — the temporary of `but void is` and `but on failure`,
+  the check and jump of a fallible call inside a Try, a series, map or set literal built item by
+  item. Those steps ran before the whole statement, so ahead of every operand written to their left,
+  and even where the expression itself never runs: `If x is 5 and (cast f on (c) but void is 0) is 2`
+  called `f` when `x` was not 5. Each step now runs in place, as the compiler written in Cufet always
+  did. Two forms that `cufet build` refused for want of a place to put the step — a condition in
+  an `Otherwise if` arm and in an `until` — now build. A set literal also
+  pasted each item twice, as its key and its value, so an item that was a call ran twice; it runs
+  once. `PipelineEvaluationOrderTests` holds all of it.
 - **`cufet build` no longer calls a collection twice.** A series or chase reached through a call
   was pasted into the C twice — once for its length, once for its item — so `item 1 of cast row on
   (c)`, `the last of`, `Item … of … becomes`, and every chase form called `row` twice, and `Insert

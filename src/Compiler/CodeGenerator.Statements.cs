@@ -1080,24 +1080,12 @@ public sealed partial class CodeGenerator
 
             case WhileStatement ws:
             {
-                // Conditions may PREEMIT (env var, map lookup, delivery, …). A while-head can't hold
-                // statements, so restructure to a head-checked for(;;): preemits + check re-run every
-                // iteration (Skip's `continue` correctly re-enters at the preemits).
+                // A condition's preliminary steps stay inside it (see EmitExpr), so they run again
+                // on every check.
                 string wcond = EmitExpr(ws.Condition);
-                if (_preEmits.Count > 0)
-                {
-                    sb.AppendLine($"{indent}for (;;) {{");
-                    FlushPreEmits(sb, indent + "    ");
-                    sb.AppendLine($"{indent}    if (!({wcond})) break;");
-                    EmitLoopBody(sb, ws.Body, indent + "    ");
-                    sb.AppendLine($"{indent}}}");
-                }
-                else
-                {
-                    sb.AppendLine($"{indent}while ({wcond}) {{");
-                    EmitLoopBody(sb, ws.Body, indent + "    ");
-                    sb.AppendLine($"{indent}}}");
-                }
+                sb.AppendLine($"{indent}while ({wcond}) {{");
+                EmitLoopBody(sb, ws.Body, indent + "    ");
+                sb.AppendLine($"{indent}}}");
                 break;
             }
 
@@ -1106,10 +1094,6 @@ public sealed partial class CodeGenerator
                 sb.AppendLine($"{indent}do {{");
                 EmitLoopBody(sb, ru.Body, indent + "    ");
                 string rcond = EmitExpr(ru.Condition);
-                if (_preEmits.Count > 0)
-                    // A tail-checked condition can't host preemits without breaking Skip's jump-to-
-                    // check semantics — bind the condition's value to a variable inside the loop.
-                    throw new CompilerException("this 'until' condition form needs a preliminary step — Define the value inside the loop and test the variable in 'until'.");
                 sb.AppendLine($"{indent}}} while (!({rcond}));");
                 break;
             }
@@ -1376,14 +1360,6 @@ public sealed partial class CodeGenerator
                 new VariableReference("it", arm.Line, arm.Column),
                 TokenType.Equal, v, arm.Line, arm.Column))).ToList();
 
-            // An arm's test runs only when the earlier arms failed, so a preliminary step could not
-            // be hoisted above the chain without changing when it runs. Arm values are literals
-            // today, so nothing reaches this — it is here because the day one does not, silence
-            // would emit the step in the wrong place.
-            if (_preEmits.Count > 0)
-                throw new CompilerException(
-                    "this value in a judgement arm needs a preliminary step — Define it before the "
-                  + "Judge and name the variable in the arm.");
 
             sb.AppendLine($"{inner}{keyword} ({string.Join(" || ", tests)}) {{");
             EmitNarrowedBlock(sb, null, arm.Body, body);
@@ -1409,9 +1385,7 @@ public sealed partial class CodeGenerator
         var inner = indent + "    ";
         var first = ifStmt.Arms[0];
         // Condition is emitted BEFORE narrowing so `x is not void` reads x's voidable form.
-        // The FIRST condition evaluates unconditionally, so its preemits flush before the `if`.
         string cond0 = EmitExpr(first.Condition);
-        FlushPreEmits(sb, indent);
         sb.AppendLine($"{indent}if ({cond0}) {{");
         EmitNarrowedBlock(sb, NotVoidNarrow(first.Condition), first.Body, inner,
                           DisjunctionCases(first.Condition));
@@ -1420,10 +1394,6 @@ public sealed partial class CodeGenerator
         {
             var arm = ifStmt.Arms[i];
             string condN = EmitExpr(arm.Condition);
-            if (_preEmits.Count > 0)
-                // An else-if condition only evaluates when earlier arms failed — its preemits can't
-                // be hoisted (they may be effectful). Bind the value to a variable before the If.
-                throw new CompilerException("this condition form in an 'Otherwise if' arm needs a preliminary step — Define the value before the If and test the variable.");
             sb.AppendLine($"{indent}}} else if ({condN}) {{");
             EmitNarrowedBlock(sb, NotVoidNarrow(arm.Condition), arm.Body, inner,
                               DisjunctionCases(arm.Condition));
@@ -3086,7 +3056,25 @@ public sealed partial class CodeGenerator
         _excOpen = savedExcOpen;
     }
 
-    private string EmitExpr(IExpression expr) => expr switch
+    // ★ An expression's preliminary steps — a temporary for `but void is`, the check and jump of a
+    // fallible call in a Try, a series literal built up item by item — go into `_preEmits`. Here
+    // they are taken back out and kept INSIDE the expression, as a statement expression where it is
+    // written. Until 2026-10-25 they were flushed before the whole statement instead, so they ran
+    // ahead of every operand written to their left, and ran even where the expression never does:
+    // the right side of an `and` whose left side was false, an arm of `Otherwise if` — which is why
+    // those once had to be refused. The compiler written in Cufet always built them in place.
+    private string EmitExpr(IExpression expr)
+    {
+        int mark = _preEmits.Count;
+        string emitted = EmitExprBare(expr);
+        if (_preEmits.Count == mark) return emitted;
+        var steps = _preEmits.GetRange(mark, _preEmits.Count - mark);
+        _preEmits.RemoveRange(mark, steps.Count);
+        return $"({{ {string.Join(" ", steps)} {emitted}; }})";
+    }
+
+    /// <summary>An expression as C, its preliminary steps left in `_preEmits` — see <see cref="EmitExpr"/>.</summary>
+    private string EmitExprBare(IExpression expr) => expr switch
     {
         NumberLiteral n       => EmitNumberLiteral(n.Value),
         BitsLiteral b         => $"(CufetBits){{ {b.Value}ULL, '{b.Base}', {b.Width} }}",
@@ -3305,7 +3293,7 @@ public sealed partial class CodeGenerator
             if (et is FailureMarkerType)                                                // re-propagate `the failure`
             {
                 string f = EmitExpr(expr);
-                return $"(({cfl}){{ .is_failure = 1, .message = ({f}).message, .category = ({f}).category }})";
+                return $"({{ __auto_type cf_rf = {f}; (({cfl}){{ .is_failure = 1, .message = cf_rf.message, .category = cf_rf.category }}); }})";
             }
             // Recursive for the same reason as the voidable arm above: `(A or B) or failure`
             // returning an `A` must tag it into the union first. This is the shape every
