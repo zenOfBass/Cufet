@@ -104,7 +104,10 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   same checker built by `cufet build`. Every function ran exactly as often in both; the difference
   was one lowering. `Insert <text> into <chase>` at the end decoded the text into a chase of its own
   first — 19 million of them while checking one file — where `cufet build` decodes it straight onto
-  the chase. It does the same now: 2,291 MB and 497 s.
+  the chase. It does the same now: 2,291 MB and 497 s. The parity tests compare only what a
+  program prints, so none of them saw it; `TheCompiledCompiler_BuildsTheChecker_WhichChecksAsCSharpDoes`
+  now also holds that checker's peak memory over one large file to a ceiling, and fails on the old
+  lowering at 4,785 MB.
 - **Two tasks printing at once no longer splice their lines on Windows.** A built program locks its
   output for the whole of each `State`, but on Windows the lock did nothing, on the reason that a
   Windows build had no second thread — untrue since tasks build under mingw. Two tasks each printing

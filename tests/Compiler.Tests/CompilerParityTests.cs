@@ -886,6 +886,20 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     /// ⚠ The examples only, not the large `self-hosting/` folders — over all 141 files the run takes
     /// minutes. Measured by hand that day: identical to `cufet build`'s checker on all 141.
     /// </remarks>
+    /// <summary>One large file for the memory ceiling: checking it loads its whole folder.</summary>
+    private const string HeavyFile = "self-hosting/Cufet/compiler/emitting.cufe";
+
+    /// <summary>The most private memory the checker the Cufet compiler builds may hold over <see cref="HeavyFile"/>.</summary>
+    /// <remarks>
+    /// ★ Measured 2026-10-24 on Windows: the checker `cufet build` builds peaked at 2,086 MB over this
+    /// file, and the one the Cufet compiler builds at 2,288 MB. The ceiling is 1.5 times the first.
+    /// Raise it, with a new measurement of both, when the file grows — never to make a red test green.
+    /// ⚠ The test this exists for: the same checker once peaked at 4,799 MB here, from one lowering that
+    /// made a throwaway chase on every insert at a chase's end. Every parity test stayed green, because
+    /// they compare only what the checker prints.
+    /// </remarks>
+    private const long HeavyFileMemoryCeilingBytes = 3_100L * 1024 * 1024;
+
     [Fact]
     public void TheCompiledCompiler_BuildsTheChecker_WhichChecksAsCSharpDoes()
     {
@@ -898,6 +912,13 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
                                          && !f.EndsWith("/blueprint.cufe", StringComparison.Ordinal)).ToList();
             Assert.True(files.Count >= 60, $"only {files.Count} example programs found under {RepoRoot}");
             var got = ByFile(Run(exe, ["--tree", .. PreludeArgs, .. files], RepoRoot));
+
+            // And how much memory it takes over one large file — see HeavyFileMemoryCeilingBytes.
+            Run(exe, ["--tree", .. PreludeArgs, HeavyFile], RepoRoot, out long peak);
+            Assert.True(peak > 0, "the checker's memory was never measured, so this would pass on nothing.");
+            Assert.True(peak <= HeavyFileMemoryCeilingBytes,
+                $"the checker the Cufet compiler builds held {peak / (1024 * 1024):N0} MB at its peak over {HeavyFile}; "
+              + $"the ceiling is {HeavyFileMemoryCeilingBytes / (1024 * 1024):N0} MB. See HeavyFileMemoryCeilingBytes.");
             var problems = new List<string>();
             int trees = 0;
             foreach (var name in files)

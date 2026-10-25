@@ -116,7 +116,14 @@ public class LexerParityTests
     /// <summary>How long one run of a self-built tool over a whole batch of files may take.</summary>
     private const int BatchTimeoutMs = 30 * 60_000;
 
-    internal static string Run(string exe, IEnumerable<string> arguments, string workingDirectory)
+    internal static string Run(string exe, IEnumerable<string> arguments, string workingDirectory) =>
+        Run(exe, arguments, workingDirectory, out _);
+
+    /// <summary>
+    /// <see cref="Run(string, IEnumerable{string}, string)"/>, also handing back the most private memory
+    /// the program held at any point it was looked at — sampled four times a second while it runs.
+    /// </summary>
+    internal static string Run(string exe, IEnumerable<string> arguments, string workingDirectory, out long peakBytes)
     {
         var psi = new ProcessStartInfo(exe)
         {
@@ -131,6 +138,16 @@ public class LexerParityTests
         using var p = Process.Start(psi)!;
         var stderr = p.StandardError.ReadToEndAsync();
         var stdout = p.StandardOutput.ReadToEndAsync();
+        long peak = 0;
+        var sampler = Task.Run(() =>
+        {
+            while (!p.HasExited)
+            {
+                try { p.Refresh(); peak = Math.Max(peak, p.PrivateMemorySize64); }
+                catch (InvalidOperationException) { break; }   // it ended between the two calls
+                Thread.Sleep(250);
+            }
+        });
         // ⚠ The wait has to come BEFORE reading to the end — a read to the end of a program that never
         // stops never ends, so the limit used to be unreachable. ⚠ And it is a BATCH limit: one run of
         // the self-built compiler builds every hand-written program with gcc, which took over 300 s —
@@ -141,6 +158,8 @@ public class LexerParityTests
             p.WaitForExit();
             Assert.Fail($"{Path.GetFileName(exe)} did not finish within {BatchTimeoutMs / 60_000} minutes, and was stopped.");
         }
+        sampler.Wait();
+        peakBytes = peak;
         Assert.True(p.ExitCode == 0, $"{Path.GetFileName(exe)} exited {p.ExitCode}:\n{stderr.Result}");
         return stdout.Result;
     }
