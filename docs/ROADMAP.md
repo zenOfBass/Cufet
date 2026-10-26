@@ -17,45 +17,16 @@ version, and 1.0.0 will mark the point at which the language is considered stabl
 
 ## Cufet in Cufet
 
-The ordering is not ceremonial: this tier's real blocker is stated below as **ergonomic rather than capability**, and the only way to find ergonomic blockers is to write large Cufet programs. They are the instrument as much as they are the goal — better to meet the gaps one program at a time than to meet all of them at once inside a compiler.
+The compiler written in Cufet is done: it builds every program in `examples/` and compiles itself to a fixed point (2026-10-26). What is left here is what waited on it.
 
-1. **The compiler, written in Cufet.** The blockers are ergonomic rather than capability: the
-    data model, text handling and I/O are already sufficient, and emitting C is a route a
-    Cufet-written compiler can take too.
-
-    ★ **The Cufet-written evaluator lands here, and nowhere earlier.** The REPL weighed writing
-    one against shelling out to `cufet`, and shelled out: `cufet` already holds the type checker,
-    and a hand-written evaluator would say something worse about a bad line than the compiler
-    already says. An evaluator is also a THIRD implementation. It gets validated here or it gets
-    validated twice.
-
-    ★ The test oracle already exists. The self-hosted compiler is held to it as the two backends
-    are: every program it builds must print what the interpreter prints. Its C is free to differ
-    from this compiler's.
-
-    ★ **This is where "written in Cufet, no exceptions" is finally discharged.** The language's
-    floor — `If`, arithmetic, `bury`'s state-machine transform — is compiler-implemented, so the
-    compiler becoming Cufet is what makes every last part of the language Cufet-written. The
-    arc above deliberately did not borrow this promise; this item owns it.
-
-    ⚠⚠ **Do not try to discharge `bury` early by giving a type a suspension VERB — measured and
-    abandoned 2026-09-19.** Writing one down needs a way to say *"calling this suspends my
-    caller"* as distinct from *"this function is a generator"*, and the second is what a body
-    containing `bury` already means (the checker says so: *"'x' buries values, so it has to say
-    what kind"*). Three spellings were tried and all failed the same way — each matched a
-    precedent on the SURFACE and not in the slot: a new primitive word needed a second marker on
-    top of it; `Define` declares TYPES, not members; `of` means CONTAINMENT, not genericity.
-    ★ Nothing is privileged in the meantime — `and region` gives every region the same `bury` the
-    rabbit gets — so this is a self-hosting debt, not an asymmetry.
-
-2. **The C runtime, written in Cufet.** The compiler above links `cufet-runtime.c` as it stands.
-    Writing the runtime in Cufet waits for that compiler, which would build it, and first needs a
+1. **The C runtime, written in Cufet.** The compiler written in Cufet links `cufet-runtime.c` as it stands.
+    The compiler that would build it exists; what writing the runtime in Cufet still needs is a
     way for Cufet to say what the runtime does in C — memory, arenas, threads — which today it
     reaches only through c-language axioms. Programs are held to their output, so the swap changes
     no test.
 
-3. **Compile-time macros — the `cufet` tag's expander.** Not a third program. It is here 
-    rather than in *Deferred* because its blocker is a numbered item above, not something off the list.
+2. **Compile-time macros — the `cufet` tag's expander.** Not a third program. It is here
+    rather than in *Deferred* because nothing blocks it any more but the design below.
 
     Hygienic, expanding to Cufet AST before the checker runs — *not* fexprs, which are first-class and runtime. It is one tag of the BLOCKS type rather than a feature of its own: quoted Cufet and
     embedded foreign source live under one type name, and a macro is what consumes the `cufet` tag. See [DESIGN.md](DESIGN.md#foreign-interoperability) — including why hygiene and SQL injection turn out to be the same problem, which is what makes the unification real rather than cosmetic.
@@ -78,7 +49,7 @@ The ordering is not ceremonial: this tier's real blocker is stated below as **er
     ⚠ **Open, to settle on paper first:** typed holes want types checked BEFORE expansion (as Nim's
     typed macros do), and this entry says the expander runs before the checker.
 
-    ⚠ **Its blocker is item 1 above.** An expander generates Cufet AST, so building one in C# now means building it again in Cufet later. Macro errors are the worst part of every language that has them, and clear errors are this language's distinguishing feature — that tax is still paid deliberately, not early.
+    ⚠ **Its blocker was the compiler written in Cufet, and that is done.** An expander generates Cufet AST, and both front ends now read Cufet — the C# one and the one written in Cufet — so an expander is built in each and held to the same answers. Macro errors are the worst part of every language that has them, and clear errors are this language's distinguishing feature — that tax is still paid deliberately, not early.
 
     ★ Fexprs stay out, but the recorded reason was the weaker one. Wand's result (no two expressions
     ever equivalent, taking out `check` and monomorphization) is true; the **decisive** reason is that a compiled Cufet binary is standalone C, so running a Cufet block at run time needs a Cufet

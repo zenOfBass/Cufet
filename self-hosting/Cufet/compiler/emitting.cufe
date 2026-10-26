@@ -93,6 +93,9 @@ Pull a book on collections.
             Return a failure (cast not-built on ("a {object-name}")).
         Done.
         If written's kind is "UnionType":
+            // An open catalogue's cases are every kind the whole program ever puts in one, which
+            // `CodeGenerator` gathers in a pass of its own over everything first; this compiler has none.
+            If cast is-open-union on (written), return a failure (cast not-built on ("an open catalogue")).
             Define cases as a series of text.
             For each inner in (cast field-of on (written, 1))'s children, repeat:
                 Define case-kind as cast one's kind-of-type on (inner) or pass the failure off.

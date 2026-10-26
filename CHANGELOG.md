@@ -40,10 +40,12 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   functions — `Output`, and `for each … from the input` — the chance book, and axioms: `cufet`
   ones, and C-language ones — what crosses each way, an address read through and given back with
   `and free it with`, and an axiom passed around as a value.
-  `CompilerParityTests` now holds it to the interpreter on 434 hand-written programs and on every
+  `CompilerParityTests` now holds it to the interpreter on 440 hand-written programs and on every
   program in `examples/`, all 62 of them — the other 5 are libraries. Two, `markov` and
   `work-queue`, are held to running cleanly rather than to the same output, since the backends'
-  random generators and the scheduler decide those.
+  random generators and the scheduler decide those. An open catalogue — `a catalogue` with no
+  `of (…)` — it refuses as not built yet, rather than writing C that gcc rejects: `cufet build`
+  gathers such a catalogue's cases in a pass over the whole program first, and it has no such pass.
 - **The compiler written in Cufet compiles itself.** The compiler it builds from its own source
   compiles that source again into the very same C, byte for byte — the fixed point a self-hosting
   compiler is held to — and builds every program the first one does, printing the same.

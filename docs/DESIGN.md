@@ -84,6 +84,16 @@ The decision the rest of them answer to.
   them — but a person cannot implement one, and that promise belongs to *the compiler, written in
   Cufet*, which names `bury`'s state-machine transform by name. This line was about WHICH
   ASYMMETRY the distinction means; it never borrowed that promise.
+  ✅ **Kept 2026-10-07:** the checker written in Cufet makes the transform itself —
+  `self-hosting/Cufet/checker/stash-machine.cufe`, node for node as `StashTransform.cs` does.
+
+  ⚠⚠ **Giving a type a suspension VERB was measured and abandoned 2026-09-19.** Writing one down
+  needs a way to say *"calling this suspends my caller"* as distinct from *"this function is a
+  generator"*, and the second is what a body containing `bury` already means (the checker says so:
+  *"'x' buries values, so it has to say what kind"*). Three spellings were tried and all failed the
+  same way — each matched a precedent on the SURFACE and not in the slot: a new primitive word
+  needed a second marker on top of it; `Define` declares TYPES, not members; `of` means
+  CONTAINMENT, not genericity.
 
 ---
 
@@ -858,6 +868,12 @@ What the toolchain is, and what it declines to become.
 
   ⚠ **Parameters cannot be documented individually**, because the language has no syntax for it. A
   page lists a signature and cannot annotate its arguments. Stated so nobody reads it as a bug.
+
+- **THE REPL SHELLS OUT — there is no evaluator written in Cufet.** The REPL weighed writing one
+  against shelling out to `cufet`, and shelled out: `cufet` already holds the type checker, and a
+  hand-written evaluator would say something worse about a bad line than the compiler already says.
+  An evaluator is also a THIRD implementation of the language. The ROADMAP once placed it with the
+  compiler written in Cufet; it was never part of that work, and came off with it (2026-10-26).
 
 - **A LANGUAGE SERVER — DECLINED, 2026-09-17.** Not deferred. It sat under *Deferred* for months
   waiting on a trigger, and the last candidate has now been ruled out too.
