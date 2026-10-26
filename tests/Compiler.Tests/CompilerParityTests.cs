@@ -22,6 +22,19 @@ public sealed class CompiledCufetCompiler : CompiledFrontEnd, IDisposable
         var (header, runtime, _) = new CodeGenerator().GenerateSplit(program);
         RuntimeSplit.WriteHeaders(RuntimeFolder, header);
         File.WriteAllText(Path.Combine(RuntimeFolder, RuntimeSplit.SourceFileName), runtime);
+
+        // ★ The runtime is compiled into `cufet-runtime.o` beside it the first time a program is built.
+        // Done here, once, with one program: the probes are built by several compiler processes at
+        // once, and each would otherwise race the others to write it.
+        var warm = Directory.CreateDirectory(
+            Path.Combine(TestScratch.Root, "cufet-warm-" + Guid.NewGuid().ToString("N"))).FullName;
+        try
+        {
+            File.WriteAllText(Path.Combine(warm, "warm.cufe"), "State 1.\n");
+            LexerParityTests.Run(Exe, ["--runtime", RuntimeFolder.Replace('\\', '/'), "--prelude",
+                Path.Combine(LexerParityTests.RepoRoot, "src", "Interpreter", "Prelude").Replace('\\', '/'), "warm.cufe"], warm);
+        }
+        finally { try { Directory.Delete(warm, recursive: true); } catch (IOException) { } }
     }
 
     public new void Dispose()
@@ -554,37 +567,56 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
             Path.Combine(TestScratch.Root, "cufet-selfbuilt-" + Guid.NewGuid().ToString("N"))).FullName;
         try
         {
-            var sources = Built.Select((source, i) => (Name: $"p{i + 1:000}.cufe", Source: source)).ToList();
-            foreach (var (name, source) in sources) File.WriteAllText(Path.Combine(dir, name), source);
+            // ★ In batches, each built by a compiler process of its own in a folder of its own, all at
+            // once, and then each judged at once: one process building the 440 one after another, then
+            // each run in turn, was 7.3 of the suite's 18.5 minutes (2026-10-25). A probe reads no file
+            // and no input, so nothing they do can meet. The fixture compiled the runtime object first.
+            int batches = Math.Clamp(Environment.ProcessorCount / 2, 1, 6);
+            var sources = Built.Select((source, i) => (Name: $"p{i + 1:000}.cufe", Source: source,
+                                                      Folder: Path.Combine(dir, $"batch{i % batches}"))).ToList();
+            foreach (var (name, source, folder) in sources)
+            {
+                Directory.CreateDirectory(folder);
+                File.WriteAllText(Path.Combine(folder, name), source);
+            }
 
             var runtime = compiled.RuntimeFolder.Replace('\\', '/');
-            var got = ByFile(Run(compiled.Exe, ["--runtime", runtime, .. PreludeArgs, .. sources.Select(s => s.Name)], dir));
-
-            int matched = 0;
-            var problems = new List<string>();
-            var unsupported = new List<string>();
-            foreach (var (name, source) in sources)
+            var got = new System.Collections.Concurrent.ConcurrentDictionary<string, List<string>>();
+            InParallel(sources.GroupBy(s => s.Folder), batch =>
             {
+                var said = ByFile(Run(compiled.Exe, ["--runtime", runtime, .. PreludeArgs, .. batch.Select(s => s.Name)], batch.Key));
+                foreach (var (name, lines) in said) got[name] = lines;
+            });
+
+            // What each probe came to: matched, not yet supported, or what went wrong — in order.
+            var judged = new (bool Matched, string? Unsupported, string? Problem)[sources.Count];
+            InParallel(Enumerable.Range(0, sources.Count), i =>
+            {
+                var (name, source, folder) = sources[i];
                 string said = got.TryGetValue(name, out var lines) && lines.Count > 0 ? lines[0] : "<nothing printed>";
                 if (said.StartsWith("unsupported\t", StringComparison.Ordinal))
                 {
-                    unsupported.Add($"{name}\t{said["unsupported\t".Length..]}");
-                    continue;
+                    judged[i] = (false, $"{name}\t{said["unsupported\t".Length..]}", null);
+                    return;
                 }
                 if (said != "built")
                 {
-                    problems.Add($"{name}: {said}\n    {source.Replace("\n", "\n    ")}");
-                    continue;
+                    judged[i] = (false, null, $"{name}: {said}\n    {source.Replace("\n", "\n    ")}");
+                    return;
                 }
-                string program = Path.Combine(dir, Path.GetFileNameWithoutExtension(name)
+                string program = Path.Combine(folder, Path.GetFileNameWithoutExtension(name)
                     + (OperatingSystem.IsWindows() ? ".exe" : ""));
                 string want = InterpretRaw(source);
                 string have;
                 try { have = RunBinary(program); }
-                catch (Xunit.Sdk.XunitException died) { problems.Add($"{name}: {died.Message}"); continue; }
-                if (have == want) matched++;
-                else problems.Add($"{name} printed differently:\n    interpreted: {Show(want)}\n    built:       {Show(have)}");
-            }
+                catch (Xunit.Sdk.XunitException died) { judged[i] = (false, null, $"{name}: {died.Message}"); return; }
+                judged[i] = have == want
+                    ? (true, null, null)
+                    : (false, null, $"{name} printed differently:\n    interpreted: {Show(want)}\n    built:       {Show(have)}");
+            });
+            int matched = judged.Count(j => j.Matched);
+            var problems = judged.Where(j => j.Problem != null).Select(j => j.Problem!).ToList();
+            var unsupported = judged.Where(j => j.Unsupported != null).Select(j => j.Unsupported!).ToList();
 
             output.WriteLine($"{matched} of {sources.Count} built and print alike; {unsupported.Count} not yet:");
             foreach (var line in unsupported) output.WriteLine("    " + line);
@@ -665,6 +697,16 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
             Assert.True(matched >= CorpusFloor, $"only {matched} corpus programs built and print alike, and the floor is {CorpusFloor}.");
         }
         finally { try { Directory.Delete(dir, recursive: true); } catch (IOException) { } }
+    }
+
+    /// <summary>Each item at once, and the first assertion that failed thrown as itself.</summary>
+    private static void InParallel<T>(IEnumerable<T> items, Action<T> each)
+    {
+        try { Parallel.ForEach(items, each); }
+        catch (AggregateException failed)
+        {
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failed.InnerExceptions[0]).Throw();
+        }
     }
 
     /// <summary>A program's output and exit code, run in a folder with nothing on its input.</summary>

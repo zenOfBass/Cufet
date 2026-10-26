@@ -124,6 +124,18 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   from a to b of t` work out `t` first, `the entry for k in m` works out `m` first, and `Insert v
   into s` works out `s` first. No program in `examples/` had two such operands, which is why the
   oracle never saw it; `PipelineEvaluationOrderTests` holds it now.
+- **The compiler suite takes 15 minutes again, not 21.** Twelve were last recorded. The checker's
+  corpus test set the wall clock, at 16 minutes, and now takes 1.5. A file inside a project is checked with its whole
+  folder, and the tree it hands back is that whole folder's: each of the compiler folder's 26 files
+  handed back the same 3.9 MB tree and took 12 s however small it was, so a folder cost the square
+  of its size, and the checker, compiler and parser folders were 755 s of the run's 790. The run now
+  takes the first file of a project folder of ten files or more, which still checks and compares
+  every file of it; what the others added was only the few lines that differ by which file is the
+  one checked, and that file's own style advice. `CheckerParityTests.CheckedCorpus` says so, and its
+  floors were lowered once to match. And the 440 programs `CompilerParityTests` builds with the
+  compiler written in Cufet are built in batches by several compiler processes at once, then run
+  and compared at once — 7.3 minutes to 3.1. The compiler suite takes 15 minutes; the floor is now
+  `CompilerParityTests` itself, whose tests run one after another, the fixed point the longest.
 - **`cufet build` runs an expression's preliminary steps where the expression is.** Some
   expressions need a step before their value — the temporary of `but void is` and `but on failure`,
   the check and jump of a fallible call inside a Try, a series, map or set literal built item by

@@ -114,10 +114,10 @@ Requires [.NET 10 SDK](https://dotnet.microsoft.com/download), plus **gcc on `PA
 for the compiler tests — they emit C and shell out to it.
 
 ```
-# Run all tests (the green baseline) — around 8 minutes
+# Run all tests (the green baseline) — around 15 minutes, the compiler tests setting it
 dotnet test Cufet.sln
 
-# The fast loop while working — the whole shared front end, 42 seconds
+# The fast loop while working — the whole shared front end, 40 seconds
 dotnet test Cufet.sln --filter "FullyQualifiedName!~Compiler.Tests"
 
 # Run a Cufet program
@@ -144,14 +144,21 @@ project is*) holds the reasoning behind the build system.
 one friction — a project that USES Cufet should say `cufet` in its steps, but this repo IS Cufet,
 so a front door bootstrapping from PATH is permanently one release behind its own source.
 
-★ **Use the fast loop while working, and the full suite before pushing.** The compiler
-suite compiles and runs 852 programs through gcc — measured 2026-08-31 at **52 minutes of
-work in 7.6 minutes of wall clock**, a 6.9× overlap that already saturates a four-core
-machine. There is no parallelism left to win and no single slow class to split: the cost is
-spread evenly across thirty-odd pipeline classes at one gcc invocation each. The lexer and
-interpreter are 1,942 of those tests in 42 seconds, and they cover the entire shared front
-end — where most changes land, since both backends are downstream of it. Nothing is skipped,
-only deferred to the moment it can still catch you.
+★ **Use the fast loop while working, and the full suite before pushing.** The lexer and
+interpreter are 2,430 tests in 40 seconds, and they cover the entire shared front end — where
+most changes land, since both backends are downstream of it. The compiler suite builds and runs
+programs through gcc: measured 2026-10-25 at **78 minutes of work in 15.3 minutes of wall
+clock**, a 5.1× overlap on eight cores. Nothing is skipped, only deferred to the moment it can
+still catch you.
+
+⚠ **The wall clock is set by the slowest CLASS, not by the sum.** xUnit runs one class's tests
+one after another, and other classes beside it. Today that floor is `CompilerParityTests` — the
+compiler written in Cufet, building its probes, the examples, and itself to a fixed point, which
+alone is four minutes and cannot be split. Twice a single test has quietly become the whole
+suite's time: `ExampleOracleTests` building a 33-file library program by program (2026-10-01),
+and `CheckerParityTests` checking every file of a large folder together with the whole folder
+(2026-10-25, 16 of 21 minutes). ★ Read before guessing: `--logger trx` records each test's start,
+end and duration, and the class whose span ends last is the floor.
 
 ⚠⚠ **On Windows, suspect your antivirus before you believe a slower number.** Every compiled
 test links a *novel* executable and runs it exactly once, so it always pays first-execution
@@ -159,7 +166,7 @@ scanning and never collects the discount a second run would get. Measured 2026-0
 Defender real-time protection on: a binary with novel contents takes **482 ms** to start, the
 same binary again **41 ms**, and a copy of already-scanned content **119 ms** — roughly 480 ms
 of a ~1.6 s test, across 900-odd tests. The suite had drifted to **13 m 41 s** against the 7.6
-above, and excluding a single directory put it back to **7 m 50 s**. Compiled tests write
+it took then, and excluding a single directory put it back to **7 m 50 s**. Compiled tests write
 everything to `%TEMP%\cufet-tests` (see `TestScratch`) exactly so that exclusion can name one
 folder rather than your whole temp directory:
 
@@ -178,7 +185,7 @@ the two things the suite exists for: `-O2` is what turns latent undefined behavi
 wrong answer instead of a forgiving one, and a harness that compiles differently from `cufet
 build` stops testing what ships.
 
-The test baseline is roughly **1200 interpreter + 150 lexer + 300 compiler**, all
+The test baseline is roughly **2100 interpreter + 300 lexer + 1200 compiler**, all
 green. The exact total wobbles with feature churn; what matters is the floor —
 the load-bearing guarantee tests must stay present and passing:
 
