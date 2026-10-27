@@ -60,7 +60,7 @@ Pull a book on collections.
             Cast one's bind-name on (name, a new binding {
                 the shape cast object-type-named on ("rabbit"),
                 the established-by cast placed-reference on (name, at-row, cast numeric on (cast field-of on (statement, 4))),
-                the line at-row, the permanent false, the module false, the depth one's rabbit-depth, the parameter false }).
+                the line at-row, the permanent false, the module false, the depth one's rabbit-depth, the parameter false, the judged false }).
         Done.
         Cast one's check-block on (cast field-of on (statement, 2)) or pass the failure off.
         Cast one's exit-scope.

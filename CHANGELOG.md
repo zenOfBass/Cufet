@@ -6,6 +6,18 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ---
 
+## [Unreleased]
+
+### Changed
+
+- **Narrowing is decided once, by the checker.** Inside `If x is not void:`, after a guard, in the
+  `Otherwise` of a test, or in a judgement's arm, a name reads as the type its test proved — and the
+  checker now writes that type onto each such read, where both compilers read it. They used to work
+  every narrowing out again for themselves, so each new rule had to be written in every copy, and
+  a copy that lagged built a program that ran interpreted and was refused compiled. `CodeGenerator`
+  lost its own rules for it, and so did the compiler written in Cufet; the checker written in Cufet
+  writes the same type C#'s does, held to it by the checked-tree test.
+
 ## [0.28.0] — 2026-10-26
 
 ### Added

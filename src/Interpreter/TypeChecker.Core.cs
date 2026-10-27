@@ -586,7 +586,8 @@ public sealed class UnionType : CufetType
 // survives into a detached body where ordinary data does not. This used to be answered by
 // "is its type a BookType", which meant BOOKS survived and a writer's own module did not; the
 // two are the same thing now, and the flag says what was actually meant.
-public record TypeInfo(CufetType Type, IExpression EstablishingExpr, int EstablishingLine, bool Permanent = false, int RabbitDepth = 0, bool IsParameter = false, bool IsPulledModule = false);
+// Judged: a judgement's `it`, whose reads carry the type their arm gives it (VariableReference.NarrowedType).
+public record TypeInfo(CufetType Type, IExpression EstablishingExpr, int EstablishingLine, bool Permanent = false, int RabbitDepth = 0, bool IsParameter = false, bool IsPulledModule = false, bool Judged = false);
 
 // Line/Column point at the violation — the position the message's "Here on line N" sentence
 // names. They are 0 only for the rare error with no AST node to blame; a diagnostic consumer
@@ -2767,7 +2768,7 @@ public sealed partial class TypeChecker
                         // an arm nothing a type arm's tag would have told it.
                         EnterScope();
                         if (subjectType != null)
-                            Scope["it"] = new TypeInfo(subjectType, judge.Subject, arm.Line);
+                            Scope["it"] = new TypeInfo(subjectType, judge.Subject, arm.Line, Judged: true);
                         try { CheckBlock(arm.Body); } finally { ExitScope(); }
                         continue;
                     }
@@ -2797,7 +2798,7 @@ public sealed partial class TypeChecker
                         : new UnionType(arm.Cases.ToList());
 
                     EnterScope();
-                    Scope["it"] = new TypeInfo(armType, judge.Subject, arm.Line);
+                    Scope["it"] = new TypeInfo(armType, judge.Subject, arm.Line, Judged: true);
                     try { CheckBlock(arm.Body); } finally { ExitScope(); }
                 }
 
@@ -2808,7 +2809,7 @@ public sealed partial class TypeChecker
                     // to — the subject's own type is the honest answer, and it is non-null here
                     // because a subject whose type could not be inferred never reaches this far.
                     EnterScope();
-                    Scope["it"] = new TypeInfo(remaining ?? subjectType!, judge.Subject, judge.Line);
+                    Scope["it"] = new TypeInfo(remaining ?? subjectType!, judge.Subject, judge.Line, Judged: true);
                     try { CheckBlock(judge.OtherwiseBody); } finally { ExitScope(); }
                 }
                 else if (remaining != null && valueJudgement)
@@ -3586,7 +3587,13 @@ public sealed partial class TypeChecker
         var t = InferTypeCore(expr);
         // ⚠ An axiom type is INFERRED here and refused by ResolveParamType, which is what makes
         // "written down anywhere" and "the type of the declaration that names it" different things.
-        return t is null or AxiomType ? t : ResolveParamType(t);
+        var resolved = t is null or AxiomType ? t : ResolveParamType(t);
+        // Set on every read, null included: a node checked again elsewhere must not keep an old answer.
+        // A judgement's `it` is narrowed too: its arm says what it is.
+        if (expr is VariableReference read)
+            read.NarrowedType = _narrowedVars.ContainsKey(read.Name)
+                             || (read.Name == "it" && TryLookup(read.Name, out var bound) && bound.Judged) ? resolved : null;
+        return resolved;
     }
 
     // `<bits> at <n> bits`. The impossible case is caught at CHECK time when it is knowable: a

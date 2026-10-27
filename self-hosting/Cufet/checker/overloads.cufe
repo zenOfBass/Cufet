@@ -147,7 +147,7 @@ Pull a book on collections.
             If operand is 3, the operand-type becomes right.
             Cast one's bind-name on (operand-name, a new binding {
                 the shape operand-type, the established-by cast named-reference on (operand-name), the line at-row,
-                the permanent false, the module false, the depth 0, the parameter false }).
+                the permanent false, the module false, the depth 0, the parameter false, the judged false }).
         Done.
 
         Define earlier-in-function as one's in-function.

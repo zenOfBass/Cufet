@@ -124,7 +124,7 @@ Pull a book on collections.
         Cast one's bind-name on (name, a new binding {
             the shape cast wrapped on (stream-kind, cast plain-type on ("TextType")),
             the established-by cast placed-reference on (name, at-row, at-column),
-            the line at-row, the permanent false, the module false, the depth 0, the parameter false }).
+            the line at-row, the permanent false, the module false, the depth 0, the parameter false, the judged false }).
         For each inner in (cast field-of on (statement, 4))'s children, repeat:
             Cast one's check-statement on (inner) or pass the failure off.
         Done.

@@ -78,6 +78,9 @@ internal static class GenericInstantiation
     /// reaches ONTO the call (<c>ResolvedFunctionName</c>). Two fillings of a generic that calls a
     /// generic then shared one answer, and the last one checked won: `echo-twice of text` was
     /// compiled calling `echo of number`. MEASURED 2026-10-02 as C that gcc refused.
+    /// ⚠ A variable read is fresh for the same reason: the checker writes the type a narrowing gives
+    /// it onto the read (<c>NarrowedType</c>), and `value` in a filling of number and one of text was
+    /// one node holding `text` for both (2026-10-26).
     /// </remarks>
     private static T FilledCopy<T>(T template, Func<CufetType, CufetType> substitute) where T : class
     {
@@ -85,7 +88,9 @@ internal static class GenericInstantiation
         var fresh = new HashSet<object>(ReferenceEqualityComparer.Instance);
         TNode Remember<TNode>(TNode made) where TNode : class { fresh.Add(made); return made; }
         IExpression? Call(IExpression expression) =>
-            expression is CastExpression call && !fresh.Contains(call) ? Remember(call with { }) : null;
+            expression is CastExpression call && !fresh.Contains(call) ? Remember(call with { })
+            : expression is VariableReference read && !fresh.Contains(read) ? Remember(read with { })
+            : null;
         IStatement? CallStatement(IStatement statement) =>
             statement is CastStatement call && !fresh.Contains(call) ? Remember(call with { }) : null;
         return AstRebuilder.TryRebuild(template, substitute, out var rebuilt, CallStatement, null, Call)

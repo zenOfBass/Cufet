@@ -652,13 +652,13 @@ Pull a book on collections.
         Cast one's enter-scope.
         Cast one's bind-name on ("one", a new binding {
             the shape cast object-type-named on (owner),
-            the established-by cast named-reference on ("one"), the line owner-row, the permanent false, the module false, the depth 0, the parameter true }).
+            the established-by cast named-reference on ("one"), the line owner-row, the permanent false, the module false, the depth 0, the parameter true, the judged false }).
         For each parameter in parameters's children, repeat:
             Define parameter-name as cast unquoted on (cast field-of on (parameter, 2)).
             If resolving, cast one's check-resolves on (cast field-of on (parameter, 1)) or pass the failure off.
             Cast one's bind-name on (parameter-name, a new binding {
                 the shape cast field-of on (parameter, 1),
-                the established-by cast named-reference on (parameter-name), the line at-row, the permanent false, the module false, the depth 0, the parameter true }).
+                the established-by cast named-reference on (parameter-name), the line at-row, the permanent false, the module false, the depth 0, the parameter true, the judged false }).
         Done.
 
         Define earlier-in-function as one's in-function.

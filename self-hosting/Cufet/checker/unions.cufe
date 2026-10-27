@@ -153,7 +153,7 @@ Pull a book on collections.
         If cast is-none on (shape) is false:
             Cast one's bind-name on ("it", a new binding {
                 the shape shape, the established-by subject, the line at-row, the permanent false,
-                the module false, the depth 0, the parameter false }).
+                the module false, the depth 0, the parameter false, the judged true }).
         Done.
         Cast one's check-block on (body) or pass the failure off.
         Cast one's exit-scope.

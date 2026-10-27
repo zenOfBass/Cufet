@@ -100,7 +100,7 @@ public sealed partial class CodeGenerator
         _openFiles.Clear(); _loopExits.Clear();
         _rabbitCtx.Clear(); _rabbitDepth = 0; _excOpen = 0;
         _varRabbitDepth.Clear(); _closureEscapeDepth = null;
-        _narrowedVars.Clear(); _armCases.Clear(); _currentFailVar = null; _closureSelf = null; _currentTaskReturn = null;
+        _currentFailVar = null; _closureSelf = null; _currentTaskReturn = null;
         // The channel deep-copy registry IS reset: an OPEN union's TypeSig is the constant "U(*)"
         // regardless of its discovered case set, so a union registered during an early iteration
         // would dedup against a later, LARGER case set and skip registering the new cases'
@@ -511,30 +511,6 @@ public sealed partial class CodeGenerator
     private (string Name, string Label, IReadOnlyList<(CufetType Type, string Name)> Params)? _tailSelf;
     private bool _tailSelfUsed;
 
-    // Flow-narrowed variables: inside an `is not void` branch a voidable variable is treated
-    // as its inner T (reads emit `.val`), matching the interpreter's variable-level narrowing.
-    // Flow-narrowed variables: the narrowed static type PLUS the C accessor that reaches the payload.
-    // Voidable narrows to `.val` (2-case tagged struct); a closed union narrows to `.val.c<k>` (the
-    // N-case generalization) — same model, different accessor.
-    private readonly Dictionary<string, (CufetType Type, string Access)> _narrowedVars = new();
-
-    // ★ Cases still reachable for a variable the checker narrowed in TYPE but not in REPRESENTATION.
-    //
-    // A Judge's GROUPED arm is the case that needs this. `A quote or a paragraph:` leaves `it` a
-    // union, so there is no payload to reach through and _narrowedVars has nothing to record — but
-    // the checker does know `it` is one of TWO cases now, not one of the subject's four. Narrowing
-    // again inside the arm (`If it is a quote: … Otherwise: …`) is exhaustive to the checker and
-    // was NOT to the compiler, which kept eliminating from all four, found two left, and declined
-    // to narrow — then emitted the field access against the union struct anyway. That produced C
-    // that gcc rejects, so the failure landed at build time with no diagnostic from `check`.
-    //
-    // Indices are into the REPRESENTATION union (the subject's, the one cv_it actually is), never
-    // into the arm's smaller one, because every emitted `.val.c<k>` has to index the real struct.
-    // Keeping the restricted SET rather than substituting a narrower TYPE is what keeps those two
-    // apart: an arm's case order need not match the subject's, so a sub-union's own indices would
-    // silently reach the wrong member.
-    private readonly Dictionary<string, List<int>> _armCases = new();
-
     // Object definitions by name (nominal types), collected up front. Objects are also
     // C value structs (cd_<name>); methods become C functions taking a receiver pointer.
     private readonly Dictionary<string, ObjectDefinition> _objectDefs = new();
@@ -607,6 +583,52 @@ public sealed partial class CodeGenerator
     };
 
     // The case list of a union — declared for a closed one, whole-program-discovered for the open one.
+    /// <summary>The type a read is narrowed to here, and the C accessor that reaches it — or null.</summary>
+    /// <remarks>
+    /// ★ The CHECKER decides narrowing and writes it onto the read (<c>VariableReference.NarrowedType</c>);
+    /// this only turns that type into C, from the type the variable's C holds — a judgement's `it`
+    /// included, reached from the subject's. It used to work every narrowing out again from the same
+    /// syntax — the guard, the then-arm, the else by elimination, a grouped test, a judgement's arms —
+    /// and each new rule then had to be written twice, the first fix to one copy
+    /// being a divergence until the other caught up (ROADMAP, rules-twice). Measured before the
+    /// switch, 2026-10-26: over the whole compiler suite the two agreed on every narrowed read.
+    /// </remarks>
+    private (CufetType Type, string Access)? NarrowedRead(VariableReference read)
+    {
+        if (read.NarrowedType is { } narrowed && _varTypes.TryGetValue(read.Name, out var held))
+            return Reach(held, narrowed);
+        return null;
+    }
+
+    /// <summary>
+    /// How a value held as <paramref name="from"/> is read as <paramref name="to"/>: through a voidable's
+    /// `.val`, then a union case's `.val.c&lt;k&gt;`.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ A union narrowed to FEWER of its cases is still read as the union it is held as — its tag and
+    /// its case indices are the representation's, and a sub-union's own order need not match them.
+    /// </remarks>
+    private (CufetType Type, string Access) Reach(CufetType from, CufetType to)
+    {
+        if (from.Equals(to)) return (from, "");
+        // A judgement's `void` arm: nothing to reach, so read as it is held.
+        if (to is VoidType) return (from, "");
+        if (from is VoidableType voidable && to is not VoidableType)
+        {
+            var (type, access) = Reach(voidable.Inner, to);
+            return (type, ".val" + access);
+        }
+        if (from is UnionType union && to is not UnionType)
+        {
+            var cases = union.Cases == null ? _openUnionCases : UnionCases(union);
+            int k = MatchCaseInList(cases, to);
+            if (k >= 0) return (cases[k], $".val.c{k}");
+        }
+        if (from is UnionType && to is UnionType) return (from, "");
+        throw new CompilerException(
+            $"internal: a {FormatTypeName(from)} the checker narrowed to {FormatTypeName(to)} cannot be reached in C.");
+    }
+
     private IReadOnlyList<CufetType> UnionCases(UnionType ut) =>
         ut.Cases == null ? _openUnionCases : FlatCases(ut.Cases);
 

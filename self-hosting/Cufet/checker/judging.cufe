@@ -10,9 +10,10 @@
 */
 
 Pull a book on collections.
-    /// What a name stands for in a scope — C#'s `TypeInfo`.
+    /// What a name stands for in a scope — C#'s `TypeInfo`. `judged`: a judgement's `it`, whose reads
+    /// carry the type their arm gives it.
     Define object binding with (the node shape, the node established-by, the number line, the fact permanent,
-        the fact module, the number depth, the fact parameter).
+        the fact module, the number depth, the fact parameter, the fact judged).
 
     Define object checker with (
         the series of map from text to binding scopes,
@@ -123,9 +124,9 @@ Pull a book on collections.
         Cast writing's add on (cast plain-type on ("TextType")).
         Define scope as a map from text to binding.
         In scope, the entry for "input" becomes a new binding {
-            the shape reading, the established-by cast named-reference on ("input"), the line 0, the permanent false, the module false, the depth 0, the parameter false }.
+            the shape reading, the established-by cast named-reference on ("input"), the line 0, the permanent false, the module false, the depth 0, the parameter false, the judged false }.
         In scope, the entry for "output" becomes a new binding {
-            the shape writing, the established-by cast named-reference on ("output"), the line 0, the permanent false, the module false, the depth 0, the parameter false }.
+            the shape writing, the established-by cast named-reference on ("output"), the line 0, the permanent false, the module false, the depth 0, the parameter false, the judged false }.
         Return scope.
     Done.
 
@@ -399,7 +400,7 @@ Pull a book on collections.
                             the shape value-type,
                             the established-by cast field-of on (statement, 2),
                             the line cast numeric on (cast field-of on (statement, 5)),
-                            the permanent true, the module false, the depth 0, the parameter false }).
+                            the permanent true, the module false, the depth 0, the parameter false, the judged false }).
                         In one's hoisted-constants, the entry for name becomes true.
                     Done.
                 Done.
@@ -846,7 +847,7 @@ Pull a book on collections.
                 Cast one's enter-scope.
                 Cast one's bind-name on (map-iterator, a new binding {
                     the shape entry-type, the established-by looped, the line at-row, the permanent false,
-                    the module false, the depth 0, the parameter false }).
+                    the module false, the depth 0, the parameter false, the judged false }).
                 Cast one's check-block on (cast field-of on (statement, 3)) or pass the failure off.
                 Cast one's exit-scope.
                 Return.
@@ -862,7 +863,7 @@ Pull a book on collections.
                 Cast one's enter-scope.
                 Cast one's bind-name on (each-name, a new binding {
                     the shape element-type, the established-by looped, the line at-row, the permanent false,
-                    the module false, the depth 0, the parameter false }).
+                    the module false, the depth 0, the parameter false, the judged false }).
                 Cast one's check-block on (cast field-of on (statement, 3)) or pass the failure off.
                 Cast one's exit-scope.
                 Return.
@@ -898,7 +899,7 @@ Pull a book on collections.
                 Cast one's enter-scope.
                 Cast one's bind-name on (iterator, a new binding {
                     the shape cast field-of on (looped-type, 1), the established-by looped, the line at-row, the permanent false,
-                    the module false, the depth iterator-depth, the parameter false }).
+                    the module false, the depth iterator-depth, the parameter false, the judged false }).
                 Cast one's check-block on (cast field-of on (statement, 3)) or pass the failure off.
                 Cast one's exit-scope.
             Done.
@@ -1091,7 +1092,7 @@ Pull a book on collections.
                 If aliased's shape's kind is "AxiomType":
                     Cast one's bind-name on (name, a new binding {
                         the shape aliased's shape, the established-by value, the line at-row, the permanent true, the module false,
-                        the depth one's rabbit-depth, the parameter false }).
+                        the depth one's rabbit-depth, the parameter false, the judged false }).
                     Cast one's record-stash-local on (name, aliased's shape, at-row) or pass the failure off.
                     Return.
                 Done.
@@ -1156,7 +1157,7 @@ Pull a book on collections.
         Cast one's require-rabbit-for-address on (kept, name, at-row) or pass the failure off.
         Cast one's bind-name on (name, a new binding {
             the shape kept, the established-by value, the line at-row, the permanent held-for-good, the module false,
-            the depth one's rabbit-depth, the parameter false }).
+            the depth one's rabbit-depth, the parameter false, the judged false }).
         Cast one's record-stash-local on (name, kept, at-row) or pass the failure off.
     Done.
 

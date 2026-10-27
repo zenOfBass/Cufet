@@ -135,12 +135,6 @@ public sealed partial class CodeGenerator
 
     private void EmitBlock(StringBuilder sb, IReadOnlyList<IStatement> body, string indent)
     {
-        // Guard narrowing (mirrors the interpreter's type checker): after an exiting guard —
-        // a single-arm `if (cond) { … return … }` with no else — the statements that follow run
-        // only when `cond` was false, so a voidable var proven non-void by ¬cond reads as `.val`
-        // for the rest of the block. Undone at block end so it never leaks to a sibling block.
-        var guardNarrowed = new List<(string Name, (CufetType Type, string Access) Prev, bool Had)>();
-
         // ⚠ A SHADOWING `Define` hides an outer name for this block only, and C agrees — the inner
         // declaration is emitted in an inner brace and the outer variable comes back at the closing
         // one. `_varTypes` did not come back with it: the shadowed entry stayed, so the first read
@@ -162,21 +156,6 @@ public sealed partial class CodeGenerator
                               _varRabbitDepth.ContainsKey(shadow.Name)));
 
             EmitStatement(sb, stmt, indent);
-            if (stmt is IfStatement { Arms.Count: 1, ElseBody: null } guard
-                && BlockAlwaysExits(guard.Arms[0].Body))
-            {
-                foreach (var (name, inner, access) in GuardNarrowings(guard.Arms[0].Condition))
-                {
-                    bool had = _narrowedVars.TryGetValue(name, out var prev);
-                    guardNarrowed.Add((name, had ? prev : default, had));
-                    _narrowedVars[name] = (inner, (had ? prev.Access : "") + access);
-                }
-            }
-        }
-        for (int i = guardNarrowed.Count - 1; i >= 0; i--)
-        {
-            var (name, prev, had) = guardNarrowed[i];
-            if (had) _narrowedVars[name] = prev!; else _narrowedVars.Remove(name); // had ⇒ prev non-null
         }
 
         // Innermost first, so nested shadows of one name unwind in the order they were taken.
@@ -188,29 +167,8 @@ public sealed partial class CodeGenerator
         }
     }
 
-    // Voidable narrowings implied by the negation of a guard condition (fall-through path):
-    //   `x is void`   → x non-void → (x, inner);   `A or B` (¬ = ¬A ∧ ¬B) → collect from each.
-    // `and` is not recursed: ¬(A ∧ B) narrows neither side. Only voidable narrowing is emitted —
-    // that's all the compiler's `.val` access mechanism supports (and all the docs' idioms need).
-    private IEnumerable<(string Name, CufetType Inner, string Access)> GuardNarrowings(IExpression cond)
-    {
-        if (cond is BinaryExpression { Op: TokenType.Or } orE)
-        {
-            foreach (var g in GuardNarrowings(orE.Left))  yield return g;
-            foreach (var g in GuardNarrowings(orE.Right)) yield return g;
-            yield break;
-        }
-        if (cond is BinaryExpression { Op: TokenType.Equal } b)
-        {
-            var varSide = b.Left is VoidLiteral ? b.Right : b.Left;
-            var other   = b.Left is VoidLiteral ? b.Left  : b.Right;
-            if (other is VoidLiteral && varSide is VariableReference vr && TypeOf(vr) is VoidableType vt)
-                yield return (vr.Name, vt.Inner, ".val");
-        }
-    }
-
     // Every path through `body` ends at a return. Mirrors the type checker's DefinitelyReturns
-    // (loops don't count — they may run zero times). Used to recognize exiting guards.
+    // (loops don't count — they may run zero times).
     private static bool BlockAlwaysExits(IReadOnlyList<IStatement> body)
     {
         foreach (var s in body)
@@ -354,8 +312,6 @@ public sealed partial class CodeGenerator
                     valExpr = EmitEscapeCopy(valExpr, targetType ?? TypeOf(b.Value), b.EscapeToDepth);
                 FlushPreEmits(sb, indent);
                 sb.AppendLine($"{indent}{MangleName(b.Name)} = {valExpr};");
-                _narrowedVars.Remove(b.Name);   // reassignment clears any active narrowing
-                _armCases.Remove(b.Name);       // …and any arm-restricted case set with it
                 break;
             }
 
@@ -1181,36 +1137,26 @@ public sealed partial class CodeGenerator
 
         bool hadIt = _varTypes.TryGetValue("it", out var prevIt);
         _varTypes["it"] = subjType;
-        bool hadItNarrow = _narrowedVars.TryGetValue("it", out var prevItNarrow);
-        _narrowedVars.Remove("it");
-        bool hadItCases = _armCases.TryGetValue("it", out var prevItCases);
-        _armCases.Remove("it");
 
-        bool presentCovered = false, voidCovered = false;
         string keyword = "if";
         foreach (var arm in judge.Arms)
         {
             bool present = arm.Cases.Any(c => c is not VoidType);
             bool isVoid  = arm.Cases.Any(c => c is VoidType);
-            presentCovered |= present;
-            voidCovered    |= isVoid;
             string test = present && isVoid ? "1" : present ? $"({itName}).has" : $"!({itName}).has";
             sb.AppendLine($"{inner}{keyword} ({test}) {{");
-            EmitNarrowedBlock(sb, present && !isVoid ? ("it", subjType.Inner, ".val") : null, arm.Body, body);
+            EmitScopedBlock(sb, arm.Body, body);
             keyword = "} else if";
         }
         if (judge.OtherwiseBody != null)
         {
             sb.AppendLine($"{inner}}} else {{");
-            EmitNarrowedBlock(sb, !presentCovered && voidCovered ? ("it", subjType.Inner, ".val") : null,
-                              judge.OtherwiseBody, body);
+            EmitScopedBlock(sb, judge.OtherwiseBody, body);
         }
         sb.AppendLine($"{inner}}}");
         sb.AppendLine($"{indent}}}");
 
         if (hadIt) _varTypes["it"] = prevIt!; else _varTypes.Remove("it");
-        if (hadItNarrow) _narrowedVars["it"] = prevItNarrow; else _narrowedVars.Remove("it");
-        if (hadItCases) _armCases["it"] = prevItCases!; else _armCases.Remove("it");
     }
 
     // Judge lowers to a tag dispatch over the subject's union, evaluated ONCE into a C local.
@@ -1256,23 +1202,12 @@ public sealed partial class CodeGenerator
         bool hadIt = _varTypes.TryGetValue("it", out var prevIt);
         _varTypes["it"] = subjType;
 
-        // ⚠⚠ `it` is REBOUND here, not narrowed further, and the side tables are keyed by NAME.
-        // _narrowedVars COMPOSES accesses — correct for one binding narrowed twice, wrong for a
-        // nested Judge, whose inner `it` is a different value living in a different C local. Left
-        // in place, an outer arm's `.val.c0` was prefixed onto the inner arm's, emitting
-        // `(cv_it).val.c0.val.c0` and reaching for a member of a type that has none. _armCases is
-        // the same hazard: an outer grouped arm's surviving cases are not the inner subject's.
-        //
-        // ★★ The note above says C's own scoping carries the shadowing, and for the emitted local
-        // it does. These tables are the part of the shadowing C could not carry, and they are why
-        // the defect could only ever appear as a DIVERGENCE — the interpreter shadows properly, so
-        // no interpreter test could go red for it.
-        bool hadItNarrow = _narrowedVars.TryGetValue("it", out var prevItNarrow);
-        _narrowedVars.Remove("it");
-        bool hadItCases = _armCases.TryGetValue("it", out var prevItCases);
-        _armCases.Remove("it");
+        // ⚠⚠ `it` is REBOUND here, not narrowed further: a nested Judge's `it` is a different value
+        // in a different C local, and every read of it is reached from THIS subject's type. When a
+        // name-keyed table carried the narrowing, an outer arm's `.val.c0` was prefixed onto the inner
+        // arm's, emitting `(cv_it).val.c0.val.c0` — a defect that could only ever appear as a
+        // DIVERGENCE, since the interpreter shadows properly.
 
-        var covered = new HashSet<int>();
         string keyword = "if";
 
         foreach (var arm in judge.Arms)
@@ -1281,7 +1216,6 @@ public sealed partial class CodeGenerator
                 .Select(c => MatchCaseInList(allCases, c))
                 .Where(k => k >= 0)
                 .ToList();
-            foreach (int k in indices) covered.Add(k);
 
             string test = indices.Count == 0
                 ? "0"
@@ -1289,36 +1223,21 @@ public sealed partial class CodeGenerator
 
             sb.AppendLine($"{inner}{keyword} ({test}) {{");
 
-            // One case ⇒ `it` reads at that case's concrete type. Grouped cases stay the union,
-            // matching the checker: an arm covering two cases cannot know which one arrived — but
-            // it does know it is one of THOSE, which is what the arm's case set carries so a
-            // narrowing inside the arm can finish the job.
-            (string, CufetType, string)? narrow = indices.Count == 1
-                ? ("it", allCases[indices[0]], $".val.c{indices[0]}")
-                : null;
-            EmitNarrowedBlock(sb, narrow, arm.Body, body,
-                              indices.Count > 1 ? ("it", indices) : null);
+            // What `it` reads as in the arm, the checker wrote onto each read of it.
+            EmitScopedBlock(sb, arm.Body, body);
             keyword = "} else if";
         }
 
         if (judge.OtherwiseBody != null)
         {
             sb.AppendLine($"{inner}}} else {{");
-            // Same rule the If's else-arm follows: exactly one case left ⇒ read at that case.
-            var left = Enumerable.Range(0, allCases.Count).Where(i => !covered.Contains(i)).ToList();
-            (string, CufetType, string)? narrow = left.Count == 1
-                ? ("it", allCases[left[0]], $".val.c{left[0]}")
-                : null;
-            EmitNarrowedBlock(sb, narrow, judge.OtherwiseBody, body,
-                              left.Count > 1 ? ("it", left) : null);
+            EmitScopedBlock(sb, judge.OtherwiseBody, body);
         }
 
         sb.AppendLine($"{inner}}}");
         sb.AppendLine($"{indent}}}");
 
         if (hadIt) _varTypes["it"] = prevIt!; else _varTypes.Remove("it");
-        if (hadItNarrow) _narrowedVars["it"] = prevItNarrow; else _narrowedVars.Remove("it");
-        if (hadItCases)  _armCases["it"]     = prevItCases!;  else _armCases.Remove("it");
     }
 
     // A VALUE judgement is an ordinary if/else-if chain over `it`, and that is the whole of it.
@@ -1344,10 +1263,6 @@ public sealed partial class CodeGenerator
         // DIVERGENCE: the interpreter shadows `it` properly, so no interpreter test can go red.
         bool hadIt = _varTypes.TryGetValue("it", out var prevIt);
         _varTypes["it"] = subjType;
-        bool hadItNarrow = _narrowedVars.TryGetValue("it", out var prevItNarrow);
-        _narrowedVars.Remove("it");
-        bool hadItCases = _armCases.TryGetValue("it", out var prevItCases);
-        _armCases.Remove("it");
 
         string keyword = "if";
         foreach (var arm in judge.Arms)
@@ -1362,247 +1277,45 @@ public sealed partial class CodeGenerator
 
 
             sb.AppendLine($"{inner}{keyword} ({string.Join(" || ", tests)}) {{");
-            EmitNarrowedBlock(sb, null, arm.Body, body);
+            EmitScopedBlock(sb, arm.Body, body);
             keyword = "} else if";
         }
 
         if (judge.OtherwiseBody != null)
         {
             sb.AppendLine($"{inner}}} else {{");
-            EmitNarrowedBlock(sb, null, judge.OtherwiseBody, body);
+            EmitScopedBlock(sb, judge.OtherwiseBody, body);
         }
 
         sb.AppendLine($"{inner}}}");
         sb.AppendLine($"{indent}}}");
 
         if (hadIt) _varTypes["it"] = prevIt!; else _varTypes.Remove("it");
-        if (hadItNarrow) _narrowedVars["it"] = prevItNarrow; else _narrowedVars.Remove("it");
-        if (hadItCases)  _armCases["it"]     = prevItCases!;  else _armCases.Remove("it");
     }
 
     private void EmitIf(StringBuilder sb, IfStatement ifStmt, string indent)
     {
         var inner = indent + "    ";
         var first = ifStmt.Arms[0];
-        // Condition is emitted BEFORE narrowing so `x is not void` reads x's voidable form.
         string cond0 = EmitExpr(first.Condition);
         sb.AppendLine($"{indent}if ({cond0}) {{");
-        EmitNarrowedBlock(sb, NotVoidNarrow(first.Condition), first.Body, inner,
-                          DisjunctionCases(first.Condition));
+        EmitScopedBlock(sb, first.Body, inner);
 
         for (int i = 1; i < ifStmt.Arms.Count; i++)
         {
             var arm = ifStmt.Arms[i];
             string condN = EmitExpr(arm.Condition);
             sb.AppendLine($"{indent}}} else if ({condN}) {{");
-            EmitNarrowedBlock(sb, NotVoidNarrow(arm.Condition), arm.Body, inner,
-                              DisjunctionCases(arm.Condition));
+            EmitScopedBlock(sb, arm.Body, inner);
         }
 
         if (ifStmt.ElseBody != null)
         {
             sb.AppendLine($"{indent}}} else {{");
-            // The else arm runs when every `is a <case>` arm failed — so a closed union narrows to the
-            // cases NOT tested. If exactly one remains the front-end narrows it to that concrete case
-            // (measured: a 2-case union's else IS text; a 3-case residual `(text or fact)` is rejected
-            // for text ops), so match that here.
-            EmitNarrowedBlock(sb, ElseNarrow(ifStmt), ifStmt.ElseBody, inner);
+            EmitScopedBlock(sb, ifStmt.ElseBody, inner);
         }
 
         sb.AppendLine($"{indent}}}");
-    }
-
-    // Exhaustive else-arm narrowing for a closed union: if every arm tests `<x> is a <case>` on the
-    // SAME union variable, the else arm is reached only for the untested cases — and when exactly one
-    // remains, x reads at that case's concrete type (mirroring the front-end's residual-union narrowing).
-    private (string Name, CufetType Inner, string Access)? ElseNarrow(IfStatement ifStmt)
-    {
-        // ★ The else of a lone `x is void` is reached only when x is present — the checker narrows
-        // it the same way, and without this mirror the else read `.has`/`.val` wrongly and a hole
-        // there refused to compile while it ran interpreted.
-        if (ifStmt.Arms.Count == 1
-            && ifStmt.Arms[0].Condition is BinaryExpression { Op: TokenType.Equal, Right: VoidLiteral, Left: VariableReference vvr }
-            && TypeOf(vvr) is VoidableType vvt)
-            return (vvr.Name, vvt.Inner, ".val");
-
-        // ★ A single NEGATED arm inverts the rule. The else of `x is not a <case>` is reached
-        // exactly when x IS that case, so it names the survivor outright rather than eliminating
-        // down to one — and it narrows whatever the union's size, where the positive path below
-        // needs everything but one case excluded. Matches the checker, which narrows the same else.
-        if (ifStmt.Arms.Count == 1
-            && ifStmt.Arms[0].Condition is IsTypeCheck { Negated: true, Target: VariableReference nvr } ntc
-            && TypeOf(nvr) is UnionType negUnion)
-        {
-            var negCases = UnionCases(negUnion);
-            int negK = MatchCaseInList(negCases, ntc.Type);
-            if (negK < 0) return null;
-            // Reachability still applies: inside a grouped Judge arm the case may already be out.
-            if (_armCases.TryGetValue(nvr.Name, out var negReach) && !negReach.Contains(negK))
-                return null;
-            return (nvr.Name, negCases[negK], $".val.c{negK}");
-        }
-
-        string? name = null; UnionType? ut = null;
-        var excluded = new HashSet<int>();
-        foreach (var arm in ifStmt.Arms)
-        {
-            // A GROUPED arm excludes every case it names — it is a single test that removes several,
-            // and the checker eliminates through it the same way, so the two must agree here.
-            if (DisjunctionGroup(arm.Condition) is { } group)
-            {
-                if (name == null) { name = group.Name; ut = group.Union; }
-                else if (name != group.Name) return null;
-                foreach (int gk in group.Cases) excluded.Add(gk);
-                continue;
-            }
-            if (arm.Condition is not IsTypeCheck { Negated: false, Target: VariableReference vr } tc) return null;
-            if (TypeOf(vr) is not UnionType u) return null;
-            if (name == null) { name = vr.Name; ut = u; }
-            else if (name != vr.Name) return null;
-            int k = MatchCaseInList(UnionCases(ut!), tc.Type);
-            if (k < 0) return null;
-            excluded.Add(k);
-        }
-        if (ut == null || name == null) return null;
-        var allCases = UnionCases(ut);
-        // Eliminate from what is REACHABLE here, not from the whole union. Inside a Judge's grouped
-        // arm those differ, and using the whole union leaves cases the arm already ruled out — which
-        // is how an else-arm the checker had narrowed to one concrete case stayed a union here.
-        var reachable = _armCases.TryGetValue(name, out var restricted)
-            ? restricted
-            : Enumerable.Range(0, allCases.Count).ToList();
-        var remaining = reachable.Where(i => !excluded.Contains(i)).ToList();
-        if (remaining.Count != 1) return null;   // 2+ left ⇒ still a union; the front-end restricts its use
-        int j = remaining[0];
-        return (name, allCases[j], $".val.c{j}");
-    }
-
-    // `x is a A or x is a B or …` on ONE union variable → the set of cases still reachable in the
-    // then-branch. The checker narrows the same condition to the sub-union `(A or B)`; here it stays
-    // a SET OF INDICES into the representation union, for the reason _armCases exists — a sub-union's
-    // own case order need not match the subject's, so substituting a narrower type would make every
-    // emitted `.val.c<k>` index the wrong member.
-    private (string Name, UnionType Union, List<int> Cases)? DisjunctionGroup(IExpression condition)
-    {
-        if (condition is not BinaryExpression { Op: TokenType.Or }) return null;
-
-        string? name = null;
-        UnionType? ut = null;
-        var picked = new List<int>();
-
-        bool Walk(IExpression e)
-        {
-            if (e is BinaryExpression { Op: TokenType.Or } both)
-                return Walk(both.Left) && Walk(both.Right);
-            if (e is not IsTypeCheck { Negated: false, Target: VariableReference vr } tc) return false;
-            if (TypeOf(vr) is not UnionType u) return false;
-            if (name == null) { name = vr.Name; ut = u; }
-            else if (name != vr.Name) return false;
-            int k = MatchCaseInList(UnionCases(ut!), tc.Type);
-            if (k < 0) return false;
-            if (!picked.Contains(k)) picked.Add(k);
-            return true;
-        }
-
-        if (!Walk(condition) || name == null || picked.Count < 2) return null;
-
-        // Intersect with what is REACHABLE here — inside a grouped arm the two differ, and the same
-        // source of truth is used by ElseNarrow and NotVoidNarrow.
-        if (_armCases.TryGetValue(name, out var restricted))
-        {
-            picked = picked.Where(restricted.Contains).ToList();
-            if (picked.Count == 0) return null;
-        }
-        picked.Sort();
-        return (name, ut!, picked);
-    }
-
-    // The same group, shaped for EmitNarrowedBlock's arm-set parameter.
-    private (string Name, List<int> Cases)? DisjunctionCases(IExpression condition) =>
-        DisjunctionGroup(condition) is { } g ? (g.Name, g.Cases) : null;
-
-    // Emits a block with an optional voidable variable narrowed to its inner type inside it, and
-    // an optional restriction on which union cases are still reachable there (see _armCases).
-    private void EmitNarrowedBlock(StringBuilder sb, (string Name, CufetType Inner, string Access)? narrow,
-                                   IReadOnlyList<IStatement> body, string indent,
-                                   (string Name, List<int> Cases)? armCases = null)
-    {
-        bool hadSet = false;
-        List<int>? prevSet = null;
-        if (armCases is not null)
-        {
-            hadSet = _armCases.TryGetValue(armCases.Value.Name, out prevSet);
-            _armCases[armCases.Value.Name] = armCases.Value.Cases;
-        }
-
-        try
-        {
-            if (narrow is not var (name, inner, access) || narrow is null) { EmitScopedBlock(sb, body, indent); return; }
-            bool had = _narrowedVars.TryGetValue(name, out var prev);
-            // Narrowings COMPOSE — a voidable-of-union narrowed by `is not void` then by `is a <case>`
-            // reads `.val` (out of the cvd) THEN `.val.c<k>` (out of the cun). Replacing rather than
-            // nesting would emit `(x).val.c0` against the cvd and hit a non-existent member.
-            _narrowedVars[name] = (inner, (had ? prev.Access : "") + access);
-            EmitScopedBlock(sb, body, indent);
-            if (had) _narrowedVars[name] = prev!; else _narrowedVars.Remove(name);  // had ⇒ prev non-null
-        }
-        finally
-        {
-            if (armCases is not null)
-            {
-                if (hadSet) _armCases[armCases.Value.Name] = prevSet!; else _armCases.Remove(armCases.Value.Name);
-            }
-        }
-    }
-
-    // `x is not void` (x a voidable variable) → (x, inner); narrows x in the then-branch only.
-    // (The interpreter narrows the `is not void` then-branch, not the `is void` else-branch.)
-    private (string Name, CufetType Inner, string Access)? NotVoidNarrow(IExpression cond)
-    {
-        // `x is a <T>` (positive) on a VOIDABLE x whose inner matches T narrows like `is not void`
-        // (the typechecker narrows the arm to T, so reads inside must emit `.val`). Static targets
-        // need no representation change, so only the voidable case registers.
-        // `x is a <case>` on a closed-union x narrows x to that case inside the arm: reads become
-        // `.val.c<k>` at the case's concrete type (the N-case generalization of the voidable `.val`).
-        if (cond is IsTypeCheck { Negated: false, Target: VariableReference uvr } utc
-            && TypeOf(uvr) is UnionType uut)
-        {
-            var ucases = UnionCases(uut);
-            int k = MatchCaseInList(ucases, utc.Type);
-            if (k >= 0) return (uvr.Name, ucases[k], $".val.c{k}");
-            return null;
-        }
-        // ★ `x is NOT a <case>` narrows the THEN branch by elimination — the mirror of ElseNarrow,
-        // which does the same for the else of a positive test. Without this the arm read x at its
-        // full union type: `If thing is not a text: State thing converted to text.` interpreted
-        // correctly (the checker DOES narrow it) and would not compile, in ordinary code with no
-        // stash in sight. The front end and the back end disagreeing about the same arm is the
-        // divergence this closes.
-        if (cond is IsTypeCheck { Negated: true, Target: VariableReference nvr } ntc
-            && TypeOf(nvr) is UnionType nut)
-        {
-            var ncases = UnionCases(nut);
-            int excluded = MatchCaseInList(ncases, ntc.Type);
-            if (excluded < 0) return null;
-            // Eliminate from what is REACHABLE here, not from the whole union — inside a grouped
-            // Judge arm those differ. Same reasoning as ElseNarrow, and the same source of truth.
-            var reachable = _armCases.TryGetValue(nvr.Name, out var restricted)
-                ? restricted
-                : Enumerable.Range(0, ncases.Count).ToList();
-            var remaining = reachable.Where(i => i != excluded).ToList();
-            if (remaining.Count != 1) return null;   // 2+ left ⇒ still a union, nothing to reach through
-            int j = remaining[0];
-            return (nvr.Name, ncases[j], $".val.c{j}");
-        }
-
-        if (cond is IsTypeCheck { Negated: false, Target: VariableReference tvr } tc
-            && TypeOf(tvr) is VoidableType tvt && StaticKindMatches(tvt.Inner, tc.Type))
-            return (tvr.Name, tvt.Inner, ".val");
-        if (cond is not BinaryExpression { Op: TokenType.NotEqual } b) return null;
-        var (varSide, other) = b.Left is VoidLiteral ? (b.Right, b.Left) : (b.Left, b.Right);
-        if (other is VoidLiteral && varSide is VariableReference vr && TypeOf(vr) is VoidableType vt)
-            return (vr.Name, vt.Inner, ".val");
-        return null;
     }
 
     // Range semantics mirror the interpreter exactly:
@@ -2291,7 +2004,7 @@ public sealed partial class CodeGenerator
         MatrixAccess          => TNumber,
         VariableReference vr  => vr.Name == "output" ? new WritableStreamType(TText)  // `the output` = stdout
                                : vr.Name == "input" ? new ReadableStreamType(TText)   // `the input` = stdin
-                               : _narrowedVars.TryGetValue(vr.Name, out var nt) ? nt.Type
+                               : NarrowedRead(vr) is { } nt ? nt.Type
                                : _closureSelf is { } cs && vr.Name == cs.Name ? cs.Type   // recursive self-reference
                                : _varTypes.TryGetValue(vr.Name, out var t) ? t
                                : _funcTypes.TryGetValue(vr.Name, out var ftv) ? ftv   // a bare named function used as a value
@@ -3090,7 +2803,7 @@ public sealed partial class CodeGenerator
                                 : v.Name == "one" && _methodReceiverType != null ? "(*cv_one)"
                                 : v.Name == "input" ? "stdin"   // `the input` = the stdin stream
                                 : v.Name == "output" ? "stdout" // `the output` = the stdout stream
-                                : _narrowedVars.TryGetValue(v.Name, out var nacc) ? $"({MangleName(v.Name)}){nacc.Access}"
+                                : NarrowedRead(v) is { } nacc ? $"({MangleName(v.Name)}){nacc.Access}"
                                // A recursive nested Bind's own name as a VALUE → its closure over the current env.
                                 : _closureSelf is { } cse && v.Name == cse.Name ? $"({RegisterFuncStruct(cse.Type)}){{ .fn = {cse.ClosFn}, .env = cf_envp }}"
                                // A bare named function used as a VALUE → the {fn, NULL} closure value.

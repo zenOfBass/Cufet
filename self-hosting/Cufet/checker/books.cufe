@@ -49,7 +49,7 @@ Pull a book on collections.
                 Cast one's bind-name on (function-name, a new binding {
                     the shape cast function-type-of on (definition),
                     the established-by cast named-reference on (function-name), the line 0, the permanent false,
-                    the module false, the depth 0, the parameter false }).
+                    the module false, the depth 0, the parameter false, the judged false }).
                 Skip.
             Done.
             Define name as cast def-name on (definition).
@@ -253,7 +253,7 @@ Pull a book on collections.
             Define bound as cast one's resolve-module on (book, via-book-form, at-row) or pass the failure off.
             Cast one's bind-name on (local, a new binding {
                 the shape bound, the established-by cast placed-reference on (local, at-row, cast numeric on (cast field-of on (statement, 4))),
-                the line at-row, the permanent false, the module true, the depth 0, the parameter false }).
+                the line at-row, the permanent false, the module true, the depth 0, the parameter false, the judged false }).
             If cast is-a-book on (book):
                 For each introduced in cast introduced-types on (book), repeat:
                     Cast one's register-scoped-type on (introduced, cast introduced-type on (introduced)).

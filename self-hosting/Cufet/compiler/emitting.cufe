@@ -178,6 +178,8 @@ Pull a book on collections.
                 If cast standard-stream-kind on (cast unquoted on (cast field-of on (expression, 1))) is not "":
                     Return cast standard-stream-kind on (cast unquoted on (cast field-of on (expression, 1))).
                 Done.
+                Define reached as cast one's narrowed-read on (expression) or pass the failure off.
+                If the number of reached is 2, return item 1 of reached.
                 Define known as the entry for cast unquoted on (cast field-of on (expression, 1)) in one's kinds.
                 // A shared constant is seen from anywhere.
                 If known is void, the known becomes the entry for cast unquoted on (cast field-of on (expression, 1)) in one's constants.
@@ -316,10 +318,12 @@ Pull a book on collections.
                 If (the entry for name in one's kinds) is void and (the entry for name in one's constants) is void and (the entry for name in one's functions) is not void:
                     Return cast one's c-named-function on (name) or pass the failure off.
                 Done.
-                // A narrowed name reads as its case, or as the smaller union — and a captured one,
-                // `one` included, through the environment it was captured into.
-                Define narrowed as the entry for "@{name}" in one's kinds but void is "".
-                If narrowed is not "", return narrowed.
+                // A narrowed name reads as its case, or as the smaller union.
+                Define reached as cast one's narrowed-read on (expression) or pass the failure off.
+                If the number of reached is 2, return item 2 of reached.
+                // A captured one, `one` included, through the environment it was captured into.
+                Define redirected as the entry for "@{name}" in one's kinds but void is "".
+                If redirected is not "", return redirected.
                 // Inside a method, `one` is the object it was called on, held by its address.
                 If name is "one", return "(*cv_one)".
                 Return cast c-name on (name).
@@ -796,7 +800,7 @@ Pull a book on collections.
                 If (the entry for name in one's kinds) is void:
                     Return a failure (cast not-built on ("the name '{name}', defined where this compiler cannot see it")).
                 Done.
-                // Into what the name is stored as — and a narrowed name is narrowed no more.
+                // Into what the name is stored as.
                 Define stored as cast one's stored-kind on (name).
                 Define value as cast one's c-of-as on (cast field-of on (statement, 2), stored) or pass the failure off.
                 Cast one's line on ("{cast c-name on (name)} = {value};").
@@ -805,7 +809,6 @@ Pull a book on collections.
             Done.
             "IfStatement":
                 Cast one's emit-if on (statement) or pass the failure off.
-                Cast one's narrow-after-guard on (statement).
             Done.
             "WhileStatement":
                 Define condition as cast one's c-of on (cast field-of on (statement, 1)) or pass the failure off.
@@ -1008,6 +1011,8 @@ Pull a book on collections.
         The one's indent becomes outer joined to "    ".
         Cast one's line on ("{cast c-type on (subject-kind)} cv_it = {value};").
         In one's kinds, the entry for "it" becomes subject-kind.
+        In one's kinds, the entry for "%it" becomes subject-kind.
+        In one's kinds, the entry for "@it" becomes "".
         Define first-arm as true.
         For each arm in (cast field-of on (statement, 2))'s children, repeat:
             If the number of (cast field-of on (arm, 1))'s children is greater than 0:

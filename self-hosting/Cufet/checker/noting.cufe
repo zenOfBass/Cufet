@@ -19,6 +19,7 @@ Pull a book on collections.
             "IsTypeCheck", return a series of text with (":StaticTargetType").
             "SortExpression", return a series of text with (":KeyFunction").
             "ReturnStatement", return a series of text with (":RunsAxiom").
+            "VariableReference", return a series of text with (":NarrowedType").
             Otherwise, return a series of text.
         Done.
     Done.

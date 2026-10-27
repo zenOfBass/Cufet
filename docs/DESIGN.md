@@ -1724,3 +1724,20 @@ Why the interpreter and the compiler must agree, and what that agreement is stan
   down, so both implementations are checked against a definition instead of against each
   other. [REFERENCE.md](REFERENCE.md) is the closest thing that exists today, and the gap
   is exact: it describes what each construct does, rather than defining it.
+
+- **Narrowing is decided once, by the checker — BUILT 2026-10-26.** The checker writes the type a
+  narrowing gives a read onto the read (`VariableReference.NarrowedType`, printed `:NarrowedType`),
+  a judgement's `it` included, and both compilers read it. They used to work every narrowing out
+  again from the same syntax — the guard, the then-arm, the else by elimination, a grouped test —
+  and each new rule was then a change in every copy. MEASURED 2026-09-26: three fixes in one week,
+  and each first fix CREATED a divergence (runs interpreted, refused compiled) until the other copy
+  caught up. Writing the compiler in Cufet had made it four copies.
+
+  ★ What a compiler keeps is only how its C REACHES a type: a voidable's value, then a union's case
+  member. A union narrowed to fewer of its cases is a representation choice each makes for itself —
+  C#'s keeps the union it was declared as, the Cufet one converts to the smaller union.
+
+  ★ Measured before the switch, by having C#'s compiler log every read where its own answer and the
+  checker's differed: across the compiler suite the one real disagreement was a
+  shared node — two fillings of a generic shared one variable read, so the type the checker wrote
+  was the last filling's. A filling's reads are fresh nodes now, as its calls already were.

@@ -10,8 +10,28 @@ Pull a book on collections.
     /// C#'s `InferType` resolves every type it hands back.
     Bind node or failure to infer unto checker, given (the node said):
         Define found as cast one's infer-core on (said) or pass the failure off.
-        If cast one's mentions-interface on (found), return cast one's resolved on (found).
+        If cast one's mentions-interface on (found), the found becomes cast one's resolved on (found).
+        If said's kind is "VariableReference", cast one's note-narrowing on (said, found).
         Return found.
+    Done.
+
+    /// The type a narrowing gave a read, written onto it as C#'s `NarrowedType` — on every read,
+    /// so one checked again where nothing narrows it does not keep an old answer. A judgement's `it`
+    /// is narrowed too: its arm says what it is.
+    Bind void to note-narrowing unto checker, given (the node said, the node found):
+        Define name as cast unquoted on (cast field-of on (said, 1)).
+        Define narrowing as (the entry for name in one's narrowed) is not void.
+        If narrowing is false and name is "it":
+            Define held as cast one's look-up on (name).
+            If held is not void, the narrowing becomes held's judged.
+        Done.
+        If narrowing:
+            Cast note on (said, ":NarrowedType", found).
+        Done.
+        // Three fields and no note: there is nothing to take off.
+        Otherwise if the number of said's children is greater than 3:
+            Cast note on (said, ":NarrowedType", cast unknown-type).
+        Done.
     Done.
 
     Bind fact to mentions-interface unto checker, given (the node shape):

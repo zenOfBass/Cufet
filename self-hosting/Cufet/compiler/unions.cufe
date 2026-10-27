@@ -3,14 +3,16 @@
     ★ A closed union is a tagged struct, a member for each case. Its cases are kept SORTED, so
       `(cat or dog)` and `(dog or cat)` are one C type, and a case's tag is its place in that order.
 
-    ★ NARROWING IS DONE AGAIN HERE. The checker narrows a name inside the arm of an `is a` test, but
-      the tree it hands on does not say so — so the compiler works it out again, as C#'s does (two
-      copies; see the ROADMAP's Ongoing note on narrowing). Inside a narrowed arm a name reads as
-      its case's member, or is converted to the smaller union a group of tests leaves.
+    ★ NARROWING IS THE CHECKER'S. It writes the type a narrowing gives a read onto the read
+      (`:NarrowedType`), a judgement's `it` included, and the compiler only reaches that type from
+      the kind the name is stored as: a voidable's value, a union's case member, or the smaller
+      union a group of tests leaves, converted to. It used to work every narrowing out again from
+      the same syntax, as C#'s compiler did — a second copy of every rule (ROADMAP, rules-twice).
 
     ★ The emitter's `kinds` map carries two more things per name, so every block that puts kinds
-      back as they were puts these back too: `@<name>` — the C a narrowed name is read as — and
-      `%<name>` — the kind it is stored as. `%return` is the kind a function gives back.
+      back as they were puts these back too: `@<name>` — the C a name is read as, where that is not
+      its own (a captured one, through its environment) — and `%<name>` — the kind it is stored as.
+      `%return` is the kind a function gives back.
 
     ★ A value is WRAPPED wherever it flows into a union-typed place — a `Define` declared so,
       `becomes`, an argument, `Return`, a field, a series' items.
@@ -156,99 +158,31 @@ Pull a book on collections.
         Return the entry for name in one's kinds but void is "".
     Done.
 
-    /// Narrows a name to some of its cases: it reads as that case's member, or as the smaller union.
-    Bind void to narrow unto emitter, given (the text name, the text to-kind):
+    /// A name read as the type the checker narrowed it to: its kind, then its C — or nothing, where no
+    /// narrowing reached the read.
+    Bind series of text or failure to narrowed-read unto emitter, given (the node expression):
+        Define marked as cast keyed-field on (expression, ":NarrowedType").
+        If marked is void, return a series of text.
+        Define name as cast unquoted on (cast field-of on (expression, 1)).
+        Define to-kind as cast one's kind-of-type on (marked) or pass the failure off.
         Define stored as cast one's stored-kind on (name).
-        // A voidable narrowed to what it holds reads as its value.
-        If cast is-voidable on (stored) and to-kind is cast voidable-inner on (stored):
-            In one's kinds, the entry for "%{name}" becomes stored.
-            In one's kinds, the entry for name becomes to-kind.
-            In one's kinds, the entry for "@{name}" becomes "({cast c-name on (name)}).value".
-            Return.
-        Done.
-        // A voidable of a union, already narrowed past void, narrows within the union it holds —
-        // `If host is not void, if host is a text, …` — read through its value.
+        Define held as the entry for "@{name}" in one's kinds but void is "".
+        If held is "", the held becomes cast c-name on (name).
+        // A judgement's `void` arm has nothing to reach: it reads as it is held.
+        If to-kind is stored or to-kind is "void", return a series of text with (stored, held).
+        // A voidable narrowed past void reads as its value — and then, if it holds a union, within it.
         Define base as stored.
-        Define held as cast c-name on (name).
-        If cast is-voidable on (stored) and cast is-union on (cast voidable-inner on (stored)):
-            If (the entry for name in one's kinds) is not stored:
-                The base becomes cast voidable-inner on (stored).
-                The held becomes "({held}).value".
-            Done.
+        If cast is-voidable on (stored):
+            The held becomes "({held}).value".
+            The base becomes cast voidable-inner on (stored).
+            If to-kind is base, return a series of text with (to-kind, held).
         Done.
-        If cast is-union on (base) is false, return.
-        In one's kinds, the entry for "%{name}" becomes stored.
-        In one's kinds, the entry for name becomes to-kind.
-        If to-kind is base:
-            If base is stored, in one's kinds, the entry for "@{name}" becomes "".
-            Otherwise, in one's kinds, the entry for "@{name}" becomes held.
-            Return.
-        Done.
+        If cast is-union on (base) is false, return a failure (cast not-built on ("a {stored} narrowed to a {to-kind}")).
         If cast is-union on (to-kind) is false:
-            In one's kinds, the entry for "@{name}" becomes "({held}).case_{cast case-tag on (base, to-kind)}".
-            Return.
+            Return a series of text with (to-kind, "({held}).case_{cast case-tag on (base, to-kind)}").
         Done.
-        In one's kinds, the entry for "@{name}" becomes cast one's c-coerce on (held, base, to-kind).
-    Done.
-
-    /// What a condition narrows: a test `<name> is a <type>`, or a group of them on one name joined
-    /// by `or` — the name, its tested cases, and whether the test is `is not a`. "" for none.
-    Bind map from text to text or failure to narrowing-of unto emitter, given (the node condition):
-        Define found as a map from text to text.
-        // `<name> is not void` is a test that it holds its value; `is void`, that it does not.
-        If cast is-void-test on (condition):
-            Define tested as cast field-of on (condition, 1).
-            If tested's kind is "VoidLiteral", the tested becomes cast field-of on (condition, 3).
-            If tested's kind is not "VariableReference", return found.
-            Define tested-name as cast unquoted on (cast field-of on (tested, 1)).
-            Define tested-kind as the entry for tested-name in one's kinds but void is "".
-            If cast is-voidable on (tested-kind) is false, return found.
-            In found, the entry for "name" becomes tested-name.
-            In found, the entry for "cases" becomes cast voidable-inner on (tested-kind).
-            If (cast field-of on (condition, 2))'s word is "Equal", in found, the entry for "negated" becomes "true".
-            Otherwise, in found, the entry for "negated" becomes "false".
-            Return found.
-        Done.
-        If condition's kind is "IsTypeCheck":
-            Define target as cast field-of on (condition, 1).
-            If target's kind is not "VariableReference", return found.
-            In found, the entry for "name" becomes cast unquoted on (cast field-of on (target, 1)).
-            In found, the entry for "cases" becomes cast one's kind-of-type on (cast field-of on (condition, 2)) or pass the failure off.
-            In found, the entry for "negated" becomes (cast field-of on (condition, 3))'s word.
-            Return found.
-        Done.
-        If condition's kind is "BinaryExpression" and (cast field-of on (condition, 2))'s word is "Or":
-            Define left as cast one's narrowing-of on (cast field-of on (condition, 1)) or pass the failure off.
-            Define right as cast one's narrowing-of on (cast field-of on (condition, 3)) or pass the failure off.
-            If the size of left is 0 or the size of right is 0, return found.
-            If (the entry for "negated" in left) is "true" or (the entry for "negated" in right) is "true", return found.
-            If (the entry for "name" in left) is not (the entry for "name" in right), return found.
-            In found, the entry for "name" becomes the entry for "name" in left but void is "".
-            Define both as a series of text with (the entry for "cases" in left but void is "", the entry for "cases" in right but void is "").
-            In found, the entry for "cases" becomes cast union-kind-of on (both).
-            In found, the entry for "negated" becomes "false".
-        Done.
-        Return found.
-    Done.
-
-    /// The cases of `kind` that `removed` does not name.
-    Bind text to without-cases, given (the text kind, the text removed):
-        Define removing as a map from text to fact.
-        If cast is-union on (removed):
-            For each inner in cast kind-cases on (removed), repeat:
-                In removing, the entry for inner becomes true.
-            Done.
-        Done.
-        Otherwise, in removing, the entry for removed becomes true.
-        Define left as a series of text.
-        Define all-cases as a series of text.
-        If cast is-union on (kind), the all-cases becomes cast kind-cases on (kind).
-        Otherwise, insert kind into all-cases.
-        For each inner in all-cases, repeat:
-            If (the entry for inner in removing) is void, insert inner into left.
-        Done.
-        If the number of left is 0, return "".
-        Return cast union-kind-of on (left).
+        If to-kind is base, return a series of text with (to-kind, held).
+        Return a series of text with (to-kind, cast one's c-coerce on (held, base, to-kind)).
     Done.
 
     /// A copy of the kinds, to put back when an arm ends.
@@ -260,118 +194,29 @@ Pull a book on collections.
         Return kept.
     Done.
 
-    /// `If`, each arm narrowing what its test names. While every arm tests one name, `Otherwise`
-    /// has what the arms left of it; a lone `is not a` arm leaves its `Otherwise` the type tested.
+    /// `If`, each arm a block of its own. What a test narrows, the checker wrote onto the reads.
     Bind void or failure to emit-if unto emitter, given (the node statement):
-        Define arms as (cast field-of on (statement, 1))'s children.
         Define first-arm as true.
-        Define tracked as "".
-        Define remaining as "".
-        Define eliminating as true.
-        Define lone-negated as "".
-        For each arm in arms, repeat:
-            Define condition-node as cast field-of on (arm, 1).
-            Define condition as cast one's c-of on (condition-node) or pass the failure off.
+        For each arm in (cast field-of on (statement, 1))'s children, repeat:
+            Define condition as cast one's c-of on (cast field-of on (arm, 1)) or pass the failure off.
             If first-arm, cast one's line on ("if ({condition}) \{").
             Otherwise, cast one's line on ("\} else if ({condition}) \{").
             The first-arm becomes false.
-            Define kept as cast one's kinds-kept.
-            Define narrowing as cast one's narrowing-of on (condition-node) or pass the failure off.
-            If the size of narrowing is greater than 0:
-                Define name as the entry for "name" in narrowing but void is "".
-                Define cases as the entry for "cases" in narrowing but void is "".
-                Define current as the entry for name in one's kinds but void is "".
-                If (the entry for "negated" in narrowing) is "true":
-                    Define rest as cast without-cases on (current, cases).
-                    If rest is not "", cast one's narrow on (name, rest).
-                    The eliminating becomes false.
-                    If the number of arms is 1:
-                        The tracked becomes name.
-                        The lone-negated becomes cases.
-                    Done.
-                Done.
-                Otherwise:
-                    Cast one's narrow on (name, cases).
-                    If tracked is "":
-                        The tracked becomes name.
-                        The remaining becomes current.
-                    Done.
-                    If tracked is name, the remaining becomes cast without-cases on (remaining, cases).
-                    Otherwise, the eliminating becomes false.
-                Done.
-            Done.
-            Otherwise, the eliminating becomes false.
             Cast one's emit-block on (cast field-of on (arm, 2)) or pass the failure off.
-            The one's kinds becomes kept.
         Done.
         Define otherwise-body as cast field-of on (statement, 2).
         If cast is-nothing on (otherwise-body) is false:
             Cast one's line on ("\} else \{").
-            Define kept as cast one's kinds-kept.
-            If tracked is not "":
-                If lone-negated is not "", cast one's narrow on (tracked, lone-negated).
-                Otherwise if eliminating and remaining is not "", cast one's narrow on (tracked, remaining).
-            Done.
             Cast one's emit-block on (otherwise-body) or pass the failure off.
-            The one's kinds becomes kept.
         Done.
         Cast one's line on ("\}").
     Done.
 
-    /// Whether every way through a block leaves it — by `Return`, `Stop`, `Skip` or `Exit`, or an
-    /// `If` with an `Otherwise` whose every branch does. A loop does not count: it may not run.
-    Bind fact to always-leaves, given (the node statements):
-        For each statement in statements's children, repeat:
-            Define kind as statement's kind.
-            If kind is "ReturnStatement" or kind is "StopStatement" or kind is "SkipStatement" or kind is "ExitStatement", return true.
-            If kind is "IfStatement" and cast is-nothing on (cast field-of on (statement, 2)) is false:
-                Define every-arm as cast always-leaves on (cast field-of on (statement, 2)).
-                For each arm in (cast field-of on (statement, 1))'s children, repeat:
-                    If cast always-leaves on (cast field-of on (arm, 2)) is false, the every-arm becomes false.
-                Done.
-                If every-arm, return true.
-            Done.
-        Done.
-        Return false.
-    Done.
-
-    /// The names a guard's failing proves are there: each `<name> is void`, joined by `or`.
-    Bind void to guarded-names unto emitter, given (the node condition, the series of text found):
-        If condition's kind is "BinaryExpression" and (cast field-of on (condition, 2))'s word is "Or":
-            Cast one's guarded-names on (cast field-of on (condition, 1), found).
-            Cast one's guarded-names on (cast field-of on (condition, 3), found).
-            Return.
-        Done.
-        If cast is-void-test on (condition) is false or (cast field-of on (condition, 2))'s word is not "Equal", return.
-        Define tested as cast field-of on (condition, 1).
-        If tested's kind is "VoidLiteral", the tested becomes cast field-of on (condition, 3).
-        If tested's kind is not "VariableReference", return.
-        Define tested-name as cast unquoted on (cast field-of on (tested, 1)).
-        If cast is-voidable on (the entry for tested-name in one's kinds but void is ""), insert tested-name into found.
-    Done.
-
-    /// After a guard — one arm, no `Otherwise`, and an arm that always leaves — what follows runs
-    /// only when its test failed, so each name it tested `is void` reads as its value for the rest
-    /// of the block, as C#'s compiler and the checker have it.
-    Bind void to narrow-after-guard unto emitter, given (the node statement):
-        If cast is-nothing on (cast field-of on (statement, 2)) is false, return.
-        Define arms as (cast field-of on (statement, 1))'s children.
-        If the number of arms is not 1, return.
-        If cast always-leaves on (cast field-of on (item 1 of arms, 2)) is false, return.
-        Define found as a series of text.
-        Cast one's guarded-names on (cast field-of on (item 1 of arms, 1), found).
-        For each name in found, repeat:
-            Cast one's narrow on (name, cast voidable-inner on (the entry for name in one's kinds but void is "")).
-        Done.
-    Done.
-
-    /// `Judge <a union>, where it is:` by type — `it`, and the judged name, narrowed in each arm to
-    /// the types it names, and `Otherwise` to whatever the arms left.
+    /// `Judge <a union>, where it is:` by type — a tag test for each arm. What `it` reads as in an arm,
+    /// the checker wrote onto each read of it.
     Bind void or failure to emit-judge-union unto emitter, given (the node statement, the text subject-kind):
         Define subject as cast field-of on (statement, 1).
         Define value as cast one's c-of on (subject) or pass the failure off.
-        Define subject-name as "".
-        If subject's kind is "VariableReference", the subject-name becomes cast unquoted on (cast field-of on (subject, 1)).
         Cast one's line on ("\{").
         Define kept-outer as cast one's kinds-kept.
         Define outer as one's indent.
@@ -380,7 +225,6 @@ Pull a book on collections.
         In one's kinds, the entry for "it" becomes subject-kind.
         In one's kinds, the entry for "%it" becomes subject-kind.
         In one's kinds, the entry for "@it" becomes "".
-        Define remaining as subject-kind.
         Define first-arm as true.
         For each arm in (cast field-of on (statement, 2))'s children, repeat:
             Define named as (cast field-of on (arm, 1))'s children.
@@ -402,25 +246,14 @@ Pull a book on collections.
             If first-arm, cast one's line on ("if ({tests}) \{").
             Otherwise, cast one's line on ("\} else if ({tests}) \{").
             The first-arm becomes false.
-            Define kept as cast one's kinds-kept.
-            Cast one's narrow on ("it", arm-kind).
-            If subject-name is not "", cast one's narrow on (subject-name, arm-kind).
             Cast one's emit-block on (cast field-of on (arm, 2)) or pass the failure off.
-            The one's kinds becomes kept.
-            The remaining becomes cast without-cases on (remaining, arm-kind).
         Done.
         Define otherwise-body as cast field-of on (statement, 3).
         If cast is-nothing on (otherwise-body) is false:
             If first-arm, cast one's line on ("\{").
             Otherwise, cast one's line on ("\} else \{").
             The first-arm becomes false.
-            Define kept as cast one's kinds-kept.
-            If remaining is not "":
-                Cast one's narrow on ("it", remaining).
-                If subject-name is not "", cast one's narrow on (subject-name, remaining).
-            Done.
             Cast one's emit-block on (otherwise-body) or pass the failure off.
-            The one's kinds becomes kept.
         Done.
         If first-arm is false, cast one's line on ("\}").
         The one's indent becomes outer.

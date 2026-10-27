@@ -172,7 +172,7 @@ Pull a book on collections.
         Cast one's bind-name on (name, a new binding {
             the shape handle,
             the established-by cast placed-reference on (name, at-row, cast numeric on (cast field-of on (statement, 4))),
-            the line at-row, the permanent false, the module false, the depth 0, the parameter false }).
+            the line at-row, the permanent false, the module false, the depth 0, the parameter false, the judged false }).
     Done.
 
     // ── What a task captures (`TaskCaptures`) ─────────────────────────────
@@ -424,7 +424,7 @@ Pull a book on collections.
         Cast one's bind-name on (name, a new binding {
             the shape cast one's resolved on (one's pipe-input),
             the established-by cast named-reference on (name), the line at-row,
-            the permanent false, the module false, the depth 0, the parameter false }).
+            the permanent false, the module false, the depth 0, the parameter false, the judged false }).
         Cast one's check-block on (cast field-of on (statement, 2)) or pass the failure off.
         Cast one's exit-scope.
     Done.

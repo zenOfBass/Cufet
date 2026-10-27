@@ -153,7 +153,7 @@ Pull a book on collections.
             Cast one's bind-name on ("the failure", a new binding {
                 the shape cast plain-type on ("FailureMarkerType"),
                 the established-by cast placed-reference on ("the failure", at-row, at-column),
-                the line at-row, the permanent false, the module false, the depth 0, the parameter false }).
+                the line at-row, the permanent false, the module false, the depth 0, the parameter false, the judged false }).
             Cast one's check-block on (failure-handler) or pass the failure off.
             Cast one's exit-scope.
         Done.
@@ -171,7 +171,7 @@ Pull a book on collections.
             Cast one's bind-name on (key, a new binding {
                 the shape cast plain-type on ("ExceptionMarkerType"),
                 the established-by cast placed-reference on (key, at-row, at-column),
-                the line at-row, the permanent false, the module false, the depth 0, the parameter false }).
+                the line at-row, the permanent false, the module false, the depth 0, the parameter false, the judged false }).
             Define earlier-handler as one's in-exception-handler.
             The one's in-exception-handler becomes true.
             Cast one's check-block on (exception-handler) or pass the failure off.

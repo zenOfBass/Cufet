@@ -1029,9 +1029,6 @@ public sealed partial class CodeGenerator
         var savedRet = _currentReturnType; var savedExc = _excOpen; _excOpen = 0;
         var savedFail = _currentFailVar;
         _currentFailVar = capturesFailure ? capFailField : null;   // `the failure` → the captured copy
-        var savedNarrow = new Dictionary<string, (CufetType, string)>(_narrowedVars); _narrowedVars.Clear();
-        // `it` does not cross into a closure body, and neither does the arm set that qualifies it.
-        var savedArmCases = new Dictionary<string, List<int>>(_armCases); _armCases.Clear();
         var savedSelf = _closureSelf;
         _closureSelf = selfName != null ? (selfName, clos, ft) : null;   // self-reference → self-call
         _currentReturnType = ret;
@@ -1071,10 +1068,6 @@ public sealed partial class CodeGenerator
         _preEmits.Clear(); _preEmits.AddRange(savedPre);
         _currentReturnType = savedRet; _excOpen = savedExc; _currentFailVar = savedFail;
         _closureSelf = savedSelf;
-        _narrowedVars.Clear();
-        foreach (var kv in savedNarrow) _narrowedVars[kv.Key] = kv.Value;
-        _armCases.Clear();
-        foreach (var kv in savedArmCases) _armCases[kv.Key] = kv.Value;
         _varTypes.Clear();
         foreach (var kv in savedVT) _varTypes[kv.Key] = kv.Value;
 

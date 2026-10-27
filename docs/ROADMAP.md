@@ -111,22 +111,6 @@ they are large, not because they are waiting — the order among them means noth
 A formal soundness proof or a fresh-eyes red-team · a periodic error-message audit for internal
 vocabulary
 
-**The compiler re-derives what the checker already decided — so rules exist twice.** Narrowing is
-the clearest case: the checker decides where a voidable is known present (`CheckBlock`'s guard
-narrowing, the If/Otherwise arms), and `CodeGenerator` works it out AGAIN from the same syntax
-(`BlockAlwaysExits`, `ElseNarrow`, `NotVoidNarrow`) to know when to read `.val`. MEASURED
-2026-09-26: three fixes that week — narrowing after `stop`/`skip`/`Exit`, the `Otherwise` of
-`If x is void`, and a `Judge` over a voidable — each needed the same change in both places, and
-each first fix CREATED a divergence (runs interpreted, refused compiled) until the second copy
-caught up. The oracle tests contain it; they do not remove it — every new narrowing rule is two
-changes, and forgetting one ships a program that works on one backend only.
-▶ **Direction:** the checker WRITES its conclusions onto the tree and the compiler READS them,
-instead of re-deriving — the pattern already used by `CastExpression.ResolvedFunctionName`,
-`IsTypeCheck.StaticTargetType` and `SortExpression.KeyFunction`. For narrowing, that means
-recording on each use of a variable the type it is known to have there. ⚠ Large, and it touches
-the compiler's type tables everywhere; worth doing before the self-hosted compiler copies the
-two-copy shape.
-
 **An axiom's output bypasses the interpreter's writer.** The interpreter loads an axiom with
 `NativeLibrary.Load` and calls it IN-PROCESS, so a `fputs(text, stdout)` inside one writes to the
 process's real stdout rather than to the `TextWriter` the interpreter was given. Under `cufet`

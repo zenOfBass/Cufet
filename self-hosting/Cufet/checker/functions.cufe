@@ -149,7 +149,7 @@ Pull a book on collections.
                 Done.
                 Cast one's bind-name on (name, a new binding {
                     the shape cast function-type-of on (statement),
-                    the established-by cast named-reference on (name), the line at-row, the permanent false, the module false, the depth 0, the parameter false }).
+                    the established-by cast named-reference on (name), the line at-row, the permanent false, the module false, the depth 0, the parameter false, the judged false }).
                 // So a pipe can check this body again once it knows what flows into it.
                 In one's free-binds, the entry for name becomes statement.
             Done.
@@ -194,7 +194,7 @@ Pull a book on collections.
         If (the entry for name in cast one's innermost) is void:
             Cast one's bind-name on (name, a new binding {
                 the shape cast function-type-of on (statement),
-                the established-by cast named-reference on (name), the line at-row, the permanent false, the module false, the depth 0, the parameter false }).
+                the established-by cast named-reference on (name), the line at-row, the permanent false, the module false, the depth 0, the parameter false, the judged false }).
         Done.
         Define filled-origin as the entry for name in one's origins.
         If filled-origin is not void:
@@ -233,7 +233,7 @@ Pull a book on collections.
                         In fresh, the entry for (the key of pair) becomes a new binding {
                             the shape held's shape, the established-by held's established-by, the line held's line,
                             the permanent held's permanent, the module held's module,
-                            the depth cast captured-parameter-depth, the parameter true }.
+                            the depth cast captured-parameter-depth, the parameter true, the judged false }.
                     Done.
                     Otherwise:
                         In fresh, the entry for (the key of pair) becomes held.
@@ -263,7 +263,7 @@ Pull a book on collections.
             Cast one's check-resolves on (cast field-of on (parameter, 1)) or pass the failure off.
             Cast one's bind-name on (parameter-name, a new binding {
                 the shape cast one's resolved on (cast field-of on (parameter, 1)),
-                the established-by cast named-reference on (parameter-name), the line at-row, the permanent false, the module false, the depth 0, the parameter true }).
+                the established-by cast named-reference on (parameter-name), the line at-row, the permanent false, the module false, the depth 0, the parameter true, the judged false }).
         Done.
 
         Define earlier-in-function as one's in-function.
@@ -339,7 +339,7 @@ Pull a book on collections.
                     In fresh, the entry for (the key of pair) becomes a new binding {
                         the shape held's shape, the established-by held's established-by, the line held's line,
                         the permanent held's permanent, the module held's module,
-                        the depth cast captured-parameter-depth, the parameter true }.
+                        the depth cast captured-parameter-depth, the parameter true, the judged false }.
                 Done.
                 Otherwise:
                     In fresh, the entry for (the key of pair) becomes held.
@@ -358,7 +358,7 @@ Pull a book on collections.
             Cast parameter-names's add on (cast field-of on (parameter, 2)).
             Cast one's bind-name on (parameter-name, a new binding {
                 the shape taken, the established-by cast named-reference on (parameter-name), the line at-row,
-                the permanent false, the module false, the depth 0, the parameter true }).
+                the permanent false, the module false, the depth 0, the parameter true, the judged false }).
         Done.
 
         Define earlier-in-function as one's in-function.

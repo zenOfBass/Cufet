@@ -45,6 +45,16 @@ public sealed record BooleanLiteral(bool Value, int Line, int Column) : IExpress
 public sealed record VariableReference(string Name, int Line, int Column) : IExpression
 {
     public string Name { get; set; } = Name;
+
+    /// <summary>
+    /// The type a narrowing gives this read — `x` inside `If x is not void:` reads as the inner type.
+    /// Written by the checker; null where no narrowing applies.
+    /// </summary>
+    /// <remarks>
+    /// ★ The checker decides narrowing and the compilers READ it here, rather than each deciding it
+    /// again from the same syntax — the ROADMAP's rules-twice entry.
+    /// </remarks>
+    public CufetType? NarrowedType { get; set; }
 }
 public sealed record UnaryExpression(TokenType Op, IExpression Operand, int Line, int Column) : IExpression;
 public sealed record BinaryExpression(IExpression Left, TokenType Op, IExpression Right, int Line, int Column) : IExpression;
