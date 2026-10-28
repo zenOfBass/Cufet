@@ -8,6 +8,15 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ## [Unreleased]
 
+### Added
+
+- **Narrowing sees through `and`.** In `If known is false and held is not void:`, `held` is a
+  plain number inside the arm, and in `held is not void and held is greater than 3` the right
+  side already knows it — it runs only once the left side is true. Before, the arm left `held`
+  voidable, and the checker written in Cufet nested two `If`s instead, again and again. Both
+  checkers decide it, and neither compiler needed a change to build it. When two sides narrow
+  the same name, it is narrowed by neither.
+
 ### Changed
 
 - **Narrowing is decided once, by the checker.** Inside `If x is not void:`, after a guard, in the

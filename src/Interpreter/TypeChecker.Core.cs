@@ -2858,6 +2858,7 @@ public sealed partial class TypeChecker
                     string? narrowedVar = null;
                     CufetType? narrowedTo = null;
                     CufetType? savedNarrowed = null;
+                    List<(string Name, CufetType Type)> conjunct = [];
 
                     if (TryGetNotVoidNarrowing(arm.Condition, out var nvTarget, out var nvNarrowed))
                     {
@@ -2946,6 +2947,13 @@ public sealed partial class TypeChecker
                                 }
                         }
                     }
+                    // `If known is false and held is not void:` — every side of an `and` holds in
+                    // the arm, so the arm has what each side proves.
+                    else if (arm.Condition is BinaryExpression { Op: TokenType.And })
+                    {
+                        conjunct = ConjunctNarrowings(arm.Condition);
+                        canExhaustNarrow = false;
+                    }
                     else
                     {
                         canExhaustNarrow = false;
@@ -2956,9 +2964,11 @@ public sealed partial class TypeChecker
                         _narrowedVars.TryGetValue(narrowedVar, out savedNarrowed);
                         _narrowedVars[narrowedVar] = narrowedTo;
                     }
+                    var conjunctSaved = Narrow(conjunct);
                     EnterScope();
                     CheckBlock(arm.Body);
                     ExitScope();
+                    Unnarrow(conjunctSaved);
                     if (narrowedVar != null && narrowedTo != null)
                     {
                         if (savedNarrowed != null) _narrowedVars[narrowedVar] = savedNarrowed;
@@ -3966,7 +3976,12 @@ public sealed partial class TypeChecker
     private CufetType? InferBinary(BinaryExpression bin)
     {
         var left  = InferType(bin.Left);
-        var right = InferType(bin.Right);
+        // ★ The right side of an `and` runs only once the left is true, so it is checked knowing
+        // what the left proved: `held is not void and held is greater than 3`.
+        var proved = Narrow(bin.Op == TokenType.And ? ConjunctNarrowings(bin.Left) : []);
+        CufetType? right;
+        try { right = InferType(bin.Right); }
+        finally { Unnarrow(proved); }
 
         if (left == null || right == null) return null;
 
@@ -4459,6 +4474,60 @@ public sealed partial class TypeChecker
     /// </remarks>
     private static bool LeavesTheBlock(IReadOnlyList<IStatement> body) =>
         body.Any(s => s is StopStatement or SkipStatement or ExitStatement);
+
+    /// <summary>What an `and` proves where it holds: each side's own narrowing, every side true.</summary>
+    /// <remarks>
+    /// ★ A side narrows as it would standing alone in an arm — `x is not void`, `x is a T`, `x is not
+    /// a T`, a group of tests on one name. ⚠ A name two sides narrow is left as it is: each side's
+    /// narrowing is worked out from the name's declared type, so neither alone is what both prove.
+    /// </remarks>
+    private List<(string Name, CufetType Type)> ConjunctNarrowings(IExpression condition)
+    {
+        var found = new List<(string Name, CufetType Type)>();
+        void Collect(IExpression side)
+        {
+            if (side is BinaryExpression { Op: TokenType.And } both)
+            {
+                Collect(both.Left);
+                Collect(both.Right);
+                return;
+            }
+            if (TryGetNotVoidNarrowing(side, out var present, out var inner))
+                found.Add((present!, inner!));
+            else if (TryGetTypeCheckNarrowing(side, out var tested, out var testedType, out bool negated))
+            {
+                if (!negated) found.Add((tested!, testedType!));
+                else if (TryLookup(tested!, out var info) && RemoveFromUnion(info.Type, testedType!) is { } rest)
+                    found.Add((tested!, rest));
+            }
+            else if (TryGetDisjunctionNarrowing(side, out var grouped, out var groupTypes))
+                found.Add((grouped!, new UnionType(groupTypes!)));
+        }
+        Collect(condition);
+        return found.Where(one => found.Count(other => other.Name == one.Name) == 1).ToList();
+    }
+
+    /// <summary>Holds each narrowing, handing back what each name held before.</summary>
+    private List<(string Name, CufetType? Before)> Narrow(List<(string Name, CufetType Type)> narrowings)
+    {
+        var saved = new List<(string Name, CufetType? Before)>();
+        foreach (var (name, type) in narrowings)
+        {
+            saved.Add((name, _narrowedVars.TryGetValue(name, out var before) ? before : null));
+            _narrowedVars[name] = type;
+        }
+        return saved;
+    }
+
+    /// <summary>Puts back what <see cref="Narrow"/> took, last first.</summary>
+    private void Unnarrow(List<(string Name, CufetType? Before)> saved)
+    {
+        for (int i = saved.Count - 1; i >= 0; i--)
+        {
+            var (name, before) = saved[i];
+            if (before != null) _narrowedVars[name] = before; else _narrowedVars.Remove(name);
+        }
+    }
 
     // Collects the narrowings implied by the NEGATION of a guard condition — what holds on the
     // fall-through path once an exiting guard on `condition` has been passed.

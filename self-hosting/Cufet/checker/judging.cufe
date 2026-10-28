@@ -695,6 +695,53 @@ Pull a book on collections.
         Otherwise, cast one's forget-narrowing on (name).
     Done.
 
+    /// What an `and` proves where it holds — C#'s `ConjunctNarrowings`: each side's own narrowing,
+    /// every side true. A name two sides narrow is left as it is: each side is worked out from the
+    /// name's declared type, so neither alone is what both prove.
+    Bind map from text to node to conjunct-narrowings unto checker, given (the node condition):
+        Define found as a map from text to node.
+        Define twice as a map from text to fact.
+        Cast one's collect-conjunct on (condition, found, twice).
+        For each pair in twice, repeat:
+            If (the entry for the key of pair in found) is not void, remove the key of pair from found.
+        Done.
+        Return found.
+    Done.
+
+    Bind void to collect-conjunct unto checker, given (the node side, the map from text to node found,
+            the map from text to fact twice):
+        If side's kind is "BinaryExpression" and (cast field-of on (side, 2))'s word is "And":
+            Cast one's collect-conjunct on (cast field-of on (side, 1), found, twice).
+            Cast one's collect-conjunct on (cast field-of on (side, 3), found, twice).
+            Return.
+        Done.
+        Define name as "".
+        Define shape as cast unknown-type.
+        Define present as cast void-tested on (side, "NotEqual").
+        Define tested-name as cast type-tested on (side).
+        Define group as a series of node.
+        Define group-name as cast group-tested on (side, group).
+        If present is not "":
+            Define held as cast one's declared-type on (present).
+            If held's kind is "VoidableType":
+                The name becomes present.
+                The shape becomes cast field-of on (held, 1).
+            Done.
+        Done.
+        Otherwise if tested-name is not "":
+            The name becomes tested-name.
+            If cast truth-of on (cast field-of on (side, 3)) is false, the shape becomes cast field-of on (side, 2).
+            Otherwise, the shape becomes cast remove-from-union on (cast one's declared-type on (tested-name), cast field-of on (side, 2)).
+        Done.
+        Otherwise if group-name is not "":
+            The name becomes group-name.
+            The shape becomes cast union-of on (group).
+        Done.
+        If name is "" or cast is-none on (shape), return.
+        If (the entry for name in found) is not void, in twice, the entry for name becomes true.
+        In found, the entry for name becomes shape.
+    Done.
+
     /// The name `<name> is void` or `<name> is not void` tests, when `op` is the test — or "".
     Bind text to void-tested, given (the node condition, the text op):
         If condition's kind is not "BinaryExpression", return "".
@@ -719,6 +766,7 @@ Pull a book on collections.
             Cast one's infer on (condition) or pass the failure off.
             Define narrowed-name as "".
             Define narrowed-to as cast unknown-type.
+            Define conjunct as a map from text to node.
 
             // `If x is not void:` — x is what it holds, inside the arm.
             Define present as cast void-tested on (condition, "NotEqual").
@@ -800,6 +848,11 @@ Pull a book on collections.
                     Done.
                 Done.
             Done.
+            // `If known is false and held is not void:` — every side of an `and` holds in the arm.
+            Otherwise if condition's kind is "BinaryExpression" and (cast field-of on (condition, 2))'s word is "And":
+                The conjunct becomes cast one's conjunct-narrowings on (condition).
+                The can-exhaust becomes false.
+            Done.
             Otherwise:
                 The can-exhaust becomes false.
             Done.
@@ -807,9 +860,16 @@ Pull a book on collections.
             Define saved as a map from text to node.
             Define narrowing as narrowed-name is not "" and cast is-none on (narrowed-to) is false.
             If narrowing, cast one's narrow on (narrowed-name, narrowed-to, saved).
+            Define conjunct-saved as a map from text to node.
+            For each pair in conjunct, repeat:
+                Cast one's narrow on (the key of pair, the value of pair, conjunct-saved).
+            Done.
             Cast one's enter-scope.
             Cast one's check-block on (cast field-of on (arm, 2)) or pass the failure off.
             Cast one's exit-scope.
+            For each pair in conjunct, repeat:
+                Cast one's unnarrow on (the key of pair, conjunct-saved).
+            Done.
             If narrowing, cast one's unnarrow on (narrowed-name, saved).
         Done.
         Define otherwise-body as cast field-of on (statement, 2).

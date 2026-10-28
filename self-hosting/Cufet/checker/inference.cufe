@@ -272,7 +272,18 @@ Pull a book on collections.
     Bind node or failure to infer-binary unto checker, given (the node said):
         Define lhs as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
         Define op as cast field-of on (said, 2)'s word.
+        // The right side of an `and` runs only once the left is true, so it is checked knowing what
+        // the left proved.
+        Define proved as a map from text to node.
+        If op is "And", the proved becomes cast one's conjunct-narrowings on (cast field-of on (said, 1)).
+        Define proved-saved as a map from text to node.
+        For each pair in proved, repeat:
+            Cast one's narrow on (the key of pair, the value of pair, proved-saved).
+        Done.
         Define rhs as cast one's infer on (cast field-of on (said, 3)) or pass the failure off.
+        For each pair in proved, repeat:
+            Cast one's unnarrow on (the key of pair, proved-saved).
+        Done.
         Define at-row as cast numeric on (cast field-of on (said, 4)).
         If lhs's kind is "none" or rhs's kind is "none", return cast unknown-type.
         Define lk as lhs's kind.

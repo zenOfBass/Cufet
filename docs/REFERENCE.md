@@ -3124,6 +3124,22 @@ fall-through. The narrowing lives only in the block that contains the guard —
 a guard nested inside an `If`-arm says nothing about the path where that arm was
 skipped, so it never leaks past the arm.
 
+**Through `and`** — every side of an `and` holds in its arm, so what each side proves does
+too. The right side of an `and` runs only once the left side is true, so it is checked
+knowing what the left proved:
+```cufet
+Bind void to report, given (the voidable number score, the fact counted):
+    If counted and score is not void and score is greater than 5:
+        State score + 1.
+    Done.
+Done.
+Cast report on (7, true).
+```
+```output
+8
+```
+When two sides narrow the same variable, it is narrowed by neither.
+
 > To narrow a value produced by an expression (like a map lookup), name it first
 > — `Define s as the entry for "alice" in ages.` then check `s`. A bare literal
 > buried inside a lookup is a value worth naming anyway; narrowing follows the

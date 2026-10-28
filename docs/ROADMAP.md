@@ -160,10 +160,6 @@ the calling: these wait only for a turn.
   writes long unions in full in six places. Idiomatic rather than a mistake, but six members is
   where it starts to hurt. *Blocker:* none known.
 
-- **Narrowing does not see through `and`.** `If known is false and held is not void:` leaves `held`
-  voidable inside, so the checker written in Cufet nests two `If`s instead, again and again.
-  *Blocker:* none known.
-
 - **A failure is handed on at nearly every call.** `… or pass the failure off` ends most calls in the
   checker written in Cufet, and a `void or failure` call cannot be returned — it is called, and
   `Return.` follows. Correct and explicit, and the bulk of that program's line noise.

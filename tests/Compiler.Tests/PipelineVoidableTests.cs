@@ -91,6 +91,36 @@ public class PipelineVoidableTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
+    /// <summary>
+    /// What an `and` proves holds in its arm, and on its own right side — the checker narrows, and
+    /// both compilers read what it wrote.
+    /// </summary>
+    [Fact]
+    public void Voidable_NarrowedThroughAnd_MatchesInterpreter()
+    {
+        const string src = """
+            Bind void to show, given (the voidable number held, the fact known, the (number or text) thing):
+                If known is false and held is not void:
+                    State held + 1.
+                Done.
+                If held is not void and held is greater than 3:
+                    State "big".
+                Done.
+                If thing is a number and held is not void and known is false:
+                    State thing + held.
+                Done.
+                If thing is not a text and held is not void:
+                    State thing * held.
+                Done.
+            Done.
+            Cast show on (4, false, 5).
+            Cast show on (void, false, "x").
+            Cast show on (2, true, 1).
+            """;
+        Assert.Equal("5\nbig\n9\n20\n2", Interpret(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
     // ── Voidable object FIELDS: the widening a field slot used to be denied ─────
     //
     // A field slot is an assignment target, so it takes the language's one implicit coercion —

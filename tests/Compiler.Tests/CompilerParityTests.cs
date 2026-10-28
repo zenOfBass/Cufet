@@ -65,7 +65,7 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     : PipelineTestBase, IClassFixture<CompiledCufetCompiler>
 {
     /// <summary>How many hand-written programs must build and print alike. Raised as it grows; never lowered.</summary>
-    private const int BuiltFloor = 440;
+    private const int BuiltFloor = 441;
 
     private static string[] PreludeArgs =>
         ["--prelude", Path.Combine(RepoRoot, "src", "Interpreter", "Prelude").Replace('\\', '/')];
@@ -559,6 +559,8 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
         "Bind number to at, given (the series of number seen, the number made):\n    Insert 0 into seen.\n    State \"at {the number of seen} {made}\".\n    Return made.\nDone.\nBind voidable number to maybe, given (the series of number seen, the number made):\n    Insert 0 into seen.\n    State \"maybe {the number of seen} {made}\".\n    Return made.\nDone.\nBind text to word, given (the series of number seen, the text made):\n    Insert 0 into seen.\n    State \"word {the number of seen} {made}\".\n    Return made.\nDone.\nDefine c as a series of number.\n\nState \"-- otherwise if\".\nIf cast at on (c, 1) is 1, state \"first\".\nOtherwise if (cast maybe on (c, 2) but void is 0) is 2, state \"second\".\nIf cast at on (c, 1) is 2, state \"first\".\nOtherwise if (cast maybe on (c, 2) but void is 0) is 2, state \"second\".\n\nState \"-- until\".\nDefine n as 0.\nRepeat:\n    Increment n by 1.\nUntil (cast maybe on (c, n) but void is 0) is 3.\n\nState \"-- while\".\nDefine k as 0.\nWhile (cast maybe on (c, k) but void is 0) is less than 2, repeat:\n    Increment k by 1.\nDone.\n\nState \"-- set literal\".\nPull a book on collections.\n    Define seen-words as a set of text with (cast word on (c, \"a\"), cast word on (c, \"b\")).\n    State seen-words.\nDone.\n",
         // An open catalogue is not built yet: refused, not written as C that gcc rejects (2026-10-26)
         "Define items as a catalogue.\nInsert 1 into items.\nInsert \"two\" into items.\nState the number of items.",
+        // What an `and` proves holds in its arm and on its right side (2026-10-26)
+        "Bind void to show, given (the voidable number held, the fact known, the (number or text) thing):\n    If known is false and held is not void:\n        State held + 1.\n    Done.\n    If held is not void and held is greater than 3:\n        State \"big\".\n    Done.\n    If thing is a number and held is not void and known is false:\n        State thing + held.\n    Done.\n    If thing is not a text and held is not void:\n        State thing * held.\n    Done.\nDone.\nCast show on (4, false, 5).\nCast show on (void, false, \"x\").\nCast show on (2, true, 1).\n",
     ];
 
     [Fact]
