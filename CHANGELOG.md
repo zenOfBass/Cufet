@@ -27,6 +27,14 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   lost its own rules for it, and so did the compiler written in Cufet; the checker written in Cufet
   writes the same type C#'s does, held to it by the checked-tree test.
 
+### Fixed
+
+- **`the environment variable "X" is void` tests the variable.** The name took the whole
+  comparison, reading as `the environment variable ("X" is void)`, and was refused as comparing a
+  text to a void — which did not point at the cause. The name now stops before a comparison, as a
+  directory's path does in `the contents of the directory`; one built with `joined to` still
+  works. Both parsers.
+
 ## [0.28.0] — 2026-10-26
 
 ### Added

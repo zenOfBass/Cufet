@@ -440,7 +440,8 @@ Pull a book on collections.
             Done.
             Cast one's advance.
             Cast one's skip-noise.
-            Define variable-name as cast one's expr-or or pass the failure off.
+            // As the directory's contents take their path: a comparison stays outside the name.
+            Define variable-name as cast one's joined-to or pass the failure off.
             Return cast placed on ("EnvironmentVariableExpression", a series with (variable-name), tok).
         Done.
 

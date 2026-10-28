@@ -4479,8 +4479,10 @@ public sealed class Parser
                     throw new ParseException(Peek().Line, Peek().Column, "expected 'variable' after 'environment'");
                 Advance(); // consume 'variable'
                 SkipNoise();
-                // ParseExprOr so that 'but void is' (parsed one level above) stays outside the name.
-                baseExpr = new EnvironmentVariableExpression(ParseExprOr(), envLine, envCol);
+                // ParseJoinedTo, as the directory's contents take their path: 'but void is' stays
+                // outside the name, and so does a comparison — `the environment variable "X" is void`
+                // used to read as `the environment variable ("X" is void)`.
+                baseExpr = new EnvironmentVariableExpression(ParseJoinedTo(), envLine, envCol);
                 break;
             }
             case TokenType.Arguments:

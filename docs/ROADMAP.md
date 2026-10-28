@@ -187,11 +187,6 @@ the calling: these wait only for a turn.
   where a reader expects the voidable a `void` usually makes. Met writing the compiler written in
   Cufet, which cannot build such a choice yet. Whether it is meant is not known. *Blocker:* none known.
 
-- **`the environment variable "X" is void` reads as `the environment variable ("X" is void)`.** The
-  name takes the whole comparison, so it is refused as comparing a text to a void, which does not
-  point at the cause; brackets around the variable are the fix. Met once, writing a probe.
-  *Blocker:* none known.
-
 ### Tooling
 
 - **The checker written in Cufet is slow to hold against C#.** Comparing it on ~750 hand-written

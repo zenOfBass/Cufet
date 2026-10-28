@@ -8851,6 +8851,17 @@ public class InterpreterTests
             "State the environment variable env-key but void is \"missing\"."));
     }
 
+    /// <summary>The name stops before a comparison, as a directory's path does — the test is of the variable.</summary>
+    [Fact]
+    public void EnvVar_IsVoid_TestsTheVariable_NotTheName()
+    {
+        System.Environment.SetEnvironmentVariable("CUFET_NO_SUCH_VAR_XYZ", null);
+        Assert.Equal("unset\nfallback", Run(
+            "If the environment variable \"CUFET_NO_SUCH_VAR_XYZ\" is void, state \"unset\".\n" +
+            "If the environment variable \"CUFET_NO_SUCH_\" joined to \"VAR_XYZ\" is not void, state \"set\".\n" +
+            "State the environment variable \"CUFET_NO_SUCH_VAR_XYZ\" but void is \"fallback\"."));
+    }
+
     [Fact]
     public void EnvVar_NonTextName_TypeError()
     {

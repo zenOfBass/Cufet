@@ -36,7 +36,7 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
     private const int TreeFloor = 91;
 
     /// <summary>The same, of the hand-written programs both checkers accept.</summary>
-    private const int HandWrittenTreeFloor = 280;
+    private const int HandWrittenTreeFloor = 281;
 
     /// <summary>The same, of the hand-written projects both checkers accept.</summary>
     private const int ProjectTreeFloor = 12;
@@ -716,6 +716,8 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
         "State (the environment variable \"HOME\") but void is \"none\".\nFor each piece in the arguments, repeat:\n    State the length of piece.\nDone.",
         "State the environment variable 5.",
         "State the length of the environment variable \"HOME\".",
+        // The variable's name stops before a comparison: `is void` tests the variable.
+        "If the environment variable \"CUFET_NO_SUCH_VAR_XYZ\" is void, state \"unset\".\nIf the environment variable \"CUFET_NO_SUCH_\" joined to \"VAR_XYZ\" is not void, state \"set\".\nState the environment variable \"CUFET_NO_SUCH_VAR_XYZ\" but void is \"fallback\".\n",
         "With the file \"c.txt\" open for writing as sink:\n    Write \"x\" to sink.\nDone.\nWith the file \"c.txt\" open for reading as source:\n    State (read a line from source) but void is \"\".\n    State the length of read all from source.\n    State the number of read all lines from source.\nDone.",
         "With the file 5 open for writing as sink:\n    Write \"x\" to sink.\nDone.",
         "With the file \"c.txt\" open for writing as sink:\n    Write 5 to sink.\nDone.",

@@ -3913,7 +3913,9 @@ Define path-val as the environment variable "PATH" but void is "".
 ```
 
 - Returns `voidable text` — `void` if the variable is not set.
-- The name is any text expression (literal, variable, or interpolated string).
+- The name is any text expression (literal, variable, interpolated string, or one built with
+  `joined to`). It stops before a comparison, so `the environment variable "HOME" is void` tests
+  the variable.
 - Read-only — Cufet does not expose setting environment variables.
 
 #### The current directory
