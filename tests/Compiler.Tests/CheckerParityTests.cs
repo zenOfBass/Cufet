@@ -36,7 +36,7 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
     private const int TreeFloor = 91;
 
     /// <summary>The same, of the hand-written programs both checkers accept.</summary>
-    private const int HandWrittenTreeFloor = 281;
+    private const int HandWrittenTreeFloor = 282;
 
     /// <summary>The same, of the hand-written projects both checkers accept.</summary>
     private const int ProjectTreeFloor = 12;
@@ -1198,6 +1198,9 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
         // What an `and` proves holds in its arm and on its right side; two sides narrowing one name narrow it to neither.
         "Bind void to show, given (the voidable number held, the fact known, the (number or text) thing):\n    If known is false and held is not void:\n        State held + 1.\n    Done.\n    If held is not void and held is greater than 3:\n        State \"big\".\n    Done.\n    If thing is a number and held is not void and known is false:\n        State thing + held.\n    Done.\n    If thing is not a text and held is not void:\n        State thing * held.\n    Done.\nDone.\nCast show on (4, false, 5).\nCast show on (void, false, \"x\").\nCast show on (2, true, 1).\n",
         "Bind void to show, given (the (number or text or fact) thing):\n    If thing is not a text and thing is not a fact:\n        State thing + 1.\n    Done.\nDone.\nCast show on (4).\n",
+        // Nested functions written together see one another; a statement between two ends the group.
+        "Bind number to outer, given (the number first):\n    Define bump as 100.\n    Bind number to a-step, given (the number n):\n        If n is 0, return bump.\n        Return cast b-step on (n - 1) + 1.\n    Done.\n    Bind number to b-step, given (the number n):\n        If n is 0, return 0.\n        Bind number to helper, given (the number m):\n            Return cast c-step on (m).\n        Done.\n        Return cast helper on (n - 1) + 10.\n    Done.\n    Bind number to c-step, given (the number n):\n        If n is 0, return 1.\n        Return cast a-step on (n - 1) + cast c-step on (0).\n    Done.\n    Return cast a-step on (first).\nDone.\nState cast outer on (5).\nState cast outer on (7).\nPull a rabbit as hopper.\n    Bind fact to ping, given (the number n):\n        If n is 0, return true.\n        Return cast pong on (n - 1).\n    Done.\n    Bind fact to pong, given (the number n):\n        If n is 0, return false.\n        Return cast ping on (n - 1).\n    Done.\n    State cast ping on (3).\nDone.\n",
+        "Bind void to go:\n    Define base as 10.\n    Bind number to early, given (the number n):\n        Return cast late on (n) + 1.\n    Done.\n    Define offset as 5.\n    Bind number to late, given (the number n):\n        Return n + base + offset.\n    Done.\n    State cast early on (1).\nDone.\nCast go.\n",
     ];
 
     /// <remarks>

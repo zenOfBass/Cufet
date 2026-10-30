@@ -15,6 +15,11 @@
     ★ A `Bind` inside a body may call ITSELF: inside, its own name is the value made of its function
       and the environment it was given.
 
+    ★ Functions bound together inside a body — no statement between them — see one another, as the
+      checker has it. Each copies its captures when it is made, so one cannot capture a sibling not
+      made yet: the group's names are declared at its first, each Bind assigns its own, and after
+      its last every capture of a later sibling is written into the earlier one's environment.
+
     ★ A lambda's result is worked out from its body — a first pass over it, in a writer of its own,
       notes what its first `Return` gives — and the second pass writes it.
 
@@ -254,9 +259,17 @@ Pull a book on collections.
             Cast one's build-closure on (takes, taken-names, captured, named, result, label, fn-name, env-type, body) or pass the failure off.
         Done.
 
-        // The value: an environment filled with what it captured, as it is now.
+        // The value: an environment filled with what it captured, as it is now — but a sibling of
+        // its group not made yet is written in after the group's last.
+        Define group-first as cast one's group-of on (label, named).
         Define filled as "{env-type}* cf_e = ({env-type}*)cufet_arena_alloc(sizeof({env-type})); memset(cf_e, 0, sizeof({env-type}));".
+        If group-first is not "", the filled becomes "{filled} cf_genv_{label} = cf_e;".
         For each name in captured, repeat:
+            If group-first is not "" and (the entry for "pending:{name}" in one's inferred but void is "") is not "":
+                Define patches as the entry for "group-patches:{group-first}" in one's inferred but void is "".
+                In one's inferred, the entry for "group-patches:{group-first}" becomes "{patches}(({env-type}*)cf_genv_{label})->{cast c-name on (name)} = {cast c-name on (name)};\n".
+                Skip.
+            Done.
             // Stored as it is stored here — read through this function's own environment, when it
             // was captured from further out too, and never as a narrowed case.
             Define captured-c as cast c-name on (name).
@@ -340,13 +353,102 @@ Pull a book on collections.
         Define name as cast unquoted on (cast field-of on (statement, 1)).
         Define gives as cast one's kind-of-type on (cast field-of on (statement, 2)) or pass the failure off.
         Define label as "{(cast field-of on (statement, 7))'s word}_{(cast field-of on (statement, 8))'s word}".
+        // The first of a group declares every member, so each can capture the others.
+        Define group-first as cast one's group-of on (label, name).
+        If group-first is label:
+            For each member-label in (the entry for "group:{label}" in one's inferred but void is "") split by "|", repeat:
+                Define member as the entry for member-label in one's grouped.
+                If member is not void:
+                    Define member-name as cast unquoted on (cast field-of on (member, 1)).
+                    Define member-kind as cast one's bound-kind on (member) or pass the failure off.
+                    In one's kinds, the entry for member-name becomes member-kind.
+                    In one's kinds, the entry for "%{member-name}" becomes member-kind.
+                    In one's kinds, the entry for "@{member-name}" becomes "".
+                    Cast one's declared-here on (member-name).
+                    Cast one's line on ("{cast function-c-name on (member-kind)} {cast c-name on (member-name)}; void* cf_genv_{member-label} = 0;").
+                    In one's inferred, the entry for "pending:{member-name}" becomes "yes".
+                Done.
+            Done.
+        Done.
+        If group-first is not "", in one's inferred, the entry for "pending:{name}" becomes "".
         Define value as cast one's c-closure on (cast field-of on (statement, 3), cast field-of on (statement, 4), name, gives, label) or pass the failure off.
         Define kind as cast one's bound-kind on (statement) or pass the failure off.
         In one's kinds, the entry for name becomes kind.
         In one's kinds, the entry for "%{name}" becomes kind.
         In one's kinds, the entry for "@{name}" becomes "".
-        Cast one's declared-here on (name).
-        Cast one's line on ("{cast function-c-name on (kind)} {cast c-name on (name)} = {value};").
+        If group-first is "":
+            Cast one's declared-here on (name).
+            Cast one's line on ("{cast function-c-name on (kind)} {cast c-name on (name)} = {value};").
+            Return.
+        Done.
+        Cast one's line on ("{cast c-name on (name)} = {value};").
+        // After the last of its group, every capture of a sibling made later is written in.
+        If (the entry for "group-last:{label}" in one's inferred) is not void:
+            For each patch in (the entry for "group-patches:{group-first}" in one's inferred but void is "") split by "\n", repeat:
+                If patch is not "", cast one's line on (patch).
+            Done.
+            In one's inferred, the entry for "group-patches:{group-first}" becomes "".
+        Done.
+    Done.
+
+    /// The first member's place of the group the function `named`, made at `label`, belongs to — or
+    /// "". By name as well as by place: a closure the stash machine makes stands at the place of the
+    /// function it was made from.
+    Bind text to group-of unto emitter, given (the text label, the text named):
+        Define member as the entry for label in one's grouped.
+        If member is void, return "".
+        If cast unquoted on (cast field-of on (member, 1)) is not named, return "".
+        Return the entry for "grouped:{label}" in one's inferred but void is "".
+    Done.
+
+    /// A function bound inside a body — not a method or a constructor.
+    Bind fact to is-local-bind, given (the node statement):
+        If statement's kind is not "BindStatement", return false.
+        Return cast is-nothing on (cast field-of on (statement, 5)) and cast is-nothing on (cast field-of on (statement, 6)).
+    Done.
+
+    /// Notes each group of functions bound together inside a body — a run of them with no statement
+    /// between, at any depth below the program's own. `grouped:<label>` names a member's first, `group:<first>` lists every member,
+    /// `group-last:<label>` marks the last, and `grouped` holds each member's statement.
+    Bind void to note-groups unto emitter, given (the node program):
+        For each statement in program's children, repeat:
+            Cast one's note-groups-in on (statement).
+        Done.
+    Done.
+
+    Bind void to note-groups-in unto emitter, given (the node tree):
+        Define together as a series of node.
+        For each child in tree's children, repeat:
+            If cast is-local-bind on (child):
+                Insert child into together.
+            Done.
+            Otherwise:
+                Cast one's note-group on (together).
+                The together becomes a series of node.
+            Done.
+            Cast one's note-groups-in on (child).
+        Done.
+        Cast one's note-group on (together).
+    Done.
+
+    Bind void to note-group unto emitter, given (the series of node together):
+        If the number of together is less than 2, return.
+        Define labels as "".
+        Define first-label as "".
+        Define last-label as "".
+        For each member in together, repeat:
+            Define member-label as "{(cast field-of on (member, 7))'s word}_{(cast field-of on (member, 8))'s word}".
+            If first-label is "", the first-label becomes member-label.
+            The last-label becomes member-label.
+            If labels is "", the labels becomes member-label.
+            Otherwise, the labels becomes "{labels}|{member-label}".
+            In one's grouped, the entry for member-label becomes member.
+        Done.
+        For each member-label in labels split by "|", repeat:
+            In one's inferred, the entry for "grouped:{member-label}" becomes first-label.
+        Done.
+        In one's inferred, the entry for "group:{first-label}" becomes labels.
+        In one's inferred, the entry for "group-last:{last-label}" becomes "yes".
     Done.
 
     /// `a function given (…): … Done.` — its kind, and its C.

@@ -467,6 +467,17 @@ public sealed partial class CodeGenerator
     // (threaded from the escaping store's RHS); null ⇒ non-escaping, share captures as before.
     private int? _closureEscapeDepth;
 
+    // A group of nested functions being emitted: the members not made yet, and each capture of one
+    // that an earlier member's env still needs written in — see EmitBlock.
+    private (HashSet<string> Members, List<(string Env, string Name)> Patches)? _bindGroup;
+
+    /// <summary>A function bound inside a body — the checker's group is a run of these.</summary>
+    private static bool IsNestedFunction(IStatement statement) =>
+        statement is BindStatement { UntoType: null, ConstructsTypeName: null };
+
+    private static FunctionType NestedFunctionType(BindStatement bind) =>
+        new(bind.Parameters.Select(p => p.Type).ToList(), bind.ReturnType);
+
     // CONC.C — named tasks + `the awaited result of`. Per named task in scope: the enclosing rabbit
     // suffix (Ctx), the C type of its heap-bridged result, and its inferred result type (which may be
     // a FailureType/VoidableType). The slot index / stored-result C vars are `cf_slot_<sfx>` /

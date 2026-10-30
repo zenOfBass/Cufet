@@ -823,10 +823,7 @@ public sealed partial class CodeGenerator
                 throw new CompilerException(
                     $"'{vr.Name}' is declared further down this block, and a Bind nested inside a rabbit " +
                     $"or another function is compiled where it stands — so it cannot be called before its " +
-                    $"declaration. Reordering does not help two functions that call each other, because " +
-                    $"neither can come first. Declare them at the TOP LEVEL, where mutual recursion works " +
-                    $"on both backends. (Interpreted, this program runs: the interpreter looks the name up " +
-                    $"at the moment of the call.)");
+                    $"declaration, unless the two are written together, with nothing between them.");
 
             throw new CompilerException($"'{vr.Name}': unresolved call — not a known function or method.");
         }
@@ -1058,7 +1055,10 @@ public sealed partial class CodeGenerator
         }
         else fnBuf.AppendLine($"    (void)cf_envp;");
         var savedCF = EnterFrame(fnBuf, "    ");
+        // Inside the body a sibling is read from this closure's env: the enclosing group is not this one's.
+        var savedGroup = _bindGroup; _bindGroup = null;
         EmitBlock(fnBuf, body, "    ");
+        _bindGroup = savedGroup;
         ExitFrame(savedCF);
         fnBuf.AppendLine($"}}");
         fnBuf.AppendLine();
@@ -1086,6 +1086,12 @@ public sealed partial class CodeGenerator
             _preEmits.Add($"{envType}* {envVar} = {envAlloc};");
             foreach (var v in free)
             {
+                // A sibling in this closure's group not made yet: written in once it is.
+                if (_bindGroup is { } group && group.Members.Contains(v))
+                {
+                    group.Patches.Add((envVar, v));
+                    continue;
+                }
                 // Synthetic reference to a captured name — only the name is read, so the
                 // column has nothing to point at.
                 string capExpr = EmitExpr(new VariableReference(v, line, 0));

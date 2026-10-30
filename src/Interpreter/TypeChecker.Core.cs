@@ -3064,24 +3064,9 @@ public sealed partial class TypeChecker
             case BindStatement bind:
                 // Top-level Bind: already in Scope (= global scope) from Pass1Hoist — skip.
                 // Non-top-level Bind (inside a function or block): register in current scope
-                // so the function can be returned/passed and can recurse on itself.
-                if (!Scope.ContainsKey(bind.Name))
-                {
-                    var paramTypes = bind.Parameters.Select(p => p.Type).ToList();
-                    // A NESTED function buries on exactly the same terms as a top-level one — see
-                    // Pass1Hoist, which does this for free functions. Registering it only there left
-                    // an inner generator unrecognised, so its missing terminal `Return` was reported
-                    // as an error in a function that was never going to return.
-                    if (BuriesValues(bind)) _buryingFunctions.Add(bind.Name);
-                    Scope[bind.Name] = new TypeInfo(
-                        new FunctionType(paramTypes,
-                            _buryingFunctions.Contains(bind.Name) && bind.ReturnType != null
-                                ? new StashType(bind.ReturnType)
-                                : bind.ReturnType)
-                        { ParameterNames = bind.Parameters.Select(p => p.Name).ToList() },
-                        new VariableReference(bind.Name, 0, 0),
-                        bind.Line);
-                }
+                // so the function can be returned/passed and can recurse on itself — CheckBlock has
+                // already registered it with the rest of its group.
+                RegisterNestedFunction(bind);
                 CheckBind(bind);
                 break;
             case CastStatement cs:
@@ -4424,9 +4409,32 @@ public sealed partial class TypeChecker
     // unsound: a guard inside one If-arm says nothing about the path where that arm was skipped).
     private void CheckBlock(IReadOnlyList<IStatement> body)
     {
+        // The nested functions of this block not reached yet — so a cast of one says where it is.
+        var below = body.Where(IsNestedFunction).Select(b => ((BindStatement)b).Name).ToHashSet();
+        _boundBelow.Add(below);
+        try { CheckBlockStatements(body, below); }
+        finally { _boundBelow.RemoveAt(_boundBelow.Count - 1); }
+    }
+
+    /// <summary>The nested functions each enclosing block binds further down — see CheckBlock.</summary>
+    private readonly List<HashSet<string>> _boundBelow = [];
+
+    private void CheckBlockStatements(IReadOnlyList<IStatement> body, HashSet<string> below)
+    {
         var guardNarrowed = new List<(string Name, CufetType? Prev, bool Had)>();
-        foreach (var s in body)
+        for (int at = 0; at < body.Count; at++)
         {
+            var s = body[at];
+            // ★ Nested functions written together, with no statement between them, see one another,
+            // as top-level functions do: the first of a group registers the whole group. Nothing can
+            // run between them, so nothing any of them captures is missing when one is called. A
+            // statement between two ends the group — the later one may capture what it defines.
+            if (IsNestedFunction(s) && (at == 0 || !IsNestedFunction(body[at - 1])))
+                for (int next = at; next < body.Count && IsNestedFunction(body[next]); next++)
+                {
+                    RegisterNestedFunction((BindStatement)body[next]);
+                    below.Remove(((BindStatement)body[next]).Name);
+                }
             // ⚠⚠ BY NAME, NOT BY REFERENCE, and that is the whole of what makes it survive. The
             // obvious test is `_preludeStatements.Contains(s)` — and it is right exactly once:
             // `Check` RE-ENTERS itself on a fresh TypeChecker to splice in filled-in templates, and
@@ -4461,6 +4469,31 @@ public sealed partial class TypeChecker
             if (had) _narrowedVars[name] = prev!; // had ⇒ prev non-null
             else _narrowedVars.Remove(name);
         }
+    }
+
+    /// <summary>A function bound inside a body — not a method, a constructor or a template.</summary>
+    private bool IsNestedFunction(IStatement statement) =>
+        statement is BindStatement { UntoType: null, ConstructsTypeName: null } bind
+        && !(_genericFunctions.TryGetValue(bind.Name, out var held) && ReferenceEquals(held.Bind, bind));
+
+    /// <summary>Puts a nested function's name in the current scope, unless it is there already.</summary>
+    private void RegisterNestedFunction(BindStatement bind)
+    {
+        if (Scope.ContainsKey(bind.Name)) return;
+        var paramTypes = bind.Parameters.Select(p => p.Type).ToList();
+        // A NESTED function buries on exactly the same terms as a top-level one — see
+        // Pass1Hoist, which does this for free functions. Registering it only there left
+        // an inner generator unrecognised, so its missing terminal `Return` was reported
+        // as an error in a function that was never going to return.
+        if (BuriesValues(bind)) _buryingFunctions.Add(bind.Name);
+        Scope[bind.Name] = new TypeInfo(
+            new FunctionType(paramTypes,
+                _buryingFunctions.Contains(bind.Name) && bind.ReturnType != null
+                    ? new StashType(bind.ReturnType)
+                    : bind.ReturnType)
+            { ParameterNames = bind.Parameters.Select(p => p.Name).ToList() },
+            new VariableReference(bind.Name, 0, 0),
+            bind.Line);
     }
 
     /// <summary>Does this guard body leave the rest of the block behind, without returning?</summary>

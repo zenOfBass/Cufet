@@ -22,7 +22,7 @@ Pull a book on collections.
         the series of text union-order, the map from text to text constants,
         the map from text to fact constant-places, the map from text to fact kept-rabbits,
         the series of text lambda-types, the series of text lambda-protos, the series of text lambda-code,
-        the map from text to text inferred).
+        the map from text to text inferred, the map from text to node grouped).
 
     /// An emitter for the program, knowing its functions, objects, methods — a method under
     /// `<object>'s <method>` — and interfaces by name.
@@ -35,7 +35,8 @@ Pull a book on collections.
             the unions a map from text to fact, the union-order a series of text,
             the constants a map from text to text, the constant-places a map from text to fact,
             the kept-rabbits a map from text to fact, the lambda-types a series of text,
-            the lambda-protos a series of text, the lambda-code a series of text, the inferred a map from text to text }.
+            the lambda-protos a series of text, the lambda-code a series of text, the inferred a map from text to text,
+            the grouped a map from text to node }.
     Done.
 
     /// An emitter for another body of the same program — every table shared, the copies asked for
@@ -48,7 +49,8 @@ Pull a book on collections.
             the pending-kinds one's pending-kinds, the unions one's unions, the union-order one's union-order,
             the constants one's constants, the constant-places one's constant-places,
             the kept-rabbits one's kept-rabbits, the lambda-types one's lambda-types,
-            the lambda-protos one's lambda-protos, the lambda-code one's lambda-code, the inferred one's inferred }.
+            the lambda-protos one's lambda-protos, the lambda-code one's lambda-code, the inferred one's inferred,
+            the grouped one's grouped }.
     Done.
 
     /// What this compiler cannot build yet, as a failure message.
@@ -1245,6 +1247,8 @@ Pull a book on collections.
         Cast writer's note-foreign on (program, hoisted).
         // What every pipe stage is fed — told before any stage's body is written.
         Cast writer's note-pipes on (program) or pass the failure off.
+        // Which functions bound inside a body are written together, and so see one another.
+        Cast writer's note-groups on (program).
         // Every shared constant: a `permanently` the hoist reaches, its kind known before any body is.
         For each statement in hoisted, repeat:
             If statement's kind is "DefineStatement" and (cast field-of on (statement, 3))'s word is "true":

@@ -156,6 +156,46 @@ Pull a book on collections.
         Done.
     Done.
 
+    /// A function bound inside a body — not a method or a constructor. A group is a run of these.
+    Bind fact to is-nested-function, given (the node statement):
+        If statement's kind is not "BindStatement", return false.
+        Return cast is-nothing on (cast field-of on (statement, 5)) and cast is-nothing on (cast field-of on (statement, 6)).
+    Done.
+
+    /// Nested functions written together, with no statement between them, see one another, as
+    /// top-level functions do — C#'s `CheckBlock`: the first of a group registers the whole group.
+    /// Nothing runs between them, so nothing any of them captures is missing when one is called.
+    Bind void to register-group unto checker, given (the node body, the number first, the map from text to fact below):
+        Define place as first.
+        While place is not greater than the number of body's children and cast is-nested-function on (item place of body's children), repeat:
+            Define member as item place of body's children.
+            Cast one's register-nested on (member).
+            Define member-name as cast unquoted on (cast field-of on (member, 1)).
+            If (the entry for member-name in below) is not void, remove member-name from below.
+            Increment place by 1.
+        Done.
+    Done.
+
+    /// Whether `name` is a function some enclosing block binds further down, outside the group a
+    /// call here could reach.
+    Bind fact to is-bound-below unto checker, given (the text name):
+        For each below in one's bound-below, repeat:
+            If (the entry for name in below) is not void, return true.
+        Done.
+        Return false.
+    Done.
+
+    /// A nested function's name in the current scope, unless it is there already.
+    Bind void to register-nested unto checker, given (the node statement):
+        Define name as cast unquoted on (cast field-of on (statement, 1)).
+        If (the entry for name in one's templates) is not void, return.
+        If (the entry for name in cast one's innermost) is not void, return.
+        Cast one's bind-name on (name, a new binding {
+            the shape cast function-type-of on (statement),
+            the established-by cast named-reference on (name), the line cast numeric on (cast field-of on (statement, 7)),
+            the permanent false, the module false, the depth 0, the parameter false, the judged false }).
+    Done.
+
     // ── A function's body ─────────────────────────────────────────────────
 
     /// A pulled module is a capability of the block it is pulled in, so a body written there has it.
@@ -190,12 +230,8 @@ Pull a book on collections.
         Done.
         If (the entry for name in one's templates) is not void, return.
         Define at-row as cast numeric on (cast field-of on (statement, 7)).
-        // A top-level function is in scope already, from the hoist; a nested one arrives here.
-        If (the entry for name in cast one's innermost) is void:
-            Cast one's bind-name on (name, a new binding {
-                the shape cast function-type-of on (statement),
-                the established-by cast named-reference on (name), the line at-row, the permanent false, the module false, the depth 0, the parameter false, the judged false }).
-        Done.
+        // A top-level function is in scope already, from the hoist; a nested one, with its group.
+        Cast one's register-nested on (statement).
         Define filled-origin as the entry for name in one's origins.
         If filled-origin is not void:
             Try to:
@@ -556,6 +592,13 @@ Pull a book on collections.
                 If the number of methods is greater than 0, the fix becomes "Available methods: {cast quoted-names on (methods, "")}.".
                 Return a failure (cast refusal-of on ("'{owner}' has no method named '{name}'", "",
                     at-row, "call method '{name}' on a {owner}", fix)).
+            Done.
+            // Bound further down, outside the group this call could reach.
+            If found is void and cast one's is-bound-below on (name):
+                Return a failure (cast refusal-of on ("'{name}' is bound further down this block, where it cannot be reached from here",
+                    "Functions bound inside a body see one another only when they are written together, with no statement between them",
+                    at-row, "cast '{name}'",
+                    "Move the 'Bind' of '{name}' up beside the function that calls it, or move what stands between them.")).
             Done.
             If found is void:
                 Return a failure (cast refusal-of on ("'{name}' isn't defined, so there is nothing to cast",

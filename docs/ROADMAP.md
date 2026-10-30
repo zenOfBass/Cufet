@@ -175,13 +175,6 @@ the calling: these wait only for a turn.
   `Try to: The whole becomes …` — four times in forty lines of `compiler.cufe`. Not the handing-on
   above: this is keeping a result, not passing a failure. *Blocker:* none known.
 
-- **A nested function cannot call a sibling declared after it.** Two functions inside a third
-  cannot call each other, so closures cannot be mutually recursive: `even-step` calling an
-  `odd-step` written below it is refused — *"'odd-step' isn't defined … no declaration of this name
-  was found"*, though there is one four lines down. Top-level functions are hoisted and do not have
-  this. Met writing the Cufet lexer, which moved its state into an object and its helpers into
-  `unto` methods to get the hoisting. *Blocker:* none known.
-
 - **`void when …, otherwise 3` is a union with a void case, not a voidable.** It is typed
   `(void or number)`, so `but void is` on it is refused — *"'(void or number)' can never be void"* —
   where a reader expects the voidable a `void` usually makes. Met writing the compiler written in

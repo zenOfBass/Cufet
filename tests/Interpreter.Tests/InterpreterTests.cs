@@ -8862,6 +8862,26 @@ public class InterpreterTests
             "State the environment variable \"CUFET_NO_SUCH_VAR_XYZ\" but void is \"fallback\"."));
     }
 
+    /// <summary>A statement between two nested functions ends their group, and the refusal says so.</summary>
+    [Fact]
+    public void NestedFunction_BoundBelowAStatement_IsRefusedSayingWhere()
+    {
+        var refused = Assert.Throws<TypeException>(() => Run(
+            "Bind void to go:\n" +
+            "    Define base as 10.\n" +
+            "    Bind number to early, given (the number n):\n" +
+            "        Return cast late on (n) + 1.\n" +
+            "    Done.\n" +
+            "    Define offset as 5.\n" +
+            "    Bind number to late, given (the number n):\n" +
+            "        Return n + base + offset.\n" +
+            "    Done.\n" +
+            "    State cast early on (1).\n" +
+            "Done.\n" +
+            "Cast go."));
+        Assert.Contains("'late' is bound further down this block", refused.Message);
+    }
+
     [Fact]
     public void EnvVar_NonTextName_TypeError()
     {

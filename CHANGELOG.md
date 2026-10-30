@@ -17,6 +17,16 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   checkers decide it, and neither compiler needed a change to build it. When two sides narrow
   the same name, it is narrowed by neither.
 
+- **Nested functions written together see one another.** Functions bound one after another inside
+  a body, with no statement between them, can each call the others — so nested helpers may be
+  mutually recursive, as top-level functions always could. A statement between two ends the group,
+  since the later one may capture what it defines; a call across it is refused, now saying the
+  function is bound further down the block rather than that it is not defined. Before, a nested
+  function could call only those above it, and the Cufet lexer moved its helpers into methods to
+  get round it. Both checkers, the interpreter and both compilers: each closure copies its captures
+  when it is made, so a compiler declares the group first and writes each later sibling into the
+  earlier closures once the last is made.
+
 ### Changed
 
 - **Narrowing is decided once, by the checker.** Inside `If x is not void:`, after a guard, in the

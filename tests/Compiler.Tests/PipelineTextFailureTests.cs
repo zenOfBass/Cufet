@@ -627,13 +627,12 @@ public class PipelineTextFailureTests : PipelineTestBase
     }
 
     [Fact]
-    public void MutualRecursion_InsideARabbit_IsRefusedWithTheRealReason()
+    public void MutualRecursion_InsideARabbit_MatchesInterpreter()
     {
-        // The refusal is legitimate — a nested Bind compiles where it stands, so neither of two
-        // functions that call each other can come first. The MESSAGE was the bug: it said the
-        // name was "not a known function or method" about a function declared six lines below,
-        // which sends the reader looking for a typo instead of moving the pair to the top level.
-        var ex = Assert.Throws<CompilerException>(() => Compile("""
+        // ★ Refused until 2026-10-28: a nested Bind compiles where it stands, so neither of two
+        // functions that call each other could come first. Functions bound together, with no
+        // statement between them, now see one another — the compiler declares the pair first.
+        const string src = """
             Pull a rabbit.
                 Bind fact to is-even, given (the number n):
                     If n is 0, return true.
@@ -647,10 +646,8 @@ public class PipelineTextFailureTests : PipelineTestBase
 
                 State Cast is-even on (10).
             Done.
-            """));
-        Assert.Contains("declared further down this block", ex.Message);
-        Assert.Contains("TOP LEVEL", ex.Message);
-        Assert.DoesNotContain("not a known function", ex.Message);
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
     [Fact]

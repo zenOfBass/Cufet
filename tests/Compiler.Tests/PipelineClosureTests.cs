@@ -837,6 +837,59 @@ public class PipelineClosureTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
+    // ── Nested functions written together ──
+
+    /// <summary>
+    /// Nested functions with no statement between them see one another — three calling round, one
+    /// capturing a local, one whose own nested helper reaches a sibling of its parent, and two in a
+    /// rabbit.
+    /// </summary>
+    /// <remarks>
+    /// ★ Each is a closure that copies its captures when it is made, so one cannot capture a sibling
+    /// not made yet: the compiler declares the group first and writes each later sibling into the
+    /// earlier envs once the last is made.
+    /// </remarks>
+    [Fact]
+    public void NestedFunctionsWrittenTogether_CallOneAnother()
+    {
+        const string src = """
+            Bind number to outer, given (the number first):
+                Define bump as 100.
+                Bind number to a-step, given (the number n):
+                    If n is 0, return bump.
+                    Return cast b-step on (n - 1) + 1.
+                Done.
+                Bind number to b-step, given (the number n):
+                    If n is 0, return 0.
+                    Bind number to helper, given (the number m):
+                        Return cast c-step on (m).
+                    Done.
+                    Return cast helper on (n - 1) + 10.
+                Done.
+                Bind number to c-step, given (the number n):
+                    If n is 0, return 1.
+                    Return cast a-step on (n - 1) + cast c-step on (0).
+                Done.
+                Return cast a-step on (first).
+            Done.
+            State cast outer on (5).
+            State cast outer on (7).
+            Pull a rabbit as hopper.
+                Bind fact to ping, given (the number n):
+                    If n is 0, return true.
+                    Return cast pong on (n - 1).
+                Done.
+                Bind fact to pong, given (the number n):
+                    If n is 0, return false.
+                    Return cast ping on (n - 1).
+                Done.
+                State cast ping on (3).
+            Done.
+            """;
+        Assert.Equal("24\n25\nfalse", Interpret(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
     // ── `is not void` across a split ──
 
     /// <summary>

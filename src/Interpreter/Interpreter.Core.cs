@@ -162,6 +162,9 @@ public sealed partial class Interpreter
 
     private Dictionary<string, object> Scope => _scopes[^1];
 
+    /// <summary>The nested functions bound so far in an unbroken run, and the scope they were bound in.</summary>
+    private (Dictionary<string, object> Scope, List<FunctionValue> Functions)? _bindGroup;
+
     private bool TryLookupValue(string name, out object val)
     {
         for (int i = _scopes.Count - 1; i >= 0; i--)
@@ -983,6 +986,9 @@ public sealed partial class Interpreter
         if (_interruptRequested && !_programHandlesInterrupts)
             throw new InterruptUnwind();
 
+        // Any other statement ends a group of nested functions — see the BindStatement case.
+        if (stmt is not BindStatement) _bindGroup = null;
+
         switch (stmt)
         {
             case StateStatement s:
@@ -1376,6 +1382,16 @@ public sealed partial class Interpreter
                     };
                     Scope[bind.Name]       = closureFn;
                     capturedEnv[bind.Name] = closureFn; // self-reference enables inner recursion
+                    // ★ Nested functions written together see one another, as the checker allows:
+                    // each earlier one in the group is handed this one, which it could not capture
+                    // because it did not exist yet. Binding runs no body, so a group's Binds always
+                    // run one after another, in one scope.
+                    if (_bindGroup is { } group && ReferenceEquals(group.Scope, Scope))
+                    {
+                        foreach (var earlier in group.Functions) earlier.CapturedEnv![bind.Name] = closureFn;
+                        group.Functions.Add(closureFn);
+                    }
+                    else _bindGroup = (Scope, [closureFn]);
                 }
                 // else: top-level Bind, already hoisted — no action.
                 break;

@@ -928,6 +928,14 @@ public sealed partial class TypeChecker
             // are each handled above, and a template’s name is resolved before any of them.
             if (NotAProjectYet(vr.Name, callLine, callCol, $"cast '{vr.Name}'") is { } besideIt)
                 throw besideIt;
+            // Bound further down, outside the group this call could reach.
+            if (_boundBelow.Any(below => below.Contains(vr.Name)))
+                throw TypeError(
+                    $"'{vr.Name}' is bound further down this block, where it cannot be reached from here",
+                    "Functions bound inside a body see one another only when they are written together, with no statement between them",
+                    callLine, callCol,
+                    $"cast '{vr.Name}'",
+                    $"Move the 'Bind' of '{vr.Name}' up beside the function that calls it, or move what stands between them.");
             throw TypeError(
                 $"'{vr.Name}' isn't defined, so there is nothing to cast",
                 "A cast reaches a function, a method, or an axiom, and no declaration of this name "

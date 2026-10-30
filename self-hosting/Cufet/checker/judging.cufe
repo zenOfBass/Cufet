@@ -73,7 +73,8 @@ Pull a book on collections.
         the map from text to series of number depth-signatures,
         the map from text to series of number getter-signatures,
         the map from text to number call-depths,
-        the map from text to number member-depths).
+        the map from text to number member-depths,
+        the series of map from text to fact bound-below).
 
     /// A pull of a module, remembered with the names visible at it — its needs are verified once
     /// every module's body has been checked, since one may be defined after the block that pulls it.
@@ -414,7 +415,19 @@ Pull a book on collections.
         Define guarded as a series of text.
         Define before as a map from text to node.
         Define first-seen as a map from text to fact.
+        // The nested functions of this block not reached yet — so a cast of one says where it is.
+        Define below as a map from text to fact.
         For each statement in body's children, repeat:
+            If cast is-nested-function on (statement), in below, the entry for cast unquoted on (cast field-of on (statement, 1)) becomes true.
+        Done.
+        Insert below into one's bound-below.
+        Define place as 0.
+        Define after-nested as false.
+        For each statement in body's children, repeat:
+            Increment place by 1.
+            Define nested as cast is-nested-function on (statement).
+            If nested and after-nested is false, cast one's register-group on (body, place, below).
+            The after-nested becomes nested.
             Cast one's check-statement on (statement) or pass the failure off.
             If statement's kind is "IfStatement" and cast is-nothing on (cast field-of on (statement, 2)):
                 Define arms as (cast field-of on (statement, 1))'s children.
@@ -447,6 +460,7 @@ Pull a book on collections.
             Otherwise, cast one's forget-narrowing on (name).
             Decrement back by 1.
         Done.
+        Remove the last from one's bound-below.
     Done.
 
     Bind void to forget-narrowing unto checker, given (the text name):
@@ -1336,7 +1350,8 @@ Pull a book on collections.
             the depth-signatures a map from text to series of number,
             the getter-signatures a map from text to series of number,
             the call-depths a map from text to number,
-            the member-depths a map from text to number }.
+            the member-depths a map from text to number,
+            the bound-below a series of map from text to fact }.
         Cast walker's register-prelude on (prelude).
         Return walker.
     Done.

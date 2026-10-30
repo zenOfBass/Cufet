@@ -3105,13 +3105,13 @@ because they see other `Bind`-defined functions (though not mutable `Define`d da
 scope, so it reads the locals around it normally. The isolation is about bodies that
 *detach* from the top-level scope, not about every body.
 
-⚠ **Top level only, when compiling.** A `Bind` nested inside a rabbit or another function is a
-closure, and the native compiler emits it where it stands — so it cannot call a name declared
-further down the same block, and two nested functions that call each other cannot both come
-first. Interpreted the same program runs, because the interpreter looks the name up when the
-call happens; the compiler refuses with a message saying so. Self-recursion nested inside a
-block is fine, and so is mutual recursion at the top level. **Declare mutually recursive
-functions at the top level** and both backends agree.
+**Nested functions written together see one another.** A `Bind` inside a function or a rabbit is
+a closure, made where it stands. Functions bound one after another, with no statement between
+them, are a group: each can call any other, as top-level functions can, so nested helpers may be
+mutually recursive. A statement between two ends the group — the later one may capture what that
+statement defines, which does not exist yet when the earlier one could run — and a call across
+it is refused, saying the function is bound further down the block. Move the `Bind` up beside the
+function that calls it.
 
 ### ★ A definition with a blank is not a type
 

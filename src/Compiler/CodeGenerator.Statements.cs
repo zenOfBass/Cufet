@@ -147,13 +147,40 @@ public sealed partial class CodeGenerator
         // lose: the checker refuses redeclaring a name an enclosing scope already holds.
         var shadowed = new List<(string Name, CufetType? Type, int Depth, bool HadDepth)>();
 
-        foreach (var stmt in body)
+        for (int at = 0; at < body.Count; at++)
         {
+            var stmt = body[at];
             if (stmt is DefineStatement { Shadow: true } shadow)
                 shadowed.Add((shadow.Name,
                               _varTypes.TryGetValue(shadow.Name, out var outerType) ? outerType : null,
                               _varRabbitDepth.TryGetValue(shadow.Name, out var outerDepth) ? outerDepth : 0,
                               _varRabbitDepth.ContainsKey(shadow.Name)));
+
+            // ★ Nested functions written together see one another (the checker's group). Each is a
+            // closure that copies its captures when it is made, so one cannot capture a sibling not
+            // made yet: the group's locals are declared first, each Bind assigns its own, and once
+            // the last is made every capture of a later sibling is written into the earlier env.
+            if (IsNestedFunction(stmt) && (at == 0 || !IsNestedFunction(body[at - 1])))
+            {
+                var group = body.Skip(at).TakeWhile(IsNestedFunction).Cast<BindStatement>().ToList();
+                if (group.Count > 1)
+                {
+                    var saved = _bindGroup;
+                    _bindGroup = (group.Select(b => b.Name).ToHashSet(), []);
+                    foreach (var member in group)
+                    {
+                        var ft = NestedFunctionType(member);
+                        _varTypes[member.Name] = ft;
+                        sb.AppendLine($"{indent}{EmitCType(ft)} {MangleName(member.Name)};");
+                    }
+                    foreach (var member in group) EmitStatement(sb, member, indent);
+                    foreach (var (env, name) in _bindGroup.Value.Patches)
+                        sb.AppendLine($"{indent}{env}->{MangleName(name)} = {MangleName(name)};");
+                    _bindGroup = saved;
+                    at += group.Count - 1;
+                    continue;
+                }
+            }
 
             EmitStatement(sb, stmt, indent);
         }
@@ -547,11 +574,16 @@ public sealed partial class CodeGenerator
                 // `name := <closure value>` and store it in a local so calls dispatch indirectly.
                 // (Top-level binds are emitted separately and skipped by the main loop; this case only
                 // fires for nested ones.) Recursion (the body calling its own name) throws in CL.2.
-                var ft = new FunctionType(nb.Parameters.Select(p => p.Type).ToList(), nb.ReturnType);
+                var ft = NestedFunctionType(nb);
                 _varTypes[nb.Name] = ft;   // so a later `cast name on (…)` resolves as an indirect call
+                // In a group its local is declared already, and the siblings still to come are not
+                // captured yet — EmitBlock writes them in once they are made.
+                bool grouped = _bindGroup is { } g && g.Members.Contains(nb.Name);
+                if (grouped) _bindGroup!.Value.Members.Remove(nb.Name);
                 string val = EmitClosure(nb.Parameters, nb.Body, nb.Line, nb.Name);
                 FlushPreEmits(sb, indent);
-                sb.AppendLine($"{indent}{EmitCType(ft)} {MangleName(nb.Name)} = {val};");
+                sb.AppendLine(grouped ? $"{indent}{MangleName(nb.Name)} = {val};"
+                                      : $"{indent}{EmitCType(ft)} {MangleName(nb.Name)} = {val};");
                 break;
             }
 
