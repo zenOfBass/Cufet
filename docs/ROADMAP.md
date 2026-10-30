@@ -151,10 +151,6 @@ the calling: these wait only for a turn.
   spaces inserted into a chase by code point, since no escape spells them. *Blocker:* none known —
   the measurement is in hand, so it can be designed.
 
-- **A series can be stated but not `converted to text`.** `State words.` prints `(pear, fig)`, but
-  `words converted to text` is refused — *"Only numbers, facts, bits and a chase can be converted to
-  text"* — so a series cannot go in a hole. Met writing `examples/parsing/precedence.cufe`, which built its own joining helper instead. *Blocker:* none known.
-
 - **A type cannot be given a name.** `examples/circuits/` spells
   `(and-gate or or-gate or xor-gate or nand-gate or not-gate or tri-gate)` out 20 times; the corpus
   writes long unions in full in six places. Idiomatic rather than a mistake, but six members is

@@ -246,7 +246,7 @@ public sealed partial class CodeGenerator
     }
 
     // converted to text — number formats to a fresh arena string; fact → static "true"/"false";
-    // text is a no-op. (The type checker restricts the operand to number/fact/text.)
+    // text is a no-op. (The type checker restricts the operand to these, a chase and a series.)
     private string EmitTextConvert(TextConvert tc) => TypeOf(tc.Value) switch
     {
         NumberType => $"cufet_text_from_dec({EmitExpr(tc.Value)})",
@@ -256,8 +256,34 @@ public sealed partial class CodeGenerator
         // ★★ The explicit COPY. UTF-32 in the buffer becomes UTF-8 here, once, at the end — which
         // is what turns the quadratic build into a linear one. The buffer lives on, independent.
         ChaseType  => $"cufet_chase_text({EmitExpr(tc.Value)})",
+        SeriesType st => SeriesText(EmitExpr(tc.Value), st, 0),
         var t => throw new CompilerException($"'converted to text' of a '{FormatTypeName(t)}' is not yet supported by the compiler.")
     };
+
+    // A series as the text `State` prints for it, `(pear, fig)`: each element's text, measured, then
+    // copied into one arena string. Inline rather than a helper, so a series of series nests by
+    // depth — the depth keeps the inner names from shadowing the outer ones they read.
+    private string SeriesText(string value, SeriesType st, int depth)
+    {
+        string d = depth.ToString();
+        string at = $"cf_ts{d}->data[cf_ti{d}]";
+        string element = st.ElementType switch
+        {
+            NumberType => $"cufet_text_from_dec({at})",
+            FactType   => $"({at} ? \"true\" : \"false\")",
+            TextType   => at,
+            BitsType   => $"({{ char* cf_tb{d} = (char*)cufet_arena_alloc(80); cufet_format_bits(cf_tb{d}, 80, {at}); cf_tb{d}; }})",
+            SeriesType inner => SeriesText(at, inner, depth + 1),
+            var t => throw new CompilerException($"'converted to text' of a series of '{FormatTypeName(t)}' is not yet supported by the compiler.")
+        };
+        return $"({{ {RegisterSeriesStruct(st)}* cf_ts{d} = {value}; int cf_tn{d} = cf_ts{d}->len; "
+             + $"char** cf_tp{d} = (char**)cufet_arena_alloc((size_t)(cf_tn{d} > 0 ? cf_tn{d} : 1) * sizeof(char*)); size_t cf_tl{d} = 2; "
+             + $"for (int cf_ti{d} = 0; cf_ti{d} < cf_tn{d}; cf_ti{d}++) {{ cf_tp{d}[cf_ti{d}] = {element}; cf_tl{d} += strlen(cf_tp{d}[cf_ti{d}]) + (cf_ti{d} > 0 ? 2 : 0); }} "
+             + $"char* cf_to{d} = (char*)cufet_arena_alloc(cf_tl{d} + 1); char* cf_tw{d} = cf_to{d}; *cf_tw{d}++ = '('; "
+             + $"for (int cf_ti{d} = 0; cf_ti{d} < cf_tn{d}; cf_ti{d}++) {{ if (cf_ti{d} > 0) {{ *cf_tw{d}++ = ','; *cf_tw{d}++ = ' '; }} "
+             + $"size_t cf_tk{d} = strlen(cf_tp{d}[cf_ti{d}]); memcpy(cf_tw{d}, cf_tp{d}[cf_ti{d}], cf_tk{d}); cf_tw{d} += cf_tk{d}; }} "
+             + $"*cf_tw{d}++ = ')'; *cf_tw{d} = 0; cf_to{d}; }})";
+    }
 
     // A bits value converts to the text it displays as — "0xFF", prefix and all. Formatted into
     // an arena buffer, since the result is an ordinary Cufet text from here on.

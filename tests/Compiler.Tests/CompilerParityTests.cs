@@ -65,7 +65,7 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     : PipelineTestBase, IClassFixture<CompiledCufetCompiler>
 {
     /// <summary>How many hand-written programs must build and print alike. Raised as it grows; never lowered.</summary>
-    private const int BuiltFloor = 443;
+    private const int BuiltFloor = 444;
 
     private static string[] PreludeArgs =>
         ["--prelude", Path.Combine(RepoRoot, "src", "Interpreter", "Prelude").Replace('\\', '/')];
@@ -565,6 +565,8 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
         "If the environment variable \"CUFET_NO_SUCH_VAR_XYZ\" is void, state \"unset\".\nIf the environment variable \"CUFET_NO_SUCH_\" joined to \"VAR_XYZ\" is not void, state \"set\".\nState the environment variable \"CUFET_NO_SUCH_VAR_XYZ\" but void is \"fallback\".\n",
         // Nested functions written together see one another (2026-10-28)
         "Bind number to outer, given (the number first):\n    Define bump as 100.\n    Bind number to a-step, given (the number n):\n        If n is 0, return bump.\n        Return cast b-step on (n - 1) + 1.\n    Done.\n    Bind number to b-step, given (the number n):\n        If n is 0, return 0.\n        Bind number to helper, given (the number m):\n            Return cast c-step on (m).\n        Done.\n        Return cast helper on (n - 1) + 10.\n    Done.\n    Bind number to c-step, given (the number n):\n        If n is 0, return 1.\n        Return cast a-step on (n - 1) + cast c-step on (0).\n    Done.\n    Return cast a-step on (first).\nDone.\nState cast outer on (5).\nState cast outer on (7).\nPull a rabbit as hopper.\n    Bind fact to ping, given (the number n):\n        If n is 0, return true.\n        Return cast pong on (n - 1).\n    Done.\n    Bind fact to pong, given (the number n):\n        If n is 0, return false.\n        Return cast ping on (n - 1).\n    Done.\n    State cast ping on (3).\nDone.\n",
+        // A series converted to text (2026-10-29)
+        "Define words as a series of text with (\"pear\", \"fig\").\nDefine line as words converted to text.\nState line.\nState \"fruit: {words}\".\nDefine counts as a series of number with (1, 2.5, -3).\nState \"counts: \" joined to counts converted to text.\nDefine flags as a series of fact with (true, false).\nState \"{flags}\".\nDefine masks as a series of bits with (0xFF, 0b101).\nState \"{masks}\".\nDefine grid as a series of series of number with (a series of number with (1, 2), a series of number with (3)).\nState \"grid: {grid}\".\nDefine none as a series of text.\nState \"none: {none}\".\nState the length of \"{words}\".\n",
     ];
 
     [Fact]

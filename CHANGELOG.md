@@ -27,6 +27,13 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   when it is made, so a compiler declares the group first and writes each later sibling into the
   earlier closures once the last is made.
 
+- **A series converts to text.** `words converted to text` and `"fruit: {words}"` give what
+  `State words.` prints — `(pear, fig)` — for a series of numbers, facts, texts or bits, or a series
+  of such series. Before, both were refused, so a series could be stated but never put in a hole.
+  A series of chases is still
+  refused: a chase prints as its letters but converts to its text, so the two would disagree. Both
+  checkers and both compilers; the interpreter already converted by printing.
+
 ### Changed
 
 - **Narrowing is decided once, by the checker.** Inside `If x is not void:`, after a guard, in the

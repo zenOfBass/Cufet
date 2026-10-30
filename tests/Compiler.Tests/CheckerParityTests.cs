@@ -36,7 +36,7 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
     private const int TreeFloor = 91;
 
     /// <summary>The same, of the hand-written programs both checkers accept.</summary>
-    private const int HandWrittenTreeFloor = 282;
+    private const int HandWrittenTreeFloor = 283;
 
     /// <summary>The same, of the hand-written projects both checkers accept.</summary>
     private const int ProjectTreeFloor = 12;
@@ -1201,6 +1201,9 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
         // Nested functions written together see one another; a statement between two ends the group.
         "Bind number to outer, given (the number first):\n    Define bump as 100.\n    Bind number to a-step, given (the number n):\n        If n is 0, return bump.\n        Return cast b-step on (n - 1) + 1.\n    Done.\n    Bind number to b-step, given (the number n):\n        If n is 0, return 0.\n        Bind number to helper, given (the number m):\n            Return cast c-step on (m).\n        Done.\n        Return cast helper on (n - 1) + 10.\n    Done.\n    Bind number to c-step, given (the number n):\n        If n is 0, return 1.\n        Return cast a-step on (n - 1) + cast c-step on (0).\n    Done.\n    Return cast a-step on (first).\nDone.\nState cast outer on (5).\nState cast outer on (7).\nPull a rabbit as hopper.\n    Bind fact to ping, given (the number n):\n        If n is 0, return true.\n        Return cast pong on (n - 1).\n    Done.\n    Bind fact to pong, given (the number n):\n        If n is 0, return false.\n        Return cast ping on (n - 1).\n    Done.\n    State cast ping on (3).\nDone.\n",
         "Bind void to go:\n    Define base as 10.\n    Bind number to early, given (the number n):\n        Return cast late on (n) + 1.\n    Done.\n    Define offset as 5.\n    Bind number to late, given (the number n):\n        Return n + base + offset.\n    Done.\n    State cast early on (1).\nDone.\nCast go.\n",
+        // A series converts to text when it holds numbers, facts, texts or bits, or series of those.
+        "Define words as a series of text with (\"pear\", \"fig\").\nDefine line as words converted to text.\nState line.\nState \"fruit: {words}\".\nDefine counts as a series of number with (1, 2.5, -3).\nState \"counts: \" joined to counts converted to text.\nDefine flags as a series of fact with (true, false).\nState \"{flags}\".\nDefine masks as a series of bits with (0xFF, 0b101).\nState \"{masks}\".\nDefine grid as a series of series of number with (a series of number with (1, 2), a series of number with (3)).\nState \"grid: {grid}\".\nDefine none as a series of text.\nState \"none: {none}\".\nState the length of \"{words}\".\n",
+        "Define spots as a series of (number or text) with (1, \"a\").\nState spots.\nState \"the spots: {spots}\".\n",
     ];
 
     /// <remarks>

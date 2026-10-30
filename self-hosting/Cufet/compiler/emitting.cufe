@@ -557,6 +557,7 @@ Pull a book on collections.
         // A chase's text is a copy: the chase lives on, apart from it.
         If kind is "chase", return "cufet_chase_text({value})".
         If kind is "bits", return cast c-bits-text on (value).
+        If cast element-of on (kind) is not "", return cast c-series-text on (kind, value, 0) or pass the failure off.
         If cast is-scalar on (kind) is false, return a failure (cast not-built on ("a {kind} as text")).
         If kind is "number", return "cufet_text_from_dec({value})".
         If kind is "fact", return "({value} ? \"true\" : \"false\")".

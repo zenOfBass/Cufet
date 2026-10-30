@@ -400,6 +400,16 @@ Pull a book on collections.
         Return kind is "NumberType" or kind is "FactType" or kind is "TextType" or kind is "BitsType" or kind is "ChaseType".
     Done.
 
+    /// A series converts to the text `State` prints for it, when it holds numbers, facts, texts or
+    /// bits, or series of those. Not chases: one prints as its letters but converts to its text.
+    Bind fact to series-text-convertible, given (the node shape):
+        If shape's kind is not "SeriesType", return false.
+        Define element as cast field-of on (shape, 1).
+        Define kind as element's kind.
+        If kind is "NumberType" or kind is "FactType" or kind is "TextType" or kind is "BitsType", return true.
+        Return cast series-text-convertible on (element).
+    Done.
+
     Bind node or failure to infer-join unto checker, given (the node said):
         Define lhs as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
         Define rhs as cast one's infer on (cast field-of on (said, 2)) or pass the failure off.
@@ -447,7 +457,7 @@ Pull a book on collections.
         Define at-row as cast numeric on (cast field-of on (said, 2)).
         Define as-hole as cast truth-of on (cast field-of on (said, 4)).
         Define text-type as cast plain-type on ("TextType").
-        If cast is-none on (operand) or cast text-convertible on (operand), return text-type.
+        If cast is-none on (operand) or cast text-convertible on (operand) or cast series-text-convertible on (operand), return text-type.
         If operand's kind is "VoidableType":
             Define inner as cast field-of on (operand, 1).
             If cast text-convertible on (inner):
@@ -463,7 +473,7 @@ Pull a book on collections.
         If cast beyond-types on (operand), return a failure (cast not-judged on ("converting a {operand's kind} to text")).
         Return a failure (cast refusal-of on ("'converted to text' doesn't work on {cast plural-words on (operand)}", "",
             at-row, "convert a {cast type-words on (operand)} to text",
-            "Only numbers, facts, bits and a chase can be converted to text.")).
+            "Only numbers, facts, bits, a chase and a series of numbers, facts, texts or bits can be converted to text.")).
     Done.
 
     Bind node or failure to infer-number-convert unto checker, given (the node said):

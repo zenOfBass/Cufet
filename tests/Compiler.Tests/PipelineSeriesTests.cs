@@ -664,4 +664,33 @@ public class PipelineSeriesTests : PipelineTestBase
     [InlineData("Pull a book on collections.\n    Define buffer as a chase.\n    Insert \"ab\" into buffer.\n    Try to:\n        For each in buffer, repeat:\n            State it.\n            Insert \"z\" into buffer.\n        Done.\n    Done.\n    In case of exception (the exception):\n        State \"caught: \" joined to the message of the exception.\n        Suppress the exception.\n    Done.\nDone.")]
     public void ALoopThatChangesWhatItLoopsOver_StopsAsTheInterpreterDoes(string src) =>
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
+
+    /// <summary>
+    /// A series converts to the text `State` prints for it — by `converted to text` and in a hole,
+    /// of each element kind, nested, and empty.
+    /// </summary>
+    [Fact]
+    public void ASeries_ConvertsToTheTextStatePrints()
+    {
+        const string src = """
+            Define words as a series of text with ("pear", "fig").
+            Define line as words converted to text.
+            State line.
+            State "fruit: {words}".
+            Define counts as a series of number with (1, 2.5, -3).
+            State "counts: " joined to counts converted to text.
+            Define flags as a series of fact with (true, false).
+            State "{flags}".
+            Define masks as a series of bits with (0xFF, 0b101).
+            State "{masks}".
+            Define grid as a series of series of number with (a series of number with (1, 2), a series of number with (3)).
+            State "grid: {grid}".
+            Define none as a series of text.
+            State "none: {none}".
+            State the length of "{words}".
+            """;
+        Assert.Equal("(pear, fig)\nfruit: (pear, fig)\ncounts: (1, 2.5, -3)\n(true, false)\n(0xFF, 0b101)\n"
+                   + "grid: ((1, 2), (3))\nnone: ()\n11", Interpret(src));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
 }

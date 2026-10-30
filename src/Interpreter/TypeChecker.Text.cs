@@ -60,6 +60,9 @@ public sealed partial class TypeChecker
         // afterwards, independent — not consumed, and not a view, because a `text` that changed
         // under you would break the one thing `text` promises.
         if (operand is ChaseType) return CufetType.Text;
+        // A series converts to the text `State` prints for it. Not a series of chases: a chase
+        // prints as its letters but converts to its text, so the two would disagree.
+        if (IsSeriesTextConvertible(operand)) return CufetType.Text;
         if (operand is VoidableType { Inner: var inner } && IsTextConvertible(inner))
             throw VoidableMisuse(
                 tc.Value,
@@ -74,8 +77,13 @@ public sealed partial class TypeChecker
             null,
             tc.Line, tc.Column,
             $"convert a {FormatType(operand)} to text",
-            "Only numbers, facts, bits and a chase can be converted to text.");
+            "Only numbers, facts, bits, a chase and a series of numbers, facts, texts or bits can be converted to text.");
     }
+
+    private static bool IsSeriesTextConvertible(CufetType type) =>
+        type is SeriesType { ElementType: var element }
+        && (element == CufetType.Number || element == CufetType.Fact || element == CufetType.Text
+            || element == CufetType.Bits || IsSeriesTextConvertible(element));
 
     private CufetType InferNumberConvert(NumberConvert nc)
     {

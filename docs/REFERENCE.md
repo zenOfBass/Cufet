@@ -1043,7 +1043,8 @@ error — convert it first.
 State "Player: " joined to score converted to text.     → "Player: 95"
 Define label as score converted to text.                → "95"
 ```
-Works on numbers, facts and bits (all total — every one of them has a text form).
+Works on numbers, facts and bits (all total — every one of them has a text form), and on a
+series of those or of texts, which converts to what `State` prints: `(1, 2, 3)`.
 It binds tighter than `joined to`, so `"x: " joined to n converted to text`
 reads as `"x: " joined to (n converted to text)`.
 
@@ -1082,12 +1083,33 @@ a pattern: 0x0F
 even a nested string: inner world
 ```
 
-★ **A hole takes what `converted to text` takes** — text, number, fact, bits — and nothing else.
-That is narrower than `State`, which prints anything:
+★ **A hole takes what `converted to text` takes** — text, number, fact, bits, a chase, and a series
+of texts, numbers, facts or bits (or a series of such series). A series becomes the text `State`
+prints for it:
+
+```cufet
+Define parts as a series of text with ("a", "b").
+Define grid as a series of series of number with (a series of number with (1, 2), a series of number with (3)).
+State "the parts: {parts}".
+State "the grid: " joined to grid converted to text.
+```
+```output
+the parts: (a, b)
+the grid: ((1, 2), (3))
+```
+
+That is still narrower than `State`, which prints anything:
 
 ```cufet-refused
-State parts.                    ← fine: (a, b)
-State "the parts: {parts}".     ← TYPE ERROR: 'converted to text' doesn't work on series of text
+Define spots as a series of (number or text) with (1, "a").
+State spots.
+State "the spots: {spots}".
+```
+```output
+That doesn't work: 'converted to text' doesn't work on series of (number or text) values.
+Here on line 3, you're trying to convert a series of (number or text) values to text.
+
+Only numbers, facts, bits, a chase and a series of numbers, facts, texts or bits can be converted to text.
 ```
 
 Write `\{` and `\}` for a literal brace. An empty hole is a parse error rather than an empty

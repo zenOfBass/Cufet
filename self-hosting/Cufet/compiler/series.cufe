@@ -97,6 +97,33 @@ Pull a book on collections.
         Return out converted to text.
     Done.
 
+    /// A series, already as C, as the text `State` prints for it: each element's text, measured,
+    /// then copied into one arena string. A series of series nests by depth, which keeps the inner
+    /// names from shadowing the outer ones they read.
+    Bind text or failure to c-series-text, given (the text kind, the text value, the number depth):
+        Define element as cast element-of on (kind).
+        Define at as "cf_ts{depth}->data[cf_ti{depth}]".
+        Define piece as "".
+        If cast element-of on (element) is not "":
+            The piece becomes cast c-series-text on (element, at, depth + 1) or pass the failure off.
+        Done.
+        Otherwise if element is "number" or element is "fact" or element is "text" or element is "bits":
+            The piece becomes cast c-text-from on (element, at) or pass the failure off.
+        Done.
+        Otherwise:
+            Return a failure (cast not-built on ("a series of {element} as text")).
+        Done.
+        Define out as a chase.
+        Insert "(\{ {cast series-c-name on (element)}* cf_ts{depth} = {value}; int cf_tn{depth} = cf_ts{depth}->len; " into out.
+        Insert "char** cf_tp{depth} = (char**)cufet_arena_alloc((size_t)(cf_tn{depth} > 0 ? cf_tn{depth} : 1) * sizeof(char*)); size_t cf_tl{depth} = 2; " into out.
+        Insert "for (int cf_ti{depth} = 0; cf_ti{depth} < cf_tn{depth}; cf_ti{depth}++) \{ cf_tp{depth}[cf_ti{depth}] = {piece}; cf_tl{depth} += strlen(cf_tp{depth}[cf_ti{depth}]) + (cf_ti{depth} > 0 ? 2 : 0); \} " into out.
+        Insert "char* cf_to{depth} = (char*)cufet_arena_alloc(cf_tl{depth} + 1); char* cf_tw{depth} = cf_to{depth}; *cf_tw{depth}++ = '('; " into out.
+        Insert "for (int cf_ti{depth} = 0; cf_ti{depth} < cf_tn{depth}; cf_ti{depth}++) \{ if (cf_ti{depth} > 0) \{ *cf_tw{depth}++ = ','; *cf_tw{depth}++ = ' '; \} " into out.
+        Insert "size_t cf_tk{depth} = strlen(cf_tp{depth}[cf_ti{depth}]); memcpy(cf_tw{depth}, cf_tp{depth}[cf_ti{depth}], cf_tk{depth}); cf_tw{depth} += cf_tk{depth}; \} " into out.
+        Insert "*cf_tw{depth}++ = ')'; *cf_tw{depth} = 0; cf_to{depth}; \})" into out.
+        Return out converted to text.
+    Done.
+
     /// What a refusal calls the series it reaches into: its name, when it has one.
     Bind text to series-label, given (the node target):
         If target's kind is "VariableReference", return cast unquoted on (cast field-of on (target, 1)).

@@ -235,9 +235,9 @@ public class InterpreterTests
     }
 
     [Fact]
-    public void Interp_TypeChecker_SeriesIsError()
+    public void Interp_SeriesInAHole_IsWhatStatePrints()
     {
-        Assert.Throws<TypeException>(() =>
+        Assert.Equal("value: (1, 2)",
             Run("Define s as a series with (1, 2). State \"value: {s}\"."));
     }
 
@@ -4901,11 +4901,21 @@ public class InterpreterTests
     }
 
     [Fact]
-    public void TextConvert_TypeErrorOnSeries()
+    public void TextConvert_Series_IsWhatStatePrints()
     {
-        Assert.Throws<TypeException>(() => Run(
+        Assert.Equal("(1, 2, 3)", Run(
             "Define scores as a series with (1, 2, 3).\n" +
             "State scores converted to text."));
+    }
+
+    [Fact]
+    public void TextConvert_SeriesOfUnions_TypeError()
+    {
+        var refused = Assert.Throws<TypeException>(() => Run(
+            "Define spots as a series of (number or text) with (1, \"a\").\n" +
+            "State spots.\n" +
+            "State \"the spots: {spots}\"."));
+        Assert.Contains("doesn't work on series of (number or text) values", refused.Message);
     }
 
     // ── Text Operations — Slice 2: split, contains, find, substring ──────────
