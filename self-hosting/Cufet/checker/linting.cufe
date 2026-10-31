@@ -51,8 +51,8 @@ Pull a book on collections.
         Done.
         Define reported as a map from text to fact.
         For each start-record in starts's children, repeat:
-            Define at-line as cast numeric on (item 1 of start-record's children).
-            Define at-column as cast numeric on (item 2 of start-record's children).
+            Define at-line as cast number-of on (item 1 of start-record's children).
+            Define at-column as cast number-of on (item 2 of start-record's children).
             Define spot as "{at-line}:{at-column}".
             Define leads as cast truth-of on (item 3 of start-record's children).
             Define opens as (the entry for (at-line converted to text) in opener but void is -1) is at-column.
@@ -154,8 +154,8 @@ Pull a book on collections.
             Define inner-enclosing as enclosing.
             If statement's kind is "ForEachStatement" and cast is-nothing on (cast field-of on (statement, 1)):
                 If cast is-nothing on (enclosing) is false:
-                    Cast warn on (found, cast numeric on (cast field-of on (statement, 4)), cast numeric on (cast field-of on (statement, 5)),
-                        "this loop and the one on line {cast numeric on (cast field-of on (enclosing, 4))} both bind 'it', so this one shadows the outer. That is well defined — the innermost wins — but a reader has to track which 'it' is which. Name one of them: 'For each <name> in …' binds the element to <name> instead.").
+                    Cast warn on (found, cast number-of on (cast field-of on (statement, 4)), cast number-of on (cast field-of on (statement, 5)),
+                        "this loop and the one on line {cast number-of on (cast field-of on (enclosing, 4))} both bind 'it', so this one shadows the outer. That is well defined — the innermost wins — but a reader has to track which 'it' is which. Name one of them: 'For each <name> in …' binds the element to <name> instead.").
                 Done.
                 The inner-enclosing becomes statement.
             Done.
@@ -194,8 +194,8 @@ Pull a book on collections.
                 Skip.
             Done.
             If statement's kind is "CurrentDirectorySetStatement" and the number of started is greater than 0:
-                Cast warn on (found, cast numeric on (cast field-of on (statement, 2)), cast numeric on (cast field-of on (statement, 3)),
-                    "this changes the current directory after the rabbit on line {cast numeric on (cast field-of on (rabbit, 3))} has already started a task. Tasks resolve relative paths against it, and there is one for the whole process, so which directory a running task sees is a race. Change it before starting any task.").
+                Cast warn on (found, cast number-of on (cast field-of on (statement, 2)), cast number-of on (cast field-of on (statement, 3)),
+                    "this changes the current directory after the rabbit on line {cast number-of on (cast field-of on (rabbit, 3))} has already started a task. Tasks resolve relative paths against it, and there is one for the whole process, so which directory a running task sees is a race. Change it before starting any task.").
                 Skip.
             Done.
             For each child in cast child-blocks on (statement), repeat:
@@ -243,8 +243,8 @@ Pull a book on collections.
                 For each superseded in definitions, repeat:
                     Increment place by 1.
                     If place is less than the number of definitions:
-                        Cast warn on (found, cast numeric on (cast field-of on (superseded, 9)), cast numeric on (cast field-of on (superseded, 10)),
-                            "this definition of '{name}' is replaced by the one on line {cast numeric on (cast field-of on (winner, 9))}, so nothing reaches it. That is well defined — the last definition wins, the same as any other shadowing — but a reader has to notice the second one to know this is dead. Remove it, or rename one of them.").
+                        Cast warn on (found, cast number-of on (cast field-of on (superseded, 9)), cast number-of on (cast field-of on (superseded, 10)),
+                            "this definition of '{name}' is replaced by the one on line {cast number-of on (cast field-of on (winner, 9))}, so nothing reaches it. That is well defined — the last definition wins, the same as any other shadowing — but a reader has to notice the second one to know this is dead. Remove it, or rename one of them.").
                     Done.
                 Done.
             Done.
@@ -267,8 +267,8 @@ Pull a book on collections.
                 Define seen-values as a series of node.
                 Define value-lines as a series of number.
                 For each arm in (cast field-of on (statement, 2))'s children, repeat:
-                    Define arm-line as cast numeric on (cast field-of on (arm, 3)).
-                    Define arm-column as cast numeric on (cast field-of on (arm, 4)).
+                    Define arm-line as cast number-of on (cast field-of on (arm, 3)).
+                    Define arm-column as cast number-of on (cast field-of on (arm, 4)).
                     If cast is-value-arm on (arm):
                         Define written as cast written-numbers on (tokens, the entry for "{arm-line}:{arm-column}" in index-at but void is 0).
                         Define number-count as 0.

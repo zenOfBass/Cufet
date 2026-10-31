@@ -201,7 +201,7 @@ Pull a book on collections.
         Cast one's bind-name on (filled, a new binding {
             the shape cast one's resolved on (cast function-type-of on (concrete)),
             the established-by cast named-reference on (filled),
-            the line cast numeric on (cast field-of on (concrete, 7)), the permanent false, the module false,
+            the line cast number-of on (cast field-of on (concrete, 7)), the permanent false, the module false,
             the depth 0, the parameter false, the judged false }).
     Done.
 

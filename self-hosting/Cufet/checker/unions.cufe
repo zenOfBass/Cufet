@@ -163,7 +163,7 @@ Pull a book on collections.
         Define subject as cast field-of on (statement, 1).
         Define arms as (cast field-of on (statement, 2))'s children.
         Define otherwise-body as cast field-of on (statement, 3).
-        Define at-row as cast numeric on (cast field-of on (statement, 4)).
+        Define at-row as cast number-of on (cast field-of on (statement, 4)).
         Define subject-type as cast one's infer on (subject) or pass the failure off.
         If cast is-none on (subject-type) is false, cast one's record-stash-local on ("it", subject-type, at-row) or pass the failure off.
 
@@ -175,7 +175,7 @@ Pull a book on collections.
                 Define said as "The first arm matches a type, so every arm in this judgement has to".
                 If value-judgement, the said becomes "The first arm matches a value, so every arm in this judgement has to".
                 Return a failure (cast refusal-of on ("this judgement mixes arms that match a type with arms that match a value",
-                    said, cast numeric on (cast field-of on (arm, 3)), "match a type and a value in one judgement",
+                    said, cast number-of on (cast field-of on (arm, 3)), "match a type and a value in one judgement",
                     "Split it into two judgements, or test the odd case with an 'If' inside the arm it belongs to.")).
             Done.
         Done.
@@ -187,7 +187,7 @@ Pull a book on collections.
         Done.
 
         For each arm in arms, repeat:
-            Define arm-row as cast numeric on (cast field-of on (arm, 3)).
+            Define arm-row as cast number-of on (cast field-of on (arm, 3)).
             If cast is-value-arm on (arm):
                 For each value in (cast field-of on (arm, 5))'s children, repeat:
                     Define value-type as cast one's infer on (value) or pass the failure off.

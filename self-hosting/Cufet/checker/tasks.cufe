@@ -19,7 +19,7 @@ Pull a book on collections.
 
     /// `Send <value> through <channel>.`
     Bind void or failure to check-send unto checker, given (the node statement):
-        Define at-row as cast numeric on (cast field-of on (statement, 3)).
+        Define at-row as cast number-of on (cast field-of on (statement, 3)).
         Define carrier as cast one's infer on (cast field-of on (statement, 2)) or pass the failure off.
         If carrier's kind is not "ChannelType":
             If cast is-none on (carrier), return.
@@ -39,7 +39,7 @@ Pull a book on collections.
 
     /// `the delivery from <channel>` — the next value, or void once the channel is closed and empty.
     Bind node or failure to infer-delivery unto checker, given (the node said):
-        Define at-row as cast numeric on (cast field-of on (said, 2)).
+        Define at-row as cast number-of on (cast field-of on (said, 2)).
         Define carrier as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
         If carrier's kind is not "ChannelType":
             If cast is-none on (carrier), return cast wrapped on ("VoidableType", cast plain-type on ("NumberType")).
@@ -52,7 +52,7 @@ Pull a book on collections.
 
     /// `Close <channel>.`
     Bind void or failure to check-close unto checker, given (the node statement):
-        Define at-row as cast numeric on (cast field-of on (statement, 2)).
+        Define at-row as cast number-of on (cast field-of on (statement, 2)).
         Define carrier as cast one's infer on (cast field-of on (statement, 1)) or pass the failure off.
         If carrier's kind is not "ChannelType" and cast is-none on (carrier) is false:
             Return a failure (cast refusal-of on ("'Close' requires a channel", "",
@@ -65,7 +65,7 @@ Pull a book on collections.
 
     /// `the awaited result of <task>`.
     Bind node or failure to infer-awaited unto checker, given (the node said):
-        Define at-row as cast numeric on (cast field-of on (said, 2)).
+        Define at-row as cast number-of on (cast field-of on (said, 2)).
         Define handle as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
         If handle's kind is not "TaskHandleType":
             If cast is-none on (handle), return handle.
@@ -94,7 +94,7 @@ Pull a book on collections.
 
     /// `Have <rabbit> start a task [as <name>]: … Done.`
     Bind void or failure to check-launch-task unto checker, given (the node statement):
-        Define at-row as cast numeric on (cast field-of on (statement, 3)).
+        Define at-row as cast number-of on (cast field-of on (statement, 3)).
         Define body as cast field-of on (statement, 2).
         If one's rabbit-depth is 0:
             Return a failure (cast refusal-of on ("'Have rabbit start a task' requires an active rabbit", "",
@@ -171,7 +171,7 @@ Pull a book on collections.
         Otherwise, cast handle's add on (inferred).
         Cast one's bind-name on (name, a new binding {
             the shape handle,
-            the established-by cast placed-reference on (name, at-row, cast numeric on (cast field-of on (statement, 4))),
+            the established-by cast placed-reference on (name, at-row, cast number-of on (cast field-of on (statement, 4))),
             the line at-row, the permanent false, the module false, the depth 0, the parameter false, the judged false }).
     Done.
 
@@ -347,9 +347,9 @@ Pull a book on collections.
     Bind number to stage-row, given (the node stage):
         Define kind as stage's kind.
         Judge kind, where it is:
-            "VariableReference", return cast numeric on (cast field-of on (stage, 2)).
-            "LambdaLiteral" or "PipeExpression", return cast numeric on (cast field-of on (stage, 3)).
-            "RunExpression", return cast numeric on (cast field-of on (stage, 4)).
+            "VariableReference", return cast number-of on (cast field-of on (stage, 2)).
+            "LambdaLiteral" or "PipeExpression", return cast number-of on (cast field-of on (stage, 3)).
+            "RunExpression", return cast number-of on (cast field-of on (stage, 4)).
             Otherwise, return 0.
         Done.
     Done.
@@ -419,7 +419,7 @@ Pull a book on collections.
     Bind void or failure to check-from-input unto checker, given (the node statement):
         If cast is-none on (one's pipe-input), return.
         Define name as cast unquoted on (cast field-of on (statement, 1)).
-        Define at-row as cast numeric on (cast field-of on (statement, 3)).
+        Define at-row as cast number-of on (cast field-of on (statement, 3)).
         Cast one's enter-scope.
         Cast one's bind-name on (name, a new binding {
             the shape cast one's resolved on (one's pipe-input),

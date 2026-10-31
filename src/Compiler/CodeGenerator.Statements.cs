@@ -2092,6 +2092,8 @@ public sealed partial class CodeGenerator
         ForeignTextAt         => new VoidableType(TText),
         TextContains          => TFact,
         TextAffixTest         => TFact,
+        CharacterTest         => TFact,
+        CodePointOf           => TNumber,
         // A file read is fallible; its post-check VALUE type is the inner success type (the
         // raw `T or failure` is only seen by FallibleReturnType, for Try / but-on-failure / propagate).
         FileReadExpression fr => FileReadSuccessType(fr),
@@ -2922,6 +2924,8 @@ public sealed partial class CodeGenerator
         TextReplace rp        => InOrder(new[] { rp.Text, rp.Old, rp.New }, new[] { EmitExpr(rp.Text), EmitExpr(rp.Old), EmitExpr(rp.New) },
                                          all => $"cufet_str_replace({all[0]}, {all[1]}, {all[2]}, {rp.Line})"),
         TextCase tcs          => EmitTextCase(tcs),
+        CharacterTest cht     => EmitCharacterTest(cht),
+        CodePointOf cpo       => EmitCodePointOf(cpo),
         TextTrim tt           => $"cufet_str_trim({EmitExpr(tt.Text)})",
         TextSplit ts          => EmitTextSplit(ts),
         FileReadExpression fr => EmitFileRead(fr),

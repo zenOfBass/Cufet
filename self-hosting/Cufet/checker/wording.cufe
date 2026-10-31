@@ -50,7 +50,7 @@ Pull a book on collections.
     // ── Reading the tree ──────────────────────────────────────────────────
 
     /// A number field, read back from its leaf.
-    Bind number to numeric, given (the node leaf):
+    Bind number to number-of, given (the node leaf):
         Return (leaf's word converted to number but void is 0).
     Done.
 

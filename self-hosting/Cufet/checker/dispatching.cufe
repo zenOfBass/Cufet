@@ -71,7 +71,7 @@ Pull a book on collections.
     // ── Building one group ────────────────────────────────────────────────
 
     Bind number to bind-row, given (the node version):
-        Return cast numeric on (cast field-of on (version, 7)).
+        Return cast number-of on (cast field-of on (version, 7)).
     Done.
 
     Bind text to parameter-name-at, given (the node version, the number place):
@@ -300,7 +300,7 @@ Pull a book on collections.
     /// A literal as something two can be compared by — or "" when it is not a literal.
     Bind text to literal-identity, given (the node said):
         Define kind as said's kind.
-        If kind is "NumberLiteral", return "number {cast numeric on (cast field-of on (said, 1))}".
+        If kind is "NumberLiteral", return "number {cast number-of on (cast field-of on (said, 1))}".
         If kind is "StringLiteral", return "text {cast unquoted on (cast field-of on (said, 1))}".
         If kind is "BooleanLiteral", return "fact {(cast field-of on (said, 1))'s word}".
         Return "".

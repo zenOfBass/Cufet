@@ -49,7 +49,7 @@ Pull a book on regex.
     /* A numeric identifier is digits and nothing else. `converted to number`
        would also accept `-1`, and `-1` is an alphanumeric identifier here: the
        spec counts the hyphen as a letter. */
-    Define regex numeric as [^[0-9]+$].
+    Define regex all-digits as [^[0-9]+$].
 
     Define object release with (the text version, the number chain).
 
@@ -106,7 +106,7 @@ Pull a book on regex.
 
             The out becomes out joined to "-".
             For each identifier in pre split by ".", repeat:
-                If cast numeric on (identifier):
+                If cast all-digits on (identifier):
                     The out becomes out joined to "0" joined to cast padded on (identifier) joined to "!".
                 Done.
                 Otherwise:

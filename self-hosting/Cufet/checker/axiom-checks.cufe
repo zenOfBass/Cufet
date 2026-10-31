@@ -131,7 +131,7 @@ Pull a book on collections.
     /// declaration, and the declared type is completed from what the literal takes.
     Bind node or failure to tag-axiom-declaration unto checker, given (the node statement):
         Define name as cast unquoted on (cast field-of on (statement, 1)).
-        Define define-row as cast numeric on (cast field-of on (statement, 5)).
+        Define define-row as cast number-of on (cast field-of on (statement, 5)).
         Define declared as cast field-of on (statement, 7).
         If declared's kind is "ObjectType" and cast is-filled-type on (declared) is false:
             Define shell-name as cast unquoted on (cast field-of on (declared, 1)).
@@ -149,7 +149,7 @@ Pull a book on collections.
             Done.
             Return declared.
         Done.
-        Define literal-row as cast numeric on (cast field-of on (value, 2)).
+        Define literal-row as cast number-of on (cast field-of on (value, 2)).
         If declared's kind is not "AxiomType":
             Return a failure (cast refusal-of on ("'{name}' is foreign source, but nothing says what language it is in",
                 "Square brackets say the text is not Cufet; they cannot say which language it is, and the tag names who reads it",
@@ -218,8 +218,8 @@ Pull a book on collections.
     Bind void or failure to check-axiom-parameters unto checker, given (the node statement, the node literal,
             the text language, the node result, the series of node parameters):
         Define name as cast unquoted on (cast field-of on (statement, 1)).
-        Define define-row as cast numeric on (cast field-of on (statement, 5)).
-        Define literal-row as cast numeric on (cast field-of on (literal, 2)).
+        Define define-row as cast number-of on (cast field-of on (statement, 5)).
+        Define literal-row as cast number-of on (cast field-of on (literal, 2)).
         If cast is-nothing on (result) and the number of parameters is greater than 0:
             Return a failure (cast refusal-of on (
                 "'{name}' says nothing about what it gives back, so it is source rather than something to run — and source takes no parameters",
@@ -331,7 +331,7 @@ Pull a book on collections.
         If cast is-none on (tagged) is false, return tagged.
         Return a failure (cast refusal-of on ("this is foreign source, and nothing says what language it is in",
             "An axiom takes its language from the declaration it is the value of",
-            cast numeric on (cast field-of on (said, 2)), "write foreign source outside a declaration that names its language",
+            cast number-of on (cast field-of on (said, 2)), "write foreign source outside a declaration that names its language",
             "Give it a name first: 'Define c-language <name> as [ ... ].'")).
     Done.
 
@@ -480,7 +480,7 @@ Pull a book on collections.
 
     /// `the text at <address>` — read through a foreign pointer; void reads as void.
     Bind node or failure to infer-text-at unto checker, given (the node said):
-        Define at-row as cast numeric on (cast field-of on (said, 2)).
+        Define at-row as cast number-of on (cast field-of on (said, 2)).
         Define held as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
         If cast is-none on (held):
             Return a failure (cast refusal-of on ("'the text at' reads through a foreign address, and nothing here says what this is",

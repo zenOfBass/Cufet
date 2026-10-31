@@ -51,7 +51,7 @@ Pull a book on collections.
 
     /// `Pull a rabbit [as <name>].` — one region deeper for the length of the block.
     Bind void or failure to check-pull-rabbit unto checker, given (the node statement):
-        Define at-row as cast numeric on (cast field-of on (statement, 3)).
+        Define at-row as cast number-of on (cast field-of on (statement, 3)).
         Increment one's rabbit-depth by 1.
         Cast one's enter-scope.
         Define named as cast field-of on (statement, 1).
@@ -59,7 +59,7 @@ Pull a book on collections.
             Define name as cast unquoted on (named).
             Cast one's bind-name on (name, a new binding {
                 the shape cast object-type-named on ("rabbit"),
-                the established-by cast placed-reference on (name, at-row, cast numeric on (cast field-of on (statement, 4))),
+                the established-by cast placed-reference on (name, at-row, cast number-of on (cast field-of on (statement, 4))),
                 the line at-row, the permanent false, the module false, the depth one's rabbit-depth, the parameter false, the judged false }).
         Done.
         Cast one's check-block on (cast field-of on (statement, 2)) or pass the failure off.

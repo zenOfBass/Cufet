@@ -13,11 +13,11 @@
 
 Pull a book on collections.
     Bind number to getter-row, given (the node getter):
-        Return cast numeric on (cast field-of on (getter, 5)).
+        Return cast number-of on (cast field-of on (getter, 5)).
     Done.
 
     Bind number to setter-row, given (the node setter):
-        Return cast numeric on (cast field-of on (setter, 6)).
+        Return cast number-of on (cast field-of on (setter, 6)).
     Done.
 
     /// Every getter an object has: its own, then those written `unto` it.
@@ -81,7 +81,7 @@ Pull a book on collections.
     /// and no getter shares one of the object's own stored fields.
     Bind void or failure to check-property-names unto checker, given (the node definition):
         Define name as cast def-name on (definition).
-        Define at-row as cast numeric on (cast field-of on (definition, 9)).
+        Define at-row as cast number-of on (cast field-of on (definition, 9)).
         Define method-names as a map from text to fact.
         For each method in cast one's all-methods on (definition), repeat:
             In method-names, the entry for cast unquoted on (cast field-of on (method, 1)) becomes true.

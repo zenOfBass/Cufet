@@ -128,7 +128,7 @@ Pull a book on collections.
         For each statement in cast hoistable on (program), repeat:
             If statement's kind is "BindStatement" and cast is-nothing on (cast field-of on (statement, 5)):
                 Define name as cast unquoted on (cast field-of on (statement, 1)).
-                Define at-row as cast numeric on (cast field-of on (statement, 7)).
+                Define at-row as cast number-of on (cast field-of on (statement, 7)).
                 Define earlier as the entry for name in seen.
                 If earlier is not void:
                     Return a failure (cast refusal-of on ("'{name}' is declared twice",
@@ -192,7 +192,7 @@ Pull a book on collections.
         If (the entry for name in cast one's innermost) is not void, return.
         Cast one's bind-name on (name, a new binding {
             the shape cast function-type-of on (statement),
-            the established-by cast named-reference on (name), the line cast numeric on (cast field-of on (statement, 7)),
+            the established-by cast named-reference on (name), the line cast number-of on (cast field-of on (statement, 7)),
             the permanent false, the module false, the depth 0, the parameter false, the judged false }).
     Done.
 
@@ -225,11 +225,11 @@ Pull a book on collections.
             If cast one's is-absorbed on (cast unquoted on (target)), return.
             // The object is `one`, and the line it is said to be made on is the method's own.
             Cast one's check-method-body on (statement, cast unquoted on (target),
-                cast numeric on (cast field-of on (statement, 7))) or pass the failure off.
+                cast number-of on (cast field-of on (statement, 7))) or pass the failure off.
             Return.
         Done.
         If (the entry for name in one's templates) is not void, return.
-        Define at-row as cast numeric on (cast field-of on (statement, 7)).
+        Define at-row as cast number-of on (cast field-of on (statement, 7)).
         // A top-level function is in scope already, from the hoist; a nested one, with its group.
         Cast one's register-nested on (statement).
         Define filled-origin as the entry for name in one's origins.
@@ -250,7 +250,7 @@ Pull a book on collections.
     Bind void or failure to check-bind-body unto checker, given (the node statement):
         Define name as cast unquoted on (cast field-of on (statement, 1)).
         Define returned as cast field-of on (statement, 2).
-        Define at-row as cast numeric on (cast field-of on (statement, 7)).
+        Define at-row as cast number-of on (cast field-of on (statement, 7)).
         // Lowered from an axiom, it still owes the pull its language wants around it.
         Define axiom-language as cast bind-mark on (statement, ":FromAxiomLanguage").
         If axiom-language is not "", cast one's require-language-pulled on (axiom-language, at-row) or pass the failure off.
@@ -359,7 +359,7 @@ Pull a book on collections.
     Bind node or failure to infer-lambda unto checker, given (the node said):
         Define parameters as (cast field-of on (said, 1))'s children.
         Define body as cast field-of on (said, 2).
-        Define at-row as cast numeric on (cast field-of on (said, 3)).
+        Define at-row as cast number-of on (cast field-of on (said, 3)).
         Cast refuse-burying-lambda on (body) or pass the failure off.
         // Its statements sit inside an expression, out of sight of the program's own pre-scan.
         Define inner-reach as cast beyond-reach on (body).
@@ -442,7 +442,7 @@ Pull a book on collections.
 
     Bind void or failure to check-return unto checker, given (the node statement):
         Define value as cast field-of on (statement, 1).
-        Define at-row as cast numeric on (cast field-of on (statement, 2)).
+        Define at-row as cast number-of on (cast field-of on (statement, 2)).
         // The first `Return` of a lambda says what the lambda gives back.
         If one's inferring-lambda:
             Define handed as cast unknown-type.
@@ -879,7 +879,7 @@ Pull a book on collections.
     Bind node or failure to check-call unto checker, given (the node said, the fact as-value):
         Define callee as cast field-of on (said, 1).
         Define call-args as cast field-of on (said, 2).
-        Define at-row as cast numeric on (cast field-of on (said, 3)).
+        Define at-row as cast number-of on (cast field-of on (said, 3)).
         // Named arguments first: everything after reads the arguments by position.
         Define passes-off as false.
         Define merged as false.

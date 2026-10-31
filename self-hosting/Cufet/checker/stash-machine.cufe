@@ -410,7 +410,7 @@ Pull a book on collections.
                         If local-type is void, the local-type becomes the entry for name in one's locals.
                         If local-type is void:
                             Return a failure (cast refusal-of on ("'{one's key}' buries, and the type of '{name}' could not be worked out", "",
-                                cast numeric on (cast field-of on (statement, 5)), "keep '{name}' across a bury",
+                                cast number-of on (cast field-of on (statement, 5)), "keep '{name}' across a bury",
                                 "Everything that survives a resumption is stored, and storing it needs its type. Give it a starting value whose type is clear.")).
                         Done.
                         Insert cast machine-list on (a series with (local-type, cast quoted on (name))) into ordered.

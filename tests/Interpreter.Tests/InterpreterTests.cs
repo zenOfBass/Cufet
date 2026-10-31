@@ -5261,6 +5261,64 @@ public class InterpreterTests
         Assert.Throws<TypeException>(() => Run("State 5 in uppercase."));
     }
 
+    // ── Character classes and the code point ─────────────────────────────────
+
+    [Theory]
+    [InlineData("\"abc\" is alphabetic", "true")]
+    [InlineData("\"ب中\" is alphabetic", "true")]      // uncased scripts are letters too
+    [InlineData("\"a1\" is alphabetic", "false")]      // EVERY character must pass
+    [InlineData("\"\" is alphabetic", "false")]        // empty text is in no class
+    [InlineData("\"\" is numeric", "false")]
+    [InlineData("\"\" is whitespace", "false")]
+    [InlineData("\"0123456789\" is numeric", "true")]
+    [InlineData("\"½\" is numeric", "false")]          // digits only, not every number character
+    [InlineData("\"1.5\" is numeric", "false")]
+    [InlineData("\" \\t\\n\" is whitespace", "true")]
+    [InlineData("\"7\" is not numeric", "false")]
+    [InlineData("\"x\" is not whitespace", "true")]
+    public void CharacterClass_AnswersForEveryCharacter(string test, string expected)
+    {
+        Assert.Equal(expected, Run($"State {test}."));
+    }
+
+    [Fact]
+    public void CharacterClass_TypeErrorOnNonText()
+    {
+        var refused = Assert.Throws<TypeException>(() => Run("Define n as 5.\nState n is numeric."));
+        Assert.Contains("'is numeric' works on text only", refused.Message);
+    }
+
+    [Theory]
+    [InlineData("alphabetic")]
+    [InlineData("numeric")]
+    [InlineData("whitespace")]
+    public void CharacterClass_WordIsReserved(string word)
+    {
+        var refused = Assert.ThrowsAny<Exception>(() => Run($"Define {word} as 5.\nState {word}."));
+        Assert.Contains($"'{word}' is a word Cufet has taken", refused.Message);
+    }
+
+    [Fact]
+    public void CodePoint_OfOneCharacter()
+    {
+        Assert.Equal("65\n128512", Run("State the code point of \"A\".\nState the code point of \"😀\"."));
+    }
+
+    [Theory]
+    [InlineData("\"ab\"")]
+    [InlineData("\"\"")]
+    public void CodePoint_OfNotOneCharacter_IsRefusedWhenItRuns(string text)
+    {
+        var stopped = Assert.Throws<RuntimeException>(() => Run($"State the code point of {text}."));
+        Assert.Equal("'the code point of' needs exactly one character (line 1).", stopped.Message);
+    }
+
+    [Fact]
+    public void CodePoint_CodeAndPointStayNames()
+    {
+        Assert.Equal("3", Run("Define code as 1.\nDefine point as 2.\nState code + point."));
+    }
+
     [Fact]
     public void TextCase_DoesNotCollideWithMapLookupIn()
     {

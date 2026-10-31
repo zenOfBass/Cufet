@@ -11,7 +11,7 @@ Pull a book on collections.
     Bind node or failure to infer-chase-literal unto checker, given (the node said):
         If cast one's has-scoped-type on ("chase") is false:
             Return a failure (cast refusal-of on ("'chase' is not available in this scope",
-                "It is introduced by the 'collections' book", cast numeric on (cast field-of on (said, 1)),
+                "It is introduced by the 'collections' book", cast number-of on (cast field-of on (said, 1)),
                 "build a chase without pulling the 'collections' book first",
                 "Wrap it in 'Pull a book on collections. … Done.'")).
         Done.
@@ -71,7 +71,7 @@ Pull a book on collections.
     /// `a set of <type> [with (…)]` — the element type is always written.
     Bind node or failure to infer-set-literal unto checker, given (the node said):
         Define element as cast field-of on (said, 1).
-        Define at-row as cast numeric on (cast field-of on (said, 3)).
+        Define at-row as cast number-of on (cast field-of on (said, 3)).
         Cast require-map-key on (element, at-row) or pass the failure off.
         For each value in (cast field-of on (said, 2))'s children, repeat:
             Define actual as cast one's infer on (value) or pass the failure off.
@@ -87,7 +87,7 @@ Pull a book on collections.
     /// `<set> has <value>`.
     Bind node or failure to infer-set-has unto checker, given (the node said):
         Define holder as cast field-of on (said, 1).
-        Define at-row as cast numeric on (cast field-of on (said, 3)).
+        Define at-row as cast number-of on (cast field-of on (said, 3)).
         Define target as cast one's infer on (holder) or pass the failure off.
         If cast is-none on (target), return cast plain-type on ("FactType").
         Define spoken as cast expression-words on (holder).
@@ -116,7 +116,7 @@ Pull a book on collections.
     Bind void or failure to check-set-insert unto checker, given (the node shape, the node statement):
         Define value as cast field-of on (statement, 1).
         Define target as cast field-of on (statement, 2).
-        Define at-row as cast numeric on (cast field-of on (statement, 5)).
+        Define at-row as cast number-of on (cast field-of on (statement, 5)).
         Define spoken as cast expression-words on (target).
         If cast is-nothing on (cast field-of on (statement, 3)) is false:
             Return a failure (cast refusal-of on ("{spoken} is a set, and a set has no positions",

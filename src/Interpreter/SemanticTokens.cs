@@ -1000,6 +1000,8 @@ public sealed class SemanticTokenizer
             case TextSubstringEdge tse:  Walk(tse.Text); Walk(tse.Count); break;
             case TextReplace trp:        Walk(trp.Text); Walk(trp.Old); Walk(trp.New); break;
             case TextCase tcs:           Walk(tcs.Text); break;
+            case CharacterTest cht:      Walk(cht.Text); break;
+            case CodePointOf cpo:        Walk(cpo.Text); break;
             case TextTrim ttr:           Walk(ttr.Text); break;
 
             case ButVoidDefault bv:   Walk(bv.Voidable); Walk(bv.Default); break;

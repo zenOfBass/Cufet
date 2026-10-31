@@ -85,6 +85,8 @@ Pull a book on collections.
             "TextSubstringEdge", return cast one's infer-text-edge on (said) or pass the failure off.
             "TextReplace", return cast one's infer-text-replace on (said) or pass the failure off.
             "TextCase", return cast one's infer-text-case on (said) or pass the failure off.
+            "CharacterTest", return cast one's infer-character-test on (said) or pass the failure off.
+            "CodePointOf", return cast one's infer-code-point on (said) or pass the failure off.
             "TextTrim", return cast one's infer-text-trim on (said) or pass the failure off.
             "BitsConvert", return cast one's infer-bits-convert on (said) or pass the failure off.
             "BitsShift", return cast one's infer-bits-shift on (said) or pass the failure off.
@@ -147,12 +149,12 @@ Pull a book on collections.
         Define found as cast one's look-up on (name).
         If found is not void:
             If found's shape's kind is "AxiomType" and cast is-nothing on (cast field-of on (found's shape, 2)):
-                Return a failure (cast axiom-used-as-value on (name, found's shape, cast numeric on (cast field-of on (said, 2)))).
+                Return a failure (cast axiom-used-as-value on (name, found's shape, cast number-of on (cast field-of on (said, 2)))).
             Done.
             Return found's shape.
         Done.
         If (the entry for name in one's hidden) is not void:
-            Define at-row as cast numeric on (cast field-of on (said, 2)).
+            Define at-row as cast number-of on (cast field-of on (said, 2)).
             Return a failure (cast refusal-of on (
                 "'{name}' is a top-level value, but function and method bodies can't see top-level data", "",
                 at-row, "read '{name}' inside a top-level function or a method",
@@ -164,7 +166,7 @@ Pull a book on collections.
     /// A name nothing in scope defines — C#'s `NoteUnresolvedName`, for code whose scope is final.
     Bind node or failure to unresolved unto checker, given (the node said):
         Define name as cast unquoted on (cast field-of on (said, 1)).
-        Define at-row as cast numeric on (cast field-of on (said, 2)).
+        Define at-row as cast number-of on (cast field-of on (said, 2)).
 
         // In a function body the scope is not final — but only a module may be left to the caller.
         If one's in-function:
@@ -244,7 +246,7 @@ Pull a book on collections.
     Bind node or failure to infer-unary unto checker, given (the node said):
         Define op as cast field-of on (said, 1)'s word.
         Define operand as cast one's infer on (cast field-of on (said, 2)) or pass the failure off.
-        Define at-row as cast numeric on (cast field-of on (said, 3)).
+        Define at-row as cast number-of on (cast field-of on (said, 3)).
         Define operand-kind as operand's kind.
         If operand-kind is "none", return operand.
         If op is "Not":
@@ -284,7 +286,7 @@ Pull a book on collections.
         For each pair in proved, repeat:
             Cast one's unnarrow on (the key of pair, proved-saved).
         Done.
-        Define at-row as cast numeric on (cast field-of on (said, 4)).
+        Define at-row as cast number-of on (cast field-of on (said, 4)).
         If lhs's kind is "none" or rhs's kind is "none", return cast unknown-type.
         Define lk as lhs's kind.
         Define rk as rhs's kind.
@@ -413,7 +415,7 @@ Pull a book on collections.
     Bind node or failure to infer-join unto checker, given (the node said):
         Define lhs as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
         Define rhs as cast one's infer on (cast field-of on (said, 2)) or pass the failure off.
-        Define at-row as cast numeric on (cast field-of on (said, 3)).
+        Define at-row as cast number-of on (cast field-of on (said, 3)).
         Define place as 0.
         For each side-type in a series with (lhs, rhs), repeat:
             Increment place by 1.
@@ -454,7 +456,7 @@ Pull a book on collections.
     Bind node or failure to infer-text-convert unto checker, given (the node said):
         Define value as cast field-of on (said, 1).
         Define operand as cast one's infer on (value) or pass the failure off.
-        Define at-row as cast numeric on (cast field-of on (said, 2)).
+        Define at-row as cast number-of on (cast field-of on (said, 2)).
         Define as-hole as cast truth-of on (cast field-of on (said, 4)).
         Define text-type as cast plain-type on ("TextType").
         If cast is-none on (operand) or cast text-convertible on (operand) or cast series-text-convertible on (operand), return text-type.
@@ -478,7 +480,7 @@ Pull a book on collections.
 
     Bind node or failure to infer-number-convert unto checker, given (the node said):
         Define operand as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
-        Define at-row as cast numeric on (cast field-of on (said, 2)).
+        Define at-row as cast number-of on (cast field-of on (said, 2)).
         If operand's kind is "BitsType", return cast plain-type on ("NumberType").
         If cast is-none on (operand) is false and operand's kind is not "TextType":
             If cast beyond-types on (operand), return a failure (cast not-judged on ("converting a {operand's kind} to number")).
@@ -499,7 +501,7 @@ Pull a book on collections.
     Bind node or failure to infer-but-void unto checker, given (the node said):
         Define held as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
         Define fallback as cast one's infer on (cast field-of on (said, 2)) or pass the failure off.
-        Define at-row as cast numeric on (cast field-of on (said, 3)).
+        Define at-row as cast number-of on (cast field-of on (said, 3)).
         If held's kind is "VoidableType":
             Define inner as cast field-of on (held, 1).
             If cast is-none on (fallback) is false and cast assignable on (inner, fallback) is false:
@@ -527,7 +529,7 @@ Pull a book on collections.
     Bind void or failure to check-index, given (the node index-said, the number at-row):
         If index-said's kind is not "NumberLiteral", return.
         Define written as (cast field-of on (index-said, 1))'s word.
-        Define amount as cast numeric on (cast field-of on (index-said, 1)).
+        Define amount as cast number-of on (cast field-of on (index-said, 1)).
         If amount % 1 is not 0:
             Return a failure (cast refusal-of on ("item positions must be whole numbers", "", at-row,
                 "use {written} as a position", "Positions are counted 1, 2, 3 and so on. Use a whole number.")).
@@ -537,7 +539,7 @@ Pull a book on collections.
     Bind node or failure to infer-series-literal unto checker, given (the node said):
         Define elements as cast field-of on (said, 1).
         Define annotation as cast field-of on (said, 2).
-        Define at-row as cast numeric on (cast field-of on (said, 3)).
+        Define at-row as cast number-of on (cast field-of on (said, 3)).
         Define annotated as cast is-nothing on (annotation) is false.
         If annotated and cast beyond-types on (annotation), return a failure (cast not-judged on ("a series annotated {annotation's kind}")).
 
@@ -600,7 +602,7 @@ Pull a book on collections.
 
     Bind node or failure to infer-series-access unto checker, given (the node said):
         Define index-said as cast field-of on (said, 2).
-        Define at-row as cast numeric on (cast field-of on (said, 3)).
+        Define at-row as cast number-of on (cast field-of on (said, 3)).
         If cast is-nothing on (index-said) is false:
             Cast check-index on (index-said, at-row) or pass the failure off.
         Done.
@@ -620,7 +622,7 @@ Pull a book on collections.
     Bind node or failure to infer-series-length unto checker, given (the node said):
         Define counted as cast field-of on (said, 1).
         Define container as cast one's infer on (counted) or pass the failure off.
-        Define at-row as cast numeric on (cast field-of on (said, 2)).
+        Define at-row as cast number-of on (cast field-of on (said, 2)).
         If container's kind is "RecordType":
             Return a failure (cast refusal-of on ("'the number of' works on series, not records", "", at-row,
                 "get the number of items in {cast expression-words on (counted)} (a record)",

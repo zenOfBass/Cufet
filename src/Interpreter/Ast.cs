@@ -762,6 +762,16 @@ public sealed record TextReplace(IExpression Text, IExpression Old, IExpression 
 // <text> in uppercase / <text> in lowercase — invariant (culture-independent) case conversion
 public sealed record TextCase(IExpression Text, bool Uppercase, int Line, int Column) : IExpression;
 
+// <text> is alphabetic / is numeric / is whitespace, and each with `is not` — Class is the word's
+// token. A fact: true when EVERY character is in the class, and false for empty text. The classes
+// come from CharacterClassData, the one table both backends read. Line/Column are the `is`'s.
+public sealed record CharacterTest(IExpression Text, TokenType Class, bool Negated, int Line, int Column) : IExpression;
+
+// the code point of <text> — a number; the text must be exactly one character, which is known
+// only when it runs. ★ Neither `code` nor `point` is reserved: the two together, then `of`, are
+// a shape no value can take, as `the text at` is.
+public sealed record CodePointOf(IExpression Text, int Line, int Column) : IExpression;
+
 // <text> trimmed — strips standard whitespace from both ends
 public sealed record TextTrim(IExpression Text, int Line, int Column) : IExpression;
 

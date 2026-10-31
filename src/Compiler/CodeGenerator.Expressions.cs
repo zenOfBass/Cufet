@@ -365,6 +365,26 @@ public sealed partial class CodeGenerator
         return tcase.Uppercase ? $"cufet_str_upper({text})" : $"cufet_str_lower({text})";
     }
 
+    // The classes are a table in the shared runtime too — see ClassRuntime.
+    private string EmitCharacterTest(CharacterTest test)
+    {
+        string fn = test.Class switch
+        {
+            TokenType.Alphabetic => "cufet_str_alphabetic",
+            TokenType.Numeric    => "cufet_str_numeric",
+            _                    => "cufet_str_whitespace",
+        };
+        return $"({(test.Negated ? "!" : "")}{fn}({EmitExpr(test.Text)}))";
+    }
+
+    private string EmitCodePointOf(CodePointOf codePoint)
+    {
+        int id = _freshId++;
+        return $"({{ int cf_cp{id} = cufet_str_code_point({EmitExpr(codePoint.Text)}); " +
+               $"if (cf_cp{id} < 0) cufet_raise(cufet_msgf(\"'the code point of' needs exactly one character (line {codePoint.Line}).\")); " +
+               $"cufet_dec_from_ll(cf_cp{id}); }})";
+    }
+
     private string EmitTextSplit(TextSplit ts)
     {
         string name = RegisterSeriesStruct(new SeriesType(TText));

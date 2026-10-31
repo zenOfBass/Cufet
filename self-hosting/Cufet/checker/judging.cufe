@@ -400,7 +400,7 @@ Pull a book on collections.
                         Cast one's bind-name on (name, a new binding {
                             the shape value-type,
                             the established-by cast field-of on (statement, 2),
-                            the line cast numeric on (cast field-of on (statement, 5)),
+                            the line cast number-of on (cast field-of on (statement, 5)),
                             the permanent true, the module false, the depth 0, the parameter false, the judged false }).
                         In one's hoisted-constants, the entry for name becomes true.
                     Done.
@@ -561,7 +561,7 @@ Pull a book on collections.
                 Cast one's check-if on (statement) or pass the failure off.
             Done.
             "WhileStatement":
-                Cast one's check-condition on (cast field-of on (statement, 1), cast numeric on (cast field-of on (statement, 3))) or pass the failure off.
+                Cast one's check-condition on (cast field-of on (statement, 1), cast number-of on (cast field-of on (statement, 3))) or pass the failure off.
                 Cast one's enter-scope.
                 Cast one's check-block on (cast field-of on (statement, 2)) or pass the failure off.
                 Cast one's exit-scope.
@@ -570,7 +570,7 @@ Pull a book on collections.
                 Cast one's enter-scope.
                 Cast one's check-block on (cast field-of on (statement, 1)) or pass the failure off.
                 Cast one's exit-scope.
-                Cast one's check-condition on (cast field-of on (statement, 2), cast numeric on (cast field-of on (statement, 3))) or pass the failure off.
+                Cast one's check-condition on (cast field-of on (statement, 2), cast number-of on (cast field-of on (statement, 3))) or pass the failure off.
             Done.
             "ForEachStatement":
                 Cast one's check-for-each on (statement) or pass the failure off.
@@ -619,7 +619,7 @@ Pull a book on collections.
             Done.
             // What a block holds is checked where it is cited; the block owes only its language.
             "CufetAxiomDefinition":
-                Cast one's require-language-pulled on ("cufet", cast numeric on (cast field-of on (statement, 3))) or pass the failure off.
+                Cast one's require-language-pulled on ("cufet", cast number-of on (cast field-of on (statement, 3))) or pass the failure off.
             Done.
             "BuryStatement":
                 Cast one's check-bury on (statement) or pass the failure off.
@@ -793,7 +793,7 @@ Pull a book on collections.
         Define else-type as cast unknown-type.
         For each arm in arms, repeat:
             Define condition as cast field-of on (arm, 1).
-            Cast one's check-condition on (condition, cast numeric on (cast field-of on (arm, 3))) or pass the failure off.
+            Cast one's check-condition on (condition, cast number-of on (cast field-of on (arm, 3))) or pass the failure off.
             Define narrowed-name as "".
             Define narrowed-to as cast unknown-type.
             Define conjunct as a map from text to node.
@@ -921,7 +921,7 @@ Pull a book on collections.
 
     Bind void or failure to check-for-each unto checker, given (the node statement):
         Define looped as cast field-of on (statement, 2).
-        Define at-row as cast numeric on (cast field-of on (statement, 4)).
+        Define at-row as cast number-of on (cast field-of on (statement, 4)).
         Define looped-type as cast one's infer on (looped) or pass the failure off.
         If cast is-none on (looped-type), return.
         Define kind as looped-type's kind.
@@ -1000,7 +1000,7 @@ Pull a book on collections.
         Define value as cast field-of on (statement, 1).
         Define target as cast field-of on (statement, 2).
         Define after-said as cast field-of on (statement, 3).
-        Define at-row as cast numeric on (cast field-of on (statement, 5)).
+        Define at-row as cast number-of on (cast field-of on (statement, 5)).
         If cast is-nothing on (after-said) is false, cast check-index on (after-said, at-row) or pass the failure off.
         Define container as cast one's infer on (target) or pass the failure off.
         If cast is-none on (container), return.
@@ -1037,7 +1037,7 @@ Pull a book on collections.
     Bind void or failure to check-series-set unto checker, given (the node statement):
         Define target as cast field-of on (statement, 1).
         Define index-said as cast field-of on (statement, 2).
-        Define at-row as cast numeric on (cast field-of on (statement, 4)).
+        Define at-row as cast number-of on (cast field-of on (statement, 4)).
         If cast is-nothing on (index-said) is false, cast check-index on (index-said, at-row) or pass the failure off.
         Define container as cast one's infer on (target) or pass the failure off.
         If cast is-none on (container), return.
@@ -1064,7 +1064,7 @@ Pull a book on collections.
             Define owner as cast unquoted on (cast field-of on (container, 1)).
             Define positionals as a series of node.
             Cast one's gather-positionals on (owner, positionals).
-            Define spot as cast numeric on (cast field-of on (index-said, 1)).
+            Define spot as cast number-of on (cast field-of on (index-said, 1)).
             Define whole as spot - (spot % 1).
             If whole is less than 1 or whole is greater than the number of positionals:
                 Define said as "{spoken} has {the number of positionals} positional field(s) — there is no position {whole}".
@@ -1107,7 +1107,7 @@ Pull a book on collections.
     Bind void or failure to check-remove-at unto checker, given (the node statement):
         Define target as cast field-of on (statement, 1).
         Define index-said as cast field-of on (statement, 2).
-        Define at-row as cast numeric on (cast field-of on (statement, 3)).
+        Define at-row as cast number-of on (cast field-of on (statement, 3)).
         If cast is-nothing on (index-said) is false, cast check-index on (index-said, at-row) or pass the failure off.
         Define container as cast one's infer on (target) or pass the failure off.
         If cast is-none on (container) or container's kind is "ChaseType" or container's kind is "SeriesType", return.
@@ -1121,7 +1121,7 @@ Pull a book on collections.
     Bind void or failure to check-remove-value unto checker, given (the node statement):
         Define target as cast field-of on (statement, 1).
         Define value as cast field-of on (statement, 2).
-        Define at-row as cast numeric on (cast field-of on (statement, 3)).
+        Define at-row as cast number-of on (cast field-of on (statement, 3)).
         Define container as cast one's infer on (target) or pass the failure off.
         If cast is-none on (container), return.
         Define spoken as cast expression-words on (target).
@@ -1167,7 +1167,7 @@ Pull a book on collections.
         Define value as cast field-of on (statement, 2).
         Define permanent as cast truth-of on (cast field-of on (statement, 3)).
         Define shadowing as cast truth-of on (cast field-of on (statement, 4)).
-        Define at-row as cast numeric on (cast field-of on (statement, 5)).
+        Define at-row as cast number-of on (cast field-of on (statement, 5)).
 
         // An axiom has no type until its declaration gives it one, so the tag is first.
         Define declared as cast one's tag-axiom-declaration on (statement) or pass the failure off.
@@ -1254,7 +1254,7 @@ Pull a book on collections.
     Bind void or failure to check-becomes unto checker, given (the node statement):
         Define name as cast unquoted on (cast field-of on (statement, 1)).
         Define value as cast field-of on (statement, 2).
-        Define at-row as cast numeric on (cast field-of on (statement, 3)).
+        Define at-row as cast number-of on (cast field-of on (statement, 3)).
         // Reassigning ends whatever a test had narrowed the name to.
         Cast one's forget-narrowing on (name).
         Define existing as cast one's look-up on (name).

@@ -351,6 +351,9 @@ equality `is` uses.
 | `uppercase` | Uppercase |
 | `lowercase` | Lowercase |
 | `trimmed` | Trimmed |
+| `alphabetic` | Alphabetic |
+| `numeric` | Numeric |
+| `whitespace` | Whitespace |
 
 **Two literal forms, one type.** Which delimiters you use decides only what the lexer
 interprets on the way in; both produce `text`, and after lexing nothing downstream can tell
@@ -574,6 +577,15 @@ follows the thing it modifies.
 "error"`, `name ends with ".cufe"`, at the same tier as `contains`. ★ They cost no reserved word —
 no value is ever followed by a bare name and `with`, so the pair is decidable in that one place and
 `Define starts as 3.` stays legal.
+
+**`alphabetic`, `numeric`, `whitespace`** — RESERVED, unlike `starts`: each comes LAST, right after
+`is` (or `is not`), and `x is <name>` is already equality, so nothing after the word could tell a
+class from a variable. `ch is numeric` is a fact; every character must be in the class, and empty
+text is in none.
+
+**`code`, `point`** — contextual, recognised only as `the code point of <text>`. ★ They cost no
+reserved word, exactly as `the text at` does not: two names side by side, then `of`, is a shape no
+value takes, so `Define code as 3.` stays legal.
 
 **`region`** — contextual, a name in a conformance list: `Define object workspace with () and
 region.` Pulling one opens an arena scope its `Done.` closes. ★ It costs no reserved word, exactly

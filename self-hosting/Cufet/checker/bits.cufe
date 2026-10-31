@@ -22,9 +22,9 @@ Pull a book on collections.
 
     /// `0x00FF`, `0o755`, `0b1010` — the digits in the literal's own base, as many as its width needs.
     Bind text to bits-words, given (the node said):
-        Define amount as cast numeric on (cast field-of on (said, 1)).
+        Define amount as cast number-of on (cast field-of on (said, 1)).
         Define written-base as cast unquoted on (cast field-of on (said, 2)).
-        Define width as cast numeric on (cast field-of on (said, 3)).
+        Define width as cast number-of on (cast field-of on (said, 3)).
         Define per-digit as 1.
         Define radix as 2.
         If written-base is "x":
@@ -60,7 +60,7 @@ Pull a book on collections.
 
     /// `<number> converted to hex|octal|binary` — a quantity becomes a pattern.
     Bind node or failure to infer-bits-convert unto checker, given (the node said):
-        Define at-row as cast numeric on (cast field-of on (said, 3)).
+        Define at-row as cast number-of on (cast field-of on (said, 3)).
         Define named-base as cast base-name on (cast unquoted on (cast field-of on (said, 2))).
         Define operand as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
         Define fix as "Only a number can be converted to a bit pattern.".
@@ -74,7 +74,7 @@ Pull a book on collections.
 
     /// `<bits> shifted left|right by <number>` — the amount is a count of positions.
     Bind node or failure to infer-bits-shift unto checker, given (the node said):
-        Define at-row as cast numeric on (cast field-of on (said, 4)).
+        Define at-row as cast number-of on (cast field-of on (said, 4)).
         Define target as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
         Define amount as cast one's infer on (cast field-of on (said, 3)) or pass the failure off.
         Define fix as "Only a bits value can be shifted.".
@@ -91,7 +91,7 @@ Pull a book on collections.
 
     /// `<bits> at <n> bits` — a stated width, which may not drop a set bit.
     Bind node or failure to infer-bits-width unto checker, given (the node said):
-        Define at-row as cast numeric on (cast field-of on (said, 3)).
+        Define at-row as cast number-of on (cast field-of on (said, 3)).
         Define held as cast field-of on (said, 1).
         Define stated as cast field-of on (said, 2).
         Define target as cast one's infer on (held) or pass the failure off.
@@ -103,12 +103,12 @@ Pull a book on collections.
             "state a width that is not a number", "Write the count of bits, as in '0b0 at 3 bits'.") or pass the failure off.
         If held's kind is "BitsLiteral" and stated's kind is "NumberLiteral":
             Define written as (cast field-of on (stated, 1))'s word.
-            Define count as cast numeric on (cast field-of on (stated, 1)).
+            Define count as cast number-of on (cast field-of on (stated, 1)).
             If count is less than 0 or count % 1 is not 0:
                 Return a failure (cast refusal-of on ("a stated width must be a whole number of bits, not {written}", "", at-row,
                     "state a fractional or negative width", "Write a whole count, as in '0b0 at 3 bits'.")).
             Done.
-            Define needed as cast bit-length on (cast numeric on (cast field-of on (held, 1))).
+            Define needed as cast bit-length on (cast number-of on (cast field-of on (held, 1))).
             If count is less than needed:
                 Return a failure (cast refusal-of on ("{count} bits cannot hold this value - it needs {needed}", "", at-row,
                     "narrow a value to {count} bits",

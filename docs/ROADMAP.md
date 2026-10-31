@@ -144,13 +144,6 @@ the calling: these wait only for a turn.
 
 ### Language
 
-- **A character cannot be classified.** There is no "is a letter", "is a digit", or code point of a
-  one-character text — only patterns (`regex`) and case conversion, so `c in lowercase is not c in
-  uppercase` stands in for "is a cased letter". Met writing the tutorial, then MEASURED writing the
-  Cufet lexer: a map for ASCII, that case test for other letters, and `\v`, `\f` and the Unicode
-  spaces inserted into a chase by code point, since no escape spells them. *Blocker:* none known —
-  the measurement is in hand, so it can be designed.
-
 - **A type cannot be given a name.** `examples/circuits/` spells
   `(and-gate or or-gate or xor-gate or nand-gate or not-gate or tri-gate)` out 20 times; the corpus
   writes long unions in full in six places. Idiomatic rather than a mistake, but six members is

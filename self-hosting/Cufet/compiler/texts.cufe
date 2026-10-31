@@ -1,12 +1,14 @@
 /*  Text — `the length of`, `the characters from … to … of`, `contains`, `starts with`, `ends with`,
     `the position of … in`, `replace … with … in`, `trimmed`, `split by`, `in uppercase` and `in
-    lowercase`, `the first … characters of` and `the last … characters of`, `the current directory`, and `the environment variable`.
+    lowercase`, `the first … characters of` and `the last … characters of`, `the current directory`, `the environment variable`,
+    `is alphabetic`, `is numeric`, `is whitespace` and `the code point of`.
 
     ★ Each is the runtime's own call, the one `cufet build` makes, so a text is measured and cut in
       CHARACTERS — code points — and never in bytes.
 
     ★ `in uppercase` and `in lowercase` read the case table in the shared runtime, which the
-      interpreter's table generates — so both agree by construction.
+      interpreter's table generates — so both agree by construction. The character classes are a
+      table there too, for the same reason.
 */
 
 Pull a book on collections.
@@ -15,11 +17,13 @@ Pull a book on collections.
         Return kind is "TextSubstringRange" or kind is "TextContains" or kind is "TextAffixTest" or kind is "TextFind"
             or kind is "TextReplace" or kind is "TextTrim" or kind is "TextSplit" or kind is "NumberConvert"
             or kind is "TextCase" or kind is "TextSubstringEdge" or kind is "CurrentDirectoryExpression"
-            or kind is "PathCheckExpression" or kind is "EnvironmentVariableExpression".
+            or kind is "PathCheckExpression" or kind is "EnvironmentVariableExpression"
+            or kind is "CharacterTest" or kind is "CodePointOf".
     Done.
 
     Bind text to text-operation-kind, given (the text kind):
-        If kind is "TextContains" or kind is "TextAffixTest" or kind is "PathCheckExpression", return "fact".
+        If kind is "TextContains" or kind is "TextAffixTest" or kind is "PathCheckExpression" or kind is "CharacterTest", return "fact".
+        If kind is "CodePointOf", return "number".
         If kind is "TextFind" or kind is "NumberConvert", return "voidable number".
         If kind is "CurrentDirectoryExpression" or kind is "EnvironmentVariableExpression", return "voidable text".
         If kind is "TextSplit", return "series of text".
@@ -60,6 +64,17 @@ Pull a book on collections.
         If kind is "TextCase":
             If (cast field-of on (expression, 2))'s word is "true", return "cufet_str_upper({text-c})".
             Return "cufet_str_lower({text-c})".
+        Done.
+        // `is alphabetic`, `is numeric`, `is whitespace` read the shared runtime's classes, as casing does.
+        If kind is "CharacterTest":
+            Define tested as "cufet_str_{(cast field-of on (expression, 2))'s word in lowercase}({text-c})".
+            If (cast field-of on (expression, 3))'s word is "true", return "(!{tested})".
+            Return "({tested})".
+        Done.
+        // `the code point of` — refused when it runs unless the text is one character.
+        If kind is "CodePointOf":
+            Define row as (cast field-of on (expression, 2))'s word.
+            Return "(\{ int cf_cp = cufet_str_code_point({text-c}); if (cf_cp < 0) cufet_raise(cufet_msgf(\"'the code point of' needs exactly one character (line {row}).\")); cufet_dec_from_ll(cf_cp); \})".
         Done.
         // `converted to number` — of a text; void when it is no number.
         If kind is "NumberConvert":

@@ -20,7 +20,7 @@ Pull a book on collections.
     Done.
 
     Bind node or failure to infer-failure-literal unto checker, given (the node said):
-        Define at-row as cast numeric on (cast field-of on (said, 3)).
+        Define at-row as cast number-of on (cast field-of on (said, 3)).
         Define message-type as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
         If cast is-none on (message-type) is false and message-type's kind is not "TextType":
             If cast beyond-types on (message-type), return a failure (cast not-judged on ("a failure message of a {message-type's kind}")).
@@ -60,7 +60,7 @@ Pull a book on collections.
     Bind node or failure to infer-failure-fallback unto checker, given (the node said):
         Define fallible as cast one's infer-handled on (cast field-of on (said, 1)) or pass the failure off.
         Define fallback as cast one's infer on (cast field-of on (said, 2)) or pass the failure off.
-        Define at-row as cast numeric on (cast field-of on (said, 3)).
+        Define at-row as cast number-of on (cast field-of on (said, 3)).
         If fallible's kind is "FailureType":
             Define inner as cast field-of on (fallible, 1).
             If cast is-none on (fallback) is false and cast assignable on (inner, fallback) is false:
@@ -84,7 +84,7 @@ Pull a book on collections.
 
     Bind node or failure to infer-failure-propagate unto checker, given (the node said):
         Define fallible as cast one's infer-handled on (cast field-of on (said, 1)) or pass the failure off.
-        Define at-row as cast numeric on (cast field-of on (said, 2)).
+        Define at-row as cast number-of on (cast field-of on (said, 2)).
         Define kind as fallible's kind.
         If kind is "FailureType" or kind is "FailureMarkerType":
             If cast is-failure-type on (cast one's expected-return) is false:
@@ -131,8 +131,8 @@ Pull a book on collections.
     Bind void or failure to check-try unto checker, given (the node statement):
         Define failure-handler as cast field-of on (statement, 2).
         Define exception-handler as cast field-of on (statement, 3).
-        Define at-row as cast numeric on (cast field-of on (statement, 4)).
-        Define at-column as cast numeric on (cast field-of on (statement, 5)).
+        Define at-row as cast number-of on (cast field-of on (statement, 4)).
+        Define at-column as cast number-of on (cast field-of on (statement, 5)).
         Define has-failure as cast is-nothing on (failure-handler) is false.
         Define has-exception as cast is-nothing on (exception-handler) is false.
         If has-failure is false and has-exception is false:
@@ -183,7 +183,7 @@ Pull a book on collections.
     Bind void or failure to check-suppress unto checker, given (the node statement):
         If one's in-exception-handler, return.
         Return a failure (cast refusal-of on ("'Suppress the exception.' is only valid inside an exception handler", "",
-            cast numeric on (cast field-of on (statement, 1)), "suppress an exception outside an exception handler",
+            cast number-of on (cast field-of on (statement, 1)), "suppress an exception outside an exception handler",
             "Move 'Suppress the exception.' inside an 'In case of exception' block.")).
     Done.
 Done.

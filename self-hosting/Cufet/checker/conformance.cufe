@@ -165,7 +165,7 @@ Pull a book on collections.
     /// `ValidateObjectConformance`: the claims an object makes, and the methods they require.
     Bind void or failure to check-conformance unto checker, given (the node definition):
         Define name as cast def-name on (definition).
-        Define at-row as cast numeric on (cast field-of on (definition, 9)).
+        Define at-row as cast number-of on (cast field-of on (definition, 9)).
         If cast conforms-as on (definition, "book") and cast conforms-as on (definition, "module"):
             Return a failure (cast refusal-of on ("'{name}' says both 'book' and 'module', and a book is already a module",
                 "'book' is the narrower kind: a module may own a lifetime and a book may not, so saying both adds nothing and claims two answers to one question",

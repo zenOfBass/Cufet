@@ -2801,6 +2801,7 @@ public sealed class Parser
             Advance(); SkipNoise(); // consume the article
             return new IsTypeCheck(left, ParseTypeAnnotation(), true, isLine, isCol);
         }
+        if (TryCharacterTest(left, isLine, isCol) is { } classTest) return classTest;
         SkipNoise();
         return ParseWordComparison(left, isLine, isCol);
     }
@@ -3094,11 +3095,28 @@ public sealed class Parser
                 Advance(); Advance(); SkipNoise(); // consume 'not', then the article
                 return new IsTypeCheck(left, ParseTypeAnnotation(), true, isLine, isCol);
             }
+            if (TryCharacterTest(left, isLine, isCol) is { } classTest) return classTest;
             SkipNoise();
             return ParseWordComparison(left, isLine, isCol);
         }
 
         return left;
+    }
+
+    /// <summary>`is alphabetic` / `is numeric` / `is whitespace`, or `is not` before one; null otherwise.</summary>
+    /// <remarks>Called with `is` consumed. The three words are reserved, so seeing one settles it.</remarks>
+    private CharacterTest? TryCharacterTest(IExpression left, int isLine, int isCol)
+    {
+        static bool IsClass(TokenType type) =>
+            type is TokenType.Alphabetic or TokenType.Numeric or TokenType.Whitespace;
+        if (IsClass(Peek().Type))
+            return new CharacterTest(left, Advance().Type, false, isLine, isCol);
+        if (Peek().Type == TokenType.Not && _pos + 1 < _tokens.Count && IsClass(_tokens[_pos + 1].Type))
+        {
+            Advance(); // consume 'not'
+            return new CharacterTest(left, Advance().Type, true, isLine, isCol);
+        }
+        return null;
     }
 
     /// <summary>True when the article after `is` is the one that introduces a TYPE test.</summary>
@@ -3527,6 +3545,16 @@ public sealed class Parser
             case TokenType.Identifier:
             {
                 var idTok = Advance();
+                // 'the code point of <text>' — matched by lexeme on `code` and `point`, so neither
+                // is reserved; `of` right after makes the three a shape no value can take.
+                if (idTok.Lexeme.Equals("code", StringComparison.OrdinalIgnoreCase)
+                    && IsWord("point") && PeekAfterCurrent() == TokenType.Of)
+                {
+                    Advance(); SkipNoise();          // 'point'
+                    Consume(TokenType.Of); SkipNoise();
+                    baseExpr = new CodePointOf(ParseCorePrimary(), idTok.Line, idTok.Column);
+                    break;
+                }
                 if (IsOrdinalLexeme(idTok.Lexeme))
                 {
                     SkipNoise();

@@ -58,7 +58,7 @@ Pull a book on collections.
             If first is not void:
                 Return a failure (cast refusal-of on ("there is already cufet source called '{name}', on line {(cast field-of on (first, 3))'s word}",
                     "A name holds one block, because a 'Cite' of it has to say which one without looking anywhere else",
-                    cast numeric on (cast field-of on (tree, 3)), "declare a second block called '{name}'",
+                    cast number-of on (cast field-of on (tree, 3)), "declare a second block called '{name}'",
                     "Give this one another name, or fold the two together.")).
             Done.
             In blocks, the entry for name becomes tree.
@@ -120,13 +120,13 @@ Pull a book on collections.
             "ForEachStatement", the place becomes 4.
             Otherwise, return a failure (cast not-judged on ("a cufet block holding a {statement's kind}")).
         Done.
-        Return cast numeric on (cast field-of on (statement, place)).
+        Return cast number-of on (cast field-of on (statement, place)).
     Done.
 
     /// `RequireDeclarationsOnly`: source takes no parameters, and holds only declarations.
     Bind void or failure to require-declarations-only, given (the node block):
         Define name as cast unquoted on (cast field-of on (block, 1)).
-        Define block-row as cast numeric on (cast field-of on (block, 3)).
+        Define block-row as cast number-of on (cast field-of on (block, 3)).
         If cast bind-mark on (block, ":HasParameterClause") is "true":
             Return a failure (cast refusal-of on (
                 "'{name}' says nothing about what it gives back, so it is source rather than something to run — and source takes no parameters",
@@ -179,7 +179,7 @@ Pull a book on collections.
             Return a failure (cast refusal-of on (
                 "cufet source cannot reach for '{read}' — it declares no such name, and one it does not declare would mean whatever the site that cites it happens to have",
                 "A block may use what belongs to the program — a function, a type, a 'permanently' constant, a pulled book — because those mean the same thing wherever it is placed",
-                cast numeric on (cast field-of on (tree, 2)), "read '{read}' inside '{block-name}'",
+                cast number-of on (cast field-of on (tree, 2)), "read '{read}' inside '{block-name}'",
                 "Declare '{read}' inside the block, or make it a 'permanently' constant outside it.")).
         Done.
         If kind is "LambdaLiteral":
@@ -221,7 +221,7 @@ Pull a book on collections.
     Bind node or failure to held-by-cite, given (the node citation, the map from text to node blocks, the map from text to fact runnable,
             the map from text to fact places-function, the map from text to fact function-scope):
         Define name as cast unquoted on (cast field-of on (citation, 1)).
-        Define at-row as cast numeric on (cast field-of on (citation, 2)).
+        Define at-row as cast number-of on (cast field-of on (citation, 2)).
         Define block as the entry for name in blocks.
         If block is not void:
             If (the entry for name in places-function) is not void and (the entry for cast cite-key on (citation) in function-scope) is void:

@@ -1751,6 +1751,8 @@ public sealed partial class Interpreter
         TextSubstringEdge  tse => EvaluateTextSubstringEdge(tse),
         TextReplace      replace => EvaluateTextReplace(replace),
         TextCase         tcase   => EvaluateTextCase(tcase),
+        CharacterTest    cht     => EvaluateCharacterTest(cht),
+        CodePointOf      cpo     => EvaluateCodePointOf(cpo),
         TextTrim         trim    => EvaluateTextTrim(trim),
         SortExpression   sort    => EvaluateSort(sort),
         RangeExpression re  => EvaluateRangeExpr(re),
@@ -2145,6 +2147,27 @@ public sealed partial class Interpreter
         // CaseTable, not ToUpperInvariant: the compiled backend emits this same table, and reading
         // one table is what keeps the two from disagreeing about `"héllo" in uppercase`.
         return (object)(tcase.Uppercase ? CaseTable.ToUpper(text) : CaseTable.ToLower(text));
+    }
+
+    // CharacterClasses, not char.IsLetter and friends: the compiled backend emits this same table.
+    private object EvaluateCharacterTest(CharacterTest test)
+    {
+        var text = (string)Evaluate(test.Text);
+        bool held = test.Class switch
+        {
+            TokenType.Alphabetic => CharacterClasses.IsAlphabetic(text),
+            TokenType.Numeric    => CharacterClasses.IsNumeric(text),
+            _                    => CharacterClasses.IsWhitespace(text),
+        };
+        return (object)(held != test.Negated);
+    }
+
+    private object EvaluateCodePointOf(CodePointOf codePoint)
+    {
+        var text = (string)Evaluate(codePoint.Text);
+        return CharacterClasses.CodePoint(text) is { } point
+            ? (object)(decimal)point
+            : throw new RuntimeException($"'the code point of' needs exactly one character (line {codePoint.Line}).");
     }
 
     private object EvaluateTextTrim(TextTrim trim)

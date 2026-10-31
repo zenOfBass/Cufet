@@ -69,7 +69,7 @@ Pull a book on collections.
         If cast contains-bury on (cast field-of on (statement, 4)) is false, return.
         Define name as cast unquoted on (cast field-of on (statement, 1)).
         Return a failure (cast refusal-of on ("'{name}' buries values, so it has to say what kind", "",
-            cast numeric on (cast field-of on (statement, 7)), "declare '{name}' as void when it buries",
+            cast number-of on (cast field-of on (statement, 7)), "declare '{name}' as void when it buries",
             "A burying {what}'s declared type is the type of what it buries: 'Bind number to {name}' hands back a stash of number.")).
     Done.
 
@@ -85,7 +85,7 @@ Pull a book on collections.
 
     /// `Have <agent> bury <value>.`
     Bind void or failure to check-bury unto checker, given (the node statement):
-        Define at-row as cast numeric on (cast field-of on (statement, 2)).
+        Define at-row as cast number-of on (cast field-of on (statement, 2)).
         Cast one's infer on (cast field-of on (statement, 1)) or pass the failure off.
         Define receiver as cast field-of on (statement, 4).
         If cast is-nothing on (receiver):
@@ -108,7 +108,7 @@ Pull a book on collections.
 
     /// `unbury <stash>` — the next value, or void once the stash is spent.
     Bind node or failure to infer-unbury unto checker, given (the node said):
-        Define at-row as cast numeric on (cast field-of on (said, 2)).
+        Define at-row as cast number-of on (cast field-of on (said, 2)).
         Define inner as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
         If inner's kind is "StashType", return cast wrapped on ("VoidableType", cast field-of on (inner, 1)).
         Define said-first as "'unbury' needs a stash, but this is {cast type-words on (inner)}".
@@ -122,7 +122,7 @@ Pull a book on collections.
         Define suspension as cast find-bury on (body).
         If cast is-none on (suspension), return.
         Return a failure (cast refusal-of on ("a function with no name cannot hand a value out and pause", "",
-            cast numeric on (cast field-of on (suspension, 2)), "use 'bury' inside a lambda",
+            cast number-of on (cast field-of on (suspension, 2)), "use 'bury' inside a lambda",
             "Give the body a name. A 'Bind' whose body contains a 'bury' hands back a stash, and a stash is an ordinary value — pass it wherever the lambda was going.")).
     Done.
 
@@ -251,7 +251,7 @@ Pull a book on collections.
 
     /// One burying body: no `Return`, then every statement that has to be split, splittable.
     Bind void or failure to check-stash-machine unto checker, given (the node burying, the text key):
-        Define at-row as cast numeric on (cast field-of on (burying, 7)).
+        Define at-row as cast number-of on (cast field-of on (burying, 7)).
         If cast contains-return on (cast field-of on (burying, 4)):
             Return a failure (cast refusal-of on ("'{key}' buries, so it can't also return a value", "",
                 at-row, "return from a burying function",
@@ -280,7 +280,7 @@ Pull a book on collections.
             "ObjectDefinition", the place becomes 9.
             Otherwise, return at-row.
         Done.
-        Return cast numeric on (cast field-of on (statement, place)).
+        Return cast number-of on (cast field-of on (statement, place)).
     Done.
 
     Bind void or failure to emit-stash-control unto checker, given (the node statement, the fact in-loop, the text key,

@@ -13,7 +13,7 @@ Pull a book on collections.
 
     /// `range <n> to <n> [counting by <n>]`.
     Bind node or failure to infer-range unto checker, given (the node said):
-        Define at-row as cast numeric on (cast field-of on (said, 4)).
+        Define at-row as cast number-of on (cast field-of on (said, 4)).
         Define lower as cast field-of on (said, 1).
         Define upper as cast field-of on (said, 2).
         Define lower-type as cast one's infer on (lower) or pass the failure off.
@@ -83,7 +83,7 @@ Pull a book on collections.
     Done.
 
     Bind node or failure to infer-random-number unto checker, given (the node said):
-        Define at-row as cast numeric on (cast field-of on (said, 3)).
+        Define at-row as cast number-of on (cast field-of on (said, 3)).
         Cast one's require-chance on (at-row, "a random number from ... to ...") or pass the failure off.
         Define low-type as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
         Cast require-kind on (low-type, "NumberType",
@@ -100,7 +100,7 @@ Pull a book on collections.
 
     /// `a random item from <series>` — void when the series is empty.
     Bind node or failure to infer-random-item unto checker, given (the node said):
-        Define at-row as cast numeric on (cast field-of on (said, 2)).
+        Define at-row as cast number-of on (cast field-of on (said, 2)).
         Cast one's require-chance on (at-row, "a random item from ...") or pass the failure off.
         Define source as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
         If cast is-none on (source), return cast wrapped on ("VoidableType", cast plain-type on ("NumberType")).
@@ -111,7 +111,7 @@ Pull a book on collections.
     Done.
 
     Bind node or failure to infer-random-shuffled unto checker, given (the node said):
-        Define at-row as cast numeric on (cast field-of on (said, 2)).
+        Define at-row as cast number-of on (cast field-of on (said, 2)).
         Cast one's require-chance on (at-row, "randomly shuffled ...") or pass the failure off.
         Define source as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
         If cast is-none on (source), return cast wrapped on ("SeriesType", cast plain-type on ("NumberType")).
@@ -122,13 +122,13 @@ Pull a book on collections.
     Done.
 
     Bind node or failure to infer-random-guess unto checker, given (the node said):
-        Cast one's require-chance on (cast numeric on (cast field-of on (said, 1)), "a random guess") or pass the failure off.
+        Cast one's require-chance on (cast number-of on (cast field-of on (said, 1)), "a random guess") or pass the failure off.
         Return cast plain-type on ("FactType").
     Done.
 
     /// `Seed the chance with <number>.`
     Bind void or failure to check-seed unto checker, given (the node statement):
-        Define at-row as cast numeric on (cast field-of on (statement, 2)).
+        Define at-row as cast number-of on (cast field-of on (statement, 2)).
         Cast one's require-chance on (at-row, "Seed the chance with ...") or pass the failure off.
         Define seed-type as cast one's infer on (cast field-of on (statement, 1)) or pass the failure off.
         Cast require-kind on (seed-type, "NumberType", "the seed must be a number, but found a {cast type-words on (seed-type)}", at-row,
@@ -160,7 +160,7 @@ Pull a book on collections.
     Bind node or failure to infer-sort unto checker, given (the node said):
         Define sorted-said as cast field-of on (said, 1).
         Define by-name as cast field-of on (said, 2).
-        Define at-row as cast numeric on (cast field-of on (said, 4)).
+        Define at-row as cast number-of on (cast field-of on (said, 4)).
         Define by-lambda as cast field-of on (said, 6).
         // Rewritten on every pass, never merely set — C#'s SortExpression.KeyFunction.
         Cast note on (said, ":KeyFunction", cast nothing).

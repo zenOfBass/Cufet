@@ -34,6 +34,17 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   refused: a chase prints as its letters but converts to its text, so the two would disagree. Both
   checkers and both compilers; the interpreter already converted by printing.
 
+- **A character can be classified.** `ch is alphabetic`, `ch is numeric` and `ch is whitespace`,
+  each also with `is not`, are facts: every character must be in the class, and empty text is in
+  none. Alphabetic is any letter, uncased scripts included; numeric is decimal digits only; and
+  whitespace is the 25 characters the lexer skips. `the code point of "A"` is 65, and a text that is
+  not exactly one character stops the program when it runs. Before, `c in lowercase is not c in
+  uppercase` stood in for "is a letter", and the Cufet lexer kept a table of its own. Both backends
+  read one generated table (`CharacterClassData`, from `tools/gen-character-classes.cs`), as they
+  do for casing. `alphabetic`, `numeric` and `whitespace` are now reserved words; `code` and
+  `point` are not. `examples/parsing/precedence.cufe` renamed its `numeric` pattern to
+  `all-digits`.
+
 ### Changed
 
 - **Narrowing is decided once, by the checker.** Inside `If x is not void:`, after a guard, in the

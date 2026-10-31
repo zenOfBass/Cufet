@@ -164,11 +164,7 @@ Pull a book on collections.
 
     /// char.IsLetter, as the scanner answers it.
     Bind fact to is-letter-char unto parser, given (the text ch):
-        Define kinds as cast character-kinds.
-        Define kind as (the entry for ch in kinds) but void is 0.
-        If kind is 1, return true.
-        If kind is not 0, return false.
-        Return (ch in lowercase) is not (ch in uppercase).
+        Return ch is alphabetic and the code point of ch is less than 65536.
     Done.
 
     /// ReservedWordAsName.

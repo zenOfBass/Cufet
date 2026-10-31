@@ -341,6 +341,31 @@ public sealed partial class TypeChecker
         return CufetType.Text;
     }
 
+    private CufetType InferCharacterTest(CharacterTest test)
+    {
+        var word = test.Class.ToString().ToLowerInvariant();
+        var textType = InferType(test.Text);
+        if (textType != null && textType != CufetType.Text)
+            throw TypeError(
+                $"'is {word}' works on text only",
+                null, test.Line, test.Column,
+                $"ask whether a {FormatType(textType)} is {word}",
+                "Only text is made of characters. Convert the value to text first if needed.");
+        return CufetType.Fact;
+    }
+
+    private CufetType InferCodePointOf(CodePointOf codePoint)
+    {
+        var textType = InferType(codePoint.Text);
+        if (textType != null && textType != CufetType.Text)
+            throw TypeError(
+                "'the code point of' works on text only",
+                null, codePoint.Line, codePoint.Column,
+                $"take the code point of a {FormatType(textType)}",
+                "Only a character has a code point. Convert the value to text first if needed.");
+        return CufetType.Number;
+    }
+
     private CufetType InferTextTrim(TextTrim trim)
     {
         var textType = InferType(trim.Text);

@@ -158,6 +158,11 @@ public enum TokenType
     Uppercase,  // "uppercase"  — in "<text> in uppercase"
     Lowercase,  // "lowercase"  — in "<text> in lowercase"
     Trimmed,    // "trimmed"    — in "<text> trimmed"
+    Alphabetic, // "alphabetic" — in "<text> is alphabetic". Reserved because the word comes LAST:
+                //                 `x is <name>` is already equality, so nothing after it could
+                //                 tell a class from a variable.
+    Numeric,    // "numeric"    — in "<text> is numeric" (decimal digits only)
+    Whitespace, // "whitespace" — in "<text> is whitespace"
     Shifted,    // "shifted"    — in "<bits> shifted left by <n>" / "shifted right by <n>".
                 //                 A past-participle transform, like Sorted and Trimmed, so it
                 //                 TRAILS its operand. 'left' and 'right' are deliberately NOT

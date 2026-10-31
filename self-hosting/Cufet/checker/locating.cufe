@@ -262,13 +262,13 @@ Pull a book on collections.
         If written-out is false:
             Return a failure (cast refusal-of on ("the blueprint's 'tree' has to be written out, not worked out",
                 "The tools read the tree without running anything, so its body can only give back the drawing itself",
-                cast numeric on (cast field-of on (tree-bind, 7)), "work out the tree",
+                cast number-of on (cast field-of on (tree-bind, 7)), "work out the tree",
                 "Write it as 'Bind text to tree:', then 'Return <<', a line for each folder, and '>>.'.")).
         Done.
         Define returned as item 1 of body.
         // Where the drawing starts: the `<<` after the `Return`, counted in the blueprint's own lines.
         Define lines as (replace "\r\n" with "\n" in file-text) split by "\n".
-        Define return-line as cast numeric on (cast field-of on (returned, 2)) - offset.
+        Define return-line as cast number-of on (cast field-of on (returned, 2)) - offset.
         Define open-line as return-line.
         Define index as return-line.
         Define looking as true.
@@ -544,7 +544,7 @@ Pull a book on collections.
                 Define inner as cast one's loaded-tree on (one-file, file-text, offset) or pass the failure off.
                 For each named in cast top-level-names on (inner), repeat:
                     Define name as cast unquoted on (cast field-of on (named, 1)).
-                    Define at-line as cast numeric on (cast field-of on (named, 2)).
+                    Define at-line as cast number-of on (cast field-of on (named, 2)).
                     Define key as name in lowercase.
                     Define already as the entry for key in claimed.
                     If already is void:
@@ -731,7 +731,7 @@ Pull a book on collections.
                     Done.
                     Return a failure (cast refusal-of on ("two directories of this project are both named '{name}'",
                         "They are {listing}, and a directory is reached by its name — so this qualification would have two meanings",
-                        cast numeric on (cast field-of on (site, 2)), "qualify with '{name}'",
+                        cast number-of on (cast field-of on (site, 2)), "qualify with '{name}'",
                         "Rename one of them. A qualifier reaches one directory, and which one has to be decidable from the name alone.")).
                 Done.
                 If the number of in-here is greater than 0:
@@ -795,7 +795,7 @@ Pull a book on collections.
                             If claimer is not void, the above becomes cast same-path on (cast parent-of on (claimer), up-folder).
                         Done.
                         If above:
-                            Return a failure (cast name-above on (name, renamed-folder, up-folder, cast numeric on (cast field-of on (named, 2)))).
+                            Return a failure (cast name-above on (name, renamed-folder, up-folder, cast number-of on (cast field-of on (named, 2)))).
                         Done.
                     Done.
                 Done.
@@ -992,7 +992,7 @@ Pull a book on collections.
                 If (name in lowercase) is not (group-name in lowercase) and (the entry for (name in lowercase) in qualifiers) is not void:
                     Return a failure (cast refusal-of on ("'{name}' is a directory of this project, so it cannot also be a name",
                         "A directory is a namespace named after itself, and '{name}' is how anything outside it writes '{name}'s ‹something›' — so the two readings would be indistinguishable",
-                        cast numeric on (cast field-of on (statement, line-place)), "declare '{name}'",
+                        cast number-of on (cast field-of on (statement, line-place)), "declare '{name}'",
                         "Rename this one. The directory's name belongs to the directory.")).
                 Done.
             Done.
@@ -1017,7 +1017,7 @@ Pull a book on collections.
                         The what becomes "What its files declare is {cast comma-joined on (cast sorted-texts on (offered))}".
                     Done.
                     Return a failure (cast refusal-of on ("the directory '{target}' declares nothing called '{member}'", what,
-                        cast numeric on (cast field-of on (tree, 3)), "reach '{target}'s {member}'",
+                        cast number-of on (cast field-of on (tree, 3)), "reach '{target}'s {member}'",
                         "Check the spelling, or declare it in one of that directory's files — everything a directory's files declare at their top level is what the directory offers.")).
                 Done.
             Done.
@@ -1292,7 +1292,7 @@ Pull a book on collections.
             the series of text chain):
         For each statement in cast every-statement-in on (statements), repeat:
             If statement's kind is "PullStatement":
-                Define pull-row as cast numeric on (cast field-of on (statement, 3)).
+                Define pull-row as cast number-of on (cast field-of on (statement, 3)).
                 For each pulled in (cast field-of on (statement, 1))'s children, repeat:
                     Define book as cast unquoted on (cast field-of on (pulled, 1)).
                     Define key as book in lowercase.

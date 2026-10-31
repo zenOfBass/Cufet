@@ -89,7 +89,7 @@ Pull a book on collections.
                 Define op as (cast field-of on (statement, 1))'s word.
                 Define left-name as cast unquoted on (cast field-of on (statement, 4)).
                 Define right-name as cast unquoted on (cast field-of on (statement, 5)).
-                Define at-row as cast numeric on (cast field-of on (statement, 7)).
+                Define at-row as cast number-of on (cast field-of on (statement, 7)).
                 Define symbol as cast op-symbol on (op).
                 Define left as cast one's overload-operand on (left-name, at-row) or pass the failure off.
                 Define right as cast one's overload-operand on (right-name, at-row) or pass the failure off.
@@ -118,7 +118,7 @@ Pull a book on collections.
         Define left-name as cast unquoted on (cast field-of on (statement, 4)).
         Define right-name as cast unquoted on (cast field-of on (statement, 5)).
         Define body as cast field-of on (statement, 6).
-        Define at-row as cast numeric on (cast field-of on (statement, 7)).
+        Define at-row as cast number-of on (cast field-of on (statement, 7)).
         Define fallible as cast has-direct-failure-return on (body).
 
         Define saved as one's scopes.

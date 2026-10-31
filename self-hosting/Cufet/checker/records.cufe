@@ -10,7 +10,7 @@
 Pull a book on collections.
     /// `a record with (…)` — its shape, read off the values.
     Bind node or failure to infer-record-literal unto checker, given (the node said):
-        Define at-row as cast numeric on (cast field-of on (said, 3)).
+        Define at-row as cast number-of on (cast field-of on (said, 3)).
         Define positional as cast listed.
         For each value in (cast field-of on (said, 1))'s children, repeat:
             Define value-type as cast one's infer on (value) or pass the failure off.
@@ -89,7 +89,7 @@ Pull a book on collections.
     /// `the <field> of <record> becomes …`.
     Bind void or failure to check-record-set unto checker, given (the node shape, the node statement):
         Define name as cast unquoted on (cast field-of on (statement, 1)).
-        Define at-row as cast numeric on (cast field-of on (statement, 4)).
+        Define at-row as cast number-of on (cast field-of on (statement, 4)).
         Define wanted as cast record-field-type on (shape, name).
         If wanted is void:
             Define names as cast record-field-names on (shape).
@@ -128,7 +128,7 @@ Pull a book on collections.
         Done.
         If index-said's kind is not "NumberLiteral", return cast unknown-type.
         Define positionals as (cast field-of on (shape, 1))'s children.
-        Define spot as cast numeric on (cast field-of on (index-said, 1)).
+        Define spot as cast number-of on (cast field-of on (index-said, 1)).
         // C# truncates toward zero, as a cast to int does.
         Define whole as spot - (spot % 1).
         If whole is less than 1 or whole is greater than the number of positionals:
@@ -149,7 +149,7 @@ Pull a book on collections.
     Bind void or failure to check-record-item-set unto checker, given (the node shape, the node statement):
         Define target as cast field-of on (statement, 1).
         Define index-said as cast field-of on (statement, 2).
-        Define at-row as cast numeric on (cast field-of on (statement, 4)).
+        Define at-row as cast number-of on (cast field-of on (statement, 4)).
         If cast is-nothing on (index-said):
             Return a failure (cast refusal-of on ("'last' doesn't work on records", "", at-row,
                 "use 'last' on a record", "Use a position like 'the first of ...' or a field name like 'the city of ...'.")).
@@ -157,7 +157,7 @@ Pull a book on collections.
         If index-said's kind is not "NumberLiteral", return.
         Define spoken as cast expression-words on (target).
         Define positionals as (cast field-of on (shape, 1))'s children.
-        Define spot as cast numeric on (cast field-of on (index-said, 1)).
+        Define spot as cast number-of on (cast field-of on (index-said, 1)).
         Define whole as spot - (spot % 1).
         If whole is less than 1 or whole is greater than the number of positionals:
             Define said as "{spoken} has {the number of positionals} positional field(s) — there is no position {whole}".

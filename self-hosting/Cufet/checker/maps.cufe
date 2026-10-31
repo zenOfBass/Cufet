@@ -92,7 +92,7 @@ Pull a book on collections.
         Define key-written as cast field-of on (said, 1).
         Define value-written as cast field-of on (said, 2).
         Define pairs as (cast field-of on (said, 3))'s children.
-        Define at-row as cast numeric on (cast field-of on (said, 4)).
+        Define at-row as cast number-of on (cast field-of on (said, 4)).
         If the number of pairs is 0:
             Cast require-map-key on (key-written, at-row) or pass the failure off.
             Define empty-map as cast map-type-of on (key-written, value-written).
@@ -172,7 +172,7 @@ Pull a book on collections.
     Done.
 
     Bind node or failure to infer-map-lookup unto checker, given (the node said):
-        Define at-row as cast numeric on (cast field-of on (said, 3)).
+        Define at-row as cast number-of on (cast field-of on (said, 3)).
         Define map-shape as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
         If cast is-none on (map-shape), return map-shape.
         If map-shape's kind is not "MapType":
@@ -189,7 +189,7 @@ Pull a book on collections.
 
     /// `has a key for` and `has an entry for` — a fact, whatever it is asked of.
     Bind node or failure to infer-map-has unto checker, given (the node said):
-        Define at-row as cast numeric on (cast field-of on (said, 3)).
+        Define at-row as cast number-of on (cast field-of on (said, 3)).
         Define map-shape as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
         If map-shape's kind is "MapType":
             Cast one's check-map-key on (map-shape, cast field-of on (said, 2), at-row, "check for") or pass the failure off.
@@ -199,7 +199,7 @@ Pull a book on collections.
 
     Bind void or failure to check-map-set unto checker, given (the node statement):
         Define target as cast field-of on (statement, 1).
-        Define at-row as cast numeric on (cast field-of on (statement, 4)).
+        Define at-row as cast number-of on (cast field-of on (statement, 4)).
         Define map-shape as cast one's infer on (target) or pass the failure off.
         If cast is-none on (map-shape), return.
         If map-shape's kind is not "MapType":
@@ -232,7 +232,7 @@ Pull a book on collections.
     /// `Exit.` and `Exit with <status>.` — a whole number from 0 to 255 when it is written out.
     Bind void or failure to check-exit unto checker, given (the node statement):
         Define status as cast field-of on (statement, 1).
-        Define at-row as cast numeric on (cast field-of on (statement, 2)).
+        Define at-row as cast number-of on (cast field-of on (statement, 2)).
         If cast is-nothing on (status), return.
         Define status-type as cast one's infer on (status) or pass the failure off.
         If status-type's kind is not "NumberType":
@@ -243,7 +243,7 @@ Pull a book on collections.
         Done.
         If status's kind is not "NumberLiteral", return.
         Define written as (cast field-of on (status, 1))'s word.
-        Define amount as cast numeric on (cast field-of on (status, 1)).
+        Define amount as cast number-of on (cast field-of on (status, 1)).
         If amount % 1 is not 0:
             Return a failure (cast refusal-of on ("{written} is not an exit status — a status is a whole number", "",
                 at-row, "exit with a status that is not whole", "Statuses run from 0 to 255 with nothing in between.")).

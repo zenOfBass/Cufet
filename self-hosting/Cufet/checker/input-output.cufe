@@ -40,7 +40,7 @@ Pull a book on collections.
 
     /// `read all [lines] from the file <path>`.
     Bind node or failure to infer-file-read unto checker, given (the node said):
-        Define at-row as cast numeric on (cast field-of on (said, 3)).
+        Define at-row as cast number-of on (cast field-of on (said, 3)).
         Define path-type as cast one's infer on (cast field-of on (said, 2)) or pass the failure off.
         Cast require-kind on (path-type, "TextType", "a file path must be text", at-row,
             "use a {cast type-words on (path-type)} as a file path",
@@ -54,7 +54,7 @@ Pull a book on collections.
 
     /// `the contents of the directory <path>`.
     Bind node or failure to infer-directory-contents unto checker, given (the node said):
-        Define at-row as cast numeric on (cast field-of on (said, 2)).
+        Define at-row as cast number-of on (cast field-of on (said, 2)).
         Define path-type as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
         Cast require-kind on (path-type, "TextType", "a directory path must be text", at-row,
             "use a {cast type-words on (path-type)} as a directory path",
@@ -67,7 +67,7 @@ Pull a book on collections.
 
     /// `the path <path> exists | is a directory | is a file` — never fails.
     Bind node or failure to infer-path-check unto checker, given (the node said):
-        Define at-row as cast numeric on (cast field-of on (said, 3)).
+        Define at-row as cast number-of on (cast field-of on (said, 3)).
         Define path-type as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
         Cast require-kind on (path-type, "TextType", "a path must be text", at-row,
             "use a {cast type-words on (path-type)} as a path", "Write the path as a text literal, or use a text variable.") or pass the failure off.
@@ -76,7 +76,7 @@ Pull a book on collections.
 
     /// `Make the directory …`, `Remove the file …`, `Remove the directory …`.
     Bind void or failure to check-path-action unto checker, given (the node statement):
-        Define at-row as cast numeric on (cast field-of on (statement, 3)).
+        Define at-row as cast number-of on (cast field-of on (statement, 3)).
         Define path-type as cast one's infer on (cast field-of on (statement, 2)) or pass the failure off.
         Cast require-kind on (path-type, "TextType", "a path must be text", at-row,
             "use a {cast type-words on (path-type)} as a path",
@@ -85,7 +85,7 @@ Pull a book on collections.
 
     /// `The current directory becomes <path>.`
     Bind void or failure to check-directory-set unto checker, given (the node statement):
-        Define at-row as cast numeric on (cast field-of on (statement, 2)).
+        Define at-row as cast number-of on (cast field-of on (statement, 2)).
         Define path-type as cast one's infer on (cast field-of on (statement, 1)) or pass the failure off.
         Cast require-kind on (path-type, "TextType", "a directory path must be text", at-row,
             "use a {cast type-words on (path-type)} as a directory path",
@@ -94,7 +94,7 @@ Pull a book on collections.
 
     /// `Write|Append <text> to the file <path>.`
     Bind void or failure to check-file-write unto checker, given (the node statement):
-        Define at-row as cast numeric on (cast field-of on (statement, 4)).
+        Define at-row as cast number-of on (cast field-of on (statement, 4)).
         Define value-type as cast one's infer on (cast field-of on (statement, 2)) or pass the failure off.
         Cast require-kind on (value-type, "TextType", "you can only write text to a file", at-row,
             "write a {cast type-words on (value-type)} to a file",
@@ -111,8 +111,8 @@ Pull a book on collections.
     /// ⚠ Its statements are checked one by one, not as a block — so a guard inside narrows nothing
     /// for the statements after it. That is C#'s `CheckWithOpen`, copied as it is.
     Bind void or failure to check-with-open unto checker, given (the node statement):
-        Define at-row as cast numeric on (cast field-of on (statement, 5)).
-        Define at-column as cast numeric on (cast field-of on (statement, 6)).
+        Define at-row as cast number-of on (cast field-of on (statement, 5)).
+        Define at-column as cast number-of on (cast field-of on (statement, 6)).
         Define path-type as cast one's infer on (cast field-of on (statement, 2)) or pass the failure off.
         Cast require-kind on (path-type, "TextType", "a file path must be text", at-row,
             "use a {cast type-words on (path-type)} as a file path",
@@ -137,7 +137,7 @@ Pull a book on collections.
 
     /// `Write <text> to <stream>.`
     Bind void or failure to check-stream-write unto checker, given (the node statement):
-        Define at-row as cast numeric on (cast field-of on (statement, 3)).
+        Define at-row as cast number-of on (cast field-of on (statement, 3)).
         Define value-type as cast one's infer on (cast field-of on (statement, 1)) or pass the failure off.
         Cast require-kind on (value-type, "TextType", "you can only write text to a stream", at-row,
             "write a {cast type-words on (value-type)} to a stream",
@@ -162,7 +162,7 @@ Pull a book on collections.
     Bind node or failure to infer-read unto checker, given (the node said):
         Define form as (cast field-of on (said, 1))'s word.
         Define source as cast field-of on (said, 2).
-        Define at-row as cast numeric on (cast field-of on (said, 3)).
+        Define at-row as cast number-of on (cast field-of on (said, 3)).
         Define source-type as cast one's infer on (source) or pass the failure off.
         // Reading from TEXT is nearly always a file name missing its two words.
         If source-type's kind is "TextType" and (form is "All" or form is "AllLines"):
@@ -216,7 +216,7 @@ Pull a book on collections.
 
     /// `run <program> [with arguments …] [with the terminal] [with input <text>]`.
     Bind node or failure to infer-run unto checker, given (the node said):
-        Define at-row as cast numeric on (cast field-of on (said, 4)).
+        Define at-row as cast number-of on (cast field-of on (said, 4)).
         Define program-type as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
         Cast require-kind on (program-type, "TextType", "the program to run must be text", at-row,
             "use a {cast type-words on (program-type)} as the program name",
@@ -241,7 +241,7 @@ Pull a book on collections.
 
     /// `Run <program> [with arguments …].` — for its effect; the launch can still fail.
     Bind void or failure to check-run-statement unto checker, given (the node statement):
-        Define at-row as cast numeric on (cast field-of on (statement, 4)).
+        Define at-row as cast number-of on (cast field-of on (statement, 4)).
         Define program-type as cast one's infer on (cast field-of on (statement, 1)) or pass the failure off.
         Cast require-kind on (program-type, "TextType", "the program to run must be text", at-row,
             "use a {cast type-words on (program-type)} as the program name",
@@ -323,7 +323,7 @@ Pull a book on collections.
 
     /// `run A | run B` as a value — what one `run` gives back, in the same context.
     Bind node or failure to infer-pipe unto checker, given (the node said):
-        Define at-row as cast numeric on (cast field-of on (said, 3)).
+        Define at-row as cast number-of on (cast field-of on (said, 3)).
         Define stages as cast pipe-stages on (said).
         Cast refuse-terminal-in-pipe on (stages) or pass the failure off.
         If cast is-program-pipe on (said) is false:
@@ -341,7 +341,7 @@ Pull a book on collections.
 
     /// `the environment variable <name>` — void when it is not set.
     Bind node or failure to infer-env-var unto checker, given (the node said):
-        Define at-row as cast numeric on (cast field-of on (said, 2)).
+        Define at-row as cast number-of on (cast field-of on (said, 2)).
         Define name-type as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
         Cast require-kind on (name-type, "TextType", "the environment variable name must be text", at-row,
             "use a {cast type-words on (name-type)} as an environment variable name",

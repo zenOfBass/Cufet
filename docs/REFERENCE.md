@@ -1333,6 +1333,34 @@ Standard whitespace (spaces, tabs, newlines). Leading-only / trailing-only
 trim are deferred. All three operations chain naturally with each other and
 with the rest of the text toolkit: `raw trimmed in uppercase`.
 
+**Character classes** — `<text> is alphabetic`, `<text> is numeric`,
+`<text> is whitespace`, and each with `is not`:
+```cufet
+State "héllo" is alphabetic.       → true
+State "2026" is numeric.           → true
+State " \t" is whitespace.         → true
+State "a1" is alphabetic.          → false
+State "" is numeric.               → false
+```
+Every character has to be in the class, and empty text is in none. Alphabetic
+means any letter, in any script, whether or not it has a case: `中` and `ب` are
+alphabetic. Numeric means decimal **digits** only, in any script (`٣` is one),
+so `½` and `Ⅻ` are not numeric. Neither are `"1.5"` or `"-3"`: `is numeric`
+asks about characters, not whether the text converts to a number. Whitespace is
+the 25 characters Cufet itself skips as space. Both backends read one table, as
+casing does, so the answers cannot differ between running and building.
+
+`alphabetic`, `numeric` and `whitespace` are reserved words.
+
+**Code point** — `the code point of <text>`, the number Unicode gives a character:
+```cufet
+State the code point of "A".       → 65
+State the code point of "é".       → 233
+```
+The text must be exactly one character. Anything else stops the program when it
+runs, since a text's length is usually not known before then. `code` and `point`
+are not reserved.
+
 ---
 
 ### Range
@@ -3036,8 +3064,8 @@ Cufet has a static type checker that runs before execution. It catches:
 - An empty delimiter in `split by`
 - A character position of zero or negative in a substring form (when known
   at compile time; a runtime check catches the rest)
-- Using `replace`, `in uppercase`/`in lowercase`, or `trimmed` on a non-text
-  value
+- Using `replace`, `in uppercase`/`in lowercase`, `trimmed`, `is alphabetic`/
+  `is numeric`/`is whitespace`, or `the code point of` on a non-text value
 - An empty target in `replace ... with ... in ...`
 - Declaring a name already declared in the same scope
 - Declaring a name that exists in an enclosing scope without the `shadow` keyword

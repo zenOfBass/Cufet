@@ -172,6 +172,93 @@ static const char* cufet_str_lower(const char* s) {
         sb.AppendLine("};");
     }
 
+    // Character classes — beside the case table, for the same reason: the numbers come from
+    // CharacterClassData, the SAME table the interpreter reads, so `is alphabetic` cannot answer
+    // differently compiled and interpreted.
+    private static readonly string ClassRuntime = BuildClassRuntime();
+
+    private static string BuildClassRuntime()
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("""
+/* ── Character classes ───────────────────────────────────────────────────────────────────────────
+   Generated from src/Interpreter/CharacterClassData.cs, which both backends read — see
+   CharacterClasses.cs. Each range is the first and last code point of a run in the class; ranges
+   are sorted and never touch, so the last one starting at or before a code point is the only
+   candidate. A text is in a class when EVERY character is, and empty text is in none. */
+""");
+
+        EmitClassRanges(sb, "cufet_class_alphabetic", CharacterClassData.AlphabeticRanges);
+        EmitClassRanges(sb, "cufet_class_numeric", CharacterClassData.NumericRanges);
+        EmitClassRanges(sb, "cufet_class_whitespace", CharacterClassData.WhitespaceRanges);
+
+        sb.Append("""
+/* One code point from `p`, its width in `*width`; -1 for bytes that are not a well-formed sequence. */
+static int cufet_u8_decode(const unsigned char* p, size_t left, int* width) {
+    unsigned char b = p[0];
+    if (b < 0x80) { *width = 1; return b; }
+    if ((b & 0xE0) == 0xC0 && left >= 2 && (p[1] & 0xC0) == 0x80)
+        { *width = 2; return ((b & 0x1F) << 6) | (p[1] & 0x3F); }
+    if ((b & 0xF0) == 0xE0 && left >= 3 && (p[1] & 0xC0) == 0x80 && (p[2] & 0xC0) == 0x80)
+        { *width = 3; return ((b & 0x0F) << 12) | ((p[1] & 0x3F) << 6) | (p[2] & 0x3F); }
+    if ((b & 0xF8) == 0xF0 && left >= 4 && (p[1] & 0xC0) == 0x80 && (p[2] & 0xC0) == 0x80 && (p[3] & 0xC0) == 0x80)
+        { *width = 4; return ((b & 0x07) << 18) | ((p[1] & 0x3F) << 12) | ((p[2] & 0x3F) << 6) | (p[3] & 0x3F); }
+    *width = 1;
+    return -1;
+}
+static int cufet_class_in(const int* ranges, int nranges, int cp) {
+    int lo = 0, hi = nranges - 1, found = -1;
+    while (lo <= hi) {
+        int mid = (lo + hi) / 2;
+        if (ranges[mid * 2] <= cp) { found = mid; lo = mid + 1; } else hi = mid - 1;
+    }
+    return found >= 0 && cp <= ranges[found * 2 + 1];
+}
+static int cufet_str_in_class(const char* s, const int* ranges, int nranges) {
+    const unsigned char* p = (const unsigned char*)s;
+    size_t n = strlen(s), i = 0;
+    if (n == 0) return 0;
+    while (i < n) {
+        int width, cp = cufet_u8_decode(p + i, n - i, &width);
+        if (cp < 0 || !cufet_class_in(ranges, nranges, cp)) return 0;
+        i += (size_t)width;
+    }
+    return 1;
+}
+static int cufet_str_alphabetic(const char* s) {
+    return cufet_str_in_class(s, cufet_class_alphabetic, (int)(sizeof(cufet_class_alphabetic) / sizeof(int) / 2));
+}
+static int cufet_str_numeric(const char* s) {
+    return cufet_str_in_class(s, cufet_class_numeric, (int)(sizeof(cufet_class_numeric) / sizeof(int) / 2));
+}
+static int cufet_str_whitespace(const char* s) {
+    return cufet_str_in_class(s, cufet_class_whitespace, (int)(sizeof(cufet_class_whitespace) / sizeof(int) / 2));
+}
+/* The code point of a one-character text; -1 when it is not exactly one character. */
+static int cufet_str_code_point(const char* s) {
+    size_t n = strlen(s);
+    if (n == 0) return -1;
+    int width, cp = cufet_u8_decode((const unsigned char*)s, n, &width);
+    return (cp < 0 || (size_t)width != n) ? -1 : cp;
+}
+
+""");
+        return sb.ToString();
+    }
+
+    private static void EmitClassRanges(StringBuilder sb, string name, int[] ranges)
+    {
+        sb.AppendLine($"static const int {name}[] = {{   /* {ranges.Length / 2} ranges */");
+        for (int i = 0; i < ranges.Length; i += 16)
+        {
+            var line = new StringBuilder("   ");
+            for (int j = i; j < Math.Min(i + 16, ranges.Length); j += 2)
+                line.Append($" {ranges[j],7},{ranges[j + 1],7},");
+            sb.AppendLine(line.ToString());
+        }
+        sb.AppendLine("};");
+    }
+
     // The decimal↔double bridge for `math`'s three remaining native members (sqrt/log/power).
     //
 
@@ -646,6 +733,7 @@ static const char* cufet_str_lower(const char* s) {
         if (_usesChase) runtime.AppendLine(ChaseRuntime);
         runtime.AppendLine(MatrixRuntime);
         runtime.AppendLine(CaseRuntime);
+        runtime.AppendLine(ClassRuntime);
         runtime.AppendLine(ChanceRuntime);
         runtime.AppendLine(ProcessRuntime);
         runtime.AppendLine(SignalRuntime);

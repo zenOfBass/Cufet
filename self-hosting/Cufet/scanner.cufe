@@ -23,7 +23,6 @@ Pull a book on collections.
         the number row,
         the number row-start,
         the series of token out,
-        the map from text to number kinds,
         the map from text to text marks,
         the map from text to text words).
 
@@ -56,23 +55,20 @@ Pull a book on collections.
 
     // ── What a character is ───────────────────────────────────────────────
 
-    /// ⚠ Cufet cannot ask what a character IS. A table answers for ASCII, and outside it a
-    /// character with two cases is a letter. That matches `char.IsLetter` on every character in
-    /// this repository, and not on an uncased script — which none of it is written in.
+    /// `char.IsLetter`. ⚠ Lexer.cs asks it of one UTF-16 unit, so a character past the Basic
+    /// Multilingual Plane is half a pair there and never a letter; the code point keeps that.
     Bind fact to is-letter unto scanner, given (the text ch):
-        Define kind as (the entry for ch in one's kinds) but void is 0.
-        If kind is 1, return true.
-        If kind is not 0, return false.
-        If ch is "", return false.
-        Return (ch in lowercase) is not (ch in uppercase).
+        Return ch is alphabetic and the code point of ch is less than 65536.
     Done.
 
+    /// `char.IsDigit` — any decimal digit, and past the Basic Multilingual Plane none, as above.
     Bind fact to is-digit unto scanner, given (the text ch):
-        Return ((the entry for ch in one's kinds) but void is 0) is 2.
+        Return ch is numeric and the code point of ch is less than 65536.
     Done.
 
+    /// `char.IsWhiteSpace` — all 25 of its characters are in the Basic Multilingual Plane.
     Bind fact to is-space unto scanner, given (the text ch):
-        Return ((the entry for ch in one's kinds) but void is 0) is 3.
+        Return ch is whitespace.
     Done.
 
     Bind fact to is-word-part unto scanner, given (the text ch):
@@ -611,31 +607,6 @@ Pull a book on collections.
 
     // ── The tables ────────────────────────────────────────────────────────
 
-    /// 1 a letter, 2 a digit, 3 a space. The spaces are every character `char.IsWhiteSpace`
-    /// answers yes to — most of which no text literal can spell, so they go in by code point.
-    Bind map from text to number to character-kinds:
-        Define kinds as a map from text to number.
-        Define letters as a chase.
-        Insert "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ" into letters.
-        For each ch in letters, repeat:
-            In kinds, the entry for ch becomes 1.
-        Done.
-        Define numerals as a chase.
-        Insert "0123456789" into numerals.
-        For each ch in numerals, repeat:
-            In kinds, the entry for ch becomes 2.
-        Done.
-        Define spaces as a chase.
-        For each code in a series with (9, 10, 11, 12, 13, 32, 133, 160, 5760, 8192, 8193, 8194, 8195,
-                8196, 8197, 8198, 8199, 8200, 8201, 8202, 8232, 8233, 8239, 8287, 12288), repeat:
-            Insert code into spaces.
-        Done.
-        For each ch in spaces, repeat:
-            In kinds, the entry for ch becomes 3.
-        Done.
-        Return kinds.
-    Done.
-
     Bind map from text to text to mark-table:
         Return a map with (
             "+" : "Plus", "-" : "Minus", "*" : "Star", "/" : "Slash", "%" : "Percent",
@@ -652,7 +623,7 @@ Pull a book on collections.
         Define scan as a new scanner {
             the source buffer, the size the number of buffer, the cursor 1,
             the row 1, the row-start 1, the out a series of token,
-            the kinds cast character-kinds, the marks cast mark-table, the words cast keyword-table }.
+            the marks cast mark-table, the words cast keyword-table }.
         Cast scan's tokenize or pass the failure off.
         Return scan's out.
     Done.

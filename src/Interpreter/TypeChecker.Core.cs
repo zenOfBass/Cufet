@@ -3829,6 +3829,8 @@ public sealed partial class TypeChecker
         TextSubstringEdge edge                                                                           => InferTextSubstringEdge(edge),
         TextReplace replace                                                                              => InferTextReplace(replace),
         TextCase tcase                                                                                   => InferTextCase(tcase),
+        CharacterTest classTest                                                                          => InferCharacterTest(classTest),
+        CodePointOf codePoint                                                                            => InferCodePointOf(codePoint),
         TextTrim trim                                                                                    => InferTextTrim(trim),
         SortExpression sort                                                                              => InferSort(sort),
         RangeExpression re                                                                               => InferRangeExpr(re),

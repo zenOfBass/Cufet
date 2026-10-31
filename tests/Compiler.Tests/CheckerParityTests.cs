@@ -36,7 +36,7 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
     private const int TreeFloor = 91;
 
     /// <summary>The same, of the hand-written programs both checkers accept.</summary>
-    private const int HandWrittenTreeFloor = 283;
+    private const int HandWrittenTreeFloor = 285;
 
     /// <summary>The same, of the hand-written projects both checkers accept.</summary>
     private const int ProjectTreeFloor = 12;
@@ -1210,6 +1210,11 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
         "Define t as \"a\".\nIf t, state \"yes\".\n",
         "Bind voidable fact to maybe, given (the text t):\n    If t is \"\", return void.\n    Return true.\nDone.\nRepeat:\n    Stop.\nUntil cast maybe on (\"\").\n",
         "Bind voidable fact to maybe-true, given (the text t):\n    If t is \"\", return void.\n    Return true.\nDone.\nIf cast maybe-true on (\"\"), state \"yes\".\nOtherwise, state \"no\".\n",
+        // Character classes and the code point (2026-10-31).
+        "Define ch as \"7\".\nIf ch is numeric and ch is not alphabetic, state \"digit\".\nDefine blank as \" \" is whitespace.\nWhile ch is not whitespace, repeat:\n    The ch becomes \" \".\nDone.\nState blank.\n",
+        "Define code as 1.\nState the code point of \"A\" + code.\nState (the code point of \"\u00e9\") converted to text.\n",
+        "Define n as 5.\nState n is numeric.\n",
+        "State the code point of 5.\n",
     ];
 
     /// <remarks>

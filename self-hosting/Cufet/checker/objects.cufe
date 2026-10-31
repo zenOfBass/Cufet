@@ -247,7 +247,7 @@ Pull a book on collections.
             Define unto-key-lead as "".
             If statement's kind is "BindStatement":
                 The unto-place becomes 5.
-                The unto-row becomes cast numeric on (cast field-of on (statement, 7)).
+                The unto-row becomes cast number-of on (cast field-of on (statement, 7)).
             Done.
             Otherwise if statement's kind is "GetterDeclaration":
                 The unto-place becomes 4.
@@ -287,7 +287,7 @@ Pull a book on collections.
                 Define name as cast def-name on (statement).
                 If cast is-bundled-module on (name) or (name in lowercase) is "rabbit":
                     Return a failure (cast refusal-of on ("'{name}' comes with the language, so its name can't be used for a new object", "",
-                        cast numeric on (cast field-of on (statement, 9)), "define an object named '{name}'",
+                        cast number-of on (cast field-of on (statement, 9)), "define an object named '{name}'",
                         "Pick another name — 'Pull {name}.' always finds the one the language ships.")).
                 Done.
                 For each method in (cast field-of on (statement, 4))'s children, repeat:
@@ -316,7 +316,7 @@ Pull a book on collections.
                         Define method-name as cast unquoted on (cast field-of on (method, 1)).
                         If (the entry for method-name in taken) is not void:
                             Return a failure (cast refusal-of on ("'{name}' already has a method '{method-name}'", "",
-                                cast numeric on (cast field-of on (method, 7)), "declare another method named '{method-name}' for '{name}'",
+                                cast number-of on (cast field-of on (method, 7)), "declare another method named '{method-name}' for '{name}'",
                                 "Method names must be unique per type, whether declared nested or with 'unto'. Rename one of them.")).
                         Done.
                         In taken, the entry for method-name becomes true.
@@ -408,7 +408,7 @@ Pull a book on collections.
                 If cast one's is-interface-name on (target):
                     The reason becomes "'{target}' is an interface, not an object type — methods can't be attached to it with 'unto'".
                 Done.
-                Return a failure (cast refusal-of on (reason, "", cast numeric on (cast field-of on (first, 7)),
+                Return a failure (cast refusal-of on (reason, "", cast number-of on (cast field-of on (first, 7)),
                     "declare a method unto '{target}'",
                     "'unto' only attaches methods to object types defined in this program. Define 'object {target}' first, or check the spelling.")).
             Done.
@@ -508,7 +508,7 @@ Pull a book on collections.
         Define winner as the entry for name in one's defs.
         If winner is void, return.
         If cast shown-tree on (winner) is not cast shown-tree on (statement), return.
-        Define at-row as cast numeric on (cast field-of on (statement, 9)).
+        Define at-row as cast number-of on (cast field-of on (statement, 9)).
 
         // A default is checked here, where it is written, not at each `a new` that leaves its field out.
         For each pair in (cast field-of on (statement, 14))'s children, repeat:
@@ -599,7 +599,7 @@ Pull a book on collections.
             the number owner-row):
         Define method-name as cast unquoted on (cast field-of on (method, 1)).
         Define returned as cast field-of on (method, 2).
-        Define at-row as cast numeric on (cast field-of on (method, 7)).
+        Define at-row as cast number-of on (cast field-of on (method, 7)).
         Define buries as cast contains-bury on (cast field-of on (method, 4)).
         Define earlier-recording as one's recording-stash.
         The one's recording-stash becomes "".
@@ -709,7 +709,7 @@ Pull a book on collections.
         Define name as cast unquoted on (cast field-of on (said, 1)).
         Define positional-values as (cast field-of on (said, 2))'s children.
         Define named-values as (cast field-of on (said, 3))'s children.
-        Define at-row as cast numeric on (cast field-of on (said, 4)).
+        Define at-row as cast number-of on (cast field-of on (said, 4)).
         If cast is-bundled-module on (name) or (name in lowercase) is "rabbit":
             Define settled as "".
             Define fix as "Write 'Pull a book on {name}.' and use it inside that block.".
@@ -819,7 +819,7 @@ Pull a book on collections.
     /// `x's member` — a field, or a method when it is being called here.
     Bind node or failure to infer-possessive unto checker, given (the node said, the fact called-here):
         Define member as cast unquoted on (cast field-of on (said, 2)).
-        Define at-row as cast numeric on (cast field-of on (said, 3)).
+        Define at-row as cast number-of on (cast field-of on (said, 3)).
         Define target as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
         If cast is-none on (target), return target.
         If target's kind is "BookType":
@@ -891,7 +891,7 @@ Pull a book on collections.
     Bind node or failure to infer-named-access unto checker, given (the node said):
         Define field as cast unquoted on (cast field-of on (said, 1)).
         Define reached as cast field-of on (said, 2).
-        Define at-row as cast numeric on (cast field-of on (said, 3)).
+        Define at-row as cast number-of on (cast field-of on (said, 3)).
         Define target as cast one's infer on (reached) or pass the failure off.
         If cast is-none on (target), return target.
         Define kind as target's kind.
@@ -985,7 +985,7 @@ Pull a book on collections.
         If index-said's kind is not "NumberLiteral", return cast unknown-type.
         Define positionals as a series of node.
         Cast one's gather-positionals on (owner, positionals).
-        Define spot as cast numeric on (cast field-of on (index-said, 1)).
+        Define spot as cast number-of on (cast field-of on (index-said, 1)).
         // C# truncates toward zero, as a cast to int does.
         Define whole as spot - (spot % 1).
         If whole is less than 1 or whole is greater than the number of positionals:
@@ -1043,7 +1043,7 @@ Pull a book on collections.
 
     Bind void or failure to check-possessive-set unto checker, given (the node statement):
         Define member as cast unquoted on (cast field-of on (statement, 2)).
-        Define at-row as cast numeric on (cast field-of on (statement, 4)).
+        Define at-row as cast number-of on (cast field-of on (statement, 4)).
         Define target as cast one's infer on (cast field-of on (statement, 1)) or pass the failure off.
         If cast is-none on (target), return.
         If target's kind is not "ObjectType":
@@ -1073,7 +1073,7 @@ Pull a book on collections.
 
     Bind void or failure to check-named-set unto checker, given (the node statement):
         Define field as cast unquoted on (cast field-of on (statement, 1)).
-        Define at-row as cast numeric on (cast field-of on (statement, 4)).
+        Define at-row as cast number-of on (cast field-of on (statement, 4)).
         Define target as cast one's infer on (cast field-of on (statement, 2)) or pass the failure off.
         If cast is-none on (target), return.
         If target's kind is "ObjectType":

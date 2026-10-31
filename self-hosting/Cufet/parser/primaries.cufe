@@ -125,7 +125,16 @@ Pull a book on collections.
         Otherwise if kind is "Identifier":
             Cast one's advance.
             The base becomes cast variable-named on (tok's lexeme, tok).
-            If cast is-ordinal-lexeme on (tok's lexeme):
+            // `the code point of <text>` — by lexeme, so neither `code` nor `point` is reserved.
+            If cast spelled on (tok, "code") and cast one's is-word on ("point") and cast one's kind-after is "Of":
+                Cast one's advance.
+                Cast one's skip-noise.
+                Cast one's consume on ("Of") or pass the failure off.
+                Cast one's skip-noise.
+                Define text-target as cast one's core-primary or pass the failure off.
+                The base becomes cast placed on ("CodePointOf", a series with (text-target), tok).
+            Done.
+            Otherwise if cast is-ordinal-lexeme on (tok's lexeme):
                 Cast one's skip-noise.
                 Define edge as cast spelled on (tok, "first") or cast spelled on (tok, "last").
                 If edge and (cast one's peek-kind is "Number" or cast one's peek-kind is "LParen"):
