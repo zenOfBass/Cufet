@@ -52,7 +52,7 @@ Pull a book on collections.
 
     Bind node to machine-if, given (the node condition, the node body, the node otherwise-body):
         Define arms as cast listed.
-        Cast arms's add on (cast made on ("ConditionArm", a series with (condition, body))).
+        Cast arms's add on (cast unplaced on ("ConditionArm", a series with (condition, body))).
         Return cast made on ("IfStatement", a series with (arms, otherwise-body)).
     Done.
 
@@ -203,7 +203,7 @@ Pull a book on collections.
         Define place as 0.
         For each arm in arms, repeat:
             Increment place by 1.
-            Cast dispatch-arms's add on (cast made on ("ConditionArm", a series with (cast field-of on (arm, 1),
+            Cast dispatch-arms's add on (cast unplaced on ("ConditionArm", a series with (cast field-of on (arm, 1),
                 cast machine-list on (a series with (cast one's machine-set-step on (item place of entries)))))).
         Done.
         Cast one's machine-set-exit on (current, a series with (cast made on ("IfStatement", a series with (dispatch-arms,
@@ -302,7 +302,7 @@ Pull a book on collections.
         Define place as 0.
         For each arm in arms, repeat:
             Increment place by 1.
-            Cast dispatch-arms's add on (cast made on ("ConditionArm", a series with (cast one's machine-arm-test on (arm),
+            Cast dispatch-arms's add on (cast unplaced on ("ConditionArm", a series with (cast one's machine-arm-test on (arm),
                 cast machine-list on (a series with (cast one's machine-set-step on (item place of entries)))))).
         Done.
         Cast one's machine-set-exit on (current, a series with (cast made on ("IfStatement", a series with (dispatch-arms,
@@ -527,7 +527,7 @@ Pull a book on collections.
         Define dispatch-arms as cast listed.
         Define step as 0.
         For each block in one's blocks, repeat:
-            Cast dispatch-arms's add on (cast made on ("ConditionArm", a series with (
+            Cast dispatch-arms's add on (cast unplaced on ("ConditionArm", a series with (
                 cast one's machine-binary on (cast one's machine-var on ("stash_step"), "Equal", cast machine-number on (step)),
                 cast machine-list on (cast one's machine-assemble on (block, hoisted))))).
             Increment step by 1.
@@ -537,7 +537,7 @@ Pull a book on collections.
                 cast one's machine-var on ("stash_frame"), cast machine-number on (1), one's row, one's col))),
             cast made on ("IfStatement", a series with (dispatch-arms, cast machine-list on (a series with (spent)))))).
         Define dispatch as cast machine-list on (a series with (
-            cast made on ("WhileStatement", a series with (cast made on ("BooleanLiteral", a series with (
+            cast unplaced on ("WhileStatement", a series with (cast made on ("BooleanLiteral", a series with (
                 cast flag on (true), one's row, one's col)), looped)),
             spent)).
         Define resume as cast made on ("BindStatement", a series with (cast quoted on (resume-name), yields, resume-parameters,

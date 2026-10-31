@@ -617,7 +617,7 @@ Pull a book on collections.
                 Define held as the entry for "{place}" in bound but void is "".
                 If held is not "" and held is not parameter-name, the condition becomes cast renamed-in on (condition, parameter-name, held).
             Done.
-            Cast arms's add on (cast made on ("ConditionArm", a series with (condition,
+            Cast arms's add on (cast unplaced on ("ConditionArm", a series with (condition,
                 cast call-to-version on (name, signature, ordinal, version, shape, bound)))).
             Increment ordinal by 1.
         Done.

@@ -741,9 +741,10 @@ Pull a book on collections.
         Define otherwise-body as cast nothing.
         Define if-tok as cast one's consume on ("If") or pass the failure off.
         Cast one's skip-noise.
+        Define first-tok as cast one's peek.
         Define first-condition as cast one's condition or pass the failure off.
         Define first-body as cast one's if-body on (if-tok) or pass the failure off.
-        Cast arms's add on (cast made on ("ConditionArm", a series with (first-condition, first-body))).
+        Cast arms's add on (cast placed on ("ConditionArm", a series with (first-condition, first-body), first-tok)).
         Define scanning as true.
         While scanning, repeat:
             Cast one's skip-noise.
@@ -753,9 +754,10 @@ Pull a book on collections.
             If cast one's peek-kind is "If":
                 Define else-if-tok as cast one's advance.
                 Cast one's skip-noise.
+                Define condition-tok as cast one's peek.
                 Define condition as cast one's condition or pass the failure off.
                 Define body as cast one's if-body on (else-if-tok) or pass the failure off.
-                Cast arms's add on (cast made on ("ConditionArm", a series with (condition, body))).
+                Cast arms's add on (cast placed on ("ConditionArm", a series with (condition, body), condition-tok)).
             Done.
             Otherwise:
                 The otherwise-body becomes cast one's if-body on (otherwise-tok) or pass the failure off.
@@ -860,11 +862,12 @@ Pull a book on collections.
     Bind node or failure to while-statement unto parser:
         Cast one's advance.
         Cast one's skip-noise.
+        Define condition-tok as cast one's peek.
         Define condition as cast one's condition or pass the failure off.
         Cast one's skip-noise.
         Cast one's consume on ("Comma") or pass the failure off.
         Define body as cast one's loop-body-or-inline or pass the failure off.
-        Return cast made on ("WhileStatement", a series with (condition, body)).
+        Return cast placed on ("WhileStatement", a series with (condition, body), condition-tok).
     Done.
 
     Bind node or failure to repeat-until unto parser:
@@ -888,10 +891,11 @@ Pull a book on collections.
         Decrement one's loop-depth by 1.
         Cast one's consume on ("Until") or pass the failure off.
         Cast one's skip-noise.
+        Define condition-tok as cast one's peek.
         Define condition as cast one's condition or pass the failure off.
         Cast one's skip-noise.
         Cast one's consume on ("Dot") or pass the failure off.
-        Return cast made on ("RepeatUntilStatement", a series with (body, condition)).
+        Return cast placed on ("RepeatUntilStatement", a series with (body, condition), condition-tok).
     Done.
 
     Bind node or failure to for-each unto parser:

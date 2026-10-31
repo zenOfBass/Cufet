@@ -52,6 +52,15 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   directory's path does in `the contents of the directory`; one built with `joined to` still
   works. Both parsers.
 
+- **A condition must be true or false.** The condition of an `If`, an `Otherwise if`, a `While`
+  and an `Until` was never checked, so `If 5, …` and `If name, …` were let through. A voidable fact
+  was too: the interpreter stopped only when it held void, and the compiled program would not build.
+  Each is now refused where it stands. A voidable one is told to say what void means, as in
+  `(cast lookup on (key) but void is false)`. `when`, `and` and `not` always checked theirs. To
+  point at the condition even when it carries no position of its own, as in `If 5`, an `If` arm, a
+  `While` and a `Repeat … until` now record where their condition begins. Both parsers and both
+  checkers.
+
 ## [0.28.0] — 2026-10-26
 
 ### Added

@@ -1296,7 +1296,8 @@ public sealed class Parser
 
         var ifTok = Consume(TokenType.If);
         SkipNoise();
-        arms.Add(new ConditionArm(ParseCondition(), ParseIfBody(ifTok)));
+        var conditionTok = Peek();
+        arms.Add(new ConditionArm(ParseCondition(), ParseIfBody(ifTok), conditionTok.Line, conditionTok.Column));
 
         while (true)
         {
@@ -1308,7 +1309,9 @@ public sealed class Parser
             {
                 var elseIfTok = Consume(TokenType.If);
                 SkipNoise();
-                arms.Add(new ConditionArm(ParseCondition(), ParseIfBody(elseIfTok)));
+                var elseIfConditionTok = Peek();
+                arms.Add(new ConditionArm(ParseCondition(), ParseIfBody(elseIfTok),
+                                          elseIfConditionTok.Line, elseIfConditionTok.Column));
             }
             else
             {
@@ -1645,11 +1648,12 @@ public sealed class Parser
     {
         Consume(TokenType.While);
         SkipNoise();
+        var conditionTok = Peek();
         var condition = ParseCondition();
         SkipNoise();
         Consume(TokenType.Comma);
         var body = ParseLoopBodyOrInline();
-        return new WhileStatement(condition, body);
+        return new WhileStatement(condition, body, conditionTok.Line, conditionTok.Column);
     }
 
     // The BLOCK form of a loop body — reached only after `repeat:`, so it always ends in `Done.`
@@ -1749,10 +1753,11 @@ public sealed class Parser
         _loopDepth--;
         Consume(TokenType.Until);
         SkipNoise();
+        var conditionTok = Peek();
         var condition = ParseCondition();
         SkipNoise();
         Consume(TokenType.Dot);
-        return new RepeatUntilStatement(body, condition);
+        return new RepeatUntilStatement(body, condition, conditionTok.Line, conditionTok.Column);
     }
 
     private IReadOnlyList<IStatement> ParseRepeatUntilBody()

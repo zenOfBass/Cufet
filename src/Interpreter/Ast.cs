@@ -173,7 +173,9 @@ public sealed record BecomesStatement(string Name, IExpression Value, int Line, 
     public int? EscapeToDepth { get; set; }
 }
 
-public sealed record ConditionArm(IExpression Condition, IReadOnlyList<IStatement> Body);
+// Line/Column are where the CONDITION begins, so a refusal of it can point there even when the
+// condition itself carries no position (`If 5`). A synthesized arm has none and is 0, 0.
+public sealed record ConditionArm(IExpression Condition, IReadOnlyList<IStatement> Body, int Line = 0, int Column = 0);
 public sealed record IfStatement(
     IReadOnlyList<ConditionArm> Arms,
     IReadOnlyList<IStatement>? ElseBody
@@ -225,14 +227,19 @@ public sealed record JudgeStatement(
     int Column
 ) : IStatement;
 
+// Line/Column are where the condition begins, as on a ConditionArm.
 public sealed record WhileStatement(
     IExpression Condition,
-    IReadOnlyList<IStatement> Body
+    IReadOnlyList<IStatement> Body,
+    int Line = 0,
+    int Column = 0
 ) : IStatement;
 
 public sealed record RepeatUntilStatement(
     IReadOnlyList<IStatement> Body,
-    IExpression Condition
+    IExpression Condition,
+    int Line = 0,
+    int Column = 0
 ) : IStatement;
 
 public sealed record StopStatement() : IStatement;

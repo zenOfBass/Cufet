@@ -2854,7 +2854,7 @@ public sealed partial class TypeChecker
 
                 foreach (var arm in ifStmt.Arms)
                 {
-                    _ = InferType(arm.Condition);
+                    CheckCondition(arm.Condition, arm.Line, arm.Column);
                     string? narrowedVar = null;
                     CufetType? narrowedTo = null;
                     CufetType? savedNarrowed = null;
@@ -3004,7 +3004,7 @@ public sealed partial class TypeChecker
                 break;
             }
             case WhileStatement whileStmt:
-                _ = InferType(whileStmt.Condition);
+                CheckCondition(whileStmt.Condition, whileStmt.Line, whileStmt.Column);
                 EnterScope();
                 CheckBlock(whileStmt.Body);
                 ExitScope();
@@ -3013,7 +3013,7 @@ public sealed partial class TypeChecker
                 EnterScope();
                 CheckBlock(repeatUntil.Body);
                 ExitScope();
-                _ = InferType(repeatUntil.Condition);
+                CheckCondition(repeatUntil.Condition, repeatUntil.Line, repeatUntil.Column);
                 break;
             case ForEachStatement forEach:
                 CheckForEach(forEach);
@@ -3562,6 +3562,25 @@ public sealed partial class TypeChecker
                     $"return a {FormatType(returnType)} value",
                     $"Change the returned value to a {FormatType(_expectedReturnType!)}.");
         }
+    }
+
+    // A condition must be a fact. ⚠ Unchecked until 2026-10-30: `If 5` and `If "a"` checked clean,
+    // and a voidable fact did too — then the interpreter stopped only when it held void, and the
+    // compiled program would not build. `when`, `and` and `not` always checked theirs.
+    private void CheckCondition(IExpression condition, int line, int col)
+    {
+        var type = InferType(condition);
+        if (type is null or FactType) return;
+        if (type is VoidableType { Inner: FactType })
+            throw VoidableMisuse(
+                condition, "a condition has to be true or false", "use a voidable fact as a condition",
+                $"'({Defaulted(condition, CufetType.Fact)})'", line, col);
+        throw TypeError(
+            "a condition has to be true or false",
+            null,
+            line, col,
+            $"use a {FormatType(type)} as a condition",
+            "Compare it to something so it says true or false, as in 'If count is 0'.");
     }
 
     private static void CheckIndex(IExpression index, int line, int col)

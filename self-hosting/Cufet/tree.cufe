@@ -105,6 +105,13 @@ Pull a book on collections.
         Return cast made on (kind, parts).
     Done.
 
+    /// A node of `kind` the checker builds rather than parses: no source, so its position is 0, 0.
+    Bind node to unplaced, given (the text kind, the series of node parts):
+        Insert cast numeral on (0) into parts.
+        Insert cast numeral on (0) into parts.
+        Return cast made on (kind, parts).
+    Done.
+
     Bind node to plain-type, given (the text kind):
         Return cast made on (kind, a series of node).
     Done.

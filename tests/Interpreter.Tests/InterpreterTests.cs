@@ -647,7 +647,7 @@ public class InterpreterTests
     [Fact]
     public void NonBoolConditionThrows()
     {
-        Assert.Throws<RuntimeException>(() => Run("Define x as 5. If x, State x."));
+        Assert.Throws<TypeException>(() => Run("Define x as 5. If x, State x."));
     }
 
     // ── While loops ──────────────────────────────────────────────────────
@@ -794,13 +794,13 @@ public class InterpreterTests
     [Fact]
     public void NonBoolWhileConditionThrows()
     {
-        Assert.Throws<RuntimeException>(() => Run("Define x as 5. While x, repeat: x becomes x + 1. Done."));
+        Assert.Throws<TypeException>(() => Run("Define x as 5. While x, repeat: x becomes x + 1. Done."));
     }
 
     [Fact]
     public void NonBoolUntilConditionThrows()
     {
-        Assert.Throws<RuntimeException>(() => Run("Define x as 5. Repeat: x becomes x + 1. until x."));
+        Assert.Throws<TypeException>(() => Run("Define x as 5. Repeat: x becomes x + 1. until x."));
     }
 
     // ── Series literals ───────────────────────────────────────────────────
@@ -4898,6 +4898,24 @@ public class InterpreterTests
         Assert.Throws<TypeException>(() => Run(
             "Define scores as a series with (1, 2, 3).\n" +
             "State the length of scores."));
+    }
+
+    /// <summary>
+    /// A condition must be a fact — in an `If`, a `While` and after `Until`. Unchecked until
+    /// 2026-10-30, when `If 5` checked clean and a voidable fact stopped the interpreter only when it
+    /// held void. The refusal points at the condition, which a bare literal could not have done
+    /// before the arm carried a position of its own.
+    /// </summary>
+    [Theory]
+    [InlineData("If 5, state \"yes\".\n", "line 1, you're trying to use a number as a condition")]
+    [InlineData("Define n as 0.\nWhile 5, repeat:\n    Stop.\nDone.\n", "line 2, you're trying to use a number as a condition")]
+    [InlineData("Define t as \"a\".\nIf t, state \"yes\".\n", "line 2, you're trying to use a text as a condition")]
+    [InlineData("Bind voidable fact to maybe, given (the text t):\n    If t is \"\", return void.\n    Return true.\nDone.\nRepeat:\n    Stop.\nUntil cast maybe on (\"\").\n", "line 7, you're trying to use a voidable fact as a condition")]
+    [InlineData("Bind voidable fact to maybe-true, given (the text t):\n    If t is \"\", return void.\n    Return true.\nDone.\nIf cast maybe-true on (\"\"), state \"yes\".\nOtherwise, state \"no\".\n", "'(cast maybe-true on (\"\") but void is false)'")]
+    public void Condition_ThatIsNotAFact_IsRefusedWhereItStands(string src, string expected)
+    {
+        var refused = Assert.Throws<TypeException>(() => Run(src));
+        Assert.Contains(expected, refused.Message);
     }
 
     [Fact]

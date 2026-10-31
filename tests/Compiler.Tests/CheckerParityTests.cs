@@ -1204,6 +1204,12 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
         // A series converts to text when it holds numbers, facts, texts or bits, or series of those.
         "Define words as a series of text with (\"pear\", \"fig\").\nDefine line as words converted to text.\nState line.\nState \"fruit: {words}\".\nDefine counts as a series of number with (1, 2.5, -3).\nState \"counts: \" joined to counts converted to text.\nDefine flags as a series of fact with (true, false).\nState \"{flags}\".\nDefine masks as a series of bits with (0xFF, 0b101).\nState \"{masks}\".\nDefine grid as a series of series of number with (a series of number with (1, 2), a series of number with (3)).\nState \"grid: {grid}\".\nDefine none as a series of text.\nState \"none: {none}\".\nState the length of \"{words}\".\n",
         "Define spots as a series of (number or text) with (1, \"a\").\nState spots.\nState \"the spots: {spots}\".\n",
+        // A condition must be a fact — If, While, Until; a voidable one is told to say what void means.
+        "If 5, state \"yes\".\n",
+        "Define n as 0.\nWhile 5, repeat:\n    Stop.\nDone.\n",
+        "Define t as \"a\".\nIf t, state \"yes\".\n",
+        "Bind voidable fact to maybe, given (the text t):\n    If t is \"\", return void.\n    Return true.\nDone.\nRepeat:\n    Stop.\nUntil cast maybe on (\"\").\n",
+        "Bind voidable fact to maybe-true, given (the text t):\n    If t is \"\", return void.\n    Return true.\nDone.\nIf cast maybe-true on (\"\"), state \"yes\".\nOtherwise, state \"no\".\n",
     ];
 
     /// <remarks>

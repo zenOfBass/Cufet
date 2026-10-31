@@ -185,13 +185,13 @@ Pull a book on collections.
             cast made on ("VoidLiteral", a series with (line-atom, column-atom)),
             line-atom, column-atom)).
         Define arms as cast listed.
-        Cast arms's add on (cast made on ("ConditionArm", a series with (alive, cast field-of on (statement, 3)))).
+        Cast arms's add on (cast unplaced on ("ConditionArm", a series with (alive, cast field-of on (statement, 3)))).
         Define stopping as cast listed.
         Cast stopping's add on (cast shaped on ("StopStatement")).
         Define inner as cast listed.
         Cast inner's add on (take).
         Cast inner's add on (cast made on ("IfStatement", a series with (arms, stopping))).
-        Define drain as cast made on ("RepeatUntilStatement", a series with (inner,
+        Define drain as cast unplaced on ("RepeatUntilStatement", a series with (inner,
             cast made on ("BooleanLiteral", a series with (cast flag on (false), line-atom, column-atom)))).
         // ★ `If true` is a block, nothing more: one statement stands for the loop, and the tree has
         // no plain block to hold the stash's name beside it.
@@ -200,7 +200,7 @@ Pull a book on collections.
             Cast block's add on (held).
             Cast block's add on (drain).
             Define opened as cast listed.
-            Cast opened's add on (cast made on ("ConditionArm", a series with (
+            Cast opened's add on (cast unplaced on ("ConditionArm", a series with (
                 cast made on ("BooleanLiteral", a series with (cast flag on (true), line-atom, column-atom)), block))).
             The drain becomes cast made on ("IfStatement", a series with (opened, cast nothing)).
         Done.

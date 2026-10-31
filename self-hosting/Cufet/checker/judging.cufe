@@ -561,7 +561,7 @@ Pull a book on collections.
                 Cast one's check-if on (statement) or pass the failure off.
             Done.
             "WhileStatement":
-                Cast one's infer on (cast field-of on (statement, 1)) or pass the failure off.
+                Cast one's check-condition on (cast field-of on (statement, 1), cast numeric on (cast field-of on (statement, 3))) or pass the failure off.
                 Cast one's enter-scope.
                 Cast one's check-block on (cast field-of on (statement, 2)) or pass the failure off.
                 Cast one's exit-scope.
@@ -570,7 +570,7 @@ Pull a book on collections.
                 Cast one's enter-scope.
                 Cast one's check-block on (cast field-of on (statement, 1)) or pass the failure off.
                 Cast one's exit-scope.
-                Cast one's infer on (cast field-of on (statement, 2)) or pass the failure off.
+                Cast one's check-condition on (cast field-of on (statement, 2), cast numeric on (cast field-of on (statement, 3))) or pass the failure off.
             Done.
             "ForEachStatement":
                 Cast one's check-for-each on (statement) or pass the failure off.
@@ -766,6 +766,22 @@ Pull a book on collections.
         Return cast unquoted on (cast field-of on (tested, 1)).
     Done.
 
+    /// A condition must be a fact — `CheckCondition`. Unchecked until 2026-10-30.
+    Bind void or failure to check-condition unto checker, given (the node condition, the number at-row):
+        Define held as cast one's infer on (condition) or pass the failure off.
+        If cast is-none on (held) or held's kind is "FactType", return.
+        If held's kind is "VoidableType":
+            Define inner as cast field-of on (held, 1).
+            If inner's kind is "FactType":
+                Return a failure (cast void-misuse on (condition, "a condition has to be true or false",
+                    "use a voidable fact as a condition", "'({cast defaulted on (condition, inner)})'", at-row, "")).
+            Done.
+        Done.
+        Return a failure (cast refusal-of on ("a condition has to be true or false", "", at-row,
+            "use a {cast type-words on (held)} as a condition",
+            "Compare it to something so it says true or false, as in 'If count is 0'.")).
+    Done.
+
     Bind void or failure to check-if unto checker, given (the node statement):
         Define arms as (cast field-of on (statement, 1))'s children.
         // The Otherwise narrows by elimination while every arm tests the same name against a type.
@@ -777,7 +793,7 @@ Pull a book on collections.
         Define else-type as cast unknown-type.
         For each arm in arms, repeat:
             Define condition as cast field-of on (arm, 1).
-            Cast one's infer on (condition) or pass the failure off.
+            Cast one's check-condition on (condition, cast numeric on (cast field-of on (arm, 3))) or pass the failure off.
             Define narrowed-name as "".
             Define narrowed-to as cast unknown-type.
             Define conjunct as a map from text to node.
