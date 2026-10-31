@@ -1,0 +1,215 @@
+/*  Shorthands — `src/Interpreter/ShorthandExpansion.cs`.
+
+    ★ `Define shorthand gate as (and-gate or or-gate).` makes `gate` another way to WRITE that
+    union and nothing more. Before anything is gathered, each shorthand's type is put back wherever
+    its name is written and the declarations come out, so what is checked afterwards is the program
+    its author would have written by spelling the type out each time.
+
+    ★ The same as writing it out, down to the shape: `(gate or wire)` is the flat union of all the
+    members, and `(gate or void)` the union with a void case — folded only where a shorthand went in,
+    so a type with none in it is handed on exactly as it was parsed.
+*/
+
+Pull a book on collections.
+    /// The program with every shorthand put back and every shorthand declaration taken out.
+    Bind node or failure to expand-shorthands, given (the node program):
+        Define everything as cast every-statement-in on (program).
+        Define type-names as a map from text to fact.
+        For each statement in everything, repeat:
+            If statement's kind is "ObjectDefinition" or statement's kind is "InterfaceDefinition":
+                In type-names, the entry for cast unquoted on (cast field-of on (statement, 1)) becomes true.
+            Done.
+        Done.
+        Define declared as a map from text to node.
+        Define order as a series of text.
+        For each statement in everything, repeat:
+            If statement's kind is "ShorthandDefinition":
+                Define name as cast unquoted on (cast field-of on (statement, 1)).
+                Define shown as cast display-name on (name).
+                Define at-row as cast number-of on (cast field-of on (statement, 3)).
+                Define first as the entry for name in declared.
+                If first is not void:
+                    Return a failure (cast refusal-of on ("the shorthand '{shown}' is already defined on line {(cast field-of on (first, 3))'s word}", "",
+                        at-row, "define the shorthand '{shown}' a second time",
+                        "A shorthand stands for one type. Give the second one a different name.")).
+                Done.
+                If (the entry for name in type-names) is not void:
+                    Return a failure (cast refusal-of on ("'{shown}' is already the name of a type", "",
+                        at-row, "define a shorthand called '{shown}'",
+                        "A shorthand is another way to write a type, so it cannot share a name with one. Give it a different name.")).
+                Done.
+                In declared, the entry for name becomes statement.
+                Insert name into order.
+            Done.
+        Done.
+        If the size of declared is 0, return program.
+
+        // Each shorthand's own type first, so one may be written with another.
+        Define resolved as a map from text to node.
+        For each name in order, repeat:
+            Cast resolve-shorthand on (name, declared, resolved, a series of text) or pass the failure off.
+        Done.
+
+        // `a new gate` names an OBJECT to make, and a shorthand is not one.
+        Cast refuse-making-shorthands on (program, declared) or pass the failure off.
+
+        Define holder as cast listed.
+        Cast holder's add on (program).
+        Cast put-shorthands-back on (holder, resolved).
+        Return item 1 of holder's children.
+    Done.
+
+    /// A shorthand's type with every shorthand inside it put back — refused when it comes back round to itself.
+    Bind void or failure to resolve-shorthand, given (the text name, the map from text to node declared,
+            the map from text to node resolved, the series of text trail):
+        If (the entry for name in resolved) is not void, return.
+        Define seen as false.
+        For each step in trail, repeat:
+            If step is name, the seen becomes true.
+        Done.
+        If seen:
+            Define opener as the entry for item 1 of trail in declared but void is cast listed.
+            Define first-shown as cast display-name on (item 1 of trail).
+            Define ring as "".
+            Define inside as false.
+            For each step in trail, repeat:
+                If step is name, the inside becomes true.
+                If inside, the ring becomes ring joined to (cast display-name on (step)) joined to " → ".
+            Done.
+            The ring becomes ring joined to (cast display-name on (name)).
+            Return a failure (cast refusal-of on ("the shorthand '{first-shown}' stands for itself ({ring})", "",
+                cast number-of on (cast field-of on (opener, 3)), "define '{first-shown}' in terms of itself",
+                "A shorthand is only another way to write a type, so it has to come down to a type in the end. Write the type out in one of them.")).
+        Done.
+        Insert name into trail.
+        Define declaration as the entry for name in declared but void is cast listed.
+        For each inner in cast shorthands-written-in on (cast field-of on (declaration, 2), declared), repeat:
+            Cast resolve-shorthand on (inner, declared, resolved, trail) or pass the failure off.
+        Done.
+        Remove item (the number of trail) from trail.
+        Define holder as cast listed.
+        Cast holder's add on (cast copied-node on (cast field-of on (declaration, 2))).
+        Cast put-shorthands-back on (holder, resolved).
+        In resolved, the entry for name becomes item 1 of holder's children.
+    Done.
+
+    /// The shorthands a type names, in the order it names them.
+    Bind series of text to shorthands-written-in, given (the node shape, the map from text to node declared):
+        Define found as a series of text.
+        Cast gather-shorthands-written on (shape, declared, found).
+        Return found.
+    Done.
+
+    Bind void to gather-shorthands-written, given (the node shape, the map from text to node declared,
+            the series of text found):
+        If shape's kind is "atom", return.
+        If shape's kind is "ObjectType":
+            If cast is-filled-type on (shape):
+                Cast gather-shorthands-written on (cast field-of on (shape, 2), declared, found).
+                Return.
+            Done.
+            Define name as cast unquoted on (cast field-of on (shape, 1)).
+            If (the entry for name in declared) is not void, insert name into found.
+            Return.
+        Done.
+        For each child in shape's children, repeat:
+            Cast gather-shorthands-written on (child, declared, found).
+        Done.
+    Done.
+
+    /// Every shorthand under `tree` replaced by a copy of its type, every declaration of one taken out,
+    /// and every union or voidable a shorthand went into folded as the parser would have read it written
+    /// out. Whether anything changed.
+    Bind fact to put-shorthands-back, given (the node tree, the map from text to node resolved):
+        If tree's kind is "atom", return false.
+        Define changed as false.
+        If tree's kind is "list":
+            Define back as the number of tree's children.
+            While back is greater than 0, repeat:
+                If (item back of tree's children)'s kind is "ShorthandDefinition":
+                    Remove item back from tree's children.
+                    The changed becomes true.
+                Done.
+                Decrement back by 1.
+            Done.
+        Done.
+        Define place as 0.
+        For each child in tree's children, repeat:
+            Increment place by 1.
+            Define replaced as cast shorthand-meant on (child, resolved).
+            If replaced's kind is not "atom":
+                Cast rewrite-field on (tree, place, cast copied-node on (replaced)).
+                The changed becomes true.
+            Done.
+            Otherwise if cast put-shorthands-back on (child, resolved):
+                The changed becomes true.
+                If child's kind is "UnionType" or child's kind is "VoidableType":
+                    Cast rewrite-field on (tree, place, cast folded-shape on (child)).
+                Done.
+            Done.
+        Done.
+        Return changed.
+    Done.
+
+    /// The type a shorthand stands for, when `shape` is one written bare — otherwise an atom.
+    Bind node to shorthand-meant, given (the node shape, the map from text to node resolved):
+        If shape's kind is not "ObjectType" or cast is-filled-type on (shape), return cast atom on ("_").
+        Return the entry for cast unquoted on (cast field-of on (shape, 1)) in resolved but void is cast atom on ("_").
+    Done.
+
+    /// A union flattened and a voidable of a union made a union with a void case — the parser's reading.
+    Bind node to folded-shape, given (the node shape):
+        If shape's kind is "VoidableType":
+            Define inner as cast field-of on (shape, 1).
+            If inner's kind is "UnionType" or inner's kind is "VoidableType", the inner becomes cast folded-shape on (inner).
+            If inner's kind is "UnionType" and cast is-open-union on (inner) is false:
+                Define cases as cast listed.
+                For each one-case in cast union-cases on (inner), repeat:
+                    Cast cases's add on (one-case).
+                Done.
+                Cast cases's add on (cast plain-type on ("VoidType")).
+                Return cast made on ("UnionType", a series with (cases)).
+            Done.
+            Return cast made on ("VoidableType", a series with (inner)).
+        Done.
+        If shape's kind is not "UnionType" or cast is-open-union on (shape), return shape.
+        Define flat as a series of node.
+        For each written in cast union-cases on (shape), repeat:
+            Define one-case as written.
+            If written's kind is "UnionType" or written's kind is "VoidableType", the one-case becomes cast folded-shape on (written).
+            If one-case's kind is "UnionType" and cast is-open-union on (one-case) is false:
+                For each held in cast union-cases on (one-case), repeat:
+                    Insert held into flat.
+                Done.
+            Done.
+            Otherwise, insert one-case into flat.
+        Done.
+        // (T or void) is a voidable T, as the parser reads it.
+        If the number of flat is 2:
+            If (item 1 of flat)'s kind is "VoidType", return cast made on ("VoidableType", a series with (item 2 of flat)).
+            If (item 2 of flat)'s kind is "VoidType", return cast made on ("VoidableType", a series with (item 1 of flat)).
+        Done.
+        Define cases as cast listed.
+        For each one-case in flat, repeat:
+            Cast cases's add on (one-case).
+        Done.
+        Return cast made on ("UnionType", a series with (cases)).
+    Done.
+
+    /// `a new gate`, where `gate` is a shorthand — refused, as C# refuses it.
+    Bind void or failure to refuse-making-shorthands, given (the node tree, the map from text to node declared):
+        If tree's kind is "atom", return.
+        If tree's kind is "ObjectLiteral":
+            Define made-name as cast unquoted on (cast field-of on (tree, 1)).
+            If (the entry for made-name in declared) is not void:
+                Define shown as cast display-name on (made-name).
+                Return a failure (cast refusal-of on ("'{shown}' is a shorthand for a type, not an object", "",
+                    cast number-of on (cast field-of on (tree, 4)), "make a new '{shown}'",
+                    "Only an object can be made. Make one of the types '{shown}' stands for.")).
+            Done.
+        Done.
+        For each child in tree's children, repeat:
+            Cast refuse-making-shorthands on (child, declared) or pass the failure off.
+        Done.
+    Done.
+Done.

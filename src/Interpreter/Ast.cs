@@ -603,6 +603,10 @@ public sealed record InterfaceDefinition(
     int Column
 ) : IStatement;
 
+// Define shorthand <name> as <type>.  — another way to write <type>, and nothing more: the front
+// end puts the type back wherever the name is written (ShorthandExpansion), so no backend meets one.
+public sealed record ShorthandDefinition(string Name, CufetType Type, int Line, int Column) : IStatement;
+
 // Get <name> as <type>: ... Done.  — computed property; body must Return the declared type.
 // UntoType != null → declared outside its object's body with 'unto <type>' (same as Bind unto).
 public sealed record GetterDeclaration(

@@ -37,7 +37,7 @@ Define settle-limit as 100 permanently.
 // and it is why `z` exists at all.
 
 Bind map from text to (low or high or unknown or floating) to driving, given (
-        the catalogue of (and-gate or or-gate or xor-gate or nand-gate or not-gate or tri-gate) parts,
+        the catalogue of gate parts,
         the map from text to (low or high or unknown or floating) wires):
     Define driven as a map from text to (low or high or unknown or floating).
     For each part in parts, repeat:
@@ -76,7 +76,7 @@ Done.
 // ── The fixed point ───────────────────────────────────────────────────────
 
 Bind map from text to (low or high or unknown or floating) to settled, given (
-        the catalogue of (and-gate or or-gate or xor-gate or nand-gate or not-gate or tri-gate) parts,
+        the catalogue of gate parts,
         the map from text to (low or high or unknown or floating) inputs):
     Define current as cast taken-apart on (inputs).
     Define rounds as 0.

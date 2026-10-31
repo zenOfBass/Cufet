@@ -398,7 +398,8 @@ public sealed class SemanticTokenizer
     }
 
     private bool IsTypeName(string name) =>
-        _checker.ObjectDefinitions.ContainsKey(name) || _checker.InterfaceDefinitions.ContainsKey(name);
+        _checker.ObjectDefinitions.ContainsKey(name) || _checker.InterfaceDefinitions.ContainsKey(name)
+        || _checker.ShorthandNames.Contains(name);
 
     // ── Type annotations ──────────────────────────────────────────────────
 
@@ -518,6 +519,15 @@ public sealed class SemanticTokenizer
                 EmitFound(Cursor.At(_tokens, cufetBlock.Line, cufetBlock.Column), cufetBlock.Name,
                         SemanticTokenKind.Variable, SemanticTokenModifier.Declaration);
                 break;
+
+            // `Define shorthand gate as (and-gate or or-gate).` — a type's name, then the type it spells.
+            case ShorthandDefinition sd:
+            {
+                var cursor = Cursor.At(_tokens, sd.Line, sd.Column);
+                EmitFound(cursor, sd.Name, SemanticTokenKind.Type, SemanticTokenModifier.Declaration);
+                EmitAnnotationNames(cursor, sd.Type);
+                break;
+            }
 
             case InterfaceDefinition id:
             {

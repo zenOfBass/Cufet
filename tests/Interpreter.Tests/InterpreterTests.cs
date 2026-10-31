@@ -5320,6 +5320,71 @@ public class InterpreterTests
     }
 
     [Fact]
+    public void Shorthand_IsTheTypeItStandsFor()
+    {
+        Assert.Equal("5\na\ntrue\n(1, 2, 3)", Run(
+            "Define shorthand pair as (number or text).\n" +
+            "Define shorthand number-list as series of number.\n" +
+            "Define the pair x as 5.\n" +
+            "Define the pair y as \"a\".\n" +
+            "Define the (pair or void) z as void.\n" +
+            "Define the number-list nums as a series with (1, 2).\n" +
+            "Insert 3 into nums.\n" +
+            "State x.\nState y.\nState z is void.\nState nums."));
+    }
+
+    [Fact]
+    public void Shorthand_WrittenWithAnother_AndInsideAUnion()
+    {
+        // `(shape or line)` is the flat union of all three, and a Judge over it must cover each.
+        Assert.Equal("a line\nround", Run(
+            "Define object circle with ().\nDefine object square with ().\nDefine object line with ().\n" +
+            "Define shorthand shape as (circle or square).\n" +
+            "Define shorthand drawing as (shape or line).\n" +
+            "Bind text to named, given (the drawing it-is):\n" +
+            "    Judge it-is, where it is:\n" +
+            "        A circle, return \"round\".\n" +
+            "        A square, return \"square\".\n" +
+            "        A line, return \"a line\".\n" +
+            "    Done.\nDone.\n" +
+            "State cast named on (a new line {}).\n" +
+            "State cast named on (a new circle {})."));
+    }
+
+    [Fact]
+    public void Shorthand_JudgeOverIt_MustCoverEveryType()
+    {
+        var refused = Assert.Throws<TypeException>(() => Run(
+            "Define object circle with ().\nDefine object square with ().\n" +
+            "Define shorthand shape as (circle or square).\n" +
+            "Define the shape s as a new circle {}.\n" +
+            "Judge s, where it is:\n    A circle, state \"round\".\nDone."));
+        Assert.Contains("does not cover square", refused.Message);
+    }
+
+    [Theory]
+    [InlineData("Define shorthand pair as (number or text).\nDefine shorthand pair as (fact or text).",
+                "the shorthand 'pair' is already defined on line 1")]
+    [InlineData("Define object dot with ().\nDefine shorthand dot as (number or text).",
+                "'dot' is already the name of a type")]
+    [InlineData("Define shorthand ring as (number or loop).\nDefine shorthand loop as (text or ring).",
+                "the shorthand 'ring' stands for itself (ring → loop → ring)")]
+    [InlineData("Define object dot with ().\nDefine shorthand spot as (dot or number).\nDefine made as a new spot {}.",
+                "'spot' is a shorthand for a type, not an object")]
+    public void Shorthand_Refusals(string source, string expected)
+    {
+        var refused = Assert.Throws<TypeException>(() => Run(source));
+        Assert.Contains(expected, refused.Message);
+    }
+
+    [Fact]
+    public void Shorthand_WordIsReserved()
+    {
+        var refused = Assert.ThrowsAny<Exception>(() => Run("Bind number to twice, given (the number shorthand):\n    Return shorthand * 2.\nDone."));
+        Assert.Contains("'shorthand' is a word Cufet has taken", refused.Message);
+    }
+
+    [Fact]
     public void TextCase_DoesNotCollideWithMapLookupIn()
     {
         Assert.Equal("30", Run(

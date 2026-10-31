@@ -44,6 +44,14 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   do for casing. `alphabetic`, `numeric` and `whitespace` are now reserved words; `code` and
   `point` are not. `examples/parsing/precedence.cufe` renamed its `numeric` pattern to
   `all-digits`.
+- **A type can be given a shorter name.** `Define shorthand gate as (and-gate or or-gate).` makes
+  `gate` another way to write that type, and nothing more: the front end puts the type back
+  wherever the name is written, so a `gate` and the union are the same type and neither backend
+  meets a shorthand. It may stand for any type that can be written, and be written with another.
+  It is seen where an object is (across a project's folder, kept private by a book), and refused
+  when declared twice, named like a type, defined in terms of itself, or made with `a new`.
+  `shorthand` is now a reserved word. `examples/circuits/` names its six-gate union `gate` in
+  `gates.cufe` and writes that in the 18 places it spelled the union out.
 
 ### Changed
 

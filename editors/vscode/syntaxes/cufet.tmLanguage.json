@@ -161,6 +161,15 @@
           }
         },
         {
+          "comment": "Define shorthand <name> as <type>.",
+          "match": "((?i:define))(?![\\w-])\\s+(?:(?i:an|a)(?![\\w-])\\s+)?((?i:shorthand))(?![\\w-])\\s+([a-z][A-Za-z0-9-]*)",
+          "captures": {
+            "1": { "name": "storage.type.declaration.cufet" },
+            "2": { "name": "storage.type.declaration.cufet" },
+            "3": { "name": "entity.name.type.cufet" }
+          }
+        },
+        {
           "comment": "Define <name> as an interface for {...} — here the name comes BEFORE the keyword that identifies the form, so the literal 'interface' is what keeps this off ordinary 'Define x as 1'.",
           "match": "((?i:define))(?![\\w-])\\s+([a-z][A-Za-z0-9-]*)\\s+(?i:as)(?![\\w-])\\s+(?:(?i:an|a)(?![\\w-])\\s+)?((?i:interface))(?![\\w-])",
           "captures": {
@@ -297,7 +306,7 @@
         {
           "comment": "Words that introduce a definition.",
           "name": "storage.type.declaration.cufet",
-          "match": "(?<![\\w-])(?i:define|bind|object|interface|given|unto|unmaking|making|overloading|get|set|new)(?![\\w-])"
+          "match": "(?<![\\w-])(?i:define|bind|object|interface|shorthand|given|unto|unmaking|making|overloading|get|set|new)(?![\\w-])"
         },
         {
           "comment": "★ 'Output' and 'Seed', CAPITALISED ONLY and matched case-sensitively. This rule cannot be wrong: an identifier must begin with a lowercase letter, so the capitalised spelling can only ever be the statement — it is never someone's variable. The lowercase spelling IS ambiguous and is left to the semantic-token pass, which has the parse and can tell a statement from a variable of the same name (see SemanticTokenKind.Keyword). Keeping both layers is deliberate: semantic tokens are unavailable whenever a file does not parse, and this guarantees the capitalised form is coloured regardless.",

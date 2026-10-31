@@ -48,7 +48,7 @@ Done.
 // ── Driving a circuit once ────────────────────────────────────────────────
 
 Bind text to driven-reading, given (
-        the catalogue of (and-gate or or-gate or xor-gate or nand-gate or not-gate or tri-gate) parts,
+        the catalogue of gate parts,
         the map from text to (low or high or unknown or floating) inputs,
         the series of text watched):
     Return cast reading on (cast settled on (parts, inputs), watched).
@@ -196,7 +196,7 @@ State "".
 State "A TRI-STATE BUS — two drivers, one wire".
 State "".
 
-Define bus as a catalogue of (and-gate or or-gate or xor-gate or nand-gate or not-gate or tri-gate) with (
+Define bus as a catalogue of gate with (
     a new tri-gate { the source "left-data",  the enable "left-on",  the out "bus" },
     a new tri-gate { the source "right-data", the enable "right-on", the out "bus" }).
 Define bus-watch as a series of text with ("bus").
@@ -206,7 +206,7 @@ Define bus-watch as a series of text with ("bus").
 // `permanently` constants — which is deliberate: it keeps the data flow of a program
 // visible in its signatures rather than in what happens to be defined above.
 Bind void to bus-case, given (
-        the catalogue of (and-gate or or-gate or xor-gate or nand-gate or not-gate or tri-gate) parts,
+        the catalogue of gate parts,
         the series of text watching,
         the text note, the number left-on, the number right-on,
         the number left-data, the number right-data):
@@ -251,7 +251,7 @@ Define latch as cast sr-latch on ("set-low", "reset-low", "q", "q-bar").
 Define latch-watch as a series of text with ("q", "q-bar").
 
 Bind void to latch-case, given (
-        the catalogue of (and-gate or or-gate or xor-gate or nand-gate or not-gate or tri-gate) parts,
+        the catalogue of gate parts,
         the series of text watching,
         the text note, the number set-low, the number reset-low, the text seed):
     Define inputs as a map from text to (low or high or unknown or floating).

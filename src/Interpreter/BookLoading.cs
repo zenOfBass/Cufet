@@ -447,6 +447,7 @@ public static class BookLoading
                         SetterDeclaration st => st.Name,
                         ObjectDefinition o => o.Name,
                         InterfaceDefinition i => i.Name,
+                        ShorthandDefinition sh => sh.Name,
                         DefineStatement d => d.Name,
                         _ => null,
                     } is { } declared)
@@ -601,6 +602,7 @@ public static class BookLoading
             {
                 ObjectDefinition o    => (o.Name, o.Line, o.Column),
                 InterfaceDefinition i => (i.Name, i.Line, i.Column),
+                ShorthandDefinition sh => (sh.Name, sh.Line, sh.Column),
                 DefineStatement d     => (d.Name, d.Line, d.Column),
                 BindStatement { UntoType: null } b => (b.Name, b.Line, b.Column),
                 _ => (null as string, 0, 0),
@@ -855,6 +857,7 @@ public static class BookLoading
             {
                 case ObjectDefinition o:            yield return (o.Name, o.Line, o.Column); break;
                 case InterfaceDefinition i:         yield return (i.Name, i.Line, i.Column); break;
+                case ShorthandDefinition sh:        yield return (sh.Name, sh.Line, sh.Column); break;
                 case BindStatement { UntoType: null } b: yield return (b.Name, b.Line, b.Column); break;
 
                 // ⚠⚠ A PLAIN `Define` IS NOT A NAME A DIRECTORY OFFERS, and `permanently` is
@@ -914,8 +917,8 @@ public static class BookLoading
                     kept.Add(statement);
                     break;
 
-                case BindStatement or ObjectDefinition or InterfaceDefinition or GetterDeclaration
-                  or SetterDeclaration or UnmakerDeclaration or OperatorOverloadDeclaration:
+                case BindStatement or ObjectDefinition or InterfaceDefinition or ShorthandDefinition
+                  or GetterDeclaration or SetterDeclaration or UnmakerDeclaration or OperatorOverloadDeclaration:
                     kept.Add(statement);
                     break;
             }
@@ -1110,7 +1113,7 @@ public static class BookLoading
     {
         foreach (var statement in TypeChecker.FlattenHoistable(statements))
         {
-            if (statement is BindStatement or ObjectDefinition or InterfaceDefinition
+            if (statement is BindStatement or ObjectDefinition or InterfaceDefinition or ShorthandDefinition
                           or GetterDeclaration or SetterDeclaration or UnmakerDeclaration
                           or OperatorOverloadDeclaration or DefineStatement
                           or PullStatement or PullRabbitStatement)
@@ -1198,6 +1201,7 @@ public static class BookLoading
                 // module escaped the file it belongs to — silently, and against the rule stated just
                 // above. Nobody decided that; the switch simply had no case for it.
                 InterfaceDefinition i => i.Name,
+                ShorthandDefinition sh => sh.Name,
 
                 // ⚠⚠ A `Define` ONLY AT THE FLAT TOP LEVEL, unlike the three above. The others are
                 // program-scope wherever they are written — that is what makes them reachable and
@@ -1287,6 +1291,7 @@ public static class BookLoading
                 BindStatement b when own.TryGetValue(b.Name, out var to) => b with { Name = to },
                 DefineStatement d when (topLevel.Contains(d) || d.Permanent) && own.TryGetValue(d.Name, out var to) => d with { Name = to },
                 InterfaceDefinition i when own.TryGetValue(i.Name, out var to) => i with { Name = to },
+                ShorthandDefinition sh when own.TryGetValue(sh.Name, out var to) => sh with { Name = to },
                 _ => statement,
             });
     }

@@ -170,6 +170,21 @@ public sealed class Parser
         SkipNoiseBeforeType();
         if (Peek().Type == TokenType.Object)
             return ParseObjectDefinition(line, col);
+        // `Define shorthand gate as (and-gate or or-gate).` — the keyword before the name, as
+        // `object` is, so `shorthand` is reserved: `Define rabbit hopper as …` already means "a
+        // rabbit called hopper", and a keyword read by position alone would collide with it.
+        if (Peek().Type == TokenType.Shorthand)
+        {
+            Advance(); SkipNoise();          // consume 'shorthand'
+            var shortName = Consume(TokenType.Identifier).Lexeme;
+            SkipNoise();
+            Consume(TokenType.As);
+            SkipNoiseBeforeType();
+            var stood = ParseElementType(nameFollows: false);
+            SkipNoise();
+            Consume(TokenType.Dot);
+            return new ShorthandDefinition(shortName, stood, line, col);
+        }
         // "Define a shadow <name> as ..." — deliberate shadowing opt-in.
         // SkipNoise() above already consumed the article 'a', so we check for Shadow directly.
         bool shadow = false;

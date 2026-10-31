@@ -332,6 +332,9 @@ Pull a book on collections.
         If the number of located's children is not the number of written's children:
             The program becomes cast one's lift-carried-types on (located).
         Done.
+        // A shorthand's type is put back wherever its name is written, before citing, dispatch and
+        // the hoist, every one of which reads written types.
+        The program becomes cast expand-shorthands on (program) or pass the failure off.
         // Every `Cite` is replaced by what its block holds before anything is gathered.
         The program becomes cast one's expand-cites on (program) or pass the failure off.
         Define reach as cast beyond-reach on (program).

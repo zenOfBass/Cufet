@@ -37,7 +37,7 @@ Pull a book on collections.
             "RunExpression" : 4, "RunStatement" : 4, "SeedChanceStatement" : 2, "SendStatement" : 3,
             "SeriesAccess" : 3, "SeriesInsertStatement" : 5, "SeriesLength" : 2, "SeriesLiteral" : 3,
             "SeriesRemoveAtStatement" : 3, "SeriesRemoveValueStatement" : 3, "SeriesSetStatement" : 4,
-            "SetHasMember" : 3, "SetLiteral" : 3, "SetterDeclaration" : 6, "SortExpression" : 4,
+            "SetHasMember" : 3, "SetLiteral" : 3, "SetterDeclaration" : 6, "ShorthandDefinition" : 3, "SortExpression" : 4,
             "SuppressStatement" : 1, "TextAffixTest" : 4, "TextCase" : 3, "TextContains" : 3,
             "TextConvert" : 2, "TextFind" : 3, "TextJoin" : 3, "TextReplace" : 4, "TextSplit" : 3,
             "TextSubstringEdge" : 4, "TextSubstringRange" : 4, "TextTrim" : 2, "TryStatement" : 4,

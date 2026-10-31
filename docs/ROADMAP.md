@@ -144,11 +144,6 @@ the calling: these wait only for a turn.
 
 ### Language
 
-- **A type cannot be given a name.** `examples/circuits/` spells
-  `(and-gate or or-gate or xor-gate or nand-gate or not-gate or tri-gate)` out 20 times; the corpus
-  writes long unions in full in six places. Idiomatic rather than a mistake, but six members is
-  where it starts to hurt. *Blocker:* none known.
-
 - **A failure is handed on at nearly every call.** `… or pass the failure off` ends most calls in the
   checker written in Cufet, and a `void or failure` call cannot be returned — it is called, and
   `Return.` follows. Correct and explicit, and the bulk of that program's line noise.

@@ -286,6 +286,43 @@ public class LexerParityTests
         finally { Directory.Delete(dir, recursive: true); }
     }
 
+    /// <summary>
+    /// Sources with whitespace outside ASCII between their tokens, which the C# lexer skips as
+    /// `char.IsWhiteSpace` does. No corpus file has any outside a quoted text, so without these a
+    /// Cufet scanner that skipped only ASCII spaces passed every other test here.
+    /// </summary>
+    private static readonly string[] UnicodeSpaced =
+    [
+        "State 1.",
+        "Define x as　5.\nState x.",
+        "  State \"a b\".",
+        "If true, state 1.",
+    ];
+
+    [Fact]
+    public void WhitespaceOutsideAscii_IsSkippedAsCSharpSkipsIt()
+    {
+        var dir = Directory.CreateTempSubdirectory("cufet-lexer-spaces-").FullName;
+        try
+        {
+            var files = new List<(string Name, string Source)>();
+            for (int i = 0; i < UnicodeSpaced.Length; i++)
+            {
+                string name = $"spaced-{i + 1}.cufe";
+                File.WriteAllText(Path.Combine(dir, name), UnicodeSpaced[i]);
+                // ⚠ Each case has to lex on the C# side, or the case tests a refusal instead.
+                Assert.DoesNotContain(Expected(UnicodeSpaced[i]), t => t.StartsWith("error\t"));
+                files.Add((name, UnicodeSpaced[i]));
+            }
+
+            var lexer = Path.Combine(RepoRoot, EntryPath("lexer"));
+            var got = ByFile(Run(CufetExe, [lexer, .. files.Select(f => f.Name)], dir));
+            var problems = Differences(files, got);
+            Assert.True(problems.Count == 0, string.Join("\n", problems));
+        }
+        finally { Directory.Delete(dir, recursive: true); }
+    }
+
     [Fact]
     public void TheCompiledLexer_AgreesWithCSharpToo()
     {

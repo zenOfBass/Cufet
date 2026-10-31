@@ -75,6 +75,7 @@ deliberate differences are marked where they arise and summarised under
     - [Union types and narrowing](#union-types-and-narrowing)
       - [`is a <type>` / `is not a <type>`](#is-a-type--is-not-a-type)
       - [In-branch narrowing](#in-branch-narrowing)
+    - [Shorthands](#shorthands)
     - [Error handling (failures and exceptions)](#error-handling-failures-and-exceptions)
       - [Failure values (`failure T`)](#failure-values-failure-t)
       - [Block form: `Try to`](#block-form-try-to)
@@ -3294,6 +3295,51 @@ required), never `any`.
 Narrowing is **variable-level** — the same rule as voidable narrowing. The
 narrowed type clears when the variable is reassigned. To narrow a value produced
 by an expression, name it first.
+
+---
+
+### Shorthands
+
+A **shorthand** is another way to write a type. It names the type once, and every place that
+writes the name means exactly that type:
+
+```cufet
+Define object circle with (the number radius).
+Define object square with (the number side).
+Define shorthand shape as (circle or square).
+
+Bind number to area, given (the shape figure):
+    Judge figure, where it is:
+        A circle, return it's radius * it's radius * 3.
+        A square, return it's side * it's side.
+    Done.
+Done.
+
+Define all as a series of shape with (a new circle {the radius 2}, a new square {the side 3}).
+For each one-shape in all, repeat:
+    State cast area on (one-shape).
+Done.
+```
+```output
+12
+9
+```
+
+**It is the type, not a new one.** A `shape` and a `(circle or square)` are the same type
+everywhere, so either can be given where the other is expected, and a `Judge` over a `shape` must
+cover both cases. A shorthand may stand for any type that can be written (a union, a series, a map,
+a function type), and may be written with another: `(shape or void)` and
+`(shape or line)` are the unions you would get by writing every member out.
+
+**It is seen where an object would be.** A shorthand belongs to the program wherever it is
+written. Inside a project, the files of a folder see each other's shorthands; a book keeps its
+own to itself.
+
+**Refused:** a second shorthand of the same name; a shorthand named like an object or an
+interface; one that comes back round to itself (`ring` written with `loop`, and `loop` with
+`ring`); and `a new shape`, since only an object can be made.
+
+`shorthand` is a reserved word.
 
 ---
 

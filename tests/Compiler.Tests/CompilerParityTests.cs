@@ -65,7 +65,7 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     : PipelineTestBase, IClassFixture<CompiledCufetCompiler>
 {
     /// <summary>How many hand-written programs must build and print alike. Raised as it grows; never lowered.</summary>
-    private const int BuiltFloor = 445;
+    private const int BuiltFloor = 446;
 
     private static string[] PreludeArgs =>
         ["--prelude", Path.Combine(RepoRoot, "src", "Interpreter", "Prelude").Replace('\\', '/')];
@@ -569,6 +569,8 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
         "Define words as a series of text with (\"pear\", \"fig\").\nDefine line as words converted to text.\nState line.\nState \"fruit: {words}\".\nDefine counts as a series of number with (1, 2.5, -3).\nState \"counts: \" joined to counts converted to text.\nDefine flags as a series of fact with (true, false).\nState \"{flags}\".\nDefine masks as a series of bits with (0xFF, 0b101).\nState \"{masks}\".\nDefine grid as a series of series of number with (a series of number with (1, 2), a series of number with (3)).\nState \"grid: {grid}\".\nDefine none as a series of text.\nState \"none: {none}\".\nState the length of \"{words}\".\n",
         // Character classes and the code point, from the one table both backends read (2026-10-31)
         "For each word in a series with (\"abc\", \"h\u00e9llo\", \"\u4e2d\", \"abc1\", \"\", \"123\", \"\u0663\", \"\u00bd\", \" \"), repeat:\n    State \"{word}: {word is alphabetic} {word is numeric} {word is whitespace} {word is not numeric}\".\nDone.\nState the code point of \"\ud83d\ude00\".\nIf \"7\" is numeric, state (the code point of \"7\") - (the code point of \"0\").",
+        // Shorthands — another way to write a type, put back before either backend sees it (2026-10-31)
+        "Define object circle with (the number radius).\nDefine object square with (the number side).\nDefine object line with ().\nDefine shorthand shape as (circle or square).\nDefine shorthand shapes as series of shape.\nDefine shorthand drawing as (shape or line).\nBind number to area, given (the shape figure):\n    Judge figure, where it is:\n        A circle, return it's radius * it's radius * 3.\n        A square, return it's side * it's side.\n    Done.\nDone.\nDefine all as a series of shape with (a new circle {the radius 2}, a new square {the side 3}).\nFor each one-shape in all, repeat:\n    State cast area on (one-shape).\nDone.\nDefine the drawing pen as a new line {}.\nIf pen is a line, state \"a line\".\nIf item 1 of all is a circle, state \"a circle\".",
     ];
 
     [Fact]

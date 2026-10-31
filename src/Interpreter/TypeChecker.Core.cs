@@ -915,6 +915,10 @@ public sealed partial class TypeChecker
     public IReadOnlyDictionary<string, ObjectType>          ObjectDefinitions    => _objectDefs;
     public IReadOnlyDictionary<string, InterfaceDefinition> InterfaceDefinitions => _interfaceDefs;
 
+    /// <summary>The shorthands the program declared — gone from the program the backends are handed.</summary>
+    public IReadOnlySet<string> ShorthandNames => _shorthandNames;
+    private IReadOnlySet<string> _shorthandNames = new HashSet<string>();
+
     // Registered operator overload return types: (typeName, op) → return type (T or FailureType(T)).
     // Populated by Pass2CheckOverloads before any expression type-checking begins.
     // Keyed on the ORDERED pair: `vec2 * number` and `number * vec2` are different entries.
@@ -1286,6 +1290,10 @@ public sealed partial class TypeChecker
         // here. Nothing after this point knows a module can hold a type.
         program = ModuleTypeLifting.Expand(program, out var moduleCarried);
         _moduleCarriedTypes = moduleCarried;
+
+        // ⭐ After loading, so a neighbour's shorthand is here and a book's is already private; before
+        // citing, dispatch and the hoist, every one of which reads written types.
+        program = ShorthandExpansion.Expand(program, out _shorthandNames);
 
         var placed = CiteExpansion.Expand(program.Statements);
         if (!ReferenceEquals(placed, program.Statements)) program = new Program(placed);

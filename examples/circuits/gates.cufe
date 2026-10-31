@@ -47,6 +47,9 @@ Define object nand-gate with (the text left, the text right, the text out).
 */
 Define object tri-gate with (the text source, the text enable, the text out).
 
+// Every part is one of the six, and a seventh is added here once.
+Define shorthand gate as (and-gate or or-gate or xor-gate or nand-gate or not-gate or tri-gate).
+
 // ── Reading a wire ────────────────────────────────────────────────────────
 //
 // ★ A name nobody has written is FLOATING, not unknown, and the difference matters. `z` says
@@ -68,7 +71,7 @@ Done.
 // anything, which is what it needs to tell a driven wire from a primary input.
 
 Bind text to driven-wire, given (
-        the (and-gate or or-gate or xor-gate or nand-gate or not-gate or tri-gate) part):
+        the gate part):
     Judge part, where it is:
         An and-gate, return the out of it.
         An or-gate,  return the out of it.
@@ -80,7 +83,7 @@ Bind text to driven-wire, given (
 Done.
 
 Bind (low or high or unknown or floating) to driven-value, given (
-        the (and-gate or or-gate or xor-gate or nand-gate or not-gate or tri-gate) part,
+        the gate part,
         the map from text to (low or high or unknown or floating) wires):
     Judge part, where it is:
         An and-gate:

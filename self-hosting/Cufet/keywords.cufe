@@ -42,6 +42,7 @@ Bind map from text to text to keyword-table:
         "like" : "Like",
         "object" : "Object",
         "interface" : "Interface",
+        "shorthand" : "Shorthand",
         "new" : "New",
         "one" : "One",
         "for" : "For",

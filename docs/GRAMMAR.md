@@ -55,7 +55,7 @@ Keywords are **case-insensitive** (`State`, `state`, `STATE` are identical).
 ### ★ Where a declaration belongs
 
 **A TYPE declaration belongs to the PROGRAM, wherever it is written.** `Define object`, an
-interface, an unmaker, an operator overload and a named maker are all registered for the
+interface, a shorthand, an unmaker, an operator overload and a named maker are all registered for the
 whole program even when written inside a function, a loop, an `If` arm or a rabbit block — so a
 type declared in one is usable after it.
 
@@ -66,7 +66,8 @@ function body sensible and `Define x as 5.` in one still private.
 ★ **A type may be declared more than once, and the last declaration wins** — the same rule
 shadowing follows everywhere else. An earlier definition is dead: nothing dispatches to it, its
 methods are never emitted, and its body is not checked. ⚠ The linter reports it, because a reader
-cannot see it from the earlier definition alone.
+cannot see it from the earlier definition alone. A shorthand is the exception: one written twice
+is refused.
 
 ### Noise (consumed silently wherever articles appear)
 
@@ -297,6 +298,7 @@ equality `is` uses.
 | `voidable` | Voidable | Nullable-like type modifier |
 | `object` | Object | Object type declaration |
 | `interface` | Interface | Interface declaration |
+| `shorthand` | Shorthand | Shorthand declaration: `Define shorthand <name> as <type>.` |
 | `new` | New | Object/map/matrix literal |
 | `one` | One | Self-reference inside methods |
 | `get` | GetKw | Getter declaration |

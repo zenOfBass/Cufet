@@ -23,13 +23,13 @@
     came in. Those two cases cannot both happen, which is why an OR is enough and no second
     carry can ever be generated. */
 
-Bind catalogue of (and-gate or or-gate or xor-gate or nand-gate or not-gate or tri-gate) to full-adder,
+Bind catalogue of gate to full-adder,
         given (the text left, the text right, the text carry-in,
                the text sum, the text carry-out, the text tag):
     Define half as "half-{tag}".
     Define both as "both-{tag}".
     Define carried as "carried-{tag}".
-    Return a catalogue of (and-gate or or-gate or xor-gate or nand-gate or not-gate or tri-gate) with (
+    Return a catalogue of gate with (
         a new xor-gate { the left left,  the right right,    the out half },
         a new xor-gate { the left half,  the right carry-in, the out sum },
         a new and-gate { the left left,  the right right,    the out both },
@@ -53,9 +53,9 @@ Done.
     is a real property of the hardware, not of this simulator, and it is why wide adders in
     real designs do something cleverer. */
 
-Bind catalogue of (and-gate or or-gate or xor-gate or nand-gate or not-gate or tri-gate) to ripple-adder,
+Bind catalogue of gate to ripple-adder,
         given (the number width):
-    Define work as a catalogue of (and-gate or or-gate or xor-gate or nand-gate or not-gate or tri-gate).
+    Define work as a catalogue of gate.
     Define bit as 1.
     While bit is less than width or bit is width, repeat:
         Define stage as cast full-adder on (
@@ -78,11 +78,11 @@ Done.
     `z` there is no way for a driver to say "not me", so two drivers on one wire would always
     be contention, and the standard way to build a multiplexer would be a type error. */
 
-Bind catalogue of (and-gate or or-gate or xor-gate or nand-gate or not-gate or tri-gate) to selector,
+Bind catalogue of gate to selector,
         given (the text choose, the text when-low, the text when-high, the text out,
                the text tag):
     Define other as "not-{tag}".
-    Return a catalogue of (and-gate or or-gate or xor-gate or nand-gate or not-gate or tri-gate) with (
+    Return a catalogue of gate with (
         a new not-gate { the source choose,    the out other },
         a new tri-gate { the source when-high, the enable choose, the out out },
         a new tri-gate { the source when-low,  the enable other,  the out out }).
@@ -108,11 +108,11 @@ Done.
     stays 0; seed it with nothing and the honest answer is x. A pipeline has no place to put
     that — the state is not passing through, it IS the circuit. */
 
-Bind catalogue of (and-gate or or-gate or xor-gate or nand-gate or not-gate or tri-gate) to sr-latch,
+Bind catalogue of gate to sr-latch,
         given (the text set-low, the text reset-low, the text out, the text out-bar):
     // ⚠⚠ TWO gates, not four. Writing each NAND as an AND into a NOT looks equivalent and is
     // not: it adds an internal wire, and a latch has nowhere to put one. See `nand-gate`.
-    Return a catalogue of (and-gate or or-gate or xor-gate or nand-gate or not-gate or tri-gate) with (
+    Return a catalogue of gate with (
         a new nand-gate { the left set-low,   the right out-bar, the out out },
         a new nand-gate { the left reset-low, the right out,     the out out-bar }).
 Done.
@@ -128,9 +128,9 @@ Done.
     does not mean "the simulator gave up"; it means the wire has no settled level, which is
     exactly true. */
 
-Bind catalogue of (and-gate or or-gate or xor-gate or nand-gate or not-gate or tri-gate) to ring,
+Bind catalogue of gate to ring,
         given (the number stages):
-    Define work as a catalogue of (and-gate or or-gate or xor-gate or nand-gate or not-gate or tri-gate).
+    Define work as a catalogue of gate.
     Define stage as 1.
     While stage is less than stages or stage is stages, repeat:
         Define next-stage as stage + 1.

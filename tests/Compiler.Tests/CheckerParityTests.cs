@@ -36,10 +36,10 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
     private const int TreeFloor = 91;
 
     /// <summary>The same, of the hand-written programs both checkers accept.</summary>
-    private const int HandWrittenTreeFloor = 285;
+    private const int HandWrittenTreeFloor = 290;
 
     /// <summary>The same, of the hand-written projects both checkers accept.</summary>
-    private const int ProjectTreeFloor = 12;
+    private const int ProjectTreeFloor = 14;
 
     /// <summary>How many hand-written programs draw warnings and are warned of alike. Raised; never lowered.</summary>
     private const int HandWrittenWarnedFloor = 20;
@@ -1215,6 +1215,13 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
         "Define code as 1.\nState the code point of \"A\" + code.\nState (the code point of \"\u00e9\") converted to text.\n",
         "Define n as 5.\nState n is numeric.\n",
         "State the code point of 5.\n",
+        // Shorthands — another way to write a type (2026-10-31).
+        "Define object circle with (the number radius).\nDefine object square with (the number side).\nDefine object line with ().\nDefine shorthand shape as (circle or square).\nDefine shorthand shapes as series of shape.\nDefine shorthand drawing as (shape or line).\nBind number to area, given (the shape figure):\n    Judge figure, where it is:\n        A circle, return it's radius * it's radius * 3.\n        A square, return it's side * it's side.\n    Done.\nDone.\nDefine all as a series of shape with (a new circle {the radius 2}, a new square {the side 3}).\nFor each one-shape in all, repeat:\n    State cast area on (one-shape).\nDone.\nDefine the drawing pen as a new line {}.\nIf pen is a line, state \"a line\".\n",
+        "Define shorthand pair as (number or text).\nDefine shorthand number-list as series of number.\nDefine the pair x as 5.\nDefine the (pair or void) z as void.\nDefine the (pair or fact) w as true.\nDefine the number-list nums as a series with (1, 2).\nInsert 3 into nums.\nState x.\nState z is void.\nState w.\nState nums.\n",
+        "Define shorthand pair as (number or text).\nDefine shorthand pair as (fact or text).\n",
+        "Define object dot with ().\nDefine shorthand dot as (number or text).\n",
+        "Define shorthand ring as (number or loop).\nDefine shorthand loop as (text or ring).\nState 1.\n",
+        "Define object dot with ().\nDefine shorthand spot as (dot or number).\nDefine made as a new spot {}.\n",
     ];
 
     /// <remarks>
@@ -1330,6 +1337,12 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
         new() { ["top/lib/lib.cufe"] = "Bind number to helper, given (the number n):\n    Return n * 2.\nDone.\nBind number to doubled, given (the number n):\n    Judge n, where it is:\n        21:\n            Return cast helper on (n).\n        Done.\n        Otherwise, return 0.\n    Done.\nDone.", ["top/app/app.cufe"] = CallsLib },
         // A refusal in the sibling names its hidden function as written, not as the loader renamed it.
         new() { ["top/lib/lib.cufe"] = ProjectHelper + "Bind number to doubled, given (the number n):\n    Return cast helper on (\"x\").\nDone.", ["top/app/app.cufe"] = CallsLib },
+        // A shorthand is seen where an object would be: beside, and from the folder above — and a
+        // qualified sibling's stays its own.
+        new() { ["top/app/more.cufe"] = "Define shorthand pair as (number or text).", ["top/app/app.cufe"] = "Define the pair x as 5.\nState x." },
+        new() { ["top/shared.cufe"] = "Define shorthand pair as (number or text).", ["top/app/app.cufe"] = "Define the pair x as \"a\".\nState x." },
+        new() { ["top/lib/lib.cufe"] = "Define shorthand pair as (number or text).\nBind number to doubled, given (the pair n):\n    Judge n, where it is:\n        A number, return n * 2.\n        A text, return 0.\n    Done.\nDone.", ["top/app/app.cufe"] = CallsLib + "\nDefine the pair y as 5." },
+        new() { ["top/lib/lib.cufe"] = "Define shorthand pair as (number or text).\nBind number to doubled, given (the pair n):\n    Judge n, where it is:\n        A number, return n * 2.\n        A text, return 0.\n    Done.\nDone.", ["top/app/app.cufe"] = "Define shorthand pair as fact.\nDefine the pair y as true.\n" + CallsLib },
     ];
 
     [Fact]

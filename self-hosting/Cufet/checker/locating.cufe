@@ -488,14 +488,14 @@ Pull a book on collections.
         For each statement in cast hoistable on (statements), repeat:
             Define kind as statement's kind.
             Define named as false.
-            If kind is "ObjectDefinition" or kind is "InterfaceDefinition", the named becomes true.
+            If kind is "ObjectDefinition" or kind is "InterfaceDefinition" or kind is "ShorthandDefinition", the named becomes true.
             If kind is "BindStatement" and cast is-nothing on (cast field-of on (statement, 5)), the named becomes true.
             If kind is "DefineStatement" and cast truth-of on (cast field-of on (statement, 3)), the named becomes true.
             If named:
                 Define line-place as 5.
                 If kind is "ObjectDefinition", the line-place becomes 9.
                 If kind is "BindStatement", the line-place becomes 7.
-                If kind is "InterfaceDefinition", the line-place becomes 3.
+                If kind is "InterfaceDefinition" or kind is "ShorthandDefinition", the line-place becomes 3.
                 Insert cast made on ("list", a series with (cast field-of on (statement, 1), cast field-of on (statement, line-place),
                     cast field-of on (statement, line-place + 1))) into found.
             Done.
@@ -515,7 +515,7 @@ Pull a book on collections.
                 If cast truth-of on (cast field-of on (statement, 3)), cast kept's add on (statement).
             Done.
             Otherwise if kind is "BindStatement" or kind is "ObjectDefinition" or kind is "InterfaceDefinition"
-                    or kind is "GetterDeclaration" or kind is "SetterDeclaration" or kind is "UnmakerDeclaration"
+                    or kind is "ShorthandDefinition" or kind is "GetterDeclaration" or kind is "SetterDeclaration" or kind is "UnmakerDeclaration"
                     or kind is "OperatorOverloadDeclaration":
                 Cast kept's add on (statement).
             Done.
@@ -598,7 +598,7 @@ Pull a book on collections.
         For each statement in cast declared-anywhere on (group), repeat:
             Define kind as statement's kind.
             If kind is "BindStatement" or kind is "ObjectDefinition" or kind is "InterfaceDefinition" or kind is "DefineStatement"
-                    or kind is "GetterDeclaration" or kind is "SetterDeclaration":
+                    or kind is "GetterDeclaration" or kind is "SetterDeclaration" or kind is "ShorthandDefinition":
                 In declares, the entry for cast unquoted on (cast field-of on (statement, 1)) becomes true.
             Done.
         Done.
@@ -984,7 +984,7 @@ Pull a book on collections.
             Define kind as statement's kind.
             Define line-place as 0.
             If kind is "ObjectDefinition", the line-place becomes 9.
-            If kind is "InterfaceDefinition", the line-place becomes 3.
+            If kind is "InterfaceDefinition" or kind is "ShorthandDefinition", the line-place becomes 3.
             If kind is "DefineStatement", the line-place becomes 5.
             If kind is "BindStatement" and cast is-nothing on (cast field-of on (statement, 5)), the line-place becomes 7.
             If line-place is not 0:
@@ -1053,7 +1053,7 @@ Pull a book on collections.
         For each statement in cast hoistable on (statements), repeat:
             If the size of only is greater than 0, stop.
             Define kind as statement's kind.
-            Define named as kind is "ObjectDefinition" or kind is "InterfaceDefinition".
+            Define named as kind is "ObjectDefinition" or kind is "InterfaceDefinition" or kind is "ShorthandDefinition".
             If kind is "ObjectDefinition" and exempt-modules:
                 If cast conforms-as on (statement, "module") or cast conforms-as on (statement, "book") or cast conforms-as on (statement, "region"):
                     The named becomes false.
@@ -1234,7 +1234,7 @@ Pull a book on collections.
             Cast rename-field-text on (statement, 5, hidden).
             Return.
         Done.
-        If kind is "InterfaceDefinition", cast rename-field-text on (statement, 1, own).
+        If kind is "InterfaceDefinition" or kind is "ShorthandDefinition", cast rename-field-text on (statement, 1, own).
         If kind is "DefineStatement":
             Define at as "{(cast field-of on (statement, 5))'s word}:{(cast field-of on (statement, 6))'s word}".
             If (the entry for at in top) is not void or cast truth-of on (cast field-of on (statement, 3)):
@@ -1354,7 +1354,7 @@ Pull a book on collections.
         For each statement in cast hoistable on (statements), repeat:
             Define kind as statement's kind.
             Define declares as kind is "BindStatement" or kind is "ObjectDefinition" or kind is "InterfaceDefinition"
-                or kind is "GetterDeclaration" or kind is "SetterDeclaration" or kind is "UnmakerDeclaration"
+                or kind is "ShorthandDefinition" or kind is "GetterDeclaration" or kind is "SetterDeclaration" or kind is "UnmakerDeclaration"
                 or kind is "OperatorOverloadDeclaration" or kind is "DefineStatement" or kind is "PullStatement"
                 or kind is "PullRabbitStatement".
             If declares is false:
