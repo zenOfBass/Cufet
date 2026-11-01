@@ -363,6 +363,12 @@ Which capabilities are spelled into the language and which are pulled from a boo
   dispatch. Revisit only if writing real statements in ignore-this arms becomes a genuine
   irritation rather than a hypothetical one.
 
+- **Passing a failure on stays written at each call.** `… or pass the failure off` ends 1,851 calls
+  in the front end written in Cufet (about one line in 15) and 8 in all of `examples/` — the cost of
+  a program where nearly every function can fail, not of Cufet code in general. Making propagation
+  implicit would undo the rule that a failure is never dropped or handed on without saying so, which
+  is what makes an unhandled one a static error. Declined 2026-10-31.
+
 - **No membership comparison (`is any of`), and if one ever arrives it must be a COMPARISON.**
   `If x is 1 or x is 2` says it today. ⚠ The constraint that matters is on the shape, not the
   need: `Define maybe as any of (1, 2, 3).` would import Raku-style junctions as VALUES, whose

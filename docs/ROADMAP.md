@@ -144,11 +144,6 @@ the calling: these wait only for a turn.
 
 ### Language
 
-- **A failure is handed on at nearly every call.** `… or pass the failure off` ends most calls in the
-  checker written in Cufet, and a `void or failure` call cannot be returned — it is called, and
-  `Return.` follows. Correct and explicit, and the bulk of that program's line noise.
-  *Blocker:* none known.
-
 - **Text that holds braces cannot also hold holes.** A `{` in a quoted literal opens a hole, so
   every brace C needs is written `\{` or `\}` — 53 of them in the compiler written in Cufet's
   `emitting.cufe`, in lines like `"if ({condition}) \{"` — and `<<…>>` keeps the braces but has no
