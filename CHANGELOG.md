@@ -65,6 +65,13 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **`cufet build` widens a plain value into a union slot everywhere the interpreter does.** A
+  method's arguments, the non-interface arguments of a call that takes an interface, and the key
+  of a map lookup, `has a key for`, `has an entry for`, a map entry set, a map literal and a set's
+  `has` were written into the C as they were, so `cast tool's describe on (5)` with a
+  `(number or text)` parameter, or `the entry for 1` in a map keyed by one, ran interpreted and was
+  refused by gcc when built. A free function's arguments and a map's values already were.
+
 - **`the environment variable "X" is void` tests the variable.** The name took the whole
   comparison, reading as `the environment variable ("X" is void)`, and was refused as comparing a
   text to a void — which did not point at the cause. The name now stops before a comparison, as a

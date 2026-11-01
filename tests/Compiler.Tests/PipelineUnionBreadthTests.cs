@@ -637,4 +637,80 @@ public class PipelineUnionBreadthTests : PipelineTestBase
             """;
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
+
+    // ★ A plain value handed to a union slot is widened on the way in, as a free function's argument
+    // always was. Method arguments, an interface-taking call's other arguments, and a map's or a
+    // set's key were emitted raw: the interpreter ran them, and gcc refused the C.
+    [Fact]
+    public void AMethodsUnionParameter_TakesAPlainValue()
+    {
+        const string src = """
+            Define object kit with ():
+                Bind text to describe, given (the (number or text) thing):
+                    Judge thing, where it is:
+                        A number, return "a number".
+                        A text, return "a text".
+                    Done.
+                Done.
+                Bind text to maybe, given (the voidable number amount):
+                    If amount is void, return "none".
+                    Return "some".
+                Done.
+            Done.
+            Define tool as a new kit {}.
+            State cast tool's describe on (5).
+            State cast tool's describe on ("x").
+            State cast describe on (tool, 7).
+            State cast tool's maybe on (3).
+            State cast tool's maybe on (void).
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+        Assert.Equal("a number\na text\na number\nsome\nnone", Interpret(src));
+    }
+
+    [Fact]
+    public void AnInterfaceCallsOtherParameters_AreWidenedToo()
+    {
+        const string src = """
+            Define greeter as an interface for the text function greet, given (the text name).
+            Define object dog with () and greeter:
+                Bind text to greet, given (the text name):
+                    Return "woof, " joined to name.
+                Done.
+            Done.
+            Bind text to announce, given (the greeter who, the (number or text) times):
+                Judge times, where it is:
+                    A number, return cast who's greet on ("number").
+                    A text, return cast who's greet on (it).
+                Done.
+            Done.
+            Define rex as a new dog {}.
+            State cast announce on (rex, 3).
+            State cast announce on (rex, "text").
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+        Assert.Equal("woof, number\nwoof, text", Interpret(src));
+    }
+
+    [Fact]
+    public void AUnionKey_TakesAPlainValue()
+    {
+        const string src = """
+            Define tally as a map from (number or text) to number.
+            In tally, the entry for 1 becomes 10.
+            In tally, the entry for "one" becomes 20.
+            State the entry for 1 in tally but void is 0.
+            State the entry for "one" in tally but void is 0.
+            State tally has a key for 1.
+            State tally has an entry for 2.
+            Define marks as a map from (number or text) to text with (1 : "a", "b" : "c").
+            State the entry for "b" in marks but void is "-".
+            Define seen as a set of (number or text).
+            Insert 4 into seen.
+            State seen has 4.
+            State seen has "four".
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+        Assert.Equal("10\n20\ntrue\nfalse\nc\ntrue\nfalse", Interpret(src));
+    }
 }

@@ -31,7 +31,8 @@ public sealed partial class CodeGenerator
     // Emits a call's arguments against the callee's declared parameter types, so a value narrower
     // than its slot is widened on the way in — the same coercion a field set or a series element
     // already gets. Falls back to a plain emit when the signature is unknown (a call through a
-    // variable, a method), which is the pre-existing behaviour and no worse than it was.
+    // variable), which is the pre-existing behaviour and no worse than it was. A method's
+    // arguments go through EmitArgsAsMethodParams, below.
     private IEnumerable<string> EmitArgsAsParams(string funcName, IReadOnlyList<IExpression> args)
     {
         _funcTypes.TryGetValue(funcName, out var signature);
@@ -41,6 +42,15 @@ public sealed partial class CodeGenerator
             yield return paramTypes is not null && i < paramTypes.Count
                 ? EmitAsType(args[i], paramTypes[i])
                 : EmitExpr(args[i]);
+    }
+
+    // The same for a method, whose parameters are on its declaration in the owner's definition.
+    // Emitting them raw handed a plain `5` to a `(number or text)` parameter: the interpreter ran
+    // it, and gcc refused the C.
+    private List<string> EmitArgsAsMethodParams(string owner, string method, IReadOnlyList<IExpression> args)
+    {
+        var parameters = _objectDefs[owner].Methods.First(m => m.Name == method).Parameters;
+        return args.Select((arg, i) => i < parameters.Count ? EmitAsType(arg, parameters[i].Type) : EmitExpr(arg)).ToList();
     }
 
     // ★ C leaves the order of a call's arguments open — gcc works them out last first — while the
@@ -626,7 +636,7 @@ public sealed partial class CodeGenerator
         _preEmits.Add($"{name}* {tmp} = {name}_new();");
         foreach (var (k, v) in ml.Pairs)
         {
-            string keyExpr = EmitExpr(k);
+            string keyExpr = EmitAsType(k, mt.KeyType);
             string valExpr = EmitAsType(v, mt.ValueType);
             _preEmits.Add($"{name}_put({tmp}, {keyExpr}, {valExpr});");
         }
@@ -856,7 +866,7 @@ public sealed partial class CodeGenerator
                 if (_ifaceMethods.TryGetValue((owner, vr.Name), out var ifm))
                     return EmitSpecializedCall(ifm, owner, args.Skip(1).ToList(), recv);
                 var rest = args.Skip(1).ToList();
-                return InOrder(rest, rest.Select(EmitExpr).ToList(),
+                return InOrder(rest, EmitArgsAsMethodParams(owner, vr.Name, rest),
                     a => $"{MethodCName(owner, vr.Name)}({string.Join(", ", new[] { recv }.Concat(a))})");
             }
             // ★ Two very different faults reached this line with one message, and the message
@@ -890,7 +900,7 @@ public sealed partial class CodeGenerator
                 string lRecv = $"&(({EmitCType(ObjType(bookName))}){{0}})";
                 if (_ifaceMethods.TryGetValue((lOwner, bpa.Member), out var lIfm))
                     return EmitSpecializedCall(lIfm, lOwner, args, lRecv);
-                return InOrder(args, args.Select(EmitExpr).ToList(),
+                return InOrder(args, EmitArgsAsMethodParams(lOwner, bpa.Member, args),
                     a => $"{MethodCName(lOwner, bpa.Member)}({string.Join(", ", new[] { lRecv }.Concat(a))})");
             }
             return EmitBookFunction(bookName, bpa.Member, args);
@@ -902,7 +912,7 @@ public sealed partial class CodeGenerator
             string recv = $"&(({AddressableReceiver(pa.Target)}){suffix})";
             if (_ifaceMethods.TryGetValue((owner, pa.Member), out var ifpm))
                 return EmitSpecializedCall(ifpm, owner, args, recv);
-            return InOrder(args, args.Select(EmitExpr).ToList(),
+            return InOrder(args, EmitArgsAsMethodParams(owner, pa.Member, args),
                 a => $"{MethodCName(owner, pa.Member)}({string.Join(", ", new[] { recv }.Concat(a))})");
         }
 

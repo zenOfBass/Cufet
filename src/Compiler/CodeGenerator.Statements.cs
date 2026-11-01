@@ -1038,7 +1038,7 @@ public sealed partial class CodeGenerator
                 var    valType = ((MapType)TypeOf(mss.Map)).ValueType;
                 string mapExpr = EmitExpr(mss.Map);
                 var    keyType = ((MapType)TypeOf(mss.Map)).KeyType;
-                string keyExpr = EmitEscapeCopy(EmitExpr(mss.Key), keyType, mss.KeyEscapeToDepth);   // ESC.3
+                string keyExpr = EmitEscapeCopy(EmitAsType(mss.Key, keyType), keyType, mss.KeyEscapeToDepth);   // ESC.3
                 string valExpr = EmitEscapeCopy(EmitAsType(mss.Value, valType), valType, mss.EscapeToDepth);   // ESC.2
                 FlushPreEmits(sb, indent);
                 // The map, then the key, then the value — the interpreter's order.
@@ -2162,6 +2162,12 @@ public sealed partial class CodeGenerator
         TypeOf(mapExpr) is MapType mt ? mt.ValueType
             : throw new CompilerException("map operation on a non-map value.");
 
+    // A key is converted to the map's key type, as a value is to its value type — a plain `1` into
+    // a map keyed by `(number or text)` is that union's number case.
+    private CufetType MapKeyType(IExpression mapExpr) =>
+        TypeOf(mapExpr) is MapType mt ? mt.KeyType
+            : throw new CompilerException("map operation on a non-map value.");
+
     // Minimal nominal ObjectType (fields looked up from _objectDefs by name when needed).
     private static CufetType ObjType(string name) =>
         new ObjectType(name, Array.Empty<CufetType>(), Array.Empty<(string, CufetType)>(),
@@ -2891,15 +2897,15 @@ public sealed partial class CodeGenerator
         ConditionalExpression ce => EmitConditional(ce),
         SetLiteral sl3        => EmitSetLiteral(sl3),
         // A set is a map of element→element, so membership is the map's own `_has`.
-        SetHasMember shm      => InOrder(new[] { shm.Set, shm.Value }, new[] { EmitExpr(shm.Set), EmitExpr(shm.Value) },
+        SetHasMember shm      => InOrder(new[] { shm.Set, shm.Value }, new[] { EmitExpr(shm.Set), EmitAsType(shm.Value, ((SetType)TypeOf(shm.Set)).ElementType) },
                                          both => $"{SetName(shm.Set)}_has({both[0]}, {both[1]})"),
         MapLiteral ml         => EmitMapLiteral(ml),
         // The map, then the key — the interpreter's order, whichever is written first.
-        MapLookup mlk         => InOrder(new[] { mlk.Map, mlk.Key }, new[] { EmitExpr(mlk.Map), EmitExpr(mlk.Key) },
+        MapLookup mlk         => InOrder(new[] { mlk.Map, mlk.Key }, new[] { EmitExpr(mlk.Map), EmitAsType(mlk.Key, MapKeyType(mlk.Map)) },
                                          both => $"{MapName(mlk.Map)}_get({both[0]}, {both[1]})"),
-        MapHasKey mhk         => InOrder(new[] { mhk.Map, mhk.Key }, new[] { EmitExpr(mhk.Map), EmitExpr(mhk.Key) },
+        MapHasKey mhk         => InOrder(new[] { mhk.Map, mhk.Key }, new[] { EmitExpr(mhk.Map), EmitAsType(mhk.Key, MapKeyType(mhk.Map)) },
                                          both => $"{MapName(mhk.Map)}_has({both[0]}, {both[1]})"),
-        MapHasEntry mhe       => InOrder(new[] { mhe.Map, mhe.Key }, new[] { EmitExpr(mhe.Map), EmitExpr(mhe.Key) },
+        MapHasEntry mhe       => InOrder(new[] { mhe.Map, mhe.Key }, new[] { EmitExpr(mhe.Map), EmitAsType(mhe.Key, MapKeyType(mhe.Map)) },
                                          both => $"{MapName(mhe.Map)}_has_entry({both[0]}, {both[1]})"),
         FailureFallback ff    => EmitFailureFallback(ff),
         FailurePropagate fp   => EmitFailurePropagate(fp),

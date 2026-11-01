@@ -65,7 +65,7 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     : PipelineTestBase, IClassFixture<CompiledCufetCompiler>
 {
     /// <summary>How many hand-written programs must build and print alike. Raised as it grows; never lowered.</summary>
-    private const int BuiltFloor = 446;
+    private const int BuiltFloor = 447;
 
     private static string[] PreludeArgs =>
         ["--prelude", Path.Combine(RepoRoot, "src", "Interpreter", "Prelude").Replace('\\', '/')];
@@ -571,6 +571,8 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
         "For each word in a series with (\"abc\", \"h\u00e9llo\", \"\u4e2d\", \"abc1\", \"\", \"123\", \"\u0663\", \"\u00bd\", \" \"), repeat:\n    State \"{word}: {word is alphabetic} {word is numeric} {word is whitespace} {word is not numeric}\".\nDone.\nState the code point of \"\ud83d\ude00\".\nIf \"7\" is numeric, state (the code point of \"7\") - (the code point of \"0\").",
         // Shorthands — another way to write a type, put back before either backend sees it (2026-10-31)
         "Define object circle with (the number radius).\nDefine object square with (the number side).\nDefine object line with ().\nDefine shorthand shape as (circle or square).\nDefine shorthand shapes as series of shape.\nDefine shorthand drawing as (shape or line).\nBind number to area, given (the shape figure):\n    Judge figure, where it is:\n        A circle, return it's radius * it's radius * 3.\n        A square, return it's side * it's side.\n    Done.\nDone.\nDefine all as a series of shape with (a new circle {the radius 2}, a new square {the side 3}).\nFor each one-shape in all, repeat:\n    State cast area on (one-shape).\nDone.\nDefine the drawing pen as a new line {}.\nIf pen is a line, state \"a line\".\nIf item 1 of all is a circle, state \"a circle\".",
+        // A plain value into a union slot: a method's parameter, an interface call's other one, a map key (2026-10-31)
+        "Define object kit with ():\n    Bind text to describe, given (the (number or text) thing):\n        Judge thing, where it is:\n            A number, return \"a number\".\n            A text, return \"a text\".\n        Done.\n    Done.\nDone.\nDefine tool as a new kit {}.\nState cast tool's describe on (5).\nState cast describe on (tool, \"x\").\nDefine greeter as an interface for the text function greet, given (the text name).\nDefine object dog with () and greeter:\n    Bind text to greet, given (the text name):\n        Return \"woof, \" joined to name.\n    Done.\nDone.\nBind text to announce, given (the greeter who, the (number or text) times):\n    Judge times, where it is:\n        A number, return cast who's greet on (\"number\").\n        A text, return cast who's greet on (it).\n    Done.\nDone.\nState cast announce on (a new dog {}, 3).\nDefine tally as a map from (number or text) to number.\nIn tally, the entry for 1 becomes 10.\nIn tally, the entry for \"one\" becomes 20.\nState the entry for 1 in tally but void is 0.\nState tally has a key for \"one\".",
     ];
 
     [Fact]

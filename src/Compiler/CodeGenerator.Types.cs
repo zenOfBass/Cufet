@@ -980,7 +980,11 @@ static int cufet_str_code_point(const char* s) {
         }
 
         var prefix = receiverPrefix == null ? Enumerable.Empty<string>() : new[] { receiverPrefix };
-        return InOrder(callArgs, callArgs.Select(EmitExpr).ToList(),
+        // An interface parameter takes the concrete object as it is; every other one is widened
+        // into its slot, as any call's arguments are.
+        var emitted = callArgs.Select((arg, i) => i < bind.Parameters.Count && !IsIfaceParam(bind.Parameters[i].Type)
+            ? EmitAsType(arg, bind.Parameters[i].Type) : EmitExpr(arg)).ToList();
+        return InOrder(callArgs, emitted,
             a => $"{specName}({string.Join(", ", prefix.Concat(a))})");
     }
 
