@@ -154,12 +154,6 @@ the calling: these wait only for a turn.
 
 ### Tooling
 
-- **Parts of the C runtime are still written into a program only when it uses them** — matrices,
-  `chance`, signals and concurrency. The compiler written in Cufet links the shared runtime alone,
-  so it will need each; the case table and `run` already moved, once their gates' reasons measured
-  stale. One policy for the rest — shared unless a gate's reason measures true — would settle them
-  together. *Blocker:* none known.
-
 - **Examples that read a file are tested only when it is missing.** `CompilerParityTests` runs each
   corpus program from its own folder, but `semver`, `readings` and `logtriage` read
   `examples/assets/…` from the repository root, as their headers say — so the test sees "not
