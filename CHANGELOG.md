@@ -85,6 +85,12 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   more types and `void` stay a union with a void case. Both checkers and both compilers; the
   compiler written in Cufet can now build such a choice.
 
+- **`cufet build` builds a `when` chain of three or more types.** `true when a, otherwise 1 when b,
+  otherwise "x"` was refused with *"storing one catalogue's value into a catalogue with different
+  cases is not supported"*: the inner `when` is the narrower `(number or text)`, and widening it whole
+  needed a re-tag. Each arm now widens straight into the outer union. The compiler written in Cufet
+  already built it.
+
 - **`cufet build` widens a plain value into a union slot everywhere the interpreter does.** A
   method's arguments, the non-interface arguments of a call that takes an interface, and the key
   of a map lookup, `has a key for`, `has an entry for`, a map entry set, a map literal and a set's

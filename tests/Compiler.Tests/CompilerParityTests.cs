@@ -65,7 +65,7 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     : PipelineTestBase, IClassFixture<CompiledCufetCompiler>
 {
     /// <summary>How many hand-written programs must build and print alike. Raised as it grows; never lowered.</summary>
-    private const int BuiltFloor = 449;
+    private const int BuiltFloor = 450;
 
     private static string[] PreludeArgs =>
         ["--prelude", Path.Combine(RepoRoot, "src", "Interpreter", "Prelude").Replace('\\', '/')];
@@ -577,6 +577,8 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
         "Bind number or failure to halve, given (the number n):\n    If n is 0, return a failure \"zero\".\n    Return n / 2.\nDone.\nDefine object lamp with (the text name).\nBind unmaking a lamp to switch-off:\n    State \"unmade {one's name}\".\nDone.\nBind void to at-frame-level, given (the number n):\n    Try to:\n        Define bulb as a new lamp {the name \"frame\"}.\n        Define size as cast halve on (n).\n    Done.\n    In case of failure:\n        State \"failed\".\n        Return.\n    Done.\n    State \"{bulb's name} at {size}\".\nDone.\nBind void to in-a-block, given (the number n):\n    If true:\n        Try to:\n            Define bulb as a new lamp {the name \"block\"}.\n            Define size as cast halve on (n).\n        Done.\n        In case of failure:\n            State \"failed\".\n            Return.\n        Done.\n        State \"{bulb's name} at {size}\".\n    Done.\n    State \"after the block\".\nDone.\nCast at-frame-level on (8).\nCast at-frame-level on (0).\nCast in-a-block on (8).\nCast in-a-block on (0).\nIf true:\n    Cast at-frame-level on (6).\n    State \"the caller's block ends\".\nDone.\nFor each n in a series with (4, 0, 6), repeat:\n    Try to:\n        Define part as cast halve on (n).\n    Done.\n    In case of failure:\n        Skip.\n    Done.\n    State \"part {part}\".\nDone.",
         // One type and void, chosen between, is a voidable of it (2026-11-01)
         "Define flag as false.\nDefine maybe as void when flag, otherwise 3.\nState maybe but void is 0.\nDefine the (number or void) other as void when flag is false, otherwise 3.\nState other but void is 0.\nIf maybe is not void, state maybe + 1.\nDefine chained as 1 when flag, otherwise void when true, otherwise 2.\nState chained is void.",
+        // A chain of three types, each arm widened straight into the outer union (2026-11-01)
+        "For each n in a series with (1, 2, 3), repeat:\n    Define picked as true when n is 1, otherwise 10 when n is 2, otherwise \"x\".\n    Judge picked, where it is:\n        A fact, state \"a fact\".\n        A number, state \"the number {it}\".\n        A text, state \"the text {it}\".\n    Done.\nDone.",
     ];
 
     [Fact]

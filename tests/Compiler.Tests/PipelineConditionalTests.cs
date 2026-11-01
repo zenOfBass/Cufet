@@ -183,4 +183,31 @@ public class PipelineConditionalTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
         Assert.Equal("3\n0\n4\ntrue", Interpret(src));
     }
+
+    // ★ A chain of three types: the inner `when` is the narrower `(number or text)`, and widening it
+    // whole into the outer union needed a re-tag `cufet build` refused. Each arm now widens straight
+    // into the outer type.
+    [Fact]
+    public void AChainOfThreeTypes_Builds()
+    {
+        const string src = """
+            For each n in a series with (1, 2, 3), repeat:
+                Define picked as true when n is 1, otherwise 10 when n is 2, otherwise "x".
+                Judge picked, where it is:
+                    A fact, state "a fact".
+                    A number, state "the number {it}".
+                    A text, state "the text {it}".
+                Done.
+            Done.
+            For each n in a series with (1, 2, 3, 4), repeat:
+                Define wide as void when n is 1, otherwise 1 when n is 2, otherwise "y" when n is 3, otherwise true.
+                If wide is void, state "nothing".
+                Otherwise if wide is a number, state "number {wide}".
+                Otherwise if wide is a text, state "text {wide}".
+                Otherwise, state "something else".
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+        Assert.Equal("a fact\nthe number 10\nthe text x\nnothing\nnumber 1\ntext y\nsomething else", Interpret(src));
+    }
 }

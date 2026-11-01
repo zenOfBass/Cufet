@@ -3104,11 +3104,19 @@ public sealed partial class CodeGenerator
     // are coerced to the RESULT type so they agree: when the arms differ the result is a union, and
     // a bare case value in one arm would otherwise give gcc "type mismatch in conditional
     // expression". Same rule EmitButVoidDefault and EmitFailureFallback follow, for the same reason.
-    private string EmitConditional(ConditionalExpression ce)
+    private string EmitConditional(ConditionalExpression ce) => EmitConditionalAs(ce, TypeOf(ce));
+
+    // ★ The result type is handed DOWN a chain. `true when a, otherwise 1 when b, otherwise "x"` holds
+    // a `when` in its second arm whose own type is the narrower `(number or text)`; widening that
+    // whole into `(fact or number or text)` would need a runtime re-tag, which EmitAsType refuses. Each
+    // arm of the inner one widens straight into the outer type instead, so no union ever re-tags.
+    private string EmitConditionalAs(ConditionalExpression ce, CufetType? target)
     {
-        var resultType = TypeOf(ce);
+        string Arm(IExpression arm) => arm is ConditionalExpression inner
+            ? EmitConditionalAs(inner, target)
+            : EmitAsType(arm, target);
         string cond = EmitExpr(ce.Condition);
-        return $"({cond} ? {EmitAsType(ce.Value, resultType)} : {EmitAsType(ce.Alternative, resultType)})";
+        return $"({cond} ? {Arm(ce.Value)} : {Arm(ce.Alternative)})";
     }
 
     private string EmitButVoidDefault(ButVoidDefault bvd)
