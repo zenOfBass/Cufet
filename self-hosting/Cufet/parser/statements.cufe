@@ -189,6 +189,14 @@ Pull a book on collections.
         Define define-tok as cast one's advance.
         Cast one's skip-noise-before-type.
         If cast one's peek-kind is "Object", return cast one's object-definition on (define-tok) or pass the failure off.
+        // `Define interface driver for { … }.` — the keyword before the name, as `object` has it.
+        If cast one's peek-kind is "Interface":
+            Cast one's advance.
+            Cast one's skip-noise.
+            Define interface-tok as cast one's consume on ("Identifier") or pass the failure off.
+            Cast one's skip-noise.
+            Return cast one's interface-definition on (interface-tok, define-tok) or pass the failure off.
+        Done.
         // `Define shorthand gate as (and-gate or or-gate).` — another way to write a type.
         If cast one's peek-kind is "Shorthand":
             Cast one's advance.
@@ -227,7 +235,13 @@ Pull a book on collections.
         Done.
         Cast one's consume on ("As") or pass the failure off.
         Cast one's skip-noise.
-        If cast one's peek-kind is "Interface", return cast one's interface-definition on (name-tok, define-tok) or pass the failure off.
+        // The order interfaces were declared in before 2026-10-31, the name ahead of the keyword.
+        If cast one's peek-kind is "Interface":
+            Return a failure (cast one's refused on (define-tok,
+                "An interface names itself after the keyword now, as an object does: write "
+                joined to "'Define interface {name-tok's lexeme} for …' where you would have written "
+                joined to "'Define {name-tok's lexeme} as an interface for …'.")).
+        Done.
         Define value as cast nothing.
         If cast one's peek-kind is "Series":
             The value becomes cast one's series-literal or pass the failure off.

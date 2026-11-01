@@ -218,11 +218,6 @@ the calling: these wait only for a turn.
   a fallible setter would require effect annotations on every assignment expression. Not
   designed, not near-term.
 
-- **Interfaces are declared the other way round from objects.** `Define object vehicle with (…)`
-  puts the keyword before the name; `Define driver as an interface for …` puts it after, and
-  DESIGN.md records no reason for the difference. *Blocker:* a decision on which order is the
-  language's.
-
 ### Tooling
 
 - **Separate compilation.** Compiling files independently and linking the results, rather than

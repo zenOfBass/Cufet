@@ -288,7 +288,7 @@ public class ModuleCarriedTypeTests : IDisposable
         // for an interface, so one written beside a module was visible to whoever loaded the file —
         // silently, and against the rule the rest of that pass exists to enforce.
         Write("kit", """
-            Define speaker as an interface for the text function say.
+            Define interface speaker for the text function say.
 
             Define object kit with () and module:
                 Bind text to name: Return "kit". Done.
@@ -314,7 +314,7 @@ public class ModuleCarriedTypeTests : IDisposable
         // rename that misses either leaves the file claiming to satisfy something it can no longer
         // name — private to the point of being unusable by its owner.
         Write("kit", """
-            Define speaker as an interface for the text function say.
+            Define interface speaker for the text function say.
 
             Define object parrot with () and speaker:
                 Bind text to say: Return "squawk". Done.

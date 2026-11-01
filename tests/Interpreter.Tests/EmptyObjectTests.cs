@@ -133,7 +133,7 @@ public class EmptyObjectTests
         // ⚠ The `and <interface>` and `and as a <type>` clauses are parsed AFTER the shape, so
         // making the shape optional had to leave them reachable.
         Assert.Equal("red\nblue", Run("""
-            Define namer as an interface for the text function shown.
+            Define interface namer for the text function shown.
 
             Define object red and namer:
                 Bind text to shown:

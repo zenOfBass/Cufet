@@ -494,8 +494,6 @@ Pull a book on collections.
     Done.
 
     Bind node or failure to interface-definition unto parser, given (the token name-tok, the token define-tok):
-        Cast one's consume on ("Interface") or pass the failure off.
-        Cast one's skip-noise.
         Cast one's consume on ("For") or pass the failure off.
         Cast one's skip-noise.
         Define methods as cast listed.

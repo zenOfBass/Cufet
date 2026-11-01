@@ -231,8 +231,8 @@ public class ParserParityTests(ITestOutputHelper output, CompiledCufetParser com
         // Cufet held inside Cufet, reported where the block sits.
         "Pull a book on cufet.\n    Define cufet held as [\n        State.\n    ].\nDone.",
         // Two interfaces supplying one default.
-        "Define shouter as an interface for the text function shout.\n"
-      + "Define talker as an interface for the text function shout.\n"
+        "Define interface shouter for the text function shout.\n"
+      + "Define interface talker for the text function shout.\n"
       + "Bind text to shout unto shouter, \"a\".\n"
       + "Bind text to shout unto talker, \"b\".\n"
       + "Define object hare with (the text name) and shouter and talker.",
@@ -240,6 +240,8 @@ public class ParserParityTests(ITestOutputHelper output, CompiledCufetParser com
         // value can go, after `or`.
         "Define command as \"cd\".\nJudge command, where it is:\n    It is \"cd\", state \"change directory\".\n    Otherwise, state \"else\".\nDone.",
         "Define command as \"cd\".\nJudge command, where it is:\n    \"cd\" or other, state \"same\".\n    Otherwise, state \"else\".\nDone.",
+        // An interface in the order it was declared in before 2026-10-31.
+        "Define greeter as an interface for the text function greet, given (the text name).",
     ];
 
     [Fact]

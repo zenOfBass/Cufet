@@ -594,7 +594,7 @@ public sealed record UnburyExpression(IExpression Stash, int Line, int Column) :
 
 // ── Objects ───────────────────────────────────────────────────────────────────
 
-// Define <name> as an interface for { <method-sig>, ... } / single method without {}
+// Define interface <name> for { <method-sig>, ... } / single method without {}
 // Methods hold the full signature (return type + param types); no implementation.
 public sealed record InterfaceDefinition(
     string Name,

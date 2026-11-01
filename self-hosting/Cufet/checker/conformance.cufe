@@ -182,7 +182,7 @@ Pull a book on collections.
             If cast one's is-interface-name on (claimed) is false:
                 Return a failure (cast refusal-of on ("'{name}' claims to satisfy '{claimed}', but no such interface is defined", "",
                     at-row, "conform to '{claimed}'",
-                    "Define the interface first: Define {claimed} as an interface for \{...\}.")).
+                    "Define the interface first: Define interface {claimed} for \{...\}.")).
             Done.
             Define methods as cast one's interface-methods on (claimed).
             If methods is not void:

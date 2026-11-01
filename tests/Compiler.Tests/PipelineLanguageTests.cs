@@ -155,7 +155,7 @@ public class PipelineLanguageTests : PipelineTestBase
         // the concrete type's method inside each specialization; an interface param with an extra
         // ordinary arg composes (→ 30).
         const string src = """
-            Define speaker as an interface for the text function speak.
+            Define interface speaker for the text function speak.
             Define object dog with (the text name) and speaker:
                 Bind text to speak:
                     Return "Woof".
@@ -189,7 +189,7 @@ public class PipelineLanguageTests : PipelineTestBase
         // COMBINATION (dog_dog, dog_cat, cat_cat). A closure capturing the interface param sees it
         // at the concrete type.
         const string src = """
-            Define speaker as an interface for { the text function speak, the number function volume }.
+            Define interface speaker for { the text function speak, the number function volume }.
             Define object dog with (the text name) and speaker:
                 Bind text to speak:
                     Return "Woof".
@@ -241,7 +241,7 @@ public class PipelineLanguageTests : PipelineTestBase
         // An interface-taking METHOD (a megaphone boosting a speaker) specializes per conformer, and
         // a closure inside an interface-taking function captures the param at its concrete type.
         const string src = """
-            Define speaker as an interface for the text function speak.
+            Define interface speaker for the text function speak.
             Define object dog with (the text name) and speaker:
                 Bind text to speak:
                     Return "Woof".
@@ -281,7 +281,7 @@ public class PipelineLanguageTests : PipelineTestBase
         // concrete conformer the task constructs), result crossing the task-result bridge. Two tasks
         // awaited in order → deterministic, so this is a genuine Compile==Interpret oracle test.
         const string src = """
-            Define speaker as an interface for the text function speak.
+            Define interface speaker for the text function speak.
             Define object dog with (the text name) and speaker:
                 Bind text to speak:
                     Return "Woof".

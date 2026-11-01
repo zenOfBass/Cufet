@@ -991,7 +991,7 @@ public class ModulePullTests
     // keep, which is why no module written before this changed meaning.
 
     private const string WithSurface = """
-        Define greeter as an interface for { The text function greet }.
+        Define interface greeter for { The text function greet }.
 
         Define object greeting-kit with () and greeter and module:
             Bind text to greet:

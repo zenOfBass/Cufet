@@ -21,12 +21,12 @@
    and the call is refused — correctly, since an open union has no fixed
    set of conformers to specialise for. */
 
-Define crosser as an interface for {
+Define interface crosser for {
     The text function crossing-style,
     The number function crossing-cost, given (the number distance)
 }.
 
-Define announcer as an interface for the text function announce.
+Define interface announcer for the text function announce.
 
 Define object hopper with (the text name) and crosser and announcer:
     Bind text to crossing-style, "swims, then dances close to the fire".

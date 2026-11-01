@@ -2219,7 +2219,7 @@ An interface is a contract — a set of method signatures an object must have.
 It provides polymorphism without a hierarchy.
 
 ```cufet
-Define driver as an interface for {
+Define interface driver for {
     The void function steer, given (the number angle),
     The void function brake,
     The void function accelerate, given (the number amount)
@@ -2228,7 +2228,7 @@ Define driver as an interface for {
 
 A single-method interface may drop the braces:
 ```cufet
-Define greeter as an interface for the void function greet, given (the text name).
+Define interface greeter for the void function greet, given (the text name).
 ```
 
 An object declares conformance explicitly, and it is statically enforced:
@@ -2253,7 +2253,7 @@ introduced; objects do not become subtypes of one another.
 version wins:
 
 ```cufet
-Define shape as an interface for {
+Define interface shape for {
     The number function area,
     The text function describe
 }.

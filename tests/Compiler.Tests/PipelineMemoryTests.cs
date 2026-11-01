@@ -552,7 +552,7 @@ public class PipelineMemoryTests : PipelineTestBase
             """;
         Assert.Equal(InterpretRaw(voidable), CompileRaw(voidable));
         const string iface = """
-            Define speaker as an interface for the text function speak.
+            Define interface speaker for the text function speak.
             Define object dog with (the text name) and speaker:
                 Bind text to speak:
                     Return "Woof".

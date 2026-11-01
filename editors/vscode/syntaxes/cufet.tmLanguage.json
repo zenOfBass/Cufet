@@ -170,12 +170,12 @@
           }
         },
         {
-          "comment": "Define <name> as an interface for {...} — here the name comes BEFORE the keyword that identifies the form, so the literal 'interface' is what keeps this off ordinary 'Define x as 1'.",
-          "match": "((?i:define))(?![\\w-])\\s+([a-z][A-Za-z0-9-]*)\\s+(?i:as)(?![\\w-])\\s+(?:(?i:an|a)(?![\\w-])\\s+)?((?i:interface))(?![\\w-])",
+          "comment": "Define interface <name> for {...}",
+          "match": "((?i:define))(?![\\w-])\\s+((?i:interface))(?![\\w-])\\s+([a-z][A-Za-z0-9-]*)",
           "captures": {
             "1": { "name": "storage.type.declaration.cufet" },
-            "2": { "name": "entity.name.type.cufet" },
-            "3": { "name": "storage.type.declaration.cufet" }
+            "2": { "name": "storage.type.declaration.cufet" },
+            "3": { "name": "entity.name.type.cufet" }
           }
         },
         {

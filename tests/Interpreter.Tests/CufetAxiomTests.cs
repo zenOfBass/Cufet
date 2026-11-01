@@ -75,7 +75,7 @@ public class CufetAxiomTests
         Assert.Equal("4", Run("""
             Pull a book on cufet.
                 Define cufet shapes as [
-                    Define measured as an interface for the number function sized.
+                    Define interface measured for the number function sized.
                 ].
 
                 Cite shapes.

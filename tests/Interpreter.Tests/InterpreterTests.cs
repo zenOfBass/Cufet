@@ -4180,7 +4180,7 @@ public class InterpreterTests
     {
         Assert.Equal("Alice",
             Run(
-                "Define greeter as an interface for the void function greet.\n" +
+                "Define interface greeter for the void function greet.\n" +
                 "Define object person with (the text name) and greeter:\n" +
                 "    Bind void to greet:\n" +
                 "        State one's name.\n" +
@@ -4195,7 +4195,7 @@ public class InterpreterTests
     {
         Assert.Equal("Alice\n30",
             Run(
-                "Define describable as an interface for {\n" +
+                "Define interface describable for {\n" +
                 "    the void function show-name,\n" +
                 "    the void function show-age\n" +
                 "}.\n" +
@@ -4217,7 +4217,7 @@ public class InterpreterTests
     {
         Assert.Equal("Alice\nRex",
             Run(
-                "Define greeter as an interface for the void function greet.\n" +
+                "Define interface greeter for the void function greet.\n" +
                 "Define object person with (the text name) and greeter:\n" +
                 "    Bind void to greet:\n" +
                 "        State one's name.\n" +
@@ -4242,7 +4242,7 @@ public class InterpreterTests
     {
         Assert.Equal("Hello from Alice",
             Run(
-                "Define namer as an interface for the text function get-name.\n" +
+                "Define interface namer for the text function get-name.\n" +
                 "Define object person with (the text name) and namer:\n" +
                 "    Bind text to get-name:\n" +
                 "        Return one's name.\n" +
@@ -4261,7 +4261,7 @@ public class InterpreterTests
         // Interface declares a parameterized method; conforming object must match param types.
         Assert.Equal("done",
             Run(
-                "Define transformer as an interface for the void function transform, given (the number x).\n" +
+                "Define interface transformer for the void function transform, given (the number x).\n" +
                 "Define object doubler with (the number factor) and transformer:\n" +
                 "    Bind void to transform, given (the number x):\n" +
                 "        State one's factor.\n" +
@@ -4275,8 +4275,8 @@ public class InterpreterTests
     {
         Assert.Equal("Alice\n30",
             Run(
-                "Define namer as an interface for the void function show-name.\n" +
-                "Define ager as an interface for the void function show-age.\n" +
+                "Define interface namer for the void function show-name.\n" +
+                "Define interface ager for the void function show-age.\n" +
                 "Define object person with (the text name, the number age) and namer and ager:\n" +
                 "    Bind void to show-name:\n" +
                 "        State one's name.\n" +
@@ -4295,7 +4295,7 @@ public class InterpreterTests
     {
         Assert.Equal("Alice",
             Run(
-                "Define greeter as an interface for the void function greet.\n" +
+                "Define interface greeter for the void function greet.\n" +
                 "Define object base-entity with (the text label).\n" +
                 "Define object person with (the text name) and as a base-entity and greeter:\n" +
                 "    Bind void to greet:\n" +
@@ -4314,7 +4314,7 @@ public class InterpreterTests
     {
         Assert.Equal("Hi!",
             Run(
-                "Define greeter as an interface for the void function greet.\n" +
+                "Define interface greeter for the void function greet.\n" +
                 "Define object person with (the text name) and greeter:\n" +
                 "    Bind void to greet:\n" +
                 "        State \"Hi!\".\n" +
@@ -4332,7 +4332,7 @@ public class InterpreterTests
     public void Interface_Error_MissingMethod_ThrowsTypeError()
     {
         Assert.Throws<TypeException>(() => Run(
-            "Define greeter as an interface for the void function greet.\n" +
+            "Define interface greeter for the void function greet.\n" +
             "Define object person with (the text name) and greeter.\n"));
     }
 
@@ -4340,7 +4340,7 @@ public class InterpreterTests
     public void Interface_Error_WrongReturnType_ThrowsTypeError()
     {
         Assert.Throws<TypeException>(() => Run(
-            "Define greeter as an interface for the text function greet.\n" +
+            "Define interface greeter for the text function greet.\n" +
             "Define object person with (the text name) and greeter:\n" +
             "    Bind void to greet:\n" +
             "        State one's name.\n" +
@@ -4352,7 +4352,7 @@ public class InterpreterTests
     public void Interface_Error_WrongParamType_ThrowsTypeError()
     {
         Assert.Throws<TypeException>(() => Run(
-            "Define adder as an interface for the number function add-to, given (the number x).\n" +
+            "Define interface adder for the number function add-to, given (the number x).\n" +
             "Define object accumulator with (the number base-val) and adder:\n" +
             "    Bind number to add-to, given (the text x):\n" +
             "        Return one's base-val.\n" +
@@ -4371,7 +4371,7 @@ public class InterpreterTests
     public void Interface_Error_NonConformingArgument_ThrowsTypeError()
     {
         Assert.Throws<TypeException>(() => Run(
-            "Define greeter as an interface for the void function greet.\n" +
+            "Define interface greeter for the void function greet.\n" +
             "Define object person with (the text name).\n" +
             "Bind void to do-greet, given (the greeter g):\n" +
             "    Cast greet on g.\n" +
@@ -4384,7 +4384,7 @@ public class InterpreterTests
     public void Interface_InterfaceMethod_NoSubtypingForConcreteParams()
     {
         Assert.Throws<TypeException>(() => Run(
-            "Define greeter as an interface for the void function greet.\n" +
+            "Define interface greeter for the void function greet.\n" +
             "Define object person with (the text name) and greeter:\n" +
             "    Bind void to greet:\n" +
             "        State one's name.\n" +
@@ -4479,7 +4479,7 @@ public class InterpreterTests
     {
         // Cast steer on (racer, 90) where racer's static type is interface-typed.
         Assert.Equal("90", Run(
-            "Define driver as an interface for the void function steer, given (the number angle).\n" +
+            "Define interface driver for the void function steer, given (the number angle).\n" +
             "Define object car with (the text model) and driver:\n" +
             "    Bind void to steer, given (the number angle):\n" +
             "        State angle.\n" +
@@ -5375,6 +5375,14 @@ public class InterpreterTests
     {
         var refused = Assert.Throws<TypeException>(() => Run(source));
         Assert.Contains(expected, refused.Message);
+    }
+
+    [Fact]
+    public void Interface_InTheOldOrder_IsRefusedWithTheNewOne()
+    {
+        var refused = Assert.Throws<ParseException>(() => Run(
+            "Define greeter as an interface for the text function greet, given (the text name)."));
+        Assert.Contains("write 'Define interface greeter for …'", refused.Message);
     }
 
     [Fact]
@@ -6981,7 +6989,7 @@ public class InterpreterTests
     public void Unto_InterfaceTargetSuppliesADefault()
     {
         Assert.Equal("hi from the default", Run(
-            "Define greeter as an interface for the void function greet.\n" +
+            "Define interface greeter for the void function greet.\n" +
             "Bind void to greet unto greeter:\n" +
             "    State \"hi from the default\".\n" +
             "Done.\n" +
@@ -6996,7 +7004,7 @@ public class InterpreterTests
     public void Unto_InterfaceDefaultWithNoConformer_IsHarmless()
     {
         Assert.Equal("still here", Run(
-            "Define greeter as an interface for the void function greet.\n" +
+            "Define interface greeter for the void function greet.\n" +
             "Bind void to greet unto greeter:\n" +
             "    State \"never runs\".\n" +
             "Done.\n" +
@@ -7007,7 +7015,7 @@ public class InterpreterTests
     public void Unto_SatisfiesInterfaceConformance()
     {
         Assert.Equal("Hi Alice", Run(
-            "Define greeter as an interface for the void function greet.\n" +
+            "Define interface greeter for the void function greet.\n" +
             "Define object person with (the text name) and greeter.\n" +
             "Bind void to greet unto person:\n" +
             "    State \"Hi \" joined to one's name.\n" +
@@ -7024,7 +7032,7 @@ public class InterpreterTests
     {
         // Without the 'unto' method, conformance fails exactly as it would for a nested-only check.
         Assert.Throws<TypeException>(() => Run(
-            "Define greeter as an interface for the void function greet.\n" +
+            "Define interface greeter for the void function greet.\n" +
             "Define object person with (the text name) and greeter."));
     }
 

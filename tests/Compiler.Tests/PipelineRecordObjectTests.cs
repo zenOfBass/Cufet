@@ -820,7 +820,7 @@ public class PipelineRecordObjectTests : PipelineTestBase
         // value struct. Declaring conformance (and never calling through the interface) compiles and
         // runs; the conformer's method is a normal direct-dispatch method. (Was: a deferred throw.)
         const string src = """
-            Define greeter as an interface for the void function greet.
+            Define interface greeter for the void function greet.
             Define object robot with (the text id) and greeter:
                 Bind void to greet:
                     State one's id.

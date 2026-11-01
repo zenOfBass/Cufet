@@ -672,7 +672,7 @@ public class PipelineUnionBreadthTests : PipelineTestBase
     public void AnInterfaceCallsOtherParameters_AreWidenedToo()
     {
         const string src = """
-            Define greeter as an interface for the text function greet, given (the text name).
+            Define interface greeter for the text function greet, given (the text name).
             Define object dog with () and greeter:
                 Bind text to greet, given (the text name):
                     Return "woof, " joined to name.

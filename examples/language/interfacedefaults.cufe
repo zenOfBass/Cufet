@@ -9,7 +9,7 @@
 // never the interface, because no value is ever of interface type. That is what lets a default read
 // fields the interface never mentioned.
 
-Define creature as an interface for {
+Define interface creature for {
     The text function name,
     The number function legs,
     The text function describe,

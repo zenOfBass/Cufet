@@ -170,6 +170,15 @@ public sealed class Parser
         SkipNoiseBeforeType();
         if (Peek().Type == TokenType.Object)
             return ParseObjectDefinition(line, col);
+        // `Define interface driver for { … }.` — the keyword before the name, as `object` and
+        // `shorthand` have it.
+        if (Peek().Type == TokenType.Interface)
+        {
+            Advance(); SkipNoise();          // consume 'interface'
+            var interfaceName = Consume(TokenType.Identifier).Lexeme;
+            SkipNoise();
+            return ParseInterfaceDefinitionBody(interfaceName, line, col);
+        }
         // `Define shorthand gate as (and-gate or or-gate).` — the keyword before the name, as
         // `object` is, so `shorthand` is reserved: `Define rabbit hopper as …` already means "a
         // rabbit called hopper", and a keyword read by position alone would collide with it.
@@ -225,8 +234,13 @@ public sealed class Parser
 
         Consume(TokenType.As);
         SkipNoise(); // skips article 'an' before 'interface'
+        // The order interfaces were declared in before 2026-10-31, the name ahead of the keyword —
+        // the one declaration that read the other way round from `object`.
         if (Peek().Type == TokenType.Interface)
-            return ParseInterfaceDefinitionBody(name, line, col);
+            throw new ParseException(line, col,
+                $"An interface names itself after the keyword now, as an object does: write "
+              + $"'Define interface {name} for …' where you would have written "
+              + $"'Define {name} as an interface for …'.");
         IExpression value = Peek().Type == TokenType.Series
             ? ParseSeriesLiteralExpr()
             : ParseExpression();
@@ -606,11 +620,11 @@ public sealed class Parser
         return ParseObjectDefinition(start.Line, start.Column);
     }
 
-    // Define <name> as an interface for { <method-sigs> } / single method without {}
+    // Define interface <name> for { <method-sigs> } / single method without {} — the name and the
+    // keyword before it are already consumed.
     // Called after consuming "Define <name> as an" and seeing the Interface token.
     private InterfaceDefinition ParseInterfaceDefinitionBody(string name, int line, int col)
     {
-        Consume(TokenType.Interface); SkipNoise();
         Consume(TokenType.For);      SkipNoise();
 
         var methods = new List<(string MethodName, CufetType? ReturnType, IReadOnlyList<CufetType> ParamTypes)>();

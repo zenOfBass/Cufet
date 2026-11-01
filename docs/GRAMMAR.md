@@ -1531,7 +1531,7 @@ article is noise, so `Pull a greeting-kit.` is the same statement.
 declares**; a module that declares none offers everything.
 
 ```cufet-fragment
-Define greeter as an interface for { The text function greet }.
+Define interface greeter for { The text function greet }.
 
 Define object greeting-kit with () and greeter and module:
     Bind text to greet: Return cast one's helper on (). Done.

@@ -89,7 +89,7 @@ public enum TokenType
 
     // ── Objects & Interfaces ─────────────────────────────────────────────
     Object,     // "object"    — in "Define object <name> with (...)"
-    Interface,  // "interface" — in "Define <name> as an interface for {...}"
+    Interface,  // "interface" — in "Define interface <name> for {...}"
     Shorthand,  // "shorthand" — in "Define shorthand <name> as <type>." — another way to write a type
     New,        // "new"       — in "a new <type> {fields}"
     One,        // "one"      — reserved self-reference keyword inside method bodies

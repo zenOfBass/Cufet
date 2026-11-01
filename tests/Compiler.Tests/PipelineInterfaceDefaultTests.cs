@@ -29,7 +29,7 @@ public class PipelineInterfaceDefaultTests : PipelineTestBase
         // `speaker` and writes no `speak` anywhere, and that is legal now. An interface's method
         // list is what a conformer ends up with, not what it must write.
         const string src = """
-            Define speaker as an interface for the text function speak.
+            Define interface speaker for the text function speak.
 
             Bind text to speak unto speaker:
                 Return "...".
@@ -50,7 +50,7 @@ public class PipelineInterfaceDefaultTests : PipelineTestBase
         // Specialisation. `crow` writes its own, `pigeon` does not — one interface, two behaviours,
         // and the compiled side has to reach a different body per conformer.
         const string src = """
-            Define speaker as an interface for the text function speak.
+            Define interface speaker for the text function speak.
 
             Bind text to speak unto speaker:
                 Return "...".
@@ -81,7 +81,7 @@ public class PipelineInterfaceDefaultTests : PipelineTestBase
         // `describe` is written once and reaches each type's own `area`. Note `cast area on one`
         // rather than `one's area` — the possessive yields the method, it does not call it.
         const string src = """
-            Define shape as an interface for {
+            Define interface shape for {
                 The number function area,
                 The text function describe
             }.
@@ -115,7 +115,7 @@ public class PipelineInterfaceDefaultTests : PipelineTestBase
     public void ADefault_TakesParameters()
     {
         const string src = """
-            Define greeter as an interface for the text function greet, given (the text who).
+            Define interface greeter for the text function greet, given (the text who).
 
             Bind text to greet unto greeter, given (the text who):
                 Return "hello {who}".
@@ -137,7 +137,7 @@ public class PipelineInterfaceDefaultTests : PipelineTestBase
         // conformer the copy was made for, so a default reaches fields the interface never
         // mentioned. This is the concrete-receiver property monomorphization depends on.
         const string src = """
-            Define named as an interface for the text function label.
+            Define interface named for the text function label.
 
             Bind text to label unto named:
                 Return "<{one's name}>".
@@ -160,8 +160,8 @@ public class PipelineInterfaceDefaultTests : PipelineTestBase
         // method", which explains the symptom and not the cause — so it is caught here, naming both
         // interfaces, and pointing at the fix (give the type its own, which beats both).
         const string src = """
-            Define alpha as an interface for the text function tag.
-            Define beta as an interface for the text function tag.
+            Define interface alpha for the text function tag.
+            Define interface beta for the text function tag.
 
             Bind text to tag unto alpha:
                 Return "a".
@@ -187,8 +187,8 @@ public class PipelineInterfaceDefaultTests : PipelineTestBase
         // A type's own method beats every default, so there is nothing left to be ambiguous about
         // and neither default is injected.
         const string src = """
-            Define alpha as an interface for the text function tag.
-            Define beta as an interface for the text function tag.
+            Define interface alpha for the text function tag.
+            Define interface beta for the text function tag.
 
             Bind text to tag unto alpha:
                 Return "a".
@@ -217,7 +217,7 @@ public class PipelineInterfaceDefaultTests : PipelineTestBase
         // counts a method promoted through an embedded type. If the expansion looked only at the
         // type's own body it would inject over the embedded one and silently change behaviour.
         const string src = """
-            Define speaker as an interface for the text function speak.
+            Define interface speaker for the text function speak.
 
             Bind text to speak unto speaker:
                 Return "default".
@@ -243,7 +243,7 @@ public class PipelineInterfaceDefaultTests : PipelineTestBase
         // A contract's fallback is not a program on its own. Rust is the same: a trait with a
         // default body and no impl anywhere is legal and emits nothing.
         const string src = """
-            Define speaker as an interface for the text function speak.
+            Define interface speaker for the text function speak.
 
             Bind text to speak unto speaker:
                 Return "never runs".

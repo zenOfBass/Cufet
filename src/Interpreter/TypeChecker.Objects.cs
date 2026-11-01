@@ -411,7 +411,7 @@ public sealed partial class TypeChecker
                     $"'{od.Name}' claims to satisfy '{ifaceName}', but no such interface is defined",
                     null, od.Line, od.Column,
                     $"conform to '{ifaceName}'",
-                    $"Define the interface first: Define {ifaceName} as an interface for {{...}}.");
+                    $"Define the interface first: Define interface {ifaceName} for {{...}}.");
 
             foreach (var (methodName, returnType, paramTypes) in iface.Methods)
             {

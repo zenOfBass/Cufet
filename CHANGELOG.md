@@ -55,6 +55,11 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Changed
 
+- **An interface is declared with the keyword first: `Define interface driver for { … }.`** It was
+  `Define driver as an interface for …`, the one declaration that read the other way round from
+  `Define object` (and now `Define shorthand`). The old order is refused with a message that writes
+  out the new one. Every example, doc and test is rewritten.
+
 - **Narrowing is decided once, by the checker.** Inside `If x is not void:`, after a guard, in the
   `Otherwise` of a test, or in a judgement's arm, a name reads as the type its test proved — and the
   checker now writes that type onto each such read, where both compilers read it. They used to work
