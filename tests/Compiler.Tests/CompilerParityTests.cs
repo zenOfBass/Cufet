@@ -658,8 +658,11 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     private const int CorpusFloor = 62;
 
     /// <remarks>
-    /// ★ The corpus is copied first: the compiler writes each program beside its source. Each program
-    /// it builds runs in its own folder, and the interpreter runs the same file there, as `cufet` would.
+    /// ★ The corpus is copied first: the compiler writes each program beside its source.
+    /// ★ Copied AS `examples/`, and every program — interpreted and built — runs from the copy's root,
+    /// as ExampleOracleTests runs it from the repository's. Eight programs read `examples/assets/…`,
+    /// as their headers say, and run from their own folders they found nothing on either side: the
+    /// read that works was compared only for `cufet build`, never for this compiler.
     /// </remarks>
     [Fact]
     public void TheCompiledCompiler_BuildsCorpusProgramsThatPrintWhatTheInterpreterPrints()
@@ -667,8 +670,8 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
         var dir = Path.Combine(TestScratch.Root, "cufet-selfcorpus-" + Guid.NewGuid().ToString("N"));
         try
         {
-            CopyFolder(Path.Combine(RepoRoot, "examples"), dir);
-            var files = Directory.GetFiles(dir, "*.cufe", SearchOption.AllDirectories)
+            CopyFolder(Path.Combine(RepoRoot, "examples"), Path.Combine(dir, "examples"));
+            var files = Directory.GetFiles(Path.Combine(dir, "examples"), "*.cufe", SearchOption.AllDirectories)
                 .Where(f => !Path.GetFileName(f).Equals("blueprint.cufe", StringComparison.OrdinalIgnoreCase))
                 .Order(StringComparer.Ordinal)
                 .ToList();
@@ -689,7 +692,7 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
                     unsupported.Add($"{name}\t{said["unsupported\t".Length..]}");
                     continue;
                 }
-                var folder = Path.GetDirectoryName(file)!;
+                var folder = dir;
                 // ★ A library is no program: neither backend runs one, and the interpreter must
                 // refuse it too — exit 2, "nothing to run" — or the compiler has called a program one.
                 if (said.StartsWith("library\t", StringComparison.Ordinal))

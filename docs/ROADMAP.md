@@ -137,11 +137,6 @@ around it. Nobody has asked for one.
 
 ---
 
-## Measured needs — met writing a real program, and nothing blocking them
-
-Each was hit by a program someone was actually writing, with the workaround it took. That is
-the calling: these wait only for a turn.
-
 ### Language
 
 - **There is no way to produce text FOR a language.** The compiler written in Cufet builds its C
@@ -151,17 +146,6 @@ the calling: these wait only for a turn.
   (beside HTML), and C already has a splicing marker that needs no escaping, an axiom's
   `the file-path`. Stacked braces and a writer-chosen hole marker were weighed 2026-10-31 and
   liked by no one. *Blocker:* its own design session.
-
-### Tooling
-
-- **Examples that read a file are tested only when it is missing.** `CompilerParityTests` runs each
-  corpus program from its own folder, but `semver`, `readings` and `logtriage` read
-  `examples/assets/…` from the repository root, as their headers say — so the test sees "not
-  found" on both sides, and the read that works is checked by hand only. *Blocker:* none known.
-
-## Deferred — blocked, or waiting for a program that needs it
-
-### Language
 
 - **A series cannot be reversed.** Only `sorted in reverse` exists; `nums in reverse` fails to parse
   (GRAMMAR once listed it, and was corrected 2026-09-24). *Blocker:* none known.
