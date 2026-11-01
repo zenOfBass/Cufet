@@ -1133,9 +1133,8 @@ Pull a book on collections.
         For each book in cast layered-books, repeat:
             // A pattern names no book: it calls the `regex` book's engine by its hidden name.
             If cast names-anywhere on (program, book) or cast names-anywhere on (program, "match in {book}"):
-                Define layer as cast listed.
                 Try to:
-                    The layer becomes cast parser's program-tree on (read all from the file "{prelude-folder}/{book}.cufe").
+                    Define layer as cast parser's program-tree on (read all from the file "{prelude-folder}/{book}.cufe").
                 Done.
                 In case of failure:
                     Return a failure (cast not-built on ("the {book} book, which could not be read")).

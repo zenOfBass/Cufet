@@ -3444,6 +3444,39 @@ In case of failure:
 Done.
 ```
 
+**A name made in the body outlives it when every handler leaves** (returns, or stops, skips
+or exits as a guard does), because then the only way to the next line is through a body that
+ran to its end:
+
+```cufet
+Bind number or failure to halve, given (the number n):
+    If n is 0, return a failure "zero".
+    Return n / 2.
+Done.
+
+Bind text to describe, given (the number n):
+    Try to:
+        Define half as cast halve on (n).
+    Done.
+    In case of failure:
+        Return "no half of {n}".
+    Done.
+    Return "half {half}".
+Done.
+
+State cast describe on (10).
+State cast describe on (0).
+```
+```output
+half 5
+no half of 0
+```
+
+An exception handler re-raises unless it says `Suppress the exception.`, so one that never can
+counts as leaving. A handler that can carry on past the `Try` keeps the old rule: the body's names
+end at its `Done.`, and using one after it is refused. What the body made is unmade where its names
+end, as if it had been written in the block around the `Try`.
+
 Inside `In case of failure:`, `the failure` is bound to the failure value.
 Access its fields with named access:
 ```cufet-fragment

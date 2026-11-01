@@ -1577,8 +1577,13 @@ public sealed partial class CodeGenerator
         string label = $"try{id}_handler", end = $"try{id}_end", failVar = $"cf_fail{id}";
         string catchL = $"exc{id}_catch", doneL = $"exc{id}_done";
         string sup = $"cf_sup{id}", xmsg = $"cf_xmsg{id}";
+        // ★ When every handler leaves, what the body defines outlives it (TypeChecker.KeepsBodyNames),
+        // so the Try opens no C block of its own: the body's variables are the enclosing block's, and
+        // so are their unmakers. The labels and snapshots are numbered, so none of them can collide.
+        bool keeps = TypeChecker.KeepsBodyNames(trySt);
+        if (keeps) inner = indent;
 
-        sb.AppendLine($"{indent}{{");
+        if (!keeps) sb.AppendLine($"{indent}{{");
         // One unmaker snapshot for this Try: the failure-goto runs to it, the body's normal exit runs
         // to it, and (for the exc path) cufet_exc_um records it so cufet_raise unwinds to it.
         string? umSnap = null;
@@ -1613,9 +1618,17 @@ public sealed partial class CodeGenerator
             // failure-goto pops NESTED exc handlers + NESTED rabbit arenas only
             _currentTryHandler = (label, failVar, HereCleanup(umSnap));
         // The Try body is a block scope: register its Defines, fire (LIFO) at normal completion.
+        // ★ Kept names are registered all the same — a failure part-way unmakes what the body made,
+        // as the interpreter's scope does — but a body that finishes hands them on, as
+        // Interpreter.ExitScopeIntoEnclosing does: to an enclosing block, which unmakes them at its
+        // end, or to a frame or the top level, which unmakes nothing, so they are dropped unrun.
         if (UsesUnmakers) _scopeDepth++;
         EmitBlock(sb, trySt.Body, inner);
-        if (UsesUnmakers && !BlockAlwaysExits(trySt.Body)) sb.AppendLine($"{inner}cufet_run_unmakers_to({umSnap});");
+        if (UsesUnmakers && !BlockAlwaysExits(trySt.Body))
+        {
+            if (!keeps) sb.AppendLine($"{inner}cufet_run_unmakers_to({umSnap});");
+            else if (_scopeDepth == 1) sb.AppendLine($"{inner}cufet_num = {umSnap};");
+        }
         if (UsesUnmakers) _scopeDepth--;
         if (hasFail)
             _currentTryHandler = savedHandler;
@@ -1676,7 +1689,7 @@ public sealed partial class CodeGenerator
         }
 
         sb.AppendLine($"{inner}{end}:;");
-        sb.AppendLine($"{indent}}}");
+        if (!keeps) sb.AppendLine($"{indent}}}");
     }
 
     // Emits all accumulated pre-emit lines (series literal constructions, etc.)

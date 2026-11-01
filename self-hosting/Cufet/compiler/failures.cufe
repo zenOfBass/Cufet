@@ -420,9 +420,14 @@ Pull a book on collections.
         Define outer-try-files as the entry for "%try-files" in one's kinds but void is "0".
         Define outer-try-um as the entry for "%try-um" in one's kinds but void is "0".
         Define outer-exc as "{cast one's exceptions-open}".
-        Cast one's line on ("\{").
+        // ★ When every handler leaves, what the body defines outlives it (`keeps-body-names`), so the
+        // `Try` opens no C block of its own: the body's variables are the enclosing block's.
+        Define keeps as cast checker's keeps-body-names on (statement).
         Define outer as one's indent.
-        The one's indent becomes outer joined to "    ".
+        If keeps is false:
+            Cast one's line on ("\{").
+            The one's indent becomes outer joined to "    ".
+        Done.
         Cast one's line on ("CufetFailure cf_failure_{label}; memset(&cf_failure_{label}, 0, sizeof cf_failure_{label}); int cf_tov_{label} = cufet_alloc_override; (void)cf_tov_{label};").
         If catching:
             // Taken before the jump point and never changed after it, so they hold their values
@@ -432,7 +437,7 @@ Pull a book on collections.
             Cast one's line on ("cufet_exc_um[cufet_exc_top] = cufet_num; cufet_exc_arena[cufet_exc_top] = cf_xa_{label};").
             In one's kinds, the entry for "%exc" becomes "{cast one's exceptions-open + 1}".
         Done.
-        Cast one's line on ("\{").
+        If keeps is false, cast one's line on ("\{").
         If failing:
             In one's kinds, the entry for "%try" becomes label.
             In one's kinds, the entry for "%try-exc" becomes outer-exc.
@@ -440,14 +445,19 @@ Pull a book on collections.
             In one's kinds, the entry for "%try-files" becomes "{cast one's files-open}".
             In one's kinds, the entry for "%try-um" becomes cast one's next-block-depth.
         Done.
-        Cast one's emit-block on (cast field-of on (statement, 1)) or pass the failure off.
+        If keeps:
+            Cast one's emit-kept-body on (cast field-of on (statement, 1)) or pass the failure off.
+        Done.
+        Otherwise:
+            Cast one's emit-block on (cast field-of on (statement, 1)) or pass the failure off.
+        Done.
         In one's kinds, the entry for "%try" becomes outer-try.
         In one's kinds, the entry for "%try-exc" becomes outer-try-exc.
         In one's kinds, the entry for "%try-rabbit" becomes outer-try-rabbit.
         In one's kinds, the entry for "%try-files" becomes outer-try-files.
         In one's kinds, the entry for "%try-um" becomes outer-try-um.
         In one's kinds, the entry for "%exc" becomes outer-exc.
-        Cast one's line on ("\}").
+        If keeps is false, cast one's line on ("\}").
         If catching, cast one's line on ("cufet_exc_top--;").
         Cast one's line on ("goto cf_tried_{label};").
         // A failure arrives with this `Try`'s own frame already closed, by the jump that brought it.
@@ -496,7 +506,23 @@ Pull a book on collections.
         Done.
         Cast one's line on ("cf_tried_{label}: ;").
         The one's indent becomes outer.
-        Cast one's line on ("\}").
+        If keeps is false, cast one's line on ("\}").
+    Done.
+
+    /// A kept `Try` body, written where it stands: its names stay known after it, and what it makes is
+    /// registered to be unmade — so a failure part-way unmakes it — and then handed on, as
+    /// `Interpreter.ExitScopeIntoEnclosing` hands it: to an enclosing block, which unmakes it at its end,
+    /// or to a frame or the top level, which unmakes nothing, so it is dropped unrun.
+    Bind void or failure to emit-kept-body unto emitter, given (the node statements):
+        Define was-in-block as the entry for "%in-block" in one's kinds but void is "".
+        Define blocks-before as the entry for "%blocks" in one's kinds but void is "0".
+        Define begun as cast one's opening-scope.
+        For each statement in statements's children, repeat:
+            Cast one's emit-statement on (statement) or pass the failure off.
+        Done.
+        If begun is not "" and was-in-block is not "yes", cast one's line on ("cufet_num = {begun};").
+        In one's kinds, the entry for "%in-block" becomes was-in-block.
+        In one's kinds, the entry for "%blocks" becomes blocks-before.
     Done.
 
     /// `Write <text> to the file <path>.` and `Append …` — inside a `Try`, a failure goes to its

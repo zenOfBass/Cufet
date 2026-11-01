@@ -220,6 +220,13 @@ Pull a book on collections.
         // ⚠ Nested, not `is-book is false and ended-on is not void` — narrowing reads a lone
         // `is not void` test and does not see through `and`.
         If ended-on is not void:
+            // A `Try` body's names outlive it only when every handler leaves; this one's did not.
+            If is-book is false and ended-on is less than at-row and (the entry for name in one's ended-in-a-try) is not void:
+                Return a failure (cast refusal-of on ("'{name}' was defined on line {ended-on}, inside a 'Try' whose failure or exception can be handled without leaving",
+                    "A name made in a 'Try' outlasts it only when every 'In case of' handler leaves, so the next line is reached only through a body that ran to its end",
+                    at-row, "use '{name}' after that 'Try'",
+                    "End each handler with a 'Return', 'Stop', 'Skip' or 'Exit', or define the name before the 'Try' so it outlasts it.")).
+            Done.
             If is-book is false and ended-on is less than at-row:
                 Return a failure (cast refusal-of on ("'{name}' was defined on line {ended-on}, inside a block that has ended",
                     "A name lasts until the 'Done.' of the block it was defined in, and no further",

@@ -5377,6 +5377,48 @@ public class InterpreterTests
         Assert.Contains(expected, refused.Message);
     }
 
+    // A name a `Try` body makes outlives it when every handler leaves (TypeChecker.KeepsBodyNames).
+    private const string Halve =
+        "Bind number or failure to halve, given (the number n):\n" +
+        "    If n is 0, return a failure \"zero\".\n" +
+        "    Return n / 2.\n" +
+        "Done.\n";
+
+    [Fact]
+    public void Try_NamesOutliveTheBody_WhenEveryHandlerLeaves()
+    {
+        Assert.Equal("half 5\nno half of 0", Run(Halve +
+            "Bind text to describe, given (the number n):\n" +
+            "    Try to:\n" +
+            "        Define half as cast halve on (n).\n" +
+            "    Done.\n" +
+            "    In case of failure:\n" +
+            "        Return \"no half of {n}\".\n" +
+            "    Done.\n" +
+            "    Return \"half {half}\".\n" +
+            "Done.\n" +
+            "State cast describe on (10).\nState cast describe on (0)."));
+    }
+
+    [Fact]
+    public void Try_AnExceptionHandlerThatReRaises_Leaves()
+    {
+        Assert.Equal("(1, 2)", Run(
+            "Try to:\n    Define items as a series with (1, 2).\nDone.\n" +
+            "In case of exception:\n    State \"never\".\nDone.\n" +
+            "State items."));
+    }
+
+    [Theory]
+    [InlineData("", "In case of failure:\n    State \"failed\".\nDone.\n")]
+    [InlineData(" but on failure 0", "In case of exception:\n    Suppress the exception.\nDone.\n")]
+    public void Try_NamesEndWithTheBody_WhenAHandlerCarriesOn(string handled, string handler)
+    {
+        var refused = Assert.Throws<TypeException>(() => Run(Halve +
+            "Try to:\n    Define half as cast halve on (4)" + handled + ".\nDone.\n" + handler + "State half."));
+        Assert.Contains("'half' was defined on line 6, inside a 'Try' whose failure or exception can be handled without leaving", refused.Message);
+    }
+
     [Fact]
     public void Interface_InTheOldOrder_IsRefusedWithTheNewOne()
     {

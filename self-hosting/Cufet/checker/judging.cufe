@@ -18,6 +18,7 @@ Pull a book on collections.
     Define object checker with (
         the series of map from text to binding scopes,
         the map from text to number ended-names,
+        the map from text to fact ended-in-a-try,
         the map from text to fact hoisted-constants,
         the map from text to node narrowed,
         the fact in-function,
@@ -147,6 +148,9 @@ Pull a book on collections.
             Define held as the value of pair.
             If held's line is greater than 0:
                 In one's ended-names, the entry for (the key of pair) becomes held's line.
+                If (the entry for (the key of pair) in one's ended-in-a-try) is not void:
+                    Remove the key of pair from one's ended-in-a-try.
+                Done.
             Done.
         Done.
         Remove item (the number of one's scopes) from one's scopes.
@@ -1314,6 +1318,7 @@ Pull a book on collections.
         Define walker as a new checker {
             the scopes a series with (cast builtin-scope),
             the ended-names a map from text to number,
+            the ended-in-a-try a map from text to fact,
             the hoisted-constants a map from text to fact,
             the narrowed a map from text to node,
             the in-function false,

@@ -382,6 +382,23 @@ public sealed partial class Interpreter
         _scopeDefOrder.RemoveAt(_scopeDefOrder.Count - 1);
     }
 
+    /// <summary>Closes a scope by moving what it holds into the one around it, unmade nothing.</summary>
+    /// <remarks>
+    /// The names, the order their unmakers run in, and their pending foreign releases all become the
+    /// enclosing scope's, so each is let go when THAT scope ends — a kept `Try` body's names behave
+    /// as if they had been written in the enclosing block.
+    /// </remarks>
+    private void ExitScopeIntoEnclosing()
+    {
+        var held = _scopes[^1];
+        var order = _scopeDefOrder[^1];
+        _scopeReleaseBase.RemoveAt(_scopeReleaseBase.Count - 1);
+        _scopes.RemoveAt(_scopes.Count - 1);
+        _scopeDefOrder.RemoveAt(_scopeDefOrder.Count - 1);
+        foreach (var (name, value) in held) _scopes[^1][name] = value;
+        _scopeDefOrder[^1].AddRange(order);
+    }
+
     // ★ Book bindings survive function isolation, matching TypeChecker.SaveScopes — see the note
     // there. A pulled book is a lexical capability, not a local: `Pull a book on math.` is in scope
     // for everything written in that block, functions included. Dropping it here type-checked fine

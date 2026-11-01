@@ -45,9 +45,8 @@ Pull a book on collections.
     Bind node or failure to infer-handled unto checker, given (the node operand):
         Define earlier as one's handled.
         The one's handled becomes true.
-        Define operand-type as cast unknown-type.
         Try to:
-            The operand-type becomes cast one's infer on (operand).
+            Define operand-type as cast one's infer on (operand).
         Done.
         In case of failure:
             The one's handled becomes earlier.
@@ -145,6 +144,7 @@ Pull a book on collections.
         The one's in-try becomes has-failure.
         Cast one's enter-scope.
         Cast one's check-block on (cast field-of on (statement, 1)) or pass the failure off.
+        Define body-made as cast one's innermost.
         Cast one's exit-scope.
         The one's in-try becomes earlier-try.
 
@@ -178,6 +178,35 @@ Pull a book on collections.
             The one's in-exception-handler becomes earlier-handler.
             Cast one's exit-scope.
         Done.
+
+        // What the body made outlives it when nothing but the body can reach the next statement.
+        If cast keeps-body-names on (statement):
+            For each pair in body-made, repeat:
+                Cast one's bind-name on (the key of pair, the value of pair).
+            Done.
+            Return.
+        Done.
+        For each pair in body-made, repeat:
+            If (the value of pair)'s line is greater than 0:
+                In one's ended-in-a-try, the entry for (the key of pair) becomes true.
+            Done.
+        Done.
+    Done.
+
+    /// `KeepsBodyNames`: a `Try` body's names outlive it when every handler leaves — returns, or stops,
+    /// skips or exits as a guard does. An exception handler re-raises unless it says `Suppress.`, so
+    /// one that never can is leaving already. ⚠ The compiler reads this too: both keep the same names.
+    Bind fact to keeps-body-names, given (the node statement):
+        Define failure-handler as cast field-of on (statement, 2).
+        Define exception-handler as cast field-of on (statement, 3).
+        If cast is-nothing on (failure-handler) is false:
+            If cast definitely-returns on (failure-handler) is false and cast leaves-the-block on (failure-handler) is false, return false.
+        Done.
+        If cast is-nothing on (exception-handler) is false:
+            If cast definitely-returns on (exception-handler) or cast leaves-the-block on (exception-handler), return true.
+            Return cast is-none on (cast stash-search on (exception-handler, a series with ("SuppressStatement"), a series of text)).
+        Done.
+        Return true.
     Done.
 
     Bind void or failure to check-suppress unto checker, given (the node statement):

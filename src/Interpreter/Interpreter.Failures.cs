@@ -593,10 +593,12 @@ public sealed partial class Interpreter
         RuntimeException? caughtEx      = null;
 
         EnterScope();
+        bool finished = false;
         try
         {
             foreach (var s in trySt.Body)
                 Execute(s);
+            finished = true;
         }
         catch (FailureUnwind fu) when (trySt.FailureHandler != null)
         {
@@ -606,7 +608,13 @@ public sealed partial class Interpreter
         {
             caughtEx = re;
         }
-        finally { ExitScope(); }
+        finally
+        {
+            // A body that ran to its end hands what it made to the enclosing block when the checker
+            // keeps those names (TypeChecker.KeepsBodyNames) — unmade there, as if written there.
+            if (finished && TypeChecker.KeepsBodyNames(trySt)) ExitScopeIntoEnclosing();
+            else ExitScope();
+        }
 
         if (caughtFailure != null)
         {

@@ -44,6 +44,14 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   do for casing. `alphabetic`, `numeric` and `whitespace` are now reserved words; `code` and
   `point` are not. `examples/parsing/precedence.cufe` renamed its `numeric` pattern to
   `all-digits`.
+- **A name made in a `Try` outlives it when every handler leaves.** If each `In case of` handler
+  returns, stops, skips or exits (an exception handler that never says `Suppress` counts, since it
+  re-raises), the only way past the `Try` is through a body that ran to its end, so what the body
+  defined can be read after it. The declare-a-placeholder-first workaround is gone from 11 places in
+  the front end and compiler written in Cufet. A handler that can carry on keeps the old rule, and
+  using such a name is refused with a message saying so. What the body made is unmade where its
+  names end, in all backends.
+
 - **A type can be given a shorter name.** `Define shorthand gate as (and-gate or or-gate).` makes
   `gate` another way to write that type, and nothing more: the front end puts the type back
   wherever the name is written, so a `gate` and the union are the same type and neither backend

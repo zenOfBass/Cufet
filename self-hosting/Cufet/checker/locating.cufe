@@ -234,9 +234,8 @@ Pull a book on collections.
     Bind map from text to text or failure to project-tree unto checker, given (the text root):
         Define drawn-in as a map from text to text.
         Define blueprint-path as "{root}/blueprint.cufe".
-        Define file-text as "".
         Try to:
-            The file-text becomes read all from the file blueprint-path.
+            Define file-text as read all from the file blueprint-path.
         Done.
         In case of failure:
             Return drawn-in.
@@ -531,9 +530,8 @@ Pull a book on collections.
             Define skipping as (cast file-part on (one-file) in lowercase) is "blueprint.cufe".
             If skip-file is not "" and cast same-path on (one-file, skip-file), the skipping becomes true.
             If skipping is false:
-                Define file-text as "".
                 Try to:
-                    The file-text becomes read all from the file one-file.
+                    Define file-text as read all from the file one-file.
                 Done.
                 In case of failure:
                     Define shown as cast file-part on (one-file).
@@ -1322,9 +1320,8 @@ Pull a book on collections.
                             Done.
                             Otherwise:
                                 In loaded, the entry for key becomes found.
-                                Define file-text as "".
                                 Try to:
-                                    The file-text becomes read all from the file found.
+                                    Define file-text as read all from the file found.
                                 Done.
                                 In case of failure:
                                     Return a failure (cast refusal-of on ("the book '{book}' is there but could not be read",

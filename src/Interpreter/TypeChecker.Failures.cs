@@ -500,8 +500,9 @@ public sealed partial class TypeChecker
         var savedInTryBlock = _inTryBlock;
         _inTryBlock = trySt.FailureHandler != null;
         EnterScope();
+        Dictionary<string, TypeInfo> made;
         try { CheckBlock(trySt.Body); }
-        finally { ExitScope(); _inTryBlock = savedInTryBlock; }
+        finally { made = new Dictionary<string, TypeInfo>(Scope); ExitScope(); _inTryBlock = savedInTryBlock; }
 
         // Failure handler: bind "the failure" as FailureMarkerType.
         if (trySt.FailureHandler != null)
@@ -527,5 +528,35 @@ public sealed partial class TypeChecker
             try { CheckBlock(trySt.ExceptionHandler); }
             finally { _inExceptionHandler = savedInEx; ExitScope(); }
         }
+
+        // What the body made outlives it when nothing but the body can reach the next statement —
+        // the handlers are checked first, so none of them can read a name the body may not have made.
+        if (KeepsBodyNames(trySt))
+            foreach (var (name, info) in made)
+                Scope[name] = info;
+        else if (!_inPrelude && !_checkingBookLayer)
+            foreach (var (name, info) in made)
+                if (info.EstablishingLine > 0) _endedInATry.Add(name);
+    }
+
+    /// <summary>Whether the names a `Try` body defines are still defined after it.</summary>
+    /// <remarks>
+    /// ★ They are when every handler LEAVES — returns, or stops, skips or exits as a guard does — so
+    /// the only way to the statement after the `Try` is through a body that ran to its end. The
+    /// reasoning is the guard's: after `If x is void, return.`, x is not void.
+    ///
+    /// ★ An exception handler re-raises unless it says `Suppress.`, so one that never can is leaving
+    /// already; one that can must leave some other way on every path.
+    ///
+    /// ⚠ The one definition, read by the checker, the interpreter and the compiler alike: each has to
+    /// keep exactly the names the others do.
+    /// </remarks>
+    public static bool KeepsBodyNames(TryStatement trySt)
+    {
+        static bool Leaves(IReadOnlyList<IStatement> handler) =>
+            DefinitelyReturns(handler) || LeavesTheBlock(handler);
+        return (trySt.FailureHandler == null || Leaves(trySt.FailureHandler))
+            && (trySt.ExceptionHandler == null || Leaves(trySt.ExceptionHandler)
+                || !AstSearch.Contains(trySt.ExceptionHandler, node => node is SuppressStatement));
     }
 }

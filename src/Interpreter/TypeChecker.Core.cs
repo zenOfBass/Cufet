@@ -974,7 +974,10 @@ public sealed partial class TypeChecker
         if (!_inPrelude && !_checkingBookLayer)
             foreach (var (name, info) in _scopes[^1])
                 if (info.EstablishingLine > 0)
+                {
                     _endedNames[name] = info.EstablishingLine;
+                    _endedInATry.Remove(name);
+                }
         _scopes.RemoveAt(_scopes.Count - 1);
         _typeScopes.RemoveAt(_typeScopes.Count - 1);
     }
@@ -1036,6 +1039,9 @@ public sealed partial class TypeChecker
     /// lifetimes, which is about exactly what a `Done.` lets go of.
     /// </remarks>
     private readonly Dictionary<string, int> _endedNames = new(StringComparer.Ordinal);
+
+    /// <summary>Of those, the names a `Try` body made and did not keep (see KeepsBodyNames).</summary>
+    private readonly HashSet<string> _endedInATry = new(StringComparer.Ordinal);
 
     // Save both scope chains and replace the VALUE chain with a fresh single scope (for function
     // isolation). V = value scopes, T = type scopes. Call sites iterate V to re-import outer
@@ -1758,6 +1764,16 @@ public sealed partial class TypeChecker
             // pull's `Done.`, which is the other way to meet it.
             // ⚠ After the book check below, not before: a pull's `Done.` ends the book's name too,
             // and "'math' is a book … the pull lasts until its Done." is the more useful sentence.
+            // A `Try` body's names outlive it only when every handler leaves; this one's did not.
+            if (!IsABook(vr.Name)
+                && _endedNames.TryGetValue(vr.Name, out var triedOn) && triedOn < vr.Line
+                && _endedInATry.Contains(vr.Name))
+                throw TypeError(
+                    $"'{vr.Name}' was defined on line {triedOn}, inside a 'Try' whose failure or exception can be handled without leaving",
+                    "A name made in a 'Try' outlasts it only when every 'In case of' handler leaves, so the next line is reached only through a body that ran to its end",
+                    vr.Line, vr.Column,
+                    $"use '{vr.Name}' after that 'Try'",
+                    "End each handler with a 'Return', 'Stop', 'Skip' or 'Exit', or define the name before the 'Try' so it outlasts it.");
             if (!IsABook(vr.Name)
                 && _endedNames.TryGetValue(vr.Name, out var definedOn) && definedOn < vr.Line)
                 throw TypeError(

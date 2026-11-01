@@ -152,11 +152,6 @@ the calling: these wait only for a turn.
   `the file-path`. Stacked braces and a writer-chosen hole marker were weighed 2026-10-31 and
   liked by no one. *Blocker:* its own design session.
 
-- **A value made inside a `Try` has to be declared before it.** A name defined in the block is gone
-  after it, so the compiler written in Cufet writes `Define whole as "".` and then
-  `Try to: The whole becomes …` — four times in forty lines of `compiler.cufe`. Not the handing-on
-  above: this is keeping a result, not passing a failure. *Blocker:* none known.
-
 - **`void when …, otherwise 3` is a union with a void case, not a voidable.** It is typed
   `(void or number)`, so `but void is` on it is refused — *"'(void or number)' can never be void"* —
   where a reader expects the voidable a `void` usually makes. Met writing the compiler written in

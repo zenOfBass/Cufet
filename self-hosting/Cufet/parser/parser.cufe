@@ -53,9 +53,8 @@ Pull a book on collections.
     Done.
 
     Bind node or failure to program-and-starts-from, given (the text whole, the number line-offset):
-        Define found as a series of token.
         Try to:
-            The found becomes cast tokens-of on (whole).
+            Define found as cast tokens-of on (whole).
         Done.
         In case of failure:
             Return a failure (cast lexer-refusal on (the message of the failure)).

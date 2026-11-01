@@ -250,9 +250,8 @@ Pull a book on collections.
         Done.
         Define clauses as a series of node.
         For each version in conditioned, repeat:
-            Define clause as cast unknown-type.
             Try to:
-                The clause becomes cast condition-dnf on (cast when-of on (version)).
+                Define clause as cast condition-dnf on (cast when-of on (version)).
             Done.
             In case of failure:
                 Return a failure (cast refusal-of on ("this condition on '{name}' is outside what can be checked for overlap",
