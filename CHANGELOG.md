@@ -44,6 +44,12 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   do for casing. `alphabetic`, `numeric` and `whitespace` are now reserved words; `code` and
   `point` are not. `examples/parsing/precedence.cufe` renamed its `numeric` pattern to
   `all-digits`.
+- **`examples/algorithms/easter.cufe` — the date of Easter, checked against a published table.**
+  Every year from 1600 to 2099 is worked out with the anonymous Gregorian method and compared with
+  the US Census Bureau's table (`examples/assets/easter-dates.txt`); it leaves with 1 on any
+  disagreement, as `semver.cufe` does. The corpus's third example with an answer key nobody here
+  wrote. All 500 years agree, in both backends and in the compiler written in Cufet.
+
 - **A series can be reversed: `nums in reverse`.** A new series, its items last to first; the
   original is untouched. `in reverse` right after `sorted` still belongs to the sort. A series only:
   text is refused. `examples/algorithms/reversiblelogic.cufe` drops its hand-built reversal for it.

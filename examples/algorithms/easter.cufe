@@ -1,0 +1,87 @@
+/* easter — the date of Easter Sunday, checked against a table nobody on this project wrote.
+
+   Every year from 1600 to 2099 is worked out here and compared with the dates in
+   `examples/assets/easter-dates.txt`, which the US Census Bureau publishes
+   (census.gov, "Date of Easter", 1600–2099 — taken there from a listing by
+   M. Bednarek and verified against M. Montes's tables). Two backends agreeing proves
+   they agree; a published table is what makes agreement mean correct.
+
+       cufet examples/algorithms/easter.cufe
+
+   The exit contract:
+
+       0   every year agreed with the table
+       1   at least one year disagreed
+       2   the table could not be read
+
+   ── The method ──
+
+   The anonymous Gregorian algorithm, as Meeus, Jones and Butcher give it: a chain of
+   whole-number divisions and remainders that finds the paschal full moon (the epact)
+   and then the Sunday after it. There is no integer division in Cufet, so each
+   quotient is `math's floor` of an exact one — and the whole chain runs through two
+   independent decimal implementations, one per backend, with nothing to round.
+
+   ★ Easter falls between March 22 and April 25. The ends of that range are rare,
+   which makes them a good test: the dates either side are easy to get by accident.
+*/
+
+Pull a book on math.
+    /// The whole part of `top / bottom` — what the method writes as integer division.
+    Bind number to whole-part, given (the number top, the number bottom):
+        Return math's floor of (top / bottom).
+    Done.
+
+    /// Easter Sunday of a Gregorian year, as the table writes it: "April 20".
+    Bind text to easter-of, given (the number year):
+        Define golden as year % 19.
+        Define century as cast whole-part on (year, 100).
+        Define of-century as year % 100.
+        Define leap-centuries as cast whole-part on (century, 4).
+        Define century-rest as century % 4.
+        Define moon-shift as cast whole-part on (century + 8, 25).
+        Define moon-fix as cast whole-part on (century - moon-shift + 1, 3).
+        Define epact as (19 * golden + century - leap-centuries - moon-fix + 15) % 30.
+        Define leap-years as cast whole-part on (of-century, 4).
+        Define year-rest as of-century % 4.
+        Define to-sunday as (32 + 2 * century-rest + 2 * leap-years - epact - year-rest) % 7.
+        Define correction as cast whole-part on (golden + 11 * epact + 22 * to-sunday, 451).
+        Define counted as epact + to-sunday - 7 * correction + 114.
+        Define month as cast whole-part on (counted, 31).
+        Define day as counted % 31 + 1.
+        Return "{"March" when month is 3, otherwise "April"} {day}".
+    Done.
+
+    Define table as "examples/assets/easter-dates.txt".
+    Try to:
+        Define lines as read all lines from the file table.
+    Done.
+    In case of failure:
+        State "easter: {table}: {the message of the failure}".
+        Exit with 2.
+    Done.
+
+    Define checked as 0.
+    Define disagreements as 0.
+    Define earliest as a series of number.
+    Define latest as a series of number.
+    For each line in lines, repeat:
+        If the length of line is 0, skip.
+        Define parts as line split by " ".
+        Define year as (item 1 of parts) converted to number but void is 0.
+        Define published as "{item 2 of parts} {item 3 of parts}".
+        Define ours as cast easter-of on (year).
+        Increment checked by 1.
+        If ours is not published:
+            Increment disagreements by 1.
+            State "  {year}: we say {ours}, the table says {published}".
+        Done.
+        If ours is "March 22", insert year into earliest.
+        If ours is "April 25", insert year into latest.
+    Done.
+
+    State "worked out {checked} years and compared each with the published table: {disagreements} disagreed".
+    State "the earliest Easter, March 22, fell in {earliest}".
+    State "the latest, April 25, fell in {latest}".
+    If disagreements is greater than 0, exit with 1.
+Done.
