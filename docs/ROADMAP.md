@@ -154,10 +154,6 @@ the calling: these wait only for a turn.
 
 ### Tooling
 
-- **The checker written in Cufet is slow to hold against C#.** Comparing it on ~750 hand-written
-  programs and the corpus takes over ten minutes, and one that fills a generic is checked twice,
-  as C# checks it. Not profiled — where the time goes is not known. *Blocker:* none known.
-
 - **Regions in the compiler written in Cufet keep what they could free.** A rabbit that hands one of
   its own values out is merged into the region below at its `Done`, where `cufet build` copies the
   value out and frees the rest. MEASURED: the checker it builds peaks at 3.5 GB over the repository's
