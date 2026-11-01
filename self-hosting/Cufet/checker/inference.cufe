@@ -93,6 +93,7 @@ Pull a book on collections.
             "BitsAtWidth", return cast one's infer-bits-width on (said) or pass the failure off.
             "RangeExpression", return cast one's infer-range on (said) or pass the failure off.
             "SortExpression", return cast one's infer-sort on (said) or pass the failure off.
+            "SeriesReverse", return cast one's infer-series-reverse on (said) or pass the failure off.
             "RandomNumber", return cast one's infer-random-number on (said) or pass the failure off.
             "RandomItem", return cast one's infer-random-item on (said) or pass the failure off.
             "RandomlyShuffled", return cast one's infer-random-shuffled on (said) or pass the failure off.

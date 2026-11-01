@@ -147,9 +147,6 @@ around it. Nobody has asked for one.
   `the file-path`. Stacked braces and a writer-chosen hole marker were weighed 2026-10-31 and
   liked by no one. *Blocker:* its own design session.
 
-- **A series cannot be reversed.** Only `sorted in reverse` exists; `nums in reverse` fails to parse
-  (GRAMMAR once listed it, and was corrected 2026-09-24). *Blocker:* none known.
-
 - **Expression-level flow-narrowing.** Narrowing works on *variables* today
   (`If maybe-x is not void: … maybe-x`). Narrowing a value produced by an *expression* — say
   re-reading `the entry for "alice" in ages` inside an already-checked branch without naming

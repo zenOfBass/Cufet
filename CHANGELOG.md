@@ -44,6 +44,10 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   do for casing. `alphabetic`, `numeric` and `whitespace` are now reserved words; `code` and
   `point` are not. `examples/parsing/precedence.cufe` renamed its `numeric` pattern to
   `all-digits`.
+- **A series can be reversed: `nums in reverse`.** A new series, its items last to first; the
+  original is untouched. `in reverse` right after `sorted` still belongs to the sort. A series only:
+  text is refused. `examples/algorithms/reversiblelogic.cufe` drops its hand-built reversal for it.
+
 - **A name made in a `Try` outlives it when every handler leaves.** If each `In case of` handler
   returns, stops, skips or exits (an exception handler that never says `Suppress` counts, since it
   re-raises), the only way past the `Try` is through a body that ran to its end, so what the body

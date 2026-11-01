@@ -3857,6 +3857,7 @@ public sealed partial class TypeChecker
         CodePointOf codePoint                                                                            => InferCodePointOf(codePoint),
         TextTrim trim                                                                                    => InferTextTrim(trim),
         SortExpression sort                                                                              => InferSort(sort),
+        SeriesReverse reversed                                                                           => InferSeriesReverse(reversed),
         RangeExpression re                                                                               => InferRangeExpr(re),
         ButVoidDefault bvd                                                                               => InferButVoidDefault(bvd),
         ConditionalExpression ce                                                                         => InferConditional(ce),

@@ -4,6 +4,14 @@ public sealed partial class Interpreter
 {
     // ── Sort ──────────────────────────────────────────────────────────────────
 
+    // `<series> in reverse` — a new series, the same elements last to first.
+    private object EvaluateSeriesReverse(SeriesReverse reversed)
+    {
+        if (Evaluate(reversed.Series) is not List<object> list)
+            throw new RuntimeException($"Expected a series for 'in reverse' on line {reversed.Line}.");
+        return Series(Enumerable.Reverse(list), ElementTypeOf(list));
+    }
+
     private object EvaluateSort(SortExpression sort)
     {
         var seriesVal = Evaluate(sort.Series);

@@ -958,6 +958,10 @@ public sealed class SemanticTokenizer
                 break;
             }
 
+            case SeriesReverse rv:
+                Walk(rv.Series);
+                break;
+
             case SortExpression so:
                 Walk(so.Series);
                 // A name after `by` is a field unless the checker resolved it to a function — and

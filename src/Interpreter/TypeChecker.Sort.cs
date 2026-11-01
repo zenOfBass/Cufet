@@ -4,6 +4,18 @@ public sealed partial class TypeChecker
 {
     // ── Sort ──────────────────────────────────────────────────────────────────
 
+    // `<series> in reverse` — the same series type, last to first.
+    private CufetType? InferSeriesReverse(SeriesReverse reversed)
+    {
+        var seriesType = InferType(reversed.Series);
+        if (seriesType == null || seriesType is SeriesType) return seriesType;
+        throw TypeError(
+            "'in reverse' works on a series only",
+            null, reversed.Line, reversed.Column,
+            $"reverse a {FormatType(seriesType)}",
+            "Only a series has an order to turn round. To sort one from the largest down, write 'sorted in reverse'.");
+    }
+
     private CufetType? InferSort(SortExpression sort)
     {
         // Rewritten on every pass, never merely set — see SortExpression.KeyFunction.

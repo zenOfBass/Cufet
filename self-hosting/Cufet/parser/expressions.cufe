@@ -500,6 +500,13 @@ Pull a book on collections.
                 Cast one's advance.
                 The base becomes cast placed on ("TextCase", a series with (base, cast flag on (upper)), in-tok).
             Done.
+            // `nums in reverse` — the series last to first. One right after `sorted` was taken by it.
+            Otherwise if kind is "In" and following is "Reverse":
+                Define reverse-tok as cast one's advance.
+                Cast one's skip-noise.
+                Cast one's advance.
+                The base becomes cast placed on ("SeriesReverse", a series with (base), reverse-tok).
+            Done.
             Otherwise:
                 The scanning becomes false.
             Done.

@@ -3366,7 +3366,7 @@ public sealed class Parser
                Peek().Type == TokenType.Sorted ||
                Peek().Type == TokenType.Shifted ||
                IsWord("at") ||
-               (Peek().Type == TokenType.In && PeekAfterCurrent() is TokenType.Uppercase or TokenType.Lowercase))
+               (Peek().Type == TokenType.In && PeekAfterCurrent() is TokenType.Uppercase or TokenType.Lowercase or TokenType.Reverse))
         {
             // `<bits> at <n> bits`. Matched by LEXEME, exactly as `item at (r, c)` is, because
             // neither `at` nor `bits` is reserved — both stay legal identifiers. The trailing
@@ -3454,6 +3454,14 @@ public sealed class Parser
                 var line = lineTok.Line;
                 var col = lineTok.Column;
                 baseExpr = new TextTrim(baseExpr, line, col);
+            }
+            // `nums in reverse` — the series last to first. One right after `sorted` was taken by it.
+            else if (PeekAfterCurrent() == TokenType.Reverse)
+            {
+                var lineTok = Advance(); // consume 'in'
+                SkipNoise();
+                Advance();               // consume 'reverse'
+                baseExpr = new SeriesReverse(baseExpr, lineTok.Line, lineTok.Column);
             }
             else
             {

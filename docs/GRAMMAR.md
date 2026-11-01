@@ -334,7 +334,7 @@ equality `is` uses.
 | ~~`last`~~ | — | Same |
 | `number` | NumberKw | `the number of <series>` — not the type name `number` |
 | `sorted` | Sorted | Sort expression |
-| `reverse` | Reverse | Reverse sort |
+| `reverse` | Reverse | `<series> in reverse`, and a reverse sort after `sorted` |
 | `by` | By | Sort key marker — a field or a function |
 | `range` | Range | Range expression |
 | `counting` | Counting | Range step marker |

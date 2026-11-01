@@ -2995,6 +2995,21 @@ State words sorted.
 (apple, fig, pear)
 ```
 
+**A series in reverse** is its items last to first, sorted or not, again as a new series:
+
+```cufet
+Define steps as a series of text with ("wake", "dress", "leave").
+State steps in reverse.
+State steps sorted in reverse.
+```
+```output
+(leave, dress, wake)
+(wake, leave, dress)
+```
+
+`in reverse` right after `sorted` belongs to the sort, so `sorted in reverse` is still a descending
+sort. It works on a series only; text is not reversed.
+
 Numbers sort numerically and text sorts ordinally. For a series of records or objects,
 sort by a field with `sorted by the <field>`:
 

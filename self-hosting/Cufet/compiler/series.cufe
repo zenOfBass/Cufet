@@ -245,6 +245,15 @@ Pull a book on collections.
 
     /// A sort as C: a copy, put in order by a stable insertion sort — equal keys keep their order, as
     /// the interpreter's does. Numbers compare as numbers; text by its bytes, as `cufet build` has it.
+    /// `<series> in reverse` — a new series, the items appended last to first.
+    Bind text or failure to c-reversed unto emitter, given (the node expression):
+        Define held as cast one's kind-of on (cast field-of on (expression, 1)) or pass the failure off.
+        If cast element-of on (held) is "", return a failure (cast not-built on ("reversing a {held}")).
+        Define series-type as cast series-c-name on (cast element-of on (held)).
+        Define series-c as cast one's c-of on (cast field-of on (expression, 1)) or pass the failure off.
+        Return "(\{ {series-type}* cf_src = {series-c}; {series-type}* cf_dst = {series-type}_new(); for (int cf_i = cf_src->len - 1; cf_i >= 0; cf_i--) {series-type}_append(cf_dst, cf_src->data[cf_i]); cf_dst; \})".
+    Done.
+
     Bind text or failure to c-sorted unto emitter, given (the node expression):
         Define held as cast one's sorted-kind-of on (expression) or pass the failure off.
         Define series-c as cast one's c-of on (cast field-of on (expression, 1)) or pass the failure off.

@@ -1772,6 +1772,7 @@ public sealed partial class Interpreter
         CodePointOf      cpo     => EvaluateCodePointOf(cpo),
         TextTrim         trim    => EvaluateTextTrim(trim),
         SortExpression   sort    => EvaluateSort(sort),
+        SeriesReverse    rev     => EvaluateSeriesReverse(rev),
         RangeExpression re  => EvaluateRangeExpr(re),
         VoidLiteral        _  => VoidValue.Instance,
         FailureLiteral fl     => EvaluateFailureLiteral(fl),

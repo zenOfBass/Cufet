@@ -72,15 +72,10 @@ Bind bits to apply, given (the (flip or flip-if or flip-if-both) gate, the bits 
     Done.
 Done.
 
-// ⚠ There is no standalone reversal for a series. `in reverse` only modifies `sorted`, and
-// sorting a circuit would destroy the very thing that makes it a circuit — its order. So the
-// undoing pass is built by hand, prepending each gate as it goes.
+// The undoing pass is the circuit last gate first — its order turned round, never sorted, since
+// sorting a circuit would destroy the very thing that makes it a circuit.
 Bind catalogue of (flip or flip-if or flip-if-both) to undoing, given (the catalogue of (flip or flip-if or flip-if-both) circuit):
-    Define backwards as a catalogue of (flip or flip-if or flip-if-both).
-    For each gate in circuit, repeat:
-        Insert gate into the start of backwards.
-    Done.
-    Return backwards.
+    Return circuit in reverse.
 Done.
 
 Bind bits to drive, given (the catalogue of (flip or flip-if or flip-if-both) circuit, the bits register):

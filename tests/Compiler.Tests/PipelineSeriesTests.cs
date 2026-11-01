@@ -693,4 +693,31 @@ public class PipelineSeriesTests : PipelineTestBase
                    + "grid: ((1, 2), (3))\nnone: ()\n11", Interpret(src));
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
+
+    // `<series> in reverse` — a new series, last to first, in both backends.
+    [Fact]
+    public void ASeriesInReverse_IsItsItemsLastToFirst()
+    {
+        const string src = """
+            Define nums as a series with (3, 1, 2).
+            State nums in reverse.
+            State nums.
+            State nums sorted in reverse.
+            State (nums sorted) in reverse.
+            State nums sorted in reverse in reverse.
+            Define letters as a series of text with ("a", "b", "c").
+            Define words as letters in reverse.
+            State words.
+            Define empty as a series of number.
+            State empty in reverse.
+            State the number of (nums in reverse).
+            For each w in words in reverse, repeat:
+                State w.
+            Done.
+            Define grid as a series of series of number with (a series with (1, 2), a series with (3)).
+            State grid in reverse.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+        Assert.Equal("(2, 1, 3)\n(3, 1, 2)\n(3, 2, 1)\n(3, 2, 1)\n(1, 2, 3)\n(c, b, a)\n()\n3\na\nb\nc\n((3), (1, 2))", Interpret(src));
+    }
 }

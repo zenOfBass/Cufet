@@ -157,6 +157,16 @@ Pull a book on collections.
     Done.
 
     /// `<series> sorted [in reverse] [by <field or function> | by a function …]`.
+    /// `<series> in reverse` — the same series type, last to first.
+    Bind node or failure to infer-series-reverse unto checker, given (the node said):
+        Define at-row as cast number-of on (cast field-of on (said, 2)).
+        Define source as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
+        If cast is-none on (source) or source's kind is "SeriesType", return source.
+        Return a failure (cast refusal-of on ("'in reverse' works on a series only", "", at-row,
+            "reverse a {cast type-words on (source)}",
+            "Only a series has an order to turn round. To sort one from the largest down, write 'sorted in reverse'.")).
+    Done.
+
     Bind node or failure to infer-sort unto checker, given (the node said):
         Define sorted-said as cast field-of on (said, 1).
         Define by-name as cast field-of on (said, 2).

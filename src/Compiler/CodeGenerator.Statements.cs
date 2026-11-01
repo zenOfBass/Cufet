@@ -2128,6 +2128,7 @@ public sealed partial class CodeGenerator
         // FallibleReturnType, for Try / but-on-failure / propagate), exactly like a fallible call.
         AwaitedResultExpression are => AwaitedResultInnerType(are),
         SortExpression sort   => TypeOf(sort.Series),           // sorted is element-type-preserving
+        SeriesReverse rev     => TypeOf(rev.Series),
         RandomNumber          => TNumber,
         RandomGuess           => TFact,
         RandomItem ri         => new VoidableType(((SeriesType)TypeOf(ri.Series)).ElementType),   // void on empty
@@ -2954,6 +2955,7 @@ public sealed partial class CodeGenerator
         AwaitedResultExpression are => EmitAwaitedResult(are),
         InterruptRequestedExpression => EmitInterruptRequested(),
         SortExpression sort   => EmitSort(sort),
+        SeriesReverse rev     => EmitSeriesReverse(rev),
         MatrixLiteral ml      => EmitMatrixLiteral(ml),
         ChaseLiteral          => EmitChaseLiteral(),
         MatrixSized ms        => EmitMatrixSized(ms),

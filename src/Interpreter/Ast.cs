@@ -783,6 +783,10 @@ public sealed record TextTrim(IExpression Text, int Line, int Column) : IExpress
 
 // <series> sorted                       — natural ascending order
 // <series> sorted in reverse            — natural descending order
+// <series> in reverse — a NEW series, the same elements last to first. A bare `in reverse`; one after
+// `sorted` belongs to the sort.
+public sealed record SeriesReverse(IExpression Series, int Line, int Column) : IExpression;
+
 // <series> sorted by <field>            — ascending by named field (records/objects)
 // <series> sorted by <field> in reverse — descending by named field
 // <series> sorted by <function>         — ascending by what a one-argument function gives back

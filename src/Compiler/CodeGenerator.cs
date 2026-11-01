@@ -887,6 +887,17 @@ public sealed partial class CodeGenerator
         _ => throw new CompilerException($"sorting by a '{FormatTypeName(t)}' key is not supported — sort keys must be number or text."),
     };
 
+    // `<series> in reverse` — a NEW series (non-mutating), the elements appended last to first.
+    private string EmitSeriesReverse(SeriesReverse rev)
+    {
+        string ser = RegisterSeriesStruct((SeriesType)TypeOf(rev.Series));
+        int id = _freshId++;
+        string src = $"cf_rs{id}", dst = $"cf_rev{id}";
+        _preEmits.Add($"{ser}* {src} = {EmitExpr(rev.Series)}; {ser}* {dst} = {ser}_new(); "
+                    + $"for (int cf_i{id} = {src}->len - 1; cf_i{id} >= 0; cf_i{id}--) {ser}_append({dst}, {src}->data[cf_i{id}]);");
+        return dst;
+    }
+
     // `<series> sorted [in reverse] [by <field>]` — a NEW series (non-mutating), stably sorted.
     // A stable insertion sort (equal keys keep original order) matches the interpreter's stable
     // OrderBy exactly; C's qsort is NOT stable, so we don't use it. Natural order (number/text) or

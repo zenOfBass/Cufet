@@ -65,7 +65,7 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     : PipelineTestBase, IClassFixture<CompiledCufetCompiler>
 {
     /// <summary>How many hand-written programs must build and print alike. Raised as it grows; never lowered.</summary>
-    private const int BuiltFloor = 450;
+    private const int BuiltFloor = 451;
 
     private static string[] PreludeArgs =>
         ["--prelude", Path.Combine(RepoRoot, "src", "Interpreter", "Prelude").Replace('\\', '/')];
@@ -579,6 +579,8 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
         "Define flag as false.\nDefine maybe as void when flag, otherwise 3.\nState maybe but void is 0.\nDefine the (number or void) other as void when flag is false, otherwise 3.\nState other but void is 0.\nIf maybe is not void, state maybe + 1.\nDefine chained as 1 when flag, otherwise void when true, otherwise 2.\nState chained is void.",
         // A chain of three types, each arm widened straight into the outer union (2026-11-01)
         "For each n in a series with (1, 2, 3), repeat:\n    Define picked as true when n is 1, otherwise 10 when n is 2, otherwise \"x\".\n    Judge picked, where it is:\n        A fact, state \"a fact\".\n        A number, state \"the number {it}\".\n        A text, state \"the text {it}\".\n    Done.\nDone.",
+        // A series in reverse (2026-11-01)
+        "Define nums as a series with (3, 1, 2).\nState nums in reverse.\nState nums.\nState nums sorted in reverse.\nState (nums sorted) in reverse.\nState nums sorted in reverse in reverse.\nDefine letters as a series of text with (\"a\", \"b\", \"c\").\nDefine words as letters in reverse.\nState words.\nDefine empty as a series of number.\nState empty in reverse.\nState the number of (nums in reverse).\nFor each w in words in reverse, repeat:\n    State w.\nDone.\nDefine grid as a series of series of number with (a series with (1, 2), a series with (3)).\nState grid in reverse.",
     ];
 
     [Fact]

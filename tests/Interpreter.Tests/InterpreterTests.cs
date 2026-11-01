@@ -5426,6 +5426,20 @@ public class InterpreterTests
         Assert.Equal("3\n0\n4\ntrue", Run("Define flag as false.\nDefine maybe as void when flag, otherwise 3.\nState maybe but void is 0.\nDefine the (number or void) other as void when flag is false, otherwise 3.\nState other but void is 0.\nIf maybe is not void, state maybe + 1.\nDefine chained as 1 when flag, otherwise void when true, otherwise 2.\nState chained is void.\n"));
     }
 
+    // `<series> in reverse` — a new series, last to first; `sorted in reverse` keeps its meaning.
+    [Fact]
+    public void SeriesReverse_TurnsTheOrderRound()
+    {
+        Assert.Equal("(2, 1, 3)\n(3, 1, 2)\n(3, 2, 1)\n(3, 2, 1)\n(1, 2, 3)\n(c, b, a)\n()\n3\na\nb\nc\n((3), (1, 2))", Run("Define nums as a series with (3, 1, 2).\nState nums in reverse.\nState nums.\nState nums sorted in reverse.\nState (nums sorted) in reverse.\nState nums sorted in reverse in reverse.\nDefine letters as a series of text with (\"a\", \"b\", \"c\").\nDefine words as letters in reverse.\nState words.\nDefine empty as a series of number.\nState empty in reverse.\nState the number of (nums in reverse).\nFor each w in words in reverse, repeat:\n    State w.\nDone.\nDefine grid as a series of series of number with (a series with (1, 2), a series with (3)).\nState grid in reverse."));
+    }
+
+    [Fact]
+    public void SeriesReverse_OfText_IsRefused()
+    {
+        var refused = Assert.Throws<TypeException>(() => Run("Define t as \"abc\".\nState t in reverse."));
+        Assert.Contains("'in reverse' works on a series only", refused.Message);
+    }
+
     [Fact]
     public void Interface_InTheOldOrder_IsRefusedWithTheNewOne()
     {
