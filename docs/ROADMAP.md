@@ -154,12 +154,6 @@ the calling: these wait only for a turn.
 
 ### Tooling
 
-- **Regions in the compiler written in Cufet keep what they could free.** A rabbit that hands one of
-  its own values out is merged into the region below at its `Done`, where `cufet build` copies the
-  value out and frees the rest. MEASURED: the checker it builds peaks at 3.5 GB over the repository's
-  141 files, against 1.46 GB for `cufet build`'s. Deep copies, one per kind, would close it.
-  *Blocker:* none known.
-
 - **Parts of the C runtime are still written into a program only when it uses them** — matrices,
   `chance`, signals and concurrency. The compiler written in Cufet links the shared runtime alone,
   so it will need each; the case table and `run` already moved, once their gates' reasons measured
