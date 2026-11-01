@@ -11,9 +11,19 @@ Pull a book on collections.
         Define taken as cast one's kind-of on (cast field-of on (expression, 1)) or pass the failure off.
         Define other as cast one's kind-of on (cast field-of on (expression, 3)) or pass the failure off.
         If taken is other, return taken.
-        // ⚠ Not a voidable: the checker makes `void when …, otherwise 3` a union with a void case,
-        // `(void or number)`, which has no C here yet.
-        If taken is "void" or other is "void", return a failure (cast not-built on ("a choice with void on one side")).
+        // One type and `void` is a voidable of it, as the checker folds it — and a voidable beside
+        // its own type, or beside `void`, is that voidable.
+        If taken is "voidable {other}" or (other is "void" and taken starts with "voidable "), return taken.
+        If other is "voidable {taken}" or (taken is "void" and other starts with "voidable "), return other.
+        Define present as other.
+        If other is "void", the present becomes taken.
+        If taken is "void" or other is "void":
+            // ⚠ A union and `void` stays a union with a void case, `(a or b or void)`, which has no C here yet.
+            If cast is-union on (present), return a failure (cast not-built on ("a choice between void and a union")).
+            Define widened as "voidable {present}".
+            Cast one's register-union on (widened).
+            Return widened.
+        Done.
         For each side in a series of text with (taken, other), repeat:
             If cast is-scalar on (side) is false and cast object-of on (side) is "" and cast is-union on (side) is false:
                 Return a failure (cast not-built on ("a choice between a {taken} and a {other}")).

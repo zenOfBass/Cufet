@@ -4274,6 +4274,11 @@ public sealed partial class TypeChecker
         foreach (var t in new[] { valueType, altType })
             if (t is UnionType { Cases: not null } u) cases.AddRange(u.Cases);
             else cases.Add(t);
+        // ★ One type and `void` is a voidable of it — what `(number or void)` means written as a type,
+        // where the parser makes the same fold. As a union with a void case, `but void is` on it was
+        // refused as "can never be void", and the voidable it spells was refused as a different type.
+        var present = cases.Where(c => c is not VoidType).ToList();
+        if (present.Count == 1 && present.Count < cases.Count) return new VoidableType(present[0]);
         return new UnionType(cases);
     }
 

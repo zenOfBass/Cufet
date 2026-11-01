@@ -5419,6 +5419,13 @@ public class InterpreterTests
         Assert.Contains("'half' was defined on line 6, inside a 'Try' whose failure or exception can be handled without leaving", refused.Message);
     }
 
+    // `void when …, otherwise 3` is a voidable number — what `(number or void)` means written as a type.
+    [Fact]
+    public void Conditional_OneTypeAndVoid_IsAVoidable()
+    {
+        Assert.Equal("3\n0\n4\ntrue", Run("Define flag as false.\nDefine maybe as void when flag, otherwise 3.\nState maybe but void is 0.\nDefine the (number or void) other as void when flag is false, otherwise 3.\nState other but void is 0.\nIf maybe is not void, state maybe + 1.\nDefine chained as 1 when flag, otherwise void when true, otherwise 2.\nState chained is void.\n"));
+    }
+
     [Fact]
     public void Interface_InTheOldOrder_IsRefusedWithTheNewOne()
     {

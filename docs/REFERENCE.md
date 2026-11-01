@@ -478,6 +478,20 @@ Define name as "one" when count is 1,
 Define the number fee as 0 when member is true, otherwise 25.
 ```
 
+**One type and `void` make a voidable**, which is what `(number or void)` means written as a type,
+so `but void is` and `is not void` work on it:
+
+```cufet
+Define flag as false.
+Define found as void when flag is true, otherwise 3.
+State found but void is 0.
+```
+```output
+3
+```
+
+Two or more types with `void` make a union with a void case, as `(number or text or void)` does.
+
 `when` binds looser than everything else, so it always picks between two whole values — including
 across `but void is`:
 

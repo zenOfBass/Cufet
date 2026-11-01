@@ -270,6 +270,14 @@ Pull a book on collections.
             Done.
             Otherwise, insert side into cases.
         Done.
+        // One type and `void` is a voidable of it, as `(number or void)` is written as a type.
+        Define present as a series of node.
+        For each one-case in cases, repeat:
+            If one-case's kind is not "VoidType", insert one-case into present.
+        Done.
+        If the number of present is 1 and the number of present is less than the number of cases:
+            Return cast made on ("VoidableType", a series with (item 1 of present)).
+        Done.
         Return cast union-of on (cases).
     Done.
 Done.

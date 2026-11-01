@@ -152,11 +152,6 @@ the calling: these wait only for a turn.
   `the file-path`. Stacked braces and a writer-chosen hole marker were weighed 2026-10-31 and
   liked by no one. *Blocker:* its own design session.
 
-- **`void when …, otherwise 3` is a union with a void case, not a voidable.** It is typed
-  `(void or number)`, so `but void is` on it is refused — *"'(void or number)' can never be void"* —
-  where a reader expects the voidable a `void` usually makes. Met writing the compiler written in
-  Cufet, which cannot build such a choice yet. Whether it is meant is not known. *Blocker:* none known.
-
 ### Tooling
 
 - **The checker written in Cufet is slow to hold against C#.** Comparing it on ~750 hand-written

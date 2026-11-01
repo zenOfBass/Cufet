@@ -164,4 +164,23 @@ public class PipelineConditionalTests : PipelineTestBase
             """;
         Assert.ThrowsAny<Exception>(() => InterpretRaw(src));
     }
+
+    // ★ One type and `void` is a voidable of it, in both checkers and both compilers: as a union with a
+    // void case, `but void is` on it was refused, and the voidable it spells was refused as a different type.
+    [Fact]
+    public void OneTypeAndVoid_IsAVoidable()
+    {
+        const string src = """
+            Define flag as false.
+            Define maybe as void when flag, otherwise 3.
+            State maybe but void is 0.
+            Define the (number or void) other as void when flag is false, otherwise 3.
+            State other but void is 0.
+            If maybe is not void, state maybe + 1.
+            Define chained as 1 when flag, otherwise void when true, otherwise 2.
+            State chained is void.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+        Assert.Equal("3\n0\n4\ntrue", Interpret(src));
+    }
 }

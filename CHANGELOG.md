@@ -78,6 +78,13 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **`void when …, otherwise 3` is a voidable number.** It was typed as a union with a void case, so
+  `but void is` on it was refused as *"'(void or number)' can never be void"*, declaring it
+  `the (number or void)` was refused as a different type, and `is not void` did not narrow it. One
+  type and `void` now make a voidable of that type, as `(number or void)` does written out; two or
+  more types and `void` stay a union with a void case. Both checkers and both compilers; the
+  compiler written in Cufet can now build such a choice.
+
 - **`cufet build` widens a plain value into a union slot everywhere the interpreter does.** A
   method's arguments, the non-interface arguments of a call that takes an interface, and the key
   of a map lookup, `has a key for`, `has an entry for`, a map entry set, a map literal and a set's

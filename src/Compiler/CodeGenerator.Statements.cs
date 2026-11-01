@@ -3085,9 +3085,18 @@ public sealed partial class CodeGenerator
         var cases = new List<CufetType>();
         var seen  = new HashSet<string>();
         foreach (var part in new[] { valueType, altType })
-            foreach (var one in part is UnionType { Cases: not null } u ? u.Cases : [part])
+            foreach (var one in part switch
+                     {
+                         UnionType { Cases: not null } u => u.Cases,
+                         // A voidable arm is its type and `void`, so the fold below sees both.
+                         VoidableType v => [v.Inner, CufetType.Void],
+                         _ => [part],
+                     })
                 if (seen.Add(TypeSig(one))) cases.Add(one);
 
+        // One type and `void` is a voidable of it, as the checker folds it.
+        var present = cases.Where(c => c is not VoidType).ToList();
+        if (present.Count == 1 && present.Count < cases.Count) return new VoidableType(present[0]);
         return cases.Count == 1 ? cases[0] : new UnionType(cases);
     }
 

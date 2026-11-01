@@ -36,7 +36,7 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
     private const int TreeFloor = 91;
 
     /// <summary>The same, of the hand-written programs both checkers accept.</summary>
-    private const int HandWrittenTreeFloor = 291;
+    private const int HandWrittenTreeFloor = 292;
 
     /// <summary>The same, of the hand-written projects both checkers accept.</summary>
     private const int ProjectTreeFloor = 14;
@@ -1222,6 +1222,8 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
         "Define object dot with ().\nDefine shorthand dot as (number or text).\n",
         "Define shorthand ring as (number or loop).\nDefine shorthand loop as (text or ring).\nState 1.\n",
         "Define object dot with ().\nDefine shorthand spot as (dot or number).\nDefine made as a new spot {}.\n",
+        // One type and void, chosen between, is a voidable of it (2026-11-01).
+        "Define flag as false.\nDefine maybe as void when flag, otherwise 3.\nState maybe but void is 0.\nDefine the (number or void) other as void when flag is false, otherwise 3.\nState other but void is 0.\nIf maybe is not void, state maybe + 1.\nDefine chained as 1 when flag, otherwise void when true, otherwise 2.\nState chained is void.\n",
         // A name a Try body makes outlives it when every handler leaves (2026-10-31).
         "Bind number or failure to halve, given (the number n):\n    If n is 0, return a failure \"zero\".\n    Return n / 2.\nDone.\nBind text to describe, given (the number n):\n    Try to:\n        Define half as cast halve on (n).\n    Done.\n    In case of failure:\n        Return \"none\".\n    Done.\n    Return \"half {half}\".\nDone.\nTry to:\n    Define items as a series with (1, 2).\nDone.\nIn case of exception:\n    State \"never\".\nDone.\nState items.\nState cast describe on (4).\n",
         "Bind number or failure to halve, given (the number n):\n    If n is 0, return a failure \"zero\".\n    Return n / 2.\nDone.\nTry to:\n    Define half as cast halve on (4).\nDone.\nIn case of failure:\n    State \"failed\".\nDone.\nState half.\n",
