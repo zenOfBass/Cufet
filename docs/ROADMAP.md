@@ -144,10 +144,13 @@ the calling: these wait only for a turn.
 
 ### Language
 
-- **Text that holds braces cannot also hold holes.** A `{` in a quoted literal opens a hole, so
-  every brace C needs is written `\{` or `\}` — 53 of them in the compiler written in Cufet's
-  `emitting.cufe`, in lines like `"if ({condition}) \{"` — and `<<…>>` keeps the braces but has no
-  holes. Met writing that compiler; every slice adds more. *Blocker:* none known.
+- **There is no way to produce text FOR a language.** The compiler written in Cufet builds its C
+  as quoted text, so every C brace is written `\{` or `\}` (306 lines, 194 of them with a hole too,
+  like `"static int {type-c}_eq(…) \{ return {tests}; \}"`), and `<<…>>` keeps braces but has no
+  holes. The escapes are the symptom: this is the *produces text for* kind of language book
+  (beside HTML), and C already has a splicing marker that needs no escaping, an axiom's
+  `the file-path`. Stacked braces and a writer-chosen hole marker were weighed 2026-10-31 and
+  liked by no one. *Blocker:* its own design session.
 
 - **A value made inside a `Try` has to be declared before it.** A name defined in the block is gone
   after it, so the compiler written in Cufet writes `Define whole as "".` and then
