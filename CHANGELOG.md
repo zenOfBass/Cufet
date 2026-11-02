@@ -8,6 +8,8 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ## [Unreleased]
 
+## [0.29.0] — 2026-11-02
+
 ### Added
 
 - **Narrowing sees through `and`.** In `If known is false and held is not void:`, `held` is a
