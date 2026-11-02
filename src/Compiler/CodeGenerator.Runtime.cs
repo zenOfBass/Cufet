@@ -1221,8 +1221,11 @@ static const char* cufet_text_from_dec(CufetDec d) {
     size_t n = strlen(buf); char* r = (char*)cufet_arena_alloc(n + 1);
     memcpy(r, buf, n + 1); return r;
 }
-/* text -> number: trim, then accept -?\d+(\.\d+)? (mirrors the lexer + decimal.TryParse).
-   Returns 1 and writes *out on success; 0 (unparseable) otherwise. */
+/* text -> number: trim, then accept the literal's shape, -?\d+(\.\d+)?([eE][+-]?\d+)?, and ROUND
+   what does not fit exactly — to 28 places or 29 digits, half to even — so a text converts to what
+   the same literal means. A port of .NET's TryParseNumber + TryNumberToDecimal (release/10.0),
+   which is what the interpreter calls; the names are theirs, so the two can be read side by side.
+   Returns 1 and writes *out on success; 0 (unparseable, or larger than a number holds) otherwise. */
 static int cufet_parse_number(const char* s, CufetDec* out) {
     while (*s && isspace((unsigned char)*s)) s++;
     const char* end = s + strlen(s);
@@ -1231,18 +1234,88 @@ static int cufet_parse_number(const char* s, CufetDec* out) {
     const char* p = s; int sign = 0;
     if (*p == '-') { sign = 1; p++; }
     if (p == end || *p < '0' || *p > '9') return 0;
-    unsigned __int128 coef = 0; int scale = 0;
-    while (p < end && *p >= '0' && *p <= '9') { coef = coef * 10 + (unsigned)(*p - '0'); p++; }
-    if (p < end && *p == '.') {
-        p++;
+    /* The digit buffer: leading zeros dropped, at most 30 kept, a non-zero one past that noted. */
+    char digits[31]; int digCount = 0, hasNonZeroTail = 0, nonZero = 0, decimal = 0;
+    long long scale = 0;   /* where the point falls, counted from the first kept digit */
+    for (;;) {
+        if (p < end && *p >= '0' && *p <= '9') {
+            if (*p != '0' || nonZero) {
+                if (digCount < 30) digits[digCount] = *p; else if (*p != '0') hasNonZeroTail = 1;
+                if (!decimal) scale++;
+                digCount++; nonZero = 1;
+            } else if (decimal) scale--;
+            p++;
+        } else if (p < end && *p == '.' && !decimal) {
+            p++;
+            if (p == end || *p < '0' || *p > '9') return 0;
+            decimal = 1;
+        } else break;
+    }
+    digits[digCount < 30 ? digCount : 30] = 0;
+    if (p < end && (*p == 'e' || *p == 'E')) {
+        p++; int negExp = 0;
+        if (p < end && (*p == '+' || *p == '-')) { negExp = *p == '-'; p++; }
         if (p == end || *p < '0' || *p > '9') return 0;
-        while (p < end && *p >= '0' && *p <= '9') { coef = coef * 10 + (unsigned)(*p - '0'); scale++; p++; }
+        long long exp = 0; int huge = 0;
+        while (p < end && *p >= '0' && *p <= '9') {
+            if (!huge) { if (exp >= 100000000) huge = 1; else exp = exp * 10 + (*p - '0'); }
+            p++;
+        }
+        if (huge) { exp = 2147483647LL; scale = 0; }
+        scale += negExp ? -exp : exp;
     }
     if (p != end) return 0;
-    if (scale > 28) return 0;
-    unsigned __int128 max96 = (((unsigned __int128)0xFFFFFFFFu) << 64) | 0xFFFFFFFFFFFFFFFFull;
-    if (coef > max96) return 0;                /* > decimal.MaxValue -> unparseable */
-    out->coef = coef; out->scale = scale; out->sign = (coef == 0) ? 0 : sign;
+
+    const char* q = digits; long long e = scale; unsigned c = (unsigned char)*q;
+    if (c == 0) {
+        out->coef = 0; out->scale = (int)(-e < 0 ? 0 : -e > 28 ? 28 : -e); out->sign = 0;
+        return 1;
+    }
+    if (e > 29) return 0;
+    uint64_t low64 = 0;
+    while (e > -28) {
+        e--;
+        low64 = low64 * 10 + (c - '0');
+        c = (unsigned char)*++q;
+        if (low64 >= UINT64_MAX / 10) break;
+        if (c == 0) {
+            while (e > 0) { e--; low64 *= 10; if (low64 >= UINT64_MAX / 10) break; }
+            break;
+        }
+    }
+    uint32_t high = 0;
+    while ((e > 0 || (c != 0 && e > -28)) &&
+           (high < UINT32_MAX / 10 || (high == UINT32_MAX / 10 &&
+               (low64 < 0x9999999999999999ULL || (low64 == 0x9999999999999999ULL && c <= '5'))))) {
+        uint64_t tmpLow = (uint64_t)(uint32_t)low64 * 10u;
+        uint64_t tmp64 = (uint64_t)(uint32_t)(low64 >> 32) * 10u + (tmpLow >> 32);
+        low64 = (uint32_t)tmpLow + (tmp64 << 32);
+        high = (uint32_t)(tmp64 >> 32) + high * 10;
+        if (c != 0) {
+            c -= '0';
+            low64 += c;
+            if (low64 < c) high++;
+            c = (unsigned char)*++q;
+        }
+        e--;
+    }
+    if (c >= '5') {
+        int roundUp = 1;
+        if (c == '5' && (low64 & 1) == 0) {
+            /* Exactly half, on an even digit: stays, unless anything past the 5 is not zero. */
+            c = (unsigned char)*++q;
+            int hasZeroTail = !hasNonZeroTail;
+            while (c != 0 && hasZeroTail) { hasZeroTail &= c == '0'; c = (unsigned char)*++q; }
+            if (hasZeroTail) roundUp = 0;
+        }
+        if (roundUp && ++low64 == 0 && ++high == 0) {
+            low64 = 0x999999999999999AULL; high = UINT32_MAX / 10; e++;
+        }
+    }
+    if (e > 0) return 0;                       /* > decimal.MaxValue -> unparseable */
+    if (e <= -29) { out->coef = 0; out->scale = 28; out->sign = 0; return 1; }
+    out->coef = ((unsigned __int128)high << 64) | low64; out->scale = (int)-e;
+    out->sign = (out->coef == 0) ? 0 : sign;
     return 1;
 }
 

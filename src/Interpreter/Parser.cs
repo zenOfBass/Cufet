@@ -1649,14 +1649,14 @@ public sealed class Parser
             var digits = Peek();
             if (digits.Type != TokenType.Number) throw new ParseException(digits, "a number after '-'");
             Advance();
-            return new NumberLiteral(-decimal.Parse(digits.Lexeme, CultureInfo.InvariantCulture));
+            return new NumberLiteral(-decimal.Parse(digits.Lexeme, NumberStyles.Float, CultureInfo.InvariantCulture));
         }
 
         switch (tok.Type)
         {
             case TokenType.Number:
                 Advance();
-                return new NumberLiteral(decimal.Parse(tok.Lexeme, CultureInfo.InvariantCulture));
+                return new NumberLiteral(decimal.Parse(tok.Lexeme, NumberStyles.Float, CultureInfo.InvariantCulture));
             case TokenType.String:
                 Advance();
                 return new StringLiteral(tok.Lexeme);
@@ -3559,7 +3559,7 @@ public sealed class Parser
                 // ★ The same rule the language already states about line endings: a program cannot
                 // mean two things depending on where it is opened.
                 baseExpr = new NumberLiteral(
-                    decimal.Parse(Advance().Lexeme, CultureInfo.InvariantCulture));
+                    decimal.Parse(Advance().Lexeme, NumberStyles.Float, CultureInfo.InvariantCulture));
                 break;
             case TokenType.Bits:
                 baseExpr = ParseBitsLiteral(Advance());

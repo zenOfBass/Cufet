@@ -540,7 +540,27 @@ public sealed class Lexer
             while (!AtEnd() && char.IsDigit(Peek()))
                 Advance();
         }
-        return new Token(TokenType.Number, _source[start.._pos], _line, ColumnAt(start));
+        // An exponent, `6.022e23` or `1E-9`, likewise only when a digit follows the `e` or its
+        // sign — otherwise the number ends here and the `e` is left to be a word.
+        if (!AtEnd() && Peek() is 'e' or 'E')
+        {
+            int digit = _pos + 1 < _source.Length && _source[_pos + 1] is '+' or '-' ? _pos + 2 : _pos + 1;
+            if (digit < _source.Length && char.IsDigit(_source[digit]))
+            {
+                _pos = digit;
+                while (!AtEnd() && char.IsDigit(Peek()))
+                    Advance();
+            }
+        }
+        var text = _source[start.._pos];
+        // Too many places ROUNDS, as a number does; too large is refused here, where the literal
+        // can be pointed at, rather than wherever the parser happens to turn it into a value.
+        if (!decimal.TryParse(text, System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out _))
+            throw new LexerException(_line, ColumnAt(start),
+                $"{text} is larger than a number can hold — the largest is " +
+                $"79228162514264337593543950335, about 7.9e28");
+        return new Token(TokenType.Number, text, _line, ColumnAt(start));
     }
 
     // Scans a string literal starting at the current '"'. For plain strings (no bare

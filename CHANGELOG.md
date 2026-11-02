@@ -55,6 +55,12 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   published check (from 1, the 10,000th number is 1043618065), and leaves with 1 if it fails. It
   passes in both backends and in the compiler written in Cufet.
 
+- **Exponents: `6.022e23`, `1E-9`, `2e+2`** — in a literal, and in a text `converted to number`
+  (`"1.24E-16"`, which `examples/algorithms/beamforming.cufe` once found it could not read). The
+  `e` counts only when a digit, or a sign and a digit, follows it, so `2 * e` still reads a name.
+  An exponent is notation, not range: `1e50` does not fit any more than its digits would. Both
+  lexers, both backends.
+
 - **A series can be reversed: `nums in reverse`.** A new series, its items last to first; the
   original is untouched. `in reverse` right after `sorted` still belongs to the sort. A series only:
   text is refused. `examples/algorithms/reversiblelogic.cufe` drops its hand-built reversal for it.
@@ -92,6 +98,16 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   writes the same type C#'s does, held to it by the checked-tree test.
 
 ### Fixed
+
+- **A number literal too large to hold is refused, not a crash.** `State 79228162514264337593543950336.`
+  ended both `cufet` and `cufet build` in .NET's own `OverflowException` and stack trace, and the
+  Cufet front end quietly read it as 0. Both lexers now refuse it at the literal, giving the largest
+  number there is.
+
+- **A text with more places than a number holds converts the same way in both backends.**
+  `"0.123456789012345678901234567891" converted to number` rounded interpreted and was `void`
+  compiled. It now rounds in both, half to even, exactly as the same literal does: the C runtime's
+  parse is a port of the .NET one the interpreter calls, held to .NET's own answers.
 
 - **`void when …, otherwise 3` is a voidable number.** It was typed as a union with a void case, so
   `but void is` on it was refused as *"'(void or number)' can never be void"*, declaring it

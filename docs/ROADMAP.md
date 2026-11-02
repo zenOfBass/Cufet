@@ -154,12 +154,6 @@ around it. Nobody has asked for one.
   checked and invalidate on mutation, which is unsound against mutable maps unless done very
   carefully. "Name your lookups" covers the need meanwhile.
 
-- **Exponent literals** — `6.022e23` on `number`. A lexer feature; today `1.5e3` fails with
-  `expected Dot, got Identifier "e3"`.
-
-  - ⚠ **Notation, not scientific RANGE.** Capped by decimal (~7.9e28), so `1e50` stays
-    unrepresentable. Anything wider is floats, which decimal was chosen over.
-
 ### Types and object
 
 - **Reference-semantics opt-in.** Objects and map values are value-typed. An explicit way to

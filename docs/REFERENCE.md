@@ -327,6 +327,15 @@ distinguish it from a dash inside an identifier: `a - b` is subtraction,
 Results print in their minimal form regardless of scale picked up along the
 way — `1.5 + 0.5` displays as `2`, not `2.0`.
 
+A number literal can carry an **exponent**: `6.022e23`, `1E-9`, `2e+2`. It means exactly the
+number written out in full, so `1.5e3` is `1500`. The `e` counts only when a digit follows it (or
+a sign and then a digit), so `2 * e` still reads a name called `e`.
+
+A number holds up to 28 places after the point and 29 digits in all. A literal with **more places
+than that rounds**, to the nearest, half to even, so `1e-40` is `0`. A literal **larger** than
+the largest number, `79228162514264337593543950335` (about `7.9e28`), is refused. An exponent
+is notation, not range: `1e50` does not fit any better than its fifty-one digits would.
+
 ---
 
 ### Facts (boolean literals)
@@ -1242,9 +1251,11 @@ Parsing can fail (`"hello"` isn't a number), so the result is **always a
 handled like any other voidable (see
 [Voidable values](#voidable-values-void-and-voidable-t)). A text value
 converts successfully iff, after trimming surrounding whitespace, it looks
-like a Cufet number literal: digits, an optional leading `-`, and an optional
-decimal point followed by more digits. Anything else — empty text, trailing
-garbage, multiple decimal points — produces `void`.
+like a Cufet number literal: digits, an optional leading `-`, an optional
+decimal point followed by more digits, and an optional exponent (`"1.24E-16"`).
+Anything else — empty text, trailing garbage, multiple decimal points — produces
+`void`, and so does a number too large to hold. Too many places **rounds**, exactly as
+the same literal would (see [Arithmetic](#arithmetic)).
 
 **Splitting** — `split by`, into a `series of text`:
 ```cufet

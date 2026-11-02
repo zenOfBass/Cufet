@@ -294,7 +294,30 @@ Pull a book on collections.
                 Cast one's advance.
             Done.
         Done.
-        Cast one's emit on ("Number", piece converted to text, one's row, cast one's column-at on (begun)).
+        // An exponent, `6.022e23` or `1E-9`, likewise only when a digit follows the `e` or its sign.
+        Define mark as cast one's peek.
+        If mark is "e" or mark is "E":
+            Define digit-at as one's cursor + 1.
+            If cast one's ahead is "+" or cast one's ahead is "-", the digit-at becomes one's cursor + 2.
+            If digit-at is not greater than one's size and cast one's is-digit on (item digit-at of one's source):
+                While one's cursor is less than digit-at, repeat:
+                    Insert cast one's peek into piece.
+                    Cast one's advance.
+                Done.
+                While cast one's is-digit on (cast one's peek), repeat:
+                    Insert cast one's peek into piece.
+                    Cast one's advance.
+                Done.
+            Done.
+        Done.
+        Define written as piece converted to text.
+        // Too many places rounds, as a number does; too large is refused here, at the literal.
+        If written converted to number is void:
+            Return a failure (cast refusal on (one's row, cast one's column-at on (begun),
+                "{written} is larger than a number can hold — the largest is "
+                joined to "79228162514264337593543950335, about 7.9e28")).
+        Done.
+        Cast one's emit on ("Number", written, one's row, cast one's column-at on (begun)).
     Done.
 
     Bind fact to is-digit-of-base, given (the text ch, the text base):

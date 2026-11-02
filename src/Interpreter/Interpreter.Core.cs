@@ -2194,11 +2194,13 @@ public sealed partial class Interpreter
         return (object)text.Trim();
     }
 
-    // "looks like a Cufet number literal": optional leading '-', digits, optional '.digits'.
-    // Mirrors the Lexer's own number-literal acceptance (which never includes the sign — that's
+    // "looks like a Cufet number literal": optional leading '-', digits, optional '.digits', optional
+    // exponent. Mirrors the Lexer's own number-literal acceptance (which never includes the sign — that's
     // unary minus at parse time — so the sign is added back in here for the free-standing-text case).
+    // What does not fit exactly ROUNDS, as the same literal does: the C runtime's cufet_parse_number is
+    // a port of this very parse.
     private static readonly System.Text.RegularExpressions.Regex NumberLiteralPattern =
-        new(@"^-?\d+(\.\d+)?$", System.Text.RegularExpressions.RegexOptions.Compiled);
+        new(@"^-?\d+(\.\d+)?([eE][+-]?\d+)?$", System.Text.RegularExpressions.RegexOptions.Compiled);
 
     private object EvaluateNumberConvert(NumberConvert nc)
     {
@@ -2213,7 +2215,8 @@ public sealed partial class Interpreter
         var text    = (string)value;
         var trimmed = text.Trim();
         if (NumberLiteralPattern.IsMatch(trimmed) &&
-            decimal.TryParse(trimmed, System.Globalization.NumberStyles.AllowDecimalPoint | System.Globalization.NumberStyles.AllowLeadingSign,
+            decimal.TryParse(trimmed, System.Globalization.NumberStyles.AllowDecimalPoint | System.Globalization.NumberStyles.AllowLeadingSign
+                    | System.Globalization.NumberStyles.AllowExponent,
                 System.Globalization.CultureInfo.InvariantCulture, out var result))
             return (object)result;
         return VoidValue.Instance;

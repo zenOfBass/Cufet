@@ -260,6 +260,8 @@ public class LexerParityTests
         "Define x as [never closed.",
         "State 1 # 2.",
         "State \"ok\".\r\nState \"line two {\r\n  ",
+        "Define x as 79228162514264337593543950336.",
+        "Define x as 1e29.",
     ];
 
     [Fact]
@@ -300,19 +302,36 @@ public class LexerParityTests
     ];
 
     [Fact]
-    public void WhitespaceOutsideAscii_IsSkippedAsCSharpSkipsIt()
+    public void WhitespaceOutsideAscii_IsSkippedAsCSharpSkipsIt() => LexesAsCSharpLexes(UnicodeSpaced, "spaced");
+
+    /// <summary>
+    /// Exponents, and the near misses that leave the `e` to be a word. The corpus has no exponent
+    /// at all, so without these a scanner that never read one passed every other test here.
+    /// </summary>
+    private static readonly string[] Exponents =
+    [
+        "Define x as 6.022e23.\nState 1E3 + 1e-3 - 2e+2.",
+        "State 1e.\nState 2e-.\nState 3e+x.\nState 4e.",
+        "Define e as 1.\nState 2 e.\nState 0.5e0.",
+        "State 7.9228162514264337593543950335e28.\nState 1e-40.\nState 0.123456789012345678901234567891.",
+    ];
+
+    [Fact]
+    public void Exponents_AreReadAsCSharpReadsThem() => LexesAsCSharpLexes(Exponents, "exponent");
+
+    private static void LexesAsCSharpLexes(string[] sources, string prefix)
     {
-        var dir = Directory.CreateTempSubdirectory("cufet-lexer-spaces-").FullName;
+        var dir = Directory.CreateTempSubdirectory($"cufet-lexer-{prefix}-").FullName;
         try
         {
             var files = new List<(string Name, string Source)>();
-            for (int i = 0; i < UnicodeSpaced.Length; i++)
+            for (int i = 0; i < sources.Length; i++)
             {
-                string name = $"spaced-{i + 1}.cufe";
-                File.WriteAllText(Path.Combine(dir, name), UnicodeSpaced[i]);
+                string name = $"{prefix}-{i + 1}.cufe";
+                File.WriteAllText(Path.Combine(dir, name), sources[i]);
                 // ⚠ Each case has to lex on the C# side, or the case tests a refusal instead.
-                Assert.DoesNotContain(Expected(UnicodeSpaced[i]), t => t.StartsWith("error\t"));
-                files.Add((name, UnicodeSpaced[i]));
+                Assert.DoesNotContain(Expected(sources[i]), t => t.StartsWith("error\t"));
+                files.Add((name, sources[i]));
             }
 
             var lexer = Path.Combine(RepoRoot, EntryPath("lexer"));

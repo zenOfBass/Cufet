@@ -126,16 +126,16 @@
         },
         {
           "comment": "A '-' hard against a digit, with no word character in front of it. The left fence is what separates this from 'batch-1', where the '-' follows a letter and the whole thing is one identifier. Scoped as operator-plus-number rather than one numeric token, so it renders identically to the binary 'x - 1' — the parser, not the grammar, decides which it is, and the highlighting should not claim to know better.",
-          "match": "(?<![\\w-])(-)(\\d+(?:\\.\\d+)?)(?![\\w-])",
+          "match": "(?<![\\w-])(-)(\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?)(?![\\w-])",
           "captures": {
             "1": { "name": "keyword.operator.arithmetic.cufet" },
             "2": { "name": "constant.numeric.cufet" }
           }
         },
         {
-          "comment": "Matches the lexer exactly: a '.' is a decimal point only when a digit follows it, so the '.' in 'State 3.' stays a statement terminator.",
+          "comment": "Matches the lexer exactly: a '.' is a decimal point only when a digit follows it, so the '.' in 'State 3.' stays a statement terminator; an 'e' is an exponent only when a digit, or a sign and a digit, follows it.",
           "name": "constant.numeric.cufet",
-          "match": "(?<![\\w-])\\d+(?:\\.\\d+)?(?![\\w-])"
+          "match": "(?<![\\w-])\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?(?![\\w-])"
         }
       ]
     },
