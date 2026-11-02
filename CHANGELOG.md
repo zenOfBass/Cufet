@@ -49,6 +49,11 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   the US Census Bureau's table (`examples/assets/easter-dates.txt`); it leaves with 1 on any
   disagreement, as `semver.cufe` does. The corpus's third example with an answer key nobody here
   wrote. All 500 years agree, in both backends and in the compiler written in Cufet.
+- **`examples/algorithms/montecarlo.cufe` — estimating pi from points in a square.** The points come
+  from Park and Miller's "minimal standard" generator, written in the program, not from `chance`,
+  so every backend prints the same digits. It first runs the generator against the authors'
+  published check (from 1, the 10,000th number is 1043618065), and leaves with 1 if it fails. It
+  passes in both backends and in the compiler written in Cufet.
 
 - **A series can be reversed: `nums in reverse`.** A new series, its items last to first; the
   original is untouched. `in reverse` right after `sorted` still belongs to the sort. A series only:

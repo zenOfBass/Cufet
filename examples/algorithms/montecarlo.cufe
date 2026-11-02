@@ -1,0 +1,56 @@
+/* montecarlo — estimating pi by throwing points at a square, with a generator of its own.
+
+   A point dropped anywhere in the unit square lands inside the quarter circle of
+   radius 1 with probability pi / 4, so four times the share that land inside is an
+   estimate of pi. The points come from the generator below, not from `chance`: the
+   backends draw `chance` from different generators, so a program built on it prints
+   different numbers on each and cannot be compared. This one prints the same digits
+   everywhere.
+
+       cufet examples/algorithms/montecarlo.cufe
+
+   The exit contract:
+
+       0   the generator passed its published check
+       1   it did not, and the estimate below it means nothing
+
+   ── The generator ──
+
+   Park and Miller's "minimal standard" (Communications of the ACM 31(10), 1988):
+   multiply by 16807 and keep the remainder after dividing by 2^31 - 1. They give a
+   check for any implementation of it: start from 1, and the 10,000th number must be
+   1043618065. That check is a table nobody on this project wrote, so passing it means
+   correct, not merely agreed. Every step multiplies numbers near two billion, which
+   Cufet's decimal holds exactly — no bits are lost to wrap-around, as they can be in C.
+*/
+
+Pull a book on math.
+    Define modulus as 2147483647 permanently.
+
+    /// The number after `current` in Park and Miller's sequence.
+    Bind number to next-of, given (the number current):
+        Return (16807 * current) % modulus.
+    Done.
+
+    Define seed as 1.
+    For each step in range 1 to 10000, repeat:
+        The seed becomes cast next-of on (seed).
+    Done.
+    Define passed as seed is 1043618065.
+    State "the 10,000th number from 1 is {seed}; Park and Miller's check is 1043618065".
+
+    Define points as 10000.
+    Define inside as 0.
+    For each throw in range 1 to points, repeat:
+        The seed becomes cast next-of on (seed).
+        Define across as seed / modulus.
+        The seed becomes cast next-of on (seed).
+        Define up as seed / modulus.
+        If across * across + up * up is not greater than 1, increment inside by 1.
+    Done.
+
+    Define estimate as 4 * inside / points.
+    State "{inside} of {points} points fell inside the quarter circle, so pi is about {estimate}".
+    State "off by {math's absolute-value of (estimate - math's pi)}".
+    If not passed, exit with 1.
+Done.
