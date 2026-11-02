@@ -157,3 +157,10 @@ variable actually named `first` will pick up the accessor colour when written as
 
 The checker reports one diagnostic at a time, because the front end stops at the first error.
 Fix it and the next one appears.
+
+## The file icon
+
+`.cufe` files show the playground's rabbit in the Explorer, from
+[Noto Emoji](https://github.com/googlefonts/noto-emoji) (OFL-1.1, `icons/NOTO-EMOJI-LICENSE`). It
+appears wherever the file-icon theme has no icon of its own for Cufet, which includes VS Code's
+default; a theme that brings its own wins.

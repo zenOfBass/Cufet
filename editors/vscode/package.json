@@ -24,7 +24,8 @@
         "id": "cufet",
         "aliases": ["Cufet", "cufet"],
         "extensions": [".cufe"],
-        "configuration": "./language-configuration.json"
+        "configuration": "./language-configuration.json",
+        "icon": { "light": "./icons/rabbit.svg", "dark": "./icons/rabbit.svg" }
       }
     ],
     "grammars": [

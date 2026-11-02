@@ -61,6 +61,10 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   An exponent is notation, not range: `1e50` does not fit any more than its digits would. Both
   lexers, both backends.
 
+- **`.cufe` files have an icon in VS Code's Explorer** — the playground's rabbit (Noto Emoji,
+  OFL-1.1, its licence shipped beside it in `editors/vscode/icons/`), shown wherever the file-icon
+  theme has none of its own for Cufet.
+
 - **A series can be reversed: `nums in reverse`.** A new series, its items last to first; the
   original is untouched. `in reverse` right after `sorted` still belongs to the sort. A series only:
   text is refused. `examples/algorithms/reversiblelogic.cufe` drops its hand-built reversal for it.
