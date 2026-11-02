@@ -8,6 +8,10 @@
    and add them all up. Where the point really is a scatterer the phases line up
    and the sum is large; everywhere else they cancel.
 
+   The measurements in `examples/assets/beamform-iq.csv` are the instrument's own
+   text, exponents included (`-4.07876065763154E-05`): every 25th frequency of
+   one recording, eight channels each, its real and imaginary parts split apart.
+
        cufet examples/algorithms/beamforming.cufe
 
    ── Why this program is in the corpus ──

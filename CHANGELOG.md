@@ -56,7 +56,8 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   passes in both backends and in the compiler written in Cufet.
 
 - **Exponents: `6.022e23`, `1E-9`, `2e+2`** — in a literal, and in a text `converted to number`
-  (`"1.24E-16"`, which `examples/algorithms/beamforming.cufe` once found it could not read). The
+  (`"1.24E-16"`). `examples/algorithms/beamforming.cufe` now reads its measurements as the
+  instrument wrote them, exponents included, where they had been rewritten by hand first. The
   `e` counts only when a digit, or a sign and a digit, follows it, so `2 * e` still reads a name.
   An exponent is notation, not range: `1e50` does not fit any more than its digits would. Both
   lexers, both backends.
