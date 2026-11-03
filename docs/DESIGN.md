@@ -1604,6 +1604,76 @@ executing a `sql` block at compile time has no database to execute against.
 discipline that keeps this from becoming JNI plus JDBC plus annotations, three mechanisms
 where one belongs. A SQL wrapper contributes *syntax and validation*; FFI carries it.
 
+### An axiom's text as a value — DECIDED 2026-11-02, not yet built
+
+**The problem:** the compiler written in Cufet builds its C as quoted text, so every C brace is
+`\{` or `\}` — 306 lines, 194 of them with a hole as well. The axiom already has the splicing marker
+that needs no escaping. What it lacks is a way to hand back its TEXT instead of running.
+
+★ **One mechanism serves this and macros**, and this comes first. A compile-time macro is the same
+filled source consumed by the compiler instead of turned into text; it comes later, run by the
+shipped interpreter, and the Cufet-written front end refuses a macro-using program as unsupported
+rather than growing an evaluator.
+
+**A source axiom takes parameters, and filling it is `on` without `cast`:**
+
+```
+Pull a book on the c-language.
+    Define c-language eq-function, given (the term type-c, the term eq-name, the c-language axiom test), as [
+        static int the eq-name(the type-c a, the type-c b) {
+            if (a.has != b.has) return 0;
+            if (!a.has) return 1;
+            return the test;
+        }
+    ].
+    Define c-language value-equal, given (the term eq-name), as [the eq-name(a.value, b.value)].
+
+    Define fragment as eq-function on (type-c, "{type-c}_eq", value-equal on ("{inner-c}_eq")).
+    Insert fragment converted to text into out.
+Done.
+```
+
+- **`cast x on (…)` fills and runs; `x on (…)` fills and keeps.** Measured: a bare `on` after a
+  name meant nothing in an expression (the parser read `on` only after `cast`, in `but on failure`
+  and in `Pull a book on`), so nothing is reserved and no program changes meaning. The bare form is
+  allowed only on an axiom that declares no result; anywhere else it is refused and names `cast`.
+  Forgetting `cast` on an ordinary call is therefore loud, never a fragment by accident.
+- **Filling gives back an UNRUN AXIOM, not text.** That is what lets it fill another axiom's code
+  hole — the "function assembling a SQL fragment hands one back unrun" above. `converted to text`,
+  which gave `<axiom>`, gives the filled source; it is the only step that makes text.
+- ⚠ This lifts "a resultless axiom takes no parameters". The reason for that rule was that nothing
+  calls a preamble; filling one is now the call.
+
+**Three kinds of hole, decided by the parameter:**
+
+| declared | takes | goes in as |
+| --- | --- | --- |
+| `the c-language axiom test` | another axiom of the SAME language, filled or not | its source, as written |
+| `the term type-c` | text | itself — refused when filled unless it is a valid identifier of the language |
+| `the text x`, `the number n`, … | a value | the language's own literal — quoted and escaped |
+
+★★ **There is no "trust this text" door.** Text reaches code only as another axiom or as a term
+that passed the identifier check, so "values stay values, never text" holds by default, and the
+injection argument above survives intact. ⚠ It has a cost, measured: the compiler passes C around
+as TEXT far beyond the brace lines (`cast c-equal on (inner, "a.value", "b.value")`), and every such
+piece becomes an axiom, `[a.value]`.
+
+★ **`term` is a mark, not a type.** A term is plain text; only the `given` says it enters as a
+name. A separate type was weighed: it would move the refusal from where the name is FILLED to
+where it is MADE — a few lines apart in the compiler, whose names are all assembled at run time —
+for a whole new type. The word is from logic, and from Spinoza's *Ethics*, where the axioms come
+from: a term is a word standing for a thing. `definition` was closer still and lost to `Define`;
+`lemma` and `postulate` name assumptions, not names.
+
+**No gluing syntax.** A hole counts only where no letter, digit, `_` or `-` follows it, so
+`the type-c_eq` fills nothing — and the unused-parameter refusal says so. A glued name is built in
+Cufet, where text holes already build names, and passed as its own term: `"{type-c}_eq"`. The cost
+is one parameter per glued name.
+
+★ **This answers the recorded reason splicing was declined.** Splicing one axiom into another was
+refused because the outer substitution would search the inner text, merging two parameter lists.
+Holes are filled in **one pass over the axiom's own text**; what is pasted in is never searched.
+
 ### Runtime `eval` of Cufet stays out — the reason that actually holds
 
 Fexprs were already ruled out on Wand's result: no two expressions are ever equivalent, which
