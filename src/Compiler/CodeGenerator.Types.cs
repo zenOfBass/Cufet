@@ -293,7 +293,8 @@ static int cufet_str_code_point(const char* s) {
             // ★ An axiom with NO declared result is SOURCE, not a call — collected whole-program and
             // pasted above every wrapper, because a wrapper may name what it declares. Keyed on the
             // text so the same preamble written twice is emitted once.
-            if (node is DefineStatement { Value: AxiomLiteral { ReturnType: null } decl })
+            // ⚠ Source WITH holes is filled and handed back, never pasted.
+            if (node is DefineStatement { Value: AxiomLiteral { ReturnType: null, Parameters.Count: 0 } decl })
                 _axiomPreambles[ForeignC.Identity(decl.Language ?? "foreign", decl.Source, decl.Parameters)]
                     = (decl.Language ?? "foreign", decl.Source);
         });
@@ -454,6 +455,8 @@ static int cufet_str_code_point(const char* s) {
         // emit so book members resolve. Captured pull-scope locals are the closures gap (best-effort
         // clean throw via the task-capture walker).
         var pullBinds = new List<(BindStatement Bind, List<(string Local, string Book)> Aliases)>();
+        // Names a pull block binds to foreign source — see the capture check below.
+        var pullAxioms = new HashSet<string>(StringComparer.Ordinal);
 
         // ⚠⚠ DISCOVERY IS THE REFLECTION WALK, not a hand-written descent. The hand-written one
         // matched `PullStatement` and recursed only into ITS body — its own comment admitted as
@@ -480,7 +483,10 @@ static int cufet_str_code_point(const char* s) {
                 aliases.Add((localName, bookName.ToLowerInvariant()));
 
             foreach (var s2 in ps.Body)
+            {
                 if (s2 is BindStatement pb && pb.UntoType == null) pullBinds.Add((pb, aliases));
+                if (s2 is DefineStatement { Value: AxiomLiteral } axiomDecl) pullAxioms.Add(axiomDecl.Name);
+            }
         }
 
         foreach (var bind in topFuncs)
@@ -611,6 +617,10 @@ static int cufet_str_code_point(const char* s) {
                 var known = new HashSet<string>(bind.Parameters.Select(p => p.Name)
                     .Concat(defs).Concat(_funcReturnTypes.Keys).Concat(aliases.Select(a => a.Local))
                     .Concat(_sharedConstTypes.Keys)
+                    // ★ Declared AXIOMS too: a name bound to foreign source emits no value at all —
+                    // a call pastes the source, and source as a value is a C string literal — so a
+                    // hoisted function naming one closes over nothing.
+                    .Concat(pullAxioms)
                     .Concat(_objectDefs.Values.SelectMany(def =>
                         def.Methods.Select(m => m.Name)
                            .Concat(def.Getters.Select(g => g.Name))
@@ -1283,6 +1293,8 @@ static int cufet_str_code_point(const char* s) {
     private static CufetType NoStashes(CufetType type) => type switch
     {
         StashType stash       => new FunctionType([], new VoidableType(NoStashes(stash.ElementType))),
+        // ★ Source as a value IS its text, so it is stored, passed and compared as a `const char*`.
+        AxiomType source when TypeChecker.IsSourceValue(source) => new TextType(),
         SeriesType series     => new SeriesType(NoStashes(series.ElementType)),
         VoidableType voidable => new VoidableType(NoStashes(voidable.Inner)),
         MapType map           => new MapType(NoStashes(map.KeyType), NoStashes(map.ValueType)),

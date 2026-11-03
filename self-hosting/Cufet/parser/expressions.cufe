@@ -393,6 +393,24 @@ Pull a book on collections.
     Bind node or failure to postfix unto parser:
         Define base as cast one's core-primary or pass the failure off.
 
+        // `eq-function on (type-c, …)` — WITHOUT `cast`: fill the source and keep it, unrun. A bare
+        // `on` after a name meant nothing in an expression before this, so nothing is reserved.
+        If one's in-cast-callee is false and base's kind is "VariableReference" and cast one's peek-kind is "On":
+            Cast one's advance.
+            Cast one's skip-noise.
+            Define fill-args as cast listed.
+            Define fill-named as cast listed.
+            If cast one's peek-kind is "LParen":
+                Cast one's call-arguments on (fill-args, fill-named) or pass the failure off.
+            Done.
+            Otherwise:
+                Define single as cast one's postfix or pass the failure off.
+                Cast fill-args's add on (single).
+            Done.
+            The base becomes cast one's fill-node on (base, fill-args, fill-named).
+            Cast one's skip-noise.
+        Done.
+
         While cast one's peek-kind is "Converted", repeat:
             Define converted-tok as cast one's advance.
             Cast one's skip-noise.

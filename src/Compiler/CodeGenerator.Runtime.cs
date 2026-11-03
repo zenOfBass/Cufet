@@ -1092,6 +1092,40 @@ static const char* cufet_str_concat(const char* a, const char* b) {
     memcpy(r, a, la); memcpy(r + la, b, lb + 1);
     return r;
 }
+/* Source FILLED and handed back (DESIGN *An axiom's text as a value*). The C twins of
+   ForeignC.FillTerm, FillText and FillNumber, and they must agree with them byte for byte. */
+static const char* cufet_fill_term(const char* s, const char* hole, int line) {
+    int ok = s[0] != '\0' && !(s[0] >= '0' && s[0] <= '9');
+    for (const char* p = s; ok && *p; p++)
+        ok = (*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') || (*p >= '0' && *p <= '9') || *p == '_';
+    if (!ok)
+        cufet_raise(cufet_msgf("'%s' is not a name in C, so it cannot fill the term '%s'. This happened on line %d.",
+                               s, hole, line));                              /* ForeignC.TermMessage */
+    return s;
+}
+static const char* cufet_fill_text(const char* s) {
+    char* r = (char*)cufet_arena_alloc(strlen(s) * 4 + 3);
+    char* o = r;
+    *o++ = '"';
+    for (const unsigned char* p = (const unsigned char*)s; *p; p++) {
+        if      (*p == '\\') { *o++ = '\\'; *o++ = '\\'; }
+        else if (*p == '"')  { *o++ = '\\'; *o++ = '"'; }
+        else if (*p == '\n') { *o++ = '\\'; *o++ = 'n'; }
+        else if (*p == '\t') { *o++ = '\\'; *o++ = 't'; }
+        else if (*p == '\r') { *o++ = '\\'; *o++ = 'r'; }
+        else if (*p < 0x20 || *p == 0x7F) {   /* three octal digits - cannot run into a digit after */
+            *o++ = '\\'; *o++ = (char)('0' + ((*p >> 6) & 7));
+            *o++ = (char)('0' + ((*p >> 3) & 7)); *o++ = (char)('0' + (*p & 7));
+        }
+        else *o++ = (char)*p;
+    }
+    *o++ = '"'; *o = '\0';
+    return r;
+}
+static const char* cufet_fill_number(CufetDec d) {     /* bracketed when negative: `x-(-5)`, not `x--5` */
+    const char* t = cufet_text_from_dec(d);
+    return t[0] == '-' ? cufet_str_concat(cufet_str_concat("(", t), ")") : t;
+}
 static const char* cufet_str_substr(const char* s, int from0, int len) {
     if (len < 0) len = 0;
     char* r = (char*)cufet_arena_alloc((size_t)len + 1);

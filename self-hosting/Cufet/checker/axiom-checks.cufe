@@ -164,6 +164,15 @@ Pull a book on collections.
                 literal-row, "give '{name}' a release clause", "Drop the ', and free it with ...' clause.")).
         Done.
         Cast one's require-language-pulled on (language, literal-row) or pass the failure off.
+        // `the term type-c` parses as a type named `term`; it is the mark, never a type of its own.
+        For each pair in cast axiom-parameters on (value), repeat:
+            Define written as cast field-of on (pair, 1).
+            If written's kind is "ObjectType" and cast is-filled-type on (written) is false:
+                If cast unquoted on (cast field-of on (written, 1)) is "term":
+                    Cast rewrite-field on (pair, 1, cast plain-type on ("TermType")).
+                Done.
+            Done.
+        Done.
         Define result as cast field-of on (declared, 2).
         If cast is-nothing on (result) is false, the result becomes cast one's resolved on (result).
         // Written onto the literal, so everything that runs it carries them along — C#'s
@@ -220,7 +229,9 @@ Pull a book on collections.
         Define name as cast unquoted on (cast field-of on (statement, 1)).
         Define define-row as cast number-of on (cast field-of on (statement, 5)).
         Define literal-row as cast number-of on (cast field-of on (literal, 2)).
-        If cast is-nothing on (result) and the number of parameters is greater than 0:
+        Define source-text as cast is-nothing on (result).
+        Define fillable as source-text and cast is-fillable-language on (language).
+        If source-text and fillable is false and the number of parameters is greater than 0:
             Return a failure (cast refusal-of on (
                 "'{name}' says nothing about what it gives back, so it is source rather than something to run — and source takes no parameters",
                 "A parameter's value comes from a call, and nothing calls this: it is pasted once, above every axiom that can then use what it declares",
@@ -233,7 +244,16 @@ Pull a book on collections.
             Define taken as cast one's resolved on (cast field-of on (pair, 1)).
             Define parameter-name as cast unquoted on (cast field-of on (pair, 2)).
             Define taken-kind as taken's kind.
-            If taken-kind is not "NumberType" and taken-kind is not "FactType" and taken-kind is not "TextType" and taken-kind is not "AddressType":
+            If fillable:
+                Cast require-fillable-hole on (language, cast hole-shape on (taken), parameter-name, literal-row) or pass the failure off.
+            Done.
+            Otherwise if taken-kind is "TermType":
+                Return a failure (cast refusal-of on ("'{parameter-name}' is a term, and only source has terms",
+                    "A term goes into the text of source that is filled and handed back — this axiom runs, and what it is handed arrives as a value",
+                    literal-row, "declare '{parameter-name}' as a term",
+                    "Take 'the text {parameter-name}' instead, or drop the result to make this source.")).
+            Done.
+            Otherwise if taken-kind is not "NumberType" and taken-kind is not "FactType" and taken-kind is not "TextType" and taken-kind is not "AddressType":
                 Return a failure (cast refusal-of on ("a {cast type-words on (taken)} cannot be handed to {language} source yet",
                     "A number, a fact and a text cross the boundary; nothing else does",
                     literal-row, "declare '{parameter-name}' as a {cast type-words on (taken)}",
@@ -340,6 +360,11 @@ Pull a book on collections.
         Define result as cast field-of on (tagged, 2).
         If cast is-nothing on (result) is false, return result.
         Define language as cast unquoted on (cast field-of on (tagged, 1)).
+        If the number of (cast field-of on (tagged, 3))'s children is greater than 0 and cast is-fillable-language on (language):
+            Return a failure (cast refusal-of on ("this {language} axiom is source, and source is filled rather than run",
+                "It says nothing about what it gives back, so there is nothing for running it to produce",
+                at-row, "run source", "Drop 'cast' to fill it and keep it: '<name> on (…)'.")).
+        Done.
         Return a failure (cast refusal-of on ("this {language} axiom does not say what it gives back",
             "Cufet cannot read a C listing to find out — an `int` might be a number, a fact, or a handle, and only the person who wrote the source knows which",
             at-row, "run foreign source that never declared a result",
@@ -389,8 +414,9 @@ Pull a book on collections.
             Done.
             Define language as cast unquoted on (cast field-of on (tagged, 1)).
             Cast one's require-language-pulled on (language, at-row) or pass the failure off.
-            Cast one's check-foreign-arguments on (call-args, cast axiom-parameters on (literal), language, at-row) or pass the failure off.
+            // ⚠ Asked first: running SOURCE is the mistake, and its arguments are beside the point.
             Define ran as cast run-result-of on (tagged, at-row) or pass the failure off.
+            Cast one's check-foreign-arguments on (call-args, cast axiom-parameters on (literal), language, at-row) or pass the failure off.
             Cast note on (call, ":RunsAxiom", literal).
             Return ran.
         Done.
@@ -430,7 +456,7 @@ Pull a book on collections.
         For each argument in given-args, repeat:
             Increment place by 1.
             Define pair as item place of parameters.
-            Define wanted as cast one's resolved on (cast field-of on (pair, 1)).
+            Define wanted as cast hole-shape on (cast one's resolved on (cast field-of on (pair, 1))).
             Define parameter-name as cast unquoted on (cast field-of on (pair, 2)).
             Define actual as cast one's infer on (argument) or pass the failure off.
             If cast is-none on (actual) is false and cast assignable on (wanted, actual) is false:
@@ -472,10 +498,114 @@ Pull a book on collections.
     /// An axiom that never said what it gives back, reached for as a value.
     Bind text to axiom-used-as-value, given (the text name, the node axiom, the number at-row):
         Define language as cast unquoted on (cast field-of on (axiom, 1)).
+        If the number of (cast field-of on (axiom, 3))'s children is greater than 0 and cast is-fillable-language on (language):
+            Return cast refusal-of on ("'{name}' is {language} source with holes, and has to be filled before it is a value",
+                "Its text is not complete until every 'the <name>' in it has something in it",
+                at-row, "use '{name}' without filling it", "Fill it: '{name} on (…)'.").
+        Done.
         Return cast refusal-of on ("'{name}' is {language} source, and can only be run by returning it",
             "Foreign source is not a value that can be printed, stored, or passed",
             at-row, "use '{name}' as a value",
             "Wrap it: 'Bind number to <name>, {name}.' — then use that function.").
+    Done.
+
+    // ── Source filled and handed back: DESIGN *An axiom's text as a value* ──
+
+    /// The languages whose source can be filled and handed back as text — C alone, for now.
+    Bind fact to is-fillable-language, given (the text language):
+        Return (language in lowercase) is "c-language".
+    Done.
+
+    /// `IsSourceValue`: C source taking nothing, so its text is complete.
+    Bind fact to is-source-value, given (the node shape):
+        If shape's kind is not "AxiomType", return false.
+        If cast is-nothing on (cast field-of on (shape, 2)) is false, return false.
+        If the number of (cast field-of on (shape, 3))'s children is greater than 0, return false.
+        Return cast is-fillable-language on (cast unquoted on (cast field-of on (shape, 1))).
+    Done.
+
+    /// A hole's written type as an axiom type — `the c-language between` is one, written short.
+    Bind node to hole-shape, given (the node taken):
+        If taken's kind is "ObjectType" and cast is-filled-type on (taken) is false:
+            Define named as cast unquoted on (cast field-of on (taken, 1)).
+            If cast is-language-book on (named):
+                Return cast made on ("AxiomType", a series with (cast quoted on (named), cast nothing, cast listed)).
+            Done.
+        Done.
+        Return taken.
+    Done.
+
+    /// `RequireFillableHole`: a hole takes code of the same language, a term, or a value.
+    Bind void or failure to require-fillable-hole, given (the text language, the node hole, the text name, the number at-row):
+        Define kind as hole's kind.
+        If kind is "TermType" or kind is "TextType" or kind is "NumberType" or kind is "FactType", return.
+        If cast is-source-value on (hole):
+            Define code-language as cast unquoted on (cast field-of on (hole, 1)).
+            If (code-language in lowercase) is (language in lowercase), return.
+            Return a failure (cast refusal-of on ("'{name}' takes {code-language} source, and this is {language} source",
+                "Code goes into code only in its own language",
+                at-row, "fill {language} source with {code-language} source",
+                "Take 'the {language} axiom {name}'.")).
+        Done.
+        Return a failure (cast refusal-of on ("'{name}' takes {cast type-words on (hole)}, and that cannot fill {language} source",
+            "A hole takes code (another axiom of the same language), a term (text that is a name), or a number, a fact or a text written out as a literal",
+            at-row, "fill source through '{name}'",
+            "Take 'the {language} axiom {name}', 'the term {name}', or a number, fact or text.")).
+    Done.
+
+    /// `TagBareAxiom`: a bare `[…]` takes the language of the code hole it fills.
+    Bind void to tag-bare-axiom unto checker, given (the node argument, the node expected):
+        If argument's kind is not "AxiomLiteral" or cast is-none on (expected), return.
+        If cast literal-mark on (argument, ":Language") is not "", return.
+        Define hole as cast hole-shape on (expected).
+        If cast is-source-value on (hole) is false, return.
+        Define language as cast unquoted on (cast field-of on (hole, 1)).
+        Cast note on (argument, ":Language", cast quoted on (language)).
+        In one's axiom-tags, the entry for cast literal-key on (argument) becomes
+            cast made on ("AxiomType", a series with (cast quoted on (language), cast nothing, cast listed)).
+    Done.
+
+    /// `FillSource`: `eq-function on (…)` — fills source and keeps it, unrun.
+    Bind node or failure to fill-source unto checker, given (the node fill, the node callee, the node call-args, the number at-row):
+        Define shown as "this".
+        Define literal as cast unknown-type.
+        If callee's kind is "VariableReference":
+            The shown becomes cast unquoted on (cast field-of on (callee, 1)).
+            Define found as cast one's look-up on (shown).
+            If found is not void:
+                If found's shape's kind is "AxiomType", the literal becomes cast one's axiom-behind on (callee).
+            Done.
+        Done.
+        Define tagged as cast unknown-type.
+        If cast is-none on (literal) is false, the tagged becomes cast one's axiom-tag-of on (literal).
+        Define fillable as false.
+        If cast is-none on (tagged) is false:
+            The fillable becomes cast is-nothing on (cast field-of on (tagged, 2))
+                and cast is-fillable-language on (cast unquoted on (cast field-of on (tagged, 1))).
+        Done.
+        If fillable is false:
+            Return a failure (cast refusal-of on ("'{shown}' is not source with holes, so it cannot be filled without running it",
+                "Writing 'on (…)' without 'cast' fills C source and keeps it; everything else is run with 'cast'",
+                at-row, "fill '{shown}' without running it", "Write 'cast {shown} on (…)'.")).
+        Done.
+        If cast has-mark on (fill, ":NamedArgs"):
+            Return a failure (cast refusal-of on ("source is filled by position, not by name",
+                "Its holes are in the foreign text, and the text is what decides their order",
+                at-row, "fill '{shown}' with named values", "Give the values in the order 'given' declares them.")).
+        Done.
+        Define language as cast unquoted on (cast field-of on (tagged, 1)).
+        Cast one's require-language-pulled on (language, at-row) or pass the failure off.
+        Define parameters as cast axiom-parameters on (literal).
+        Define place as 0.
+        For each argument in call-args's children, repeat:
+            Increment place by 1.
+            If place is not greater than the number of parameters:
+                Cast one's tag-bare-axiom on (argument, cast one's resolved on (cast field-of on (item place of parameters, 1))).
+            Done.
+        Done.
+        Cast one's check-foreign-arguments on (call-args, parameters, language, at-row) or pass the failure off.
+        Cast note on (fill, ":RunsAxiom", literal).
+        Return cast made on ("AxiomType", a series with (cast quoted on (language), cast nothing, cast listed)).
     Done.
 
     /// `the text at <address>` — read through a foreign pointer; void reads as void.
@@ -513,6 +643,11 @@ Pull a book on collections.
     Bind void or failure to check-written-axiom, given (the node shape):
         If shape's kind is not "AxiomType" or cast is-nothing on (cast field-of on (shape, 2)) is false, return.
         Define language as cast unquoted on (cast field-of on (shape, 1)).
+        // ★ SOURCE that takes nothing is a code hole's type — complete C text, not a signature.
+        If cast is-source-value on (shape), return.
+        If cast is-fillable-language on (language):
+            Return a failure "error\tThat doesn't work: {language} source written as a type takes nothing. '{cast type-words on (shape)}' still has holes, and source is a value only once they are filled — write 'the c-language axiom job' for filled source, or say the result for something to run: 'the {language} number axiom job'.".
+        Done.
         Return a failure "error\tThat doesn't work: a {language} axiom written as a type has to say what it gives back. 'the c-language axiom job' cannot be a parameter, a field, or an element type, because nothing could be done with what running it produces. Say the result: 'the {language} number axiom job'.".
     Done.
 Done.

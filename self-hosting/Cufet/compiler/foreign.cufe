@@ -80,6 +80,8 @@ Pull a book on collections.
 
     /// A written `<language> <result> axiom given (…)`.
     Bind text or failure to axiom-kind-of-type unto emitter, given (the node written):
+        // Source — no result, nothing to take — is its text.
+        If cast is-nothing on (cast field-of on (written, 2)), return "text".
         Define result as cast one's kind-of-type on (cast field-of on (written, 2)) or pass the failure off.
         If result is "voidable text" or result is "voidable number" or result is "voidable address":
             Cast one's register-union on (result).
@@ -348,6 +350,102 @@ Pull a book on collections.
         Return "(\{ __auto_type cf_th = {address-c}; const char* cf_ta = {raw}; const char* cf_tc = cf_ta ? cufet_arena_str_at(cufet_arena_top, cf_ta) : (const char*)0; cf_tc ? {voidable-c}_some(cf_tc) : ({voidable-c})\{ 0 \}; \})".
     Done.
 
+    // ── Source filled and handed back: DESIGN *An axiom's text as a value* ─
+
+    /// `ForeignC.Holes`, built into C: the source's text, each hole filled by its `render`, cut in
+    /// ONE pass — at each place the longest name first — so nothing pasted in is ever searched.
+    Bind text to filled-c, given (the text source, the series of text names, the series of text renders):
+        Define text-c as "\"\"".
+        Define piece as a chase.
+        Define total as the length of source.
+        Define place as 1.
+        While place is not greater than total, repeat:
+            Define found as 0.
+            Define hole as 0.
+            Define preceding as "".
+            If place is greater than 1, the preceding becomes the characters from (place - 1) to (place - 1) of source.
+            If place + 2 is not greater than total and cast is-name-letter on (preceding) is false:
+                If (the characters from place to (place + 2) of source) in lowercase is "the":
+                    Define gap as place + 3.
+                    While gap is not greater than total and cast is-space-letter on (the characters from gap to gap of source), repeat:
+                        Increment gap by 1.
+                    Done.
+                    If gap is greater than place + 3:
+                        Define best as 0.
+                        Define index as 0.
+                        For each name in names, repeat:
+                            Increment index by 1.
+                            Define name-end as gap + the length of name - 1.
+                            Define longer as true.
+                            If best is greater than 0, the longer becomes the length of name is greater than the length of item best of names.
+                            If name-end is not greater than total and longer:
+                                If (the characters from gap to name-end of source) is name:
+                                    Define following as "".
+                                    If name-end is less than total, the following becomes the characters from (name-end + 1) to (name-end + 1) of source.
+                                    If cast is-name-letter on (following) is false:
+                                        The best becomes index.
+                                        The found becomes name-end.
+                                    Done.
+                                Done.
+                            Done.
+                        Done.
+                        The hole becomes best.
+                    Done.
+                Done.
+            Done.
+            If hole is greater than 0:
+                If the number of piece is greater than 0:
+                    The text-c becomes "cufet_str_concat({text-c}, {(cast quoted on (piece converted to text))'s word})".
+                    The piece becomes a chase.
+                Done.
+                The text-c becomes "cufet_str_concat({text-c}, {item hole of renders})".
+                The place becomes found + 1.
+            Done.
+            Otherwise:
+                Insert (the characters from place to place of source) into piece.
+                Increment place by 1.
+            Done.
+        Done.
+        If the number of piece is greater than 0:
+            The text-c becomes "cufet_str_concat({text-c}, {(cast quoted on (piece converted to text))'s word})".
+        Done.
+        Return text-c.
+    Done.
+
+    /// `eq-function on (…)` — the source's text with every hole filled, worked out left to right.
+    /// The renderers are the runtime's twins of ForeignC.FillTerm, FillText and FillNumber.
+    Bind text or failure to c-fill unto emitter, given (the node fill):
+        Define axiom as cast keyed-field on (fill, ":RunsAxiom").
+        If axiom is void, return a failure (cast not-built on ("filling source the checker did not name")).
+        Define count as (the entry for "%fills" in one's inferred but void is "0") converted to number but void is 0.
+        In one's inferred, the entry for "%fills" becomes "{count + 1}".
+        Define at-line as (cast field-of on (fill, 3))'s word.
+        Define declared-parameters as cast keyed-field on (axiom, ":Parameters") but void is cast listed.
+        Define steps as "".
+        Define renders as a series of text.
+        Define place as 0.
+        For each argument in (cast field-of on (fill, 2))'s children, repeat:
+            Increment place by 1.
+            Define parameter as item place of declared-parameters's children.
+            Define hole-kind as (item 1 of parameter's children)'s kind.
+            Define hole-name as cast unquoted on (item 2 of parameter's children).
+            Define temp as "cf_fill{count}_{place - 1}".
+            Define argument-c as cast one's c-of on (argument) or pass the failure off.
+            Define temp-c as "const char*".
+            If hole-kind is "NumberType", the temp-c becomes "CufetDec".
+            If hole-kind is "FactType", the temp-c becomes "int".
+            The steps becomes "{steps}{temp-c} {temp} = {argument-c}; ".
+            Define render as temp.
+            If hole-kind is "TermType", the render becomes "cufet_fill_term({temp}, \"{hole-name}\", {at-line})".
+            If hole-kind is "TextType", the render becomes "cufet_fill_text({temp})".
+            If hole-kind is "NumberType", the render becomes "cufet_fill_number({temp})".
+            If hole-kind is "FactType", the render becomes "({temp} ? \"1\" : \"0\")".
+            Insert render into renders.
+        Done.
+        Define text-c as cast filled-c on (cast unquoted on (cast field-of on (axiom, 1)), cast axiom-taken-names on (axiom), renders).
+        Return "(\{ {steps}{text-c}; \})".
+    Done.
+
     // ── The program ───────────────────────────────────────────────────────
 
     /// Whether a tree holds a word anywhere — a key such as `:ReleaseAxiom` among them.
@@ -368,10 +466,13 @@ Pull a book on collections.
         For each statement in hoisted, repeat:
             If statement's kind is "DefineStatement" and (cast field-of on (statement, 2))'s kind is "AxiomLiteral":
                 Define axiom as cast field-of on (statement, 2).
-                If (cast keyed-field on (axiom, ":ReturnType")) is void:
+                // ⚠ Source WITH holes is filled and handed back, never pasted.
+                If (cast keyed-field on (axiom, ":ReturnType")) is void and (cast keyed-field on (axiom, ":Parameters")) is void:
                     Define language as cast keyed-word on (axiom, ":Language").
                     Define source as cast unquoted on (cast field-of on (axiom, 1)).
                     Insert "{cast axiom-banner on (language, source)}\n{source}\n\n" into one's lambda-protos.
+                    // As a value it is its text, written where it is used.
+                    In one's inferred, the entry for "source:{cast unquoted on (cast field-of on (statement, 1))}" becomes (cast field-of on (axiom, 1))'s word.
                 Done.
             Done.
         Done.

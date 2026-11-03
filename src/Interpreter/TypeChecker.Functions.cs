@@ -618,6 +618,8 @@ public sealed partial class TypeChecker
 
         for (int i = 0; i < args.Count; i++)
         {
+            // A bare `[…]` takes its language from the code hole it fills — see TagBareAxiom.
+            TagBareAxiom(args[i], ResolveParamType(funcType.ParameterTypes[i]));
             var argType  = InferType(args[i]);
             if (argType == null) continue;
 
@@ -680,6 +682,9 @@ public sealed partial class TypeChecker
 
     private CufetType? InferCastExpr(CastExpression cast)
     {
+        // `eq-function on (…)` with no `cast` — fill the source and keep it.
+        if (cast.Keeps) return FillSource(cast);
+
         // ★ An axiom call reached from anywhere that does NOT declare a type. The two places that
         // do — a `Define` with one written, and a `Return` in a typed function — intercept before
         // this and never arrive here. Everything else has nothing to decide the result from, so it
@@ -1379,6 +1384,17 @@ public sealed partial class TypeChecker
         // exactly the result the declaration states — so an axiom with no result has no signature
         // to be. Refusing where the TYPE is written says so at a line the writer can fix, rather
         // than at whatever call site later tries to run it.
+        //
+        // ★ The exception is SOURCE that takes nothing, in a language whose source can be filled:
+        // `the c-language axiom test` is a code hole's type, and its value is complete C text — a
+        // filled axiom, or one written with no holes — not a signature (DESIGN *An axiom's text as
+        // a value*). C source still taking parameters has no complete text to be.
+        AxiomType { ReturnType: null } source when IsSourceValue(source) => source,
+        AxiomType { ReturnType: null } silent when IsFillableLanguage(silent.Language) => throw new TypeException(
+            $"That doesn't work: {silent.Language} source written as a type takes nothing. "
+          + $"'{FormatType(silent)}' still has holes, and source is a value only once they are "
+          + "filled — write 'the c-language axiom job' for filled source, or say the result for "
+          + $"something to run: 'the {silent.Language} number axiom job'."),
         AxiomType { ReturnType: null } silent => throw new TypeException(
             $"That doesn't work: a {silent.Language} axiom written as a type has to say what it "
           + "gives back. 'the c-language axiom job' cannot be a parameter, a field, or an element "

@@ -2721,6 +2721,10 @@ public sealed partial class Interpreter
         // ⚠ Not cosmetic: the value an axiom name holds IS the AxiomLiteral record, so with no arm
         // here it fell through to ToString() and printed the C# record — source text, line, column
         // and all — while the compiled backend refused the same program at build time.
+        // ★ SOURCE prints as its text — the same text `converted to text` gives (DESIGN *An
+        // axiom's text as a value*). Only C source that takes nothing reaches here as a value.
+        AxiomLiteral { ReturnType: null, Parameters.Count: 0, Language: { } language } source
+            when TypeChecker.IsFillableLanguage(language) => source.Source,
         AxiomLiteral         => "<axiom>",
         // ★ `<address>`, never the pointer itself, and the reason is the oracle rather than
         // secrecy: two backends are two processes, so the same program's handle is a different

@@ -376,6 +376,20 @@ Pull a book on collections.
         Return base.
     Done.
 
+    /// `eq-function on (…)` WITHOUT `cast` — fill the source and keep it: a call node placed at the
+    /// name, with `:Keeps true` after anything else the parser set.
+    Bind node to fill-node unto parser, given (the node fillee, the node args, the node named):
+        Define fill as cast made on ("CastExpression",
+            a series with (fillee, args, item 2 of fillee's children, item 3 of fillee's children)).
+        If the number of named's children is greater than 0:
+            Cast fill's add on (cast atom on (":NamedArgs")).
+            Cast fill's add on (named).
+        Done.
+        Cast fill's add on (cast atom on (":Keeps")).
+        Cast fill's add on (cast flag on (true)).
+        Return fill.
+    Done.
+
     /// `(CastExpression function [args] line column)`, with `:NamedArgs` when there are some.
     Bind node to call-node unto parser, given (the node callee, the node args, the node named, the token spot-tok):
         Define call as cast placed on ("CastExpression", a series with (callee, args), spot-tok).
@@ -470,7 +484,12 @@ Pull a book on collections.
 
     Bind node or failure to cast-expression unto parser:
         Define cast-tok as cast one's consume on ("Cast") or pass the failure off.
+        // ⚠ The `on` after the callee is CAST's own — without this, the bare fill in `postfix`
+        // would take `x on (…)` for itself and leave `cast` with nothing to call.
+        Define outer-callee as one's in-cast-callee.
+        One's in-cast-callee becomes true.
         Define callee as cast one's postfix or pass the failure off.
+        One's in-cast-callee becomes outer-callee.
         Cast one's skip-noise.
         Define args as cast listed.
         Define named as cast listed.

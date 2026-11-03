@@ -1116,6 +1116,7 @@ public sealed partial class CodeGenerator
         ExceptionMarkerType => "exception",
         BookType b      => $"book '{b.Name}'",
         AxiomType a     => FormatAxiomTypeName(a),
+        TermType        => "term",
         UnionType u     => u.Cases == null ? "catalogue value"
                              : string.Join(" or ", u.Cases.Select(FormatTypeName)),
         // Unreachable while every CufetType above has an arm — pinned by

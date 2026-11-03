@@ -89,6 +89,8 @@ Pull a book on collections.
         If written's kind is "ObjectType":
             Define object-name as cast unquoted on (cast field-of on (written, 1)).
             If (the entry for object-name in one's objects) is not void, return "object {object-name}".
+            // `the c-language left` — source written short, which as a value is its text.
+            If (object-name in lowercase) is "c-language", return "text".
             If (the entry for object-name in one's interfaces) is not void, return "interface {object-name}".
             // The prelude's rabbit: a region, carried as its name alone, as the interpreter's is.
             If object-name is "rabbit", return "rabbit".
@@ -190,6 +192,10 @@ Pull a book on collections.
                     Define named-function as the entry for cast unquoted on (cast field-of on (expression, 1)) in one's functions.
                     If named-function is not void, return cast one's bound-kind on (named-function) or pass the failure off.
                 Done.
+                // Source taking nothing, named — its text, seen from anywhere.
+                If known is void and (the entry for "source:{cast unquoted on (cast field-of on (expression, 1))}" in one's inferred) is not void:
+                    Return "text".
+                Done.
                 If known is void, return a failure (cast not-built on ("the name '{cast unquoted on (cast field-of on (expression, 1))}', defined where this compiler cannot see it")).
                 Return known.
             Done.
@@ -217,11 +223,17 @@ Pull a book on collections.
             // Inside a `Try`, a call that can fail reads as its value.
             "CastExpression":
                 // An axiom run by its name gives what its declaration says, and cannot fail.
+                // Source filled and kept is its text.
+                If cast keyed-field on (expression, ":Keeps") is not void, return "text".
                 Define axiom as cast keyed-field on (expression, ":RunsAxiom").
                 If axiom is not void, return cast one's axiom-result-kind on (axiom) or pass the failure off.
                 Return cast one's unwrapped-kind on (cast one's call-kind-of on (expression) or pass the failure off).
             Done.
-            "AxiomLiteral", return cast one's axiom-kind on (expression) or pass the failure off.
+            "AxiomLiteral":
+                // A bare `[…]` filling a code hole is source, and source as a value is its text.
+                If (cast keyed-field on (expression, ":ReturnType")) is void, return "text".
+                Return cast one's axiom-kind on (expression) or pass the failure off.
+            Done.
             "ForeignTextAt":
                 Cast one's register-union on ("voidable text").
                 Return "voidable text".
@@ -324,6 +336,11 @@ Pull a book on collections.
                 // A narrowed name reads as its case, or as the smaller union.
                 Define reached as cast one's narrowed-read on (expression) or pass the failure off.
                 If the number of reached is 2, return item 2 of reached.
+                // Source taking nothing, named: its text, written where it is used — as `cufet build` does.
+                If (the entry for name in one's kinds) is void and (the entry for name in one's constants) is void:
+                    Define source-c as the entry for "source:{name}" in one's inferred.
+                    If source-c is not void, return source-c.
+                Done.
                 // A captured one, `one` included, through the environment it was captured into.
                 Define redirected as the entry for "@{name}" in one's kinds but void is "".
                 If redirected is not "", return redirected.
@@ -361,9 +378,13 @@ Pull a book on collections.
                 Return a failure (cast not-built on ("the operator {operator}")).
             Done.
             "BinaryExpression", return cast one's c-binary on (expression) or pass the failure off.
-            "AxiomLiteral", return cast one's c-axiom-value on (expression) or pass the failure off.
+            "AxiomLiteral":
+                If (cast keyed-field on (expression, ":ReturnType")) is void, return (cast field-of on (expression, 1))'s word.
+                Return cast one's c-axiom-value on (expression) or pass the failure off.
+            Done.
             "ForeignTextAt", return cast one's c-text-at on (expression) or pass the failure off.
             "CastExpression":
+                If (cast keyed-field on (expression, ":Keeps")) is not void, return cast one's c-fill on (expression) or pass the failure off.
                 If (cast keyed-field on (expression, ":RunsAxiom")) is not void, return cast one's c-axiom-call on (expression) or pass the failure off.
                 Define called-c as cast one's c-call on (expression) or pass the failure off.
                 Return cast one's c-unwrapped on (called-c, cast one's call-kind-of on (expression) or pass the failure off).

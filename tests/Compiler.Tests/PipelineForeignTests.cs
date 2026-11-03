@@ -691,7 +691,9 @@ public class PipelineForeignTests : PipelineTestBase
                 State cast run-it on (answer).
             Done.
             """;
-        Assert.Contains("has to say what it gives back",
+        // ⚠ `the c-language axiom which` is SOURCE now — complete C text as a value — and returning
+        // it into a number would run it, which needs the text at the call. Still refused.
+        Assert.Contains("cannot be run from here",
                         Assert.ThrowsAny<Exception>(() => Interpret(viaParameter)).Message);
     }
 
@@ -1477,9 +1479,9 @@ public class PipelineForeignTests : PipelineTestBase
     }
 
     [Theory]
-    [InlineData("Bind number to run-it, given (the c-language axiom fragment), 1.")]
-    [InlineData("Define object holder with (the c-language axiom fragment).")]
-    [InlineData("Bind number to f, given (the series of c-language axiom parts), 1.")]
+    [InlineData("Bind number to run-it, given (the c-language axiom given (the text) fragment), 1.")]
+    [InlineData("Define object holder with (the c-language axiom given (the number) fragment).")]
+    [InlineData("Bind number to f, given (the series of c-language axiom given (the fact) parts), 1.")]
     public void Axiom_WrittenAsATypeWithoutSayingItsResult_IsRefused(string declaration)
     {
         var e = Assert.Throws<TypeException>(() => GenerateC(
@@ -1487,8 +1489,19 @@ public class PipelineForeignTests : PipelineTestBase
         // ★ What survives of the old blanket refusal, and why it survives: a written axiom type
         // names a C function signature, and the wrapper's return type is built from the result the
         // declaration states. An axiom with no result has no signature to be.
-        Assert.Contains("has to say what it gives back", e.Message);
+        //
+        // ⚠ Since 2026-11-02 one such shape is a type: `the c-language axiom fragment`, taking
+        // nothing, is complete C source as a value (DESIGN *An axiom's text as a value*). What is
+        // refused is source that still TAKES something, which has no complete text to be.
+        Assert.Contains("still has holes", e.Message);
     }
+
+    [Theory]
+    [InlineData("Bind number to run-it, given (the c-language axiom fragment), 1.")]
+    [InlineData("Define object holder with (the c-language axiom fragment).")]
+    [InlineData("Bind number to f, given (the series of c-language axiom parts), 1.")]
+    public void Source_WrittenAsAType_IsAccepted(string declaration) =>
+        GenerateC($"Pull a book on the c-language.\n    {declaration}\nDone.");
 
     [Theory]
     [InlineData("Bind number to run-it, given (the c-language number axiom fragment), 1.")]
@@ -1791,20 +1804,23 @@ public class PipelineForeignTests : PipelineTestBase
     }
 
     [Fact]
-    public void AResultlessAxiom_CannotTakeParameters()
+    public void AResultlessAxiomWithParameters_IsNeverPasted()
     {
         // !! The same hole one level down: a parameter's value comes from a call, and nothing calls
         // a preamble. Splicing one anyway put `cufet_p0` into a file-scope declaration, naming an
-        // identifier that exists nowhere -- checks clean, will not build.
-        var e = Assert.Throws<TypeException>(() => GenerateC("""
+        // identifier that exists nowhere -- checks clean, will not build. It was refused until
+        // 2026-11-02; now C source with parameters is source with HOLES, filled and handed back as
+        // text and never pasted (DESIGN *An axiom's text as a value*). `cufet` source still refuses.
+        var c = GenerateC("""
             Pull a book on the c-language.
                 Define c-language helpers, given (the number factor),
                     as [static int scaled(int x) { return x * the factor; }].
-                Define c-language number six as [scaled(2)].
-                State cast six.
+                State helpers on (3) converted to text.
             Done.
-            """));
-        Assert.Contains("source takes no parameters", e.Message);
+            """);
+        Assert.DoesNotMatch(new System.Text.RegularExpressions.Regex(
+            "^static int scaled", System.Text.RegularExpressions.RegexOptions.Multiline), c);
+        Assert.DoesNotContain("cufet_p0", c);
     }
 
     [Fact]

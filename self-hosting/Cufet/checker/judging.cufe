@@ -1301,6 +1301,8 @@ Pull a book on collections.
     /// Does a value of type `source` fit where `target` is wanted — C#'s `IsAssignable`.
     Bind fact to assignable, given (the node target, the node source):
         If cast same-type on (target, source), return true.
+        // A term is filled with plain text — the mark says how it goes in, not what it is.
+        If target's kind is "TermType", return source's kind is "TextType".
         If target's kind is "VoidableType":
             Return cast assignable on (cast field-of on (target, 1), source) or source's kind is "VoidType".
         Done.

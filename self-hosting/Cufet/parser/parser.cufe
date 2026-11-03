@@ -70,6 +70,7 @@ Pull a book on collections.
         Define reading as a new parser {
             the tokens found, the at 1, the type-depth 0, the collections-depth 0, the loop-depth 0,
             the nest-depth 0, the function-depth 0, the rabbit-depth 0, the in-object-def false, the in-free-function false,
+            the in-cast-callee false,
             the starts a series of node }.
         Define statements as cast listed.
         Define scanning as true.

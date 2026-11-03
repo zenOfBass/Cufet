@@ -12,7 +12,7 @@ Pull a book on collections.
     Bind series of text to note-order, given (the text kind):
         Judge kind, where it is:
             "AxiomLiteral", return a series of text with (":Language", ":Parameters", ":ReturnType", ":ReleasedBy", ":ReleaseAxiom").
-            "CastExpression", return a series of text with (":NamedArgs", ":ResolvedFunctionName", ":RunsAxiom", ":RunsAxiomValue").
+            "CastExpression", return a series of text with (":NamedArgs", ":ResolvedFunctionName", ":RunsAxiom", ":RunsAxiomValue", ":Keeps").
             "CastStatement",
                 return a series of text with (":NamedArgs", ":ResolvedFunctionName", ":RunsAxiom", ":RunsAxiomValue", ":PassesFailureOff").
             "ObjectLiteral", return a series of text with (":ResolvedTypeName", ":FilledDefaults").

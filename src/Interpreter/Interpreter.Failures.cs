@@ -539,6 +539,7 @@ public sealed partial class Interpreter
     {
         // Foreign source, not a Cufet function — there is no body to call into, so nothing below
         // applies to it: an axiom is not fallible and has no failure to route.
+        if (cast.Keeps) return FillSource(cast, cast.RunsAxiom!);
         if (cast.RunsAxiom is { } axiom) return RunAxiomCall(cast.Args, axiom, cast.Line);
 
         // ★ An axiom that arrived as a VALUE — through a parameter, a field, a series element. The

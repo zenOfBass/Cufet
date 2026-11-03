@@ -1042,7 +1042,8 @@ public sealed class Parser
                 try { result = ParseTypeAnnotation(); SkipNoise(); }
                 catch (ParseException) { _pos = beforeResult; result = null; }
             }
-            if (IsWord("axiom")) { Advance(); SkipNoise(); }
+            bool saidAxiom = IsWord("axiom");
+            if (saidAxiom) { Advance(); SkipNoise(); }
             else if (result != null && Peek().Type is not (TokenType.Identifier or TokenType.Given))
             {
                 _pos = beforeResult;   // that was the name, not a result type
@@ -1061,7 +1062,10 @@ public sealed class Parser
             var takes = Peek().Type == TokenType.Given ? ParseFunctionParamTypeList() : [];
             if (takes.Count > 0) SkipNoise();
 
-            if (result != null || takes.Count > 0 || Peek().Type == TokenType.Identifier)
+            // ★ `Bind c-language axiom to equal-by` — source handed back, where `to` follows the
+            // type instead of a name. Only after the word `axiom`, which nothing else spells.
+            if (result != null || takes.Count > 0 || Peek().Type == TokenType.Identifier
+                || (saidAxiom && Peek().Type == TokenType.To))
                 return new AxiomType(tok.Lexeme, result, takes);
             _pos = save;
         }
@@ -3310,6 +3314,25 @@ public sealed class Parser
     {
         var baseExpr = ParseCorePrimary();
 
+        // `eq-function on (type-c, …)` — WITHOUT `cast`: fill the source and keep it, unrun. A bare
+        // `on` after a name meant nothing in an expression before this, so nothing is reserved; the
+        // checker allows it only on source and names `cast` everywhere else.
+        if (!_castCallee && baseExpr is VariableReference fillee && Peek().Type == TokenType.On)
+        {
+            Advance(); // consume 'on'
+            SkipNoise();
+            if (Peek().Type == TokenType.LParen)
+            {
+                var (fillArgs, fillNamed) = ParseCallArguments();
+                baseExpr = new CastExpression(fillee, fillArgs, fillee.Line, fillee.Column)
+                    { NamedArgs = fillNamed, Keeps = true };
+            }
+            else
+                baseExpr = new CastExpression(fillee, [ParsePostfix()], fillee.Line, fillee.Column)
+                    { Keeps = true };
+            SkipNoise();
+        }
+
         // 'converted to text' / 'converted to number' postfix — binds tighter than 'joined to'
         // (parsed here at primary level).
         // Handles: score converted to text, car's year converted to text, (x+1) converted to text,
@@ -5352,12 +5375,21 @@ public sealed class Parser
     // Cast greet on alice (no parens) → CastExpression(VarRef("greet"), [alice], line, col).
     // Cast steer on (racer, 90)         → CastExpression(VarRef("steer"), [racer, 90], line, col).
     // Cast racer's steer on (90)        → CastExpression(PossessiveAccess(racer, steer), [90], line, col).
+    // True while a `cast`'s callee is being read — the `on` that follows belongs to the cast.
+    private bool _castCallee;
+
     private IExpression ParseCastExpression()
     {
         var lineTok = Consume(TokenType.Cast);
         var line = lineTok.Line;
         var col = lineTok.Column;
-        var funcExpr = ParsePostfix(); // handles leading articles and possessive postfix
+        // ⚠ The `on` after the callee is CAST's own — without this, the bare fill below would take
+        // `x on (…)` for itself and leave `cast` with nothing to call.
+        bool outer = _castCallee;
+        _castCallee = true;
+        IExpression funcExpr;
+        try { funcExpr = ParsePostfix(); } // handles leading articles and possessive postfix
+        finally { _castCallee = outer; }
         SkipNoise();
 
         if (Peek().Type == TokenType.On)

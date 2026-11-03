@@ -126,6 +126,13 @@ public sealed partial class TypeChecker
 
         RequireLanguagePulled(tag.Language, axiom.Line, axiom.Column);
         axiom.Language = tag.Language;
+        // `the term type-c` parses as a type named `term`; it is the mark, never a type of its own.
+        axiom.Parameters = [.. axiom.Parameters.Select(p =>
+            p.Type is ObjectType { Name: var named, PositionalTypes.Count: 0, NamedFields.Count: 0,
+                                   Methods.Count: 0, TypeArguments.Count: 0 }
+                && string.Equals(named, "term", StringComparison.Ordinal)
+                ? ((CufetType)TermType.Instance, p.Name)
+                : p)];
         axiom.ReturnType = tag.ReturnType is { } declaredResult ? ResolveParamType(declaredResult) : null;
         if (axiom.ReturnType is not null) RequireCrossableResult(axiom);
         CheckAxiomParameters(define, axiom);
@@ -183,7 +190,9 @@ public sealed partial class TypeChecker
         // nowhere for a parameter's value to come from. Splicing one anyway put `cufet_p0` into a
         // file-scope declaration, which named an identifier that exists nowhere: the program checked
         // clean and emitted C that would not build. Refused here, where the writer can see why.
-        if (axiom.ReturnType is null && axiom.Parameters.Count > 0)
+        bool source = axiom.ReturnType is null;
+        bool fillable = source && IsFillableLanguage(axiom.Language!);
+        if (source && !fillable && axiom.Parameters.Count > 0)
             throw TypeError(
                 $"'{define.Name}' says nothing about what it gives back, so it is source rather "
               + "than something to run — and source takes no parameters",
@@ -198,7 +207,17 @@ public sealed partial class TypeChecker
         foreach (var (type, name) in axiom.Parameters)
         {
             var resolved = ResolveParamType(type);
-            if (!ForeignC.CanPassToForeign(resolved))
+            if (fillable)
+                RequireFillableHole(axiom, resolved, name);
+            else if (resolved is TermType)
+                throw TypeError(
+                    $"'{name}' is a term, and only source has terms",
+                    "A term goes into the text of source that is filled and handed back — this axiom "
+                  + "runs, and what it is handed arrives as a value",
+                    axiom.Line, axiom.Column,
+                    $"declare '{name}' as a term",
+                    "Take 'the text " + name + "' instead, or drop the result to make this source.");
+            else if (!ForeignC.CanPassToForeign(resolved))
                 throw TypeError(
                     $"a {FormatType(resolved)} cannot be handed to {axiom.Language} source yet",
                     "A number, a fact and a text cross the boundary; nothing else does",
@@ -229,6 +248,92 @@ public sealed partial class TypeChecker
                 null, define.Line, define.Column,
                 "write 'given ()' with nothing in it",
                 "Drop the 'given' clause — an axiom that takes nothing needs none.");
+    }
+
+    /// <summary>Refuses a hole that source cannot be filled through.</summary>
+    /// <remarks>
+    /// ★ Three kinds, decided by the parameter: CODE (`the c-language axiom test`, only another
+    /// axiom of the same language), a TERM (text checked as a name), and a VALUE (written out as
+    /// the language's own literal). There is no fourth kind that pastes text as code, and that is
+    /// what keeps "values stay values, never text" true by default.
+    /// </remarks>
+    private void RequireFillableHole(AxiomLiteral axiom, CufetType hole, string name)
+    {
+        if (hole is TermType or TextType or NumberType or FactType) return;
+        if (hole is AxiomType code && IsSourceValue(code))
+        {
+            if (IsSameLanguage(code.Language, axiom.Language!)) return;
+            throw TypeError(
+                $"'{name}' takes {code.Language} source, and this is {axiom.Language} source",
+                "Code goes into code only in its own language",
+                axiom.Line, axiom.Column,
+                $"fill {axiom.Language} source with {code.Language} source",
+                $"Take 'the {axiom.Language} axiom {name}'.");
+        }
+        throw TypeError(
+            $"'{name}' takes {FormatType(hole)}, and that cannot fill {axiom.Language} source",
+            "A hole takes code (another axiom of the same language), a term (text that is a name), "
+          + "or a number, a fact or a text written out as a literal",
+            axiom.Line, axiom.Column,
+            $"fill source through '{name}'",
+            $"Take 'the {axiom.Language} axiom {name}', 'the term {name}', or a number, fact or text.");
+    }
+
+    /// <summary>
+    /// `eq-function on (…)` — fills source and keeps it, unrun. The result is complete source.
+    /// </summary>
+    /// <remarks>
+    /// ★ Only source: an axiom that declares no result. On anything else the missing `cast` is the
+    /// writer's slip, so it is refused and named — forgetting `cast` never quietly makes a fragment.
+    /// </remarks>
+    private CufetType FillSource(CastExpression fill)
+    {
+        var axiom = fill.Function is VariableReference vr && TryLookup(vr.Name, out var info)
+                    && info.Type is AxiomType
+            ? AxiomBehind(fill.Function)
+            : null;
+        string shown = fill.Function is VariableReference named ? named.Name : "this";
+        if (axiom?.Language is not { } language || axiom.ReturnType is not null
+            || !IsFillableLanguage(language))
+            throw TypeError(
+                $"'{shown}' is not source with holes, so it cannot be filled without running it",
+                "Writing 'on (…)' without 'cast' fills C source and keeps it; everything else is run "
+              + "with 'cast'",
+                fill.Line, fill.Column,
+                $"fill '{shown}' without running it",
+                $"Write 'cast {shown} on (…)'.");
+
+        if (fill.NamedArgs.Count > 0)
+            throw TypeError(
+                "source is filled by position, not by name",
+                "Its holes are in the foreign text, and the text is what decides their order",
+                fill.Line, fill.Column,
+                $"fill '{shown}' with named values",
+                "Give the values in the order 'given' declares them.");
+        RequireLanguagePulled(language, fill.Line, fill.Column);
+        TagBareAxioms(fill.Args, [.. axiom.Parameters.Select(p => ResolveParamType(p.Type))]);
+        CheckForeignArguments(fill.Args, axiom, fill.Line, fill.Column);
+        fill.RunsAxiom = axiom;
+        return new AxiomType(language);
+    }
+
+    /// <summary>Gives a bare `[…]` argument the language of the code hole it fills.</summary>
+    /// <remarks>
+    /// ★ `cast c-equal on (inner, [a.value], [b.value])`. A NAMED axiom with no result and no
+    /// parameters is a preamble, pasted above every wrapper — so a small fragment cannot be named
+    /// (`a.value` at file scope does not build), and it takes its language from where it lands
+    /// instead. A bare one was refused before this, so no program changed meaning.
+    /// </remarks>
+    private static void TagBareAxioms(IReadOnlyList<IExpression> args, IReadOnlyList<CufetType?> expected)
+    {
+        for (int i = 0; i < args.Count && i < expected.Count; i++)
+            TagBareAxiom(args[i], expected[i]);
+    }
+
+    private static void TagBareAxiom(IExpression arg, CufetType? expected)
+    {
+        if (arg is AxiomLiteral { Language: null } bare && expected is AxiomType code && IsSourceValue(code))
+            bare.Language = code.Language;
     }
 
     /// <summary>The type of a bare axiom literal — always tagged by then, or already refused.</summary>
@@ -299,10 +404,28 @@ public sealed partial class TypeChecker
             "run an axiom whose source is decided at run time",
             "Run it where it is declared, or bind the axiom to a name and run that name.");
 
+    /// <summary>Is this source a VALUE — C source taking nothing, so its text is complete?</summary>
+    public static bool IsSourceValue(AxiomType axiom) =>
+        axiom is { ReturnType: null, ParameterTypes.Count: 0 } && IsFillableLanguage(axiom.Language);
+
+    /// <summary>The languages whose source can be filled and handed back as text — C alone, for now.</summary>
+    /// <remarks>
+    /// ⚠ Filling `cufet` source is the macro half of the same mechanism, and it waits for macros.
+    /// `regex` has no invalid syntax for a hole to borrow (DESIGN), so it never takes one.
+    /// </remarks>
+    public static bool IsFillableLanguage(string language) => IsSameLanguage(language, "c-language");
+
     /// <summary>An axiom reached for anywhere but a return.</summary>
     private TypeException AxiomUsedAsValue(string name, AxiomType axiom, IExpression at)
     {
         var (line, column) = at is VariableReference vr ? (vr.Line, vr.Column) : (0, 0);
+        if (axiom.ReturnType is null && axiom.ParameterTypes.Count > 0 && IsFillableLanguage(axiom.Language))
+            return TypeError(
+                $"'{name}' is {axiom.Language} source with holes, and has to be filled before it is a value",
+                "Its text is not complete until every 'the <name>' in it has something in it",
+                line, column,
+                $"use '{name}' without filling it",
+                $"Fill it: '{name} on (…)'.");
         return TypeError(
             $"'{name}' is {axiom.Language} source, and can only be run by returning it",
             "Foreign source is not a value that can be printed, stored, or passed",
@@ -349,9 +472,11 @@ public sealed partial class TypeChecker
     private CufetType RunAxiomOnCast(CastExpression cast, AxiomLiteral axiom)
     {
         RequireLanguagePulled(axiom.Language!, cast.Line, cast.Column);
+        // ⚠ Asked first: running SOURCE is the mistake, and its arguments are beside the point.
+        var result = RunResultOf(axiom, cast.Line, cast.Column);
         CheckForeignArguments(cast.Args, axiom, cast.Line, cast.Column);
         cast.RunsAxiom = axiom;
-        return RunResultOf(axiom, cast.Line, cast.Column);
+        return result;
     }
 
     /// <summary>`cast job on (…)` where the axiom arrived as a VALUE — a parameter, or a result.</summary>
@@ -418,9 +543,9 @@ public sealed partial class TypeChecker
     private void RunAxiomOnCastStatement(CastStatement cast, AxiomLiteral axiom)
     {
         RequireLanguagePulled(axiom.Language!, cast.Line, cast.Column);
+        _ = RunResultOf(axiom, cast.Line, cast.Column);
         CheckForeignArguments(cast.Args, axiom, cast.Line, cast.Column);
         cast.RunsAxiom = axiom;
-        _ = RunResultOf(axiom, cast.Line, cast.Column);
     }
 
     /// <summary>What running this axiom yields — refusing one that never said.</summary>
@@ -432,13 +557,20 @@ public sealed partial class TypeChecker
     /// every result went through a named intermediate first.
     /// </remarks>
     private CufetType RunResultOf(AxiomLiteral axiom, int line, int column) =>
-        axiom.ReturnType ?? throw TypeError(
+        axiom.ReturnType ?? throw (axiom.Parameters.Count > 0 && IsFillableLanguage(axiom.Language!)
+            ? TypeError(
+                $"this {axiom.Language} axiom is source, and source is filled rather than run",
+                "It says nothing about what it gives back, so there is nothing for running it to produce",
+                line, column,
+                "run source",
+                "Drop 'cast' to fill it and keep it: '<name> on (…)'.")
+            : TypeError(
             $"this {axiom.Language} axiom does not say what it gives back",
             "Cufet cannot read a C listing to find out — an `int` might be a number, a fact, or a "
           + "handle, and only the person who wrote the source knows which",
             line, column,
             "run foreign source that never declared a result",
-            $"Say so where it is declared: 'Define {axiom.Language} number <name> as [ ... ].'");
+            $"Say so where it is declared: 'Define {axiom.Language} number <name> as [ ... ].'"));
 
     /// <summary>Resolves `and free it with &lt;name&gt;` and checks the pair fits together.</summary>
     /// <remarks>

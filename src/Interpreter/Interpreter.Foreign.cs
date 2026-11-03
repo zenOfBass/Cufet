@@ -52,7 +52,8 @@ public sealed partial class Interpreter
         {
             // The two places an axiom RUNS: returned by name, and called with arguments.
             if (node is ReturnStatement { RunsAxiom: { } returned } ret) Note(returned, ret.Line);
-            if (node is CastExpression { RunsAxiom: { } called } cast)   Note(called, cast.Line);
+            // ⚠ Not a FILL: `x on (…)` writes text and runs nothing, so it needs no toolchain.
+            if (node is CastExpression { RunsAxiom: { } called, Keeps: false } cast) Note(called, cast.Line);
             // ⚠ And called for its EFFECT. Miss this and a program whose only axiom is discarded
             // compiles its shim lazily on first use again — the divergence up-front preparation
             // exists to close.
@@ -87,7 +88,8 @@ public sealed partial class Interpreter
         var declared = new List<(string Language, string Source, int Line)>();
         AstSearch.Visit(program.Statements, node =>
         {
-            if (node is DefineStatement { Value: AxiomLiteral { ReturnType: null } decl } def
+            // ⚠ Source WITH holes is not a preamble — it is filled and handed back, never pasted.
+            if (node is DefineStatement { Value: AxiomLiteral { ReturnType: null, Parameters.Count: 0 } decl } def
                 && decl.Language is { } declLanguage)
                 declared.Add((declLanguage, decl.Source, def.Line));
         });
@@ -238,6 +240,35 @@ public sealed partial class Interpreter
         Evaluate(callee) as AxiomLiteral
         ?? throw new RuntimeException(
             $"this call expected foreign source and found something else (line {line}).");
+
+    /// <summary>`eq-function on (…)` — the source with every hole filled, kept unrun.</summary>
+    /// <remarks>
+    /// ★ What comes back is an axiom again — complete source, with nothing left to fill — so it can
+    /// fill another axiom's code hole. Cut at its holes by <see cref="ForeignC.Holes"/>, the same
+    /// cut the compiler emits, and filled in one pass: nothing pasted in is ever searched.
+    /// </remarks>
+    private object FillSource(CastExpression fill, AxiomLiteral axiom)
+    {
+        // Left to right, in declaration order — the order every other call evaluates in.
+        var values = fill.Args.Select(Evaluate).ToList();
+        var text = new System.Text.StringBuilder();
+        foreach (var (piece, hole) in ForeignC.Holes(axiom.Source, axiom.Parameters))
+        {
+            if (hole < 0) { text.Append(piece); continue; }
+            var (type, name) = axiom.Parameters[hole];
+            text.Append(values[hole] switch
+            {
+                string term when type is TermType => ForeignC.FillTerm(term, name, fill.Line),
+                AxiomLiteral code                 => code.Source,
+                string value                      => ForeignC.FillText(value),
+                decimal number                    => ForeignC.FillNumber(Format(number)),
+                bool fact                         => fact ? "1" : "0",
+                var other => throw new RuntimeException(
+                    $"this hole expected a value and found {Format(other)} (line {fill.Line})."),
+            });
+        }
+        return new AxiomLiteral(text.ToString(), axiom.Line, axiom.Column) { Language = axiom.Language };
+    }
 
     /// <summary>An axiom declaration binds the source itself — nothing about it is evaluated.</summary>
     /// <remarks>

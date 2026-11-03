@@ -47,6 +47,7 @@ Pull a book on collections.
             "FactType", return "fact".
             "VoidType", return "void".
             "AddressType", return "address".
+            "TermType", return "term".
             "FailureMarkerType", return "failure".
             "MappingType", return "mapping".
             "ExceptionMarkerType", return "exception".

@@ -1783,6 +1783,10 @@ public sealed partial class CodeGenerator
     /// </remarks>
     private string EmitAxiomValue(AxiomLiteral axiom, int line)
     {
+        // ★ SOURCE as a value is its text — a C string, not a thunk (DESIGN *An axiom's text as a
+        // value*). Only C source that takes nothing reaches here; a bare `[…]` argument is one.
+        if (axiom.ReturnType is null) return EscapeStringLiteral(axiom.Source);
+
         string language = axiom.Language ?? "foreign";
         string key = ForeignC.Identity(language, axiom.Source, axiom.Parameters, axiom.ReturnType);
         var shape = new FunctionType([.. axiom.Parameters.Select(p => p.Type)], axiom.ReturnType);
@@ -2018,6 +2022,7 @@ public sealed partial class CodeGenerator
         StringLiteral         => TText,
         // Foreign source, tagged by the checker. It has no C representation — nothing stores an
         // axiom — but the var-type prepass asks for the type of every `Define`d value.
+        AxiomLiteral { ReturnType: null } source => TText,   // source as a value is its text
         AxiomLiteral axiom    => new AxiomType(axiom.Language ?? "", axiom.ReturnType,
                                                [.. axiom.Parameters.Select(p => p.Type)]),
         RangeExpression       => new SeriesType(TNumber),
@@ -2213,6 +2218,7 @@ public sealed partial class CodeGenerator
     {
         // ★ An axiom's result is declared where the axiom is WRITTEN, and the checker has already
         // refused one that never said — see ForeignC for what may cross back.
+        if (c.Keeps) return TText;   // filled source is its text
         if (c.RunsAxiom is { } ax) return ax.ReturnType!;
         // Reached through a value: the WRITTEN type is the only thing that says what comes back.
         if (c.RunsAxiomValue && TypeOf(c.Function) is AxiomType held) return held.ReturnType!;
@@ -2895,6 +2901,7 @@ public sealed partial class CodeGenerator
                                     ? $"({EmitCType(dm)}){{0}}"
                                 : MangleName(v.Name),
         CastExpression cast   => EmitCastExpr(cast),
+        AxiomLiteral bareSource => EmitAxiomValue(bareSource, bareSource.Line),   // `[…]` filling a code hole
         LambdaLiteral lam     => EmitLambda(lam),
         SeriesLiteral sl      => EmitSeriesLiteral(sl),
         RangeExpression re    => EmitRangeSeries(re),

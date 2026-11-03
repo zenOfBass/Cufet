@@ -76,6 +76,21 @@ public sealed class AddressType : CufetType
     public override int GetHashCode() => typeof(AddressType).GetHashCode();
 }
 
+/// <summary>`the term type-c` — a source axiom's hole that takes TEXT and enters it as a NAME.</summary>
+/// <remarks>
+/// ★ A MARK, not a type a writer can hold: it exists only in an axiom's `given`, and what fills it is
+/// plain text. The difference is how the text goes in — as itself, once it has passed the
+/// language's identifier check, instead of as a quoted literal. A type of its own would move that
+/// refusal from where the name is filled to where it is made, which in the compiler written in Cufet
+/// is a few lines apart, at the price of a whole new type (DESIGN *An axiom's text as a value*).
+/// </remarks>
+public sealed class TermType : CufetType
+{
+    public static readonly TermType Instance = new();
+    public override bool Equals(object? obj) => obj is TermType;
+    public override int GetHashCode() => typeof(TermType).GetHashCode();
+}
+
 public sealed class SeriesType : CufetType
 {
     public CufetType ElementType { get; }
@@ -3549,6 +3564,8 @@ public sealed partial class TypeChecker
             // ⚠ Returning an axiom INTO an axiom type hands the axiom itself back, unrun. Only a
             // return into some other type runs it — which is the whole of "an axiom runs when it is
             // returned", now that there is a type a function can give one back as.
+            // A bare `[…]` returned as source takes its language from the declared return type.
+            TagBareAxiom(ret.Value, _expectedReturnType);
             var returnType = AxiomBehind(ret.Value) is not null && _expectedReturnType is not AxiomType
                 ? RunAxiomOnReturn(ret, _expectedReturnType)
                 : InferType(ret.Value);
@@ -3824,8 +3841,12 @@ public sealed partial class TypeChecker
         // and carries its AxiomType with it. What it still cannot do is be PRINTED, and that is the
         // compiler's own clean refusal rather than a rule repeated here: `State <a function>` is
         // refused the same way, and an axiom is a callable.
+        // ★ C SOURCE that takes nothing IS a value now — its text, ready to fill a code hole or be
+        // converted to text (DESIGN *An axiom's text as a value*). One that takes parameters has to
+        // be filled first, and cufet source is still placed only by `Cite`.
         VariableReference { Name: var an } when TryLookup(an, out var ati)
                                             && ati.Type is AxiomType { ReturnType: null } axiomInfo
+                                            && !IsSourceValue(axiomInfo)
                                                                                                  => throw AxiomUsedAsValue(an, axiomInfo, expr),
         VariableReference { Name: var n } when TryLookup(n, out var ti)                                  => NoteModuleUse(n, ti),
         VariableReference hv when _hiddenTopLevelData.Contains(hv.Name)                                  => throw HiddenTopLevelDataError(hv),
@@ -4220,6 +4241,8 @@ public sealed partial class TypeChecker
     private static bool IsAssignable(CufetType target, CufetType source)
     {
         if (target == source) return true;
+        // A term is filled with plain text — the mark says how it goes in, not what it is.
+        if (target is TermType) return source is TextType;
         if (target is VoidableType v)
             return IsAssignable(v.Inner, source) || source is VoidType;
         if (target is FailureType f)
@@ -4762,6 +4785,7 @@ public sealed partial class TypeChecker
         SeriesType { ElementType: var elem } => $"series of {FormatTypePlural(elem)}",
         StashType { ElementType: var held }  => $"stash of {FormatTypePlural(held)}",
         AxiomType at                         => FormatAxiomType(at),
+        TermType                             => "term",
         FunctionType ft                      => FormatFunctionType(ft),
         RecordType rt                        => FormatRecordType(rt),
         ObjectType ot                        => ModuleTypeLifting.DisplayName(ot.Name),

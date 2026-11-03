@@ -589,6 +589,94 @@ static CufetForeignReal cufet_real_from_double(double cufet_v) {
         return source;
     }
 
+    /// <summary>Source cut at its holes — literal text, and the index of the parameter that fills each hole.</summary>
+    /// <remarks>
+    /// <para>
+    /// ★★ ONE PASS over the axiom's own text, and what fills a hole is never searched. That is what
+    /// answers the recorded reason splicing one axiom into another was declined — the outer
+    /// substitution rewriting `the x` inside text that was pasted in (DESIGN *An axiom's text as a
+    /// value*). Cutting the text first and filling afterwards makes that impossible by construction.
+    /// </para>
+    /// <para>
+    /// ★ Cut once, where the source is fixed, by both backends: the interpreter fills the pieces at
+    /// run time, and the compiler emits them as a chain of appends, so the two cannot disagree on
+    /// where a hole is. Longest name first, for the reason <see cref="Splice"/> gives.
+    /// </para>
+    /// </remarks>
+    public static IReadOnlyList<(string Text, int Hole)> Holes(
+        string source, IReadOnlyList<(CufetType Type, string Name)> parameters)
+    {
+        var pieces = new List<(string Text, int Hole)>();
+        if (parameters.Count == 0) { pieces.Add((source, -1)); return pieces; }
+
+        var byLength = parameters.Select((p, index) => (p.Name, index))
+                                 .OrderByDescending(p => p.Name.Length).ToList();
+        var pattern = new System.Text.RegularExpressions.Regex(
+            @"(?<![A-Za-z0-9_-])[Tt][Hh][Ee]\s+("
+          + string.Join("|", byLength.Select(p => System.Text.RegularExpressions.Regex.Escape(p.Name)))
+          + @")(?![A-Za-z0-9_-])");
+        int at = 0;
+        foreach (System.Text.RegularExpressions.Match m in pattern.Matches(source))
+        {
+            pieces.Add((source[at..m.Index], -1));
+            pieces.Add(("", byLength.First(p => p.Name == m.Groups[1].Value).index));
+            at = m.Index + m.Length;
+        }
+        pieces.Add((source[at..], -1));
+        return pieces;
+    }
+
+    /// <summary>What a program is told when a term is filled with text that is not a C name.</summary>
+    /// <remarks>
+    /// ★ One sentence for both backends — `cufet_fill_term` in the emitted runtime raises it too,
+    /// and two spellings of one refusal is a divergence the oracle compares.
+    /// </remarks>
+    public const string TermMessage =
+        "'{0}' is not a name in C, so it cannot fill the term '{1}'. This happened on line {2}.";
+
+    /// <summary>A term's text, checked: letters, digits and `_`, not starting with a digit.</summary>
+    /// <remarks>
+    /// ⚠ C's KEYWORDS are allowed. A term is as often a type as a name — `int` is what `type-c`
+    /// holds for a number — and refusing keywords would refuse the commonest case.
+    /// </remarks>
+    public static string FillTerm(string text, string hole, int line)
+    {
+        bool ok = text.Length > 0 && !char.IsAsciiDigit(text[0])
+               && text.All(c => char.IsAsciiLetterOrDigit(c) || c == '_');
+        if (!ok) throw new RuntimeException(string.Format(TermMessage, text, hole, line));
+        return text;
+    }
+
+    /// <summary>A text value written out as a C string literal — quoted and escaped.</summary>
+    /// <remarks>
+    /// ★ A value stays a value: whatever the text holds, it lands in C as DATA. Control characters
+    /// go in as three-digit octal, which cannot run into a digit that follows the way `\x` does;
+    /// everything else, UTF-8 included, is copied as it is. `cufet_fill_text` is the C twin.
+    /// </remarks>
+    public static string FillText(string text)
+    {
+        var sb = new System.Text.StringBuilder("\"");
+        foreach (char c in text)
+            sb.Append(c switch
+            {
+                '\\' => "\\\\",
+                '"'  => "\\\"",
+                '\n' => "\\n",
+                '\t' => "\\t",
+                '\r' => "\\r",
+                _ when c < 0x20 || c == 0x7F => "\\" + Convert.ToString(c, 8).PadLeft(3, '0'),
+                _    => c.ToString(),
+            });
+        return sb.Append('"').ToString();
+    }
+
+    /// <summary>A number written out as a C literal — bracketed when negative.</summary>
+    /// <remarks>
+    /// ⚠ The brackets are not decoration: `x-the n` filled with -5 would be `x--5`, which C reads
+    /// as a decrement.
+    /// </remarks>
+    public static string FillNumber(string printed) => printed.StartsWith('-') ? $"({printed})" : printed;
+
     /// <summary>Does the foreign text mention this parameter at all?</summary>
     public static bool Mentions(string source, string name) => SplicePattern(name).IsMatch(source);
 

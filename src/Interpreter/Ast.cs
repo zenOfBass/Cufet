@@ -408,6 +408,15 @@ public sealed record CastExpression(
     /// "an axiom whose text I do not have".
     /// </remarks>
     public bool RunsAxiomValue { get; set; }
+
+    /// <summary>True for `eq-function on (…)` written WITHOUT `cast` — fill the source and keep it.</summary>
+    /// <remarks>
+    /// ★ A flag on the call rather than a node of its own, so every walk that already knows a call
+    /// reaches its arguments. `cast x on (…)` fills and runs; `x on (…)` fills and hands back an
+    /// UNRUN axiom, which can fill another axiom's code hole or be converted to its text. The
+    /// checker allows it only on source — an axiom that declares no result.
+    /// </remarks>
+    public bool Keeps { get; set; }
 }
 
 // Cast as a statement (void call, or discarded return value).

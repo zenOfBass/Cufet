@@ -2253,13 +2253,12 @@ Pull a book on the c-language.
 Done.
 ```
 
-That is how two axioms SHARE a helper. A helper declared inside one axiom belongs to that axiom
-alone, and the alternative — splicing one axiom into another — was declined: it merges their
-parameter namespaces and makes the article substitution a regex over someone else's text. A
-preamble has neither problem, because it takes no parameters and substitutes nothing.
+That is how two axioms SHARE a helper at run time. A helper declared inside one axiom belongs to
+that axiom alone. A preamble takes no parameters and substitutes nothing.
 
-⚠ **A resultless axiom therefore takes no parameters.** A parameter's value comes from a call, and
-nothing calls a preamble.
+⚠ **A preamble takes no parameters.** A parameter's value comes from a call, and nothing calls a
+preamble. C source that DOES take parameters is not a preamble at all: it has holes, it is never
+pasted, and it is filled and handed back as text — see *Source with holes* below.
 
 ⚠ **Nothing in it is guarded or checked.** A wrapper's guards ask what the spliced EXPRESSION
 produces; a declaration produces nothing. What is written reaches the C compiler verbatim, and a
@@ -2319,6 +2318,10 @@ lets a body see a `permanently` constant.
 | `… as [ … ], and free it with <name>.` | name the axiom that releases the address this one gives back |
 | `the c-language number axiom <name>` | an axiom AS A TYPE — a parameter, a field, an element |
 | `the c-language number axiom given (the text) <name>` | the same, saying what running it takes |
+| `Define c-language x, given (the term t, …), as [ … ].` | SOURCE with holes — filled, never run |
+| `x on (a, b)` | fill source and keep it, unrun — no `cast` |
+| `the c-language axiom <name>` | complete source as a value — a code hole, a parameter, a result |
+| `<source> converted to text` | the source's text |
 | `the text at <address>` | read through a foreign pointer — `voidable text`, always COPIED |
 | `Pull a book on the c-language.` | admit C axioms in this block |
 
@@ -2336,6 +2339,72 @@ wrapper's return type is built from that whether anyone reads it or not.
 | `voidable address` | a pointer of any kind | held opaquely, never read through; NULL becomes void |
 | `voidable text` | a `char*` or `const char*` | **copied**; NULL becomes void |
 
+### ★ Source with holes — filled, kept, and turned into text
+
+C source that says nothing about a result may take parameters. Each `the <name>` in it is a HOLE.
+Filling it is written `on (…)` **without** `cast`, and gives back source again, still unrun:
+
+```cufet
+Pull a book on the c-language.
+    Define c-language eq-function, given (the term type-c, the term eq-name, the c-language axiom test),
+        as [static int the eq-name(the type-c a, the type-c b) { return the test; }].
+    Define c-language value-equal, given (the term eq-name), as [the eq-name(a.value, b.value)].
+
+    Define fragment as eq-function on ("int", "int_eq", value-equal on ("inner_eq")).
+    State fragment converted to text.
+Done.
+```
+```output
+static int int_eq(int a, int b) { return inner_eq(a.value, b.value); }
+```
+
+`cast x on (…)` fills and runs; `x on (…)` fills and keeps. Inside the brackets only the brackets
+have to balance, so C's braces are written as they are. `converted to text` is the only step that
+makes text of source: until then it is code, and can fill another axiom's code hole.
+
+**Three kinds of hole, decided by the parameter:**
+
+| Declared | Takes | Goes in as |
+| --- | --- | --- |
+| `the c-language axiom test` | complete source of the SAME language: filled, or with no holes | its text, as written |
+| `the term type-c` | a text | itself, refused when filled unless it is a C name |
+| `the text x`, `the number n`, `the fact f` | a value | C's own literal: a quoted, escaped string; a number (bracketed when negative); 1 or 0 |
+
+★ **There is no way to paste text in as code.** Text reaches code only as another axiom, or as a
+term that passed the name check: letters, digits and `_`, not starting with a digit. C's keywords
+are allowed, because a term is as often a type (`int`) as a name. A term that fails the check is
+refused when the program runs:
+
+```
+'9lives' is not a name in C, so it cannot fill the term 'name'. This happened on line 5.
+```
+
+`term` is a mark in `given`, not a type: what fills a term is plain text, and nothing else can be
+declared a term.
+
+★ **What fills a hole is never searched for holes.** The source is cut at its own holes first, in
+one pass, and filled afterwards, so `the left` inside a text handed in stays as it was written.
+
+**A bare `[…]` may be an argument, and takes its language from the hole it fills**, as in
+`cast c-equal on (inner, [a.value], [b.value])`. A NAMED axiom with no result and no parameters is a
+preamble, pasted above everything, so a small fragment cannot be named: `a.value` at file scope does
+not build. `Return [0].` in a function that gives back `c-language axiom` takes its language the
+same way. Anywhere else a bare one is refused, because nothing names its language.
+
+A function hands source back with `Bind c-language axiom to <name>, …`.
+
+⚠ **There is no syntax for a hole joined to letters.** A hole counts only where no letter, digit,
+`_` or `-` follows it, so `the type-c_eq` fills nothing and stays in the text as written. When that
+is the only place the name appears, the declared-but-unused refusal says so. Build the joined name in
+Cufet and pass it as a term of its own: `"{type-c}_eq"`.
+
+⚠ **Filled source is never run**, so it needs no C toolchain on either backend, and the playground
+fills it too. `cast` on source with holes is refused with the fix, and so is `x on (…)` on anything
+that is not source, so a forgotten `cast` never quietly makes a fragment. Holes are filled by
+position: a named argument is refused.
+
+⚠ **Only `c-language` source is filled.** A `cufet` source axiom still takes no parameters.
+
 ### ★ An axiom as a value
 
 An axiom **that says what it gives back** may be passed, stored and run wherever it lands. The type
@@ -2348,9 +2417,11 @@ Bind number to measure, given (the c-language number axiom given (the text) job,
 Done.
 ```
 
-★ **Saying the result is what makes an axiom writable as a type.** `the c-language axiom job` is
-refused wherever a type is written: the C wrapper's return type is built from the declared result,
-so an axiom with none has no signature to be. The refusal names the fix.
+★ **Saying the result is what makes an axiom writable as a type.** The C wrapper's return type is
+built from the declared result, so an axiom with none has no signature to be. The one exception is
+C SOURCE that takes nothing: `the c-language axiom job` is complete source as a value, a code hole's
+type (*Source with holes*, below). Source still taking parameters, written as a type, is refused,
+and so is a `cufet` or `regex` axiom with no result. The refusal names the fix.
 
 ★ **`and free it with` is registered at the ACQUISITION**, not at the binding that catches the
 result — so it fires once per call, whether the axiom was reached by name or through a value, and
@@ -2365,7 +2436,8 @@ name beside a call through a value, all reach one wrapper — one copy of the fo
 once.
 
 An axiom prints as `<axiom>`, as a function prints as `<function>`. ⚠ The compiler refuses `State`
-on either; `cufet check --native` reports it as a warning.
+on either; `cufet check --native` reports it as a warning. C source as a value is the exception: it
+prints as its text, the same text `converted to text` gives.
 
 ⚠ **A parameter, a field, or an element is the only place the `given (…)` type spelling belongs.**
 A DECLARATION states its parameters after the name — `Define c-language number length-of, given

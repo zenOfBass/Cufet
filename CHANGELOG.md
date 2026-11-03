@@ -8,6 +8,20 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ## [Unreleased]
 
+### Added
+
+- **C source can be filled and handed back as text.** Resultless C source may take parameters now,
+  and each `the <name>` in it is a hole. `eq-function on (…)` WITHOUT `cast` fills the holes and
+  keeps the result unrun; `converted to text` gives its text. A hole takes complete C source of the
+  same language (`the c-language axiom test`), a TERM (`the term type-c`, a text refused when
+  filled unless it is a C name), or a text, number or fact written out as C's own literal. Nothing
+  pastes text in as code. The source is cut at its own holes before anything goes in, so what fills
+  a hole is never searched for one. A bare `[…]` may be an argument or a return, taking its language
+  from where it lands, and `Bind c-language axiom to …` hands source back from a function. Filling
+  runs no C, so it needs no toolchain. `cast` on source, and `on (…)` on anything else, are refused
+  with the fix. Only `c-language` source fills; a `cufet` source axiom still takes no parameters.
+  Both checkers, the interpreter, and both compilers (DESIGN *An axiom's text as a value*).
+
 ## [0.29.0] — 2026-11-02
 
 ### Added

@@ -496,6 +496,8 @@ Pull a book on collections.
                 at-row, "return without a value", "Provide a {promised} value to return.")).
         Done.
         Define value-type as cast unknown-type.
+        // A bare `[…]` returned as source takes its language from the declared return type.
+        Cast one's tag-bare-axiom on (value, expected).
         If cast is-none on (cast one's axiom-behind on (value)) is false and expected's kind is not "AxiomType":
             The value-type becomes cast one's run-axiom-on-return on (statement, value, at-row) or pass the failure off.
         Done.
@@ -827,6 +829,8 @@ Pull a book on collections.
         Define place as 0.
         For each argument in supplied, repeat:
             Increment place by 1.
+            // A bare `[…]` takes its language from the code hole it fills.
+            Cast one's tag-bare-axiom on (argument, cast one's resolved on (item place of formals)).
             Define argument-type as cast unknown-type.
             If place is 1 and reached's receivers is 0:
                 The argument-type becomes cast one's call-part-type on (argument, "first", memo) or pass the failure off.
@@ -880,6 +884,8 @@ Pull a book on collections.
         Define callee as cast field-of on (said, 1).
         Define call-args as cast field-of on (said, 2).
         Define at-row as cast number-of on (cast field-of on (said, 3)).
+        // `eq-function on (…)` with no `cast` — fill the source and keep it.
+        If cast has-mark on (said, ":Keeps"), return cast one's fill-source on (said, callee, call-args, at-row) or pass the failure off.
         // Named arguments first: everything after reads the arguments by position.
         Define passes-off as false.
         Define merged as false.

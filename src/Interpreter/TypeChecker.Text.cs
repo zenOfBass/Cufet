@@ -60,6 +60,9 @@ public sealed partial class TypeChecker
         // afterwards, independent — not consumed, and not a view, because a `text` that changed
         // under you would break the one thing `text` promises.
         if (operand is ChaseType) return CufetType.Text;
+        // ★ Source converts to its TEXT — the one step that makes text of it (DESIGN *An axiom's
+        // text as a value*). Until here it is code, and can fill a code hole.
+        if (operand is AxiomType source && IsSourceValue(source)) return CufetType.Text;
         // A series converts to the text `State` prints for it. Not a series of chases: a chase
         // prints as its letters but converts to its text, so the two would disagree.
         if (IsSeriesTextConvertible(operand)) return CufetType.Text;

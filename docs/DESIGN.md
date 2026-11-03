@@ -1604,7 +1604,7 @@ executing a `sql` block at compile time has no database to execute against.
 discipline that keeps this from becoming JNI plus JDBC plus annotations, three mechanisms
 where one belongs. A SQL wrapper contributes *syntax and validation*; FFI carries it.
 
-### An axiom's text as a value — DECIDED 2026-11-02, not yet built
+### An axiom's text as a value — BUILT 2026-11-02
 
 **The problem:** the compiler written in Cufet builds its C as quoted text, so every C brace is
 `\{` or `\}` — 306 lines, 194 of them with a hole as well. The axiom already has the splicing marker
@@ -1675,7 +1675,8 @@ changed meaning.
 Cufet source is the macro half, and it waits for macros.
 
 **No gluing syntax.** A hole counts only where no letter, digit, `_` or `-` follows it, so
-`the type-c_eq` fills nothing — and the unused-parameter refusal says so. A glued name is built in
+`the type-c_eq` fills nothing and stays as written — and when that is the name's only appearance,
+the unused-parameter refusal says so. A glued name is built in
 Cufet, where text holes already build names, and passed as its own term: `"{type-c}_eq"`. The cost
 is one parameter per glued name.
 

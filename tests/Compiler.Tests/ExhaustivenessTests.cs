@@ -49,6 +49,7 @@ public class ExhaustivenessTests
         [typeof(TaskHandleType)]      = new TaskHandleType(CufetType.Number),
         [typeof(BookType)]            = new BookType("math", []),
         [typeof(AxiomType)]           = new AxiomType("c-language"),
+        [typeof(TermType)]            = TermType.Instance,
         [typeof(UnionType)]           = new UnionType([CufetType.Number, CufetType.Text]),
     };
 
@@ -171,6 +172,14 @@ public class ExhaustivenessTests
 
         // Book, mapping and the two failure MARKERS are checker vocabulary, not runtime values: a
         // book is a scope, a marker is what `the failure` narrows through. None reaches the backend.
+        // A term is a mark on a source axiom's hole — what fills one is plain text, and the hole is
+        // filled by the fill's own appends. No value of it exists for any of these to be handed.
+        [("EmitCType", typeof(TermType))] = "a mark on a hole, never a value",
+        [("TypeSig", typeof(TermType))] = "a mark on a hole, never a value",
+        [("EqCall", typeof(TermType))] = "a mark on a hole, never a value",
+        [("WriteCall", typeof(TermType))] = "a mark on a hole, never a value",
+        [("DepStructName", typeof(TermType))] = "a mark on a hole, never a value",
+
         [("EmitCType", typeof(BookType))] = "a book is a scope, never a value",
         [("TypeSig", typeof(BookType))] = "a book is a scope, never a value",
         [("EqCall", typeof(BookType))] = "a book is a scope, never a value",

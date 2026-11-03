@@ -149,7 +149,9 @@ Pull a book on collections.
         If narrowing is not void, return narrowing.
         Define found as cast one's look-up on (name).
         If found is not void:
-            If found's shape's kind is "AxiomType" and cast is-nothing on (cast field-of on (found's shape, 2)):
+            // ★ C SOURCE that takes nothing IS a value — its text. One with holes is filled first.
+            If found's shape's kind is "AxiomType" and cast is-nothing on (cast field-of on (found's shape, 2))
+                    and cast is-source-value on (found's shape) is false:
                 Return a failure (cast axiom-used-as-value on (name, found's shape, cast number-of on (cast field-of on (said, 2)))).
             Done.
             Return found's shape.
@@ -468,6 +470,8 @@ Pull a book on collections.
         Define as-hole as cast truth-of on (cast field-of on (said, 4)).
         Define text-type as cast plain-type on ("TextType").
         If cast is-none on (operand) or cast text-convertible on (operand) or cast series-text-convertible on (operand), return text-type.
+        // ★ Source converts to its TEXT — the one step that makes text of it.
+        If cast is-source-value on (operand), return text-type.
         If operand's kind is "VoidableType":
             Define inner as cast field-of on (operand, 1).
             If cast text-convertible on (inner):

@@ -751,6 +751,9 @@ public sealed partial class CodeGenerator
 
     private string EmitCastExpr(CastExpression cast)
     {
+        // `eq-function on (…)` — source filled and kept: its text, built here.
+        if (cast.Keeps) return EmitFill(cast, cast.RunsAxiom!);
+
         // Foreign source, not a Cufet function — there is no body to call, only C to paste in.
         if (cast.RunsAxiom is { } axiom) return EmitAxiomCall(axiom, cast.Args, cast.Line);
 
@@ -1493,6 +1496,45 @@ public sealed partial class CodeGenerator
 
     // The lexer resolves escape sequences, so StringLiteral.Value is the cooked string.
     // Re-escape it for C: backslash and double-quote must be escaped; control chars normalized.
+    // Fills made so far — each one's argument temporaries are named after it.
+    private int _fillCount;
+
+    /// <summary>`eq-function on (…)` — the source's text with every hole filled, as a `const char*`.</summary>
+    /// <remarks>
+    /// ★ Cut at its holes by <see cref="ForeignC.Holes"/> — the cut the interpreter fills — and
+    /// built as a chain of appends, so nothing pasted in is ever searched for a hole. The arguments
+    /// are worked out first, left to right, as every call's are; the renderers are the runtime's
+    /// twins of ForeignC.FillTerm, FillText and FillNumber.
+    /// </remarks>
+    private string EmitFill(CastExpression fill, AxiomLiteral axiom)
+    {
+        int id = _fillCount++;
+        var steps = new StringBuilder("({ ");
+        var render = new string[axiom.Parameters.Count];
+        for (int i = 0; i < axiom.Parameters.Count; i++)
+        {
+            var (type, name) = axiom.Parameters[i];
+            string temp = $"cf_fill{id}_{i}";
+            string ctype = type switch { NumberType => "CufetDec", FactType => "int", _ => "const char*" };
+            steps.Append($"{ctype} {temp} = {EmitExpr(fill.Args[i])}; ");
+            render[i] = type switch
+            {
+                TermType   => $"cufet_fill_term({temp}, {EscapeStringLiteral(name)}, {fill.Line})",
+                TextType   => $"cufet_fill_text({temp})",
+                NumberType => $"cufet_fill_number({temp})",
+                FactType   => $"({temp} ? \"1\" : \"0\")",
+                _          => temp,   // code: complete source already
+            };
+        }
+        string text = "\"\"";
+        foreach (var (piece, hole) in ForeignC.Holes(axiom.Source, axiom.Parameters))
+        {
+            if (hole >= 0) text = $"cufet_str_concat({text}, {render[hole]})";
+            else if (piece.Length > 0) text = $"cufet_str_concat({text}, {EscapeStringLiteral(piece)})";
+        }
+        return steps.Append(text).Append("; })").ToString();
+    }
+
     private static string EscapeStringLiteral(string value)
     {
         var sb = new StringBuilder("\"");

@@ -139,13 +139,6 @@ around it. Nobody has asked for one.
 
 ### Language
 
-- **There is no way to produce text FOR a language.** The compiler written in Cufet builds its C
-  as quoted text, so every C brace is written `\{` or `\}` (306 lines, 194 of them with a hole too,
-  like `"static int {type-c}_eq(…) \{ return {tests}; \}"`), and `<<…>>` keeps braces but has no
-  holes. The escapes are the symptom: this is the *produces text for* kind of language book
-  (beside HTML), and C already has a splicing marker that needs no escaping, an axiom's
-  `the file-path`. *Blocker:* none — designed 2026-11-02, DESIGN.md *An axiom's text as a value*.
-
 - **Expression-level flow-narrowing.** Narrowing works on *variables* today
   (`If maybe-x is not void: … maybe-x`). Narrowing a value produced by an *expression* — say
   re-reading `the entry for "alice" in ages` inside an already-checked branch without naming

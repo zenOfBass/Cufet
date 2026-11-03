@@ -504,13 +504,49 @@ Done.
 ```
 
 That is how two axioms share a helper. One declared *inside* an axiom belongs to that axiom alone,
-so without this each would carry its own copy — and joining axioms together to share one is
-deliberately not offered, because it would merge their parameter lists and leave the article
-substitution rewriting someone else's text.
+so without this each would carry its own copy.
 
-⚠ A resultless axiom **takes no parameters** — a parameter's value comes from a call, and nothing
-calls this. And nothing in it is checked: a wrapper's guards ask what an expression produces, and a
+⚠ A preamble **takes no parameters** — a parameter's value comes from a call, and nothing calls
+this. And nothing in it is checked: a wrapper's guards ask what an expression produces, and a
 declaration produces nothing, so what you write reaches the C compiler exactly as written.
+
+#### Source with holes: C written by the program
+
+**Resultless C source that takes parameters is never pasted.** Each `the <name>` in it is a hole,
+and `on (…)` WITHOUT `cast` fills them and hands the source back, still unrun, for a program that
+writes C rather than runs it:
+
+```cufet
+Pull a book on the c-language.
+    Define c-language eq-function, given (the term type-c, the c-language axiom test),
+        as [static int the type-c_eq(the type-c a, the type-c b) { return the test; }].
+    State eq-function on ("int", [a == b]) converted to text.
+Done.
+```
+```output
+static int the type-c_eq(int a, int b) { return a == b; }
+```
+
+`the type-c_eq` is not a hole, because a letter follows the name, so it stays in the text as
+written. Where it is the ONLY place a name appears, the name is declared and never used, and that
+is refused. A name built from pieces is built in Cufet and handed in as a term of its own:
+
+```cufet
+Pull a book on the c-language.
+    Define c-language eq-function, given (the term type-c, the term eq-name, the c-language axiom test),
+        as [static int the eq-name(the type-c a, the type-c b) { return the test; }].
+    Define kind as "int".
+    State eq-function on (kind, "{kind}_eq", [a == b]) converted to text.
+Done.
+```
+```output
+static int int_eq(int a, int b) { return a == b; }
+```
+
+What a hole takes is decided by its parameter. `the c-language axiom test` takes complete C source:
+a filled axiom, or a bare `[…]`, which takes its language from the hole. `the term type-c` takes a
+text, refused unless it is a C name. A `text`, `number` or `fact` goes in as C's own literal, quoted
+and escaped, so a value never becomes code. GRAMMAR's *Source with holes* has the rules.
 
 #### An axiom is a value
 
@@ -539,9 +575,10 @@ Which axiom runs is decided there by the loop, not by the text. The foreign sour
 where it was written — nothing is assembled, and nothing can be injected — and what moves is the
 axiom itself.
 
-**Saying the result is what makes it writable as a type.** `the c-language axiom job` is refused:
-running it has to produce something, and an axiom that never said what has no shape to be handed
-around as. Add the result and it is accepted.
+**Saying the result is what makes it writable as a type.** `the c-language axiom given (the text)
+job` is refused: running it has to produce something, and an axiom that never said what has no shape
+to be handed around as. Add the result and it is accepted. `the c-language axiom job`, taking
+nothing, is the one exception: it is complete C source as a value, the kind a code hole takes.
 
 ★ **An axiom carrying `and free it with` travels too.** The freeing is registered where the address
 is ACQUIRED, so it happens once per call however that call was reached — by name, or through a
@@ -549,8 +586,9 @@ value that arrived from somewhere else entirely. The rabbit rule is unchanged: a
 cannot be held outside a rabbit block, and it is still freed when that block ends, exception
 included.
 
-An axiom prints as `<axiom>`, the way a function prints as `<function>` — the source is not
-something a program reads back.
+An axiom prints as `<axiom>`, the way a function prints as `<function>` — the source of something
+you run is not something a program reads back. C source as a value is the exception, and prints as
+its text.
 
 #### Handing values to C
 

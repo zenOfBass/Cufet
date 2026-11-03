@@ -242,7 +242,8 @@ Pull a book on collections.
                 The result becomes cast nothing.
             Done.
         Done.
-        If cast one's is-word on ("axiom"):
+        Define said-axiom as cast one's is-word on ("axiom").
+        If said-axiom:
             Cast one's advance.
             Cast one's skip-noise.
         Done.
@@ -255,7 +256,10 @@ Pull a book on collections.
             The takes becomes cast one's function-param-type-list or pass the failure off.
             If the number of takes's children is greater than 0, cast one's skip-noise.
         Done.
-        If result's word is not "_" or the number of takes's children is greater than 0 or cast one's peek-kind is "Identifier":
+        // ★ `Bind c-language axiom to equal-by` — source handed back, where `to` follows the type
+        // instead of a name. Only after the word `axiom`, which nothing else spells.
+        Define handed-back as said-axiom and cast one's peek-kind is "To".
+        If result's word is not "_" or the number of takes's children is greater than 0 or cast one's peek-kind is "Identifier" or handed-back:
             Return cast made on ("AxiomType", a series with (cast quoted on (tag's lexeme), result, takes)).
         Done.
         One's at becomes saved-at.
