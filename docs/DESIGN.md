@@ -1648,7 +1648,7 @@ Done.
 
 | declared | takes | goes in as |
 | --- | --- | --- |
-| `the c-language axiom test` | another axiom of the SAME language, filled or not | its source, as written |
+| `the c-language axiom test` | another axiom of the SAME language that takes nothing — a filled one, or one with no parameters | its source, as written |
 | `the term type-c` | text | itself — refused when filled unless it is a valid identifier of the language |
 | `the text x`, `the number n`, … | a value | the language's own literal — quoted and escaped |
 
@@ -1664,6 +1664,15 @@ where it is MADE — a few lines apart in the compiler, whose names are all asse
 for a whole new type. The word is from logic, and from Spinoza's *Ethics*, where the axioms come
 from: a term is a word standing for a thing. `definition` was closer still and lost to `Define`;
 `lemma` and `postulate` name assumptions, not names.
+
+**A bare `[…]` may be an argument, and takes its language from the hole it fills** —
+`cast c-equal on (inner, [a.value], [b.value])`. A NAMED axiom with no result and no parameters
+stays a preamble, pasted above every wrapper, so a small fragment cannot be named: `a.value` at file
+scope does not build. A bare one had been refused (nothing named its language), so no program
+changed meaning.
+
+⚠ **Only `c-language` source is fillable.** A `cufet` source axiom still takes no parameters; filling
+Cufet source is the macro half, and it waits for macros.
 
 **No gluing syntax.** A hole counts only where no letter, digit, `_` or `-` follows it, so
 `the type-c_eq` fills nothing — and the unused-parameter refusal says so. A glued name is built in
