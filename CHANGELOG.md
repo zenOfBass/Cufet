@@ -32,9 +32,10 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
-- **A `permanently` axiom in one file of a folder could not be filled or run from another.** The
-  checker registered it ahead of its declaration standing for its own name, so finding its
-  source went round in a circle and gave up.
+- **A `permanently` axiom could not be filled or run from a body above its declaration**, in its
+  own file or a neighbour's, so whether a folder checked depended on which file was opened. It is
+  now known ahead of its declaration, as any shared constant is. Its pull is still asked for at
+  the declaration.
 - **The checker written in Cufet held every value of an axiom type permanent**, so a name holding
   filled source could not be replaced where C#'s checker allows it. Only a declared axiom, or a
   name bound to one, is permanent now, as in C#.
