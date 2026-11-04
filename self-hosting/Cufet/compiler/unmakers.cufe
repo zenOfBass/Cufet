@@ -115,6 +115,6 @@ Pull books on collections, and the c-language.
         For each inner in (cast field-of on (declaration, 3))'s children, repeat:
             Cast writer's emit-statement on (inner) or pass the failure off.
         Done.
-        Return "{cast c-unmaker-signature on (declaration)} \{\n{writer's body converted to text}\}\n\n".
+        Return cast c-function-text on (cast c-unmaker-signature on (declaration), writer's body converted to text).
     Done.
 Done.

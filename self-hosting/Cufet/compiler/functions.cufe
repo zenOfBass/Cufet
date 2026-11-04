@@ -115,13 +115,18 @@ Pull books on collections, and the c-language.
 
     /// A function kind's struct.
     Bind text to c-function-helpers, given (the text kind):
-        Define param-list as "void*".
+        Define param-list as c-verbatim on ([void*]).
         For each part in cast function-takes on (kind), repeat:
-            The param-list becomes "{param-list}, {cast c-type on (part)}".
+            The param-list becomes listed-on on (param-list, cast c-type on (part)).
         Done.
         // Guarded: an axiom's kind and a function's of the same shape are one struct, written once.
         Define struct-c as cast function-c-name on (kind).
-        Return "#ifndef {struct-c}_DEFINED\n#define {struct-c}_DEFINED\ntypedef struct \{ {cast c-gives on (cast function-gives on (kind))} (*fn)({param-list}); void* env; \} {struct-c};\n#endif\n".
+        Define c-language ifndef-struct-defined-form, given (the term struct-c-defined, the c-language axiom c-gives, the c-language axiom param-list, the term struct-c),
+            as [#ifndef the struct-c-defined
+#define the struct-c-defined
+typedef struct { the c-gives (*fn)(the param-list); void* env; } the struct-c;
+#endif].
+        Return "{ifndef-struct-defined-form on ("{struct-c}_DEFINED", cast c-gives on (cast function-gives on (kind)), param-list, struct-c)}\n".
     Done.
 
     Bind void to register-function unto emitter, given (the text kind):
@@ -203,7 +208,7 @@ Pull books on collections, and the c-language.
             Insert "{head};\n" into one's lambda-protos.
             Define gives-back as "return ".
             If cast function-gives on (kind) is "void", the gives-back becomes "".
-            Insert "{head} \{ (void)cf_env; {gives-back}{cast c-function-name on (name)}({passed}); \}\n\n" into one's lambda-code.
+            Insert "{head} {cast c-open} (void)cf_env; {gives-back}{cast c-function-name on (name)}({passed}); {cast c-close}\n\n" into one's lambda-code.
         Done.
         Return cast c-function-value on (cast function-c-name on (kind), thunk, [NULL]).
     Done.
@@ -317,7 +322,7 @@ Pull books on collections, and the c-language.
         For each name in captured, repeat:
             The fields becomes "{fields} {cast c-type on (cast one's stored-kind on (name))} {cast c-name on (name)};".
         Done.
-        Insert "typedef struct \{ {fields} \} {env-type};\n" into one's lambda-types.
+        Insert "typedef struct {cast c-open} {fields} {cast c-close} {env-type};\n" into one's lambda-types.
         Define writer as cast one's sibling.
         Cast writer's enter-closure on (takes, taken-names, captured, one's kinds, named, result, label, fn-name, env-type).
         For each statement in body's children, repeat:
@@ -332,7 +337,7 @@ Pull books on collections, and the c-language.
         Done.
         Define head as "static {cast c-gives on (result)} {fn-name}({param-list})".
         Insert "{head};\n" into one's lambda-protos.
-        Insert "{head} \{\n    {env-type}* cf_env = ({env-type}*)cf_envp; (void)cf_env;\n{writer's body converted to text}\}\n\n" into one's lambda-code.
+        Insert "{head} {cast c-open}\n    {env-type}* cf_env = ({env-type}*)cf_envp; (void)cf_env;\n{writer's body converted to text}{cast c-close}\n\n" into one's lambda-code.
     Done.
 
     /// A writer's kinds set for a function written here: what it takes, what it captured — read

@@ -142,7 +142,7 @@ Pull books on collections, and the c-language.
         Define at-line as (cast field-of on (statement, 5))'s word.
         Define stored as "cufet_mat_set({item 1 of emitted}, cufet_to_int({item 2 of emitted}), cufet_to_int({item 3 of emitted}), {item 4 of emitted}, {at-line})".
         If cast is-no-c on (prefix), cast one's line on ("{stored};").
-        Otherwise, cast one's line on ("\{ {prefix}{stored}; \}").
+        Otherwise, cast one's line on ("{cast c-open} {prefix}{stored}; {cast c-close}").
     Done.
 
     /// `the rows of m`, `the columns of m` as C.

@@ -57,16 +57,29 @@ Pull books on collections, and the c-language.
     /// What `main` sets up in a program with tasks or interrupts: a fault in a task reported to its
     /// rabbit, and — on POSIX — Ctrl-C caught, landing here to tear down and leave with 130.
     Bind text to c-main-signals, given (the fact tasks):
-        Define freeing as "".
-        If tasks, the freeing becomes "        cufet_free_all_chans();\n".
-        Return "    cufet_worker_fault_fn = cufet_worker_fault;\n#if defined(__unix__) || defined(__APPLE__)\n    cufet_install_sigint();\n    if (CUFET_SETJMP(cufet_thread_top)) \{\n        cufet_close_files_from(0);\n        while (cufet_arena_top >= 0) cufet_arena_pop();\n{freeing}        fflush(stdout); return 130;\n    \}\n    cufet_pad_set = 1;\n#endif\n".
+        Define freeing as cast no-c.
+        If tasks, the freeing becomes c-verbatim on ([        cufet_free_all_chans();]).
+        Define c-language cufet-worker-fault-form, given (the c-language axiom freeing),
+            as [    cufet_worker_fault_fn = cufet_worker_fault;
+#if defined(__unix__) || defined(__APPLE__)
+    cufet_install_sigint();
+    if (CUFET_SETJMP(cufet_thread_top)) {
+        cufet_close_files_from(0);
+        while (cufet_arena_top >= 0) cufet_arena_pop();
+the freeing        fflush(stdout); return 130;
+    }
+    cufet_pad_set = 1;
+#endif].
+        Return "{cufet-worker-fault-form on (freeing)}\n".
     Done.
 
     // ── A rabbit that may start tasks ─────────────────────────────────────
 
     /// What a rabbit that may start tasks keeps, at its start.
     Bind text to c-task-slots, given (the text label):
-        Return "pthread_t cf_thr_{label}[CUFET_TASK_MAX]; int cf_nthr_{label} = 0; cufet_chan* cf_chan_{label}[CUFET_TASK_MAX]; int cf_nchan_{label} = 0; cufet_rbox* cf_rbox_{label}[CUFET_TASK_MAX] = \{0\}; char* cf_fault_{label}[CUFET_TASK_MAX] = \{0\}; (void)cf_thr_{label}; (void)cf_chan_{label}; (void)cf_rbox_{label};".
+        Define c-language pthread-label-thr-form, given (the term label-cf-thr, the term label-cf-nthr, the term label-cf-chan, the term label-cf-nchan, the term label-cf-rbox, the term label-cf-fault),
+            as [pthread_t the label-cf-thr[CUFET_TASK_MAX]; int the label-cf-nthr = 0; cufet_chan* the label-cf-chan[CUFET_TASK_MAX]; int the label-cf-nchan = 0; cufet_rbox* the label-cf-rbox[CUFET_TASK_MAX] = {0}; char* the label-cf-fault[CUFET_TASK_MAX] = {0}; (void)the label-cf-thr; (void)the label-cf-chan; (void)the label-cf-rbox;].
+        Return "{pthread-label-thr-form on ("cf_thr_{label}", "cf_nthr_{label}", "cf_chan_{label}", "cf_nchan_{label}", "cf_rbox_{label}", "cf_fault_{label}")}".
     Done.
 
     /// What it does at its `Done`: every task joined, what went unhandled raised, the boxes and the
@@ -179,7 +192,11 @@ Pull books on collections, and the c-language.
 
         // The thread's argument: its box, where its fault goes, and each capture.
         Define fields as "cufet_rbox* cf_selfbox; char** cf_faultslot;".
-        Define filled as "".
+        Define c-language plain-capture, given (the c-language axiom filled, the term member, the c-language axiom captured),
+            as [the filled cf_a->the member = the captured;].
+        Define c-language copied-capture, given (the c-language axiom filled, the term member, the term copier, the c-language axiom captured),
+            as [the filled cf_a->the member = the copier(the captured);].
+        Define filled as cast no-c.
         Define unpacked as "".
         For each name in captured, repeat:
             Define held as the entry for name in one's kinds but void is "".
@@ -187,13 +204,13 @@ Pull books on collections, and the c-language.
             Define captured-c as cast one's redirected-c on (name) but void is c-word on (member).
             If cast crosses-as-itself on (held):
                 The fields becomes "{fields} {cast c-type on (held)} {member};".
-                The filled becomes "{filled} cf_a->{member} = {captured-c};".
+                The filled becomes plain-capture on (filled, member, captured-c).
                 The unpacked becomes "{unpacked}    {cast c-type on (held)} {member} = cf_a->{member}; (void){member};\n".
             Done.
             Otherwise:
                 Cast one's register-copy on (held) or pass the failure off.
                 The fields becomes "{fields} void* {member};".
-                The filled becomes "{filled} cf_a->{member} = {cast copy-family on (held)}_heapenv({captured-c});".
+                The filled becomes copied-capture on (filled, member, "{cast copy-family on (held)}_heapenv", captured-c).
                 The unpacked becomes "{unpacked}    {cast c-type on (held)} {member} = {cast copy-family on (held)}_arenacopy(cf_a->{member}); {cast copy-family on (held)}_freeenv(cf_a->{member}); (void){member};\n".
             Done.
         Done.
@@ -207,18 +224,24 @@ Pull books on collections, and the c-language.
                 Cast writer's emit-statement on (inner) or pass the failure off.
             Done.
             Cast writer's closing-scope on (task-begun).
-            Insert "struct cft_arg_{label} \{ {fields} \};\n" into one's lambda-types.
+            Insert "struct cft_arg_{label} {cast c-open} {fields} {cast c-close};\n" into one's lambda-types.
             Define head as "static void* cft_task_{label}(void* argp)".
             Insert "{head};\n" into one's lambda-protos.
             Define thread as a chase.
-            Insert "{head} \{\n    cufet_watch_stack();\n    struct cft_arg_{label}* cf_a = (struct cft_arg_{label}*)argp;\n    cufet_arena_push();\n    cufet_fault_slot = cf_a->cf_faultslot;\n" into thread.
+            Define c-language head-cufet-watch-form, given (the term label-cft-arg),
+                as [
+    cufet_watch_stack();
+    struct the label-cft-arg* cf_a = (struct the label-cft-arg*)argp;
+    cufet_arena_push();
+    cufet_fault_slot = cf_a->cf_faultslot;].
+            Insert "{head} {cast c-open}{head-cufet-watch-form on ("cft_arg_{label}")}\n" into thread.
             Insert unpacked into thread.
-            Insert "    if (CUFET_SETJMP(cufet_thread_top) == 0) \{ cufet_pad_set = 1;\n" into thread.
+            Insert "    if (CUFET_SETJMP(cufet_thread_top) == 0) {cast c-open} cufet_pad_set = 1;\n" into thread.
             Insert writer's body converted to text into thread.
             // Reached when the body falls off its end, or is abandoned at its landing pad by an
             // interrupt or a fault: nothing to hand back, but the box is published, so no awaiter
             // waits for ever — with the fault beside it, when there was one.
-            Insert "    \}\n    cufet_close_files_from(0);\n    cufet_rbox_set_fault(cf_a->cf_selfbox, *cf_a->cf_faultslot);\n    cufet_rbox_publish(cf_a->cf_selfbox, NULL);\n    cufet_arena_pop();\n    free(cf_a);\n    return NULL;\n\}\n\n" into thread.
+            Insert "    {cast c-close}\n    cufet_close_files_from(0);\n    cufet_rbox_set_fault(cf_a->cf_selfbox, *cf_a->cf_faultslot);\n    cufet_rbox_publish(cf_a->cf_selfbox, NULL);\n    cufet_arena_pop();\n    free(cf_a);\n    return NULL;\n{cast c-close}\n\n" into thread.
             Insert thread converted to text into one's lambda-code.
         Done.
 
@@ -232,9 +255,12 @@ Pull books on collections, and the c-language.
             In one's kinds, the entry for "@{task-name}" becomes "".
             The box becomes cast c-name on (task-name).
         Done.
-        Define recorded as "".
-        If box is not "NULL", the recorded becomes " cf_rbox_{rabbit-label}[cf_nthr_{rabbit-label}] = {box};".
-        Cast one's line on ("\{ struct cft_arg_{label}* cf_a = (struct cft_arg_{label}*)malloc(sizeof(struct cft_arg_{label}));{filled} cf_a->cf_selfbox = {box};{recorded} cf_a->cf_faultslot = &cf_fault_{rabbit-label}[cf_nthr_{rabbit-label}]; pthread_create(&cf_thr_{rabbit-label}[cf_nthr_{rabbit-label}++], NULL, cft_task_{label}, cf_a); \}").
+        Define c-language box-recorded, given (the term boxes, the term count, the term box), as [ the boxes[the count] = the box;].
+        Define recorded as cast no-c.
+        If box is not "NULL", the recorded becomes box-recorded on ("cf_rbox_{rabbit-label}", "cf_nthr_{rabbit-label}", box).
+        Define c-language struct-label-cft-form, given (the term label-cft-arg, the c-language axiom filled, the term box, the c-language axiom recorded, the term rabbit-label-cf-fault, the term rabbit-label-cf-nthr, the term rabbit-label-cf-thr, the term label-cft-task),
+            as [{ struct the label-cft-arg* cf_a = (struct the label-cft-arg*)malloc(sizeof(struct the label-cft-arg));the filled cf_a->cf_selfbox = the box;the recorded cf_a->cf_faultslot = &the rabbit-label-cf-fault[the rabbit-label-cf-nthr]; pthread_create(&the rabbit-label-cf-thr[the rabbit-label-cf-nthr++], NULL, the label-cft-task, cf_a); }].
+        Cast one's put on (struct-label-cft-form on ("cft_arg_{label}", filled, box, recorded, "cf_fault_{rabbit-label}", "cf_nthr_{rabbit-label}", "cf_thr_{rabbit-label}", "cft_task_{label}")).
     Done.
 
     /// A writer for a task's body: its captures known by their kinds, as plain names in its own
@@ -260,7 +286,8 @@ Pull books on collections, and the c-language.
     Bind void or failure to emit-task-return unto emitter, given (the node statement):
         Define result as the entry for "%task" in one's kinds but void is "void".
         Define returned as cast field-of on (statement, 1).
-        Define leaving as "{cast one's c-leaving-unmakers on ("0")}{cast one's c-leaving on ("0")}{cast one's c-leaving-rabbits on ("0")}{cast one's c-leaving-files on ("0")}".
+        Define leaving as cast c-all-leaving on (cast one's c-leaving-unmakers on ("0"), cast one's c-leaving on ("0"),
+            cast one's c-leaving-rabbits on ("0"), cast one's c-leaving-files on ("0")).
         If result is "?":
             If cast is-nothing on (returned) is false:
                 // `Return a failure …` makes the task one that can fail; any other gives its kind.
@@ -269,19 +296,26 @@ Pull books on collections, and the c-language.
                 Done.
                 Otherwise, cast one's noted-return on (returned) or pass the failure off.
             Done.
-            Cast one's line on ("\{ {leaving}cufet_arena_pop(); free(cf_a); return NULL; \}").
+            Define c-language leaving-cufet-arena-pop-form, given (the c-language axiom leaving),
+                as [{ the leaving cufet_arena_pop(); free(cf_a); return NULL; }].
+            Cast one's put on (leaving-cufet-arena-pop-form on (leaving)).
             Return.
         Done.
         If result is not "void" and cast is-nothing on (returned) is false:
             Define returned-c as cast one's c-of-as on (returned, result) or pass the failure off.
-            Cast one's line on ("\{ void* cf_tret = {cast copy-family on (result)}_heapenv({returned-c}); {leaving}cufet_close_files_from(0); cufet_arena_pop(); cufet_rbox_publish(cf_a->cf_selfbox, cf_tret); free(cf_a); return NULL; \}").
+            Define c-language copy-family-heapenv-form, given (the term copy-family-heapenv, the c-language axiom returned-c, the c-language axiom leaving),
+                as [{ void* cf_tret = the copy-family-heapenv(the returned-c); the leaving cufet_close_files_from(0); cufet_arena_pop(); cufet_rbox_publish(cf_a->cf_selfbox, cf_tret); free(cf_a); return NULL; }].
+            Cast one's put on (copy-family-heapenv-form on ("{cast copy-family on (result)}_heapenv", returned-c, leaving)).
             Return.
         Done.
-        Define dropped as "".
+        Define c-language value-dropped, given (the c-language axiom value), as [(void)(the value); ].
+        Define dropped as cast no-c.
         If cast is-nothing on (returned) is false:
-            The dropped becomes "(void)({cast one's c-of on (returned) or pass the failure off}); ".
+            The dropped becomes value-dropped on (cast one's c-of on (returned) or pass the failure off).
         Done.
-        Cast one's line on ("\{ {dropped}{leaving}cufet_close_files_from(0); cufet_rbox_publish(cf_a->cf_selfbox, NULL); cufet_arena_pop(); free(cf_a); return NULL; \}").
+        Define c-language task-ended, given (the c-language axiom dropped, the c-language axiom leaving),
+            as [{ the dropped the leaving cufet_close_files_from(0); cufet_rbox_publish(cf_a->cf_selfbox, NULL); cufet_arena_pop(); free(cf_a); return NULL; }].
+        Cast one's put on (task-ended on (dropped, leaving)).
     Done.
 
     /// `the awaited result of <task>` — waits for its box, then copies what it holds into this

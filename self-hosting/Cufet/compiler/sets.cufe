@@ -75,7 +75,9 @@ Pull books on collections, and the c-language.
         // The set first, then the value, as the interpreter works them out.
         Define sides as a series of c-language axiom with (set-c, value-c).
         Define prefix as cast order-prefix on (a series of node with (cast field-of on (statement, 2), cast field-of on (statement, 1)), sides).
-        Cast one's line on ("\{ {prefix}__auto_type cf_el = {item 2 of sides}; {map-c}_put({item 1 of sides}, cf_el, cf_el); \}").
+        Define c-language member-put, given (the c-language axiom prefix, the c-language axiom member, the term put, the c-language axiom held-set),
+            as [{ the prefix __auto_type cf_el = the member; the put(the held-set, cf_el, cf_el); }].
+        Cast one's put on (member-put on (prefix, item 2 of sides, "{map-c}_put", item 1 of sides)).
     Done.
 
     /// `For each <name> in <set>, repeat:` — over the elements there when it began, in the order
@@ -91,7 +93,7 @@ Pull books on collections, and the c-language.
         Define label as "The set".
         If over's kind is "VariableReference", the label becomes "'{cast unquoted on (cast field-of on (over, 1))}'".
         Define set-value as cast one's c-of on (over) or pass the failure off.
-        Cast one's line on ("\{").
+        Cast one's put on ([{]).
         Define kept as a map from text to text.
         For each pair in one's kinds, repeat:
             In kept, the entry for the key of pair becomes the value of pair.
@@ -102,7 +104,7 @@ Pull books on collections, and the c-language.
         Cast one's line on ("int cf_each_n = cf_each->len;").
         Cast one's line on ("{element-c}* cf_vals = ({element-c}*)cufet_arena_alloc((size_t)(cf_each_n + 1) * sizeof({element-c}));").
         Cast one's line on ("if (cf_each_n > 0) memcpy(cf_vals, cf_each->vals, (size_t)cf_each_n * sizeof({element-c}));").
-        Cast one's line on ("for (int cf_i = 0; cf_i < cf_each_n; cf_i++) \{").
+        Cast one's put on ([for (int cf_i = 0; cf_i < cf_each_n; cf_i++) {]).
         In one's kinds, the entry for name becomes element.
         Cast one's declared-here on (name).
         In one's kinds, the entry for "%{name}" becomes element.
@@ -114,9 +116,9 @@ Pull books on collections, and the c-language.
         Define loop-kept as cast one's entering-loop.
         Cast one's emit-block on (cast field-of on (statement, 3)) or pass the failure off.
         Cast one's leaving-loop on (loop-kept).
-        Cast one's line on ("\}").
+        Cast one's put on ([}]).
         The one's indent becomes outer.
         The one's kinds becomes kept.
-        Cast one's line on ("\}").
+        Cast one's put on ([}]).
     Done.
 Done.

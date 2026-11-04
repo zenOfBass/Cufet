@@ -129,25 +129,55 @@ Pull books on collections, and the c-language.
         Define held-c as cast c-type on (held).
         Define looked-c as cast c-type on (cast looked-up-kind on (kind)).
         Define out as a chase.
-        Insert "struct {map-c}_s \{ {key-c}* keys; {held-c}* vals; int len; int cap; \};\n" into out.
-        Insert "typedef struct \{ {key-c} key; {held-c} value; \} {map-c}_pair;\n" into out.
-        Insert "static {map-c}* {map-c}_new(void) \{ {map-c}* m = ({map-c}*)cufet_arena_alloc(sizeof({map-c})); m->keys = NULL; m->vals = NULL; m->len = 0; m->cap = 0; return m; \}\n" into out.
-        Insert "static void {map-c}_ensure({map-c}* m) \{ if (m->len >= m->cap) \{ int nc = m->cap == 0 ? 4 : m->cap * 2; {key-c}* nk = ({key-c}*)cufet_arena_alloc((size_t)nc * sizeof({key-c})); {held-c}* nv = ({held-c}*)cufet_arena_alloc((size_t)nc * sizeof({held-c})); if (m->len > 0) \{ memcpy(nk, m->keys, (size_t)m->len * sizeof({key-c})); memcpy(nv, m->vals, (size_t)m->len * sizeof({held-c})); \} m->keys = nk; m->vals = nv; m->cap = nc; \} \}\n" into out.
-        Insert "static int {map-c}_index({map-c}* m, {key-c} k) \{ for (int i = 0; i < m->len; i++) if ({cast c-equal on (key-kind, [m->keys[i]], [k])}) return i; return -1; \}\n" into out.
-        Insert "static void {map-c}_put({map-c}* m, {key-c} k, {held-c} v) \{ int i = {map-c}_index(m, k); if (i >= 0) \{ m->vals[i] = v; return; \} {map-c}_ensure(m); m->keys[m->len] = k; m->vals[m->len] = v; m->len++; \}\n" into out.
+        Define c-language struct-map-key-form, given (the term map-c-s, the c-language axiom key-c, the c-language axiom held-c),
+            as [struct the map-c-s { the key-c* keys; the held-c* vals; int len; int cap; };].
+        Insert "{struct-map-key-form on ("{map-c}_s", key-c, held-c)}\n" into out.
+        Define c-language typedef-struct-key-form, given (the c-language axiom key-c, the c-language axiom held-c, the term map-c-pair),
+            as [typedef struct { the key-c key; the held-c value; } the map-c-pair;].
+        Insert "{typedef-struct-key-form on (key-c, held-c, "{map-c}_pair")}\n" into out.
+        Define c-language map-c-new-form, given (the term map-c, the term map-c-new),
+            as [static the map-c* the map-c-new(void) { the map-c* m = (the map-c*)cufet_arena_alloc(sizeof(the map-c)); m->keys = NULL; m->vals = NULL; m->len = 0; m->cap = 0; return m; }].
+        Insert "{map-c-new-form on (map-c, "{map-c}_new")}\n" into out.
+        Define c-language map-c-ensure-form, given (the term map-c-ensure, the term map-c, the c-language axiom key-c, the c-language axiom held-c),
+            as [static void the map-c-ensure(the map-c* m) { if (m->len >= m->cap) { int nc = m->cap == 0 ? 4 : m->cap * 2; the key-c* nk = (the key-c*)cufet_arena_alloc((size_t)nc * sizeof(the key-c)); the held-c* nv = (the held-c*)cufet_arena_alloc((size_t)nc * sizeof(the held-c)); if (m->len > 0) { memcpy(nk, m->keys, (size_t)m->len * sizeof(the key-c)); memcpy(nv, m->vals, (size_t)m->len * sizeof(the held-c)); } m->keys = nk; m->vals = nv; m->cap = nc; } }].
+        Insert "{map-c-ensure-form on ("{map-c}_ensure", map-c, key-c, held-c)}\n" into out.
+        Define c-language map-c-index-form, given (the term map-c-index, the term map-c, the c-language axiom key-c, the c-language axiom c-equal),
+            as [static int the map-c-index(the map-c* m, the key-c k) { for (int i = 0; i < m->len; i++) if (the c-equal) return i; return -1; }].
+        Insert "{map-c-index-form on ("{map-c}_index", map-c, key-c, cast c-equal on (key-kind, [m->keys[i]], [k]))}\n" into out.
+        Define c-language map-c-put-form, given (the term map-c-put, the term map-c, the c-language axiom key-c, the c-language axiom held-c, the term map-c-index, the term map-c-ensure),
+            as [static void the map-c-put(the map-c* m, the key-c k, the held-c v) { int i = the map-c-index(m, k); if (i >= 0) { m->vals[i] = v; return; } the map-c-ensure(m); m->keys[m->len] = k; m->vals[m->len] = v; m->len++; }].
+        Insert "{map-c-put-form on ("{map-c}_put", map-c, key-c, held-c, "{map-c}_index", "{map-c}_ensure")}\n" into out.
         If cast is-voidable on (held):
-            Insert "static {looked-c} {map-c}_get({map-c}* m, {key-c} k) \{ {looked-c} r; memset(&r, 0, sizeof r); int i = {map-c}_index(m, k); if (i >= 0) r = m->vals[i]; return r; \}\n" into out.
-            Insert "static int {map-c}_has_entry({map-c}* m, {key-c} k) \{ int i = {map-c}_index(m, k); return i >= 0 && m->vals[i].has; \}\n" into out.
+            Define c-language map-c-get-form, given (the c-language axiom looked-c, the term map-c-get, the term map-c, the c-language axiom key-c, the term map-c-index),
+                as [static the looked-c the map-c-get(the map-c* m, the key-c k) { the looked-c r; memset(&r, 0, sizeof r); int i = the map-c-index(m, k); if (i >= 0) r = m->vals[i]; return r; }].
+            Insert "{map-c-get-form on (looked-c, "{map-c}_get", map-c, key-c, "{map-c}_index")}\n" into out.
+            Define c-language map-c-has-entry-form, given (the term map-c-has-entry, the term map-c, the c-language axiom key-c, the term map-c-index),
+                as [static int the map-c-has-entry(the map-c* m, the key-c k) { int i = the map-c-index(m, k); return i >= 0 && m->vals[i].has; }].
+            Insert "{map-c-has-entry-form on ("{map-c}_has_entry", map-c, key-c, "{map-c}_index")}\n" into out.
         Done.
         Otherwise:
-            Insert "static {looked-c} {map-c}_get({map-c}* m, {key-c} k) \{ {looked-c} r; memset(&r, 0, sizeof r); int i = {map-c}_index(m, k); if (i >= 0) \{ r.has = 1; r.value = m->vals[i]; \} return r; \}\n" into out.
-            Insert "static int {map-c}_has_entry({map-c}* m, {key-c} k) \{ return {map-c}_index(m, k) >= 0; \}\n" into out.
+            Define c-language map-c-get-form-2, given (the c-language axiom looked-c, the term map-c-get, the term map-c, the c-language axiom key-c, the term map-c-index),
+                as [static the looked-c the map-c-get(the map-c* m, the key-c k) { the looked-c r; memset(&r, 0, sizeof r); int i = the map-c-index(m, k); if (i >= 0) { r.has = 1; r.value = m->vals[i]; } return r; }].
+            Insert "{map-c-get-form-2 on (looked-c, "{map-c}_get", map-c, key-c, "{map-c}_index")}\n" into out.
+            Define c-language map-c-has-entry-form-2, given (the term map-c-has-entry, the term map-c, the c-language axiom key-c, the term map-c-index),
+                as [static int the map-c-has-entry(the map-c* m, the key-c k) { return the map-c-index(m, k) >= 0; }].
+            Insert "{map-c-has-entry-form-2 on ("{map-c}_has_entry", map-c, key-c, "{map-c}_index")}\n" into out.
         Done.
-        Insert "static int {map-c}_has({map-c}* m, {key-c} k) \{ return {map-c}_index(m, k) >= 0; \}\n" into out.
-        Insert "static void {map-c}_remove({map-c}* m, {key-c} k, int line) \{ int i = {map-c}_index(m, k); if (i < 0) cufet_raise(cufet_msgf(\"Key not found in map on line %d.\", line)); if (i < m->len - 1) \{ memmove(&m->keys[i], &m->keys[i + 1], (size_t)(m->len - 1 - i) * sizeof({key-c})); memmove(&m->vals[i], &m->vals[i + 1], (size_t)(m->len - 1 - i) * sizeof({held-c})); \} m->len--; \}\n" into out.
-        Insert "static void {map-c}_write({map-c}* m) \{ fputs(\"map \{\", stdout); for (int i = 0; i < m->len; i++) \{ if (i > 0) fputs(\", \", stdout); {cast write-call on (key-kind, [m->keys[i]])}; fputs(\": \", stdout); {cast write-call on (held, [m->vals[i]])}; \} fputs(\"\}\", stdout); \}\n" into out.
-        Insert "static void {map-c}_pair_write({map-c}_pair p) \{ fputs(\"mapping(\", stdout); {cast write-call on (key-kind, [p.key])}; fputs(\": \", stdout); {cast write-call on (held, [p.value])}; fputs(\")\", stdout); \}\n" into out.
-        Insert "static int {map-c}_pair_eq({map-c}_pair a, {map-c}_pair b) \{ return {cast c-equal on (key-kind, [a.key], [b.key])} && {cast c-equal on (held, [a.value], [b.value])}; \}\n\n" into out.
+        Define c-language map-c-has-form, given (the term map-c-has, the term map-c, the c-language axiom key-c, the term map-c-index),
+            as [static int the map-c-has(the map-c* m, the key-c k) { return the map-c-index(m, k) >= 0; }].
+        Insert "{map-c-has-form on ("{map-c}_has", map-c, key-c, "{map-c}_index")}\n" into out.
+        Define c-language map-c-remove-form, given (the term map-c-remove, the term map-c, the c-language axiom key-c, the term map-c-index, the c-language axiom held-c),
+            as [static void the map-c-remove(the map-c* m, the key-c k, int line) { int i = the map-c-index(m, k); if (i < 0) cufet_raise(cufet_msgf("Key not found in map on line %d.", line)); if (i < m->len - 1) { memmove(&m->keys[i], &m->keys[i + 1], (size_t)(m->len - 1 - i) * sizeof(the key-c)); memmove(&m->vals[i], &m->vals[i + 1], (size_t)(m->len - 1 - i) * sizeof(the held-c)); } m->len--; }].
+        Insert "{map-c-remove-form on ("{map-c}_remove", map-c, key-c, "{map-c}_index", held-c)}\n" into out.
+        Define c-language map-c-write-form, given (the term map-c-write, the term map-c, the c-language axiom write-call, the c-language axiom write-call-2),
+            as [static void the map-c-write(the map-c* m) { fputs("map {", stdout); for (int i = 0; i < m->len; i++) { if (i > 0) fputs(", ", stdout); the write-call; fputs(": ", stdout); the write-call-2; } fputs("}", stdout); }].
+        Insert "{map-c-write-form on ("{map-c}_write", map-c, cast write-call on (key-kind, [m->keys[i]]), cast write-call on (held, [m->vals[i]]))}\n" into out.
+        Define c-language map-c-pair-write-form, given (the term map-c-pair-write, the term map-c-pair, the c-language axiom write-call, the c-language axiom write-call-2),
+            as [static void the map-c-pair-write(the map-c-pair p) { fputs("mapping(", stdout); the write-call; fputs(": ", stdout); the write-call-2; fputs(")", stdout); }].
+        Insert "{map-c-pair-write-form on ("{map-c}_pair_write", "{map-c}_pair", cast write-call on (key-kind, [p.key]), cast write-call on (held, [p.value]))}\n" into out.
+        Define c-language map-c-pair-eq-form, given (the term map-c-pair-eq, the term map-c-pair, the c-language axiom c-equal, the c-language axiom c-equal-2),
+            as [static int the map-c-pair-eq(the map-c-pair a, the map-c-pair b) { return the c-equal && the c-equal-2; }].
+        Insert "{map-c-pair-eq-form on ("{map-c}_pair_eq", "{map-c}_pair", cast c-equal on (key-kind, [a.key], [b.key]), cast c-equal on (held, [a.value], [b.value]))}\n\n" into out.
         Return out converted to text.
     Done.
 
@@ -300,7 +330,7 @@ Pull books on collections, and the c-language.
         Define label as "The map".
         If over's kind is "VariableReference", the label becomes "'{cast unquoted on (cast field-of on (over, 1))}'".
         Define map-value as cast one's c-of on (over) or pass the failure off.
-        Cast one's line on ("\{").
+        Cast one's put on ([{]).
         Define kept as a map from text to text.
         For each pair in one's kinds, repeat:
             In kept, the entry for the key of pair becomes the value of pair.
@@ -311,8 +341,10 @@ Pull books on collections, and the c-language.
         Cast one's line on ("int cf_each_n = cf_each->len;").
         Cast one's line on ("{key-c}* cf_keys = ({key-c}*)cufet_arena_alloc((size_t)(cf_each_n + 1) * sizeof({key-c}));").
         Cast one's line on ("{held-c}* cf_vals = ({held-c}*)cufet_arena_alloc((size_t)(cf_each_n + 1) * sizeof({held-c}));").
-        Cast one's line on ("if (cf_each_n > 0) \{ memcpy(cf_keys, cf_each->keys, (size_t)cf_each_n * sizeof({key-c})); memcpy(cf_vals, cf_each->vals, (size_t)cf_each_n * sizeof({held-c})); \}").
-        Cast one's line on ("for (int cf_i = 0; cf_i < cf_each_n; cf_i++) \{").
+        Define c-language each-memcpy-keys-form, given (the c-language axiom key-c, the c-language axiom held-c),
+            as [if (cf_each_n > 0) { memcpy(cf_keys, cf_each->keys, (size_t)cf_each_n * sizeof(the key-c)); memcpy(cf_vals, cf_each->vals, (size_t)cf_each_n * sizeof(the held-c)); }].
+        Cast one's put on (each-memcpy-keys-form on (key-c, held-c)).
+        Cast one's put on ([for (int cf_i = 0; cf_i < cf_each_n; cf_i++) {]).
         Define mapping-kind as "mapping from {cast map-key-kind on (held)} to {cast map-value-kind on (held)}".
         In one's kinds, the entry for name becomes mapping-kind.
         Cast one's declared-here on (name).
@@ -320,14 +352,16 @@ Pull books on collections, and the c-language.
         In one's kinds, the entry for "@{name}" becomes "".
         The one's indent becomes outer joined to "        ".
         Cast one's line on ("if (cf_each->len != cf_each_n) cufet_raise(cufet_msgf(\"{label} was modified during a for-each loop on line {(cast field-of on (statement, 4))'s word} — collect into a separate series, or use a While loop if you need to change it while looping.\"));").
-        Cast one's line on ("{map-c}_pair {cast c-name on (name)} = \{ cf_keys[cf_i], cf_vals[cf_i] \};").
+        Define c-language map-pair-name-form, given (the term map-c-pair, the term c-name),
+            as [the map-c-pair the c-name = { cf_keys[cf_i], cf_vals[cf_i] };].
+        Cast one's put on (map-pair-name-form on ("{map-c}_pair", cast c-name on (name))).
         The one's indent becomes outer joined to "    ".
         Define loop-kept as cast one's entering-loop.
         Cast one's emit-block on (cast field-of on (statement, 3)) or pass the failure off.
         Cast one's leaving-loop on (loop-kept).
-        Cast one's line on ("\}").
+        Cast one's put on ([}]).
         The one's indent becomes outer.
         The one's kinds becomes kept.
-        Cast one's line on ("\}").
+        Cast one's put on ([}]).
     Done.
 Done.

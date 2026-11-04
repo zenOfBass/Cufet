@@ -83,81 +83,97 @@ Pull books on collections, and the c-language.
     Done.
 
     /// What copies one value of a kind, as the body of its `copy`.
-    Bind text or failure to c-copy-body unto emitter, given (the text kind):
+    Bind c-language axiom or failure to c-copy-body unto emitter, given (the text kind):
         Define type-c as cast c-type on (kind).
-        If cast is-plain-copy on (kind), return "(void)a; return v;".
-        If kind is "text", return "if (!v) return v; size_t n = strlen(v) + 1; char* r = (char*)a(n); memcpy(r, v, n); return r;".
+        If cast is-plain-copy on (kind), return [(void)a; return v;].
+        If kind is "text", return [if (!v) return v; size_t n = strlen(v) + 1; char* r = (char*)a(n); memcpy(r, v, n); return r;].
         If cast element-of on (kind) is not "":
             Define element as cast element-of on (kind).
-            Define series-c as cast series-c-name on (element).
-            Define held-c as cast c-type on (element).
-            Return "if (!v) return v; {series-c}* r = ({series-c}*)a(sizeof({series-c})); r->len = v->len; r->cap = v->len; r->data = v->len ? ({held-c}*)a((size_t)v->len * sizeof({held-c})) : NULL; for (int i = 0; i < v->len; i++) r->data[i] = {cast copy-family on (element)}_copy(v->data[i], a); return r;".
+            Define c-language series-copied, given (the term series-c, the c-language axiom held-c, the term element-copy),
+                as [if (!v) return v; the series-c* r = (the series-c*)a(sizeof(the series-c)); r->len = v->len; r->cap = v->len; r->data = v->len ? (the held-c*)a((size_t)v->len * sizeof(the held-c)) : NULL; for (int i = 0; i < v->len; i++) r->data[i] = the element-copy(v->data[i], a); return r;].
+            Return series-copied on (cast series-c-name on (element), cast c-type on (element), "{cast copy-family on (element)}_copy").
         Done.
         If cast is-map on (kind):
-            Define map-c as cast map-c-name on (kind).
             Define key-kind as cast map-key-kind on (kind).
             Define held as cast map-value-kind on (kind).
-            Define key-c as cast c-type on (key-kind).
-            Define held-c as cast c-type on (held).
-            Return "if (!v) return v; {map-c}* r = ({map-c}*)a(sizeof({map-c})); r->len = v->len; r->cap = v->len; r->keys = v->len ? ({key-c}*)a((size_t)v->len * sizeof({key-c})) : NULL; r->vals = v->len ? ({held-c}*)a((size_t)v->len * sizeof({held-c})) : NULL; for (int i = 0; i < v->len; i++) \{ r->keys[i] = {cast copy-family on (key-kind)}_copy(v->keys[i], a); r->vals[i] = {cast copy-family on (held)}_copy(v->vals[i], a); \} return r;".
+            Define c-language map-copied, given (the term map-c, the c-language axiom key-c, the c-language axiom held-c, the term key-copy, the term held-copy),
+                as [if (!v) return v; the map-c* r = (the map-c*)a(sizeof(the map-c)); r->len = v->len; r->cap = v->len; r->keys = v->len ? (the key-c*)a((size_t)v->len * sizeof(the key-c)) : NULL; r->vals = v->len ? (the held-c*)a((size_t)v->len * sizeof(the held-c)) : NULL; for (int i = 0; i < v->len; i++) { r->keys[i] = the key-copy(v->keys[i], a); r->vals[i] = the held-copy(v->vals[i], a); } return r;].
+            Return map-copied on (cast map-c-name on (kind), cast c-type on (key-kind), cast c-type on (held), "{cast copy-family on (key-kind)}_copy", "{cast copy-family on (held)}_copy").
         Done.
-        Define body as "{type-c} r = v; (void)a;".
+        Define c-language copy-begun, given (the c-language axiom type-c), as [the type-c r = v; (void)a;].
+        Define c-language field-copied, given (the c-language axiom body, the term member, the term copier),
+            as [the body r.the member = the copier(v.the member, a);].
+        Define c-language copy-returned, given (the c-language axiom body), as [the body return r;].
+        Define body as copy-begun on (type-c).
         If cast is-record on (kind):
             Define place as 0.
             For each part in cast record-parts on (kind), repeat:
                 Increment place by 1.
-                Define member as cast record-member on (part, place).
-                The body becomes "{body} r.{member} = {cast copy-family on (cast part-kind on (part))}_copy(v.{member}, a);".
+                The body becomes field-copied on (body, cast record-member on (part, place), "{cast copy-family on (cast part-kind on (part))}_copy").
             Done.
-            Return "{body} return r;".
+            Return copy-returned on (body).
         Done.
         If cast object-of on (kind) is not "":
             Define definition as the entry for cast object-of on (kind) in one's objects but void is cast listed.
             For each pair in (cast field-of on (definition, 3))'s children, repeat:
                 Define field-kind as cast one's kind-of-type on (cast field-of on (pair, 2)) or pass the failure off.
-                Define member as cast c-name on (cast unquoted on (cast field-of on (pair, 1))).
-                The body becomes "{body} r.{member} = {cast copy-family on (field-kind)}_copy(v.{member}, a);".
+                The body becomes field-copied on (body, cast c-name on (cast unquoted on (cast field-of on (pair, 1))), "{cast copy-family on (field-kind)}_copy").
             Done.
-            Return "{body} return r;".
+            Return copy-returned on (body).
         Done.
         If cast is-union on (kind):
-            Define arms as "".
+            Define c-language arm-copied, given (the c-language axiom arms, the number place, the term member, the term copier),
+                as [the arms case the place: r.the member = the copier(v.the member, a); break;].
+            Define arms as cast no-c.
             Define place as 0.
             For each inner in cast kind-cases on (kind), repeat:
-                The arms becomes "{arms} case {place}: r.case_{place} = {cast copy-family on (inner)}_copy(v.case_{place}, a); break;".
+                The arms becomes arm-copied on (arms, place, "case_{place}", "{cast copy-family on (inner)}_copy").
                 Increment place by 1.
             Done.
-            Return "{body} switch (v.tag) \{{arms} \} return r;".
+            Define c-language union-copied, given (the c-language axiom body, the c-language axiom arms),
+                as [the body switch (v.tag) { the arms } return r;].
+            Return union-copied on (body, arms).
         Done.
         If cast is-voidable on (kind):
-            Return "{body} if (v.has) r.value = {cast copy-family on (cast voidable-inner on (kind))}_copy(v.value, a); return r;".
+            Define c-language voidable-copied, given (the c-language axiom body, the term copier),
+                as [the body if (v.has) r.value = the copier(v.value, a); return r;].
+            Return voidable-copied on (body, "{cast copy-family on (cast voidable-inner on (kind))}_copy").
         Done.
         // A failable: its value when it worked, its message and category when it did not — built
         // texts live in the arena of the thread that made them, which may be gone by the time
         // anyone reads them.
-        Define value-copy as "".
+        Define value-copy as cast no-c.
         If cast failable-inner on (kind) is not "void":
-            The value-copy becomes "if (v.ok) r.value = {cast copy-family on (cast failable-inner on (kind))}_copy(v.value, a); ".
+            Define c-language value-copied, given (the term copier), as [if (v.ok) r.value = the copier(v.value, a); ].
+            The value-copy becomes value-copied on ("{cast copy-family on (cast failable-inner on (kind))}_copy").
         Done.
-        Return "{body} {value-copy}if (!v.ok) \{ r.failure.message = ccp_text_copy(v.failure.message, a); r.failure.category = v.failure.category ? ccp_text_copy(v.failure.category, a) : NULL; \} return r;".
+        Define c-language failable-copied, given (the c-language axiom body, the c-language axiom value-copy),
+            as [the body the value-copy if (!v.ok) { r.failure.message = ccp_text_copy(v.failure.message, a); r.failure.category = v.failure.category ? ccp_text_copy(v.failure.category, a) : NULL; } return r;].
+        Return failable-copied on (body, value-copy).
     Done.
 
     /// What frees a heap copy of a kind, as the body of its `freeheap`.
-    Bind text or failure to c-free-body unto emitter, given (the text kind):
-        If cast is-plain-copy on (kind), return "(void)v;".
-        If kind is "text", return "free((void*)v);".
+    Bind c-language axiom or failure to c-free-body unto emitter, given (the text kind):
+        If cast is-plain-copy on (kind), return [(void)v;].
+        If kind is "text", return [free((void*)v);].
         If cast element-of on (kind) is not "":
-            Return "if (!v) return; for (int i = 0; i < v->len; i++) {cast copy-family on (cast element-of on (kind))}_freeheap(v->data[i]); free(v->data); free(v);".
+            Define c-language series-freed, given (the term element-free),
+                as [if (!v) return; for (int i = 0; i < v->len; i++) the element-free(v->data[i]); free(v->data); free(v);].
+            Return series-freed on ("{cast copy-family on (cast element-of on (kind))}_freeheap").
         Done.
         If cast is-map on (kind):
-            Return "if (!v) return; for (int i = 0; i < v->len; i++) \{ {cast copy-family on (cast map-key-kind on (kind))}_freeheap(v->keys[i]); {cast copy-family on (cast map-value-kind on (kind))}_freeheap(v->vals[i]); \} free(v->keys); free(v->vals); free(v);".
+            Define c-language map-freed, given (the term key-free, the term held-free),
+                as [if (!v) return; for (int i = 0; i < v->len; i++) { the key-free(v->keys[i]); the held-free(v->vals[i]); } free(v->keys); free(v->vals); free(v);].
+            Return map-freed on ("{cast copy-family on (cast map-key-kind on (kind))}_freeheap", "{cast copy-family on (cast map-value-kind on (kind))}_freeheap").
         Done.
-        Define body as "(void)v;".
+        Define c-language field-freed, given (the c-language axiom body, the term freer, the term member),
+            as [the body the freer(v.the member);].
+        Define body as c-verbatim on ([(void)v;]).
         If cast is-record on (kind):
             Define place as 0.
             For each part in cast record-parts on (kind), repeat:
                 Increment place by 1.
-                The body becomes "{body} {cast copy-family on (cast part-kind on (part))}_freeheap(v.{cast record-member on (part, place)});".
+                The body becomes field-freed on (body, "{cast copy-family on (cast part-kind on (part))}_freeheap", cast record-member on (part, place)).
             Done.
             Return body.
         Done.
@@ -165,27 +181,35 @@ Pull books on collections, and the c-language.
             Define definition as the entry for cast object-of on (kind) in one's objects but void is cast listed.
             For each pair in (cast field-of on (definition, 3))'s children, repeat:
                 Define field-kind as cast one's kind-of-type on (cast field-of on (pair, 2)) or pass the failure off.
-                The body becomes "{body} {cast copy-family on (field-kind)}_freeheap(v.{cast c-name on (cast unquoted on (cast field-of on (pair, 1)))});".
+                The body becomes field-freed on (body, "{cast copy-family on (field-kind)}_freeheap", cast c-name on (cast unquoted on (cast field-of on (pair, 1)))).
             Done.
             Return body.
         Done.
         If cast is-union on (kind):
-            Define arms as "".
+            Define c-language arm-freed, given (the c-language axiom arms, the number place, the term freer, the term member),
+                as [the arms case the place: the freer(v.the member); break;].
+            Define arms as cast no-c.
             Define place as 0.
             For each inner in cast kind-cases on (kind), repeat:
-                The arms becomes "{arms} case {place}: {cast copy-family on (inner)}_freeheap(v.case_{place}); break;".
+                The arms becomes arm-freed on (arms, place, "{cast copy-family on (inner)}_freeheap", "case_{place}").
                 Increment place by 1.
             Done.
-            Return "{body} switch (v.tag) \{{arms} \}".
+            Define c-language union-freed, given (the c-language axiom body, the c-language axiom arms),
+                as [the body switch (v.tag) { the arms }].
+            Return union-freed on (body, arms).
         Done.
         If cast is-voidable on (kind):
-            Return "{body} if (v.has) {cast copy-family on (cast voidable-inner on (kind))}_freeheap(v.value);".
+            Define c-language voidable-freed, given (the c-language axiom body, the term freer), as [the body if (v.has) the freer(v.value);].
+            Return voidable-freed on (body, "{cast copy-family on (cast voidable-inner on (kind))}_freeheap").
         Done.
-        Define value-free as "".
+        Define value-free as cast no-c.
         If cast failable-inner on (kind) is not "void":
-            The value-free becomes "if (v.ok) {cast copy-family on (cast failable-inner on (kind))}_freeheap(v.value); ".
+            Define c-language value-freed, given (the term freer), as [if (v.ok) the freer(v.value); ].
+            The value-free becomes value-freed on ("{cast copy-family on (cast failable-inner on (kind))}_freeheap").
         Done.
-        Return "{body} {value-free}if (!v.ok) \{ free((void*)v.failure.message); free((void*)v.failure.category); \}".
+        Define c-language failable-freed, given (the c-language axiom body, the c-language axiom value-free),
+            as [the body the value-free if (!v.ok) { free((void*)v.failure.message); free((void*)v.failure.category); }].
+        Return failable-freed on (body, value-free).
     Done.
 
     /// Every copy family the program noted, declared first so each may call any other, then each
@@ -206,11 +230,21 @@ Pull books on collections, and the c-language.
         For each kind in kinds-noted, repeat:
             Define type-c as cast c-type on (kind).
             Define named as cast copy-family on (kind).
-            Insert "static {type-c} {named}_copy({type-c} v, cufet_alloc_fn a) \{ {cast one's c-copy-body on (kind) or pass the failure off} \}\n" into out.
-            Insert "static void {named}_freeheap({type-c} v) \{ {cast one's c-free-body on (kind) or pass the failure off} \}\n" into out.
-            Insert "static void* {named}_heapenv({type-c} v) \{ void* e = malloc(sizeof({type-c})); *({type-c}*)e = {named}_copy(v, malloc); return e; \}\n" into out.
-            Insert "static {type-c} {named}_arenacopy(void* e) \{ return {named}_copy(*({type-c}*)e, cufet_arena_alloc); \}\n" into out.
-            Insert "static void {named}_freeenv(void* e) \{ {named}_freeheap(*({type-c}*)e); free(e); \}\n" into out.
+            Define c-language named-copy-form, given (the c-language axiom type-c, the term named-copy, the c-language axiom c-copy-body),
+                as [static the type-c the named-copy(the type-c v, cufet_alloc_fn a) { the c-copy-body }].
+            Insert "{named-copy-form on (type-c, "{named}_copy", cast one's c-copy-body on (kind) or pass the failure off)}\n" into out.
+            Define c-language named-freeheap-form, given (the term named-freeheap, the c-language axiom type-c, the c-language axiom c-free-body),
+                as [static void the named-freeheap(the type-c v) { the c-free-body }].
+            Insert "{named-freeheap-form on ("{named}_freeheap", type-c, cast one's c-free-body on (kind) or pass the failure off)}\n" into out.
+            Define c-language named-heapenv-form, given (the term named-heapenv, the c-language axiom type-c, the term named-copy),
+                as [static void* the named-heapenv(the type-c v) { void* e = malloc(sizeof(the type-c)); *(the type-c*)e = the named-copy(v, malloc); return e; }].
+            Insert "{named-heapenv-form on ("{named}_heapenv", type-c, "{named}_copy")}\n" into out.
+            Define c-language named-arenacopy-form, given (the c-language axiom type-c, the term named-arenacopy, the term named-copy),
+                as [static the type-c the named-arenacopy(void* e) { return the named-copy(*(the type-c*)e, cufet_arena_alloc); }].
+            Insert "{named-arenacopy-form on (type-c, "{named}_arenacopy", "{named}_copy")}\n" into out.
+            Define c-language named-freeenv-form, given (the term named-freeenv, the term named-freeheap, the c-language axiom type-c),
+                as [static void the named-freeenv(void* e) { the named-freeheap(*(the type-c*)e); free(e); }].
+            Insert "{named-freeenv-form on ("{named}_freeenv", "{named}_freeheap", type-c)}\n" into out.
         Done.
         Insert "\n" into out.
         Return out converted to text.

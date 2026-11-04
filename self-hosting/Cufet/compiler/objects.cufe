@@ -202,7 +202,8 @@ Pull books on collections, and the c-language.
             Cast writer's emit-statement on (inner) or pass the failure off.
         Done.
         Define signature as cast one's c-getter-signature on (object-name, getter) or pass the failure off.
-        Return "{signature} \{\n    {cast c-struct-name on (object-name)}* cv_one = &cf_self;\n{writer's body converted to text}\}\n\n".
+        Define c-language receiver-held, given (the term type-c), as [    the type-c* cv_one = &cf_self;].
+        Return cast c-function-text on (signature, "{receiver-held on (cast c-struct-name on (object-name))}\n{writer's body converted to text}").
     Done.
 
     Bind text to c-setter-name, given (the text object-name, the text setter-name):
@@ -229,7 +230,7 @@ Pull books on collections, and the c-language.
             Cast writer's emit-statement on (inner) or pass the failure off.
         Done.
         Define signature as cast one's c-setter-signature on (object-name, setter) or pass the failure off.
-        Return "{signature} \{\n{writer's body converted to text}\}\n\n".
+        Return cast c-function-text on (signature, writer's body converted to text).
     Done.
 
     Bind text to c-method-name, given (the text object-name, the text method-name):
@@ -289,7 +290,7 @@ Pull books on collections, and the c-language.
     Bind text or failure to c-object-struct unto emitter, given (the text object-name):
         Define definition as the entry for object-name in one's objects but void is cast listed.
         Define out as a chase.
-        Insert "typedef struct \{\n" into out.
+        Insert "typedef struct {cast c-open}\n" into out.
         If the number of (cast field-of on (definition, 3))'s children is 0, insert "    char cf_nothing;\n" into out.
         For each pair in (cast field-of on (definition, 3))'s children, repeat:
             Define held as cast one's kind-of-type on (cast field-of on (pair, 2)) or pass the failure off.
@@ -304,7 +305,9 @@ Pull books on collections, and the c-language.
             Done.
             Insert "    {cast c-type on (held)} {cast c-name on (cast unquoted on (cast field-of on (pair, 1)))};\n" into out.
         Done.
-        Insert "\} {cast c-struct-name on (object-name)};\n" into out.
+        Define c-language struct-name-form, given (the term c-struct-name),
+            as [} the c-struct-name;].
+        Insert "{struct-name-form on (cast c-struct-name on (object-name))}\n" into out.
         Return out converted to text.
     Done.
 
@@ -318,27 +321,33 @@ Pull books on collections, and the c-language.
     Bind text or failure to c-object unto emitter, given (the text object-name):
         Define definition as the entry for object-name in one's objects but void is cast listed.
         Define type-c as cast c-struct-name on (object-name).
-        Define writes as a chase.
-        Define tests as "".
+        Define c-language comma-written, given (the c-language axiom writes), as [the writes fputs(", ", stdout); ].
+        Define c-language field-written, given (the c-language axiom writes, the text label, the c-language axiom written),
+            as [the writes fputs(the label, stdout); the written; ].
+        Define c-language test-added, given (the c-language axiom tests, the c-language axiom same), as [the tests && the same].
+        Define writes as cast no-c.
+        Define tests as cast no-c.
         Define first-field as true.
         For each pair in (cast field-of on (definition, 3))'s children, repeat:
             Define field as cast unquoted on (cast field-of on (pair, 1)).
             Define held as cast one's kind-of-type on (cast field-of on (pair, 2)) or pass the failure off.
             Define member as cast c-name on (field).
-            If first-field is false, insert " fputs(\", \", stdout);" into writes.
+            If first-field is false, the writes becomes comma-written on (writes).
             The first-field becomes false.
-            Insert " fputs(\"{field}: \", stdout); {cast write-call on (held, field-read on ([v], member))};" into writes.
+            The writes becomes field-written on (writes, "{field}: ", cast write-call on (held, field-read on ([v], member))).
             Define test as cast c-equal on (held, field-read on ([a], member), field-read on ([b], member)).
-            If tests is "", the tests becomes test converted to text.
-            Otherwise, the tests becomes "{tests} && {test}".
+            If cast is-no-c on (tests), the tests becomes test.
+            Otherwise, the tests becomes test-added on (tests, test).
         Done.
-        If tests is "", the tests becomes "1".
-        Define out as a chase.
+        If cast is-no-c on (tests), the tests becomes c-verbatim on ([1]).
         // ⚠ Printed by the name its author wrote: a type a module carries is `point in shapes` to the
         // compiler and `point` to whoever reads the output, as C#'s `DisplayName` has it.
-        Insert "static void {type-c}_write({type-c} v) \{ fputs(\"{cast display-name on (object-name)}(\", stdout);{writes converted to text} fputs(\")\", stdout); \}\n" into out.
-        Insert "static int {type-c}_eq({type-c} a, {type-c} b) \{ (void)a; (void)b; return {tests}; \}\n\n" into out.
-        Return out converted to text.
+        Define c-language object-written, given (the term writer, the term type-c, the text label, the c-language axiom writes, the term equal, the c-language axiom tests),
+            as [static void the writer(the type-c v) { fputs(the label, stdout); the writes fputs(")", stdout); }
+static int the equal(the type-c a, the type-c b) { (void)a; (void)b; return the tests; }
+
+].
+        Return object-written on ("{type-c}_write", type-c, "{cast display-name on (object-name)}(", writes, "{type-c}_eq", tests) converted to text.
     Done.
 
     /// A method's head as C: what it gives back, its name, the object it changes, and its parameters.
@@ -371,6 +380,6 @@ Pull books on collections, and the c-language.
         Done.
         Cast writer's close-failable.
         Define signature as cast one's c-method-signature on (object-name, method) or pass the failure off.
-        Return "{signature} \{\n{writer's body converted to text}\}\n\n".
+        Return cast c-function-text on (signature, writer's body converted to text).
     Done.
 Done.

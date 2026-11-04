@@ -548,7 +548,7 @@ Pull books on collections, and the c-language.
     /// A statement built from the temporaries, in a block of its own that binds them first.
     Bind text to in-order-statement, given (the c-language axiom prefix, the text built):
         If cast is-no-c on (prefix), return built.
-        Return "\{ {prefix}{built} \}".
+        Return "{cast c-open} {prefix}{built} {cast c-close}".
     Done.
 
     /// The operands of a node, fields `first` to `last`, as C — what binds them in order (see
@@ -771,6 +771,11 @@ Pull books on collections, and the c-language.
         Return call-of-one on ("cufet_write_text", value).
     Done.
 
+    /// A line of C written as source.
+    Bind void to put unto emitter, given (the c-language axiom code):
+        Cast one's line on (code converted to text).
+    Done.
+
     Bind void to line unto emitter, given (the text written):
         Insert one's indent into one's body.
         Insert written into one's body.
@@ -850,7 +855,9 @@ Pull books on collections, and the c-language.
                 // Locked for the whole line: a `State` is several writes. The value is worked out
                 // before the lock is taken — it may wait on a task that prints, which a lock held
                 // across the wait would keep from printing for ever.
-                Cast one's line on ("\{ __auto_type cf_said = {value}; cufet_out_lock(); {cast write-call on (value-kind, [cf_said])}; cufet_nl(); cufet_out_unlock(); \}").
+                Define c-language auto-type-said-form, given (the c-language axiom value, the c-language axiom write-call),
+                    as [{ __auto_type cf_said = the value; cufet_out_lock(); the write-call; cufet_nl(); cufet_out_unlock(); }].
+                Cast one's put on (auto-type-said-form on (value, cast write-call on (value-kind, [cf_said]))).
             Done.
             "DefineStatement":
                 If (cast field-of on (statement, 2))'s kind is "AxiomLiteral":
@@ -895,19 +902,23 @@ Pull books on collections, and the c-language.
             Done.
             "WhileStatement":
                 Define condition as cast one's c-of on (cast field-of on (statement, 1)) or pass the failure off.
-                Cast one's line on ("while ({condition}) \{").
+                Define c-language while-condition-form, given (the c-language axiom condition),
+                    as [while (the condition) {].
+                Cast one's put on (while-condition-form on (condition)).
                 Define loop-kept as cast one's entering-loop.
                 Cast one's emit-block on (cast field-of on (statement, 2)) or pass the failure off.
                 Cast one's leaving-loop on (loop-kept).
-                Cast one's line on ("\}").
+                Cast one's put on ([}]).
             Done.
             "RepeatUntilStatement":
-                Cast one's line on ("do \{").
+                Cast one's put on ([do {]).
                 Define loop-kept as cast one's entering-loop.
                 Cast one's emit-block on (cast field-of on (statement, 1)) or pass the failure off.
                 Cast one's leaving-loop on (loop-kept).
                 Define condition as cast one's c-of on (cast field-of on (statement, 2)) or pass the failure off.
-                Cast one's line on ("\} while (!({condition}));").
+                Define c-language while-condition-form-2, given (the c-language axiom condition),
+                    as [} while (!(the condition));].
+                Cast one's put on (while-condition-form-2 on (condition)).
             Done.
             "ReturnStatement":
                 // Inside a task, a `Return` publishes to its box.
@@ -958,7 +969,9 @@ Pull books on collections, and the c-language.
             "SkipStatement", cast one's line on (cast one's c-loop-jump on ("continue")).
             "SuppressStatement":
                 Define handler as the entry for "%suppress" in one's kinds but void is "".
-                Cast one's line on ("\{ cf_sup_{handler} = 1; goto cf_done_{handler}; \}").
+                Define c-language handler-sup-goto-form, given (the term handler-cf-sup, the term handler-cf-done),
+                    as [{ the handler-cf-sup = 1; goto the handler-cf-done; }].
+                Cast one's put on (handler-sup-goto-form on ("cf_sup_{handler}", "cf_done_{handler}")).
             Done.
             "JudgeStatement", cast one's emit-judge on (statement) or pass the failure off.
             "TryStatement", cast one's emit-try on (statement) or pass the failure off.
@@ -1018,7 +1031,7 @@ Pull books on collections, and the c-language.
             Cast one's emit-region on (statement, "") or pass the failure off.
             Return.
         Done.
-        Cast one's line on ("\{").
+        Cast one's put on ([{]).
         Define kept as a map from text to text.
         For each pair in one's kinds, repeat:
             In kept, the entry for the key of pair becomes the value of pair.
@@ -1034,7 +1047,7 @@ Pull books on collections, and the c-language.
         Cast one's closing-scope on (begun).
         The one's indent becomes outer.
         The one's kinds becomes kept.
-        Cast one's line on ("\}").
+        Cast one's put on ([}]).
     Done.
 
     /// Whether a statement only declares — gathered with the program's declarations, and built there.
@@ -1085,7 +1098,7 @@ Pull books on collections, and the c-language.
             Return.
         Done.
         If cast is-scalar on (subject-kind) is false, return a failure (cast not-built on ("judging a {subject-kind}")).
-        Cast one's line on ("\{").
+        Cast one's put on ([{]).
         Define kept as a map from text to text.
         For each pair in one's kinds, repeat:
             In kept, the entry for the key of pair becomes the value of pair.
@@ -1101,36 +1114,35 @@ Pull books on collections, and the c-language.
             If the number of (cast field-of on (arm, 1))'s children is greater than 0:
                 Return a failure (cast not-built on ("a judgement arm naming a type")).
             Done.
-            Define tests as "".
+            Define tests as cast no-c.
             For each written in (cast field-of on (arm, 5))'s children, repeat:
                 Define written-kind as cast one's kind-of on (written) or pass the failure off.
                 If written-kind is not subject-kind:
                     Return a failure (cast not-built on ("a judgement arm of another kind than its subject")).
                 Done.
                 Define test as cast c-equal on (subject-kind, [cv_it], cast one's c-of on (written) or pass the failure off).
-                If tests is "", the tests becomes test converted to text.
-                Otherwise, the tests becomes "{tests} || {test}".
+                The tests becomes cast c-any-of on (tests, test).
             Done.
-            If first-arm, cast one's line on ("if ({tests}) \{").
-            Otherwise, cast one's line on ("\} else if ({tests}) \{").
+            If first-arm, cast one's put on (if-open on (tests)).
+            Otherwise, cast one's put on (else-if-open on (tests)).
             The first-arm becomes false.
             Cast one's emit-block on (cast field-of on (arm, 2)) or pass the failure off.
         Done.
         Define otherwise-body as cast field-of on (statement, 3).
         If cast is-nothing on (otherwise-body) is false:
             If first-arm:
-                Cast one's line on ("\{").
+                Cast one's put on ([{]).
             Done.
             Otherwise:
-                Cast one's line on ("\} else \{").
+                Cast one's put on ([} else {]).
             Done.
             Cast one's emit-block on (otherwise-body) or pass the failure off.
             The first-arm becomes false.
         Done.
-        If first-arm is false, cast one's line on ("\}").
+        If first-arm is false, cast one's put on ([}]).
         The one's indent becomes outer.
         The one's kinds becomes kept.
-        Cast one's line on ("\}").
+        Cast one's put on ([}]).
     Done.
 
     /// What this compiler cannot build in a function yet — anything marked — or "". A method bound
@@ -1194,7 +1206,7 @@ Pull books on collections, and the c-language.
         Done.
         Cast writer's close-failable.
         Define signature as cast one's c-signature on (statement, overrides, named) or pass the failure off.
-        Return "{signature} \{\n{writer's body converted to text}\}\n\n".
+        Return cast c-function-text on (signature, writer's body converted to text).
     Done.
 
     /// The whole program as one C file: the series types, its objects, its functions and methods —
@@ -1483,7 +1495,7 @@ Pull books on collections, and the c-language.
         // What foreign source needs above it — beside the runtime's header, in the runtime folder.
         If (the entry for "%foreign" in writer's inferred) is not void, insert "#include \"cufet-foreign.h\"\n\n" into out.
         Insert cast c-series-prelude into out.
-        Insert cast c-chase-runtime into out.
+        Insert (cast c-chase-runtime) converted to text into out.
         Insert cast c-voidable-prelude into out.
         // A series of a union named ahead of the objects, which may hold one by its address — and
         // how it is written and compared, which an object's own writing calls.
@@ -1525,7 +1537,7 @@ Pull books on collections, and the c-language.
         For each written in writer's lambda-code, repeat:
             Insert written into out.
         Done.
-        Insert "int main(int argc, char** argv) \{\n" into out.
+        Insert "int main(int argc, char** argv) {cast c-open}\n" into out.
         Insert "    cufet_set_args(argc, argv);\n" into out.
         Insert "    CUFET_STDOUT_BINARY();\n" into out.
         Insert "    cufet_watch_stack();\n" into out.
@@ -1536,7 +1548,7 @@ Pull books on collections, and the c-language.
         Insert writer's body converted to text into out.
         Insert "    cufet_arena_pop();\n" into out.
         Insert "    return 0;\n" into out.
-        Insert "\}\n" into out.
+        Insert "{cast c-close}\n" into out.
         Return out converted to text.
     Done.
 Done.

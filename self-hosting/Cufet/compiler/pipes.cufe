@@ -179,12 +179,12 @@ Pull books on collections, and the c-language.
         Cast one's register-copy on (fed) or pass the failure off.
         Define family as cast copy-family on (fed).
         Define name as cast unquoted on (cast field-of on (statement, 1)).
-        Cast one's line on ("for (;;) \{").
+        Cast one's put on ([for (;;) {]).
         Define kept as cast one's kinds-kept.
         Define outer as one's indent.
         The one's indent becomes outer joined to "    ".
         Cast one's line on ("void* cf_pe = NULL; int cf_ph = cufet_chan_recv(cufet_pipe_in, &cf_pe);").
-        Cast one's line on ("if (cf_ph < 0) \{ cufet_checkpoint(); break; \}").
+        Cast one's put on ([if (cf_ph < 0) { cufet_checkpoint(); break; }]).
         Cast one's line on ("if (cf_ph == 0) break;").
         Cast one's line on ("{cast c-type on (fed)} {cast c-name on (name)} = {family}_arenacopy(cf_pe); {family}_freeenv(cf_pe);").
         In one's kinds, the entry for name becomes fed.
@@ -196,7 +196,7 @@ Pull books on collections, and the c-language.
         Cast one's emit-block on (cast field-of on (statement, 2)) or pass the failure off.
         Cast one's leaving-loop on (loop-kept).
         The one's kinds becomes kept.
-        Cast one's line on ("\}").
+        Cast one's put on ([}]).
     Done.
 
     /// `a | b | c.` of functions — each stage on its own thread, a channel between each and the
@@ -206,7 +206,7 @@ Pull books on collections, and the c-language.
         Cast gather-stages on (pipe, stages).
         Define label as "{(cast field-of on (pipe, 3))'s word}_{(cast field-of on (pipe, 4))'s word}".
         Define count as the number of stages.
-        Cast one's line on ("\{").
+        Cast one's put on ([{]).
         Define outer as one's indent.
         The one's indent becomes outer joined to "    ".
         Define place as 0.
@@ -233,11 +233,11 @@ Pull books on collections, and the c-language.
             If step is greater than 1, the taking becomes "cf_pch_{label}[{step - 2}]".
             Define giving as "NULL".
             If step is less than count, the giving becomes "cf_pch_{label}[{step - 1}]".
-            Cast one's line on ("\{ cufet_pipe_arg* cf_pa = (cufet_pipe_arg*)malloc(sizeof(cufet_pipe_arg)); cf_pa->in = {taking}; cf_pa->out = {giving}; cf_pa->fn = cf_pstg_{label}_{step}.fn; cf_pa->env = cf_pstg_{label}_{step}.env; pthread_create(&cf_pth_{label}[{step - 1}], NULL, cufet_pipe_stage, cf_pa); \}").
+            Cast one's line on ("{cast c-open} cufet_pipe_arg* cf_pa = (cufet_pipe_arg*)malloc(sizeof(cufet_pipe_arg)); cf_pa->in = {taking}; cf_pa->out = {giving}; cf_pa->fn = cf_pstg_{label}_{step}.fn; cf_pa->env = cf_pstg_{label}_{step}.env; pthread_create(&cf_pth_{label}[{step - 1}], NULL, cufet_pipe_stage, cf_pa); {cast c-close}").
         Done.
         Cast one's line on ("for (int cf_pj = 0; cf_pj < {count}; cf_pj++) pthread_join(cf_pth_{label}[cf_pj], NULL);").
         Cast one's line on ("for (int cf_pf = 0; cf_pf < {count - 1}; cf_pf++) cufet_chan_free(cf_pch_{label}[cf_pf]);").
         The one's indent becomes outer.
-        Cast one's line on ("\}").
+        Cast one's put on ([}]).
     Done.
 Done.

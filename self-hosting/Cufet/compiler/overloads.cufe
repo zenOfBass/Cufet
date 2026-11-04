@@ -98,7 +98,7 @@ Pull books on collections, and the c-language.
             Cast writer's emit-statement on (inner) or pass the failure off.
         Done.
         Define signature as cast one's c-overload-signature on (declaration) or pass the failure off.
-        Return "{signature} \{\n{writer's body converted to text}\}\n\n".
+        Return cast c-function-text on (signature, writer's body converted to text).
     Done.
 
     /// A call of the overload a binary expression reaches, its two sides worked out in order.

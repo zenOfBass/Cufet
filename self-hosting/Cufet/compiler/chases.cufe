@@ -12,219 +12,218 @@
 
 Pull books on collections, and the c-language.
     /// The C every chase works through.
-    Bind text to c-chase-runtime:
-        Define out as a chase.
-        Insert "typedef struct \{ int32_t* data; int len; int cap; \} CufetChase;\n" into out.
-        Insert "\n" into out.
-        Insert "static CufetChase* cufet_chase_new(void) \{\n" into out.
-        Insert "    CufetChase* c = (CufetChase*)cufet_arena_alloc(sizeof(CufetChase));\n" into out.
-        Insert "    c->len = 0; c->cap = 16;\n" into out.
-        Insert "    c->data = (int32_t*)cufet_arena_alloc(sizeof(int32_t) * (size_t)c->cap);\n" into out.
-        Insert "    return c;\n" into out.
-        Insert "\}\n" into out.
-        Insert "\n" into out.
-        Insert "static void cufet_chase_push(CufetChase* c, int32_t point) \{\n" into out.
-        Insert "    if (c->len == c->cap) \{\n" into out.
-        Insert "        int grown = c->cap * 2;\n" into out.
-        Insert "        int32_t* moved = (int32_t*)cufet_arena_alloc(sizeof(int32_t) * (size_t)grown);\n" into out.
-        Insert "        memcpy(moved, c->data, sizeof(int32_t) * (size_t)c->len);\n" into out.
-        Insert "        c->data = moved; c->cap = grown;\n" into out.
-        Insert "    \}\n" into out.
-        Insert "    c->data[c->len++] = point;\n" into out.
-        Insert "\}\n" into out.
-        Insert "\n" into out.
-        Insert "/* Appends every character of a UTF-8 text. A malformed byte is taken as one character rather\n" into out.
-        Insert "   than rejected: the lexer only ever hands over well-formed text, and a buffer is the wrong\n" into out.
-        Insert "   place to discover otherwise. */\n" into out.
-        Insert "static void cufet_chase_append(CufetChase* c, const char* text) \{\n" into out.
-        Insert "    const unsigned char* p = (const unsigned char*)text;\n" into out.
-        Insert "    while (*p) \{\n" into out.
-        Insert "        int32_t point; int extra;\n" into out.
-        Insert "        if      (*p < 0x80) \{ point = *p;        extra = 0; \}\n" into out.
-        Insert "        else if ((*p & 0xE0) == 0xC0) \{ point = *p & 0x1F; extra = 1; \}\n" into out.
-        Insert "        else if ((*p & 0xF0) == 0xE0) \{ point = *p & 0x0F; extra = 2; \}\n" into out.
-        Insert "        else if ((*p & 0xF8) == 0xF0) \{ point = *p & 0x07; extra = 3; \}\n" into out.
-        Insert "        else \{ point = *p; extra = 0; \}\n" into out.
-        Insert "        p++;\n" into out.
-        Insert "        for (int i = 0; i < extra && (*p & 0xC0) == 0x80; i++) \{ point = (point << 6) | (*p & 0x3F); p++; \}\n" into out.
-        Insert "        cufet_chase_push(c, point);\n" into out.
-        Insert "    \}\n" into out.
-        Insert "\}\n" into out.
-        Insert "\n" into out.
-        Insert "/* How many bytes one code point needs in UTF-8. */\n" into out.
-        Insert "static int cufet_utf8_width(int32_t point) \{\n" into out.
-        Insert "    if (point < 0x80) return 1;\n" into out.
-        Insert "    if (point < 0x800) return 2;\n" into out.
-        Insert "    if (point < 0x10000) return 3;\n" into out.
-        Insert "    return 4;\n" into out.
-        Insert "\}\n" into out.
-        Insert "\n" into out.
-        Insert "static char* cufet_utf8_put(char* out, int32_t point) \{\n" into out.
-        Insert "    if (point < 0x80) \{ *out++ = (char)point; return out; \}\n" into out.
-        Insert "    if (point < 0x800) \{\n" into out.
-        Insert "        *out++ = (char)(0xC0 | (point >> 6));\n" into out.
-        Insert "        *out++ = (char)(0x80 | (point & 0x3F));\n" into out.
-        Insert "        return out;\n" into out.
-        Insert "    \}\n" into out.
-        Insert "    if (point < 0x10000) \{\n" into out.
-        Insert "        *out++ = (char)(0xE0 | (point >> 12));\n" into out.
-        Insert "        *out++ = (char)(0x80 | ((point >> 6) & 0x3F));\n" into out.
-        Insert "        *out++ = (char)(0x80 | (point & 0x3F));\n" into out.
-        Insert "        return out;\n" into out.
-        Insert "    \}\n" into out.
-        Insert "    *out++ = (char)(0xF0 | (point >> 18));\n" into out.
-        Insert "    *out++ = (char)(0x80 | ((point >> 12) & 0x3F));\n" into out.
-        Insert "    *out++ = (char)(0x80 | ((point >> 6) & 0x3F));\n" into out.
-        Insert "    *out++ = (char)(0x80 | (point & 0x3F));\n" into out.
-        Insert "    return out;\n" into out.
-        Insert "\}\n" into out.
-        Insert "\n" into out.
-        Insert "/* The explicit COPY `converted to text` makes. The buffer lives on, independent. */\n" into out.
-        Insert "static const char* cufet_chase_text(CufetChase* c) \{\n" into out.
-        Insert "    size_t need = 1;\n" into out.
-        Insert "    for (int i = 0; i < c->len; i++) need += (size_t)cufet_utf8_width(c->data[i]);\n" into out.
-        Insert "    char* out = (char*)cufet_arena_alloc(need);\n" into out.
-        Insert "    char* at = out;\n" into out.
-        Insert "    for (int i = 0; i < c->len; i++) at = cufet_utf8_put(at, c->data[i]);\n" into out.
-        Insert "    *at = 0;\n" into out.
-        Insert "    return out;\n" into out.
-        Insert "\}\n" into out.
-        Insert "\n" into out.
-        Insert "/* Printed as the COLLECTION it is — `(h, e, l, l, o)` — never as the text it will become. */\n" into out.
-        Insert "/* Sets one position, and REFUSES a text that is not exactly one character.\n" into out.
-        Insert "\n" into out.
-        Insert "   ⚠ A length check at run time rather than a type error, because a text's length is not known\n" into out.
-        Insert "   until it exists. The alternative — taking the first character and dropping the rest — is the\n" into out.
-        Insert "   silent resolution this language refuses everywhere else; setting one position to \"abc\" is a\n" into out.
-        Insert "   mistake, not an abbreviation. Insert is the operation that takes however many. */\n" into out.
-        Insert "static void cufet_chase_set(CufetChase* c, int index1, const char* one, int line) \{\n" into out.
-        Insert "    CufetChase* scratch = cufet_chase_new();\n" into out.
-        Insert "    cufet_chase_append(scratch, one);\n" into out.
-        Insert "    if (scratch->len != 1)\n" into out.
-        Insert "        cufet_raise(cufet_msgf(\n" into out.
-        Insert "            \"Setting one position needs exactly one character, and \\\"%s\\\" is %d. This happened on line %d.\",\n" into out.
-        Insert "            one, scratch->len, line));\n" into out.
-        Insert "    c->data[index1 - 1] = scratch->data[0];\n" into out.
-        Insert "\}\n" into out.
-        Insert "\n" into out.
-        Insert "/* Takes one character out and closes the gap. -1 means the last, matching the series form. */\n" into out.
-        Insert "static void cufet_chase_remove_at(CufetChase* c, long long index1, const char* name, int line) \{\n" into out.
-        Insert "    int at = (index1 < 0)\n" into out.
-        Insert "        ? (int)cufet_last_check(c->len, name, line)\n" into out.
-        Insert "        : (int)cufet_idx_check(index1, c->len, name, line);\n" into out.
-        Insert "    memmove(&c->data[at - 1], &c->data[at], sizeof(int32_t) * (size_t)(c->len - at));\n" into out.
-        Insert "    c->len--;\n" into out.
-        Insert "\}\n" into out.
-        Insert "\n" into out.
-        Insert "/* A number as a code point, or a failure naming which way it is not one. ⚠ The checker refuses a\n" into out.
-        Insert "   written-out bad value, so arriving here means the number was computed — and the wording matches\n" into out.
-        Insert "   the static message deliberately, so a reader sees one message either way. */\n" into out.
-        Insert "static int32_t cufet_code_point(CufetDec point, int line) \{\n" into out.
-        Insert "    /* Whole means no fractional part once trailing zeros are gone — `cufet_dec_strip` is what\n" into out.
-        Insert "       decides that everywhere else, so it decides it here too rather than a second rule. */\n" into out.
-        Insert "    if (cufet_dec_strip(point).scale != 0)\n" into out.
-        Insert "        cufet_raise(cufet_msgf(\"%s is not a code point, because it is not a whole number (line %d).\",\n" into out.
-        Insert "                               cufet_text_from_dec(point), line));\n" into out.
-        Insert "    long long n = cufet_to_int(point);\n" into out.
-        Insert "    if (n < 0 || n > 0x10FFFF)\n" into out.
-        Insert "        cufet_raise(cufet_msgf(\"%lld is outside the range of a code point — they run from 0 to U+10FFFF (line %d).\",\n" into out.
-        Insert "                               n, line));\n" into out.
-        Insert "    if (n >= 0xD800 && n <= 0xDFFF)\n" into out.
-        Insert "        cufet_raise(cufet_msgf(\"%lld is half of a character, not one — surrogates only mean anything in pairs (line %d).\",\n" into out.
-        Insert "                               n, line));\n" into out.
-        Insert "    return (int32_t)n;\n" into out.
-        Insert "\}\n" into out.
-        Insert "\n" into out.
-        Insert "/* One code point in, at a 0-based position. ⚠ `at` equal to the length appends. */\n" into out.
-        Insert "static void cufet_chase_insert_point(CufetChase* c, int at, int32_t point) \{\n" into out.
-        Insert "    int moved = c->len - at;\n" into out.
-        Insert "    cufet_chase_push(c, 0);\n" into out.
-        Insert "    memmove(&c->data[at + 1], &c->data[at], sizeof(int32_t) * (size_t)moved);\n" into out.
-        Insert "    c->data[at] = point;\n" into out.
-        Insert "\}\n" into out.
-        Insert "\n" into out.
-        Insert "/* Inserts every character of a text at a 0-based position, shifting what follows. ⚠ `at` equal to\n" into out.
-        Insert "   the length appends, which is what makes the plain form and the positional forms one helper. */\n" into out.
-        Insert "static void cufet_chase_insert(CufetChase* c, int at, const char* text) \{\n" into out.
-        Insert "    CufetChase* incoming = cufet_chase_new();\n" into out.
-        Insert "    cufet_chase_append(incoming, text);\n" into out.
-        Insert "    if (incoming->len == 0) return;\n" into out.
-        Insert "\n" into out.
-        Insert "    int moved = c->len - at;\n" into out.
-        Insert "    for (int i = 0; i < incoming->len; i++) cufet_chase_push(c, 0);   /* grow, then shift */\n" into out.
-        Insert "    memmove(&c->data[at + incoming->len], &c->data[at], sizeof(int32_t) * (size_t)moved);\n" into out.
-        Insert "    memcpy(&c->data[at], incoming->data, sizeof(int32_t) * (size_t)incoming->len);\n" into out.
-        Insert "\}\n" into out.
-        Insert "\n" into out.
-        Insert "/* Takes the FIRST occurrence of one character out, by value. The one-character rule is the same\n" into out.
-        Insert "   one setting a position follows, and for the same reason: a text's length is not known until it\n" into out.
-        Insert "   exists, and keeping its first character would be the silent resolution this language refuses. */\n" into out.
-        Insert "static void cufet_chase_remove_value(CufetChase* c, const char* one, const char* name, int line) \{\n" into out.
-        Insert "    CufetChase* scratch = cufet_chase_new();\n" into out.
-        Insert "    cufet_chase_append(scratch, one);\n" into out.
-        Insert "    if (scratch->len != 1)\n" into out.
-        Insert "        cufet_raise(cufet_msgf(\n" into out.
-        Insert "            \"'Remove' from a chase takes exactly one character, and \\\"%s\\\" is %d. This happened on line %d.\",\n" into out.
-        Insert "            one, scratch->len, line));\n" into out.
-        Insert "    for (int i = 0; i < c->len; i++) \{\n" into out.
-        Insert "        if (c->data[i] != scratch->data[0]) continue;\n" into out.
-        Insert "        memmove(&c->data[i], &c->data[i + 1], sizeof(int32_t) * (size_t)(c->len - i - 1));\n" into out.
-        Insert "        c->len--;\n" into out.
-        Insert "        return;\n" into out.
-        Insert "    \}\n" into out.
-        Insert "    cufet_raise(cufet_msgf(\"Character not found in %s on line %d.\", name, line));\n" into out.
-        Insert "\}\n" into out.
-        Insert "\n" into out.
-        Insert "/* A sorted COPY, by code point. ⚠ The unit is the point rather than the rendered character, which\n" into out.
-        Insert "   is what keeps this identical to the interpreter — it orders the same integers. */\n" into out.
-        Insert "static CufetChase* cufet_chase_sorted(CufetChase* c, int reverse) \{\n" into out.
-        Insert "    CufetChase* out = cufet_chase_new();\n" into out.
-        Insert "    for (int i = 0; i < c->len; i++) cufet_chase_push(out, c->data[i]);\n" into out.
-        Insert "    for (int a = 1; a < out->len; a++) \{\n" into out.
-        Insert "        int32_t key = out->data[a];\n" into out.
-        Insert "        int j = a - 1;\n" into out.
-        Insert "        while (j >= 0 && (reverse ? out->data[j] < key : out->data[j] > key)) \{\n" into out.
-        Insert "            out->data[j + 1] = out->data[j];\n" into out.
-        Insert "            j--;\n" into out.
-        Insert "        \}\n" into out.
-        Insert "        out->data[j + 1] = key;\n" into out.
-        Insert "    \}\n" into out.
-        Insert "    return out;\n" into out.
-        Insert "\}\n" into out.
-        Insert "\n" into out.
-        Insert "/* One character out, as the one-character TEXT the language calls a character. Four bytes plus a\n" into out.
-        Insert "   terminator is the most any code point needs. */\n" into out.
-        Insert "static const char* cufet_chase_at(CufetChase* c, int index1) \{\n" into out.
-        Insert "    char* out = (char*)cufet_arena_alloc(5);\n" into out.
-        Insert "    char* at = cufet_utf8_put(out, c->data[index1 - 1]);\n" into out.
-        Insert "    *at = 0;\n" into out.
-        Insert "    return out;\n" into out.
-        Insert "\}\n" into out.
-        Insert "\n" into out.
-        Insert "/* Structural, matching the interpreter: a buffer of the same characters is the same buffer. */\n" into out.
-        Insert "static int cufet_chase_eq(CufetChase* a, CufetChase* b) \{\n" into out.
-        Insert "    if (a == b) return 1;\n" into out.
-        Insert "    if (!a || !b || a->len != b->len) return 0;\n" into out.
-        Insert "    for (int i = 0; i < a->len; i++) if (a->data[i] != b->data[i]) return 0;\n" into out.
-        Insert "    return 1;\n" into out.
-        Insert "\}\n" into out.
-        Insert "\n" into out.
-        Insert "static const char* cufet_chase_show(CufetChase* c) \{\n" into out.
-        Insert "    size_t need = 3;\n" into out.
-        Insert "    for (int i = 0; i < c->len; i++) need += (size_t)cufet_utf8_width(c->data[i]) + 2;\n" into out.
-        Insert "    char* out = (char*)cufet_arena_alloc(need);\n" into out.
-        Insert "    char* at = out;\n" into out.
-        Insert "    *at++ = 40;\n" into out.
-        Insert "    for (int i = 0; i < c->len; i++) \{\n" into out.
-        Insert "        if (i > 0) \{ *at++ = 44; *at++ = 32; \}\n" into out.
-        Insert "        at = cufet_utf8_put(at, c->data[i]);\n" into out.
-        Insert "    \}\n" into out.
-        Insert "    *at++ = 41;\n" into out.
-        Insert "    *at = 0;\n" into out.
-        Insert "    return out;\n" into out.
-        Insert "\}\n" into out.
-        Insert "\n" into out.
-        Return out converted to text.
+    Bind c-language axiom to c-chase-runtime:
+        Return [
+        typedef struct { int32_t* data; int len; int cap; } CufetChase;
+
+        static CufetChase* cufet_chase_new(void) {
+            CufetChase* c = (CufetChase*)cufet_arena_alloc(sizeof(CufetChase));
+            c->len = 0; c->cap = 16;
+            c->data = (int32_t*)cufet_arena_alloc(sizeof(int32_t) * (size_t)c->cap);
+            return c;
+        }
+
+        static void cufet_chase_push(CufetChase* c, int32_t point) {
+            if (c->len == c->cap) {
+                int grown = c->cap * 2;
+                int32_t* moved = (int32_t*)cufet_arena_alloc(sizeof(int32_t) * (size_t)grown);
+                memcpy(moved, c->data, sizeof(int32_t) * (size_t)c->len);
+                c->data = moved; c->cap = grown;
+            }
+            c->data[c->len++] = point;
+        }
+
+        /* Appends every character of a UTF-8 text. A malformed byte is taken as one character rather
+           than rejected: the lexer only ever hands over well-formed text, and a buffer is the wrong
+           place to discover otherwise. */
+        static void cufet_chase_append(CufetChase* c, const char* text) {
+            const unsigned char* p = (const unsigned char*)text;
+            while (*p) {
+                int32_t point; int extra;
+                if      (*p < 0x80) { point = *p;        extra = 0; }
+                else if ((*p & 0xE0) == 0xC0) { point = *p & 0x1F; extra = 1; }
+                else if ((*p & 0xF0) == 0xE0) { point = *p & 0x0F; extra = 2; }
+                else if ((*p & 0xF8) == 0xF0) { point = *p & 0x07; extra = 3; }
+                else { point = *p; extra = 0; }
+                p++;
+                for (int i = 0; i < extra && (*p & 0xC0) == 0x80; i++) { point = (point << 6) | (*p & 0x3F); p++; }
+                cufet_chase_push(c, point);
+            }
+        }
+
+        /* How many bytes one code point needs in UTF-8. */
+        static int cufet_utf8_width(int32_t point) {
+            if (point < 0x80) return 1;
+            if (point < 0x800) return 2;
+            if (point < 0x10000) return 3;
+            return 4;
+        }
+
+        static char* cufet_utf8_put(char* out, int32_t point) {
+            if (point < 0x80) { *out++ = (char)point; return out; }
+            if (point < 0x800) {
+                *out++ = (char)(0xC0 | (point >> 6));
+                *out++ = (char)(0x80 | (point & 0x3F));
+                return out;
+            }
+            if (point < 0x10000) {
+                *out++ = (char)(0xE0 | (point >> 12));
+                *out++ = (char)(0x80 | ((point >> 6) & 0x3F));
+                *out++ = (char)(0x80 | (point & 0x3F));
+                return out;
+            }
+            *out++ = (char)(0xF0 | (point >> 18));
+            *out++ = (char)(0x80 | ((point >> 12) & 0x3F));
+            *out++ = (char)(0x80 | ((point >> 6) & 0x3F));
+            *out++ = (char)(0x80 | (point & 0x3F));
+            return out;
+        }
+
+        /* The explicit COPY `converted to text` makes. The buffer lives on, independent. */
+        static const char* cufet_chase_text(CufetChase* c) {
+            size_t need = 1;
+            for (int i = 0; i < c->len; i++) need += (size_t)cufet_utf8_width(c->data[i]);
+            char* out = (char*)cufet_arena_alloc(need);
+            char* at = out;
+            for (int i = 0; i < c->len; i++) at = cufet_utf8_put(at, c->data[i]);
+            *at = 0;
+            return out;
+        }
+
+        /* Printed as the COLLECTION it is — `(h, e, l, l, o)` — never as the text it will become. */
+        /* Sets one position, and REFUSES a text that is not exactly one character.
+
+           ⚠ A length check at run time rather than a type error, because a text's length is not known
+           until it exists. The alternative — taking the first character and dropping the rest — is the
+           silent resolution this language refuses everywhere else; setting one position to "abc" is a
+           mistake, not an abbreviation. Insert is the operation that takes however many. */
+        static void cufet_chase_set(CufetChase* c, int index1, const char* one, int line) {
+            CufetChase* scratch = cufet_chase_new();
+            cufet_chase_append(scratch, one);
+            if (scratch->len != 1)
+                cufet_raise(cufet_msgf(
+                    "Setting one position needs exactly one character, and \"%s\" is %d. This happened on line %d.",
+                    one, scratch->len, line));
+            c->data[index1 - 1] = scratch->data[0];
+        }
+
+        /* Takes one character out and closes the gap. -1 means the last, matching the series form. */
+        static void cufet_chase_remove_at(CufetChase* c, long long index1, const char* name, int line) {
+            int at = (index1 < 0)
+                ? (int)cufet_last_check(c->len, name, line)
+                : (int)cufet_idx_check(index1, c->len, name, line);
+            memmove(&c->data[at - 1], &c->data[at], sizeof(int32_t) * (size_t)(c->len - at));
+            c->len--;
+        }
+
+        /* A number as a code point, or a failure naming which way it is not one. ⚠ The checker refuses a
+           written-out bad value, so arriving here means the number was computed — and the wording matches
+           the static message deliberately, so a reader sees one message either way. */
+        static int32_t cufet_code_point(CufetDec point, int line) {
+            /* Whole means no fractional part once trailing zeros are gone — `cufet_dec_strip` is what
+               decides that everywhere else, so it decides it here too rather than a second rule. */
+            if (cufet_dec_strip(point).scale != 0)
+                cufet_raise(cufet_msgf("%s is not a code point, because it is not a whole number (line %d).",
+                                       cufet_text_from_dec(point), line));
+            long long n = cufet_to_int(point);
+            if (n < 0 || n > 0x10FFFF)
+                cufet_raise(cufet_msgf("%lld is outside the range of a code point — they run from 0 to U+10FFFF (line %d).",
+                                       n, line));
+            if (n >= 0xD800 && n <= 0xDFFF)
+                cufet_raise(cufet_msgf("%lld is half of a character, not one — surrogates only mean anything in pairs (line %d).",
+                                       n, line));
+            return (int32_t)n;
+        }
+
+        /* One code point in, at a 0-based position. ⚠ `at` equal to the length appends. */
+        static void cufet_chase_insert_point(CufetChase* c, int at, int32_t point) {
+            int moved = c->len - at;
+            cufet_chase_push(c, 0);
+            memmove(&c->data[at + 1], &c->data[at], sizeof(int32_t) * (size_t)moved);
+            c->data[at] = point;
+        }
+
+        /* Inserts every character of a text at a 0-based position, shifting what follows. ⚠ `at` equal to
+           the length appends, which is what makes the plain form and the positional forms one helper. */
+        static void cufet_chase_insert(CufetChase* c, int at, const char* text) {
+            CufetChase* incoming = cufet_chase_new();
+            cufet_chase_append(incoming, text);
+            if (incoming->len == 0) return;
+
+            int moved = c->len - at;
+            for (int i = 0; i < incoming->len; i++) cufet_chase_push(c, 0);   /* grow, then shift */
+            memmove(&c->data[at + incoming->len], &c->data[at], sizeof(int32_t) * (size_t)moved);
+            memcpy(&c->data[at], incoming->data, sizeof(int32_t) * (size_t)incoming->len);
+        }
+
+        /* Takes the FIRST occurrence of one character out, by value. The one-character rule is the same
+           one setting a position follows, and for the same reason: a text's length is not known until it
+           exists, and keeping its first character would be the silent resolution this language refuses. */
+        static void cufet_chase_remove_value(CufetChase* c, const char* one, const char* name, int line) {
+            CufetChase* scratch = cufet_chase_new();
+            cufet_chase_append(scratch, one);
+            if (scratch->len != 1)
+                cufet_raise(cufet_msgf(
+                    "'Remove' from a chase takes exactly one character, and \"%s\" is %d. This happened on line %d.",
+                    one, scratch->len, line));
+            for (int i = 0; i < c->len; i++) {
+                if (c->data[i] != scratch->data[0]) continue;
+                memmove(&c->data[i], &c->data[i + 1], sizeof(int32_t) * (size_t)(c->len - i - 1));
+                c->len--;
+                return;
+            }
+            cufet_raise(cufet_msgf("Character not found in %s on line %d.", name, line));
+        }
+
+        /* A sorted COPY, by code point. ⚠ The unit is the point rather than the rendered character, which
+           is what keeps this identical to the interpreter — it orders the same integers. */
+        static CufetChase* cufet_chase_sorted(CufetChase* c, int reverse) {
+            CufetChase* out = cufet_chase_new();
+            for (int i = 0; i < c->len; i++) cufet_chase_push(out, c->data[i]);
+            for (int a = 1; a < out->len; a++) {
+                int32_t key = out->data[a];
+                int j = a - 1;
+                while (j >= 0 && (reverse ? out->data[j] < key : out->data[j] > key)) {
+                    out->data[j + 1] = out->data[j];
+                    j--;
+                }
+                out->data[j + 1] = key;
+            }
+            return out;
+        }
+
+        /* One character out, as the one-character TEXT the language calls a character. Four bytes plus a
+           terminator is the most any code point needs. */
+        static const char* cufet_chase_at(CufetChase* c, int index1) {
+            char* out = (char*)cufet_arena_alloc(5);
+            char* at = cufet_utf8_put(out, c->data[index1 - 1]);
+            *at = 0;
+            return out;
+        }
+
+        /* Structural, matching the interpreter: a buffer of the same characters is the same buffer. */
+        static int cufet_chase_eq(CufetChase* a, CufetChase* b) {
+            if (a == b) return 1;
+            if (!a || !b || a->len != b->len) return 0;
+            for (int i = 0; i < a->len; i++) if (a->data[i] != b->data[i]) return 0;
+            return 1;
+        }
+
+        static const char* cufet_chase_show(CufetChase* c) {
+            size_t need = 3;
+            for (int i = 0; i < c->len; i++) need += (size_t)cufet_utf8_width(c->data[i]) + 2;
+            char* out = (char*)cufet_arena_alloc(need);
+            char* at = out;
+            *at++ = 40;
+            for (int i = 0; i < c->len; i++) {
+                if (i > 0) { *at++ = 44; *at++ = 32; }
+                at = cufet_utf8_put(at, c->data[i]);
+            }
+            *at++ = 41;
+            *at = 0;
+            return out;
+        }
+        ].
     Done.
 
     /// What a refusal calls the chase it reaches into: its name, when it has one.
@@ -276,7 +275,7 @@ Pull books on collections, and the c-language.
             The at becomes "(int)cufet_idx_check(cufet_to_int({item 3 of sides}), cf_ch->len, \"{cast chase-label on (target)}\", {at-line})".
         Done.
         If value-kind is "number":
-            Cast one's line on ("\{ {bound} cufet_chase_insert_point(cf_ch, {at}, cufet_code_point({value}, {at-line})); \}").
+            Cast one's line on ("{cast c-open} {bound} cufet_chase_insert_point(cf_ch, {at}, cufet_code_point({value}, {at-line})); {cast c-close}").
             Return.
         Done.
         If value-kind is not "text", return a failure (cast not-built on ("inserting a {value-kind} into a chase")).
@@ -284,10 +283,10 @@ Pull books on collections, and the c-language.
         // decoded apart first, to know how far to move what follows — a chase of its own, every time,
         // which at the end cost the compiled checker 19 million chases on one file.
         If at is "cf_ch->len":
-            Cast one's line on ("\{ {bound} cufet_chase_append(cf_ch, {value}); \}").
+            Cast one's line on ("{cast c-open} {bound} cufet_chase_append(cf_ch, {value}); {cast c-close}").
             Return.
         Done.
-        Cast one's line on ("\{ {bound} cufet_chase_insert(cf_ch, {at}, {value}); \}").
+        Cast one's line on ("{cast c-open} {bound} cufet_chase_insert(cf_ch, {at}, {value}); {cast c-close}").
     Done.
 
     /// `Remove item … from`, `Remove the last from`, and `Remove "<character>" from` a chase.
@@ -329,7 +328,7 @@ Pull books on collections, and the c-language.
         If the number of sides is 3:
             The placed-at becomes "cufet_idx_check(cufet_to_int({item 2 of sides}), cf_ch->len, \"{label}\", {at-line})".
         Done.
-        Cast one's line on ("\{ {prefix}CufetChase* cf_ch = {item 1 of sides}; cufet_chase_set(cf_ch, (int){placed-at}, {item (the number of sides) of sides}, {at-line}); \}").
+        Cast one's line on ("{cast c-open} {prefix}CufetChase* cf_ch = {item 1 of sides}; cufet_chase_set(cf_ch, (int){placed-at}, {item (the number of sides) of sides}, {at-line}); {cast c-close}").
     Done.
 
     /// `For each <name> in <chase>` — each character, as a text. Changing the chase while it runs is
@@ -342,13 +341,13 @@ Pull books on collections, and the c-language.
         Define label as "The chase".
         If over's kind is "VariableReference", the label becomes "'{cast unquoted on (cast field-of on (over, 1))}'".
         Define chase-c as cast one's c-of on (over) or pass the failure off.
-        Cast one's line on ("\{").
+        Cast one's put on ([{]).
         Define kept as cast one's kinds-kept.
         Define outer as one's indent.
         The one's indent becomes outer joined to "    ".
         Cast one's line on ("CufetChase* cf_each = {chase-c};").
         Cast one's line on ("int cf_each_n = cf_each->len;").
-        Cast one's line on ("for (int cf_i = 0; ; cf_i++) \{").
+        Cast one's put on ([for (int cf_i = 0; ; cf_i++) {]).
         In one's kinds, the entry for name becomes "text".
         Cast one's declared-here on (name).
         In one's kinds, the entry for "%{name}" becomes "text".
@@ -361,9 +360,9 @@ Pull books on collections, and the c-language.
         Define loop-kept as cast one's entering-loop.
         Cast one's emit-block on (cast field-of on (statement, 3)) or pass the failure off.
         Cast one's leaving-loop on (loop-kept).
-        Cast one's line on ("\}").
+        Cast one's put on ([}]).
         The one's indent becomes outer.
         The one's kinds becomes kept.
-        Cast one's line on ("\}").
+        Cast one's put on ([}]).
     Done.
 Done.

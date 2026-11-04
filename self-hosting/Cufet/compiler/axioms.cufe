@@ -6,6 +6,30 @@
 Pull books on collections, and the c-language.
     // ── C as source, not text (DESIGN *An axiom's text as a value*) ──────
 
+    /// The braces of a function being put together — where finished C is text already.
+    Bind c-language axiom to c-open:
+        Return [{].
+    Done.
+
+    Bind c-language axiom to c-close:
+        Return [}].
+    Done.
+
+    /// A function's text: its head, and its body as it was written out.
+    Bind text to c-function-text, given (the text signature, the text body):
+        Return "{signature} {cast c-open}\n{body}{cast c-close}\n\n".
+    Done.
+
+    Define c-language if-open, given (the c-language axiom condition), as [if (the condition) {] permanently.
+    Define c-language else-if-open, given (the c-language axiom condition), as [} else if (the condition) {] permanently.
+
+    /// Any one of these tests: `||` between them.
+    Bind c-language axiom to c-any-of, given (the c-language axiom tests, the c-language axiom test):
+        Define c-language or-also, given (the c-language axiom tests, the c-language axiom test), as [the tests || the test].
+        If cast is-no-c on (tests), return test.
+        Return or-also on (tests, test).
+    Done.
+
     /// C written where a value goes — `Define x as […]` alone would DECLARE an axiom, not hold one.
     Define c-language c-verbatim, given (the c-language axiom code), as [the code] permanently.
 

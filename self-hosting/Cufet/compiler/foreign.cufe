@@ -229,7 +229,7 @@ Pull books on collections, and the c-language.
         Define returned as "({spliced-text})".
         If result is "number":
             The guard becomes "    _Static_assert(CUFET_C_WHOLE({spliced-text}), \"this axiom is returned as a number, so it has to produce a C whole number (not a float or a double)\");\n".
-            The returned becomes "(CufetForeignWhole)\{ (unsigned long long)({spliced-text}), CUFET_C_UNSIGNED({spliced-text}) \}".
+            The returned becomes "(CufetForeignWhole){cast c-open} (unsigned long long)({spliced-text}), CUFET_C_UNSIGNED({spliced-text}) {cast c-close}".
         Done.
         If result is "fact", the returned becomes "({spliced-text}) ? 1 : 0".
         If result is "voidable text":
@@ -243,7 +243,7 @@ Pull books on collections, and the c-language.
             The guard becomes "    _Static_assert(CUFET_C_ADDRESS({spliced-text}), \"this axiom is returned as a voidable address, so it has to produce a C pointer\");\n".
             The returned becomes "(void*)({spliced-text})".
         Done.
-        Insert "{cast axiom-banner on (language, source)}\nstatic {result-c} {name}({listing}) \{\n{guard}    return {returned};\n\}\n\n" into one's lambda-protos.
+        Insert "{cast axiom-banner on (language, source)}\nstatic {result-c} {name}({listing}) {cast c-open}\n{guard}    return {returned};\n{cast c-close}\n\n" into one's lambda-protos.
         Return name.
     Done.
 
@@ -281,7 +281,7 @@ Pull books on collections, and the c-language.
             Define thunk as "{release-name}_release".
             If (the entry for "released:{thunk}" in one's inferred) is void:
                 In one's inferred, the entry for "released:{thunk}" becomes "yes".
-                Insert "static void {thunk}(void* cufet_held) \{ (void){release-name}(cufet_held); \}\n\n" into one's lambda-protos.
+                Insert "static void {thunk}(void* cufet_held) {cast c-open} (void){release-name}(cufet_held); {cast c-close}\n\n" into one's lambda-protos.
             Done.
             Define c-language release-noted, given (the term thunk), as [if (cf_fa) cufet_reg_unmaker(cf_fa, the thunk); ].
             The released becomes release-noted on (thunk).
@@ -340,7 +340,7 @@ Pull books on collections, and the c-language.
             Define head as "static {cast c-type on (result)} {thunk}({declared})".
             Insert "{head};\n" into one's lambda-protos.
             Define crossed-back as cast one's axiom-result on (axiom, result, call-of-one on (wrapper, cast c-listed on (handed))) or pass the failure off.
-            Insert "{head} \{ (void)cufet_env; return {crossed-back}; \}\n\n" into one's lambda-code.
+            Insert "{head} {cast c-open} (void)cufet_env; return {crossed-back}; {cast c-close}\n\n" into one's lambda-code.
         Done.
         Return cast c-function-value on (cast function-c-name on (kind), thunk, [NULL]).
     Done.

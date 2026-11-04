@@ -56,7 +56,9 @@ Pull books on collections, and the c-language.
     Bind void or failure to emit-stream-write unto emitter, given (the node statement):
         Define value-c as cast one's c-of on (cast field-of on (statement, 1)) or pass the failure off.
         Define stream-c as cast one's c-of on (cast field-of on (statement, 2)) or pass the failure off.
-        Cast one's line on ("\{ FILE* cf_ws = {stream-c}; fputs({value-c}, cf_ws); if (cf_ws == stdout) fflush(cf_ws); \}").
+        Define c-language file-stream-fputs-form, given (the c-language axiom stream-c, the c-language axiom value-c),
+            as [{ FILE* cf_ws = the stream-c; fputs(the value-c, cf_ws); if (cf_ws == stdout) fflush(cf_ws); }].
+        Cast one's put on (file-stream-fputs-form on (stream-c, value-c)).
     Done.
 
     // ── Files open in a block ─────────────────────────────────────────────
@@ -97,7 +99,7 @@ Pull books on collections, and the c-language.
         Define name as cast unquoted on (cast field-of on (statement, 3)).
         Define stream-c as cast c-name on (name).
         Define path-c as cast one's c-of on (cast field-of on (statement, 2)) or pass the failure off.
-        Cast one's line on ("\{").
+        Cast one's put on ([{]).
         Define kept as cast one's kinds-kept.
         Define outer as one's indent.
         The one's indent becomes outer joined to "    ".
@@ -112,7 +114,9 @@ Pull books on collections, and the c-language.
             Cast one's line on ("{cast one's c-unwrapped on (opened, "failure of void")};").
         Done.
         Otherwise:
-            Cast one's line on ("\{ cfl_void cf_w = {opened}; if (!cf_w.ok) \{ fprintf(stderr, \"%s\\n\", cf_w.failure.message); exit(1); \} \}").
+            Define c-language cfl-opened-fpr-form, given (the c-language axiom opened),
+                as [{ cfl_void cf_w = the opened; if (!cf_w.ok) { fprintf(stderr, "%s\n", cf_w.failure.message); exit(1); } }].
+            Cast one's put on (cfl-opened-fpr-form on (opened)).
         Done.
         Cast one's line on ("cufet_reg_file({stream-c});").
         In one's kinds, the entry for name becomes stream-kind.
@@ -132,6 +136,6 @@ Pull books on collections, and the c-language.
         Cast one's line on ("cufet_close_file({stream-c});").
         The one's indent becomes outer.
         The one's kinds becomes kept.
-        Cast one's line on ("\}").
+        Cast one's put on ([}]).
     Done.
 Done.

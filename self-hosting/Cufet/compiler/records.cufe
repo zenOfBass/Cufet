@@ -127,27 +127,35 @@ Pull books on collections, and the c-language.
     /// A record's struct, and how it is written and compared.
     Bind text to c-record-helpers, given (the text kind):
         Define type-c as cast record-c-name on (kind).
-        Define out as a chase.
-        Insert "typedef struct \{" into out.
-        If the number of cast record-parts on (kind) is 0, insert " char cf_nothing;" into out.
-        Define writes as a chase.
-        Define tests as "1".
+        Define c-language field-held, given (the c-language axiom fields, the c-language axiom held-c, the term member),
+            as [the fields the held-c the member; ].
+        Define c-language comma-written, given (the c-language axiom writes), as [the writes fputs(", ", stdout); ].
+        Define c-language field-named, given (the c-language axiom writes, the text label), as [the writes fputs(the label, stdout); ].
+        Define c-language value-written, given (the c-language axiom writes, the c-language axiom written), as [the writes the written; ].
+        Define c-language test-added, given (the c-language axiom tests, the c-language axiom same), as [the tests && the same].
+        Define fields as cast no-c.
+        Define writes as cast no-c.
+        Define tests as c-verbatim on ([1]).
         Define place as 0.
         For each part in cast record-parts on (kind), repeat:
             Increment place by 1.
             Define field-name as cast part-name on (part).
             Define held as cast part-kind on (part).
             Define member as cast record-member on (part, place).
-            Insert " {cast c-type on (held)} {member};" into out.
-            If place is greater than 1, insert " fputs(\", \", stdout);" into writes.
-            If field-name is not "", insert " fputs(\"{field-name}: \", stdout);" into writes.
-            Insert " {cast write-call on (held, field-read on ([r], member))};" into writes.
-            The tests becomes "{tests} && {cast c-equal on (held, field-read on ([a], member), field-read on ([b], member))}".
+            The fields becomes field-held on (fields, cast c-type on (held), member).
+            If place is greater than 1, the writes becomes comma-written on (writes).
+            If field-name is not "", the writes becomes field-named on (writes, "{field-name}: ").
+            The writes becomes value-written on (writes, cast write-call on (held, field-read on ([r], member))).
+            The tests becomes test-added on (tests, cast c-equal on (held, field-read on ([a], member), field-read on ([b], member))).
         Done.
-        Insert " \} {type-c};\n" into out.
-        Insert "static void {type-c}_write({type-c} r) \{ fputs(\"record(\", stdout);{writes converted to text} fputs(\")\", stdout); \}\n" into out.
-        Insert "static int {type-c}_eq({type-c} a, {type-c} b) \{ return {tests}; \}\n\n" into out.
-        Return out converted to text.
+        If the number of cast record-parts on (kind) is 0, the fields becomes c-verbatim on ([char cf_nothing; ]).
+        Define c-language record-written, given (the c-language axiom fields, the term type-c, the term writer, the c-language axiom writes, the term equal, the c-language axiom tests),
+            as [typedef struct { the fields } the type-c;
+static void the writer(the type-c r) { fputs("record(", stdout); the writes fputs(")", stdout); }
+static int the equal(the type-c a, the type-c b) { return the tests; }
+
+].
+        Return record-written on (fields, type-c, "{type-c}_write", writes, "{type-c}_eq", tests) converted to text.
     Done.
 
     // ── Expressions ───────────────────────────────────────────────────────

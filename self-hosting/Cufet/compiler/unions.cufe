@@ -83,26 +83,36 @@ Pull books on collections, and the c-language.
     /// A union's struct, how a case is wrapped into it, and how it is written and compared.
     Bind text to c-union-helpers, given (the text kind):
         Define type-c as cast union-c-name on (kind).
-        Define out as a chase.
-        Insert "typedef struct \{ int tag;" into out.
+        Define c-language case-held, given (the c-language axiom fields, the c-language axiom held-c, the term member),
+            as [the fields the held-c the member; ].
+        Define c-language case-made, given (the c-language axiom makers, the term type-c, the term maker, the c-language axiom held-c, the number place, the term member),
+            as [the makers static the type-c the maker(the held-c v) { the type-c u; memset(&u, 0, sizeof u); u.tag = the place; u.the member = v; return u; }
+].
+        Define c-language case-written, given (the c-language axiom writes, the number place, the c-language axiom written),
+            as [the writes case the place: the written; break;].
+        Define c-language case-compared, given (the c-language axiom tests, the number place, the c-language axiom same),
+            as [the tests case the place: return the same;].
+        Define fields as cast no-c.
+        Define makers as cast no-c.
+        Define writes as cast no-c.
+        Define tests as cast no-c.
         Define place as 0.
         For each inner in cast kind-cases on (kind), repeat:
-            Insert " {cast c-type on (inner)} case_{place};" into out.
+            Define member as "case_{place}".
+            The fields becomes case-held on (fields, cast c-type on (inner), member).
+            The makers becomes case-made on (makers, type-c, "{type-c}_from_{place}", cast c-type on (inner), place, member).
+            The writes becomes case-written on (writes, place, cast write-call on (inner, field-read on ([u], member))).
+            The tests becomes case-compared on (tests, place, cast c-equal on (inner, field-read on ([a], member), field-read on ([b], member))).
             Increment place by 1.
         Done.
-        Insert " \} {type-c};\n" into out.
-        The place becomes 0.
-        Define writes as a chase.
-        Define tests as a chase.
-        For each inner in cast kind-cases on (kind), repeat:
-            Insert "static {type-c} {type-c}_from_{place}({cast c-type on (inner)} v) \{ {type-c} u; memset(&u, 0, sizeof u); u.tag = {place}; u.case_{place} = v; return u; \}\n" into out.
-            Insert " case {place}: {cast write-call on (inner, field-read on ([u], "case_{place}"))}; break;" into writes.
-            Insert " case {place}: return {cast c-equal on (inner, field-read on ([a], "case_{place}"), field-read on ([b], "case_{place}"))};" into tests.
-            Increment place by 1.
-        Done.
-        Insert "static void {type-c}_write({type-c} u) \{ switch (u.tag) \{{writes converted to text} \} \}\n" into out.
-        Insert "static int {type-c}_eq({type-c} a, {type-c} b) \{ if (a.tag != b.tag) return 0; switch (a.tag) \{{tests converted to text} \} return 0; \}\n\n" into out.
-        Return out converted to text.
+        Define c-language union-written, given (the c-language axiom fields, the term type-c, the c-language axiom makers, the term writer, the c-language axiom writes, the term equal, the c-language axiom tests),
+            as [typedef struct { int tag; the fields } the type-c;
+the makers
+static void the writer(the type-c u) { switch (u.tag) { the writes } }
+static int the equal(the type-c a, the type-c b) { if (a.tag != b.tag) return 0; switch (a.tag) { the tests } return 0; }
+
+].
+        Return union-written on (fields, type-c, makers, "{type-c}_write", writes, "{type-c}_eq", tests) converted to text.
     Done.
 
     /// Notes a union type the program uses, so its struct is written.
@@ -210,17 +220,17 @@ Pull books on collections, and the c-language.
         Define first-arm as true.
         For each arm in (cast field-of on (statement, 1))'s children, repeat:
             Define condition as cast one's c-of on (cast field-of on (arm, 1)) or pass the failure off.
-            If first-arm, cast one's line on ("if ({condition}) \{").
-            Otherwise, cast one's line on ("\} else if ({condition}) \{").
+            If first-arm, cast one's put on (if-open on (condition)).
+            Otherwise, cast one's put on (else-if-open on (condition)).
             The first-arm becomes false.
             Cast one's emit-block on (cast field-of on (arm, 2)) or pass the failure off.
         Done.
         Define otherwise-body as cast field-of on (statement, 2).
         If cast is-nothing on (otherwise-body) is false:
-            Cast one's line on ("\} else \{").
+            Cast one's put on ([} else {]).
             Cast one's emit-block on (otherwise-body) or pass the failure off.
         Done.
-        Cast one's line on ("\}").
+        Cast one's put on ([}]).
     Done.
 
     /// `Judge <a union>, where it is:` by type — a tag test for each arm. What `it` reads as in an arm,
@@ -228,7 +238,7 @@ Pull books on collections, and the c-language.
     Bind void or failure to emit-judge-union unto emitter, given (the node statement, the text subject-kind):
         Define subject as cast field-of on (statement, 1).
         Define value as cast one's c-of on (subject) or pass the failure off.
-        Cast one's line on ("\{").
+        Cast one's put on ([{]).
         Define kept-outer as cast one's kinds-kept.
         Define outer as one's indent.
         The one's indent becomes outer joined to "    ".
@@ -245,31 +255,30 @@ Pull books on collections, and the c-language.
                 Insert cast one's kind-of-type on (written) or pass the failure off into arm-cases.
             Done.
             Define arm-kind as cast union-kind-of on (arm-cases).
-            Define tests as "".
+            Define c-language tag-test, given (the number tag), as [cv_it.tag == the tag].
+            Define tests as cast no-c.
             Define tested as a series of text.
             If cast is-union on (arm-kind), the tested becomes cast kind-cases on (arm-kind).
             Otherwise, insert arm-kind into tested.
             For each inner in tested, repeat:
-                Define test as "cv_it.tag == {cast case-tag on (subject-kind, inner)}".
-                If tests is "", the tests becomes test.
-                Otherwise, the tests becomes "{tests} || {test}".
+                The tests becomes cast c-any-of on (tests, tag-test on (cast case-tag on (subject-kind, inner))).
             Done.
-            If first-arm, cast one's line on ("if ({tests}) \{").
-            Otherwise, cast one's line on ("\} else if ({tests}) \{").
+            If first-arm, cast one's put on (if-open on (tests)).
+            Otherwise, cast one's put on (else-if-open on (tests)).
             The first-arm becomes false.
             Cast one's emit-block on (cast field-of on (arm, 2)) or pass the failure off.
         Done.
         Define otherwise-body as cast field-of on (statement, 3).
         If cast is-nothing on (otherwise-body) is false:
-            If first-arm, cast one's line on ("\{").
-            Otherwise, cast one's line on ("\} else \{").
+            If first-arm, cast one's put on ([{]).
+            Otherwise, cast one's put on ([} else {]).
             The first-arm becomes false.
             Cast one's emit-block on (otherwise-body) or pass the failure off.
         Done.
-        If first-arm is false, cast one's line on ("\}").
+        If first-arm is false, cast one's put on ([}]).
         The one's indent becomes outer.
         The one's kinds becomes kept-outer.
-        Cast one's line on ("\}").
+        Cast one's put on ([}]).
     Done.
 
     // ── Expressions ───────────────────────────────────────────────────────
