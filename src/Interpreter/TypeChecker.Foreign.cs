@@ -330,6 +330,22 @@ public sealed partial class TypeChecker
             TagBareAxiom(args[i], expected[i]);
     }
 
+    /// <summary>What a declared return type hands back when it works — through `or failure` and `voidable`.</summary>
+    private static CufetType? HandedBackType(CufetType? declared) => declared switch
+    {
+        FailureType { Inner: var inner } => HandedBackType(inner),
+        VoidableType { Inner: var inner } => HandedBackType(inner),
+        _ => declared,
+    };
+
+    /// <summary>A `[…]` nothing has tagged yet — its type is settled by the hole it lands in.</summary>
+    /// <remarks>
+    /// ⚠ Dispatch reads the FIRST argument's type before any parameter is known, and asking a bare
+    /// literal refused it: `cast pair on ([a], [b])` failed where `cast pair on (x, [b])` worked. A
+    /// bare literal cannot be a receiver, so dispatch skips it.
+    /// </remarks>
+    private static bool IsBareAxiom(IExpression arg) => arg is AxiomLiteral { Language: null };
+
     private static void TagBareAxiom(IExpression arg, CufetType? expected)
     {
         if (arg is AxiomLiteral { Language: null } bare && expected is AxiomType code && IsSourceValue(code))

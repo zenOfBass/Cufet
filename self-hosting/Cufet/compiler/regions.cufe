@@ -185,12 +185,13 @@ Pull books on collections, and the c-language.
     Done.
 
     /// The C that leaves the rabbits opened since `depth`, keeping what they hold — or "".
-    Bind text to c-leaving-rabbits unto emitter, given (the text depth):
+    Bind c-language axiom to c-leaving-rabbits unto emitter, given (the text depth):
         Define left as cast one's rabbits-open - (depth converted to number but void is 0).
-        If left is less than 1, return "".
-        Define out as "".
+        If left is less than 1, return [].
+        Define c-language merged-down, given (the c-language axiom earlier), as [the earlier cufet_arena_merge_down(); ].
+        Define out as cast no-c.
         For each place in range 1 to left, repeat:
-            The out becomes "{out}cufet_arena_merge_down(); ".
+            The out becomes merged-down on (out).
         Done.
         Return out.
     Done.

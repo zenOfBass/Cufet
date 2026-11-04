@@ -14,13 +14,29 @@
 */
 
 Pull books on collections, and the c-language.
-    // ── C as source, not text (DESIGN *An axiom's text as a value*) ──────
+    /// No C at all — where a text would have been "".
+    Bind c-language axiom to no-c:
+        Return [].
+    Done.
 
-    /// A C name worked out from the program — checked as one when it is filled.
-    Define c-language c-word, given (the term name), as [the name] permanently.
+    Bind fact to is-no-c, given (the c-language axiom code):
+        Return code converted to text is "".
+    Done.
 
-    /// A pointer to a type named that way.
-    Define c-language pointer-to, given (the term name), as [the name*] permanently.
+    /// The C of each, with commas between.
+    Bind c-language axiom to c-listed, given (the series of c-language axiom parts):
+        Define listing as cast no-c.
+        For each part in parts, repeat:
+            If cast is-no-c on (listing), the listing becomes part.
+            Otherwise if cast is-no-c on (part) is false, the listing becomes listed-on on (listing, part).
+        Done.
+        Return listing.
+    Done.
+
+    /// The line a tree's position field holds, as a number.
+    Bind number to line-number, given (the node place):
+        Return place's word converted to number but void is 0.
+    Done.
 
     Define object emitter with (the map from text to text kinds, the chase body, the text indent,
         the map from text to node functions, the map from text to node objects, the map from text to node methods,
@@ -158,7 +174,7 @@ Pull books on collections, and the c-language.
     // ── Expressions ───────────────────────────────────────────────────────
 
     /// A number as the runtime builds one: its digits, how many of them follow the point, its sign.
-    Bind text or failure to number-literal, given (the text written):
+    Bind c-language axiom or failure to number-literal, given (the text written):
         Define sign as 0.
         Define unsigned as written.
         If unsigned starts with "-":
@@ -176,7 +192,9 @@ Pull books on collections, and the c-language.
         Define over as coefficient / word-size.
         Define high-word as over - over % 1.
         Define low-word as coefficient - high-word * word-size.
-        Return "cufet_dec_lit({high-word}ULL, {low-word}ULL, {scale}, {sign})".
+        Define c-language number-made, given (the number high-word, the number low-word, the number scale, the number sign),
+            as [cufet_dec_lit(UINT64_C(the high-word), UINT64_C(the low-word), the scale, the sign)].
+        Return number-made on (high-word, low-word, scale, sign).
     Done.
 
     /// The kind of value an expression gives: "number", "text", "fact", or "series of" one of them.
@@ -191,7 +209,7 @@ Pull books on collections, and the c-language.
                     Return cast standard-stream-kind on (cast unquoted on (cast field-of on (expression, 1))).
                 Done.
                 Define reached as cast one's narrowed-read on (expression) or pass the failure off.
-                If the number of reached is 2, return item 1 of reached.
+                If the number of reached is 1, return (item 1 of reached)'s read-kind.
                 Define known as the entry for cast unquoted on (cast field-of on (expression, 1)) in one's kinds.
                 // A shared constant is seen from anywhere.
                 If known is void, the known becomes the entry for cast unquoted on (cast field-of on (expression, 1)) in one's constants.
@@ -324,15 +342,14 @@ Pull books on collections, and the c-language.
     Done.
 
     /// An expression as C.
-    Bind text or failure to c-of unto emitter, given (the node expression):
+    Bind c-language axiom or failure to c-of unto emitter, given (the node expression):
         Define kind as expression's kind.
         Judge kind, where it is:
             "NumberLiteral", return cast number-literal on ((cast field-of on (expression, 1))'s word) or pass the failure off.
-            // The tree writes a text with C's own escapes, quotes and all.
-            "StringLiteral", return (cast field-of on (expression, 1))'s word.
+            "StringLiteral", return text-literal on (cast unquoted on (cast field-of on (expression, 1))).
             "BooleanLiteral":
-                If (cast field-of on (expression, 1))'s word is "true", return "1".
-                Return "0".
+                If (cast field-of on (expression, 1))'s word is "true", return [1].
+                Return [0].
             Done.
             "VariableReference":
                 Cast one's kind-of on (expression) or pass the failure off.
@@ -343,18 +360,18 @@ Pull books on collections, and the c-language.
                 Done.
                 // A narrowed name reads as its case, or as the smaller union.
                 Define reached as cast one's narrowed-read on (expression) or pass the failure off.
-                If the number of reached is 2, return item 2 of reached.
+                If the number of reached is 1, return (item 1 of reached)'s access.
                 // Source taking nothing, named: its text, written where it is used — as `cufet build` does.
                 If (the entry for name in one's kinds) is void and (the entry for name in one's constants) is void:
-                    Define source-c as the entry for "source:{name}" in one's inferred.
-                    If source-c is not void, return source-c.
+                    Define source-text as the entry for "source:{name}" in one's inferred.
+                    If source-text is not void, return text-literal on (source-text).
                 Done.
                 // A captured one, `one` included, through the environment it was captured into.
-                Define redirected as the entry for "@{name}" in one's kinds but void is "".
-                If redirected is not "", return redirected.
+                Define redirected as cast one's redirected-c on (name).
+                If redirected is not void, return redirected.
                 // Inside a method, `one` is the object it was called on, held by its address.
-                If name is "one", return "(*cv_one)".
-                Return cast c-name on (name).
+                If name is "one", return [(*cv_one)].
+                Return c-word on (cast c-name on (name)).
             Done.
             "ObjectLiteral", return cast one's c-object-literal on (expression) or pass the failure off.
             "UnburyExpression", return cast one's c-of on (cast as-resumed on (expression)) or pass the failure off.
@@ -363,31 +380,33 @@ Pull books on collections, and the c-language.
             "MatrixLiteral" or "MatrixSized" or "MatrixAccess", return cast one's c-matrix-of on (expression) or pass the failure off.
             "ReadExpression", return cast one's c-read on (expression) or pass the failure off.
             "ChannelCreation", return cast one's c-channel on (expression) or pass the failure off.
-            "InterruptRequestedExpression", return "(cufet_interrupted ? 1 : 0)".
+            "InterruptRequestedExpression", return [(cufet_interrupted ? 1 : 0)].
             "DeliveryExpression", return cast one's c-delivery on (expression) or pass the failure off.
             "AwaitedResultExpression", return cast one's c-awaited on (expression) or pass the failure off.
             "PossessiveAccess", return cast one's c-possessive on (expression) or pass the failure off.
             "TextJoin":
                 Define joined-left as cast one's c-of on (cast field-of on (expression, 1)) or pass the failure off.
                 Define joined-right as cast one's c-of on (cast field-of on (expression, 2)) or pass the failure off.
-                Define sides as a series of text with (joined-left, joined-right).
+                Define sides as a series of c-language axiom with (joined-left, joined-right).
                 Define prefix as cast order-prefix on (a series of node with (cast field-of on (expression, 1), cast field-of on (expression, 2)), sides).
-                Return cast in-order on (prefix, "cufet_str_concat({item 1 of sides}, {item 2 of sides})").
+                Return cast in-order on (prefix, call-of-two on ("cufet_str_concat", item 1 of sides, item 2 of sides)).
             Done.
             "TextConvert", return cast one's c-text-of on (cast field-of on (expression, 1)) or pass the failure off.
             "UnaryExpression":
                 Define operand as cast one's c-of on (cast field-of on (expression, 2)) or pass the failure off.
                 Define operator as (cast field-of on (expression, 1))'s word.
-                If operator is "Minus", return "cufet_neg({operand})".
+                If operator is "Minus", return call-of-one on ("cufet_neg", operand).
                 If operator is "Not" and (cast one's kind-of on (cast field-of on (expression, 2)) or pass the failure off) is "bits":
-                    Return "cufet_bits_not({operand})".
+                    Return call-of-one on ("cufet_bits_not", operand).
                 Done.
-                If operator is "Not", return "(!{operand})".
+                If operator is "Not", return negated on (operand).
                 Return a failure (cast not-built on ("the operator {operator}")).
             Done.
             "BinaryExpression", return cast one's c-binary on (expression) or pass the failure off.
             "AxiomLiteral":
-                If (cast keyed-field on (expression, ":ReturnType")) is void, return (cast field-of on (expression, 1))'s word.
+                If (cast keyed-field on (expression, ":ReturnType")) is void:
+                    Return text-literal on (cast unquoted on (cast field-of on (expression, 1))).
+                Done.
                 Return cast one's c-axiom-value on (expression) or pass the failure off.
             Done.
             "ForeignTextAt", return cast one's c-text-at on (expression) or pass the failure off.
@@ -402,13 +421,13 @@ Pull books on collections, and the c-language.
             Done.
             "IsTypeCheck", return cast one's c-type-check on (expression) or pass the failure off.
             // `void` has no C of its own: it is made into the voidable it goes into.
-            "VoidLiteral", return "0".
+            "VoidLiteral", return [0].
             "ButVoidDefault", return cast one's c-but-void on (expression) or pass the failure off.
             "MapLiteral" or "MapLookup" or "MapHasKey" or "MapHasEntry" or "RecordNamedAccess":
                 Return cast one's c-map-of on (expression) or pass the failure off.
             Done.
             "RecordLiteral", return cast one's c-record-literal on (expression) or pass the failure off.
-            "ChaseLiteral", return "cufet_chase_new()".
+            "ChaseLiteral", return [cufet_chase_new()].
             "LambdaLiteral":
                 Define lambda-label as "{(cast field-of on (expression, 3))'s word}_{(cast field-of on (expression, 4))'s word}".
                 Return cast one's c-closure on (cast field-of on (expression, 1), cast field-of on (expression, 2), "", "?", lambda-label) or pass the failure off.
@@ -418,7 +437,7 @@ Pull books on collections, and the c-language.
             "SeriesReverse", return cast one's c-reversed on (expression) or pass the failure off.
             // From 1: argument zero is the program's own name, which no two ways of running it agree on.
             "ProgramArgumentsExpression":
-                Return "(\{ cser_text* cf_args = cser_text_new(); for (int cf_ai = 1; cf_ai < cufet_argc; cf_ai++) cser_text_append(cf_args, (const char*)cufet_argv[cf_ai]); cf_args; \})".
+                Return [({ cser_text* cf_args = cser_text_new(); for (int cf_ai = 1; cf_ai < cufet_argc; cf_ai++) cser_text_append(cf_args, (const char*)cufet_argv[cf_ai]); cf_args; })].
             Done.
             Otherwise:
                 If cast is-random-expression on (kind), return cast one's c-random-of on (expression) or pass the failure off.
@@ -459,7 +478,7 @@ Pull books on collections, and the c-language.
     Done.
 
     /// A call as C: the function's name and its arguments, in order.
-    Bind text or failure to c-call unto emitter, given (the node call):
+    Bind c-language axiom or failure to c-call unto emitter, given (the node call):
         If (cast one's calls-value on (call) or pass the failure off), return cast one's c-value-call on (call) or pass the failure off.
         If (cast field-of on (call, 1))'s kind is "PossessiveAccess", return cast one's c-method-call on (call) or pass the failure off.
         If (cast field-of on (call, 1))'s kind is "VariableReference":
@@ -474,9 +493,9 @@ Pull books on collections, and the c-language.
         Define interface-taking as cast one's takes-interface on (called) or pass the failure off.
         If interface-taking:
             Define copy-name as cast one's c-specialized-name on (called, call) or pass the failure off.
-            Return cast in-order on (item 1 of handed-c, "{copy-name}({listing})").
+            Return cast in-order on (item 1 of handed-c, call-of-one on (copy-name, listing)).
         Done.
-        Return cast in-order on (item 1 of handed-c, "{cast c-function-name on (cast unquoted on (cast field-of on (called, 1)))}({listing})").
+        Return cast in-order on (item 1 of handed-c, call-of-one on (cast c-function-name on (cast unquoted on (cast field-of on (called, 1))), listing)).
     Done.
 
     // ── Working operands out in order ─────────────────────────────────────
@@ -498,33 +517,37 @@ Pull books on collections, and the c-language.
 
     /// What binds the operands that need it to temporaries, in order — "" when fewer than two do.
     /// Each one bound is swapped for its temporary in `emitted`.
-    Bind text to order-prefix, given (the series of node operands, the series of text emitted):
+    Bind c-language axiom to order-prefix, given (the series of node operands, the series of c-language axiom emitted):
         Define busy as 0.
         For each operand in operands, repeat:
             If cast is-order-free on (operand) is false, increment busy by 1.
         Done.
-        If busy is less than 2, return "".
-        Define prefix as "".
+        If busy is less than 2, return [].
+        Define c-language bound-first, given (the c-language axiom bound, the term temporary, the c-language axiom operand),
+            as [the bound __auto_type the temporary = the operand; ].
+        Define prefix as cast no-c.
         Define place as 0.
         For each operand in operands, repeat:
             Increment place by 1.
             If cast is-order-free on (operand) is false:
-                The prefix becomes "{prefix}__auto_type cf_o{place} = {item place of emitted}; ".
-                Item place of emitted becomes "cf_o{place}".
+                The prefix becomes bound-first on (prefix, "cf_o{place}", item place of emitted).
+                Item place of emitted becomes c-word on ("cf_o{place}").
             Done.
         Done.
         Return prefix.
     Done.
 
     /// What was built from the temporaries, inside the block that binds them.
-    Bind text to in-order, given (the text prefix, the text built):
-        If prefix is "", return built.
-        Return "(\{ {prefix}{built}; \})".
+    Bind c-language axiom to in-order, given (the c-language axiom prefix, the c-language axiom built):
+        If cast is-no-c on (prefix), return built.
+        Define c-language in-a-block, given (the c-language axiom prefix, the c-language axiom built),
+            as [({ the prefix the built; })].
+        Return in-a-block on (prefix, built).
     Done.
 
     /// A statement built from the temporaries, in a block of its own that binds them first.
-    Bind text to in-order-statement, given (the text prefix, the text built):
-        If prefix is "", return built.
+    Bind text to in-order-statement, given (the c-language axiom prefix, the text built):
+        If cast is-no-c on (prefix), return built.
         Return "\{ {prefix}{built} \}".
     Done.
 
@@ -533,9 +556,9 @@ Pull books on collections, and the c-language.
     /// order its fields come, which is not always the order written: `replace a with b in t` and
     /// `the characters from a to b of t` work out `t` first, and `the entry for k in m` works out `m`.
     /// ⚠ Save `Insert`, whose value field comes before the series it goes into: the series is first.
-    Bind series of text or failure to c-fields-in-order unto emitter, given (the node expression, the number first, the number last):
+    Bind series of c-language axiom or failure to c-fields-in-order unto emitter, given (the node expression, the number first, the number last):
         Define operands as a series of node.
-        Define emitted as a series of text.
+        Define emitted as a series of c-language axiom.
         Define place as first.
         While place is not greater than last, repeat:
             Define operand as cast field-of on (expression, place).
@@ -544,7 +567,7 @@ Pull books on collections, and the c-language.
             Insert operand-c into emitted.
             Increment place by 1.
         Done.
-        Define gathered as a series of text with (cast order-prefix on (operands, emitted)).
+        Define gathered as a series of c-language axiom with (cast order-prefix on (operands, emitted)).
         For each operand-c in emitted, repeat:
             Insert operand-c into gathered.
         Done.
@@ -554,48 +577,46 @@ Pull books on collections, and the c-language.
     /// A call's arguments as C, each as the kind its parameter wants — wrapped into a union where
     /// the parameter is one. One passed for an interface is the object it is. Gives back what binds
     /// them in order (see `order-prefix`), then the list.
-    Bind series of text or failure to c-arguments unto emitter, given (the node parameters, the node handed):
+    Bind series of c-language axiom or failure to c-arguments unto emitter, given (the node parameters, the node handed):
         Define operands as a series of node.
-        Define emitted as a series of text.
+        Define emitted as a series of c-language axiom.
         Define place as 0.
         For each argument in handed's children, repeat:
             Increment place by 1.
             Define wanted as cast one's kind-of-type on (cast field-of on (item place of parameters's children, 1)) or pass the failure off.
-            Define argument-c as "".
+            Define argument-c as cast no-c.
             If wanted starts with "interface ", the argument-c becomes cast one's c-of on (argument) or pass the failure off.
             Otherwise, the argument-c becomes cast one's c-of-as on (argument, wanted) or pass the failure off.
             Insert argument into operands.
             Insert argument-c into emitted.
         Done.
         Define prefix as cast order-prefix on (operands, emitted).
-        Define listing as "".
-        For each argument-c in emitted, repeat:
-            If listing is "", the listing becomes argument-c.
-            Otherwise, the listing becomes "{listing}, {argument-c}".
-        Done.
-        Return a series of text with (prefix, listing).
+        Return a series of c-language axiom with (prefix, cast c-listed on (emitted)).
     Done.
 
     /// An expression as C text, whatever its kind — what `converted to text` and a hole make.
-    Bind text or failure to c-text-of unto emitter, given (the node expression):
+    Bind c-language axiom or failure to c-text-of unto emitter, given (the node expression):
         Define value as cast one's c-of on (expression) or pass the failure off.
         Define kind as cast one's kind-of on (expression) or pass the failure off.
         Return cast c-text-from on (kind, value) or pass the failure off.
     Done.
 
     /// A value of a kind, already as C, as C text.
-    Bind text or failure to c-text-from, given (the text kind, the text value):
+    Bind c-language axiom or failure to c-text-from, given (the text kind, the c-language axiom value):
         // A chase's text is a copy: the chase lives on, apart from it.
-        If kind is "chase", return "cufet_chase_text({value})".
+        If kind is "chase", return call-of-one on ("cufet_chase_text", value).
         If kind is "bits", return cast c-bits-text on (value).
         If cast element-of on (kind) is not "", return cast c-series-text on (kind, value, 0) or pass the failure off.
         If cast is-scalar on (kind) is false, return a failure (cast not-built on ("a {kind} as text")).
-        If kind is "number", return "cufet_text_from_dec({value})".
-        If kind is "fact", return "({value} ? \"true\" : \"false\")".
+        If kind is "number", return call-of-one on ("cufet_text_from_dec", value).
+        If kind is "fact":
+            Define c-language fact-text, given (the c-language axiom value), as [(the value ? "true" : "false")].
+            Return fact-text on (value).
+        Done.
         Return value.
     Done.
 
-    Bind text or failure to c-binary unto emitter, given (the node expression):
+    Bind c-language axiom or failure to c-binary unto emitter, given (the node expression):
         If cast is-void-test on (expression), return cast one's c-void-test on (expression) or pass the failure off.
         Define overloaded as cast one's overload-for on (expression) or pass the failure off.
         If overloaded is not void, return cast one's c-overload-call on (expression, overloaded) or pass the failure off.
@@ -604,10 +625,10 @@ Pull books on collections, and the c-language.
         Define operator as (cast field-of on (expression, 2))'s word.
         Define left-c as cast one's c-of on (left-side) or pass the failure off.
         Define right-c as cast one's c-of on (cast field-of on (expression, 3)) or pass the failure off.
-        Define sides as a series of text with (left-c, right-c).
+        Define sides as a series of c-language axiom with (left-c, right-c).
         // `and` and `or` go left to right already, and must not work out their right side when the
         // left decides.
-        Define prefix as "".
+        Define prefix as cast no-c.
         If operator is not "And" and operator is not "Or":
             The prefix becomes cast order-prefix on (a series of node with (left-side, cast field-of on (expression, 3)), sides).
         Done.
@@ -615,12 +636,12 @@ Pull books on collections, and the c-language.
     Done.
 
     /// A binary operator over its operands already as C.
-    Bind text or failure to c-binary-of unto emitter, given (the node expression, the text left-c, the text right-c):
+    Bind c-language axiom or failure to c-binary-of unto emitter, given (the node expression, the c-language axiom left-c, the c-language axiom right-c):
         Define left-side as cast field-of on (expression, 1).
         Define operator as (cast field-of on (expression, 2))'s word.
         Define left as left-c.
         Define right as right-c.
-        Define at-line as (cast field-of on (expression, 4))'s word.
+        Define at-line as cast line-number on (cast field-of on (expression, 4)).
         If (cast one's kind-of on (left-side) or pass the failure off) is "bits":
             Return cast c-bits-binary on (operator, left, right, at-line) or pass the failure off.
         Done.
@@ -641,37 +662,45 @@ Pull books on collections, and the c-language.
             Done.
         Done.
         If cast is-scalar on (left-kind) is false:
-            If operator is "Equal", return "({cast c-equal on (left-kind, left, right)})".
-            If operator is "NotEqual", return "(!{cast c-equal on (left-kind, left, right)})".
+            If operator is "Equal", return bracketed on (cast c-equal on (left-kind, left, right)).
+            If operator is "NotEqual", return negated on (cast c-equal on (left-kind, left, right)).
             Return a failure (cast not-built on ("the operator {operator} on a {left-kind}")).
         Done.
         If left-kind is "number":
+            Define c-language number-test, given (the c-language axiom left, the c-language axiom right, the c-language axiom test),
+                as [(cufet_cmp(the left, the right) the test 0)].
             Judge operator, where it is:
-                "Plus", return "cufet_add({left}, {right})".
-                "Minus", return "cufet_sub({left}, {right})".
-                "Star", return "cufet_mul({left}, {right})".
-                "Slash", return "cufet_div({left}, {right}, {at-line})".
-                "Percent", return "cufet_mod({left}, {right}, {at-line})".
-                "Equal", return "(cufet_cmp({left}, {right}) == 0)".
-                "NotEqual", return "(cufet_cmp({left}, {right}) != 0)".
-                "Lt", return "(cufet_cmp({left}, {right}) < 0)".
-                "Gt", return "(cufet_cmp({left}, {right}) > 0)".
-                "Lte", return "(cufet_cmp({left}, {right}) <= 0)".
-                "Gte", return "(cufet_cmp({left}, {right}) >= 0)".
+                "Plus", return call-of-two on ("cufet_add", left, right).
+                "Minus", return call-of-two on ("cufet_sub", left, right).
+                "Star", return call-of-two on ("cufet_mul", left, right).
+                "Slash", return call-at-line on ("cufet_div", left, right, at-line).
+                "Percent", return call-at-line on ("cufet_mod", left, right, at-line).
+                "Equal", return number-test on (left, right, [==]).
+                "NotEqual", return number-test on (left, right, [!=]).
+                "Lt", return number-test on (left, right, [<]).
+                "Gt", return number-test on (left, right, [>]).
+                "Lte", return number-test on (left, right, [<=]).
+                "Gte", return number-test on (left, right, [>=]).
                 Otherwise, return a failure (cast not-built on ("the operator {operator} on numbers")).
             Done.
         Done.
         If left-kind is "text":
-            If operator is "Equal", return "(strcmp({left}, {right}) == 0)".
-            If operator is "NotEqual", return "(strcmp({left}, {right}) != 0)".
+            Define c-language text-test, given (the c-language axiom left, the c-language axiom right, the c-language axiom test),
+                as [(strcmp(the left, the right) the test 0)].
+            If operator is "Equal", return text-test on (left, right, [==]).
+            If operator is "NotEqual", return text-test on (left, right, [!=]).
             Return a failure (cast not-built on ("the operator {operator} on text")).
         Done.
+        Define c-language fact-test, given (the c-language axiom left, the c-language axiom right, the c-language axiom test),
+            as [(!!(the left) the test !!(the right))].
+        Define c-language joined-test, given (the c-language axiom left, the c-language axiom right, the c-language axiom test),
+            as [(the left the test the right)].
         Judge operator, where it is:
-            "And", return "({left} && {right})".
-            "Or", return "({left} || {right})".
-            "Xor", return "(!!({left}) != !!({right}))".
-            "Equal", return "(!!({left}) == !!({right}))".
-            "NotEqual", return "(!!({left}) != !!({right}))".
+            "And", return joined-test on (left, right, [&&]).
+            "Or", return joined-test on (left, right, [||]).
+            "Xor", return fact-test on (left, right, [!=]).
+            "Equal", return fact-test on (left, right, [==]).
+            "NotEqual", return fact-test on (left, right, [!=]).
             Otherwise, return a failure (cast not-built on ("the operator {operator} on facts")).
         Done.
     Done.
@@ -707,34 +736,39 @@ Pull books on collections, and the c-language.
     Done.
 
     /// The runtime call that writes a value of a kind, without the line's end.
-    Bind text to write-call, given (the text kind, the text value):
-        If cast is-record on (kind), return "{cast record-c-name on (kind)}_write({value})".
-        If kind is "failure", return "fputs(\"<failure>\", stdout)".
-        If kind is "chase", return "cufet_write_text(cufet_chase_show({value}))".
-        If kind is "bits", return "cufet_write_bits({value})".
-        If kind is "matrix", return "cufet_mat_write({value})".
+    Bind c-language axiom to write-call, given (the text kind, the c-language axiom value):
+        If cast is-record on (kind), return call-of-one on ("{cast record-c-name on (kind)}_write", value).
+        If kind is "failure", return [fputs("<failure>", stdout)].
+        If kind is "chase":
+            Define c-language chase-written, given (the c-language axiom value), as [cufet_write_text(cufet_chase_show(the value))].
+            Return chase-written on (value).
+        Done.
+        If kind is "bits", return call-of-one on ("cufet_write_bits", value).
+        If kind is "matrix", return call-of-one on ("cufet_mat_write", value).
         // An address prints as what it is, never as its value — two runs get different pointers.
-        If kind is "address", return "fputs(\"<address>\", stdout)".
-        If kind starts with "axiom ", return "fputs(\"<axiom>\", stdout)".
+        If kind is "address", return [fputs("<address>", stdout)].
+        If kind starts with "axiom ", return [fputs("<axiom>", stdout)].
         // A set prints as the collection it reads as — its elements in the order they went in,
         // spelled as a series is — not as the map it is stored as.
         If cast is-set on (kind):
-            Define element-write as cast write-call on (cast set-element on (kind), "cf_sw->vals[cf_si]").
-            Return "(\{ {cast map-c-name on (cast set-storage on (kind))}* cf_sw = {value}; fputs(\"(\", stdout); for (int cf_si = 0; cf_si < cf_sw->len; cf_si++) \{ if (cf_si > 0) fputs(\", \", stdout); {element-write}; \} fputs(\")\", stdout); \})".
+            Define element-write as cast write-call on (cast set-element on (kind), [cf_sw->vals[cf_si]]).
+            Define c-language set-written, given (the term map-c, the c-language axiom value, the c-language axiom element-write),
+                as [({ the map-c* cf_sw = the value; fputs("(", stdout); for (int cf_si = 0; cf_si < cf_sw->len; cf_si++) { if (cf_si > 0) fputs(", ", stdout); the element-write; } fputs(")", stdout); })].
+            Return set-written on (cast map-c-name on (cast set-storage on (kind)), value, element-write).
         Done.
         // Printed as the object the prelude says it is — one with no fields — as the interpreter does.
-        If kind is "rabbit", return "fputs(\"rabbit()\", stdout)".
-        If cast is-function on (kind), return "fputs(\"<function>\", stdout)".
-        If kind is "exception", return "fputs(\"<exception>\", stdout)".
-        If cast is-map on (kind), return "{cast map-c-name on (kind)}_write({value})".
-        If cast is-mapping on (kind), return "{cast map-c-name on (cast mapping-map on (kind))}_pair_write({value})".
-        If cast is-voidable on (kind), return "{cast voidable-c-name on (kind)}_write({value})".
-        If cast is-union on (kind), return "{cast union-c-name on (kind)}_write({value})".
-        If cast element-of on (kind) is not "", return "{cast series-c-name on (cast element-of on (kind))}_write({value})".
-        If cast object-of on (kind) is not "", return "{cast c-struct-name on (cast object-of on (kind))}_write({value})".
-        If kind is "number", return "cufet_write_number({value})".
-        If kind is "fact", return "cufet_write_fact({value})".
-        Return "cufet_write_text({value})".
+        If kind is "rabbit", return [fputs("rabbit()", stdout)].
+        If cast is-function on (kind), return [fputs("<function>", stdout)].
+        If kind is "exception", return [fputs("<exception>", stdout)].
+        If cast is-map on (kind), return call-of-one on ("{cast map-c-name on (kind)}_write", value).
+        If cast is-mapping on (kind), return call-of-one on ("{cast map-c-name on (cast mapping-map on (kind))}_pair_write", value).
+        If cast is-voidable on (kind), return call-of-one on ("{cast voidable-c-name on (kind)}_write", value).
+        If cast is-union on (kind), return call-of-one on ("{cast union-c-name on (kind)}_write", value).
+        If cast element-of on (kind) is not "", return call-of-one on ("{cast series-c-name on (cast element-of on (kind))}_write", value).
+        If cast object-of on (kind) is not "", return call-of-one on ("{cast c-struct-name on (cast object-of on (kind))}_write", value).
+        If kind is "number", return call-of-one on ("cufet_write_number", value).
+        If kind is "fact", return call-of-one on ("cufet_write_fact", value).
+        Return call-of-one on ("cufet_write_text", value).
     Done.
 
     Bind void to line unto emitter, given (the text written):
@@ -762,27 +796,42 @@ Pull books on collections, and the c-language.
     Done.
 
     /// Whether `left` and `right`, two values of `kind`, are equal — as C.
-    Bind text to c-equal, given (the text kind, the text left, the text right):
+    Bind c-language axiom to c-equal, given (the text kind, the c-language axiom left, the c-language axiom right):
+        Define c-language same-pointer, given (the c-language axiom left, the c-language axiom right), as [(the left == the right)].
         // Two maps are equal only when they are one map.
-        If cast is-map on (kind), return "({left} == {right})".
-        If cast is-record on (kind), return "{cast record-c-name on (kind)}_eq({left}, {right})".
-        If kind is "chase", return "cufet_chase_eq({left}, {right})".
-        If kind is "rabbit", return "cufet_rabbit_eq({left}, {right})".
-        If kind is "bits", return "(({left}).value == ({right}).value)".
+        If cast is-map on (kind), return same-pointer on (left, right).
+        If cast is-record on (kind), return call-of-two on ("{cast record-c-name on (kind)}_eq", left, right).
+        If kind is "chase", return call-of-two on ("cufet_chase_eq", left, right).
+        If kind is "rabbit", return call-of-two on ("cufet_rabbit_eq", left, right).
+        If kind is "bits":
+            Define c-language same-bits, given (the c-language axiom left, the c-language axiom right), as [((the left).value == (the right).value)].
+            Return same-bits on (left, right).
+        Done.
         // Two matrices are equal only when they are one matrix, as the interpreter has it.
-        If kind is "matrix", return "({left} == {right})".
-        If kind is "address", return "({left} == {right})".
+        If kind is "matrix", return same-pointer on (left, right).
+        If kind is "address", return same-pointer on (left, right).
         // Two sets are equal only when they are one set, as two maps are.
-        If cast is-set on (kind), return "({left} == {right})".
-        If cast is-function on (kind), return "(({left}).fn == ({right}).fn && ({left}).env == ({right}).env)".
-        If cast is-mapping on (kind), return "{cast map-c-name on (cast mapping-map on (kind))}_pair_eq({left}, {right})".
-        If cast is-voidable on (kind), return "{cast voidable-c-name on (kind)}_eq({left}, {right})".
-        If cast is-union on (kind), return "{cast union-c-name on (kind)}_eq({left}, {right})".
-        If cast element-of on (kind) is not "", return "{cast series-c-name on (cast element-of on (kind))}_eq({left}, {right})".
-        If cast object-of on (kind) is not "", return "{cast c-struct-name on (cast object-of on (kind))}_eq({left}, {right})".
-        If kind is "number", return "(cufet_cmp({left}, {right}) == 0)".
-        If kind is "text", return "(strcmp({left}, {right}) == 0)".
-        Return "(!!({left}) == !!({right}))".
+        If cast is-set on (kind), return same-pointer on (left, right).
+        If cast is-function on (kind):
+            Define c-language same-function, given (the c-language axiom left, the c-language axiom right),
+                as [((the left).fn == (the right).fn && (the left).env == (the right).env)].
+            Return same-function on (left, right).
+        Done.
+        If cast is-mapping on (kind), return call-of-two on ("{cast map-c-name on (cast mapping-map on (kind))}_pair_eq", left, right).
+        If cast is-voidable on (kind), return call-of-two on ("{cast voidable-c-name on (kind)}_eq", left, right).
+        If cast is-union on (kind), return call-of-two on ("{cast union-c-name on (kind)}_eq", left, right).
+        If cast element-of on (kind) is not "", return call-of-two on ("{cast series-c-name on (cast element-of on (kind))}_eq", left, right).
+        If cast object-of on (kind) is not "", return call-of-two on ("{cast c-struct-name on (cast object-of on (kind))}_eq", left, right).
+        If kind is "number":
+            Define c-language same-number, given (the c-language axiom left, the c-language axiom right), as [(cufet_cmp(the left, the right) == 0)].
+            Return same-number on (left, right).
+        Done.
+        If kind is "text":
+            Define c-language same-text, given (the c-language axiom left, the c-language axiom right), as [(strcmp(the left, the right) == 0)].
+            Return same-text on (left, right).
+        Done.
+        Define c-language same-fact, given (the c-language axiom left, the c-language axiom right), as [(!!(the left) == !!(the right))].
+        Return same-fact on (left, right).
     Done.
 
     Bind void or failure to emit-statement unto emitter, given (the node statement):
@@ -801,7 +850,7 @@ Pull books on collections, and the c-language.
                 // Locked for the whole line: a `State` is several writes. The value is worked out
                 // before the lock is taken — it may wait on a task that prints, which a lock held
                 // across the wait would keep from printing for ever.
-                Cast one's line on ("\{ __auto_type cf_said = {value}; cufet_out_lock(); {cast write-call on (value-kind, "cf_said")}; cufet_nl(); cufet_out_unlock(); \}").
+                Cast one's line on ("\{ __auto_type cf_said = {value}; cufet_out_lock(); {cast write-call on (value-kind, [cf_said])}; cufet_nl(); cufet_out_unlock(); \}").
             Done.
             "DefineStatement":
                 If (cast field-of on (statement, 2))'s kind is "AxiomLiteral":
@@ -869,8 +918,8 @@ Pull books on collections, and the c-language.
                 Define returned as cast field-of on (statement, 1).
                 Define gives as the entry for "%return" in one's kinds but void is "".
                 If cast is-nothing on (returned):
-                    If gives is "failure of void", cast one's line on (cast one's c-return on ("cfl_void_done()")).
-                    Otherwise, cast one's line on (cast one's c-return on ("")).
+                    If gives is "failure of void", cast one's line on (cast one's c-return on ([cfl_void_done()])).
+                    Otherwise, cast one's line on (cast one's c-return on (cast no-c)).
                 Done.
                 // A lambda's first pass, working out what it gives back.
                 Otherwise if gives is "?":
@@ -900,7 +949,7 @@ Pull books on collections, and the c-language.
             "PossessiveSetStatement", cast one's emit-field-set on (statement) or pass the failure off.
             "StopStatement", cast one's line on (cast one's c-loop-jump on ("break")).
             "ExitStatement":
-                Define status as "cufet_dec_from_ll(0)".
+                Define status as call-of-one on ("cufet_dec_from_ll", [0]).
                 If cast is-nothing on (cast field-of on (statement, 1)) is false:
                     The status becomes cast one's c-of on (cast field-of on (statement, 1)) or pass the failure off.
                 Done.
@@ -1058,8 +1107,8 @@ Pull books on collections, and the c-language.
                 If written-kind is not subject-kind:
                     Return a failure (cast not-built on ("a judgement arm of another kind than its subject")).
                 Done.
-                Define test as cast c-equal on (subject-kind, "cv_it", cast one's c-of on (written) or pass the failure off).
-                If tests is "", the tests becomes test.
+                Define test as cast c-equal on (subject-kind, [cv_it], cast one's c-of on (written) or pass the failure off).
+                If tests is "", the tests becomes test converted to text.
                 Otherwise, the tests becomes "{tests} || {test}".
             Done.
             If first-arm, cast one's line on ("if ({tests}) \{").

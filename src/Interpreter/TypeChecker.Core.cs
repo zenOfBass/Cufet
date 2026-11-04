@@ -3569,14 +3569,16 @@ public sealed partial class TypeChecker
             // return into some other type runs it — which is the whole of "an axiom runs when it is
             // returned", now that there is a type a function can give one back as.
             // A bare `[…]` returned as source takes its language from the declared return type.
-            TagBareAxiom(ret.Value, _expectedReturnType);
-            var returnType = AxiomBehind(ret.Value) is not null && _expectedReturnType is not AxiomType
+            // ★ Through `or failure` and `voidable`: both hand the source back unrun as well.
+            var handsBack = HandedBackType(_expectedReturnType);
+            TagBareAxiom(ret.Value, handsBack);
+            var returnType = AxiomBehind(ret.Value) is not null && handsBack is not AxiomType
                 ? RunAxiomOnReturn(ret, _expectedReturnType)
                 : InferType(ret.Value);
             // Returning an axiom into something that is NOT an axiom type means running it, and
             // running needs its source — which a parameter or another call's result does not carry.
             if (returnType is AxiomType unreachable && _expectedReturnType is not null
-                && _expectedReturnType is not AxiomType)
+                && handsBack is not AxiomType)
                 throw AxiomSourceNotReachable(unreachable, ret.Line, ret.Column);
             if (IsRabbitType(returnType))
                 throw TypeError(

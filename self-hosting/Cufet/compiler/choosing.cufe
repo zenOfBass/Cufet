@@ -34,11 +34,13 @@ Pull books on collections, and the c-language.
         Return union.
     Done.
 
-    Bind text or failure to c-chosen unto emitter, given (the node expression):
+    Bind c-language axiom or failure to c-chosen unto emitter, given (the node expression):
         Define kind as cast one's chosen-kind on (expression) or pass the failure off.
         Define condition as cast one's c-of on (cast field-of on (expression, 2)) or pass the failure off.
         Define taken as cast one's c-of-as on (cast field-of on (expression, 1), kind) or pass the failure off.
         Define other as cast one's c-of-as on (cast field-of on (expression, 3), kind) or pass the failure off.
-        Return "({condition} ? {taken} : {other})".
+        Define c-language either-way, given (the c-language axiom condition, the c-language axiom taken, the c-language axiom other),
+            as [(the condition ? the taken : the other)].
+        Return either-way on (condition, taken, other).
     Done.
 Done.

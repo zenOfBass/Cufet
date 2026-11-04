@@ -78,17 +78,19 @@ Pull books on collections, and the c-language.
     // ── Channels ──────────────────────────────────────────────────────────
 
     /// `a channel of K`, made in the rabbit around it, which frees it.
-    Bind text or failure to c-channel unto emitter, given (the node expression):
+    Bind c-language axiom or failure to c-channel unto emitter, given (the node expression):
         Define label as the entry for "%task-rabbit" in one's kinds but void is "".
         If label is "", return a failure (cast not-built on ("a channel made outside a rabbit")).
         Define element as cast one's kind-of-type on (cast field-of on (expression, 1)) or pass the failure off.
         Cast one's register-copy on (element) or pass the failure off.
-        Return "(\{ cufet_chan* cf_ch = cufet_chan_new({cast copy-family on (element)}_freeenv); cf_chan_{label}[cf_nchan_{label}++] = cf_ch; cf_ch; \})".
+        Define c-language channel-made, given (the term free-element, the term channels, the term count),
+            as [({ cufet_chan* cf_ch = cufet_chan_new(the free-element); the channels[the count++] = cf_ch; cf_ch; })].
+        Return channel-made on ("{cast copy-family on (element)}_freeenv", "cf_chan_{label}", "cf_nchan_{label}").
     Done.
 
     /// `the delivery from <channel>` — the next value, copied into this thread's arena; void once
     /// the channel is empty and closed.
-    Bind text or failure to c-delivery unto emitter, given (the node expression):
+    Bind c-language axiom or failure to c-delivery unto emitter, given (the node expression):
         Define held as cast one's kind-of on (cast field-of on (expression, 1)) or pass the failure off.
         Define element as cast channel-element on (held).
         Cast one's register-copy on (element) or pass the failure off.
@@ -96,7 +98,9 @@ Pull books on collections, and the c-language.
         Cast one's register-union on (delivered).
         Define channel-c as cast one's c-of on (cast field-of on (expression, 1)) or pass the failure off.
         Define named as cast copy-family on (element).
-        Return "(\{ void* cf_de = NULL; int cf_dh = cufet_chan_recv({channel-c}, &cf_de); if (cf_dh < 0) \{ cufet_checkpoint(); cf_dh = 0; \} {cast voidable-c-name on (delivered)} cf_dv; memset(&cf_dv, 0, sizeof cf_dv); if (cf_dh) \{ cf_dv.has = 1; cf_dv.value = {named}_arenacopy(cf_de); {named}_freeenv(cf_de); \} cf_dv; \})".
+        Define c-language delivery-taken, given (the c-language axiom carrier, the term voidable-c, the term arena-copy, the term free-element),
+            as [({ void* cf_de = NULL; int cf_dh = cufet_chan_recv(the carrier, &cf_de); if (cf_dh < 0) { cufet_checkpoint(); cf_dh = 0; } the voidable-c cf_dv; memset(&cf_dv, 0, sizeof cf_dv); if (cf_dh) { cf_dv.has = 1; cf_dv.value = the arena-copy(cf_de); the free-element(cf_de); } cf_dv; })].
+        Return delivery-taken on (channel-c, cast voidable-c-name on (delivered), "{named}_arenacopy", "{named}_freeenv").
     Done.
 
     /// `Send <value> through <channel>.` — the value copied onto the heap and queued.
@@ -180,9 +184,7 @@ Pull books on collections, and the c-language.
         For each name in captured, repeat:
             Define held as the entry for name in one's kinds but void is "".
             Define member as cast c-name on (name).
-            Define captured-c as member.
-            Define redirected as the entry for "@{name}" in one's kinds but void is "".
-            If redirected is not "", the captured-c becomes redirected.
+            Define captured-c as cast one's redirected-c on (name) but void is c-word on (member).
             If cast crosses-as-itself on (held):
                 The fields becomes "{fields} {cast c-type on (held)} {member};".
                 The filled becomes "{filled} cf_a->{member} = {captured-c};".
@@ -284,13 +286,13 @@ Pull books on collections, and the c-language.
 
     /// `the awaited result of <task>` — waits for its box, then copies what it holds into this
     /// thread's arena. A task that ended in a fault hands the fault on here instead.
-    Bind text or failure to c-awaited unto emitter, given (the node expression):
+    Bind c-language axiom or failure to c-awaited unto emitter, given (the node expression):
         Define handle as cast one's kind-of on (cast field-of on (expression, 1)) or pass the failure off.
         If cast is-task-handle on (handle) is false, return a failure (cast not-built on ("awaiting a {handle}")).
         Define result as cast task-result on (handle).
         Define box-c as cast one's c-of on (cast field-of on (expression, 1)) or pass the failure off.
-        Define result-c as cast c-type on (result).
-        Define awaited-c as "(\{ {result-c} cf_ares; void* cf_ar = cufet_rbox_await({box-c}); if (cf_ar) cf_ares = {cast copy-family on (result)}_arenacopy(cf_ar); else \{ char* cf_af = cufet_rbox_take_fault({box-c}); if (cf_af) cufet_raise(cf_af); cufet_checkpoint(); memset(&cf_ares, 0, sizeof cf_ares); \} cf_ares; \})".
-        Return cast one's c-unwrapped on (awaited-c, result).
+        Define c-language result-awaited, given (the c-language axiom result-c, the c-language axiom box, the term arena-copy),
+            as [({ the result-c cf_ares; void* cf_ar = cufet_rbox_await(the box); if (cf_ar) cf_ares = the arena-copy(cf_ar); else { char* cf_af = cufet_rbox_take_fault(the box); if (cf_af) cufet_raise(cf_af); cufet_checkpoint(); memset(&cf_ares, 0, sizeof cf_ares); } cf_ares; })].
+        Return cast one's c-unwrapped on (result-awaited on (cast c-type on (result), box-c, "{cast copy-family on (result)}_arenacopy"), result).
     Done.
 Done.

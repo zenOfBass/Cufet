@@ -607,7 +607,7 @@ public sealed partial class CodeGenerator
     private (CufetType Type, string Access)? NarrowedRead(VariableReference read)
     {
         if (read.NarrowedType is { } narrowed && _varTypes.TryGetValue(read.Name, out var held))
-            return Reach(held, narrowed);
+            return Reach(NoStashes(held), NoStashes(narrowed));
         return null;
     }
 
@@ -1396,6 +1396,8 @@ public sealed partial class CodeGenerator
         // over the same bits, so both sides compare identically.
         AddressType => $"({a} == {b})",
         FunctionType => $"(({a}).fn == ({b}).fn && ({a}).env == ({b}).env)",   // function values: reference equality
+        // ★ Source as a value IS its text, so it compares as text.
+        AxiomType source when TypeChecker.IsSourceValue(source) => $"strcmp({a}, {b}) == 0",
         // The same struct, so the same comparison. Two names for one axiom share a thunk, which is
         // what makes them compare equal — identity is the SOURCE, as it is everywhere else here.
         AxiomType => $"(({a}).fn == ({b}).fn && ({a}).env == ({b}).env)",
@@ -1434,6 +1436,7 @@ public sealed partial class CodeGenerator
         // A union's `void` case, narrowed (`A void, state it.`): its value is a placeholder byte.
         VoidType => $"((void)({valExpr}), printf(\"void\"))",
         FunctionType => $"printf(\"<function>\")",   // matches the interpreter's Format for a FunctionValue
+        AxiomType source when TypeChecker.IsSourceValue(source) => $"cufet_write_text({valExpr})",
         AxiomType    => $"printf(\"<axiom>\")",      // and the same for the other kind of callable
         // ★ Never the pointer itself — see the interpreter's Format. Two backends are two
         // processes, so a printed handle could not agree between them however correct both were.

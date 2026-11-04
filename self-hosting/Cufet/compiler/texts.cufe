@@ -31,15 +31,17 @@ Pull books on collections, and the c-language.
     Done.
 
     /// A text operation as C.
-    Bind text or failure to c-text-operation unto emitter, given (the node expression):
+    Bind c-language axiom or failure to c-text-operation unto emitter, given (the node expression):
         Define kind as expression's kind.
         If kind is "TextFind":
             Define found as cast one's c-fields-in-order on (expression, 1, 2) or pass the failure off.
-            Return cast in-order on (item 1 of found, "(\{ int cf_fd = cufet_str_find({item 3 of found}, {item 2 of found}); cf_fd ? cvo_number_some(cufet_dec_from_ll(cf_fd)) : cvo_number_none(); \})").
+            Define c-language place-found, given (the c-language axiom within, the c-language axiom sought),
+                as [({ int cf_fd = cufet_str_find(the within, the sought); cf_fd ? cvo_number_some(cufet_dec_from_ll(cf_fd)) : cvo_number_none(); })].
+            Return cast in-order on (item 1 of found, place-found on (item 3 of found, item 2 of found)).
         Done.
         // `the current directory` — void when there is none to report.
         If kind is "CurrentDirectoryExpression":
-            Return "(\{ const char* cf_cwd = cufet_getcwd(); cf_cwd ? cvo_text_some(cf_cwd) : cvo_text_none(); \})".
+            Return [({ const char* cf_cwd = cufet_getcwd(); cf_cwd ? cvo_text_some(cf_cwd) : cvo_text_none(); })].
         Done.
         // Those with more than one operand, each worked out in turn.
         If kind is "TextSubstringEdge" or kind is "TextContains" or kind is "TextAffixTest" or kind is "TextSplit"
@@ -47,47 +49,52 @@ Pull books on collections, and the c-language.
             Return cast one's c-text-of-several on (expression) or pass the failure off.
         Done.
         Define text-c as cast one's c-of on (cast field-of on (expression, 1)) or pass the failure off.
-        If kind is "TextTrim", return "cufet_str_trim({text-c})".
+        If kind is "TextTrim", return call-of-one on ("cufet_str_trim", text-c).
         // `the environment variable <name>` — void when it is not set.
         If kind is "EnvironmentVariableExpression":
-            Return "(\{ const char* cf_ev = cufet_getenv({text-c}); cf_ev ? cvo_text_some(cf_ev) : cvo_text_none(); \})".
+            Define c-language variable-read, given (the c-language axiom named),
+                as [({ const char* cf_ev = cufet_getenv(the named); cf_ev ? cvo_text_some(cf_ev) : cvo_text_none(); })].
+            Return variable-read on (text-c).
         Done.
         // `the path … exists`, `is a directory`, `is a file`.
         If kind is "PathCheckExpression":
             Define asked as (cast field-of on (expression, 2))'s word.
-            If asked is "Exists", return "cufet_path_exists({text-c})".
-            If asked is "IsDirectory", return "cufet_path_is_dir({text-c})".
-            If asked is "IsFile", return "cufet_path_is_file({text-c})".
+            If asked is "Exists", return call-of-one on ("cufet_path_exists", text-c).
+            If asked is "IsDirectory", return call-of-one on ("cufet_path_is_dir", text-c).
+            If asked is "IsFile", return call-of-one on ("cufet_path_is_file", text-c).
             Return a failure (cast not-built on ("the path check {asked}")).
         Done.
         // Casing reads the shared runtime's table — the one the interpreter reads too.
         If kind is "TextCase":
-            If (cast field-of on (expression, 2))'s word is "true", return "cufet_str_upper({text-c})".
-            Return "cufet_str_lower({text-c})".
+            If (cast field-of on (expression, 2))'s word is "true", return call-of-one on ("cufet_str_upper", text-c).
+            Return call-of-one on ("cufet_str_lower", text-c).
         Done.
         // `is alphabetic`, `is numeric`, `is whitespace` read the shared runtime's classes, as casing does.
         If kind is "CharacterTest":
-            Define tested as "cufet_str_{(cast field-of on (expression, 2))'s word in lowercase}({text-c})".
-            If (cast field-of on (expression, 3))'s word is "true", return "(!{tested})".
-            Return "({tested})".
+            Define tested as call-of-one on ("cufet_str_{(cast field-of on (expression, 2))'s word in lowercase}", text-c).
+            If (cast field-of on (expression, 3))'s word is "true", return negated on (tested).
+            Return bracketed on (tested).
         Done.
         // `the code point of` — refused when it runs unless the text is one character.
         If kind is "CodePointOf":
-            Define row as (cast field-of on (expression, 2))'s word.
-            Return "(\{ int cf_cp = cufet_str_code_point({text-c}); if (cf_cp < 0) cufet_raise(cufet_msgf(\"'the code point of' needs exactly one character (line {row}).\")); cufet_dec_from_ll(cf_cp); \})".
+            Define c-language code-point, given (the c-language axiom letter, the number row),
+                as [({ int cf_cp = cufet_str_code_point(the letter); if (cf_cp < 0) cufet_raise(cufet_msgf("'the code point of' needs exactly one character (line the row).")); cufet_dec_from_ll(cf_cp); })].
+            Return code-point on (text-c, cast line-number on (cast field-of on (expression, 2))).
         Done.
         // `converted to number` — of a text; void when it is no number.
         If kind is "NumberConvert":
             If (cast one's kind-of on (cast field-of on (expression, 1)) or pass the failure off) is "bits":
-                Return "cufet_bits_to_number({text-c})".
+                Return call-of-one on ("cufet_bits_to_number", text-c).
             Done.
-            Return "(\{ CufetDec cf_pn; cufet_parse_number({text-c}, &cf_pn) ? cvo_number_some(cf_pn) : cvo_number_none(); \})".
+            Define c-language number-parsed, given (the c-language axiom written),
+                as [({ CufetDec cf_pn; cufet_parse_number(the written, &cf_pn) ? cvo_number_some(cf_pn) : cvo_number_none(); })].
+            Return number-parsed on (text-c).
         Done.
         Return a failure (cast not-built on (kind)).
     Done.
 
     /// A text operation of two or three operands as C, the operands worked out in turn.
-    Bind text or failure to c-text-of-several unto emitter, given (the node expression):
+    Bind c-language axiom or failure to c-text-of-several unto emitter, given (the node expression):
         Define kind as expression's kind.
         Define last as 2.
         If kind is "TextReplace", the last becomes 3.
@@ -98,28 +105,39 @@ Pull books on collections, and the c-language.
         Define second as item 3 of sides.
         // `the first <n> characters of`, `the last <n> characters of` — as many as there are.
         If kind is "TextSubstringEdge":
-            If (cast field-of on (expression, 3))'s word is "true", return cast in-order on (prefix, "cufet_str_edge({text-c}, cufet_to_int({second}), 1)").
-            Return cast in-order on (prefix, "cufet_str_edge({text-c}, cufet_to_int({second}), 0)").
+            Define c-language edge-of, given (the c-language axiom whole, the c-language axiom count, the fact from-end),
+                as [cufet_str_edge(the whole, cufet_to_int(the count), the from-end)].
+            Return cast in-order on (prefix, edge-of on (text-c, second, (cast field-of on (expression, 3))'s word is "true")).
         Done.
-        If kind is "TextContains", return cast in-order on (prefix, "(strstr({text-c}, {second}) != NULL)").
+        If kind is "TextContains":
+            Define c-language holds-text, given (the c-language axiom whole, the c-language axiom part), as [(strstr(the whole, the part) != NULL)].
+            Return cast in-order on (prefix, holds-text on (text-c, second)).
+        Done.
         If kind is "TextAffixTest":
-            If (cast field-of on (expression, 3))'s word is "true", return cast in-order on (prefix, "cufet_str_ends({text-c}, {second})").
-            Return cast in-order on (prefix, "cufet_str_starts({text-c}, {second})").
+            If (cast field-of on (expression, 3))'s word is "true", return cast in-order on (prefix, call-of-two on ("cufet_str_ends", text-c, second)).
+            Return cast in-order on (prefix, call-of-two on ("cufet_str_starts", text-c, second)).
         Done.
         If kind is "TextSplit":
-            Return cast in-order on (prefix, "(\{ cser_text* cf_sp = cser_text_new(); const char** cf_parts; int cf_n = cufet_str_split({text-c}, {second}, &cf_parts, {(cast field-of on (expression, 3))'s word}); for (int cf_j = 0; cf_j < cf_n; cf_j++) cser_text_append(cf_sp, cf_parts[cf_j]); cf_sp; \})").
+            Define c-language split-up, given (the c-language axiom whole, the c-language axiom separator, the number at-line),
+                as [({ cser_text* cf_sp = cser_text_new(); const char** cf_parts; int cf_n = cufet_str_split(the whole, the separator, &cf_parts, the at-line); for (int cf_j = 0; cf_j < cf_n; cf_j++) cser_text_append(cf_sp, cf_parts[cf_j]); cf_sp; })].
+            Return cast in-order on (prefix, split-up on (text-c, second, cast line-number on (cast field-of on (expression, 3)))).
         Done.
         If kind is "TextReplace":
-            Return cast in-order on (prefix, "cufet_str_replace({text-c}, {second}, {item 4 of sides}, {(cast field-of on (expression, 4))'s word})").
+            Define c-language replaced, given (the c-language axiom whole, the c-language axiom sought, the c-language axiom replacement, the number at-line),
+                as [cufet_str_replace(the whole, the sought, the replacement, the at-line)].
+            Return cast in-order on (prefix, replaced on (text-c, second, item 4 of sides, cast line-number on (cast field-of on (expression, 4)))).
         Done.
         // `the characters from … to … of`, to the end when there is no `to`.
-        Define upto as "-1".
-        If last is 3, the upto becomes "cufet_to_int({item 4 of sides})".
-        Return cast in-order on (prefix, "cufet_str_range({text-c}, cufet_to_int({second}), {upto}, {(cast field-of on (expression, 4))'s word})").
+        Define upto as c-verbatim on ([-1]).
+        If last is 3, the upto becomes call-of-one on ("cufet_to_int", item 4 of sides).
+        Define c-language ranged, given (the c-language axiom whole, the c-language axiom first-place, the c-language axiom upto, the number at-line),
+            as [cufet_str_range(the whole, cufet_to_int(the first-place), the upto, the at-line)].
+        Return cast in-order on (prefix, ranged on (text-c, second, upto, cast line-number on (cast field-of on (expression, 4)))).
     Done.
 
     /// `the length of <text>` — in characters.
-    Bind text to c-text-length, given (the text text-c):
-        Return "cufet_dec_from_ll((long long)cufet_u8_len({text-c}))".
+    Bind c-language axiom to c-text-length, given (the c-language axiom text-c):
+        Define c-language length-held, given (the c-language axiom whole), as [cufet_dec_from_ll((long long)cufet_u8_len(the whole))].
+        Return length-held on (text-c).
     Done.
 Done.

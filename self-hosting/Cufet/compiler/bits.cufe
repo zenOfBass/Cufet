@@ -16,46 +16,51 @@ Pull books on collections, and the c-language.
     Done.
 
     /// A bits expression as C.
-    Bind text or failure to c-bits-of unto emitter, given (the node expression):
+    Bind c-language axiom or failure to c-bits-of unto emitter, given (the node expression):
         Define kind as expression's kind.
         If kind is "BitsLiteral":
-            Define base as cast unquoted on (cast field-of on (expression, 2)).
-            Return "((CufetBits)\{ {(cast field-of on (expression, 1))'s word}ULL, '{base}', {(cast field-of on (expression, 3))'s word} \})".
+            Define c-language bits-made, given (the number pattern, the term base, the number width),
+                as [((CufetBits){ UINT64_C(the pattern), 'the base', the width })].
+            Return bits-made on (cast line-number on (cast field-of on (expression, 1)), cast unquoted on (cast field-of on (expression, 2)),
+                cast line-number on (cast field-of on (expression, 3))).
         Done.
         Define target-c as cast one's c-of on (cast field-of on (expression, 1)) or pass the failure off.
         If kind is "BitsShift":
-            Define left as "0".
-            If (cast field-of on (expression, 2))'s word is "true", the left becomes "1".
+            Define c-language bits-shifted, given (the c-language axiom target, the c-language axiom amount, the fact left, the number at-line),
+                as [cufet_bits_shift(the target, the amount, the left, the at-line)].
             Define amount-c as cast one's c-of on (cast field-of on (expression, 3)) or pass the failure off.
-            Return "cufet_bits_shift({target-c}, {amount-c}, {left}, {(cast field-of on (expression, 4))'s word})".
+            Return bits-shifted on (target-c, amount-c, (cast field-of on (expression, 2))'s word is "true", cast line-number on (cast field-of on (expression, 4))).
         Done.
         If kind is "BitsConvert":
-            Define base as cast unquoted on (cast field-of on (expression, 2)).
-            Return "cufet_bits_from_number({target-c}, '{base}', {(cast field-of on (expression, 3))'s word})".
+            Define c-language bits-converted, given (the c-language axiom target, the term base, the number at-line),
+                as [cufet_bits_from_number(the target, 'the base', the at-line)].
+            Return bits-converted on (target-c, cast unquoted on (cast field-of on (expression, 2)), cast line-number on (cast field-of on (expression, 3))).
         Done.
         Define width-c as cast one's c-of on (cast field-of on (expression, 2)) or pass the failure off.
-        Return "cufet_bits_at_width({target-c}, {width-c}, {(cast field-of on (expression, 3))'s word})".
+        Return call-at-line on ("cufet_bits_at_width", target-c, width-c, cast line-number on (cast field-of on (expression, 3))).
     Done.
 
     /// A binary operator over two bits values already as C: arithmetic and the gates give bits —
     /// the gates are calls, not `&&`, since combining two patterns needs both — and a comparison
     /// gives a fact, on the values alone.
-    Bind text or failure to c-bits-binary, given (the text operator, the text left, the text right, the text at-line):
+    Bind c-language axiom or failure to c-bits-binary, given (the text operator, the c-language axiom left, the c-language axiom right, the number at-line):
+        Define c-language value-test, given (the c-language axiom left, the c-language axiom right, the c-language axiom test),
+            as [((the left).value the test (the right).value)].
         Judge operator, where it is:
-            "Plus", return "cufet_bits_add({left}, {right}, {at-line})".
-            "Minus", return "cufet_bits_sub({left}, {right}, {at-line})".
-            "Star", return "cufet_bits_mul({left}, {right}, {at-line})".
-            "Slash", return "cufet_bits_div({left}, {right}, {at-line})".
-            "Percent", return "cufet_bits_mod({left}, {right}, {at-line})".
-            "And", return "cufet_bits_and({left}, {right})".
-            "Or", return "cufet_bits_or({left}, {right})".
-            "Xor", return "cufet_bits_xor({left}, {right})".
-            "Equal", return "(({left}).value == ({right}).value)".
-            "NotEqual", return "(({left}).value != ({right}).value)".
-            "Lt", return "(({left}).value < ({right}).value)".
-            "Gt", return "(({left}).value > ({right}).value)".
-            "Lte", return "(({left}).value <= ({right}).value)".
-            "Gte", return "(({left}).value >= ({right}).value)".
+            "Plus", return call-at-line on ("cufet_bits_add", left, right, at-line).
+            "Minus", return call-at-line on ("cufet_bits_sub", left, right, at-line).
+            "Star", return call-at-line on ("cufet_bits_mul", left, right, at-line).
+            "Slash", return call-at-line on ("cufet_bits_div", left, right, at-line).
+            "Percent", return call-at-line on ("cufet_bits_mod", left, right, at-line).
+            "And", return call-of-two on ("cufet_bits_and", left, right).
+            "Or", return call-of-two on ("cufet_bits_or", left, right).
+            "Xor", return call-of-two on ("cufet_bits_xor", left, right).
+            "Equal", return value-test on (left, right, [==]).
+            "NotEqual", return value-test on (left, right, [!=]).
+            "Lt", return value-test on (left, right, [<]).
+            "Gt", return value-test on (left, right, [>]).
+            "Lte", return value-test on (left, right, [<=]).
+            "Gte", return value-test on (left, right, [>=]).
             Otherwise, return a failure (cast not-built on ("the operator {operator} on bits")).
         Done.
     Done.
@@ -71,7 +76,9 @@ Pull books on collections, and the c-language.
     Done.
 
     /// A bits value as the text it shows as — `0xFF`, prefix and all — in a buffer of its own.
-    Bind text to c-bits-text, given (the text value):
-        Return "(\{ char* cf_bt = (char*)cufet_arena_alloc(80); cufet_format_bits(cf_bt, 80, {value}); cf_bt; \})".
+    Bind c-language axiom to c-bits-text, given (the c-language axiom value):
+        Define c-language bits-shown, given (the c-language axiom value),
+            as [({ char* cf_bt = (char*)cufet_arena_alloc(80); cufet_format_bits(cf_bt, 80, the value); cf_bt; })].
+        Return bits-shown on (value).
     Done.
 Done.

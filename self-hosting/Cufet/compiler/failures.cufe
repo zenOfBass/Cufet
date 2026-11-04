@@ -72,10 +72,10 @@ Pull books on collections, and the c-language.
     Done.
 
     /// A value going into a failable place: a failure as one, a value as a success.
-    Bind text to c-into-failable unto emitter, given (the text value, the text source-kind, the text wanted):
+    Bind c-language axiom to c-into-failable unto emitter, given (the c-language axiom value, the text source-kind, the text wanted):
         Define type-c as cast failable-c-name on (wanted).
-        If source-kind is "failure", return "{type-c}_fail({value})".
-        Return "{type-c}_some({cast one's c-coerce on (value, source-kind, cast failable-inner on (wanted))})".
+        If source-kind is "failure", return call-of-one on ("{type-c}_fail", value).
+        Return call-of-one on ("{type-c}_some", cast one's c-coerce on (value, source-kind, cast failable-inner on (wanted))).
     Done.
 
     /// The `Try` a statement is in — the label its failures go to — or "".
@@ -93,13 +93,36 @@ Pull books on collections, and the c-language.
         Return kind.
     Done.
 
-    Bind text or failure to raw-c-of unto emitter, given (the node expression):
+    Bind c-language axiom or failure to raw-c-of unto emitter, given (the node expression):
         Define kept as cast one's current-try.
         In one's kinds, the entry for "%try" becomes "".
-        Define written as cast one's c-of on (expression) but on failure "".
+        Define written as cast one's c-of on (expression) but on failure cast no-c.
         In one's kinds, the entry for "%try" becomes kept.
-        If written is "", return cast one's c-of on (expression) or pass the failure off.
+        If cast is-no-c on (written), return cast one's c-of on (expression) or pass the failure off.
         Return written.
+    Done.
+
+    /// What every way out of a block undoes, in order.
+    Bind c-language axiom to c-all-leaving, given (the c-language axiom unmakers, the c-language axiom frames, the c-language axiom rabbits, the c-language axiom files):
+        Define c-language all-left, given (the c-language axiom unmakers, the c-language axiom frames, the c-language axiom rabbits, the c-language axiom files),
+            as [the unmakers the frames the rabbits the files].
+        Return all-left on (unmakers, frames, rabbits, files).
+    Done.
+
+    /// What a failable call's block ends on: its value, or nothing when it has none.
+    Bind c-language axiom to c-unwrapped-value, given (the text kind):
+        If cast failable-inner on (kind) is "void", return [(void)0].
+        Return [cf_r.value].
+    Done.
+
+    /// A program's argv as C: its name, then each argument.
+    Bind c-language axiom or failure to c-spelled-out unto emitter, given (the c-language axiom program, the node handed):
+        Define c-language one-more, given (the c-language axiom earlier, the c-language axiom argument), as [the earlier, (char*)(the argument)].
+        Define spelled-out as program.
+        For each argument in handed's children, repeat:
+            The spelled-out becomes one-more on (spelled-out, cast one's c-of on (argument) or pass the failure off).
+        Done.
+        Return spelled-out.
     Done.
 
     /// What a call that can fail reads as here: inside a `Try`, its value.
@@ -109,25 +132,31 @@ Pull books on collections, and the c-language.
     Done.
 
     /// A call that can fail, as C: inside a `Try`, its value — or, when it fails, a jump to the handler.
-    Bind text to c-unwrapped unto emitter, given (the text written, the text kind):
+    Bind c-language axiom to c-unwrapped unto emitter, given (the c-language axiom written, the text kind):
         Define label as cast one's current-try.
         If cast is-failable on (kind) is false or label is "", return written.
-        Define leaving as "{cast one's c-leaving-unmakers on (the entry for "%try-um" in one's kinds but void is "")}{cast one's c-leaving on (the entry for "%try-exc" in one's kinds but void is "0")}{cast one's c-leaving-rabbits on (the entry for "%try-rabbit" in one's kinds but void is "0")}{cast one's c-leaving-files on (the entry for "%try-files" in one's kinds but void is "0")}".
-        Define taken as "(\{ {cast failable-c-name on (kind)} cf_r = {written}; if (!cf_r.ok) \{ cf_failure_{label} = cf_r.failure; {leaving}goto cf_try_{label}; \}".
-        If cast failable-inner on (kind) is "void", return "{taken} (void)0; \})".
-        Return "{taken} cf_r.value; \})".
+        Define c-language jumped, given (the term type-c, the c-language axiom written, the term failure-name, the c-language axiom leaving, the term handler, the c-language axiom value),
+            as [({ the type-c cf_r = the written; if (!cf_r.ok) { the failure-name = cf_r.failure; the leaving goto the handler; } the value; })].
+        Define leaving as cast c-all-leaving on (
+            cast one's c-leaving-unmakers on (the entry for "%try-um" in one's kinds but void is ""),
+            cast one's c-leaving on (the entry for "%try-exc" in one's kinds but void is "0"),
+            cast one's c-leaving-rabbits on (the entry for "%try-rabbit" in one's kinds but void is "0"),
+            cast one's c-leaving-files on (the entry for "%try-files" in one's kinds but void is "0")).
+        Return jumped on (cast failable-c-name on (kind), written, "cf_failure_{label}", leaving, "cf_try_{label}", cast c-unwrapped-value on (kind)).
     Done.
 
     /// `<call> or pass the failure off` — its value, or the failure handed to this function's caller.
-    Bind text or failure to c-pass-off unto emitter, given (the node held):
+    Bind c-language axiom or failure to c-pass-off unto emitter, given (the node held):
         Define kind as cast one's raw-kind-of on (held) or pass the failure off.
         Define written as cast one's raw-c-of on (held) or pass the failure off.
         If cast is-failable on (kind) is false, return written.
         Define outer as the entry for "%return" in one's kinds but void is "".
         If cast is-failable on (outer) is false, return a failure (cast not-built on ("passing a failure off from where nothing can fail")).
-        Define taken as "(\{ {cast failable-c-name on (kind)} cf_r = {written}; if (!cf_r.ok) \{ {cast one's c-leaving-unmakers on ("0")}{cast one's c-leaving on ("0")}{cast one's c-leaving-rabbits on ("0")}{cast one's c-leaving-files on ("0")}cufet_alloc_override = cf_fo; return {cast failable-c-name on (outer)}_fail(cf_r.failure); \}".
-        If cast failable-inner on (kind) is "void", return "{taken} (void)0; \})".
-        Return "{taken} cf_r.value; \})".
+        Define c-language passed-off, given (the term type-c, the c-language axiom written, the c-language axiom leaving, the term fail, the c-language axiom value),
+            as [({ the type-c cf_r = the written; if (!cf_r.ok) { the leaving cufet_alloc_override = cf_fo; return the fail(cf_r.failure); } the value; })].
+        Define leaving as cast c-all-leaving on (cast one's c-leaving-unmakers on ("0"), cast one's c-leaving on ("0"),
+            cast one's c-leaving-rabbits on ("0"), cast one's c-leaving-files on ("0")).
+        Return passed-off on (cast failable-c-name on (kind), written, leaving, "{cast failable-c-name on (outer)}_fail", cast c-unwrapped-value on (kind)).
     Done.
 
     // ── Expressions ───────────────────────────────────────────────────────
@@ -157,26 +186,31 @@ Pull books on collections, and the c-language.
         Return cast failable-inner on (held).
     Done.
 
-    Bind text or failure to c-failure-of unto emitter, given (the node expression):
+    Bind c-language axiom or failure to c-failure-of unto emitter, given (the node expression):
         Define kind as expression's kind.
         If kind is "FailureLiteral":
             Define said as cast one's c-of on (cast field-of on (expression, 1)) or pass the failure off.
-            Define tagged as "NULL".
+            Define tagged as c-verbatim on ([NULL]).
             If cast is-nothing on (cast field-of on (expression, 2)) is false:
                 The tagged becomes cast one's c-of on (cast field-of on (expression, 2)) or pass the failure off.
             Done.
-            Return "((CufetFailure)\{ {said}, {tagged} \})".
+            Define c-language failure-made, given (the c-language axiom said, the c-language axiom tagged), as [((CufetFailure){ the said, the tagged })].
+            Return failure-made on (said, tagged).
         Done.
         If kind is "FileReadExpression":
             Define path-c as cast one's c-of on (cast field-of on (expression, 2)) or pass the failure off.
-            Define read-c as "".
+            Define read-c as cast no-c.
             Define read-kind as "failure of text".
             If (cast field-of on (expression, 1))'s word is "AllLines":
                 The read-kind becomes "failure of series of text".
-                The read-c becomes "(\{ cfl_cser_text cf_fr; memset(&cf_fr, 0, sizeof cf_fr); const char** cf_lp; int cf_ln; CufetFailure cf_fe; if (cufet_file_read_lines({path-c}, &cf_lp, &cf_ln, &cf_fe)) \{ cser_text* cf_ls = cser_text_new(); for (int cf_lj = 0; cf_lj < cf_ln; cf_lj++) cser_text_append(cf_ls, cf_lp[cf_lj]); cf_fr.ok = 1; cf_fr.value = cf_ls; \} else cf_fr.failure = cf_fe; cf_fr; \})".
+                Define c-language lines-read, given (the c-language axiom file-path),
+                    as [({ cfl_cser_text cf_fr; memset(&cf_fr, 0, sizeof cf_fr); const char** cf_lp; int cf_ln; CufetFailure cf_fe; if (cufet_file_read_lines(the file-path, &cf_lp, &cf_ln, &cf_fe)) { cser_text* cf_ls = cser_text_new(); for (int cf_lj = 0; cf_lj < cf_ln; cf_lj++) cser_text_append(cf_ls, cf_lp[cf_lj]); cf_fr.ok = 1; cf_fr.value = cf_ls; } else cf_fr.failure = cf_fe; cf_fr; })].
+                The read-c becomes lines-read on (path-c).
             Done.
             Otherwise:
-                The read-c becomes "(\{ cfl_text cf_fr; memset(&cf_fr, 0, sizeof cf_fr); const char* cf_v; CufetFailure cf_fe; if (cufet_file_read_all({path-c}, &cf_v, &cf_fe)) \{ cf_fr.ok = 1; cf_fr.value = cf_v; \} else cf_fr.failure = cf_fe; cf_fr; \})".
+                Define c-language all-read, given (the c-language axiom file-path),
+                    as [({ cfl_text cf_fr; memset(&cf_fr, 0, sizeof cf_fr); const char* cf_v; CufetFailure cf_fe; if (cufet_file_read_all(the file-path, &cf_v, &cf_fe)) { cf_fr.ok = 1; cf_fr.value = cf_v; } else cf_fr.failure = cf_fe; cf_fr; })].
+                The read-c becomes all-read on (path-c).
             Done.
             Cast one's register-failable on (read-kind).
             Return cast one's c-unwrapped on (read-c, read-kind).
@@ -185,8 +219,9 @@ Pull books on collections, and the c-language.
         If kind is "DirectoryContentsExpression":
             Define folder-c as cast one's c-of on (cast field-of on (expression, 1)) or pass the failure off.
             Cast one's register-failable on ("failure of series of text").
-            Define listed-c as "(\{ cfl_cser_text cf_dc; memset(&cf_dc, 0, sizeof cf_dc); const char** cf_di; int cf_dn; CufetFailure cf_de; if (cufet_dir_contents({folder-c}, &cf_di, &cf_dn, &cf_de)) \{ cser_text* cf_ds = cser_text_new(); for (int cf_i = 0; cf_i < cf_dn; cf_i++) cser_text_append(cf_ds, cf_di[cf_i]); cf_dc.ok = 1; cf_dc.value = cf_ds; \} else cf_dc.failure = cf_de; cf_dc; \})".
-            Return cast one's c-unwrapped on (listed-c, "failure of series of text").
+            Define c-language contents-read, given (the c-language axiom folder),
+                as [({ cfl_cser_text cf_dc; memset(&cf_dc, 0, sizeof cf_dc); const char** cf_di; int cf_dn; CufetFailure cf_de; if (cufet_dir_contents(the folder, &cf_di, &cf_dn, &cf_de)) { cser_text* cf_ds = cser_text_new(); for (int cf_i = 0; cf_i < cf_dn; cf_i++) cser_text_append(cf_ds, cf_di[cf_i]); cf_dc.ok = 1; cf_dc.value = cf_ds; } else cf_dc.failure = cf_de; cf_dc; })].
+            Return cast one's c-unwrapped on (contents-read on (folder-c), "failure of series of text").
         Done.
         If kind is "RunExpression":
             Define run-c as cast one's c-run on (expression) or pass the failure off.
@@ -203,7 +238,9 @@ Pull books on collections, and the c-language.
         If cast is-failable on (held) is false, return written.
         Define inner as cast failable-inner on (held).
         Define fallback as cast one's c-of-as on (cast field-of on (expression, 2), inner) or pass the failure off.
-        Return "(\{ {cast failable-c-name on (held)} cf_r = {written}; cf_r.ok ? cf_r.value : ({fallback}); \})".
+        Define c-language or-fallback, given (the term type-c, the c-language axiom written, the c-language axiom fallback),
+            as [({ the type-c cf_r = the written; cf_r.ok ? cf_r.value : (the fallback); })].
+        Return or-fallback on (cast failable-c-name on (held), written, fallback).
     Done.
 
     /// `the message of`, `the category of` a failure.
@@ -213,9 +250,11 @@ Pull books on collections, and the c-language.
         Return "".
     Done.
 
-    Bind text to c-failure-field, given (the text failure-c, the text field-name):
-        If field-name is "message", return "({failure-c}).message".
-        Return "(\{ CufetFailure cf_f = {failure-c}; cf_f.category ? cvo_text_some(cf_f.category) : cvo_text_none(); \})".
+    Bind c-language axiom to c-failure-field, given (the c-language axiom failure-c, the text field-name):
+        If field-name is "message", return field-read on (failure-c, "message").
+        Define c-language category-read, given (the c-language axiom failure-c),
+            as [({ CufetFailure cf_f = the failure-c; cf_f.category ? cvo_text_some(cf_f.category) : cvo_text_none(); })].
+        Return category-read on (failure-c).
     Done.
 
     // ── Running a program ─────────────────────────────────────────────────
@@ -234,38 +273,44 @@ Pull books on collections, and the c-language.
 
     /// `run <program> with arguments …` as C — the runtime's own call, the one `cufet build` makes:
     /// the program's output and errors kept apart, or, `with the terminal`, its own.
-    Bind text or failure to c-run unto emitter, given (the node expression):
+    Bind c-language axiom or failure to c-run unto emitter, given (the node expression):
         Define kind as cast one's run-kind or pass the failure off.
         Define record-kind as cast failable-inner on (kind).
         Define record-c as cast record-c-name on (record-kind).
         Define type-c as cast failable-c-name on (kind).
         Define program-c as cast one's c-of on (cast field-of on (expression, 1)) or pass the failure off.
         // The arguments: written out, or a series of them — with the program's name first, as argv has it.
-        Define argv-c as "".
+        Define argv-c as cast no-c.
         If cast is-nothing on (cast field-of on (expression, 3)):
-            Define spelled-out as "(char*)cf_pg".
-            For each argument in (cast field-of on (expression, 2))'s children, repeat:
-                The spelled-out becomes "{spelled-out}, (char*)({cast one's c-of on (argument) or pass the failure off})".
-            Done.
-            The argv-c becomes "char* cf_av[] = \{ {spelled-out}, (char*)0 \};".
+            Define spelled-out as cast one's c-spelled-out on ([(char*)cf_pg], cast field-of on (expression, 2)) or pass the failure off.
+            Define c-language argv-written, given (the c-language axiom spelled-out), as [char* cf_av[] = { the spelled-out, (char*)0 };].
+            The argv-c becomes argv-written on (spelled-out).
         Done.
         Otherwise:
             Define series-c as cast one's c-of on (cast field-of on (expression, 3)) or pass the failure off.
-            The argv-c becomes "cser_text* cf_avs = {series-c}; char** cf_av = (char**)cufet_arena_alloc((size_t)(cf_avs->len + 2) * sizeof(char*)); cf_av[0] = (char*)cf_pg; for (int cf_ai = 0; cf_ai < cf_avs->len; cf_ai++) cf_av[cf_ai + 1] = (char*)cf_avs->data[cf_ai]; cf_av[cf_avs->len + 1] = (char*)0;".
+            Define c-language argv-from-series, given (the c-language axiom held-series),
+                as [cser_text* cf_avs = the held-series; char** cf_av = (char**)cufet_arena_alloc((size_t)(cf_avs->len + 2) * sizeof(char*)); cf_av[0] = (char*)cf_pg; for (int cf_ai = 0; cf_ai < cf_avs->len; cf_ai++) cf_av[cf_ai + 1] = (char*)cf_avs->data[cf_ai]; cf_av[cf_avs->len + 1] = (char*)0;].
+            The argv-c becomes argv-from-series on (series-c).
         Done.
         // `with input ""` hands the program an end of input at once; none leaves it reading this one's.
-        Define input-c as "NULL".
+        Define input-c as c-verbatim on ([NULL]).
         If cast is-nothing on (cast field-of on (expression, 7)) is false:
             The input-c becomes cast one's c-of on (cast field-of on (expression, 7)) or pass the failure off.
         Done.
-        Define done-c as "cf_run.ok = 1; cf_run.value = ({record-c})\{ .{cast c-name on ("errors")} = cf_se, .{cast c-name on ("exit-code")} = cufet_dec_from_ll(cf_ex), .{cast c-name on ("output")} = cf_so \};".
-        Define call-c as "cufet_run_capture(cf_pg, cf_av, {input-c}, &cf_so, &cf_se, &cf_ex, &cf_e)".
+        Define c-language run-done, given (the term record-c, the term errors, the term exit-code, the term output),
+            as [cf_run.ok = 1; cf_run.value = (the record-c){ .the errors = cf_se, .the exit-code = cufet_dec_from_ll(cf_ex), .the output = cf_so };].
+        Define done-c as run-done on (record-c, cast c-name on ("errors"), cast c-name on ("exit-code"), cast c-name on ("output")).
+        Define c-language captured, given (the c-language axiom input), as [cufet_run_capture(cf_pg, cf_av, the input, &cf_so, &cf_se, &cf_ex, &cf_e)].
+        Define call-c as captured on (input-c).
         // `with the terminal`: the child has this program's own streams, so nothing comes back but its exit code.
         If (cast field-of on (expression, 6))'s word is "true":
-            The call-c becomes "cufet_run_inherit(cf_pg, cf_av, &cf_e, &cf_ex)".
-            The done-c becomes "cf_so = \"\"; cf_se = \"\"; {done-c}".
+            The call-c becomes c-verbatim on ([cufet_run_inherit(cf_pg, cf_av, &cf_e, &cf_ex)]).
+            Define c-language nothing-kept, given (the c-language axiom finished), as [cf_so = ""; cf_se = ""; the finished].
+            The done-c becomes nothing-kept on (done-c).
         Done.
-        Return "(\{ const char* cf_pg = {program-c}; {argv-c} {type-c} cf_run; memset(&cf_run, 0, sizeof cf_run); const char* cf_so = 0; const char* cf_se = 0; int cf_ex = 0; CufetFailure cf_e; if ({call-c}) \{ {done-c} \} else cf_run.failure = cf_e; cf_run; \})".
+        Define c-language program-run, given (the c-language axiom program, the c-language axiom argv, the term type-c, the c-language axiom call, the c-language axiom finished),
+            as [({ const char* cf_pg = the program; the argv the type-c cf_run; memset(&cf_run, 0, sizeof cf_run); const char* cf_so = 0; const char* cf_se = 0; int cf_ex = 0; CufetFailure cf_e; if (the call) { the finished } else cf_run.failure = cf_e; cf_run; })].
+        Return program-run on (program-c, argv-c, type-c, call-c, done-c).
     Done.
 
     /// The programs a pipe runs, left to right — `run "seq" | run "grep" | run "wc"`.
@@ -282,39 +327,46 @@ Pull books on collections, and the c-language.
     Done.
 
     /// One program of a pipe made ready to run: its name in `cf_pg<n>`, its argv in `cf_av<n>`.
-    Bind text or failure to c-run-stage unto emitter, given (the node stage, the number place):
+    Bind c-language axiom or failure to c-run-stage unto emitter, given (the node stage, the number place):
         If (cast field-of on (stage, 6))'s word is "true", return a failure (cast not-built on ("a pipe stage given the terminal")).
         Define program-c as cast one's c-of on (cast field-of on (stage, 1)) or pass the failure off.
         If cast is-nothing on (cast field-of on (stage, 3)) is false, return a failure (cast not-built on ("a pipe stage given its arguments as a series")).
-        Define spelled-out as "(char*)cf_pg{place}".
-        For each argument in (cast field-of on (stage, 2))'s children, repeat:
-            The spelled-out becomes "{spelled-out}, (char*)({cast one's c-of on (argument) or pass the failure off})".
-        Done.
-        Return "const char* cf_pg{place} = {program-c}; char* cf_av{place}[] = \{ {spelled-out}, (char*)0 \};".
+        Define c-language program-named, given (the term program), as [(char*)the program].
+        Define spelled-out as cast one's c-spelled-out on (program-named on ("cf_pg{place}"), cast field-of on (stage, 2)) or pass the failure off.
+        Define c-language stage-ready, given (the term name, the c-language axiom program, the term argv, the c-language axiom spelled-out),
+            as [const char* the name = the program; char* the argv[] = { the spelled-out, (char*)0 };].
+        Return stage-ready on ("cf_pg{place}", program-c, "cf_av{place}", spelled-out).
     Done.
 
     /// `run … | run …` — each program run in turn, fed what the one before it wrote, as the
     /// interpreter runs them: the errors of all of them, the last non-zero exit, the last output.
     /// A program that cannot be started is the pipe's failure.
-    Bind text or failure to c-run-pipe unto emitter, given (the node expression):
+    Bind c-language axiom or failure to c-run-pipe unto emitter, given (the node expression):
         Define kind as cast one's run-kind or pass the failure off.
         Define record-c as cast record-c-name on (cast failable-inner on (kind)).
         Define type-c as cast failable-c-name on (kind).
         Define stages as cast piped-stages on (expression) or pass the failure off.
-        Define prepared as "".
-        Define first-input as "NULL".
+        Define prepared as cast no-c.
+        Define first-input as c-verbatim on ([NULL]).
         If cast is-nothing on (cast field-of on (item 1 of stages, 7)) is false:
             The first-input becomes cast one's c-of on (cast field-of on (item 1 of stages, 7)) or pass the failure off.
         Done.
-        Define chained as "".
+        Define c-language stage-added, given (the c-language axiom earlier, the c-language axiom stage), as [the earlier the stage].
+        Define c-language stage-chained, given (the c-language axiom earlier, the term program, the term argv),
+            as [the earlier if (cf_ok) { if (cufet_run_capture(the program, the argv, cf_cur, &cf_so, &cf_se, &cf_ex, &cf_e)) { cf_eagg = cufet_str_concat(cf_eagg, cf_se); if (cf_ex != 0) cf_code = cf_ex; cf_cur = cf_so; } else { cf_run.failure = cf_e; cf_ok = 0; } }].
+        Define chained as cast no-c.
         Define place as 0.
         For each stage in stages, repeat:
             Increment place by 1.
-            The prepared becomes "{prepared} {cast one's c-run-stage on (stage, place) or pass the failure off}".
-            The chained becomes "{chained} if (cf_ok) \{ if (cufet_run_capture(cf_pg{place}, cf_av{place}, cf_cur, &cf_so, &cf_se, &cf_ex, &cf_e)) \{ cf_eagg = cufet_str_concat(cf_eagg, cf_se); if (cf_ex != 0) cf_code = cf_ex; cf_cur = cf_so; \} else \{ cf_run.failure = cf_e; cf_ok = 0; \} \}".
+            The prepared becomes stage-added on (prepared, cast one's c-run-stage on (stage, place) or pass the failure off).
+            The chained becomes stage-chained on (chained, "cf_pg{place}", "cf_av{place}").
         Done.
-        Define done-c as "cf_run.ok = 1; cf_run.value = ({record-c})\{ .{cast c-name on ("errors")} = cf_eagg, .{cast c-name on ("exit-code")} = cufet_dec_from_ll(cf_code), .{cast c-name on ("output")} = cf_cur ? cf_cur : \"\" \};".
-        Return "(\{{prepared} {type-c} cf_run; memset(&cf_run, 0, sizeof cf_run); const char* cf_so = 0; const char* cf_se = 0; int cf_ex = 0; CufetFailure cf_e; const char* cf_cur = {first-input}; const char* cf_eagg = \"\"; int cf_code = 0; int cf_ok = 1;{chained} if (cf_ok) \{ {done-c} \} cf_run; \})".
+        Define c-language pipe-done, given (the term record-c, the term errors, the term exit-code, the term output),
+            as [cf_run.ok = 1; cf_run.value = (the record-c){ .the errors = cf_eagg, .the exit-code = cufet_dec_from_ll(cf_code), .the output = cf_cur ? cf_cur : "" };].
+        Define done-c as pipe-done on (record-c, cast c-name on ("errors"), cast c-name on ("exit-code"), cast c-name on ("output")).
+        Define c-language pipe-run, given (the c-language axiom prepared, the term type-c, the c-language axiom first-input, the c-language axiom chained, the c-language axiom finished),
+            as [({ the prepared the type-c cf_run; memset(&cf_run, 0, sizeof cf_run); const char* cf_so = 0; const char* cf_se = 0; int cf_ex = 0; CufetFailure cf_e; const char* cf_cur = the first-input; const char* cf_eagg = ""; int cf_code = 0; int cf_ok = 1; the chained if (cf_ok) { the finished } cf_run; })].
+        Return pipe-run on (prepared, type-c, first-input, chained, done-c).
     Done.
 
     /// `run … | run ….` written as a statement — what the last program wrote goes to this program's
@@ -350,21 +402,22 @@ Pull books on collections, and the c-language.
     Done.
 
     /// The C that closes the exception `Try`s a jump leaves — those opened since `depth` — or "".
-    Bind text to c-leaving unto emitter, given (the text depth):
+    Bind c-language axiom to c-leaving unto emitter, given (the text depth):
         Define left as cast one's exceptions-open - (depth converted to number but void is 0).
-        If left is less than 1, return "".
-        Return "cufet_exc_top -= {left}; ".
+        If left is less than 1, return [].
+        Define c-language frames-dropped, given (the number left), as [cufet_exc_top -= the left; ].
+        Return frames-dropped on (left).
     Done.
 
     /// A `Return`, closing every exception `Try` it leaves first — its value worked out before
     /// that, so a fault in it is still caught.
-    Bind text to c-return unto emitter, given (the text value):
+    Bind text to c-return unto emitter, given (the c-language axiom value):
         Define leaving as "{cast one's c-leaving-unmakers on ("0")}{cast one's c-leaving on ("0")}{cast one's c-leaving-rabbits on ("0")}{cast one's c-leaving-files on ("0")}cufet_alloc_override = cf_fo; ".
         If leaving is "":
-            If value is "", return "return;".
+            If cast is-no-c on (value), return "return;".
             Return "return {value};".
         Done.
-        If value is "", return "\{ {leaving}return; \}".
+        If cast is-no-c on (value), return "\{ {leaving}return; \}".
         Define gives as the entry for "%return" in one's kinds but void is "".
         Return "\{ {cast c-type on (gives)} cf_ret = {value}; {leaving}return cf_ret; \}".
     Done.
@@ -528,12 +581,13 @@ Pull books on collections, and the c-language.
     /// `Write <text> to the file <path>.` and `Append …` — inside a `Try`, a failure goes to its
     /// handler; outside one it has nowhere to go, and the program says why and stops, as `cufet build`'s does.
     Bind void or failure to emit-file-write unto emitter, given (the node statement):
-        Define appending as "0".
-        If (cast field-of on (statement, 1))'s word is "true", the appending becomes "1".
+        Define appending as (cast field-of on (statement, 1))'s word is "true".
         Define written-c as cast one's c-of on (cast field-of on (statement, 2)) or pass the failure off.
         Define path-c as cast one's c-of on (cast field-of on (statement, 3)) or pass the failure off.
         Cast one's register-failable on ("failure of void").
-        Define write-c as "(\{ cfl_void cf_w; memset(&cf_w, 0, sizeof cf_w); CufetFailure cf_we; if (cufet_file_write({path-c}, {written-c}, {appending}, &cf_we)) cf_w.ok = 1; else cf_w.failure = cf_we; cf_w; \})".
+        Define c-language file-written, given (the c-language axiom file-path, the c-language axiom written, the fact appending),
+            as [({ cfl_void cf_w; memset(&cf_w, 0, sizeof cf_w); CufetFailure cf_we; if (cufet_file_write(the file-path, the written, the appending, &cf_we)) cf_w.ok = 1; else cf_w.failure = cf_we; cf_w; })].
+        Define write-c as file-written on (path-c, written-c, appending).
         If cast one's current-try is not "":
             Cast one's line on ("{cast one's c-unwrapped on (write-c, "failure of void")};").
             Return.

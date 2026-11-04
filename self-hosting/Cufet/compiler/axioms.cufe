@@ -1,0 +1,36 @@
+/*  The shapes of C this compiler writes most: a name worked out from the program, a call, a pair of
+    brackets. Each is source with holes (DESIGN *An axiom's text as a value*): the compiler's C is
+    source all the way down, and only becomes text when a line of it is written out.
+
+    ⚠ In a file of their own, named to come first: a function reads a neighbour's axiom only once
+    its declaration has been reached, and files are read in the order of their names.
+*/
+
+Pull books on collections, and the c-language.
+    // ── C as source, not text (DESIGN *An axiom's text as a value*) ──────
+
+    /// C written where a value goes — `Define x as […]` alone would DECLARE an axiom, not hold one.
+    Define c-language c-verbatim, given (the c-language axiom code), as [the code] permanently.
+
+    /// A C name worked out from the program — checked as one when it is filled.
+    Define c-language c-word, given (the term name), as [the name] permanently.
+
+    /// A pointer to a type named that way.
+    Define c-language pointer-to, given (the term name), as [the name*] permanently.
+
+    /// A text as a C string literal, quoted and escaped.
+    Define c-language text-literal, given (the text words), as [the words] permanently.
+
+    // The shapes that recur: a call of a named function, brackets, and `not`.
+    Define c-language call-of-one, given (the term name, the c-language axiom first), as [the name(the first)] permanently.
+    Define c-language call-of-two, given (the term name, the c-language axiom first, the c-language axiom second),
+        as [the name(the first, the second)] permanently.
+    Define c-language call-of-three, given (the term name, the c-language axiom first, the c-language axiom second, the c-language axiom third),
+        as [the name(the first, the second, the third)] permanently.
+    Define c-language call-at-line, given (the term name, the c-language axiom first, the c-language axiom second, the number at-line),
+        as [the name(the first, the second, the at-line)] permanently.
+    Define c-language bracketed, given (the c-language axiom inner), as [(the inner)] permanently.
+    Define c-language negated, given (the c-language axiom inner), as [(!the inner)] permanently.
+    Define c-language listed-on, given (the c-language axiom listing, the c-language axiom next), as [the listing, the next] permanently.
+    Define c-language field-read, given (the c-language axiom holder, the term field), as [(the holder).the field] permanently.
+Done.

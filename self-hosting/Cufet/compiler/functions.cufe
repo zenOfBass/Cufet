@@ -162,8 +162,29 @@ Pull books on collections, and the c-language.
 
     // ── A named function as a value ───────────────────────────────────────
 
+    /// A function value: its struct, holding the function and its environment.
+    Bind c-language axiom to c-function-value, given (the text type-c, the text function-c, the c-language axiom environment):
+        Define c-language function-held, given (the term type-c, the term function-c, the c-language axiom environment),
+            as [((the type-c){ the function-c, the environment })].
+        Return function-held on (type-c, function-c, environment).
+    Done.
+
+    /// What a name reads as when it is not plainly itself — through the environment it was captured
+    /// into, or as the closure it is inside — or void. `kinds` holds only which, so it unwinds with
+    /// the block as every other entry does.
+    Bind voidable c-language axiom to redirected-c unto emitter, given (the text name):
+        Define marker as the entry for "@{name}" in one's kinds but void is "".
+        If marker is "", return void.
+        If marker is "env":
+            Define c-language through-environment, given (the term member), as [(cf_env->the member)].
+            Return through-environment on (cast c-name on (name)).
+        Done.
+        Return cast c-function-value on (the entry for "@type:{name}" in one's kinds but void is "",
+            the entry for "@fn:{name}" in one's kinds but void is "", [cf_envp]).
+    Done.
+
     /// A top-level function, as a value: through a thunk that drops the environment.
-    Bind text or failure to c-named-function unto emitter, given (the text name):
+    Bind c-language axiom or failure to c-named-function unto emitter, given (the text name):
         Define bound as the entry for name in one's functions but void is cast listed.
         Define kind as cast one's bound-kind on (bound) or pass the failure off.
         Define thunk as "cft_{cast c-ident on (name)}".
@@ -184,7 +205,7 @@ Pull books on collections, and the c-language.
             If cast function-gives on (kind) is "void", the gives-back becomes "".
             Insert "{head} \{ (void)cf_env; {gives-back}{cast c-function-name on (name)}({passed}); \}\n\n" into one's lambda-code.
         Done.
-        Return "(({cast function-c-name on (kind)})\{ {thunk}, NULL \})".
+        Return cast c-function-value on (cast function-c-name on (kind), thunk, [NULL]).
     Done.
 
     // ── Lambdas and a Bind inside a body ──────────────────────────────────
@@ -210,7 +231,7 @@ Pull books on collections, and the c-language.
     /// A function written here — `a function given (…): … Done.` or a `Bind` inside a body — built as
     /// a C function of its own, and the value that holds it and what it captured. `named` is the
     /// Bind's name, "" for a lambda; `gives` what it gives back, "?" to work it out from its body.
-    Bind text or failure to c-closure unto emitter, given (the node parameters, the node body, the text named,
+    Bind c-language axiom or failure to c-closure unto emitter, given (the node parameters, the node body, the text named,
             the text gives, the text label):
         // Its parameters, and what it captures — every name the body reads that this place knows.
         Define takes as a series of text.
@@ -262,8 +283,13 @@ Pull books on collections, and the c-language.
         // The value: an environment filled with what it captured, as it is now — but a sibling of
         // its group not made yet is written in after the group's last.
         Define group-first as cast one's group-of on (label, named).
-        Define filled as "{env-type}* cf_e = ({env-type}*)cufet_arena_alloc(sizeof({env-type})); memset(cf_e, 0, sizeof({env-type}));".
-        If group-first is not "", the filled becomes "{filled} cf_genv_{label} = cf_e;".
+        Define c-language environment-made, given (the term env-type),
+            as [the env-type* cf_e = (the env-type*)cufet_arena_alloc(sizeof(the env-type)); memset(cf_e, 0, sizeof(the env-type));].
+        Define c-language group-noted, given (the c-language axiom earlier, the term group-name), as [the earlier the group-name = cf_e;].
+        Define c-language capture-filled, given (the c-language axiom earlier, the term member, the c-language axiom captured),
+            as [the earlier cf_e->the member = the captured;].
+        Define filled as environment-made on (env-type).
+        If group-first is not "", the filled becomes group-noted on (filled, "cf_genv_{label}").
         For each name in captured, repeat:
             If group-first is not "" and (the entry for "pending:{name}" in one's inferred but void is "") is not "":
                 Define patches as the entry for "group-patches:{group-first}" in one's inferred but void is "".
@@ -272,14 +298,15 @@ Pull books on collections, and the c-language.
             Done.
             // Stored as it is stored here — read through this function's own environment, when it
             // was captured from further out too, and never as a narrowed case.
-            Define captured-c as cast c-name on (name).
+            Define captured-c as c-word on (cast c-name on (name)).
             // `one` is held by its address in a method; what is captured is the object, a snapshot.
-            If name is "one", the captured-c becomes "(*cv_one)".
-            Define redirected as the entry for "@{name}" in one's kinds but void is "".
-            If redirected starts with "(cf_env->" or redirected starts with "((cfn_", the captured-c becomes redirected.
-            The filled becomes "{filled} cf_e->{cast c-name on (name)} = {captured-c};".
+            If name is "one", the captured-c becomes c-verbatim on ([(*cv_one)]).
+            Define redirected as cast one's redirected-c on (name).
+            If redirected is not void, the captured-c becomes redirected.
+            The filled becomes capture-filled on (filled, cast c-name on (name), captured-c).
         Done.
-        Return "(\{ {filled} ({value-type})\{ {fn-name}, cf_e \}; \})".
+        Define c-language closure-made, given (the c-language axiom filled, the c-language axiom value), as [({ the filled the value; })].
+        Return closure-made on (filled, cast c-function-value on (value-type, fn-name, [cf_e])).
     Done.
 
     /// The environment's struct and the C function, written once.
@@ -318,7 +345,7 @@ Pull books on collections, and the c-language.
             Define captured-kind as the entry for "%{name}" in outer but void is (the entry for name in outer but void is "").
             In one's kinds, the entry for name becomes captured-kind.
             In one's kinds, the entry for "%{name}" becomes captured-kind.
-            In one's kinds, the entry for "@{name}" becomes "(cf_env->{cast c-name on (name)})".
+            In one's kinds, the entry for "@{name}" becomes "env".
         Done.
         Define place as 0.
         For each taken in takes, repeat:
@@ -332,12 +359,14 @@ Pull books on collections, and the c-language.
             Define self-kind as cast function-kind-from on (gives, takes).
             In one's kinds, the entry for named becomes self-kind.
             In one's kinds, the entry for "%{named}" becomes self-kind.
-            In one's kinds, the entry for "@{named}" becomes "(({cast function-c-name on (self-kind)})\{ {fn-name}, cf_envp \})".
+            In one's kinds, the entry for "@{named}" becomes "self".
+            In one's kinds, the entry for "@type:{named}" becomes cast function-c-name on (self-kind).
+            In one's kinds, the entry for "@fn:{named}" becomes fn-name.
         Done.
     Done.
 
     /// While a lambda's result is worked out: what its first `Return` gives is noted.
-    Bind text or failure to noted-return unto emitter, given (the node returned):
+    Bind c-language axiom or failure to noted-return unto emitter, given (the node returned):
         Define label as the entry for "%closure" in one's kinds but void is "".
         Define returned-kind as cast one's kind-of on (returned) or pass the failure off.
         If (the entry for "?{label}" in one's inferred but void is "") is "":
@@ -480,13 +509,13 @@ Pull books on collections, and the c-language.
     Done.
 
     /// A call of a function value, as C: through its function, with its environment first.
-    Bind text or failure to c-value-call unto emitter, given (the node call):
+    Bind c-language axiom or failure to c-value-call unto emitter, given (the node call):
         Define callee as cast field-of on (call, 1).
         Define kind as cast one's kind-of on (callee) or pass the failure off.
         Define callee-c as cast one's c-of on (callee) or pass the failure off.
         Define takes as cast function-takes on (kind).
         Define operands as a series of node.
-        Define emitted as a series of text.
+        Define emitted as a series of c-language axiom.
         Define place as 0.
         For each argument in (cast field-of on (call, 2))'s children, repeat:
             Increment place by 1.
@@ -495,10 +524,13 @@ Pull books on collections, and the c-language.
             Insert argument-c into emitted.
         Done.
         Define prefix as cast order-prefix on (operands, emitted).
-        Define param-list as "cf_fv.env".
+        Define handed as a series of c-language axiom with (c-verbatim on ([cf_fv.env])).
         For each argument-c in emitted, repeat:
-            The param-list becomes "{param-list}, {argument-c}".
+            Insert argument-c into handed.
         Done.
-        Return "(\{ {cast function-c-name on (kind)} cf_fv = {callee-c}; {cast in-order on (prefix, "cf_fv.fn({param-list})")}; \})".
+        Define c-language called-through, given (the c-language axiom handed), as [cf_fv.fn(the handed)].
+        Define c-language value-called, given (the term type-c, the c-language axiom callee, the c-language axiom called),
+            as [({ the type-c cf_fv = the callee; the called; })].
+        Return value-called on (cast function-c-name on (kind), callee-c, cast in-order on (prefix, called-through on (cast c-listed on (handed)))).
     Done.
 Done.

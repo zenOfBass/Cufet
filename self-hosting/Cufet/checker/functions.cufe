@@ -497,15 +497,17 @@ Pull a book on collections.
         Done.
         Define value-type as cast unknown-type.
         // A bare `[…]` returned as source takes its language from the declared return type.
-        Cast one's tag-bare-axiom on (value, expected).
-        If cast is-none on (cast one's axiom-behind on (value)) is false and expected's kind is not "AxiomType":
+        // ★ Through `or failure` and `voidable`: both hand the source back unrun as well.
+        Define hands-back as cast handed-back-type on (expected).
+        Cast one's tag-bare-axiom on (value, hands-back).
+        If cast is-none on (cast one's axiom-behind on (value)) is false and hands-back's kind is not "AxiomType":
             The value-type becomes cast one's run-axiom-on-return on (statement, value, at-row) or pass the failure off.
         Done.
         Otherwise:
             The value-type becomes cast one's infer on (value) or pass the failure off.
         Done.
         // Running needs the source, which a parameter or another call's result does not carry.
-        If value-type's kind is "AxiomType" and expected's kind is not "AxiomType":
+        If value-type's kind is "AxiomType" and hands-back's kind is not "AxiomType":
             Return a failure (cast source-not-reachable on (value-type, at-row)).
         Done.
         If cast is-rabbit-type on (value-type):
@@ -832,7 +834,7 @@ Pull a book on collections.
             // A bare `[…]` takes its language from the code hole it fills.
             Cast one's tag-bare-axiom on (argument, cast one's resolved on (item place of formals)).
             Define argument-type as cast unknown-type.
-            If place is 1 and reached's receivers is 0:
+            If place is 1 and reached's receivers is 0 and argument's kind is not "AxiomLiteral":
                 The argument-type becomes cast one's call-part-type on (argument, "first", memo) or pass the failure off.
             Done.
             Otherwise:
@@ -872,6 +874,8 @@ Pull a book on collections.
     /// minute each. The memo lives as long as the one `check-call`, so nothing outlives its scope.
     Bind node or failure to call-part-type unto checker, given (the node part, the text which,
             the map from text to node memo):
+        // A `[…]` nothing has tagged cannot be a receiver: its type is settled by the hole it lands in.
+        If part's kind is "AxiomLiteral" and cast literal-mark on (part, ":Language") is "", return cast unknown-type.
         Define held as the entry for which in memo.
         If held is not void, return held.
         Define found as cast one's infer on (part) or pass the failure off.

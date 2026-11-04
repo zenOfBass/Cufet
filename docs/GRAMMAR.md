@@ -2398,6 +2398,13 @@ A function hands source back with `Bind c-language axiom to <name>, …`.
 is the only place the name appears, the declared-but-unused refusal says so. Build the joined name in
 Cufet and pass it as a term of its own: `"{type-c}_eq"`.
 
+⚠ **`->` directly after a hole is the same case**, because `-` belongs to a Cufet name: `the held->len`
+is no hole. Bracket it: `(the held)->len`.
+
+⚠ **`Define x as [ … ]` declares an axiom; it does not hold a value.** With no result and no
+parameters it is a preamble, pasted above everything. A variable starts from a function's result or
+a fill instead.
+
 ⚠ **Filled source is never run**, so it needs no C toolchain on either backend, and the playground
 fills it too. `cast` on source with holes is refused with the fix, and so is `x on (…)` on anything
 that is not source, so a forgotten `cast` never quietly makes a fragment. Holes are filled by

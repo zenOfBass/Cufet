@@ -33,17 +33,17 @@ Pull books on collections, and the c-language.
     Done.
 
     /// Matrix arithmetic as C, its two sides worked out in the order written.
-    Bind text or failure to c-matrix-binary unto emitter, given (the node expression):
+    Bind c-language axiom or failure to c-matrix-binary unto emitter, given (the node expression):
         Define left-side as cast field-of on (expression, 1).
         Define right-side as cast field-of on (expression, 3).
         Define left-kind as cast one's kind-of on (left-side) or pass the failure off.
         Define right-kind as cast one's kind-of on (right-side) or pass the failure off.
         Define left-c as cast one's c-of on (left-side) or pass the failure off.
         Define right-c as cast one's c-of on (right-side) or pass the failure off.
-        Define sides as a series of text with (left-c, right-c).
+        Define sides as a series of c-language axiom with (left-c, right-c).
         Define prefix as cast order-prefix on (a series of node with (left-side, right-side), sides).
-        If left-kind is not "matrix", return cast in-order on (prefix, "cufet_mat_scale({item 2 of sides}, {item 1 of sides})").
-        If right-kind is not "matrix", return cast in-order on (prefix, "cufet_mat_scale({item 1 of sides}, {item 2 of sides})").
+        If left-kind is not "matrix", return cast in-order on (prefix, call-of-two on ("cufet_mat_scale", item 2 of sides, item 1 of sides)).
+        If right-kind is not "matrix", return cast in-order on (prefix, call-of-two on ("cufet_mat_scale", item 1 of sides, item 2 of sides)).
         Define operator as (cast field-of on (expression, 2))'s word.
         Define called as "cufet_mat_mul".
         Define said as "left matrix columns must equal right matrix rows for matrix product".
@@ -57,7 +57,9 @@ Pull books on collections, and the c-language.
         Done.
         Cast one's register-failable on ("failure of matrix").
         Define type-c as cast failable-c-name on ("failure of matrix").
-        Define worked as "(\{ CufetMatrix* cf_mr = {called}({item 1 of sides}, {item 2 of sides}); cf_mr ? {type-c}_some(cf_mr) : {type-c}_fail((CufetFailure)\{ \"{said}\", \"dimension-mismatch\" \}); \})".
+        Define c-language matrix-worked, given (the term called, the c-language axiom left, the c-language axiom right, the term some, the term fail, the text said),
+            as [({ CufetMatrix* cf_mr = the called(the left, the right); cf_mr ? the some(cf_mr) : the fail((CufetFailure){ the said, "dimension-mismatch" }); })].
+        Define worked as matrix-worked on (called, item 1 of sides, item 2 of sides, "{type-c}_some", "{type-c}_fail", said).
         Return cast one's c-unwrapped on (cast in-order on (prefix, worked), "failure of matrix").
     Done.
 
@@ -68,33 +70,36 @@ Pull books on collections, and the c-language.
     Done.
 
     /// A matrix expression as C.
-    Bind text or failure to c-matrix-of unto emitter, given (the node expression):
+    Bind c-language axiom or failure to c-matrix-of unto emitter, given (the node expression):
         Define kind as expression's kind.
-        Define at-line as "".
         If kind is "MatrixLiteral":
             // Its rows as written, each element worked out in order, row by row.
             Define rows as (cast field-of on (expression, 1))'s children.
             Define width as the number of (item 1 of rows)'s children.
-            Define built as "(\{ CufetMatrix* cf_mt = cufet_mat_new({the number of rows}, {width});".
+            Define c-language element-set, given (the c-language axiom built, the number place, the c-language axiom element),
+                as [the built cf_mt->data[the place] = the element;].
+            Define built as cast no-c.
             Define place as 0.
             For each row in rows, repeat:
                 For each element in row's children, repeat:
                     Define element-c as cast one's c-of-as on (element, "number") or pass the failure off.
-                    The built becomes "{built} cf_mt->data[{place}] = {element-c};".
+                    The built becomes element-set on (built, place, element-c).
                     Increment place by 1.
                 Done.
             Done.
-            Return "{built} cf_mt; \})".
+            Define c-language matrix-made, given (the number height, the number width, the c-language axiom built),
+                as [({ CufetMatrix* cf_mt = cufet_mat_new(the height, the width); the built cf_mt; })].
+            Return matrix-made on (the number of rows, width, built).
         Done.
+        Define at-line as cast line-number on (cast field-of on (expression, 4)).
         If kind is "MatrixSized":
-            The at-line becomes (cast field-of on (expression, 4))'s word.
             Define operands as a series of node with (cast field-of on (expression, 1), cast field-of on (expression, 2)).
-            Define emitted as a series of text.
+            Define emitted as a series of c-language axiom.
             Define rows-c as cast one's c-of-as on (cast field-of on (expression, 1), "number") or pass the failure off.
             Insert rows-c into emitted.
             Define columns-c as cast one's c-of-as on (cast field-of on (expression, 2), "number") or pass the failure off.
             Insert columns-c into emitted.
-            Define filled as "cufet_dec_from_ll(0)".
+            Define filled as call-of-one on ("cufet_dec_from_ll", [0]).
             If cast is-nothing on (cast field-of on (expression, 3)) is false:
                 Insert cast field-of on (expression, 3) into operands.
                 Define fill-c as cast one's c-of-as on (cast field-of on (expression, 3), "number") or pass the failure off.
@@ -102,12 +107,13 @@ Pull books on collections, and the c-language.
             Done.
             Define prefix as cast order-prefix on (operands, emitted).
             If the number of emitted is 3, the filled becomes item 3 of emitted.
-            Return cast in-order on (prefix, "cufet_mat_sized({item 1 of emitted}, {item 2 of emitted}, {filled}, {at-line})").
+            Define c-language matrix-sized, given (the c-language axiom height, the c-language axiom width, the c-language axiom filled, the number at-line),
+                as [cufet_mat_sized(the height, the width, the filled, the at-line)].
+            Return cast in-order on (prefix, matrix-sized on (item 1 of emitted, item 2 of emitted, filled, at-line)).
         Done.
         // `item at (r, c) of m` — the matrix, then the row, then the column.
-        The at-line becomes (cast field-of on (expression, 4))'s word.
         Define operands as a series of node with (cast field-of on (expression, 1), cast field-of on (expression, 2), cast field-of on (expression, 3)).
-        Define emitted as a series of text.
+        Define emitted as a series of c-language axiom.
         Define matrix-c as cast one's c-of on (cast field-of on (expression, 1)) or pass the failure off.
         Insert matrix-c into emitted.
         Define row-c as cast one's c-of-as on (cast field-of on (expression, 2), "number") or pass the failure off.
@@ -115,13 +121,15 @@ Pull books on collections, and the c-language.
         Define column-c as cast one's c-of-as on (cast field-of on (expression, 3), "number") or pass the failure off.
         Insert column-c into emitted.
         Define prefix as cast order-prefix on (operands, emitted).
-        Return cast in-order on (prefix, "cufet_mat_get({item 1 of emitted}, cufet_to_int({item 2 of emitted}), cufet_to_int({item 3 of emitted}), {at-line})").
+        Define c-language matrix-item, given (the c-language axiom grid, the c-language axiom row, the c-language axiom column, the number at-line),
+            as [cufet_mat_get(the grid, cufet_to_int(the row), cufet_to_int(the column), the at-line)].
+        Return cast in-order on (prefix, matrix-item on (item 1 of emitted, item 2 of emitted, item 3 of emitted, at-line)).
     Done.
 
     /// `The item at (r, c) of m becomes v.` — the matrix, the row, the column, then the value.
     Bind void or failure to emit-matrix-set unto emitter, given (the node statement):
         Define operands as a series of node with (cast field-of on (statement, 1), cast field-of on (statement, 2), cast field-of on (statement, 3), cast field-of on (statement, 4)).
-        Define emitted as a series of text.
+        Define emitted as a series of c-language axiom.
         Define matrix-c as cast one's c-of on (cast field-of on (statement, 1)) or pass the failure off.
         Insert matrix-c into emitted.
         Define row-c as cast one's c-of-as on (cast field-of on (statement, 2), "number") or pass the failure off.
@@ -133,13 +141,15 @@ Pull books on collections, and the c-language.
         Define prefix as cast order-prefix on (operands, emitted).
         Define at-line as (cast field-of on (statement, 5))'s word.
         Define stored as "cufet_mat_set({item 1 of emitted}, cufet_to_int({item 2 of emitted}), cufet_to_int({item 3 of emitted}), {item 4 of emitted}, {at-line})".
-        If prefix is "", cast one's line on ("{stored};").
+        If cast is-no-c on (prefix), cast one's line on ("{stored};").
         Otherwise, cast one's line on ("\{ {prefix}{stored}; \}").
     Done.
 
     /// `the rows of m`, `the columns of m` as C.
-    Bind text to c-matrix-count, given (the text matrix-c, the text field-name):
-        If field-name is "rows", return "cufet_dec_from_ll(({matrix-c})->rows)".
-        Return "cufet_dec_from_ll(({matrix-c})->cols)".
+    Bind c-language axiom to c-matrix-count, given (the c-language axiom matrix-c, the text field-name):
+        Define c-language rows-held, given (the c-language axiom grid), as [cufet_dec_from_ll((the grid)->rows)].
+        Define c-language columns-held, given (the c-language axiom grid), as [cufet_dec_from_ll((the grid)->cols)].
+        If field-name is "rows", return rows-held on (matrix-c).
+        Return columns-held on (matrix-c).
     Done.
 Done.

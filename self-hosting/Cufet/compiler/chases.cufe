@@ -236,14 +236,18 @@ Pull books on collections, and the c-language.
     // ── Expressions ───────────────────────────────────────────────────────
 
     /// `item … of <chase>`, `the first of`, `the last of` — one character, as a text.
-    Bind text or failure to c-chase-item unto emitter, given (the node target, the node index, the text at-line):
+    Bind c-language axiom or failure to c-chase-item unto emitter, given (the node target, the node index, the number at-line):
         Define chase-c as cast one's c-of on (target) or pass the failure off.
         Define label as cast chase-label on (target).
         If cast is-nothing on (index):
-            Return "(\{ CufetChase* cf_ch = {chase-c}; cufet_chase_at(cf_ch, cufet_last_check(cf_ch->len, \"{label}\", {at-line})); \})".
+            Define c-language last-item, given (the c-language axiom held, the text label, the number at-line),
+                as [({ CufetChase* cf_ch = the held; cufet_chase_at(cf_ch, cufet_last_check(cf_ch->len, the label, the at-line)); })].
+            Return last-item on (chase-c, label, at-line).
         Done.
         Define index-c as cast one's c-of on (index) or pass the failure off.
-        Return "(\{ CufetChase* cf_ch = {chase-c}; cufet_chase_at(cf_ch, cufet_idx_check(cufet_to_int({index-c}), cf_ch->len, \"{label}\", {at-line})); \})".
+        Define c-language placed-item, given (the c-language axiom held, the c-language axiom index, the text label, the number at-line),
+            as [({ CufetChase* cf_ch = the held; cufet_chase_at(cf_ch, cufet_idx_check(cufet_to_int(the index), cf_ch->len, the label, the at-line)); })].
+        Return placed-item on (chase-c, index-c, label, at-line).
     Done.
 
     // ── Statements ────────────────────────────────────────────────────────
@@ -257,7 +261,7 @@ Pull books on collections, and the c-language.
         Define at-line as (cast field-of on (statement, 5))'s word.
         // The chase, then the value, then the place, as the interpreter works them out.
         Define operands as a series of node with (target, cast field-of on (statement, 1)).
-        Define sides as a series of text with (chase-c, value).
+        Define sides as a series of c-language axiom with (chase-c, value).
         If (cast field-of on (statement, 4))'s word is not "true" and cast is-nothing on (cast field-of on (statement, 3)) is false:
             Insert cast field-of on (statement, 3) into operands.
             Define after-c as cast one's c-of on (cast field-of on (statement, 3)) or pass the failure off.
@@ -314,11 +318,11 @@ Pull books on collections, and the c-language.
         // The chase, then the place, then the character, as the interpreter works them out.
         Define index as cast field-of on (statement, 2).
         Define operands as a series of node with (target, cast field-of on (statement, 3)).
-        Define sides as a series of text with (chase-c, value).
+        Define sides as a series of c-language axiom with (chase-c, value).
         If cast is-nothing on (index) is false:
             Define index-c as cast one's c-of on (index) or pass the failure off.
             The operands becomes a series of node with (target, index, cast field-of on (statement, 3)).
-            The sides becomes a series of text with (chase-c, index-c, value).
+            The sides becomes a series of c-language axiom with (chase-c, index-c, value).
         Done.
         Define prefix as cast order-prefix on (operands, sides).
         Define placed-at as "cufet_last_check(cf_ch->len, \"{label}\", {at-line})".

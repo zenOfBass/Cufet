@@ -141,8 +141,8 @@ Pull books on collections, and the c-language.
             Insert " {cast c-type on (held)} {member};" into out.
             If place is greater than 1, insert " fputs(\", \", stdout);" into writes.
             If field-name is not "", insert " fputs(\"{field-name}: \", stdout);" into writes.
-            Insert " {cast write-call on (held, "r.{member}")};" into writes.
-            The tests becomes "{tests} && {cast c-equal on (held, "a.{member}", "b.{member}")}".
+            Insert " {cast write-call on (held, field-read on ([r], member))};" into writes.
+            The tests becomes "{tests} && {cast c-equal on (held, field-read on ([a], member), field-read on ([b], member))}".
         Done.
         Insert " \} {type-c};\n" into out.
         Insert "static void {type-c}_write({type-c} r) \{ fputs(\"record(\", stdout);{writes converted to text} fputs(\")\", stdout); \}\n" into out.
@@ -190,24 +190,37 @@ Pull books on collections, and the c-language.
         Return kind.
     Done.
 
+    /// One more field of a struct value being written: `.<member> = <value>`, after those before it.
+    Bind c-language axiom to c-field-given, given (the c-language axiom assigned, the text member, the c-language axiom value):
+        Define c-language first-field, given (the term member, the c-language axiom value), as [.the member = the value].
+        Define c-language next-field, given (the c-language axiom assigned, the term member, the c-language axiom value),
+            as [the assigned, .the member = the value].
+        If cast is-no-c on (assigned), return first-field on (member, value).
+        Return next-field on (assigned, member, value).
+    Done.
+
+    /// A struct's value, from its fields — zero throughout when there are none.
+    Bind c-language axiom to c-struct-value, given (the text type-c, the c-language axiom assigned):
+        Define c-language struct-made, given (the term type-c, the c-language axiom fields), as [((the type-c){ the fields })].
+        If cast is-no-c on (assigned), return struct-made on (type-c, [0]).
+        Return struct-made on (type-c, assigned).
+    Done.
+
     /// `a record with (…)` as C — each field into its member.
-    Bind text or failure to c-record-literal unto emitter, given (the node expression):
+    Bind c-language axiom or failure to c-record-literal unto emitter, given (the node expression):
         Define kind as cast one's record-literal-kind on (expression) or pass the failure off.
-        Define assigned as "".
+        Define assigned as cast no-c.
         Define place as 0.
         For each inner in (cast field-of on (expression, 1))'s children, repeat:
             Increment place by 1.
             Define value as cast one's c-of on (inner) or pass the failure off.
-            If assigned is not "", the assigned becomes "{assigned}, ".
-            The assigned becomes "{assigned}.p{place} = {value}".
+            The assigned becomes cast c-field-given on (assigned, "p{place}", value).
         Done.
         For each pair in (cast field-of on (expression, 2))'s children, repeat:
             Define value as cast one's c-of on (item 2 of pair's children) or pass the failure off.
-            If assigned is not "", the assigned becomes "{assigned}, ".
-            The assigned becomes "{assigned}.{cast c-name on (cast unquoted on (item 1 of pair's children))} = {value}".
+            The assigned becomes cast c-field-given on (assigned, cast c-name on (cast unquoted on (item 1 of pair's children)), value).
         Done.
-        If assigned is "", return "(({cast record-c-name on (kind)})\{ 0 \})".
-        Return "(({cast record-c-name on (kind)})\{ {assigned} \})".
+        Return cast c-struct-value on (cast record-c-name on (kind), assigned).
     Done.
 
     /// The positional part a place names — the last one when there is no place.
@@ -228,9 +241,9 @@ Pull books on collections, and the c-language.
         Return item place of cast record-parts on (kind).
     Done.
 
-    Bind text or failure to c-record-item unto emitter, given (the text record-c, the text kind, the node index):
+    Bind c-language axiom or failure to c-record-item unto emitter, given (the c-language axiom record-c, the text kind, the node index):
         Define place as cast one's positional-part on (kind, index) or pass the failure off.
-        Return "({record-c}).p{place}".
+        Return field-read on (record-c, "p{place}").
     Done.
 
     // ── Statements ────────────────────────────────────────────────────────

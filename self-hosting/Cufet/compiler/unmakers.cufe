@@ -57,10 +57,11 @@ Pull books on collections, and the c-language.
     Done.
 
     /// The C that runs back to a noted depth — the frame's own for "0" — or "" with none to run.
-    Bind text to c-leaving-unmakers unto emitter, given (the text depth):
-        If cast one's uses-unmakers is false or depth is "", return "".
-        If depth is "0", return "cufet_run_unmakers_to(cf_umb); ".
-        Return "cufet_run_unmakers_to({depth}); ".
+    Bind c-language axiom to c-leaving-unmakers unto emitter, given (the text depth):
+        If cast one's uses-unmakers is false or depth is "", return [].
+        Define c-language unmakers-run, given (the term depth), as [cufet_run_unmakers_to(the depth); ].
+        If depth is "0", return unmakers-run on ("cf_umb").
+        Return unmakers-run on (depth).
     Done.
 
     /// Opens a block: what is defined in it is unmade at its end. Gives back the depth it noted.
@@ -75,7 +76,7 @@ Pull books on collections, and the c-language.
 
     /// Closes a block, unmaking what it made — back to where it began.
     Bind void to closing-scope unto emitter, given (the text begun):
-        Define closing as cast one's c-leaving-unmakers on (begun).
+        Define closing as cast one's c-leaving-unmakers on (begun) converted to text.
         If closing is not "", cast one's line on (closing).
     Done.
 

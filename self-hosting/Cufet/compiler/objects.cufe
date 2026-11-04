@@ -59,15 +59,15 @@ Pull books on collections, and the c-language.
         Return cast one's field-kind on (object-name, cast unquoted on (cast field-of on (expression, 2))) or pass the failure off.
     Done.
 
-    Bind text or failure to c-possessive unto emitter, given (the node expression):
+    Bind c-language axiom or failure to c-possessive unto emitter, given (the node expression):
         Cast one's possessive-kind-of on (expression) or pass the failure off.
         Define held as cast one's c-of on (cast field-of on (expression, 1)) or pass the failure off.
         Define object-name as cast object-of on (cast one's kind-of on (cast field-of on (expression, 1)) or pass the failure off).
         Define member as cast unquoted on (cast field-of on (expression, 2)).
         If (the entry for "{object-name}'s getter {member}" in one's methods) is not void:
-            Return "{cast c-getter-name on (object-name, member)}({held})".
+            Return call-of-one on (cast c-getter-name on (object-name, member), held).
         Done.
-        Return "({held}).{cast c-name on (cast unquoted on (cast field-of on (expression, 2)))}".
+        Return field-read on (held, cast c-name on (member)).
     Done.
 
     /// The object a literal makes: the filled-in copy the checker chose for an object with blanks
@@ -80,7 +80,7 @@ Pull books on collections, and the c-language.
 
     /// `a new <object> { the <field> <value>, … }` — the fields left out given their defaults, which
     /// the checker lists beside the literal, so each is made afresh where the object is.
-    Bind text or failure to c-object-literal unto emitter, given (the node expression):
+    Bind c-language axiom or failure to c-object-literal unto emitter, given (the node expression):
         Define object-name as cast literal-object-name on (expression).
         Define definition as the entry for object-name in one's objects.
         If definition is void, return a failure (cast not-built on ("a new {object-name}")).
@@ -94,24 +94,20 @@ Pull books on collections, and the c-language.
             For each pair in filled's children, insert pair into handed-fields.
         Done.
         Define supplied as a map from text to fact.
-        Define listing as "".
+        Define listing as cast no-c.
         For each pair in handed-fields, repeat:
             Define field as cast unquoted on (cast field-of on (pair, 1)).
             In supplied, the entry for field becomes true.
             Define wanted as cast one's field-kind on (object-name, field) or pass the failure off.
             Define value as cast one's c-of-as on (cast field-of on (pair, 2), wanted) or pass the failure off.
-            Define one-field as ".{cast c-name on (field)} = {value}".
-            If listing is "", the listing becomes one-field.
-            Otherwise, the listing becomes "{listing}, {one-field}".
+            The listing becomes cast c-field-given on (listing, cast c-name on (field), value).
         Done.
         For each pair in (cast field-of on (definition, 3))'s children, repeat:
             If (the entry for cast unquoted on (cast field-of on (pair, 1)) in supplied) is void:
                 Return a failure (cast not-built on ("an object made without all its fields")).
             Done.
         Done.
-        Define type-c as cast c-struct-name on (object-name).
-        If listing is "", return "(({type-c})\{ 0 \})".
-        Return "(({type-c})\{ {listing} \})".
+        Return cast c-struct-value on (cast c-struct-name on (object-name), listing).
     Done.
 
     /// Whether an expression names a place C can take the address of — a name, `one`, or a field
@@ -124,26 +120,30 @@ Pull books on collections, and the c-language.
 
     /// The address of an object a method is called on, as C — a name, a field of one, or an item of
     /// a series, at any depth — or "" when it has none and lives only for the call.
-    Bind text or failure to c-address unto emitter, given (the node receiver):
-        If cast is-place on (receiver), return "&({cast one's c-of on (receiver) or pass the failure off})".
+    Bind c-language axiom or failure to c-address unto emitter, given (the node receiver):
+        Define c-language address-of, given (the c-language axiom place), as [&(the place)].
+        If cast is-place on (receiver), return address-of on (cast one's c-of on (receiver) or pass the failure off).
         If receiver's kind is "SeriesAccess":
             Define target as cast field-of on (receiver, 1).
             Define held as cast one's kind-of on (target) or pass the failure off.
             Define element as cast element-of on (held).
-            If element is "" or cast object-of on (element) is "", return "".
+            If element is "" or cast object-of on (element) is "", return [].
             Define series-c as cast one's c-of on (target) or pass the failure off.
-            Define place as cast one's c-place on (cast field-of on (receiver, 2), "cf_at", target, (cast field-of on (receiver, 3))'s word) or pass the failure off.
-            Return "(\{ {cast series-c-name on (element)}* cf_at = {series-c}; &cf_at->data[{place}]; \})".
+            Define place as cast one's c-place on (cast field-of on (receiver, 2), [cf_at], target, cast line-number on (cast field-of on (receiver, 3))) or pass the failure off.
+            Define c-language item-address, given (the term series-type, the c-language axiom held-series, the c-language axiom place),
+                as [({ the series-type* cf_at = the held-series; &cf_at->data[the place]; })].
+            Return item-address on (cast series-c-name on (element), series-c, place).
         Done.
         If receiver's kind is "PossessiveAccess":
             Define base as cast one's c-address on (cast field-of on (receiver, 1)) or pass the failure off.
-            If base is "", return "".
+            If cast is-no-c on (base), return [].
             Define member as cast unquoted on (cast field-of on (receiver, 2)).
             Define owner as cast object-of on (cast one's kind-of on (cast field-of on (receiver, 1)) or pass the failure off).
-            If owner is "" or (the entry for "{owner}'s getter {member}" in one's methods) is not void, return "".
-            Return "&((*{base}).{cast c-name on (member)})".
+            If owner is "" or (the entry for "{owner}'s getter {member}" in one's methods) is not void, return [].
+            Define c-language member-address, given (the c-language axiom base, the term member), as [&((*the base).the member)].
+            Return member-address on (base, cast c-name on (member)).
         Done.
-        Return "".
+        Return [].
     Done.
 
     /// The method a call reaches, by `<receiver>'s <method>`.
@@ -158,7 +158,7 @@ Pull books on collections, and the c-language.
     Done.
 
     /// A method call as C: the method, the address of what it is called on, and its arguments.
-    Bind text or failure to c-method-call unto emitter, given (the node call):
+    Bind c-language axiom or failure to c-method-call unto emitter, given (the node call):
         Define callee as cast field-of on (call, 1).
         Define called as cast one's method-called on (callee) or pass the failure off.
         Define receiver as cast field-of on (callee, 1).
@@ -166,15 +166,19 @@ Pull books on collections, and the c-language.
         Define method-c as cast c-method-name on (object-name, cast unquoted on (cast field-of on (called, 1))).
         Define handed-c as cast one's c-arguments on (cast field-of on (called, 3), cast field-of on (call, 2)) or pass the failure off.
         Define rest as item 2 of handed-c.
-        If rest is not "", the rest becomes ", {rest}".
         // The method changes what it is called on, so it is handed its address — an item of a
         // series is changed where it sits, as the interpreter changes it.
         Define address as cast one's c-address on (receiver) or pass the failure off.
-        If address is not "", return cast in-order on (item 1 of handed-c, "{method-c}({address}{rest})").
+        If cast is-no-c on (address) is false:
+            Return cast in-order on (item 1 of handed-c, call-of-one on (method-c, cast c-listed on (a series of c-language axiom with (address, rest)))).
+        Done.
         // Anything else is a value made for the call — a new object, a call's result — and a
         // method may change it as it likes, so it is held in a place of its own while it runs.
         Define value as cast one's c-of on (receiver) or pass the failure off.
-        Return "(\{ {cast c-struct-name on (object-name)} cf_recv = {value}; {cast in-order on (item 1 of handed-c, "{method-c}(&cf_recv{rest})")}; \})".
+        Define called-c as cast in-order on (item 1 of handed-c, call-of-one on (method-c, cast c-listed on (a series of c-language axiom with (c-verbatim on ([&cf_recv]), rest)))).
+        Define c-language called-on-a-copy, given (the term type-c, the c-language axiom value, the c-language axiom called),
+            as [({ the type-c cf_recv = the value; the called; })].
+        Return called-on-a-copy on (cast c-struct-name on (object-name), value, called-c).
     Done.
 
     Bind text to c-getter-name, given (the text object-name, the text getter-name):
@@ -323,9 +327,9 @@ Pull books on collections, and the c-language.
             Define member as cast c-name on (field).
             If first-field is false, insert " fputs(\", \", stdout);" into writes.
             The first-field becomes false.
-            Insert " fputs(\"{field}: \", stdout); {cast write-call on (held, "v.{member}")};" into writes.
-            Define test as cast c-equal on (held, "a.{member}", "b.{member}").
-            If tests is "", the tests becomes test.
+            Insert " fputs(\"{field}: \", stdout); {cast write-call on (held, field-read on ([v], member))};" into writes.
+            Define test as cast c-equal on (held, field-read on ([a], member), field-read on ([b], member)).
+            If tests is "", the tests becomes test converted to text.
             Otherwise, the tests becomes "{tests} && {test}".
         Done.
         If tests is "", the tests becomes "1".

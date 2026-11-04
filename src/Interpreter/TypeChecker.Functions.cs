@@ -745,6 +745,7 @@ public sealed partial class TypeChecker
         // does.
         else if (cast.ResolvedFunctionName is null
                  && cast.Function is VariableReference freeVr && cast.Args.Count > 0
+                 && !IsBareAxiom(cast.Args[0])
                  && MemberOwnerType(InferType(cast.Args[0])) is ObjectType freeOwner)
             cast.ResolvedFunctionName = InstantiateMethod(
                 freeOwner, freeVr.Name, [.. cast.Args.Skip(1)], cast.Line, cast.Column);
@@ -893,7 +894,7 @@ public sealed partial class TypeChecker
 
             // Not in env and not a method.
             // If first arg is an object/interface, this must be an attempted method call — error now.
-            if (args.Count > 0)
+            if (args.Count > 0 && !IsBareAxiom(args[0]))
             {
                 var firstArgType = InferType(args[0]);
                 if (firstArgType is ObjectType ot2)
@@ -981,7 +982,7 @@ public sealed partial class TypeChecker
     private (FunctionType funcType, string displayName, int declLine)? TryMethodDispatch(
         string name, IReadOnlyList<IExpression> args, int callLine, int callCol)
     {
-        if (args.Count == 0) return null;
+        if (args.Count == 0 || IsBareAxiom(args[0])) return null;
 
         var firstArgType = InferType(args[0]);
         if (firstArgType == null) return null;

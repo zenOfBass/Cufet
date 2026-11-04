@@ -250,25 +250,31 @@ Pull books on collections, and the c-language.
     // ── Crossing ──────────────────────────────────────────────────────────
 
     /// One value on its way into C: a number range-checked, never truncated.
-    Bind text to axiom-argument, given (the text taken, the text value, the text at-line):
-        If taken is "number", return "cufet_foreign_ll({value}, {at-line})".
-        If taken is "fact", return "(({value}) ? 1 : 0)".
+    Bind c-language axiom to axiom-argument, given (the text taken, the c-language axiom value, the number at-line):
+        Define c-language whole-handed, given (the c-language axiom value, the number at-line), as [cufet_foreign_ll(the value, the at-line)].
+        Define c-language fact-handed, given (the c-language axiom value), as [((the value) ? 1 : 0)].
+        If taken is "number", return whole-handed on (value, at-line).
+        If taken is "fact", return fact-handed on (value).
         Return value.
     Done.
 
     /// What a wrapper hands back, as the Cufet value the declaration promised.
-    Bind text or failure to axiom-result unto emitter, given (the node axiom, the text result, the text call):
-        If result is "number", return "cufet_dec_from_foreign({call})".
+    Bind c-language axiom or failure to axiom-result unto emitter, given (the node axiom, the text result, the c-language axiom call):
+        If result is "number", return call-of-one on ("cufet_dec_from_foreign", call).
         If result is "fact", return call.
         Define voidable-c as cast voidable-c-name on (result).
         If result is "voidable text":
-            Return "(\{ const char* cf_fx = {call}; cf_fx = cf_fx ? cufet_arena_str_at(cufet_arena_top, cf_fx) : (const char*)0; cf_fx ? {voidable-c}_some(cf_fx) : ({voidable-c})\{ 0 \}; \})".
+            Define c-language text-copied, given (the c-language axiom call, the term some, the term voidable-c),
+                as [({ const char* cf_fx = the call; cf_fx = cf_fx ? cufet_arena_str_at(cufet_arena_top, cf_fx) : (const char*)0; cf_fx ? the some(cf_fx) : (the voidable-c){ 0 }; })].
+            Return text-copied on (call, "{voidable-c}_some", voidable-c).
         Done.
         If result is "voidable number":
-            Return "(\{ CufetForeignReal cf_fr = {call}; cf_fr.ok ? {voidable-c}_some(cufet_dec_lit(cf_fr.hi, cf_fr.lo, cf_fr.scale, cf_fr.sign)) : ({voidable-c})\{ 0 \}; \})".
+            Define c-language number-crossed, given (the c-language axiom call, the term some, the term voidable-c),
+                as [({ CufetForeignReal cf_fr = the call; cf_fr.ok ? the some(cufet_dec_lit(cf_fr.hi, cf_fr.lo, cf_fr.scale, cf_fr.sign)) : (the voidable-c){ 0 }; })].
+            Return number-crossed on (call, "{voidable-c}_some", voidable-c).
         Done.
         // A pointer is the value itself; a release names what gives it back, registered here, once.
-        Define released as "".
+        Define released as cast no-c.
         Define release as cast keyed-field on (axiom, ":ReleaseAxiom").
         If release is not void:
             Define release-name as cast one's axiom-wrapper on (release) or pass the failure off.
@@ -277,21 +283,24 @@ Pull books on collections, and the c-language.
                 In one's inferred, the entry for "released:{thunk}" becomes "yes".
                 Insert "static void {thunk}(void* cufet_held) \{ (void){release-name}(cufet_held); \}\n\n" into one's lambda-protos.
             Done.
-            The released becomes "if (cf_fa) cufet_reg_unmaker(cf_fa, {thunk}); ".
+            Define c-language release-noted, given (the term thunk), as [if (cf_fa) cufet_reg_unmaker(cf_fa, the thunk); ].
+            The released becomes release-noted on (thunk).
         Done.
-        Return "(\{ void* cf_fa = {call}; {released}cf_fa ? {voidable-c}_some(cf_fa) : ({voidable-c})\{ 0 \}; \})".
+        Define c-language address-crossed, given (the c-language axiom call, the c-language axiom released, the term some, the term voidable-c),
+            as [({ void* cf_fa = the call; the released cf_fa ? the some(cf_fa) : (the voidable-c){ 0 }; })].
+        Return address-crossed on (call, released, "{voidable-c}_some", voidable-c).
     Done.
 
     /// A call of an axiom by its name: each argument worked out in order and handed over as C wants it.
-    Bind text or failure to c-axiom-call unto emitter, given (the node call):
+    Bind c-language axiom or failure to c-axiom-call unto emitter, given (the node call):
         Define axiom as cast keyed-field on (call, ":RunsAxiom").
         If axiom is void, return a failure (cast not-built on ("a call of an axiom the checker did not name")).
         Define wrapper as cast one's axiom-wrapper on (axiom) or pass the failure off.
         Define result as cast one's axiom-result-kind on (axiom) or pass the failure off.
         Define taken as cast one's axiom-taken-kinds on (axiom) or pass the failure off.
-        Define at-line as (cast field-of on (call, 3))'s word.
+        Define at-line as cast line-number on (cast field-of on (call, 3)).
         Define operands as a series of node.
-        Define emitted as a series of text.
+        Define emitted as a series of c-language axiom.
         Define place as 0.
         For each argument in (cast field-of on (call, 2))'s children, repeat:
             Increment place by 1.
@@ -300,19 +309,18 @@ Pull books on collections, and the c-language.
             Insert argument-c into emitted.
         Done.
         Define prefix as cast order-prefix on (operands, emitted).
-        Define listing as "".
+        Define handed as a series of c-language axiom.
         The place becomes 0.
         For each argument-c in emitted, repeat:
             Increment place by 1.
-            If place is greater than 1, the listing becomes "{listing}, ".
-            The listing becomes "{listing}{cast axiom-argument on (item place of taken, argument-c, at-line)}".
+            Insert cast axiom-argument on (item place of taken, argument-c, at-line) into handed.
         Done.
-        Define crossed-back as cast one's axiom-result on (axiom, result, "{wrapper}({listing})") or pass the failure off.
+        Define crossed-back as cast one's axiom-result on (axiom, result, call-of-one on (wrapper, cast c-listed on (handed))) or pass the failure off.
         Return cast in-order on (prefix, crossed-back).
     Done.
 
     /// An axiom as a value: a thunk that crosses as a direct call does, and the struct that holds it.
-    Bind text or failure to c-axiom-value unto emitter, given (the node axiom):
+    Bind c-language axiom or failure to c-axiom-value unto emitter, given (the node axiom):
         Define kind as cast one's axiom-kind on (axiom) or pass the failure off.
         Define wrapper as cast one's axiom-wrapper on (axiom) or pass the failure off.
         Define thunk as "{wrapper}_value".
@@ -320,42 +328,43 @@ Pull books on collections, and the c-language.
             In one's inferred, the entry for "valued:{thunk}" becomes "yes".
             Define result as cast one's axiom-result-kind on (axiom) or pass the failure off.
             Define taken as cast one's axiom-taken-kinds on (axiom) or pass the failure off.
-            Define at-line as (cast field-of on (axiom, 2))'s word.
+            Define at-line as cast line-number on (cast field-of on (axiom, 2)).
             Define declared as "void* cufet_env".
-            Define listing as "".
+            Define handed as a series of c-language axiom.
             Define place as 0.
             For each part in taken, repeat:
                 The declared becomes "{declared}, {cast c-type on (part)} p{place}".
-                If place is greater than 0, the listing becomes "{listing}, ".
-                The listing becomes "{listing}{cast axiom-argument on (part, "p{place}", at-line)}".
+                Insert cast axiom-argument on (part, c-word on ("p{place}"), at-line) into handed.
                 Increment place by 1.
             Done.
             Define head as "static {cast c-type on (result)} {thunk}({declared})".
             Insert "{head};\n" into one's lambda-protos.
-            Define crossed-back as cast one's axiom-result on (axiom, result, "{wrapper}({listing})") or pass the failure off.
+            Define crossed-back as cast one's axiom-result on (axiom, result, call-of-one on (wrapper, cast c-listed on (handed))) or pass the failure off.
             Insert "{head} \{ (void)cufet_env; return {crossed-back}; \}\n\n" into one's lambda-code.
         Done.
-        Return "(({cast function-c-name on (kind)})\{ {thunk}, NULL \})".
+        Return cast c-function-value on (cast function-c-name on (kind), thunk, [NULL]).
     Done.
 
     /// `the text at <address>` — copied out, as an axiom's text is; void through a void address.
-    Bind text or failure to c-text-at unto emitter, given (the node expression):
+    Bind c-language axiom or failure to c-text-at unto emitter, given (the node expression):
         Define address as cast field-of on (expression, 1).
         Define address-kind as cast one's kind-of on (address) or pass the failure off.
         Define address-c as cast one's c-of on (address) or pass the failure off.
         Cast one's register-union on ("voidable text").
         Define voidable-c as cast voidable-c-name on ("voidable text").
-        Define raw as "(const char*)cf_th".
-        If address-kind is "voidable address", the raw becomes "(cf_th.has ? (const char*)cf_th.value : (const char*)0)".
-        Return "(\{ __auto_type cf_th = {address-c}; const char* cf_ta = {raw}; const char* cf_tc = cf_ta ? cufet_arena_str_at(cufet_arena_top, cf_ta) : (const char*)0; cf_tc ? {voidable-c}_some(cf_tc) : ({voidable-c})\{ 0 \}; \})".
+        Define raw as c-verbatim on ([(const char*)cf_th]).
+        If address-kind is "voidable address", the raw becomes c-verbatim on ([(cf_th.has ? (const char*)cf_th.value : (const char*)0)]).
+        Define c-language text-read-through, given (the c-language axiom address, the c-language axiom raw, the term some, the term voidable-c),
+            as [({ __auto_type cf_th = the address; const char* cf_ta = the raw; const char* cf_tc = cf_ta ? cufet_arena_str_at(cufet_arena_top, cf_ta) : (const char*)0; cf_tc ? the some(cf_tc) : (the voidable-c){ 0 }; })].
+        Return text-read-through on (address-c, raw, "{voidable-c}_some", voidable-c).
     Done.
 
     // ── Source filled and handed back: DESIGN *An axiom's text as a value* ─
 
     /// `ForeignC.Holes`, built into C: the source's text, each hole filled by its `render`, cut in
     /// ONE pass — at each place the longest name first — so nothing pasted in is ever searched.
-    Bind text to filled-c, given (the text source, the series of text names, the series of text renders):
-        Define text-c as "\"\"".
+    Bind c-language axiom to filled-c, given (the text source, the series of text names, the series of c-language axiom renders):
+        Define text-c as c-verbatim on ([""]).
         Define piece as a chase.
         Define total as the length of source.
         Define place as 1.
@@ -395,10 +404,10 @@ Pull books on collections, and the c-language.
             Done.
             If hole is greater than 0:
                 If the number of piece is greater than 0:
-                    The text-c becomes "cufet_str_concat({text-c}, {(cast quoted on (piece converted to text))'s word})".
+                    The text-c becomes call-of-two on ("cufet_str_concat", text-c, text-literal on (piece converted to text)).
                     The piece becomes a chase.
                 Done.
-                The text-c becomes "cufet_str_concat({text-c}, {item hole of renders})".
+                The text-c becomes call-of-two on ("cufet_str_concat", text-c, item hole of renders).
                 The place becomes found + 1.
             Done.
             Otherwise:
@@ -407,22 +416,26 @@ Pull books on collections, and the c-language.
             Done.
         Done.
         If the number of piece is greater than 0:
-            The text-c becomes "cufet_str_concat({text-c}, {(cast quoted on (piece converted to text))'s word})".
+            The text-c becomes call-of-two on ("cufet_str_concat", text-c, text-literal on (piece converted to text)).
         Done.
         Return text-c.
     Done.
 
     /// `eq-function on (…)` — the source's text with every hole filled, worked out left to right.
     /// The renderers are the runtime's twins of ForeignC.FillTerm, FillText and FillNumber.
-    Bind text or failure to c-fill unto emitter, given (the node fill):
+    Bind c-language axiom or failure to c-fill unto emitter, given (the node fill):
         Define axiom as cast keyed-field on (fill, ":RunsAxiom").
         If axiom is void, return a failure (cast not-built on ("filling source the checker did not name")).
         Define count as (the entry for "%fills" in one's inferred but void is "0") converted to number but void is 0.
         In one's inferred, the entry for "%fills" becomes "{count + 1}".
-        Define at-line as (cast field-of on (fill, 3))'s word.
+        Define at-line as cast line-number on (cast field-of on (fill, 3)).
         Define declared-parameters as cast keyed-field on (axiom, ":Parameters") but void is cast listed.
-        Define steps as "".
-        Define renders as a series of text.
+        Define c-language step-bound, given (the c-language axiom steps, the c-language axiom type-c, the term temporary, the c-language axiom value),
+            as [the steps the type-c the temporary = the value;].
+        Define c-language term-render, given (the term temporary, the text hole, the number at-line), as [cufet_fill_term(the temporary, the hole, the at-line)].
+        Define c-language fact-render, given (the term temporary), as [(the temporary ? "1" : "0")].
+        Define steps as cast no-c.
+        Define renders as a series of c-language axiom.
         Define place as 0.
         For each argument in (cast field-of on (fill, 2))'s children, repeat:
             Increment place by 1.
@@ -431,19 +444,20 @@ Pull books on collections, and the c-language.
             Define hole-name as cast unquoted on (item 2 of parameter's children).
             Define temp as "cf_fill{count}_{place - 1}".
             Define argument-c as cast one's c-of on (argument) or pass the failure off.
-            Define temp-c as "const char*".
-            If hole-kind is "NumberType", the temp-c becomes "CufetDec".
-            If hole-kind is "FactType", the temp-c becomes "int".
-            The steps becomes "{steps}{temp-c} {temp} = {argument-c}; ".
-            Define render as temp.
-            If hole-kind is "TermType", the render becomes "cufet_fill_term({temp}, \"{hole-name}\", {at-line})".
-            If hole-kind is "TextType", the render becomes "cufet_fill_text({temp})".
-            If hole-kind is "NumberType", the render becomes "cufet_fill_number({temp})".
-            If hole-kind is "FactType", the render becomes "({temp} ? \"1\" : \"0\")".
+            Define temp-c as c-verbatim on ([const char*]).
+            If hole-kind is "NumberType", the temp-c becomes c-verbatim on ([CufetDec]).
+            If hole-kind is "FactType", the temp-c becomes c-verbatim on ([int]).
+            The steps becomes step-bound on (steps, temp-c, temp, argument-c).
+            Define render as c-word on (temp).
+            If hole-kind is "TermType", the render becomes term-render on (temp, hole-name, at-line).
+            If hole-kind is "TextType", the render becomes call-of-one on ("cufet_fill_text", c-word on (temp)).
+            If hole-kind is "NumberType", the render becomes call-of-one on ("cufet_fill_number", c-word on (temp)).
+            If hole-kind is "FactType", the render becomes fact-render on (temp).
             Insert render into renders.
         Done.
         Define text-c as cast filled-c on (cast unquoted on (cast field-of on (axiom, 1)), cast axiom-taken-names on (axiom), renders).
-        Return "(\{ {steps}{text-c}; \})".
+        Define c-language fill-made, given (the c-language axiom steps, the c-language axiom text-c), as [({ the steps the text-c; })].
+        Return fill-made on (steps, text-c).
     Done.
 
     // ── The program ───────────────────────────────────────────────────────
@@ -472,7 +486,7 @@ Pull books on collections, and the c-language.
                     Define source as cast unquoted on (cast field-of on (axiom, 1)).
                     Insert "{cast axiom-banner on (language, source)}\n{source}\n\n" into one's lambda-protos.
                     // As a value it is its text, written where it is used.
-                    In one's inferred, the entry for "source:{cast unquoted on (cast field-of on (statement, 1))}" becomes (cast field-of on (axiom, 1))'s word.
+                    In one's inferred, the entry for "source:{cast unquoted on (cast field-of on (statement, 1))}" becomes source.
                 Done.
             Done.
         Done.

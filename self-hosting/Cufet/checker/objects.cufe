@@ -46,13 +46,13 @@ Pull a book on collections.
         If the number of statement's children is greater than 8, return "a Bind with {(cast field-of on (statement, 9))'s word}".
         Define returned as cast field-of on (statement, 2).
         If cast is-nothing on (returned) is false:
-            If cast beyond-types on (returned) or returned's kind is "AxiomType":
+            If cast beyond-types on (returned):
                 Return "a function giving back a {returned's kind}".
             Done.
         Done.
         For each parameter in (cast field-of on (statement, 3))'s children, repeat:
             Define taken as cast field-of on (parameter, 1).
-            If cast beyond-types on (taken) or taken's kind is "AxiomType":
+            If cast beyond-types on (taken):
                 Return "a function taking a {taken's kind}".
             Done.
         Done.

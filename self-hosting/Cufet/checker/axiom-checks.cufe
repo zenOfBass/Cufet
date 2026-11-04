@@ -553,6 +553,14 @@ Pull a book on collections.
             "Take 'the {language} axiom {name}', 'the term {name}', or a number, fact or text.")).
     Done.
 
+    /// What a declared return type hands back when it works — through `or failure` and `voidable`.
+    Bind node to handed-back-type, given (the node declared):
+        If declared's kind is "FailureType" or declared's kind is "VoidableType":
+            Return cast handed-back-type on (cast field-of on (declared, 1)).
+        Done.
+        Return declared.
+    Done.
+
     /// `TagBareAxiom`: a bare `[…]` takes the language of the code hole it fills.
     Bind void to tag-bare-axiom unto checker, given (the node argument, the node expected):
         If argument's kind is not "AxiomLiteral" or cast is-none on (expected), return.

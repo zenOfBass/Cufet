@@ -24,9 +24,11 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Changed
 
-- **The compiler written in Cufet is moving its C from text to C source**, bottom-up: every file
-  pulls the c-language book, and `c-type` now hands back the C type as source. It still builds
-  itself to a fixed point.
+- **The compiler written in Cufet now hands its C around as source, not text.** Every function that
+  turns an expression into C gives back a `c-language axiom`, built by filling source with holes,
+  and shared shapes live in `compiler/axioms.cufe`. A C name goes through a term, a C string through
+  a value hole, and no text becomes code anywhere in that path. It still builds itself to a fixed
+  point. Statements and generated helpers are still written as text, and are moving next.
 
 ### Fixed
 

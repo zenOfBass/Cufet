@@ -102,13 +102,13 @@ Pull books on collections, and the c-language.
     Done.
 
     /// A call of the overload a binary expression reaches, its two sides worked out in order.
-    Bind text or failure to c-overload-call unto emitter, given (the node expression, the node declaration):
+    Bind c-language axiom or failure to c-overload-call unto emitter, given (the node expression, the node declaration):
         Define left-c as cast one's c-of on (cast field-of on (expression, 1)) or pass the failure off.
         Define right-c as cast one's c-of on (cast field-of on (expression, 3)) or pass the failure off.
-        Define sides as a series of text with (left-c, right-c).
+        Define sides as a series of c-language axiom with (left-c, right-c).
         Define prefix as cast order-prefix on (a series of node with (cast field-of on (expression, 1), cast field-of on (expression, 3)), sides).
         Define called as cast c-overload-name on ((cast field-of on (declaration, 1))'s word,
             cast unquoted on (cast field-of on (declaration, 4)), cast unquoted on (cast field-of on (declaration, 5))).
-        Return cast in-order on (prefix, "{called}({item 1 of sides}, {item 2 of sides})").
+        Return cast in-order on (prefix, call-of-two on (called, item 1 of sides, item 2 of sides)).
     Done.
 Done.

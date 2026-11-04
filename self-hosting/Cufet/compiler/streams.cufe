@@ -23,9 +23,9 @@ Pull books on collections, and the c-language.
         Return "".
     Done.
 
-    Bind text to standard-stream-c, given (the text name):
-        If name is "input", return "stdin".
-        Return "stdout".
+    Bind c-language axiom to standard-stream-c, given (the text name):
+        If name is "input", return [stdin].
+        Return [stdout].
     Done.
 
     /// The kind a read gives: a line — void at the end — everything, or every line.
@@ -37,14 +37,18 @@ Pull books on collections, and the c-language.
     Done.
 
     /// A read as C.
-    Bind text or failure to c-read unto emitter, given (the node expression):
+    Bind c-language axiom or failure to c-read unto emitter, given (the node expression):
         Define form as (cast field-of on (expression, 1))'s word.
         Define stream-c as cast one's c-of on (cast field-of on (expression, 2)) or pass the failure off.
-        If form is "All", return "cufet_stream_read_all({stream-c})".
+        If form is "All", return call-of-one on ("cufet_stream_read_all", stream-c).
         If form is "Line":
-            Return "(\{ const char* cf_rl = cufet_stream_read_line({stream-c}); cf_rl ? cvo_text_some(cf_rl) : cvo_text_none(); \})".
+            Define c-language line-read, given (the c-language axiom held-stream),
+                as [({ const char* cf_rl = cufet_stream_read_line(the held-stream); cf_rl ? cvo_text_some(cf_rl) : cvo_text_none(); })].
+            Return line-read on (stream-c).
         Done.
-        Return "(\{ FILE* cf_rs = {stream-c}; cser_text* cf_rln = cser_text_new(); const char* cf_ln; while ((cf_ln = cufet_stream_read_line(cf_rs)) != NULL) cser_text_append(cf_rln, cf_ln); cf_rln; \})".
+        Define c-language lines-read, given (the c-language axiom held-stream),
+            as [({ FILE* cf_rs = the held-stream; cser_text* cf_rln = cser_text_new(); const char* cf_ln; while ((cf_ln = cufet_stream_read_line(cf_rs)) != NULL) cser_text_append(cf_rln, cf_ln); cf_rln; })].
+        Return lines-read on (stream-c).
     Done.
 
     /// `Write <text> to <stream>.` — as it is, no line's end added; flushed when it is the standard
@@ -65,15 +69,16 @@ Pull books on collections, and the c-language.
     Done.
 
     /// The C that closes the files opened since `depth`, innermost first — or "".
-    Bind text to c-leaving-files unto emitter, given (the text depth):
+    Bind c-language axiom to c-leaving-files unto emitter, given (the text depth):
         Define open-names as the entry for "%files" in one's kinds but void is "".
-        If open-names is "", return "".
+        If open-names is "", return [].
         Define names as open-names split by ",".
         Define keep as depth converted to number but void is 0.
-        Define out as "".
+        Define c-language file-closed, given (the c-language axiom earlier, the term held-stream), as [the earlier cufet_close_file(the held-stream); ].
+        Define out as cast no-c.
         Define place as the number of names.
         While place is greater than keep, repeat:
-            The out becomes "{out}cufet_close_file({item place of names}); ".
+            The out becomes file-closed on (out, item place of names).
             Decrement place by 1.
         Done.
         Return out.
@@ -100,7 +105,9 @@ Pull books on collections, and the c-language.
         Cast one's line on ("FILE* {stream-c} = cufet_fopen(cf_op, \"{mode}\");").
         // Failing to open is a failure: to the `Try`'s handler, or — with none — said and stopped.
         Cast one's register-failable on ("failure of void").
-        Define opened as "(\{ cfl_void cf_w; memset(&cf_w, 0, sizeof cf_w); if ({stream-c}) cf_w.ok = 1; else cf_w.failure = cufet_file_failure(cf_op, errno); cf_w; \})".
+        Define c-language file-opened, given (the term opened-c),
+            as [({ cfl_void cf_w; memset(&cf_w, 0, sizeof cf_w); if (the opened-c) cf_w.ok = 1; else cf_w.failure = cufet_file_failure(cf_op, errno); cf_w; })].
+        Define opened as file-opened on (stream-c).
         If cast one's current-try is not "":
             Cast one's line on ("{cast one's c-unwrapped on (opened, "failure of void")};").
         Done.

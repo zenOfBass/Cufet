@@ -256,9 +256,15 @@ Pull a book on collections.
             The takes becomes cast one's function-param-type-list or pass the failure off.
             If the number of takes's children is greater than 0, cast one's skip-noise.
         Done.
-        // ★ `Bind c-language axiom to equal-by` — source handed back, where `to` follows the type
-        // instead of a name. Only after the word `axiom`, which nothing else spells.
-        Define handed-back as said-axiom and cast one's peek-kind is "To".
+        // ★ `Bind c-language axiom to equal-by`, `… or failure to …`, `a series of c-language axiom.`
+        // — source as a type, where no name follows it. Only after the word `axiom`, which nothing
+        // else spells, after a language book's name. ⚠ Not `as`, a comma or `)`: `Define c-language
+        // axiom as […]` declares one CALLED axiom, and `given (the node axiom)` a parameter called it.
+        Define next-kind as cast one's peek-kind.
+        Define book-word as tag's lexeme in lowercase.
+        Define is-book as book-word is "c-language" or book-word is "cufet" or book-word is "regex".
+        Define handed-back as said-axiom and is-book and (next-kind is "To" or next-kind is "Or"
+            or next-kind is "Dot" or next-kind is "RBrace" or next-kind is "With").
         If result's word is not "_" or the number of takes's children is greater than 0 or cast one's peek-kind is "Identifier" or handed-back:
             Return cast made on ("AxiomType", a series with (cast quoted on (tag's lexeme), result, takes)).
         Done.

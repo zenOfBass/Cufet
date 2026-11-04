@@ -2585,6 +2585,10 @@ public sealed partial class Interpreter
         // them different, which is the one place width must NOT be load-bearing.
         if (a is BitsValue ab && b is BitsValue bb) return ab.Value == bb.Value;
 
+        // ★ Source as a value compares as the text it is, wherever it was filled.
+        if (a is AxiomLiteral { ReturnType: null } sa && b is AxiomLiteral { ReturnType: null } sb)
+            return sa.Source == sb.Source;
+
         // ⚠ Before the List<object> arm, which a chase would MISS — it is a List<int>, so it fell
         // through to reference equality while a series of the same shape compared structurally.
         // A chase follows collection conventions, so it compares the way a collection does.

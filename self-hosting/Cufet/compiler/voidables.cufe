@@ -32,14 +32,17 @@ Pull books on collections, and the c-language.
     Bind text to c-voidable-helpers, given (the text kind):
         Define type-c as cast voidable-c-name on (kind).
         Define inner as cast voidable-inner on (kind).
-        Define held as cast c-type on (inner).
-        Define out as a chase.
-        Insert "typedef struct \{ int has; {held} value; \} {type-c};\n" into out.
-        Insert "static {type-c} {type-c}_some({held} v) \{ {type-c} o; memset(&o, 0, sizeof o); o.has = 1; o.value = v; return o; \}\n" into out.
-        Insert "static {type-c} {type-c}_none(void) \{ {type-c} o; memset(&o, 0, sizeof o); return o; \}\n" into out.
-        Insert "static void {type-c}_write({type-c} o) \{ if (o.has) \{ {cast write-call on (inner, "o.value")}; \} else fputs(\"void\", stdout); \}\n" into out.
-        Insert "static int {type-c}_eq({type-c} a, {type-c} b) \{ if (a.has != b.has) return 0; if (!a.has) return 1; return {cast c-equal on (inner, "a.value", "b.value")}; \}\n\n" into out.
-        Return out converted to text.
+        Define c-language voidable-struct, given (the term type-c, the c-language axiom held, the term some, the term none,
+                the term writer, the c-language axiom written, the term equal, the c-language axiom same),
+            as [typedef struct { int has; the held value; } the type-c;
+static the type-c the some(the held v) { the type-c o; memset(&o, 0, sizeof o); o.has = 1; o.value = v; return o; }
+static the type-c the none(void) { the type-c o; memset(&o, 0, sizeof o); return o; }
+static void the writer(the type-c o) { if (o.has) { the written; } else fputs("void", stdout); }
+static int the equal(the type-c a, the type-c b) { if (a.has != b.has) return 0; if (!a.has) return 1; return the same; }
+
+].
+        Return voidable-struct on (type-c, cast c-type on (inner), "{type-c}_some", "{type-c}_none", "{type-c}_write",
+            cast write-call on (inner, [o.value]), "{type-c}_eq", cast c-equal on (inner, [a.value], [b.value])) converted to text.
     Done.
 
     /// Every voidable of a number, a text or a fact.
@@ -52,26 +55,28 @@ Pull books on collections, and the c-language.
     Done.
 
     /// A value going into a voidable place: void, wrapped, or as it is.
-    Bind text to c-into-voidable unto emitter, given (the text value, the text source-kind, the text wanted):
+    Bind c-language axiom to c-into-voidable unto emitter, given (the c-language axiom value, the text source-kind, the text wanted):
         If source-kind is wanted, return value.
         Define type-c as cast voidable-c-name on (wanted).
-        If source-kind is "void", return "{type-c}_none()".
+        If source-kind is "void", return call-of-one on ("{type-c}_none", cast no-c).
         Define inner as cast voidable-inner on (wanted).
-        Return "{type-c}_some({cast one's c-coerce on (value, source-kind, inner)})".
+        Return call-of-one on ("{type-c}_some", cast one's c-coerce on (value, source-kind, inner)).
     Done.
 
     // ── Expressions ───────────────────────────────────────────────────────
 
     /// `<value> but void is <default>` — the value, or the default where it is void; the default
     /// worked out only then.
-    Bind text or failure to c-but-void unto emitter, given (the node expression):
+    Bind c-language axiom or failure to c-but-void unto emitter, given (the node expression):
         Define held as cast field-of on (expression, 1).
         Define held-kind as cast one's kind-of on (held) or pass the failure off.
         Define value as cast one's c-of on (held) or pass the failure off.
         If cast is-voidable on (held-kind) is false, return value.
         Define inner as cast voidable-inner on (held-kind).
         Define fallback as cast one's c-of-as on (cast field-of on (expression, 2), inner) or pass the failure off.
-        Return "(\{ {cast voidable-c-name on (held-kind)} cf_v = {value}; cf_v.has ? cf_v.value : ({fallback}); \})".
+        Define c-language or-default, given (the term type-c, the c-language axiom value, the c-language axiom fallback),
+            as [({ the type-c cf_v = the value; cf_v.has ? cf_v.value : (the fallback); })].
+        Return or-default on (cast voidable-c-name on (held-kind), value, fallback).
     Done.
 
     Bind text or failure to but-void-kind-of unto emitter, given (the node expression):
@@ -81,15 +86,16 @@ Pull books on collections, and the c-language.
     Done.
 
     /// `<value> is void` or `is not void`, either side — a voidable's `has`; anything else is never void.
-    Bind text or failure to c-void-test unto emitter, given (the node expression):
+    Bind c-language axiom or failure to c-void-test unto emitter, given (the node expression):
         Define tested as cast field-of on (expression, 1).
         If tested's kind is "VoidLiteral", the tested becomes cast field-of on (expression, 3).
         Define tested-kind as cast one's kind-of on (tested) or pass the failure off.
-        Define is-void as "0".
+        Define is-void as c-verbatim on ([0]).
         If cast is-voidable on (tested-kind):
-            The is-void becomes "(!({cast one's c-of on (tested) or pass the failure off}).has)".
+            Define c-language empty-test, given (the c-language axiom value), as [(!(the value).has)].
+            The is-void becomes empty-test on (cast one's c-of on (tested) or pass the failure off).
         Done.
-        If (cast field-of on (expression, 2))'s word is "NotEqual", return "(!{is-void})".
+        If (cast field-of on (expression, 2))'s word is "NotEqual", return negated on (is-void).
         Return is-void.
     Done.
 

@@ -66,8 +66,8 @@ Pull books on collections, and the c-language.
     Bind text to c-series-helpers, given (the text element):
         Define held as cast c-type on (element).
         Define series-type as "{cast series-c-name on (element)}".
-        Define written as cast write-call on (element, "s->data[i]").
-        Define equal as cast c-equal on (element, "s->data[i]", "v").
+        Define written as cast write-call on (element, [s->data[i]]).
+        Define equal as cast c-equal on (element, [s->data[i]], [v]).
         Define out as a chase.
         Insert "typedef struct {series-type}_s {series-type};\n" into out.
         Insert "struct {series-type}_s \{ {held}* data; int len; int cap; \};\n" into out.
@@ -78,7 +78,7 @@ Pull books on collections, and the c-language.
         Insert "static void {series-type}_insert_after({series-type}* s, int after, {held} v) \{ {series-type}_ensure(s); if (s->len > after) memmove(s->data + after + 1, s->data + after, (size_t)(s->len - after) * sizeof({held})); s->data[after] = v; s->len++; \}\n" into out.
         Insert "static void {series-type}_remove_at({series-type}* s, int index) \{ if (s->len - index - 1 > 0) memmove(s->data + index, s->data + index + 1, (size_t)(s->len - index - 1) * sizeof({held})); s->len--; \}\n" into out.
         Insert "static void {series-type}_remove_value({series-type}* s, {held} v) \{ for (int i = 0; i < s->len; i++) if ({equal}) \{ {series-type}_remove_at(s, i); return; \} \}\n" into out.
-        Insert "static int {series-type}_eq({series-type}* a, {series-type}* b) \{ if (a->len != b->len) return 0; for (int i = 0; i < a->len; i++) if (!{cast c-equal on (element, "a->data[i]", "b->data[i]")}) return 0; return 1; \}\n" into out.
+        Insert "static int {series-type}_eq({series-type}* a, {series-type}* b) \{ if (a->len != b->len) return 0; for (int i = 0; i < a->len; i++) if (!{cast c-equal on (element, [a->data[i]], [b->data[i]])}) return 0; return 1; \}\n" into out.
         Insert "static void {series-type}_write({series-type}* s) \{ fputs(\"(\", stdout); for (int i = 0; i < s->len; i++) \{ if (i > 0) fputs(\", \", stdout); {written}; \} fputs(\")\", stdout); \}\n" into out.
         Return out converted to text.
     Done.
@@ -100,10 +100,11 @@ Pull books on collections, and the c-language.
     /// A series, already as C, as the text `State` prints for it: each element's text, measured,
     /// then copied into one arena string. A series of series nests by depth, which keeps the inner
     /// names from shadowing the outer ones they read.
-    Bind text or failure to c-series-text, given (the text kind, the text value, the number depth):
+    Bind c-language axiom or failure to c-series-text, given (the text kind, the c-language axiom value, the number depth):
         Define element as cast element-of on (kind).
-        Define at as "cf_ts{depth}->data[cf_ti{depth}]".
-        Define piece as "".
+        Define c-language item-held, given (the term held-series, the term index), as [(the held-series)->data[the index]].
+        Define at as item-held on ("cf_ts{depth}", "cf_ti{depth}").
+        Define piece as cast no-c.
         If cast element-of on (element) is not "":
             The piece becomes cast c-series-text on (element, at, depth + 1) or pass the failure off.
         Done.
@@ -113,15 +114,17 @@ Pull books on collections, and the c-language.
         Otherwise:
             Return a failure (cast not-built on ("a series of {element} as text")).
         Done.
-        Define out as a chase.
-        Insert "(\{ {cast series-c-name on (element)}* cf_ts{depth} = {value}; int cf_tn{depth} = cf_ts{depth}->len; " into out.
-        Insert "char** cf_tp{depth} = (char**)cufet_arena_alloc((size_t)(cf_tn{depth} > 0 ? cf_tn{depth} : 1) * sizeof(char*)); size_t cf_tl{depth} = 2; " into out.
-        Insert "for (int cf_ti{depth} = 0; cf_ti{depth} < cf_tn{depth}; cf_ti{depth}++) \{ cf_tp{depth}[cf_ti{depth}] = {piece}; cf_tl{depth} += strlen(cf_tp{depth}[cf_ti{depth}]) + (cf_ti{depth} > 0 ? 2 : 0); \} " into out.
-        Insert "char* cf_to{depth} = (char*)cufet_arena_alloc(cf_tl{depth} + 1); char* cf_tw{depth} = cf_to{depth}; *cf_tw{depth}++ = '('; " into out.
-        Insert "for (int cf_ti{depth} = 0; cf_ti{depth} < cf_tn{depth}; cf_ti{depth}++) \{ if (cf_ti{depth} > 0) \{ *cf_tw{depth}++ = ','; *cf_tw{depth}++ = ' '; \} " into out.
-        Insert "size_t cf_tk{depth} = strlen(cf_tp{depth}[cf_ti{depth}]); memcpy(cf_tw{depth}, cf_tp{depth}[cf_ti{depth}], cf_tk{depth}); cf_tw{depth} += cf_tk{depth}; \} " into out.
-        Insert "*cf_tw{depth}++ = ')'; *cf_tw{depth} = 0; cf_to{depth}; \})" into out.
-        Return out converted to text.
+        Define c-language series-shown, given (the term series-c, the term held, the c-language axiom value, the term count,
+                the term pieces, the term size, the term index, the c-language axiom piece, the term out, the term cursor, the term length),
+            as [({ the series-c* the held = the value; int the count = (the held)->len;
+char** the pieces = (char**)cufet_arena_alloc((size_t)(the count > 0 ? the count : 1) * sizeof(char*)); size_t the size = 2;
+for (int the index = 0; the index < the count; the index++) { the pieces[the index] = the piece; the size += strlen(the pieces[the index]) + (the index > 0 ? 2 : 0); }
+char* the out = (char*)cufet_arena_alloc(the size + 1); char* the cursor = the out; *the cursor++ = '(';
+for (int the index = 0; the index < the count; the index++) { if (the index > 0) { *the cursor++ = ','; *the cursor++ = ' '; }
+size_t the length = strlen(the pieces[the index]); memcpy(the cursor, the pieces[the index], the length); the cursor += the length; }
+*the cursor++ = ')'; *the cursor = 0; the out; })].
+        Return series-shown on (cast series-c-name on (element), "cf_ts{depth}", value, "cf_tn{depth}", "cf_tp{depth}", "cf_tl{depth}",
+            "cf_ti{depth}", piece, "cf_to{depth}", "cf_tw{depth}", "cf_tk{depth}").
     Done.
 
     /// What a refusal calls the series it reaches into: its name, when it has one.
@@ -160,28 +163,34 @@ Pull books on collections, and the c-language.
     Done.
 
     /// A series expression as C.
-    Bind text or failure to c-series-of unto emitter, given (the node expression):
+    Bind c-language axiom or failure to c-series-of unto emitter, given (the node expression):
         Define kind as expression's kind.
         If kind is "SeriesLiteral":
             Define element as cast element-of on (cast one's series-kind-of on (expression) or pass the failure off).
             Define series-c as cast series-c-name on (element).
-            If the number of (cast field-of on (expression, 1))'s children is 0, return "{series-c}_new()".
+            If the number of (cast field-of on (expression, 1))'s children is 0, return call-of-one on ("{series-c}_new", cast no-c).
             // One statement per item, so the items are worked out in the order they are written —
             // C leaves the order of a call's arguments open, and gcc takes them last first.
-            Define built as "(\{ {series-c}* cf_sl = {series-c}_new();".
+            Define c-language item-added, given (the c-language axiom added, the term adder, the c-language axiom element),
+                as [the added cf_sl = the adder(cf_sl, the element);].
+            Define built as cast no-c.
             For each written in (cast field-of on (expression, 1))'s children, repeat:
-                The built becomes "{built} cf_sl = {series-c}_append(cf_sl, {cast one's c-of-as on (written, element) or pass the failure off});".
+                The built becomes item-added on (built, "{series-c}_append", cast one's c-of-as on (written, element) or pass the failure off).
             Done.
-            Return "{built} cf_sl; \})".
+            Define c-language series-made, given (the term series-c, the term maker, the c-language axiom built),
+                as [({ the series-c* cf_sl = the maker(); the built cf_sl; })].
+            Return series-made on (series-c, "{series-c}_new", built).
         Done.
         If kind is "RangeExpression":
             Define lowest as cast one's c-of on (cast field-of on (expression, 1)) or pass the failure off.
             Define upto as cast one's c-of on (cast field-of on (expression, 2)) or pass the failure off.
-            Define step as "cufet_dec_from_ll(1)".
+            Define step as call-of-one on ("cufet_dec_from_ll", [1]).
             If cast is-nothing on (cast field-of on (expression, 3)) is false:
                 The step becomes cast one's c-of on (cast field-of on (expression, 3)) or pass the failure off.
             Done.
-            Return "cser_number_range({lowest}, {upto}, {step}, {(cast field-of on (expression, 4))'s word})".
+            Define c-language range-made, given (the c-language axiom lowest, the c-language axiom upto, the c-language axiom step, the number at-line),
+                as [cser_number_range(the lowest, the upto, the step, the at-line)].
+            Return range-made on (lowest, upto, step, cast line-number on (cast field-of on (expression, 4))).
         Done.
         Define target as cast field-of on (expression, 1).
         Define series-c as cast one's c-of on (target) or pass the failure off.
@@ -189,29 +198,40 @@ Pull books on collections, and the c-language.
         If kind is "SeriesAccess" and cast is-record on (target-kind):
             Return cast one's c-record-item on (series-c, target-kind, cast field-of on (expression, 2)) or pass the failure off.
         Done.
+        Define at-line as cast line-number on (cast field-of on (expression, 3)).
         If kind is "SeriesAccess" and target-kind is "chase":
-            Return cast one's c-chase-item on (target, cast field-of on (expression, 2), (cast field-of on (expression, 3))'s word) or pass the failure off.
+            Return cast one's c-chase-item on (target, cast field-of on (expression, 2), at-line) or pass the failure off.
         Done.
         Define element as cast element-of on (target-kind).
-        If kind is "SeriesLength", return "cufet_dec_from_ll(({series-c})->len)".
+        If kind is "SeriesLength":
+            Define c-language length-held, given (the c-language axiom held-series), as [cufet_dec_from_ll((the held-series)->len)].
+            Return length-held on (series-c).
+        Done.
         // `item … of`: the series is held once, so it is reached once.
-        Define at-line as (cast field-of on (expression, 3))'s word.
-        Define place as cast one's c-place on (cast field-of on (expression, 2), "cf_at", target, at-line) or pass the failure off.
-        Return "(\{ {cast series-c-name on (element)}* cf_at = {series-c}; cf_at->data[{place}]; \})".
+        Define place as cast one's c-place on (cast field-of on (expression, 2), [cf_at], target, at-line) or pass the failure off.
+        Define c-language item-reached, given (the term series-type, the c-language axiom held-series, the c-language axiom place),
+            as [({ the series-type* cf_at = the held-series; cf_at->data[the place]; })].
+        Return item-reached on (cast series-c-name on (element), series-c, place).
     Done.
 
     /// The zero-based place of an item in the series `held` names in C — `_` for the last — checked
     /// against its length, as the language refuses an item that is not there.
-    Bind text or failure to c-place unto emitter, given (the node index, the text held, the node target, the text at-line):
-        If cast is-nothing on (index), return cast c-place-at on ("", held, target, at-line).
+    Bind c-language axiom or failure to c-place unto emitter, given (the node index, the c-language axiom held, the node target, the number at-line):
+        If cast is-nothing on (index), return cast c-place-at on (cast no-c, held, target, at-line).
         Return cast c-place-at on (cast one's c-of on (index) or pass the failure off, held, target, at-line).
     Done.
 
     /// `c-place` with the index already as C — "" for the last.
-    Bind text to c-place-at, given (the text index-c, the text held, the node target, the text at-line):
+    Bind c-language axiom to c-place-at, given (the c-language axiom index-c, the c-language axiom held, the node target, the number at-line):
         Define label as cast series-label on (target).
-        If index-c is "", return "cufet_last_check({held}->len, \"{label}\", {at-line}) - 1".
-        Return "cufet_idx_check(cufet_to_int({index-c}), {held}->len, \"{label}\", {at-line}) - 1".
+        If cast is-no-c on (index-c):
+            Define c-language last-place, given (the c-language axiom held, the text label, the number at-line),
+                as [cufet_last_check((the held)->len, the label, the at-line) - 1].
+            Return last-place on (held, label, at-line).
+        Done.
+        Define c-language checked-place, given (the c-language axiom index, the c-language axiom held, the text label, the number at-line),
+            as [cufet_idx_check(cufet_to_int(the index), (the held)->len, the label, the at-line) - 1].
+        Return checked-place on (index-c, held, label, at-line).
     Done.
 
     /// `<series> sorted`, `in reverse`, `by the <field>` — a new series, the old one left as it was.
@@ -243,24 +263,34 @@ Pull books on collections, and the c-language.
         Return "".
     Done.
 
+    /// Whether one key is past the next: the test a sort moves on.
+    Bind c-language axiom to out-of-order, given (the c-language axiom compared, the fact reversed):
+        Define c-language past-next, given (the c-language axiom compared), as [(the compared) > 0].
+        Define c-language before-last, given (the c-language axiom compared), as [(the compared) < 0].
+        If reversed, return before-last on (compared).
+        Return past-next on (compared).
+    Done.
+
     /// A sort as C: a copy, put in order by a stable insertion sort — equal keys keep their order, as
     /// the interpreter's does. Numbers compare as numbers; text by its bytes, as `cufet build` has it.
     /// `<series> in reverse` — a new series, the items appended last to first.
-    Bind text or failure to c-reversed unto emitter, given (the node expression):
+    Bind c-language axiom or failure to c-reversed unto emitter, given (the node expression):
         Define held as cast one's kind-of on (cast field-of on (expression, 1)) or pass the failure off.
         If cast element-of on (held) is "", return a failure (cast not-built on ("reversing a {held}")).
         Define series-type as cast series-c-name on (cast element-of on (held)).
         Define series-c as cast one's c-of on (cast field-of on (expression, 1)) or pass the failure off.
-        Return "(\{ {series-type}* cf_src = {series-c}; {series-type}* cf_dst = {series-type}_new(); for (int cf_i = cf_src->len - 1; cf_i >= 0; cf_i--) {series-type}_append(cf_dst, cf_src->data[cf_i]); cf_dst; \})".
+        Define c-language reversed-copy, given (the term series-type, the c-language axiom held-series, the term maker, the term adder),
+            as [({ the series-type* cf_src = the held-series; the series-type* cf_dst = the maker(); for (int cf_i = cf_src->len - 1; cf_i >= 0; cf_i--) the adder(cf_dst, cf_src->data[cf_i]); cf_dst; })].
+        Return reversed-copy on (series-type, series-c, "{series-type}_new", "{series-type}_append").
     Done.
 
-    Bind text or failure to c-sorted unto emitter, given (the node expression):
+    Bind c-language axiom or failure to c-sorted unto emitter, given (the node expression):
         Define held as cast one's sorted-kind-of on (expression) or pass the failure off.
         Define series-c as cast one's c-of on (cast field-of on (expression, 1)) or pass the failure off.
         Define reversed as (cast field-of on (expression, 3))'s word is "true".
         If held is "chase":
-            If reversed, return "cufet_chase_sorted({series-c}, 1)".
-            Return "cufet_chase_sorted({series-c}, 0)".
+            Define c-language chase-sorted, given (the c-language axiom held-series, the fact reversed), as [cufet_chase_sorted(the held-series, the reversed)].
+            Return chase-sorted on (series-c, reversed).
         Done.
         Define element as cast element-of on (held).
         Define series-type as cast series-c-name on (element).
@@ -270,37 +300,42 @@ Pull books on collections, and the c-language.
         Done.
         Define by-field as cast field-of on (expression, 2).
         Define key-kind as cast one's sort-key-kind on (element, by-field) or pass the failure off.
-        Define left-key as "cf_dst->data[cf_j]".
-        Define right-key as "cf_k".
+        Define left-key as bracketed on ([cf_dst->data[cf_j]]).
+        Define right-key as bracketed on ([cf_k]).
         If cast is-nothing on (by-field) is false:
             Define member as cast c-name on (cast unquoted on (by-field)).
-            The left-key becomes "(cf_dst->data[cf_j]).{member}".
-            The right-key becomes "(cf_k).{member}".
+            The left-key becomes field-read on ([cf_dst->data[cf_j]], member).
+            The right-key becomes field-read on ([cf_k], member).
         Done.
-        Define compared as "".
-        If key-kind is "number", the compared becomes "cufet_cmp({left-key}, {right-key})".
-        Otherwise if key-kind is "text", the compared becomes "strcmp({left-key}, {right-key})".
+        Define compared as cast no-c.
+        If key-kind is "number", the compared becomes call-of-two on ("cufet_cmp", left-key, right-key).
+        Otherwise if key-kind is "text", the compared becomes call-of-two on ("strcmp", left-key, right-key).
         Otherwise, return a failure (cast not-built on ("sorting by a {key-kind}")).
-        Define out-of-order as "({compared}) > 0".
-        If reversed, the out-of-order becomes "({compared}) < 0".
-        Return "(\{ {series-type}* cf_src = {series-c}; {series-type}* cf_dst = {series-type}_new(); for (int cf_i = 0; cf_i < cf_src->len; cf_i++) {series-type}_append(cf_dst, cf_src->data[cf_i]); for (int cf_a = 1; cf_a < cf_dst->len; cf_a++) \{ {cast c-type on (element)} cf_k = cf_dst->data[cf_a]; int cf_j = cf_a - 1; while (cf_j >= 0 && {out-of-order}) \{ cf_dst->data[cf_j + 1] = cf_dst->data[cf_j]; cf_j--; \} cf_dst->data[cf_j + 1] = cf_k; \} cf_dst; \})".
+        Define c-language sorted-copy, given (the term series-type, the c-language axiom held-series, the term maker, the term adder,
+                the c-language axiom element-c, the c-language axiom out-of-order),
+            as [({ the series-type* cf_src = the held-series; the series-type* cf_dst = the maker(); for (int cf_i = 0; cf_i < cf_src->len; cf_i++) the adder(cf_dst, cf_src->data[cf_i]); for (int cf_a = 1; cf_a < cf_dst->len; cf_a++) { the element-c cf_k = cf_dst->data[cf_a]; int cf_j = cf_a - 1; while (cf_j >= 0 && the out-of-order) { cf_dst->data[cf_j + 1] = cf_dst->data[cf_j]; cf_j--; } cf_dst->data[cf_j + 1] = cf_k; } cf_dst; })].
+        Return sorted-copy on (series-type, series-c, "{series-type}_new", "{series-type}_append", cast c-type on (element),
+            cast out-of-order on (compared, reversed)).
     Done.
 
     /// `<series> sorted by <function>` — the same stable sort, over keys worked out UP FRONT, each
     /// once and in order, as the interpreter does; they move with their items.
-    Bind text or failure to c-sorted-by-function unto emitter, given (the text series-c, the text element,
+    Bind c-language axiom or failure to c-sorted-by-function unto emitter, given (the c-language axiom series-c, the text element,
             the node key-function, the fact reversed):
         Define function-kind as cast one's kind-of on (key-function) or pass the failure off.
         Define key-kind as cast function-gives on (function-kind).
         If key-kind is not "number" and key-kind is not "text", return a failure (cast not-built on ("sorting by a function giving a {key-kind}")).
         Define function-c as cast one's c-of on (key-function) or pass the failure off.
-        Define compared as "strcmp(cf_keys->data[cf_j], cf_kk)".
-        If key-kind is "number", the compared becomes "cufet_cmp(cf_keys->data[cf_j], cf_kk)".
-        Define out-of-order as "({compared}) > 0".
-        If reversed, the out-of-order becomes "({compared}) < 0".
+        Define compared as call-of-two on ("strcmp", [cf_keys->data[cf_j]], [cf_kk]).
+        If key-kind is "number", the compared becomes call-of-two on ("cufet_cmp", [cf_keys->data[cf_j]], [cf_kk]).
         Define series-type as cast series-c-name on (element).
         Define keys-type as cast series-c-name on (key-kind).
-        Return "(\{ {series-type}* cf_src = {series-c}; {series-type}* cf_dst = {series-type}_new(); {keys-type}* cf_keys = {keys-type}_new(); {cast function-c-name on (function-kind)} cf_kf = {function-c}; for (int cf_i = 0; cf_i < cf_src->len; cf_i++) \{ {series-type}_append(cf_dst, cf_src->data[cf_i]); {keys-type}_append(cf_keys, cf_kf.fn(cf_kf.env, cf_src->data[cf_i])); \} for (int cf_a = 1; cf_a < cf_dst->len; cf_a++) \{ {cast c-type on (element)} cf_k = cf_dst->data[cf_a]; {cast c-type on (key-kind)} cf_kk = cf_keys->data[cf_a]; int cf_j = cf_a - 1; while (cf_j >= 0 && {out-of-order}) \{ cf_dst->data[cf_j + 1] = cf_dst->data[cf_j]; cf_keys->data[cf_j + 1] = cf_keys->data[cf_j]; cf_j--; \} cf_dst->data[cf_j + 1] = cf_k; cf_keys->data[cf_j + 1] = cf_kk; \} cf_dst; \})".
+        Define c-language sorted-by-keys, given (the term series-type, the c-language axiom held-series, the term maker, the term keys-type, the term keys-maker,
+                the term function-type, the c-language axiom function-c, the term adder, the term keys-append, the c-language axiom element-c,
+                the c-language axiom key-c, the c-language axiom out-of-order),
+            as [({ the series-type* cf_src = the held-series; the series-type* cf_dst = the maker(); the keys-type* cf_keys = the keys-maker(); the function-type cf_kf = the function-c; for (int cf_i = 0; cf_i < cf_src->len; cf_i++) { the adder(cf_dst, cf_src->data[cf_i]); the keys-append(cf_keys, cf_kf.fn(cf_kf.env, cf_src->data[cf_i])); } for (int cf_a = 1; cf_a < cf_dst->len; cf_a++) { the element-c cf_k = cf_dst->data[cf_a]; the key-c cf_kk = cf_keys->data[cf_a]; int cf_j = cf_a - 1; while (cf_j >= 0 && the out-of-order) { cf_dst->data[cf_j + 1] = cf_dst->data[cf_j]; cf_keys->data[cf_j + 1] = cf_keys->data[cf_j]; cf_j--; } cf_dst->data[cf_j + 1] = cf_k; cf_keys->data[cf_j + 1] = cf_kk; } cf_dst; })].
+        Return sorted-by-keys on (series-type, series-c, "{series-type}_new", keys-type, "{keys-type}_new", cast function-c-name on (function-kind), function-c,
+            "{series-type}_append", "{keys-type}_append", cast c-type on (element), cast c-type on (key-kind), cast out-of-order on (compared, reversed)).
     Done.
 
     // ── Statements ────────────────────────────────────────────────────────
@@ -335,7 +370,7 @@ Pull books on collections, and the c-language.
             Define value as cast one's c-of-as on (cast field-of on (statement, 1), element) or pass the failure off.
             // The series, then the value, then the place, as the interpreter works them out.
             Define operands as a series of node with (target, cast field-of on (statement, 1)).
-            Define sides as a series of text with (series-c, value).
+            Define sides as a series of c-language axiom with (series-c, value).
             Define following as cast field-of on (statement, 3).
             If cast is-nothing on (following) is false:
                 Insert following into operands.
@@ -380,8 +415,8 @@ Pull books on collections, and the c-language.
             Done.
             Define element as cast one's changed-element on (target) or pass the failure off.
             Define series-c as cast one's c-of on (target) or pass the failure off.
-            Define place as cast one's c-place on (cast field-of on (statement, 2), "cf_at", target,
-                (cast field-of on (statement, 3))'s word) or pass the failure off.
+            Define place as cast one's c-place on (cast field-of on (statement, 2), [cf_at], target,
+                cast line-number on (cast field-of on (statement, 3))) or pass the failure off.
             Cast one's line on ("\{ {cast series-c-name on (element)}* cf_at = {series-c}; {cast series-c-name on (element)}_remove_at(cf_at, {place}); \}").
             Return.
         Done.
@@ -406,16 +441,16 @@ Pull books on collections, and the c-language.
         // The series, then the place, then the value — C leaves an assignment's two sides unordered.
         Define index as cast field-of on (statement, 2).
         Define operands as a series of node with (target, cast field-of on (statement, 3)).
-        Define sides as a series of text with (series-c, value).
+        Define sides as a series of c-language axiom with (series-c, value).
         If cast is-nothing on (index) is false:
             Define index-c as cast one's c-of on (index) or pass the failure off.
             The operands becomes a series of node with (target, index, cast field-of on (statement, 3)).
-            The sides becomes a series of text with (series-c, index-c, value).
+            The sides becomes a series of c-language axiom with (series-c, index-c, value).
         Done.
         Define prefix as cast order-prefix on (operands, sides).
-        Define place as cast c-place-at on ("", "cf_at", target, (cast field-of on (statement, 4))'s word).
+        Define place as cast c-place-at on (cast no-c, [cf_at], target, cast line-number on (cast field-of on (statement, 4))).
         If cast is-nothing on (index) is false:
-            The place becomes cast c-place-at on (item 2 of sides, "cf_at", target, (cast field-of on (statement, 4))'s word).
+            The place becomes cast c-place-at on (item 2 of sides, [cf_at], target, cast line-number on (cast field-of on (statement, 4))).
         Done.
         Cast one's line on ("\{ {prefix}{cast series-c-name on (element)}* cf_at = {item 1 of sides}; cf_at->data[{place}] = {item (the number of sides) of sides}; \}").
     Done.

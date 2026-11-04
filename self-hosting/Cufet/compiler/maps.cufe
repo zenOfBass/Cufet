@@ -133,7 +133,7 @@ Pull books on collections, and the c-language.
         Insert "typedef struct \{ {key-c} key; {held-c} value; \} {map-c}_pair;\n" into out.
         Insert "static {map-c}* {map-c}_new(void) \{ {map-c}* m = ({map-c}*)cufet_arena_alloc(sizeof({map-c})); m->keys = NULL; m->vals = NULL; m->len = 0; m->cap = 0; return m; \}\n" into out.
         Insert "static void {map-c}_ensure({map-c}* m) \{ if (m->len >= m->cap) \{ int nc = m->cap == 0 ? 4 : m->cap * 2; {key-c}* nk = ({key-c}*)cufet_arena_alloc((size_t)nc * sizeof({key-c})); {held-c}* nv = ({held-c}*)cufet_arena_alloc((size_t)nc * sizeof({held-c})); if (m->len > 0) \{ memcpy(nk, m->keys, (size_t)m->len * sizeof({key-c})); memcpy(nv, m->vals, (size_t)m->len * sizeof({held-c})); \} m->keys = nk; m->vals = nv; m->cap = nc; \} \}\n" into out.
-        Insert "static int {map-c}_index({map-c}* m, {key-c} k) \{ for (int i = 0; i < m->len; i++) if ({cast c-equal on (key-kind, "m->keys[i]", "k")}) return i; return -1; \}\n" into out.
+        Insert "static int {map-c}_index({map-c}* m, {key-c} k) \{ for (int i = 0; i < m->len; i++) if ({cast c-equal on (key-kind, [m->keys[i]], [k])}) return i; return -1; \}\n" into out.
         Insert "static void {map-c}_put({map-c}* m, {key-c} k, {held-c} v) \{ int i = {map-c}_index(m, k); if (i >= 0) \{ m->vals[i] = v; return; \} {map-c}_ensure(m); m->keys[m->len] = k; m->vals[m->len] = v; m->len++; \}\n" into out.
         If cast is-voidable on (held):
             Insert "static {looked-c} {map-c}_get({map-c}* m, {key-c} k) \{ {looked-c} r; memset(&r, 0, sizeof r); int i = {map-c}_index(m, k); if (i >= 0) r = m->vals[i]; return r; \}\n" into out.
@@ -145,9 +145,9 @@ Pull books on collections, and the c-language.
         Done.
         Insert "static int {map-c}_has({map-c}* m, {key-c} k) \{ return {map-c}_index(m, k) >= 0; \}\n" into out.
         Insert "static void {map-c}_remove({map-c}* m, {key-c} k, int line) \{ int i = {map-c}_index(m, k); if (i < 0) cufet_raise(cufet_msgf(\"Key not found in map on line %d.\", line)); if (i < m->len - 1) \{ memmove(&m->keys[i], &m->keys[i + 1], (size_t)(m->len - 1 - i) * sizeof({key-c})); memmove(&m->vals[i], &m->vals[i + 1], (size_t)(m->len - 1 - i) * sizeof({held-c})); \} m->len--; \}\n" into out.
-        Insert "static void {map-c}_write({map-c}* m) \{ fputs(\"map \{\", stdout); for (int i = 0; i < m->len; i++) \{ if (i > 0) fputs(\", \", stdout); {cast write-call on (key-kind, "m->keys[i]")}; fputs(\": \", stdout); {cast write-call on (held, "m->vals[i]")}; \} fputs(\"\}\", stdout); \}\n" into out.
-        Insert "static void {map-c}_pair_write({map-c}_pair p) \{ fputs(\"mapping(\", stdout); {cast write-call on (key-kind, "p.key")}; fputs(\": \", stdout); {cast write-call on (held, "p.value")}; fputs(\")\", stdout); \}\n" into out.
-        Insert "static int {map-c}_pair_eq({map-c}_pair a, {map-c}_pair b) \{ return {cast c-equal on (key-kind, "a.key", "b.key")} && {cast c-equal on (held, "a.value", "b.value")}; \}\n\n" into out.
+        Insert "static void {map-c}_write({map-c}* m) \{ fputs(\"map \{\", stdout); for (int i = 0; i < m->len; i++) \{ if (i > 0) fputs(\", \", stdout); {cast write-call on (key-kind, [m->keys[i]])}; fputs(\": \", stdout); {cast write-call on (held, [m->vals[i]])}; \} fputs(\"\}\", stdout); \}\n" into out.
+        Insert "static void {map-c}_pair_write({map-c}_pair p) \{ fputs(\"mapping(\", stdout); {cast write-call on (key-kind, [p.key])}; fputs(\": \", stdout); {cast write-call on (held, [p.value])}; fputs(\")\", stdout); \}\n" into out.
+        Insert "static int {map-c}_pair_eq({map-c}_pair a, {map-c}_pair b) \{ return {cast c-equal on (key-kind, [a.key], [b.key])} && {cast c-equal on (held, [a.value], [b.value])}; \}\n\n" into out.
         Return out converted to text.
     Done.
 
@@ -207,18 +207,22 @@ Pull books on collections, and the c-language.
     Done.
 
     /// A map expression as C.
-    Bind text or failure to c-map-of unto emitter, given (the node expression):
+    Bind c-language axiom or failure to c-map-of unto emitter, given (the node expression):
         Define kind as expression's kind.
         If kind is "MapLiteral":
             Define map-kind as cast one's map-kind-of on (expression) or pass the failure off.
             Define map-c as cast map-c-name on (map-kind).
-            Define built as "(\{ {map-c}* cf_m = {map-c}_new();".
+            Define c-language entry-added, given (the c-language axiom added, the term put, the c-language axiom key, the c-language axiom held),
+                as [the added the put(cf_m, the key, the held);].
+            Define built as cast no-c.
             For each written in (cast field-of on (expression, 3))'s children, repeat:
                 Define key-c as cast one's c-of-as on (item 1 of written's children, cast map-key-kind on (map-kind)) or pass the failure off.
                 Define held-c as cast one's c-of-as on (item 2 of written's children, cast map-value-kind on (map-kind)) or pass the failure off.
-                The built becomes "{built} {map-c}_put(cf_m, {key-c}, {held-c});".
+                The built becomes entry-added on (built, "{map-c}_put", key-c, held-c).
             Done.
-            Return "{built} cf_m; \})".
+            Define c-language map-made, given (the term map-c, the term maker, the c-language axiom built),
+                as [({ the map-c* cf_m = the maker(); the built cf_m; })].
+            Return map-made on (map-c, "{map-c}_new", built).
         Done.
         If kind is "RecordNamedAccess":
             Define field-name as cast unquoted on (cast field-of on (expression, 1)).
@@ -230,14 +234,19 @@ Pull books on collections, and the c-language.
             Define target-c as cast one's c-of on (target) or pass the failure off.
             Define held-kind as cast one's kind-of on (target) or pass the failure off.
             If held-kind is "text", return cast c-text-length on (target-c).
-            If held-kind is "bits", return "cufet_dec_from_ll(({target-c}).width)".
+            If held-kind is "bits":
+                Return call-of-one on ("cufet_dec_from_ll", field-read on (target-c, "width")).
+            Done.
             If held-kind is "matrix", return cast c-matrix-count on (target-c, field-name).
             If held-kind is "failure", return cast c-failure-field on (target-c, field-name).
             If held-kind is "exception", return target-c.
-            If cast is-record on (held-kind), return "({target-c}).{cast c-name on (field-name)}".
-            If field-name is "size", return "cufet_dec_from_ll(({target-c})->len)".
-            If field-name is "key", return "({target-c}).key".
-            Return "({target-c}).value".
+            If cast is-record on (held-kind), return field-read on (target-c, cast c-name on (field-name)).
+            If field-name is "size":
+                Define c-language size-held, given (the c-language axiom target), as [cufet_dec_from_ll((the target)->len)].
+                Return size-held on (target-c).
+            Done.
+            If field-name is "key", return field-read on (target-c, "key").
+            Return field-read on (target-c, "value").
         Done.
         Define target as cast field-of on (expression, 1).
         Define target-kind as cast one's kind-of on (target) or pass the failure off.
@@ -246,11 +255,11 @@ Pull books on collections, and the c-language.
         Define target-c as cast one's c-of on (target) or pass the failure off.
         Define key-c as cast one's c-of-as on (cast field-of on (expression, 2), cast map-key-kind on (target-kind)) or pass the failure off.
         // The map first, then the key, as the interpreter works them out — whichever is written first.
-        Define sides as a series of text with (target-c, key-c).
+        Define sides as a series of c-language axiom with (target-c, key-c).
         Define prefix as cast order-prefix on (a series of node with (target, cast field-of on (expression, 2)), sides).
-        If kind is "MapHasKey", return cast in-order on (prefix, "{map-c}_has({item 1 of sides}, {item 2 of sides})").
-        If kind is "MapHasEntry", return cast in-order on (prefix, "{map-c}_has_entry({item 1 of sides}, {item 2 of sides})").
-        Return cast in-order on (prefix, "{map-c}_get({item 1 of sides}, {item 2 of sides})").
+        If kind is "MapHasKey", return cast in-order on (prefix, call-of-two on ("{map-c}_has", item 1 of sides, item 2 of sides)).
+        If kind is "MapHasEntry", return cast in-order on (prefix, call-of-two on ("{map-c}_has_entry", item 1 of sides, item 2 of sides)).
+        Return cast in-order on (prefix, call-of-two on ("{map-c}_get", item 1 of sides, item 2 of sides)).
     Done.
 
     // ── Statements ────────────────────────────────────────────────────────
@@ -263,7 +272,7 @@ Pull books on collections, and the c-language.
         Define target-c as cast one's c-of on (target) or pass the failure off.
         Define key-c as cast one's c-of-as on (cast field-of on (statement, 2), cast map-key-kind on (target-kind)) or pass the failure off.
         Define held-c as cast one's c-of-as on (cast field-of on (statement, 3), cast map-value-kind on (target-kind)) or pass the failure off.
-        Define sides as a series of text with (target-c, key-c, held-c).
+        Define sides as a series of c-language axiom with (target-c, key-c, held-c).
         Define prefix as cast order-prefix on (a series of node with (target, cast field-of on (statement, 2), cast field-of on (statement, 3)), sides).
         Cast one's line on (cast in-order-statement on (prefix, "{cast map-c-name on (target-kind)}_put({item 1 of sides}, {item 2 of sides}, {item 3 of sides});")).
     Done.
@@ -272,7 +281,7 @@ Pull books on collections, and the c-language.
     Bind void or failure to emit-map-remove unto emitter, given (the node statement, the text target-kind):
         Define target-c as cast one's c-of on (cast field-of on (statement, 1)) or pass the failure off.
         Define key-c as cast one's c-of-as on (cast field-of on (statement, 2), cast map-key-kind on (target-kind)) or pass the failure off.
-        Define sides as a series of text with (target-c, key-c).
+        Define sides as a series of c-language axiom with (target-c, key-c).
         Define prefix as cast order-prefix on (a series of node with (cast field-of on (statement, 1), cast field-of on (statement, 2)), sides).
         Cast one's line on (cast in-order-statement on (prefix, "{cast map-c-name on (target-kind)}_remove({item 1 of sides}, {item 2 of sides}, {(cast field-of on (statement, 3))'s word});")).
     Done.

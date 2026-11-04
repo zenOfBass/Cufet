@@ -1062,10 +1062,15 @@ public sealed class Parser
             var takes = Peek().Type == TokenType.Given ? ParseFunctionParamTypeList() : [];
             if (takes.Count > 0) SkipNoise();
 
-            // ★ `Bind c-language axiom to equal-by` — source handed back, where `to` follows the
-            // type instead of a name. Only after the word `axiom`, which nothing else spells.
+            // ★ `Bind c-language axiom to equal-by`, `… or failure to …`, `a series of c-language
+            // axiom.` — source as a type, where no name follows it. Only after the word `axiom`,
+            // which nothing else spells, after a language book's name. ⚠ Not `as`, a comma or `)`:
+            // `Define c-language axiom as […]` declares an axiom CALLED axiom, and `given (the node
+            // axiom)` a parameter called it — those are the name position.
             if (result != null || takes.Count > 0 || Peek().Type == TokenType.Identifier
-                || (saidAxiom && Peek().Type == TokenType.To))
+                || (saidAxiom && TypeChecker.IsLanguageBook(tok.Lexeme)
+                    && Peek().Type is TokenType.To or TokenType.Or or TokenType.Dot
+                                   or TokenType.RBrace or TokenType.With))
                 return new AxiomType(tok.Lexeme, result, takes);
             _pos = save;
         }

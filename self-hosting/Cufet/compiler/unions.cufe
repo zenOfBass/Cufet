@@ -96,8 +96,8 @@ Pull books on collections, and the c-language.
         Define tests as a chase.
         For each inner in cast kind-cases on (kind), repeat:
             Insert "static {type-c} {type-c}_from_{place}({cast c-type on (inner)} v) \{ {type-c} u; memset(&u, 0, sizeof u); u.tag = {place}; u.case_{place} = v; return u; \}\n" into out.
-            Insert " case {place}: {cast write-call on (inner, "u.case_{place}")}; break;" into writes.
-            Insert " case {place}: return {cast c-equal on (inner, "a.case_{place}", "b.case_{place}")};" into tests.
+            Insert " case {place}: {cast write-call on (inner, field-read on ([u], "case_{place}"))}; break;" into writes.
+            Insert " case {place}: return {cast c-equal on (inner, field-read on ([a], "case_{place}"), field-read on ([b], "case_{place}"))};" into tests.
             Increment place by 1.
         Done.
         Insert "static void {type-c}_write({type-c} u) \{ switch (u.tag) \{{writes converted to text} \} \}\n" into out.
@@ -118,7 +118,7 @@ Pull books on collections, and the c-language.
 
     /// A value of kind `from` as one of kind `wanted`: wrapped into a union, converted from a
     /// smaller union, or as it is.
-    Bind text to c-coerce unto emitter, given (the text value, the text source-kind, the text wanted):
+    Bind c-language axiom to c-coerce unto emitter, given (the c-language axiom value, the text source-kind, the text wanted):
         If source-kind is wanted, return value.
         If cast is-voidable on (wanted), return cast one's c-into-voidable on (value, source-kind, wanted).
         If cast is-failable on (wanted), return cast one's c-into-failable on (value, source-kind, wanted).
@@ -128,22 +128,27 @@ Pull books on collections, and the c-language.
         If cast is-union on (source-kind) is false:
             Define tag as cast case-tag on (wanted, source-kind).
             If tag < 0, return value.
-            Return "{wanted-c}_from_{tag}({value})".
+            Return call-of-one on ("{wanted-c}_from_{tag}", value).
         Done.
         // One union into a wider one: each of its cases to the same case there.
-        Define from-c as cast union-c-name on (source-kind).
-        Define converting as "(\{ {from-c} cf_u = {value}; {wanted-c} cf_w; memset(&cf_w, 0, sizeof cf_w); switch (cf_u.tag) \{".
+        Define c-language case-converted, given (the c-language axiom cases, the number place, the term maker, the term held),
+            as [the cases case the place: cf_w = the maker(cf_u.the held); break; ].
+        Define cases as cast no-c.
         Define place as 0.
         For each inner in cast kind-cases on (source-kind), repeat:
             Define tag as cast case-tag on (wanted, inner).
-            If tag is not less than 0, the converting becomes "{converting} case {place}: cf_w = {wanted-c}_from_{tag}(cf_u.case_{place}); break;".
+            If tag is not less than 0:
+                The cases becomes case-converted on (cases, place, "{wanted-c}_from_{tag}", "case_{place}").
+            Done.
             Increment place by 1.
         Done.
-        Return "{converting} \} cf_w; \})".
+        Define c-language union-widened, given (the term from-c, the c-language axiom value, the term wanted-c, the c-language axiom cases),
+            as [({ the from-c cf_u = the value; the wanted-c cf_w; memset(&cf_w, 0, sizeof cf_w); switch (cf_u.tag) { the cases } cf_w; })].
+        Return union-widened on (cast union-c-name on (source-kind), value, wanted-c, cases).
     Done.
 
     /// An expression as C, as a value of the kind a place wants.
-    Bind text or failure to c-of-as unto emitter, given (the node expression, the text wanted):
+    Bind c-language axiom or failure to c-of-as unto emitter, given (the node expression, the text wanted):
         Define value as cast one's c-of on (expression) or pass the failure off.
         Define source-kind as cast one's kind-of on (expression) or pass the failure off.
         Return cast one's c-coerce on (value, source-kind, wanted).
@@ -158,31 +163,37 @@ Pull books on collections, and the c-language.
         Return the entry for name in one's kinds but void is "".
     Done.
 
-    /// A name read as the type the checker narrowed it to: its kind, then its C — or nothing, where no
+    /// A name as the checker narrowed it: the kind it reads as, and its C.
+    Define object narrowing with (the text read-kind, the c-language axiom access).
+
+    Bind series of narrowing to narrowed-to, given (the text read-kind, the c-language axiom access):
+        Return a series of narrowing with (a new narrowing { the read-kind read-kind, the access access }).
+    Done.
+
+    /// A name read as the type the checker narrowed it to — one narrowing, or none where no
     /// narrowing reached the read.
-    Bind series of text or failure to narrowed-read unto emitter, given (the node expression):
+    Bind series of narrowing or failure to narrowed-read unto emitter, given (the node expression):
         Define marked as cast keyed-field on (expression, ":NarrowedType").
-        If marked is void, return a series of text.
+        If marked is void, return a series of narrowing.
         Define name as cast unquoted on (cast field-of on (expression, 1)).
         Define to-kind as cast one's kind-of-type on (marked) or pass the failure off.
         Define stored as cast one's stored-kind on (name).
-        Define held as the entry for "@{name}" in one's kinds but void is "".
-        If held is "", the held becomes cast c-name on (name).
+        Define held as cast one's redirected-c on (name) but void is c-word on (cast c-name on (name)).
         // A judgement's `void` arm has nothing to reach: it reads as it is held.
-        If to-kind is stored or to-kind is "void", return a series of text with (stored, held).
+        If to-kind is stored or to-kind is "void", return cast narrowed-to on (stored, held).
         // A voidable narrowed past void reads as its value — and then, if it holds a union, within it.
         Define base as stored.
         If cast is-voidable on (stored):
-            The held becomes "({held}).value".
+            The held becomes field-read on (held, "value").
             The base becomes cast voidable-inner on (stored).
-            If to-kind is base, return a series of text with (to-kind, held).
+            If to-kind is base, return cast narrowed-to on (to-kind, held).
         Done.
         If cast is-union on (base) is false, return a failure (cast not-built on ("a {stored} narrowed to a {to-kind}")).
         If cast is-union on (to-kind) is false:
-            Return a series of text with (to-kind, "({held}).case_{cast case-tag on (base, to-kind)}").
+            Return cast narrowed-to on (to-kind, field-read on (held, "case_{cast case-tag on (base, to-kind)}")).
         Done.
-        If to-kind is base, return a series of text with (to-kind, held).
-        Return a series of text with (to-kind, cast one's c-coerce on (held, base, to-kind)).
+        If to-kind is base, return cast narrowed-to on (to-kind, held).
+        Return cast narrowed-to on (to-kind, cast one's c-coerce on (held, base, to-kind)).
     Done.
 
     /// A copy of the kinds, to put back when an arm ends.
@@ -264,55 +275,62 @@ Pull books on collections, and the c-language.
     // ── Expressions ───────────────────────────────────────────────────────
 
     /// `<value> is a <type>` — a test of a union's tag; on anything else, known as it is written.
-    Bind text or failure to c-type-check unto emitter, given (the node condition):
+    Bind c-language axiom or failure to c-type-check unto emitter, given (the node condition):
         Define target as cast field-of on (condition, 1).
         Define held as cast one's kind-of on (target) or pass the failure off.
         Define tested as cast one's kind-of-type on (cast field-of on (condition, 2)) or pass the failure off.
-        Define negated as (cast field-of on (condition, 3))'s word is "true".
+        Define inverted as (cast field-of on (condition, 3))'s word is "true".
         If cast is-union on (held) is false:
             Define same as held is tested.
-            If same is not negated, return "1".
-            Return "0".
+            If same is not inverted, return [1].
+            Return [0].
         Done.
         Define target-c as cast one's c-of on (target) or pass the failure off.
-        Define tests as "".
+        Define c-language one-tag, given (the number tag), as [cf_t.tag == the tag].
+        Define c-language either-tag, given (the c-language axiom tests, the number tag), as [the tests || cf_t.tag == the tag].
+        Define tests as cast no-c.
         Define tested-cases as a series of text.
         If cast is-union on (tested), the tested-cases becomes cast kind-cases on (tested).
         Otherwise, insert tested into tested-cases.
         For each inner in tested-cases, repeat:
-            Define test as "cf_t.tag == {cast case-tag on (held, inner)}".
-            If tests is "", the tests becomes test.
-            Otherwise, the tests becomes "{tests} || {test}".
+            If cast is-no-c on (tests), the tests becomes one-tag on (cast case-tag on (held, inner)).
+            Otherwise, the tests becomes either-tag on (tests, cast case-tag on (held, inner)).
         Done.
-        Define checked as "(\{ {cast union-c-name on (held)} cf_t = {target-c}; ({tests}); \})".
-        If negated, return "(!{checked})".
+        Define c-language tag-checked, given (the term union-c, the c-language axiom target, the c-language axiom tests),
+            as [({ the union-c cf_t = the target; (the tests); })].
+        Define checked as tag-checked on (cast union-c-name on (held), target-c, tests).
+        If inverted, return negated on (checked).
         Return checked.
     Done.
 
     /// `is` / `is not` with a union on either side: the same case, holding equal values.
-    Bind text or failure to c-union-equal unto emitter, given (the node expression):
+    Bind c-language axiom or failure to c-union-equal unto emitter, given (the node expression):
         Define left-side as cast field-of on (expression, 1).
         Define right-side as cast field-of on (expression, 3).
         Define left-kind as cast one's kind-of on (left-side) or pass the failure off.
         Define right-kind as cast one's kind-of on (right-side) or pass the failure off.
         Define left as cast one's c-of on (left-side) or pass the failure off.
         Define right as cast one's c-of on (right-side) or pass the failure off.
-        Define equal as "".
+        Define c-language case-equal, given (the term union-c, the c-language axiom whole, the number tag, the c-language axiom same),
+            as [({ the union-c cf_e = the whole; cf_e.tag == the tag && the same; })].
+        Define equal as cast no-c.
         If left-kind is right-kind:
             The equal becomes cast c-equal on (left-kind, left, right).
         Done.
         Otherwise if cast is-union on (left-kind) and cast case-tag on (left-kind, right-kind) is not less than 0:
             Define tag as cast case-tag on (left-kind, right-kind).
-            The equal becomes "(\{ {cast union-c-name on (left-kind)} cf_e = {left}; cf_e.tag == {tag} && {cast c-equal on (right-kind, "cf_e.case_{tag}", right)}; \})".
+            The equal becomes case-equal on (cast union-c-name on (left-kind), left, tag,
+                cast c-equal on (right-kind, field-read on ([cf_e], "case_{tag}"), right)).
         Done.
         Otherwise if cast is-union on (right-kind) and cast case-tag on (right-kind, left-kind) is not less than 0:
             Define tag as cast case-tag on (right-kind, left-kind).
-            The equal becomes "(\{ {cast union-c-name on (right-kind)} cf_e = {right}; cf_e.tag == {tag} && {cast c-equal on (left-kind, "cf_e.case_{tag}", left)}; \})".
+            The equal becomes case-equal on (cast union-c-name on (right-kind), right, tag,
+                cast c-equal on (left-kind, field-read on ([cf_e], "case_{tag}"), left)).
         Done.
         Otherwise:
             Return a failure (cast not-built on ("comparing a {left-kind} with a {right-kind}")).
         Done.
-        If (cast field-of on (expression, 2))'s word is "NotEqual", return "(!{equal})".
+        If (cast field-of on (expression, 2))'s word is "NotEqual", return negated on (equal).
         Return equal.
     Done.
 Done.

@@ -44,23 +44,27 @@ Pull books on collections, and the c-language.
     Done.
 
     /// A set expression as C: a literal, its elements put in order, or a membership test.
-    Bind text or failure to c-set-of unto emitter, given (the node expression):
+    Bind c-language axiom or failure to c-set-of unto emitter, given (the node expression):
         If expression's kind is "SetHasMember":
             Define set-kind as cast one's kind-of on (cast field-of on (expression, 1)) or pass the failure off.
             Define set-c as cast one's c-of on (cast field-of on (expression, 1)) or pass the failure off.
             Define member-c as cast one's c-of-as on (cast field-of on (expression, 2), cast set-element on (set-kind)) or pass the failure off.
-            Define sides as a series of text with (set-c, member-c).
+            Define sides as a series of c-language axiom with (set-c, member-c).
             Define prefix as cast order-prefix on (a series of node with (cast field-of on (expression, 1), cast field-of on (expression, 2)), sides).
-            Return cast in-order on (prefix, "{cast map-c-name on (cast set-storage on (set-kind))}_has({item 1 of sides}, {item 2 of sides})").
+            Return cast in-order on (prefix, call-of-two on ("{cast map-c-name on (cast set-storage on (set-kind))}_has", item 1 of sides, item 2 of sides)).
         Done.
         Define set-kind as cast one's set-kind-of on (expression) or pass the failure off.
         Define map-c as cast map-c-name on (cast set-storage on (set-kind)).
-        Define built as "(\{ {map-c}* cf_set = {map-c}_new();".
+        Define c-language member-added, given (the c-language axiom built, the c-language axiom element, the term put),
+            as [the built { __auto_type cf_el = the element; the put(cf_set, cf_el, cf_el); }].
+        Define built as cast no-c.
         For each written in (cast field-of on (expression, 2))'s children, repeat:
             Define element-c as cast one's c-of-as on (written, cast set-element on (set-kind)) or pass the failure off.
-            The built becomes "{built} \{ __auto_type cf_el = {element-c}; {map-c}_put(cf_set, cf_el, cf_el); \}".
+            The built becomes member-added on (built, element-c, "{map-c}_put").
         Done.
-        Return "{built} cf_set; \})".
+        Define c-language set-made, given (the term map-c, the term maker, the c-language axiom built),
+            as [({ the map-c* cf_set = the maker(); the built cf_set; })].
+        Return set-made on (map-c, "{map-c}_new", built).
     Done.
 
     /// `Insert <value> into <set>.` — put as its own key, so a second insert changes nothing.
@@ -69,7 +73,7 @@ Pull books on collections, and the c-language.
         Define value-c as cast one's c-of-as on (cast field-of on (statement, 1), cast set-element on (set-kind)) or pass the failure off.
         Define set-c as cast one's c-of on (cast field-of on (statement, 2)) or pass the failure off.
         // The set first, then the value, as the interpreter works them out.
-        Define sides as a series of text with (set-c, value-c).
+        Define sides as a series of c-language axiom with (set-c, value-c).
         Define prefix as cast order-prefix on (a series of node with (cast field-of on (statement, 2), cast field-of on (statement, 1)), sides).
         Cast one's line on ("\{ {prefix}__auto_type cf_el = {item 2 of sides}; {map-c}_put({item 1 of sides}, cf_el, cf_el); \}").
     Done.
