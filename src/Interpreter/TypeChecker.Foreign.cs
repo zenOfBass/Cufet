@@ -777,6 +777,7 @@ public sealed partial class TypeChecker
     /// </remarks>
     private void RequireLanguagePulled(string language, int line, int column)
     {
+        if (_hoistingAxiom) return;   // asked again at the declaration, inside its pull
         for (int i = _scopes.Count - 1; i >= 0; i--)
             foreach (var info in _scopes[i].Values)
                 if (info.Type is BookType { Name: var pulled } && IsSameLanguage(pulled, language))

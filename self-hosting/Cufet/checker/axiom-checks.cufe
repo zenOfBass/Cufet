@@ -38,6 +38,8 @@ Pull a book on collections.
 
     /// `RequireLanguagePulled`: the book of this language, or its Cufet layer, is in scope.
     Bind void or failure to require-language-pulled unto checker, given (the text language, the number at-row):
+        // Asked again at the declaration, inside its pull.
+        If one's hoisting-axiom, return.
         Define wanted as language in lowercase.
         For each scope in one's scopes, repeat:
             For each pair in scope, repeat:

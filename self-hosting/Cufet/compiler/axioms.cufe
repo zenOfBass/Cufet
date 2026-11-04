@@ -1,9 +1,6 @@
 /*  The shapes of C this compiler writes most: a name worked out from the program, a call, a pair of
     brackets. Each is source with holes (DESIGN *An axiom's text as a value*): the compiler's C is
     source all the way down, and only becomes text when a line of it is written out.
-
-    ⚠ In a file of their own, named to come first: a function reads a neighbour's axiom only once
-    its declaration has been reached, and files are read in the order of their names.
 */
 
 Pull books on collections, and the c-language.

@@ -1646,9 +1646,20 @@ public sealed partial class TypeChecker
             if (stmt is not DefineStatement { Permanent: true } constant) continue;
             if (Scope.ContainsKey(constant.Name)) continue;
 
+            // ★ An axiom has no type until its declaration tags it, so it is tagged here: a body may
+            // fill or run a `permanently` axiom declared further on, in this file or a neighbour's.
+            // ⚠ Which file is read first depends on which one was opened — asked of only one entry
+            // point, this looked fine and failed in the editor. The pull is checked when the
+            // declaration itself is reached, where the scopes around it exist.
             CufetType? type;
-            try { type = constant.DeclaredType ?? InferType(constant.Value); }
+            _hoistingAxiom = constant.Value is AxiomLiteral;
+            try
+            {
+                type = _hoistingAxiom ? TagAxiomDeclaration(constant)
+                                      : constant.DeclaredType ?? InferType(constant.Value);
+            }
             catch (TypeException) { continue; }
+            finally { _hoistingAxiom = false; }
             if (type == null) continue;
 
             // ★ An axiom keeps its LITERAL as what established it. A name standing for itself sent
@@ -1661,6 +1672,9 @@ public sealed partial class TypeChecker
             _hoistedConstants.Add(constant.Name);
         }
     }
+
+    /// <summary>True while a `permanently` axiom is tagged ahead of its declaration.</summary>
+    private bool _hoistingAxiom;
 
     /// <summary>Shared constants registered ahead of their declaration, awaiting it.</summary>
     private readonly HashSet<string> _hoistedConstants = new(StringComparer.Ordinal);
