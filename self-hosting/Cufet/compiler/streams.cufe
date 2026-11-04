@@ -11,7 +11,7 @@
       the loop and the failure's `Try` around it began — the same bookkeeping `%rabbits` keeps.
 */
 
-Pull a book on collections.
+Pull books on collections, and the c-language.
     Bind fact to is-stream, given (the text kind):
         Return kind is "readable stream" or kind is "writable stream".
     Done.

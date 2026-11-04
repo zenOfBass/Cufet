@@ -18,7 +18,7 @@
       here, `%try-exc` and `%loop-exc` open where the failure's `Try` and the loop began.
 */
 
-Pull a book on collections.
+Pull books on collections, and the c-language.
     Bind fact to is-failable, given (the text kind):
         Return kind starts with "failure of ".
     Done.

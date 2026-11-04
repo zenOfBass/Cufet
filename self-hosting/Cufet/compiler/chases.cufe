@@ -10,7 +10,7 @@
     ⚠ `sorted` waits, as it does for a series.
 */
 
-Pull a book on collections.
+Pull books on collections, and the c-language.
     /// The C every chase works through.
     Bind text to c-chase-runtime:
         Define out as a chase.

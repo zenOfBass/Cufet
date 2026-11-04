@@ -9,7 +9,7 @@
       unions, after the objects it holds.
 */
 
-Pull a book on collections.
+Pull books on collections, and the c-language.
     Bind fact to is-voidable, given (the text kind):
         Return kind starts with "voidable ".
     Done.

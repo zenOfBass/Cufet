@@ -5,7 +5,7 @@
       side wrapped into it. A side that is `void` waits (see chosen-kind).
 */
 
-Pull a book on collections.
+Pull books on collections, and the c-language.
     /// The kind a choice gives, from the kinds of its two sides.
     Bind text or failure to chosen-kind unto emitter, given (the node expression):
         Define taken as cast one's kind-of on (cast field-of on (expression, 1)) or pass the failure off.

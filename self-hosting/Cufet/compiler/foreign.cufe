@@ -24,7 +24,7 @@
       wrappers may call what it declares.
 */
 
-Pull a book on collections.
+Pull books on collections, and the c-language.
     // ── Kinds ─────────────────────────────────────────────────────────────
 
     /// The word after a key such as `:Language`, unquoted — or "" when the node has none.

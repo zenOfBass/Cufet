@@ -9,7 +9,7 @@
       written three ways, so a width is never what tells two apart.
 */
 
-Pull a book on collections.
+Pull books on collections, and the c-language.
     /// Whether an expression gives a bits value by what it is, whatever it is made from.
     Bind fact to is-bits-expression, given (the text kind):
         Return kind is "BitsLiteral" or kind is "BitsShift" or kind is "BitsConvert" or kind is "BitsAtWidth".

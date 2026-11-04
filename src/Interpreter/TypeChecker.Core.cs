@@ -1651,9 +1651,13 @@ public sealed partial class TypeChecker
             catch (TypeException) { continue; }
             if (type == null) continue;
 
-            Scope[constant.Name] = new TypeInfo(
-                type, new VariableReference(constant.Name, constant.Line, constant.Column),
-                constant.Line, Permanent: true);
+            // ★ An axiom keeps its LITERAL as what established it. A name standing for itself sent
+            // AxiomBehind round its own reference until the hop guard gave up, so a sibling file's
+            // `x on (…)` and `cast x on (…)` could not find the source of a `permanently` axiom.
+            IExpression established = constant.Value is AxiomLiteral literal
+                ? literal
+                : new VariableReference(constant.Name, constant.Line, constant.Column);
+            Scope[constant.Name] = new TypeInfo(type, established, constant.Line, Permanent: true);
             _hoistedConstants.Add(constant.Name);
         }
     }

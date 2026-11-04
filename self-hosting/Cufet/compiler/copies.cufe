@@ -12,7 +12,7 @@
       the generated types, after the families of everything it holds.
 */
 
-Pull a book on collections.
+Pull books on collections, and the c-language.
     Bind text to copy-family, given (the text kind):
         Return "ccp_{cast c-tag on (kind)}".
     Done.

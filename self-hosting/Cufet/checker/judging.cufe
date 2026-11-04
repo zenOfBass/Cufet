@@ -1249,8 +1249,12 @@ Pull a book on collections.
             Done.
             The kept becomes declared.
         Done.
-        // An axiom is permanent whether or not it says so: nothing else could be its value.
-        Define held-for-good as permanent or kept's kind is "AxiomType".
+        // An axiom is permanent whether or not it says so: nothing else could be its value. That is
+        // a DECLARED axiom, or a name bound to one (`Define alias as answer.`) — as C# decides it.
+        // ⚠ Not every value OF an axiom type: source filled at run time (`c-word on (…)`) is an
+        // ordinary value, and may be replaced.
+        Define held-for-good as permanent or (cast is-nothing on (declared) is false and declared's kind is "AxiomType").
+        If value's kind is "VariableReference" and kept's kind is "AxiomType", the held-for-good becomes true.
         Cast one's require-rabbit-for-address on (kept, name, at-row) or pass the failure off.
         Cast one's bind-name on (name, a new binding {
             the shape kept, the established-by value, the line at-row, the permanent held-for-good, the module false,

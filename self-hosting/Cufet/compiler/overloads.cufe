@@ -9,7 +9,7 @@
       with its two operands known.
 */
 
-Pull a book on collections.
+Pull books on collections, and the c-language.
     /// The key an overload is known by among the methods: its operator and both operand types.
     Bind text to overload-key, given (the text operator, the text left-name, the text right-name):
         Return "overload {operator} {left-name} {right-name}".

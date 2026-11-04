@@ -10,7 +10,7 @@
       `failure of matrix`, read as its value inside a `Try` as a call that can fail is.
 */
 
-Pull a book on collections.
+Pull books on collections, and the c-language.
     /// Whether a binary expression is matrix arithmetic: a matrix on either side of `+`, `-` or `*`.
     Bind fact or failure to is-matrix-binary unto emitter, given (the node expression):
         Define operator as (cast field-of on (expression, 2))'s word.

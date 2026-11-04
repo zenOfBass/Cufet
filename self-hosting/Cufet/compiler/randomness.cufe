@@ -8,7 +8,7 @@
       low is above its high. Seeding repeats a run within this backend.
 */
 
-Pull a book on collections.
+Pull books on collections, and the c-language.
     Bind fact to is-random-expression, given (the text kind):
         Return kind is "RandomNumber" or kind is "RandomItem" or kind is "RandomlyShuffled" or kind is "RandomGuess".
     Done.

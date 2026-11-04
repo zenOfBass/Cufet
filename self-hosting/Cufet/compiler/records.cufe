@@ -13,7 +13,7 @@
       cannot hold a record yet, for the same reason it cannot hold a union.
 */
 
-Pull a book on collections.
+Pull books on collections, and the c-language.
     Bind fact to is-record, given (the text kind):
         Return kind starts with "record(".
     Done.

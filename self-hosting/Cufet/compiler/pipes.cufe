@@ -13,7 +13,7 @@
       `%pipe-in`. What crosses a channel is copied whole, as what crosses into a task is.
 */
 
-Pull a book on collections.
+Pull books on collections, and the c-language.
     /// A pipe's stages, left to right.
     Bind void to gather-stages, given (the node pipe, the series of node stages):
         If pipe's kind is "PipeExpression":

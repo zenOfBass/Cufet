@@ -13,7 +13,15 @@
     and from those the kind of each expression — as `TypeOf` does in `CodeGenerator`.
 */
 
-Pull a book on collections.
+Pull books on collections, and the c-language.
+    // ── C as source, not text (DESIGN *An axiom's text as a value*) ──────
+
+    /// A C name worked out from the program — checked as one when it is filled.
+    Define c-language c-word, given (the term name), as [the name] permanently.
+
+    /// A pointer to a type named that way.
+    Define c-language pointer-to, given (the term name), as [the name*] permanently.
+
     Define object emitter with (the map from text to text kinds, the chase body, the text indent,
         the map from text to node functions, the map from text to node objects, the map from text to node methods,
         the map from text to node interfaces, the map from text to fact specialized,
@@ -671,31 +679,31 @@ Pull a book on collections.
     // ── Statements ────────────────────────────────────────────────────────
 
     /// The C type a kind of value is held in.
-    Bind text to c-type, given (the text kind):
-        If cast is-record on (kind), return cast record-c-name on (kind).
-        If cast is-failable on (kind), return cast failable-c-name on (kind).
-        If kind is "chase", return "CufetChase*".
-        If kind is "matrix", return "CufetMatrix*".
-        If kind is "address", return "void*".
-        If kind is "rabbit", return "cufet_rabbit".
-        If kind is "bits", return "CufetBits".
-        If cast is-stream on (kind), return "FILE*".
-        If cast is-channel on (kind), return "cufet_chan*".
-        If cast is-task-handle on (kind), return "cufet_rbox*".
-        If cast is-set on (kind), return "{cast map-c-name on (cast set-storage on (kind))}*".
-        If cast is-function on (kind), return cast function-c-name on (kind).
+    Bind c-language axiom to c-type, given (the text kind):
+        If cast is-record on (kind), return c-word on (cast record-c-name on (kind)).
+        If cast is-failable on (kind), return c-word on (cast failable-c-name on (kind)).
+        If kind is "chase", return [CufetChase*].
+        If kind is "matrix", return [CufetMatrix*].
+        If kind is "address", return [void*].
+        If kind is "rabbit", return [cufet_rabbit].
+        If kind is "bits", return [CufetBits].
+        If cast is-stream on (kind), return [FILE*].
+        If cast is-channel on (kind), return [cufet_chan*].
+        If cast is-task-handle on (kind), return [cufet_rbox*].
+        If cast is-set on (kind), return pointer-to on (cast map-c-name on (cast set-storage on (kind))).
+        If cast is-function on (kind), return c-word on (cast function-c-name on (kind)).
         // What a handler has caught: its message — the exception's only part a program can reach.
-        If kind is "exception", return "const char*".
-        If kind is "failure", return "CufetFailure".
-        If cast is-map on (kind), return "{cast map-c-name on (kind)}*".
-        If cast is-mapping on (kind), return "{cast map-c-name on (cast mapping-map on (kind))}_pair".
-        If cast is-voidable on (kind), return cast voidable-c-name on (kind).
-        If cast is-union on (kind), return cast union-c-name on (kind).
-        If cast element-of on (kind) is not "", return "{cast series-c-name on (cast element-of on (kind))}*".
-        If cast object-of on (kind) is not "", return cast c-struct-name on (cast object-of on (kind)).
-        If kind is "number", return "CufetDec".
-        If kind is "fact", return "int".
-        Return "const char*".
+        If kind is "exception", return [const char*].
+        If kind is "failure", return [CufetFailure].
+        If cast is-map on (kind), return pointer-to on (cast map-c-name on (kind)).
+        If cast is-mapping on (kind), return c-word on ("{cast map-c-name on (cast mapping-map on (kind))}_pair").
+        If cast is-voidable on (kind), return c-word on (cast voidable-c-name on (kind)).
+        If cast is-union on (kind), return c-word on (cast union-c-name on (kind)).
+        If cast element-of on (kind) is not "", return pointer-to on (cast series-c-name on (cast element-of on (kind))).
+        If cast object-of on (kind) is not "", return c-word on (cast c-struct-name on (cast object-of on (kind))).
+        If kind is "number", return [CufetDec].
+        If kind is "fact", return [int].
+        Return [const char*].
     Done.
 
     /// The runtime call that writes a value of a kind, without the line's end.
@@ -1102,7 +1110,7 @@ Pull a book on collections.
     /// copy's C name, or "" for the function's own.
     Bind text or failure to c-signature unto emitter, given (the node statement, the map from text to text overrides, the text named):
         Define gives as cast one's kind-of-type on (cast field-of on (statement, 2)) or pass the failure off.
-        Define head as "void".
+        Define head as c-word on ("void").
         If gives is not "void", the head becomes cast c-type on (gives).
         Define listing as "".
         For each parameter in (cast field-of on (statement, 3))'s children, repeat:

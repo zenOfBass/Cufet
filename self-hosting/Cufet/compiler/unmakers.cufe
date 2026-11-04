@@ -19,7 +19,7 @@
     ★ A program with no unmakers writes none of this.
 */
 
-Pull a book on collections.
+Pull books on collections, and the c-language.
     /// Whether the program declares any unmaker.
     Bind fact to uses-unmakers unto emitter:
         Return (the entry for "%unmakers" in one's inferred) is not void.

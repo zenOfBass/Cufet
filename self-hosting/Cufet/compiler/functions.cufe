@@ -26,7 +26,7 @@
     ⚠ An object holding a function waits: the function's struct comes after the objects.
 */
 
-Pull a book on collections.
+Pull books on collections, and the c-language.
     Bind fact to is-function, given (the text kind):
         Return kind starts with "function(" or kind starts with "axiom function(".
     Done.
@@ -93,8 +93,8 @@ Pull a book on collections.
     Done.
 
     /// The C type a function gives back — `void` for none.
-    Bind text to c-gives, given (the text gives):
-        If gives is "void", return "void".
+    Bind c-language axiom to c-gives, given (the text gives):
+        If gives is "void", return c-word on ("void").
         Return cast c-type on (gives).
     Done.
 

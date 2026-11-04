@@ -65,7 +65,7 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     : PipelineTestBase, IClassFixture<CompiledCufetCompiler>
 {
     /// <summary>How many hand-written programs must build and print alike. Raised as it grows; never lowered.</summary>
-    private const int BuiltFloor = 456;
+    private const int BuiltFloor = 457;
 
     private static string[] PreludeArgs =>
         ["--prelude", Path.Combine(RepoRoot, "src", "Interpreter", "Prelude").Replace('\\', '/')];
@@ -588,6 +588,8 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
         "Pull a book on the c-language.\n    Define c-language call, given (the term name, the c-language axiom left, the c-language right), as [the name(the left, the right)].\n    Define c-language block, given (the c-language axiom inner, the c-language axiom later), as [{ the inner; the later }].\n    Bind c-language axiom to equal-by, given (the text kind, the c-language axiom left, the c-language axiom right):\n        If kind is \"text\":\n            Return call on (\"strcmp\", left, right).\n        Done.\n        Return [0].\n    Done.\n    State cast equal-by on (\"text\", [a.key], [b.key]).\n    State cast equal-by on (\"number\", [a], [b]).\n    Define both as block on (cast equal-by on (\"text\", [p], [q]), [x = 1]).\n    State both.\n    Define first as call on (\"f\", [1], [2]).\n    Define second as call on (\"f\", [1], [2]).\n    State first converted to text is second converted to text.\nDone.",
         "Pull a book on the c-language.\n    Define c-language pair, given (the c-language axiom left, the text right), as [the left + the right].\n    State pair on ([the left], \"the left\") converted to text.\n    Define c-language twice, given (the term read, the term read-only), as [the read the read-only].\n    State twice on (\"r\", \"ro\") converted to text.\nDone.",
         "Pull a book on the c-language.\n    Define c-language named, given (the term name), as [the name].\n    For each written in a series with (\"ok_1\", \"9lives\", \"two words\", \"\", \"int\"), repeat:\n        Try to:\n            State named on (written) converted to text.\n        Done.\n        In case of exception (the exception):\n            State the message of the exception.\n            Suppress the exception.\n        Done.\n    Done.\nDone.",
+        // A name holding filled source is an ordinary value, and may be replaced (2026-11-03)
+        "Pull a book on the c-language.\n    Define c-language word, given (the term name), as [the name].\n    Define head as word on (\"void\").\n    If true, the head becomes word on (\"int\").\n    State head.\nDone.",
     ];
 
     [Fact]

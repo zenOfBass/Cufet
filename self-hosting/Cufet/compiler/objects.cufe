@@ -12,7 +12,7 @@
     ★ Fields are held, printed and compared in the order the checked tree lists them.
 */
 
-Pull a book on collections.
+Pull books on collections, and the c-language.
     /// A Cufet type name as the C name of its struct.
     Bind text to c-struct-name, given (the text name):
         Return "cd_" joined to cast c-ident on (name).
@@ -340,7 +340,7 @@ Pull a book on collections.
     /// A method's head as C: what it gives back, its name, the object it changes, and its parameters.
     Bind text or failure to c-method-signature unto emitter, given (the text object-name, the node method):
         Define gives as cast one's kind-of-type on (cast field-of on (method, 2)) or pass the failure off.
-        Define head as "void".
+        Define head as c-word on ("void").
         If gives is not "void", the head becomes cast c-type on (gives).
         Define listing as "{cast c-struct-name on (object-name)}* cv_one".
         For each parameter in (cast field-of on (method, 3))'s children, repeat:

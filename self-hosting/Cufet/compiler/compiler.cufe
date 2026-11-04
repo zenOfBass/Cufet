@@ -18,7 +18,7 @@
     interpreter. The C it writes may differ from `CodeGenerator`'s freely.
 */
 
-Pull a book on collections.
+Pull books on collections, and the c-language.
     /// A message on one line, the way the parity test reads it.
     Bind text to flattened, given (the text raw):
         Define flat as replace "\\" with "\\\\" in raw.

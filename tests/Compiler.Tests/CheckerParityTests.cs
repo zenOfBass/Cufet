@@ -36,7 +36,7 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
     private const int TreeFloor = 91;
 
     /// <summary>The same, of the hand-written programs both checkers accept.</summary>
-    private const int HandWrittenTreeFloor = 299;
+    private const int HandWrittenTreeFloor = 300;
 
     /// <summary>The same, of the hand-written projects both checkers accept.</summary>
     private const int ProjectTreeFloor = 14;
@@ -1250,6 +1250,8 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
         "Pull a book on the c-language.\n    Define c-language eq-function, given (the term type-c, the c-language axiom test), as [int the type-c(void) { return the test; }].\n    Define c-language number seven as [7].\n    Bind number to twice, given (the number n): Return n * 2. Done.\n    Define c-language number runs, given (the term t), as [the t].\nDone.\n",
         "Pull a book on the c-language.\n    Define c-language eq-function, given (the term type-c, the c-language axiom test), as [int the type-c(void) { return the test; }].\n    Define c-language number seven as [7].\n    Bind number to twice, given (the number n): Return n * 2. Done.\n    Bind number to job, given (the c-language axiom given (the text) code): Return 1. Done.\nDone.\n",
         "Pull a book on cufet.\n    Define cufet src, given (the number n), as [State the n.].\nDone.\n",
+        // A name holding filled source is an ordinary value, and may be replaced (2026-11-03).
+        "Pull a book on the c-language.\n    Define c-language word, given (the term name), as [the name].\n    Define head as word on (\"void\").\n    If true, the head becomes word on (\"int\").\n    State head.\nDone.\n",
     ];
 
     /// <remarks>

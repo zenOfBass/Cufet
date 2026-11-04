@@ -11,7 +11,7 @@
       table there too, for the same reason.
 */
 
-Pull a book on collections.
+Pull books on collections, and the c-language.
     /// Whether an expression is one of the text operations here.
     Bind fact to is-text-operation, given (the text kind):
         Return kind is "TextSubstringRange" or kind is "TextContains" or kind is "TextAffixTest" or kind is "TextFind"

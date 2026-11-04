@@ -9,7 +9,7 @@
       waits for a later slice.
 */
 
-Pull a book on collections.
+Pull books on collections, and the c-language.
     /// The kind of a series' elements, or "" when `kind` is no series.
     Bind text to element-of, given (the text kind):
         If kind starts with "series of ", return the characters from 11 to the end of kind.

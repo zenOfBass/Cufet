@@ -18,7 +18,7 @@
       `becomes`, an argument, `Return`, a field, a series' items.
 */
 
-Pull a book on collections.
+Pull books on collections, and the c-language.
     Bind fact to is-union, given (the text kind):
         Return kind starts with "union of ".
     Done.

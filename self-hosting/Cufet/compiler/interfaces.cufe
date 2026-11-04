@@ -11,7 +11,7 @@
       it, for the length of the pull, and `shapes's origin` is a method called on it.
 */
 
-Pull a book on collections.
+Pull books on collections, and the c-language.
     /// A name as C: every character but an ASCII letter or digit becomes an underscore — a
     /// hyphen, the spaces of a name the loader renamed (`point in shapes`), the slashes of a
     /// folder's (`helper in top/lib`), and the commas of a version dispatch made

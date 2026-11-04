@@ -22,6 +22,21 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   with the fix. Only `c-language` source fills; a `cufet` source axiom still takes no parameters.
   Both checkers, the interpreter, and both compilers (DESIGN *An axiom's text as a value*).
 
+### Changed
+
+- **The compiler written in Cufet is moving its C from text to C source**, bottom-up: every file
+  pulls the c-language book, and `c-type` now hands back the C type as source. It still builds
+  itself to a fixed point.
+
+### Fixed
+
+- **A `permanently` axiom in one file of a folder could not be filled or run from another.** The
+  checker registered it ahead of its declaration standing for its own name, so finding its
+  source went round in a circle and gave up.
+- **The checker written in Cufet held every value of an axiom type permanent**, so a name holding
+  filled source could not be replaced where C#'s checker allows it. Only a declared axiom, or a
+  name bound to one, is permanent now, as in C#.
+
 ## [0.29.0] — 2026-11-02
 
 ### Added

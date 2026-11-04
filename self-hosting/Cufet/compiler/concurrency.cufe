@@ -16,7 +16,7 @@
       channel made here goes into; `%task` is what a task's `Return` publishes, inside one.
 */
 
-Pull a book on collections.
+Pull books on collections, and the c-language.
     Bind fact to is-channel, given (the text kind):
         Return kind starts with "channel of ".
     Done.

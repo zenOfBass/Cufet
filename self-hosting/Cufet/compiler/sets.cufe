@@ -6,7 +6,7 @@
       interpreter prints it.
 */
 
-Pull a book on collections.
+Pull books on collections, and the c-language.
     Bind fact to is-set, given (the text kind):
         Return kind starts with "set of ".
     Done.
