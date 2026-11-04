@@ -169,7 +169,9 @@ Pull books on collections, and the c-language.
         Define held as cast one's kind-of on (cast field-of on (statement, 1)) or pass the failure off.
         Cast one's register-copy on (held) or pass the failure off.
         Define value-c as cast one's c-of on (cast field-of on (statement, 1)) or pass the failure off.
-        Cast one's line on ("cufet_chan_send(cufet_pipe_out, {cast copy-family on (held)}_heapenv({value-c}));").
+        Define c-language copy-family-heapenv-form, given (the term copy-family-heapenv, the c-language axiom value-c),
+            as [cufet_chan_send(cufet_pipe_out, the copy-family-heapenv(the value-c));].
+        Cast one's put on (copy-family-heapenv-form on ("{cast copy-family on (held)}_heapenv", value-c)).
     Done.
 
     /// `For each <name> from the input:` — each value the stage before sends, until it is done.
@@ -183,10 +185,12 @@ Pull books on collections, and the c-language.
         Define kept as cast one's kinds-kept.
         Define outer as one's indent.
         The one's indent becomes outer joined to "    ".
-        Cast one's line on ("void* cf_pe = NULL; int cf_ph = cufet_chan_recv(cufet_pipe_in, &cf_pe);").
+        Cast one's put on ([void* cf_pe = NULL; int cf_ph = cufet_chan_recv(cufet_pipe_in, &cf_pe);]).
         Cast one's put on ([if (cf_ph < 0) { cufet_checkpoint(); break; }]).
-        Cast one's line on ("if (cf_ph == 0) break;").
-        Cast one's line on ("{cast c-type on (fed)} {cast c-name on (name)} = {family}_arenacopy(cf_pe); {family}_freeenv(cf_pe);").
+        Cast one's put on ([if (cf_ph == 0) break;]).
+        Define c-language family-arenacopy-form, given (the c-language axiom c-type, the term c-name, the term family-arenacopy, the term family-freeenv),
+            as [the c-type the c-name = the family-arenacopy(cf_pe); the family-freeenv(cf_pe);].
+        Cast one's put on (family-arenacopy-form on (cast c-type on (fed), cast c-name on (name), "{family}_arenacopy", "{family}_freeenv")).
         In one's kinds, the entry for name becomes fed.
         Cast one's declared-here on (name).
         In one's kinds, the entry for "%{name}" becomes fed.
@@ -217,26 +221,41 @@ Pull books on collections, and the c-language.
                 Return a failure (cast not-built on ("a pipe stage that is a {stage-kind}")).
             Done.
             Define stage-c as cast one's c-of on (stage) or pass the failure off.
-            Cast one's line on ("{cast function-c-name on (stage-kind)} cf_pstg_{label}_{place} = {stage-c};").
+            Define c-language function-name-label-form, given (the term function-c-name, the term label-cf-pstg, the c-language axiom stage-c),
+                as [the function-c-name the label-cf-pstg = the stage-c;].
+            Cast one's put on (function-name-label-form on (cast function-c-name on (stage-kind), "cf_pstg_{label}_{place}", stage-c)).
         Done.
-        Cast one's line on ("cufet_chan* cf_pch_{label}[{count - 1}];").
+        Define c-language cufet-chan-label-form, given (the term label-cf-pch, the number count),
+            as [cufet_chan* the label-cf-pch[the count];].
+        Cast one's put on (cufet-chan-label-form on ("cf_pch_{label}", count - 1)).
         For each joint in range 1 to count - 1, repeat:
             Define fed-stage as item (joint + 1) of stages.
             Define fed as the entry for "pipe-in:{cast unquoted on (cast field-of on (fed-stage, 1))}" in one's inferred but void is "".
             If fed is "", return a failure (cast not-built on ("a pipe whose stage {joint} outputs nothing this compiler can tell")).
             Cast one's register-copy on (fed) or pass the failure off.
-            Cast one's line on ("cf_pch_{label}[{joint - 1}] = cufet_chan_new({cast copy-family on (fed)}_freeenv);").
+            Define c-language label-pch-cufet-form, given (the term label-cf-pch, the number joint, the term copy-family-freeenv),
+                as [the label-cf-pch[the joint] = cufet_chan_new(the copy-family-freeenv);].
+            Cast one's put on (label-pch-cufet-form on ("cf_pch_{label}", joint - 1, "{cast copy-family on (fed)}_freeenv")).
         Done.
-        Cast one's line on ("pthread_t cf_pth_{label}[{count}];").
+        Define c-language pthread-label-pth-form, given (the term label-cf-pth, the number count),
+            as [pthread_t the label-cf-pth[the count];].
+        Cast one's put on (pthread-label-pth-form on ("cf_pth_{label}", count)).
         For each step in range 1 to count, repeat:
-            Define taking as "NULL".
-            If step is greater than 1, the taking becomes "cf_pch_{label}[{step - 2}]".
-            Define giving as "NULL".
-            If step is less than count, the giving becomes "cf_pch_{label}[{step - 1}]".
-            Cast one's line on ("{cast c-open} cufet_pipe_arg* cf_pa = (cufet_pipe_arg*)malloc(sizeof(cufet_pipe_arg)); cf_pa->in = {taking}; cf_pa->out = {giving}; cf_pa->fn = cf_pstg_{label}_{step}.fn; cf_pa->env = cf_pstg_{label}_{step}.env; pthread_create(&cf_pth_{label}[{step - 1}], NULL, cufet_pipe_stage, cf_pa); {cast c-close}").
+            Define c-language channel-joint, given (the term channels, the number joint), as [the channels[the joint]].
+            Define taking as c-verbatim on ([NULL]).
+            If step is greater than 1, the taking becomes channel-joint on ("cf_pch_{label}", step - 2).
+            Define giving as c-verbatim on ([NULL]).
+            If step is less than count, the giving becomes channel-joint on ("cf_pch_{label}", step - 1).
+            Define c-language cufet-pipe-arg-form, given (the c-language axiom taking, the c-language axiom giving, the term label-cf-pstg, the term label-cf-pth, the number step),
+                as [{ cufet_pipe_arg* cf_pa = (cufet_pipe_arg*)malloc(sizeof(cufet_pipe_arg)); cf_pa->in = the taking; cf_pa->out = the giving; cf_pa->fn = the label-cf-pstg.fn; cf_pa->env = the label-cf-pstg.env; pthread_create(&the label-cf-pth[the step], NULL, cufet_pipe_stage, cf_pa); }].
+            Cast one's put on (cufet-pipe-arg-form on (taking, giving, "cf_pstg_{label}_{step}", "cf_pth_{label}", step - 1)).
         Done.
-        Cast one's line on ("for (int cf_pj = 0; cf_pj < {count}; cf_pj++) pthread_join(cf_pth_{label}[cf_pj], NULL);").
-        Cast one's line on ("for (int cf_pf = 0; cf_pf < {count - 1}; cf_pf++) cufet_chan_free(cf_pch_{label}[cf_pf]);").
+        Define c-language for-count-pthread-form, given (the number count, the term label-cf-pth),
+            as [for (int cf_pj = 0; cf_pj < the count; cf_pj++) pthread_join(the label-cf-pth[cf_pj], NULL);].
+        Cast one's put on (for-count-pthread-form on (count, "cf_pth_{label}")).
+        Define c-language for-count-cufet-form, given (the number count, the term label-cf-pch),
+            as [for (int cf_pf = 0; cf_pf < the count; cf_pf++) cufet_chan_free(the label-cf-pch[cf_pf]);].
+        Cast one's put on (for-count-cufet-form on (count - 1, "cf_pch_{label}")).
         The one's indent becomes outer.
         Cast one's put on ([}]).
     Done.

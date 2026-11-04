@@ -272,6 +272,8 @@ static int the equal(the type-c a, the type-c b) { return the tests; }
         Define held as cast record-field-kind on (target-kind, field-name).
         If held is "", return a failure (cast not-built on ("the {field-name} of a {target-kind}")).
         Define value as cast one's c-of-as on (cast field-of on (statement, 3), held) or pass the failure off.
-        Cast one's line on ("({target-c}).{cast c-name on (field-name)} = {value};").
+        Define c-language target-name-value-form, given (the c-language axiom target-c, the term c-name, the c-language axiom value),
+            as [(the target-c).the c-name = the value;].
+        Cast one's put on (target-name-value-form on (target-c, cast c-name on (field-name), value)).
     Done.
 Done.

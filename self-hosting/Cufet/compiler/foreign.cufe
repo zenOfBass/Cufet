@@ -504,6 +504,7 @@ Pull books on collections, and the c-language.
         In one's kinds, the entry for "%{name}" becomes kind.
         In one's kinds, the entry for "@{name}" becomes "".
         Cast one's declared-here on (name).
-        Cast one's line on ("{cast function-c-name on (kind)} {cast c-name on (name)} = {value-c}; (void){cast c-name on (name)};").
+        Define c-language axiom-held, given (the term type-c, the term name, the c-language axiom value), as [the type-c the name = the value; (void)the name;].
+        Cast one's put on (axiom-held on (cast function-c-name on (kind), cast c-name on (name), value-c)).
     Done.
 Done.

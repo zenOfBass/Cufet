@@ -68,9 +68,10 @@ Pull books on collections, and the c-language.
     Done.
 
     /// The C for the arena `depth` rabbits into this frame.
-    Bind text to arena-at, given (the number depth):
-        If depth is 0, return "cf_ab".
-        Return "cf_ab + {depth}".
+    Bind c-language axiom to arena-at, given (the number depth):
+        Define c-language arena-further, given (the number depth), as [cf_ab + the depth].
+        If depth is 0, return [cf_ab].
+        Return arena-further on (depth).
     Done.
 
     /// What a store writes into, and the value it stores — for the statements that store.
@@ -127,7 +128,8 @@ Pull books on collections, and the c-language.
     /// rabbits in between kept when what it stores already lives in one of them.
     Bind void or failure to emit-escaping-store unto emitter, given (the node statement, the number target):
         If cast one's reaches-deeper on (cast stored-value on (statement), target), cast one's keep-rabbits-below on (target).
-        Cast one's line on ("{cast c-open} int cf_ov = cufet_alloc_override; cufet_alloc_override = {cast arena-at on (target)};").
+        Define c-language override-held, given (the c-language axiom arena), as [{ int cf_ov = cufet_alloc_override; cufet_alloc_override = the arena;].
+        Cast one's put on (override-held on (cast arena-at on (target))).
         In one's kinds, the entry for "%storing" becomes "yes".
         Cast one's emit-statement on (statement) or pass the failure off.
         In one's kinds, the entry for "%storing" becomes "".
@@ -146,12 +148,16 @@ Pull books on collections, and the c-language.
     /// bound to the rabbit inside it, or "" for none.
     Bind void or failure to emit-region unto emitter, given (the node statement, the text named):
         Define label as "r{(cast field-of on (statement, 3))'s word}_{(cast field-of on (statement, 4))'s word}".
-        Cast one's line on ("cufet_arena_push();").
+        Cast one's put on ([cufet_arena_push();]).
         Cast one's put on ([{]).
         Define kept as cast one's kinds-kept.
         If named is not "":
-            Cast one's line on ("    cufet_rabbit {cast c-name on (named)} = {cast c-open} \"{named}\" {cast c-close};").
-            Cast one's line on ("    (void){cast c-name on (named)};").
+            Define c-language cufet-rabbit-name-form, given (the term c-name, the text message),
+                as [    cufet_rabbit the c-name = { the message };].
+            Cast one's put on (cufet-rabbit-name-form on (cast c-name on (named), "{named}")).
+            Define c-language name-form, given (the term c-name),
+                as [    (void)the c-name;].
+            Cast one's put on (name-form on (cast c-name on (named))).
             In one's kinds, the entry for named becomes "rabbit".
         Done.
         In one's kinds, the entry for "%rabbit" becomes "{cast one's rabbits-open + 1}".
@@ -159,7 +165,7 @@ Pull books on collections, and the c-language.
         // A rabbit in a program that starts tasks keeps their slots, and joins them at its `Done`.
         Define keeps-tasks as statement's kind is "PullRabbitStatement" and (the entry for "%tasks" in one's inferred) is not void.
         If keeps-tasks:
-            Cast one's line on ("    {cast c-task-slots on (label)}").
+            Cast one's put on (cast c-task-slots on (label)).
             In one's kinds, the entry for "%task-rabbit" becomes label.
         Done.
         Define outer as one's indent.
@@ -177,10 +183,10 @@ Pull books on collections, and the c-language.
         The one's kinds becomes kept.
         Cast one's put on ([}]).
         If (the entry for label in one's kept-rabbits) is not void:
-            Cast one's line on ("cufet_arena_merge_down();").
+            Cast one's put on ([cufet_arena_merge_down();]).
         Done.
         Otherwise:
-            Cast one's line on ("cufet_arena_pop();").
+            Cast one's put on ([cufet_arena_pop();]).
         Done.
     Done.
 

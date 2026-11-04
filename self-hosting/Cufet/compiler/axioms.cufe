@@ -20,6 +20,12 @@ Pull books on collections, and the c-language.
         Return "{signature} {cast c-open}\n{body}{cast c-close}\n\n".
     Done.
 
+    /// A value's call as a statement.
+    Define c-language done-with, given (the c-language axiom call), as [the call;] permanently.
+
+    Define c-language assigned-to, given (the c-language axiom place, the c-language axiom value), as [the place = the value;] permanently.
+    Define c-language declared-as, given (the c-language axiom type-c, the term name, the c-language axiom value), as [the type-c the name = the value;] permanently.
+
     Define c-language if-open, given (the c-language axiom condition), as [if (the condition) {] permanently.
     Define c-language else-if-open, given (the c-language axiom condition), as [} else if (the condition) {] permanently.
 

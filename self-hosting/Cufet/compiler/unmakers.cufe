@@ -70,7 +70,8 @@ Pull books on collections, and the c-language.
         Define noted as cast one's next-block-depth.
         In one's kinds, the entry for "%blocks" becomes "{cast one's blocks-open + 1}".
         In one's kinds, the entry for "%in-block" becomes "yes".
-        Cast one's line on ("int {noted} = cufet_num; (void){noted};").
+        Define c-language depth-noted, given (the term noted), as [int the noted = cufet_num; (void)the noted;].
+        Cast one's put on (depth-noted on (noted)).
         Return noted.
     Done.
 
@@ -85,7 +86,9 @@ Pull books on collections, and the c-language.
     Bind void to register-unmade unto emitter, given (the text name, the text kind):
         If (the entry for "%in-block" in one's kinds but void is "") is not "yes", return.
         If cast one's is-unmade on (kind) is false, return.
-        Cast one's line on ("cufet_reg_unmaker(&{cast c-name on (name)}, {cast c-unmaker-name on (cast object-of on (kind))});").
+        Define c-language cufet-reg-unmaker-form, given (the term c-name, the term c-unmaker-name),
+            as [cufet_reg_unmaker(&the c-name, the c-unmaker-name);].
+        Cast one's put on (cufet-reg-unmaker-form on (cast c-name on (name), cast c-unmaker-name on (cast object-of on (kind)))).
     Done.
 
     /// Notes each unmaker the program declares, before any body is written.
@@ -108,7 +111,9 @@ Pull books on collections, and the c-language.
         Define object-name as cast unquoted on (cast field-of on (declaration, 2)).
         Define struct-c as cast c-struct-name on (object-name).
         Define writer as cast one's sibling.
-        Cast writer's line on ("{struct-c}* cv_one = ({struct-c}*)cf_p; (void)cv_one;").
+        Define c-language struct-one-struct-form, given (the term struct-c),
+            as [the struct-c* cv_one = (the struct-c*)cf_p; (void)cv_one;].
+        Cast writer's put on (struct-one-struct-form on (struct-c)).
         Cast writer's line on (cast writer's frame-start).
         In writer's kinds, the entry for "one" becomes "object {object-name}".
         In writer's kinds, the entry for "%return" becomes "void".

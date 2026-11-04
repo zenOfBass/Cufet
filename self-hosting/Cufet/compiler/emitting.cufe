@@ -20,7 +20,7 @@ Pull books on collections, and the c-language.
     Done.
 
     Bind fact to is-no-c, given (the c-language axiom code):
-        Return code converted to text is "".
+        Return (code converted to text) trimmed is "".
     Done.
 
     /// The C of each, with commas between.
@@ -546,9 +546,10 @@ Pull books on collections, and the c-language.
     Done.
 
     /// A statement built from the temporaries, in a block of its own that binds them first.
-    Bind text to in-order-statement, given (the c-language axiom prefix, the text built):
+    Bind c-language axiom to in-order-statement, given (the c-language axiom prefix, the c-language axiom built):
         If cast is-no-c on (prefix), return built.
-        Return "{cast c-open} {prefix}{built} {cast c-close}".
+        Define c-language in-a-block, given (the c-language axiom prefix, the c-language axiom built), as [{ the prefix the built }].
+        Return in-a-block on (prefix, built).
     Done.
 
     /// The operands of a node, fields `first` to `last`, as C — what binds them in order (see
@@ -868,7 +869,9 @@ Pull books on collections, and the c-language.
                 // A shared constant is a global, set where its `Define` stands.
                 If (the entry for cast place-of-define on (statement) in one's constant-places) is not void:
                     Define shared-kind as the entry for name in one's constants but void is "".
-                    Cast one's line on ("{cast c-name on (name)} = {cast one's c-of-as on (cast field-of on (statement, 2), shared-kind) or pass the failure off};").
+                    Define c-language name-form, given (the term c-name, the c-language axiom c-of-as),
+                        as [the c-name = the c-of-as;].
+                    Cast one's put on (name-form on (cast c-name on (name), cast one's c-of-as on (cast field-of on (statement, 2), shared-kind) or pass the failure off)).
                     Return.
                 Done.
                 Define assigned as cast field-of on (statement, 2).
@@ -882,7 +885,9 @@ Pull books on collections, and the c-language.
                 In one's kinds, the entry for "%{name}" becomes value-kind.
                 In one's kinds, the entry for "@{name}" becomes "".
                 Cast one's declared-here on (name).
-                Cast one's line on ("{cast c-type on (value-kind)} {cast c-name on (name)} = {value};").
+                Define c-language type-name-value-form, given (the c-language axiom c-type, the term c-name, the c-language axiom value),
+                    as [the c-type the c-name = the value;].
+                Cast one's put on (type-name-value-form on (cast c-type on (value-kind), cast c-name on (name), value)).
                 Cast one's register-unmade on (name, value-kind).
             Done.
             "BecomesStatement":
@@ -893,7 +898,9 @@ Pull books on collections, and the c-language.
                 // Into what the name is stored as.
                 Define stored as cast one's stored-kind on (name).
                 Define value as cast one's c-of-as on (cast field-of on (statement, 2), stored) or pass the failure off.
-                Cast one's line on ("{cast c-name on (name)} = {value};").
+                Define c-language name-value-form, given (the term c-name, the c-language axiom value),
+                    as [the c-name = the value;].
+                Cast one's put on (name-value-form on (cast c-name on (name), value)).
                 In one's kinds, the entry for name becomes stored.
                 In one's kinds, the entry for "@{name}" becomes "".
             Done.
@@ -929,19 +936,23 @@ Pull books on collections, and the c-language.
                 Define returned as cast field-of on (statement, 1).
                 Define gives as the entry for "%return" in one's kinds but void is "".
                 If cast is-nothing on (returned):
-                    If gives is "failure of void", cast one's line on (cast one's c-return on ([cfl_void_done()])).
-                    Otherwise, cast one's line on (cast one's c-return on (cast no-c)).
+                    If gives is "failure of void", cast one's put on (cast one's c-return on ([cfl_void_done()])).
+                    Otherwise, cast one's put on (cast one's c-return on (cast no-c)).
                 Done.
                 // A lambda's first pass, working out what it gives back.
                 Otherwise if gives is "?":
-                    Cast one's line on ("return {cast one's noted-return on (returned) or pass the failure off};").
+                    Define c-language return-noted-return-form, given (the c-language axiom noted-return),
+                        as [return the noted-return;].
+                    Cast one's put on (return-noted-return-form on (cast one's noted-return on (returned) or pass the failure off)).
                 Done.
-                Otherwise, cast one's line on (cast one's c-return on (cast one's c-of-as on (returned, gives) or pass the failure off)).
+                Otherwise, cast one's put on (cast one's c-return on (cast one's c-of-as on (returned, gives) or pass the failure off)).
             Done.
             "CastStatement":
                 // An axiom run for what it does; what it gives back is dropped.
                 If (cast keyed-field on (statement, ":RunsAxiom")) is not void:
-                    Cast one's line on ("(void)({cast one's c-axiom-call on (statement) or pass the failure off});").
+                    Define c-language axiom-call-form, given (the c-language axiom c-axiom-call),
+                        as [(void)(the c-axiom-call);].
+                    Cast one's put on (axiom-call-form on (cast one's c-axiom-call on (statement) or pass the failure off)).
                     Return.
                 Done.
                 Define call as cast made on ("CastExpression", a series with (cast field-of on (statement, 1), cast field-of on (statement, 2))).
@@ -958,15 +969,17 @@ Pull books on collections, and the c-language.
             "PullRabbitStatement", cast one's emit-rabbit on (statement) or pass the failure off.
             "ObjectDefinition", return a failure (cast not-built on ("an object defined inside a body")).
             "PossessiveSetStatement", cast one's emit-field-set on (statement) or pass the failure off.
-            "StopStatement", cast one's line on (cast one's c-loop-jump on ("break")).
+            "StopStatement", cast one's put on (cast one's c-loop-jump on ([break])).
             "ExitStatement":
                 Define status as call-of-one on ("cufet_dec_from_ll", [0]).
                 If cast is-nothing on (cast field-of on (statement, 1)) is false:
                     The status becomes cast one's c-of on (cast field-of on (statement, 1)) or pass the failure off.
                 Done.
-                Cast one's line on ("cufet_exit({status}, {(cast field-of on (statement, 2))'s word});").
+                Define c-language cufet-exit-status-form, given (the c-language axiom status, the number word),
+                    as [cufet_exit(the status, the word);].
+                Cast one's put on (cufet-exit-status-form on (status, cast line-number on (cast field-of on (statement, 2)))).
             Done.
-            "SkipStatement", cast one's line on (cast one's c-loop-jump on ("continue")).
+            "SkipStatement", cast one's put on (cast one's c-loop-jump on ([continue])).
             "SuppressStatement":
                 Define handler as the entry for "%suppress" in one's kinds but void is "".
                 Define c-language handler-sup-goto-form, given (the term handler-cf-sup, the term handler-cf-done),
@@ -985,8 +998,8 @@ Pull books on collections, and the c-language.
             "OutputStatement", cast one's emit-output on (statement) or pass the failure off.
             "ForEachFromInputStatement", cast one's emit-from-input on (statement) or pass the failure off.
             // `Yield.` — an interrupt checkpoint; the operating system hands out the turns.
-            "YieldStatement", cast one's line on ("cufet_checkpoint();").
-            "AcknowledgeInterruptStatement", cast one's line on ("cufet_interrupted = 0;").
+            "YieldStatement", cast one's put on (c-verbatim on ([cufet_checkpoint();])).
+            "AcknowledgeInterruptStatement", cast one's put on (c-verbatim on ([cufet_interrupted = 0;])).
             "CloseStatement", cast one's emit-close on (statement) or pass the failure off.
             "LaunchTaskStatement", cast one's emit-launch on (statement) or pass the failure off.
             "WriteToStreamStatement", cast one's emit-stream-write on (statement) or pass the failure off.
@@ -1105,7 +1118,9 @@ Pull books on collections, and the c-language.
         Done.
         Define outer as one's indent.
         The one's indent becomes outer joined to "    ".
-        Cast one's line on ("{cast c-type on (subject-kind)} cv_it = {value};").
+        Define c-language type-value-form, given (the c-language axiom c-type, the c-language axiom value),
+            as [the c-type cv_it = the value;].
+        Cast one's put on (type-value-form on (cast c-type on (subject-kind), value)).
         In one's kinds, the entry for "it" becomes subject-kind.
         In one's kinds, the entry for "%it" becomes subject-kind.
         In one's kinds, the entry for "@it" becomes "".

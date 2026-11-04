@@ -58,6 +58,8 @@ Pull books on collections, and the c-language.
     /// `Seed the chance with <n>.` — the generator started again from `n`, cut to a whole number.
     Bind void or failure to emit-seed unto emitter, given (the node statement):
         Define seed-c as cast one's c-of-as on (cast field-of on (statement, 1), "number") or pass the failure off.
-        Cast one's line on ("cufet_rng_seed(cufet_to_int({seed-c}));").
+        Define c-language cufet-rng-seed-form, given (the c-language axiom seed-c),
+            as [cufet_rng_seed(cufet_to_int(the seed-c));].
+        Cast one's put on (cufet-rng-seed-form on (seed-c)).
     Done.
 Done.

@@ -256,13 +256,17 @@ Pull books on collections, and the c-language.
             If bypassed is false:
                 Define handed as cast one's kind-of-type on (cast field-of on (setter, 2)) or pass the failure off.
                 Define handed-c as cast one's c-of-as on (cast field-of on (statement, 3), handed) or pass the failure off.
-                Cast one's line on ("{cast c-setter-name on (object-name, field)}(&({target-c}), {handed-c});").
+                Define c-language c-setter-name-form, given (the term c-setter-name, the c-language axiom target-c, the c-language axiom handed-c),
+                    as [the c-setter-name(&(the target-c), the handed-c);].
+                Cast one's put on (c-setter-name-form on (cast c-setter-name on (object-name, field), target-c, handed-c)).
                 Return.
             Done.
         Done.
         Define wanted as cast one's field-kind on (object-name, field) or pass the failure off.
         Define value as cast one's c-of-as on (cast field-of on (statement, 3), wanted) or pass the failure off.
-        Cast one's line on ("({target-c}).{cast c-name on (field)} = {value};").
+        Define c-language target-name-value-form, given (the c-language axiom target-c, the term c-name, the c-language axiom value),
+            as [(the target-c).the c-name = the value;].
+        Cast one's put on (target-name-value-form on (target-c, cast c-name on (field), value)).
     Done.
 
     // ── The program's objects ─────────────────────────────────────────────

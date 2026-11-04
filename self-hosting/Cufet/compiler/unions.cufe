@@ -242,7 +242,9 @@ static int the equal(the type-c a, the type-c b) { if (a.tag != b.tag) return 0;
         Define kept-outer as cast one's kinds-kept.
         Define outer as one's indent.
         The one's indent becomes outer joined to "    ".
-        Cast one's line on ("{cast union-c-name on (subject-kind)} cv_it = {value};").
+        Define c-language union-name-value-form, given (the term union-c-name, the c-language axiom value),
+            as [the union-c-name cv_it = the value;].
+        Cast one's put on (union-name-value-form on (cast union-c-name on (subject-kind), value)).
         In one's kinds, the entry for "it" becomes subject-kind.
         In one's kinds, the entry for "%it" becomes subject-kind.
         In one's kinds, the entry for "@it" becomes "".

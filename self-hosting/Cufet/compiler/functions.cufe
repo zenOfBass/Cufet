@@ -399,7 +399,9 @@ typedef struct { the c-gives (*fn)(the param-list); void* env; } the struct-c;
                     In one's kinds, the entry for "%{member-name}" becomes member-kind.
                     In one's kinds, the entry for "@{member-name}" becomes "".
                     Cast one's declared-here on (member-name).
-                    Cast one's line on ("{cast function-c-name on (member-kind)} {cast c-name on (member-name)}; void* cf_genv_{member-label} = 0;").
+                    Define c-language function-name-name-form, given (the term function-c-name, the term c-name, the term member-label-cf-genv),
+                        as [the function-c-name the c-name; void* the member-label-cf-genv = 0;].
+                    Cast one's put on (function-name-name-form on (cast function-c-name on (member-kind), cast c-name on (member-name), "cf_genv_{member-label}")).
                     In one's inferred, the entry for "pending:{member-name}" becomes "yes".
                 Done.
             Done.
@@ -412,10 +414,10 @@ typedef struct { the c-gives (*fn)(the param-list); void* env; } the struct-c;
         In one's kinds, the entry for "@{name}" becomes "".
         If group-first is "":
             Cast one's declared-here on (name).
-            Cast one's line on ("{cast function-c-name on (kind)} {cast c-name on (name)} = {value};").
+            Cast one's put on (declared-as on (c-word on (cast function-c-name on (kind)), cast c-name on (name), value)).
             Return.
         Done.
-        Cast one's line on ("{cast c-name on (name)} = {value};").
+        Cast one's put on (assigned-to on (c-word on (cast c-name on (name)), value)).
         // After the last of its group, every capture of a sibling made later is written in.
         If (the entry for "group-last:{label}" in one's inferred) is not void:
             For each patch in (the entry for "group-patches:{group-first}" in one's inferred but void is "") split by "\n", repeat:

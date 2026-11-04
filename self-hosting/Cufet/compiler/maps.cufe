@@ -304,7 +304,7 @@ Pull books on collections, and the c-language.
         Define held-c as cast one's c-of-as on (cast field-of on (statement, 3), cast map-value-kind on (target-kind)) or pass the failure off.
         Define sides as a series of c-language axiom with (target-c, key-c, held-c).
         Define prefix as cast order-prefix on (a series of node with (target, cast field-of on (statement, 2), cast field-of on (statement, 3)), sides).
-        Cast one's line on (cast in-order-statement on (prefix, "{cast map-c-name on (target-kind)}_put({item 1 of sides}, {item 2 of sides}, {item 3 of sides});")).
+        Cast one's put on (cast in-order-statement on (prefix, done-with on (call-of-three on ("{cast map-c-name on (target-kind)}_put", item 1 of sides, item 2 of sides, item 3 of sides)))).
     Done.
 
     /// `Remove <key> from <map>.` — refused, as the language does, when the key is not there.
@@ -313,7 +313,7 @@ Pull books on collections, and the c-language.
         Define key-c as cast one's c-of-as on (cast field-of on (statement, 2), cast map-key-kind on (target-kind)) or pass the failure off.
         Define sides as a series of c-language axiom with (target-c, key-c).
         Define prefix as cast order-prefix on (a series of node with (cast field-of on (statement, 1), cast field-of on (statement, 2)), sides).
-        Cast one's line on (cast in-order-statement on (prefix, "{cast map-c-name on (target-kind)}_remove({item 1 of sides}, {item 2 of sides}, {(cast field-of on (statement, 3))'s word});")).
+        Cast one's put on (cast in-order-statement on (prefix, done-with on (call-at-line on ("{cast map-c-name on (target-kind)}_remove", item 1 of sides, item 2 of sides, cast line-number on (cast field-of on (statement, 3)))))).
     Done.
 
     /// `For each <name> in <map>, repeat:` — over the pairs as they were when it began. A key added
@@ -337,10 +337,16 @@ Pull books on collections, and the c-language.
         Done.
         Define outer as one's indent.
         The one's indent becomes outer joined to "    ".
-        Cast one's line on ("{map-c}* cf_each = {map-value};").
-        Cast one's line on ("int cf_each_n = cf_each->len;").
-        Cast one's line on ("{key-c}* cf_keys = ({key-c}*)cufet_arena_alloc((size_t)(cf_each_n + 1) * sizeof({key-c}));").
-        Cast one's line on ("{held-c}* cf_vals = ({held-c}*)cufet_arena_alloc((size_t)(cf_each_n + 1) * sizeof({held-c}));").
+        Define c-language map-each-map-form, given (the term map-c, the c-language axiom map-value),
+            as [the map-c* cf_each = the map-value;].
+        Cast one's put on (map-each-map-form on (map-c, map-value)).
+        Cast one's put on ([int cf_each_n = cf_each->len;]).
+        Define c-language key-keys-key-form, given (the c-language axiom key-c),
+            as [the key-c* cf_keys = (the key-c*)cufet_arena_alloc((size_t)(cf_each_n + 1) * sizeof(the key-c));].
+        Cast one's put on (key-keys-key-form on (key-c)).
+        Define c-language held-vals-held-form, given (the c-language axiom held-c),
+            as [the held-c* cf_vals = (the held-c*)cufet_arena_alloc((size_t)(cf_each_n + 1) * sizeof(the held-c));].
+        Cast one's put on (held-vals-held-form on (held-c)).
         Define c-language each-memcpy-keys-form, given (the c-language axiom key-c, the c-language axiom held-c),
             as [if (cf_each_n > 0) { memcpy(cf_keys, cf_each->keys, (size_t)cf_each_n * sizeof(the key-c)); memcpy(cf_vals, cf_each->vals, (size_t)cf_each_n * sizeof(the held-c)); }].
         Cast one's put on (each-memcpy-keys-form on (key-c, held-c)).
@@ -351,7 +357,9 @@ Pull books on collections, and the c-language.
         In one's kinds, the entry for "%{name}" becomes mapping-kind.
         In one's kinds, the entry for "@{name}" becomes "".
         The one's indent becomes outer joined to "        ".
-        Cast one's line on ("if (cf_each->len != cf_each_n) cufet_raise(cufet_msgf(\"{label} was modified during a for-each loop on line {(cast field-of on (statement, 4))'s word} — collect into a separate series, or use a While loop if you need to change it while looping.\"));").
+        Define c-language each-len-each-form, given (the text message),
+            as [if (cf_each->len != cf_each_n) cufet_raise(cufet_msgf(the message));].
+        Cast one's put on (each-len-each-form on ("{label} was modified during a for-each loop on line {(cast field-of on (statement, 4))'s word} — collect into a separate series, or use a While loop if you need to change it while looping.")).
         Define c-language map-pair-name-form, given (the term map-c-pair, the term c-name),
             as [the map-c-pair the c-name = { cf_keys[cf_i], cf_vals[cf_i] };].
         Cast one's put on (map-pair-name-form on ("{map-c}_pair", cast c-name on (name))).

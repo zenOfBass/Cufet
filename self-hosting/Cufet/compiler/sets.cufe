@@ -100,18 +100,28 @@ Pull books on collections, and the c-language.
         Done.
         Define outer as one's indent.
         The one's indent becomes outer joined to "    ".
-        Cast one's line on ("{map-c}* cf_each = {set-value};").
-        Cast one's line on ("int cf_each_n = cf_each->len;").
-        Cast one's line on ("{element-c}* cf_vals = ({element-c}*)cufet_arena_alloc((size_t)(cf_each_n + 1) * sizeof({element-c}));").
-        Cast one's line on ("if (cf_each_n > 0) memcpy(cf_vals, cf_each->vals, (size_t)cf_each_n * sizeof({element-c}));").
+        Define c-language map-each-set-form, given (the term map-c, the c-language axiom set-value),
+            as [the map-c* cf_each = the set-value;].
+        Cast one's put on (map-each-set-form on (map-c, set-value)).
+        Cast one's put on ([int cf_each_n = cf_each->len;]).
+        Define c-language element-vals-element-form, given (the c-language axiom element-c),
+            as [the element-c* cf_vals = (the element-c*)cufet_arena_alloc((size_t)(cf_each_n + 1) * sizeof(the element-c));].
+        Cast one's put on (element-vals-element-form on (element-c)).
+        Define c-language each-memcpy-vals-form, given (the c-language axiom element-c),
+            as [if (cf_each_n > 0) memcpy(cf_vals, cf_each->vals, (size_t)cf_each_n * sizeof(the element-c));].
+        Cast one's put on (each-memcpy-vals-form on (element-c)).
         Cast one's put on ([for (int cf_i = 0; cf_i < cf_each_n; cf_i++) {]).
         In one's kinds, the entry for name becomes element.
         Cast one's declared-here on (name).
         In one's kinds, the entry for "%{name}" becomes element.
         In one's kinds, the entry for "@{name}" becomes "".
         The one's indent becomes outer joined to "        ".
-        Cast one's line on ("if (cf_each->len != cf_each_n) cufet_raise(cufet_msgf(\"{label} was modified during a for-each loop on line {(cast field-of on (statement, 4))'s word} — collect into a separate series, or use a While loop if you need to change it while looping.\"));").
-        Cast one's line on ("{element-c} {cast c-name on (name)} = cf_vals[cf_i];").
+        Define c-language each-len-each-form, given (the text message),
+            as [if (cf_each->len != cf_each_n) cufet_raise(cufet_msgf(the message));].
+        Cast one's put on (each-len-each-form on ("{label} was modified during a for-each loop on line {(cast field-of on (statement, 4))'s word} — collect into a separate series, or use a While loop if you need to change it while looping.")).
+        Define c-language element-name-vals-form, given (the c-language axiom element-c, the term c-name),
+            as [the element-c the c-name = cf_vals[cf_i];].
+        Cast one's put on (element-name-vals-form on (element-c, cast c-name on (name))).
         The one's indent becomes outer joined to "    ".
         Define loop-kept as cast one's entering-loop.
         Cast one's emit-block on (cast field-of on (statement, 3)) or pass the failure off.

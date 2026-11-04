@@ -103,22 +103,30 @@ Pull books on collections, and the c-language.
         Define kept as cast one's kinds-kept.
         Define outer as one's indent.
         The one's indent becomes outer joined to "    ".
-        Cast one's line on ("const char* cf_op = {path-c};").
-        Cast one's line on ("FILE* {stream-c} = cufet_fopen(cf_op, \"{mode}\");").
+        Define c-language path-form, given (the c-language axiom path-c),
+            as [const char* cf_op = the path-c;].
+        Cast one's put on (path-form on (path-c)).
+        Define c-language file-stream-cufet-form, given (the term stream-c, the text message),
+            as [FILE* the stream-c = cufet_fopen(cf_op, the message);].
+        Cast one's put on (file-stream-cufet-form on (stream-c, "{mode}")).
         // Failing to open is a failure: to the `Try`'s handler, or — with none — said and stopped.
         Cast one's register-failable on ("failure of void").
         Define c-language file-opened, given (the term opened-c),
             as [({ cfl_void cf_w; memset(&cf_w, 0, sizeof cf_w); if (the opened-c) cf_w.ok = 1; else cf_w.failure = cufet_file_failure(cf_op, errno); cf_w; })].
         Define opened as file-opened on (stream-c).
         If cast one's current-try is not "":
-            Cast one's line on ("{cast one's c-unwrapped on (opened, "failure of void")};").
+            Define c-language unwrapped-form, given (the c-language axiom c-unwrapped),
+                as [the c-unwrapped;].
+            Cast one's put on (unwrapped-form on (cast one's c-unwrapped on (opened, "failure of void"))).
         Done.
         Otherwise:
             Define c-language cfl-opened-fpr-form, given (the c-language axiom opened),
                 as [{ cfl_void cf_w = the opened; if (!cf_w.ok) { fprintf(stderr, "%s\n", cf_w.failure.message); exit(1); } }].
             Cast one's put on (cfl-opened-fpr-form on (opened)).
         Done.
-        Cast one's line on ("cufet_reg_file({stream-c});").
+        Define c-language cufet-reg-file-form, given (the term stream-c),
+            as [cufet_reg_file(the stream-c);].
+        Cast one's put on (cufet-reg-file-form on (stream-c)).
         In one's kinds, the entry for name becomes stream-kind.
         Cast one's declared-here on (name).
         In one's kinds, the entry for "%{name}" becomes stream-kind.
@@ -133,7 +141,9 @@ Pull books on collections, and the c-language.
             Done.
         Done.
         Cast one's closing-scope on (begun).
-        Cast one's line on ("cufet_close_file({stream-c});").
+        Define c-language cufet-close-file-form, given (the term stream-c),
+            as [cufet_close_file(the stream-c);].
+        Cast one's put on (cufet-close-file-form on (stream-c)).
         The one's indent becomes outer.
         The one's kinds becomes kept.
         Cast one's put on ([}]).

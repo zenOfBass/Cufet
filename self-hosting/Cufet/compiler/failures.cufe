@@ -403,10 +403,14 @@ Pull books on collections, and the c-language.
     /// `Cast <call> or pass the failure off.`, or a call that can fail made inside a `Try`.
     Bind void or failure to emit-failable-cast unto emitter, given (the node call, the fact passes-off):
         If passes-off:
-            Cast one's line on ("{cast one's c-pass-off on (call) or pass the failure off};").
+            Define c-language pass-off-form, given (the c-language axiom c-pass-off),
+                as [the c-pass-off;].
+            Cast one's put on (pass-off-form on (cast one's c-pass-off on (call) or pass the failure off)).
             Return.
         Done.
-        Cast one's line on ("{cast one's c-of on (call) or pass the failure off};").
+        Define c-language c-part-form, given (the c-language axiom c-of),
+            as [the c-of;].
+        Cast one's put on (c-part-form on (cast one's c-of on (call) or pass the failure off)).
     Done.
 
     // ── Exceptions ────────────────────────────────────────────────────────
@@ -426,22 +430,28 @@ Pull books on collections, and the c-language.
 
     /// A `Return`, closing every exception `Try` it leaves first — its value worked out before
     /// that, so a fault in it is still caught.
-    Bind text to c-return unto emitter, given (the c-language axiom value):
-        Define leaving as "{cast one's c-leaving-unmakers on ("0")}{cast one's c-leaving on ("0")}{cast one's c-leaving-rabbits on ("0")}{cast one's c-leaving-files on ("0")}cufet_alloc_override = cf_fo; ".
-        If leaving is "":
-            If cast is-no-c on (value), return "return;".
-            Return "return {value};".
-        Done.
-        If cast is-no-c on (value), return "{cast c-open} {leaving}return; {cast c-close}".
+    Bind c-language axiom to c-return unto emitter, given (the c-language axiom value):
+        Define c-language override-put-back, given (the c-language axiom leaving), as [the leaving cufet_alloc_override = cf_fo; ].
+        Define leaving as override-put-back on (cast c-all-leaving on (cast one's c-leaving-unmakers on ("0"), cast one's c-leaving on ("0"),
+            cast one's c-leaving-rabbits on ("0"), cast one's c-leaving-files on ("0"))).
+        Define c-language left-empty, given (the c-language axiom leaving), as [{ the leaving return; }].
+        If cast is-no-c on (value), return left-empty on (leaving).
         Define gives as the entry for "%return" in one's kinds but void is "".
-        Return "{cast c-open} {cast c-type on (gives)} cf_ret = {value}; {leaving}return cf_ret; {cast c-close}".
+        Define c-language left-with-value, given (the c-language axiom type-c, the c-language axiom value, the c-language axiom leaving),
+            as [{ the type-c cf_ret = the value; the leaving return cf_ret; }].
+        Return left-with-value on (cast c-type on (gives), value, leaving).
     Done.
 
     /// `Stop` or `Skip` — closing the exception `Try`s opened inside the loop it leaves.
-    Bind text to c-loop-jump unto emitter, given (the text jump):
-        Define leaving as "{cast one's c-leaving-unmakers on (the entry for "%loop-um" in one's kinds but void is "")}{cast one's c-leaving on (the entry for "%loop-exc" in one's kinds but void is "0")}{cast one's c-leaving-rabbits on (the entry for "%loop-rabbit" in one's kinds but void is "0")}{cast one's c-leaving-files on (the entry for "%loop-files" in one's kinds but void is "0")}".
-        If leaving is "", return "{jump};".
-        Return "{cast c-open} {leaving}{jump}; {cast c-close}".
+    Bind c-language axiom to c-loop-jump unto emitter, given (the c-language axiom jump):
+        Define leaving as cast c-all-leaving on (
+            cast one's c-leaving-unmakers on (the entry for "%loop-um" in one's kinds but void is ""),
+            cast one's c-leaving on (the entry for "%loop-exc" in one's kinds but void is "0"),
+            cast one's c-leaving-rabbits on (the entry for "%loop-rabbit" in one's kinds but void is "0"),
+            cast one's c-leaving-files on (the entry for "%loop-files" in one's kinds but void is "0")).
+        If cast is-no-c on (leaving), return done-with on (jump).
+        Define c-language jumped-away, given (the c-language axiom leaving, the c-language axiom jump), as [{ the leaving the jump; }].
+        Return jumped-away on (leaving, jump).
     Done.
 
     /// Marks the start of a loop's body, so a `Stop` in it knows what it leaves. Gives back what to put back.
@@ -496,13 +506,21 @@ Pull books on collections, and the c-language.
             Cast one's put on ([{]).
             The one's indent becomes outer joined to "    ".
         Done.
-        Cast one's line on ("CufetFailure cf_failure_{label}; memset(&cf_failure_{label}, 0, sizeof cf_failure_{label}); int cf_tov_{label} = cufet_alloc_override; (void)cf_tov_{label};").
+        Define c-language cufetfailure-label-failure-form, given (the term label-cf-failure, the term label-cf-tov),
+            as [CufetFailure the label-cf-failure; memset(&the label-cf-failure, 0, sizeof the label-cf-failure); int the label-cf-tov = cufet_alloc_override; (void)the label-cf-tov;].
+        Cast one's put on (cufetfailure-label-failure-form on ("cf_failure_{label}", "cf_tov_{label}")).
         If catching:
             // Taken before the jump point and never changed after it, so they hold their values
             // across the jump back.
-            Cast one's line on ("int cf_xf_{label} = cufet_nfiles; int cf_xa_{label} = cufet_arena_top; int cf_sup_{label} = 0; const char* cf_xmsg_{label} = 0; (void)cf_sup_{label}; (void)cf_xmsg_{label};").
-            Cast one's line on ("if (CUFET_PLAIN_SETJMP(cufet_exc_bufs[++cufet_exc_top]) != 0) goto cf_catch_{label};").
-            Cast one's line on ("cufet_exc_um[cufet_exc_top] = cufet_num; cufet_exc_arena[cufet_exc_top] = cf_xa_{label};").
+            Define c-language label-cufet-nfiles-form, given (the term label-cf-xf, the term label-cf-xa, the term label-cf-sup, the term label-cf-xmsg),
+                as [int the label-cf-xf = cufet_nfiles; int the label-cf-xa = cufet_arena_top; int the label-cf-sup = 0; const char* the label-cf-xmsg = 0; (void)the label-cf-sup; (void)the label-cf-xmsg;].
+            Cast one's put on (label-cufet-nfiles-form on ("cf_xf_{label}", "cf_xa_{label}", "cf_sup_{label}", "cf_xmsg_{label}")).
+            Define c-language cufet-plain-setjmp-form, given (the term label-cf-catch),
+                as [if (CUFET_PLAIN_SETJMP(cufet_exc_bufs[++cufet_exc_top]) != 0) goto the label-cf-catch;].
+            Cast one's put on (cufet-plain-setjmp-form on ("cf_catch_{label}")).
+            Define c-language cufet-exc-cufet-form, given (the term label-cf-xa),
+                as [cufet_exc_um[cufet_exc_top] = cufet_num; cufet_exc_arena[cufet_exc_top] = the label-cf-xa;].
+            Cast one's put on (cufet-exc-cufet-form on ("cf_xa_{label}")).
             In one's kinds, the entry for "%exc" becomes "{cast one's exceptions-open + 1}".
         Done.
         If keeps is false, cast one's put on ([{]).
@@ -526,8 +544,10 @@ Pull books on collections, and the c-language.
         In one's kinds, the entry for "%try-um" becomes outer-try-um.
         In one's kinds, the entry for "%exc" becomes outer-exc.
         If keeps is false, cast one's put on ([}]).
-        If catching, cast one's line on ("cufet_exc_top--;").
-        Cast one's line on ("goto cf_tried_{label};").
+        If catching, cast one's put on (c-verbatim on ([cufet_exc_top--;])).
+        Define c-language goto-label-tried-form, given (the term label-cf-tried),
+            as [goto the label-cf-tried;].
+        Cast one's put on (goto-label-tried-form on ("cf_tried_{label}")).
         // A failure arrives with this `Try`'s own frame already closed, by the jump that brought it.
         If failing:
             Define c-language label-try-cufet-form, given (the term label-cf-try, the term label-cf-tov),
@@ -539,7 +559,9 @@ Pull books on collections, and the c-language.
             In one's kinds, the entry for "%the failure" becomes "failure".
             In one's kinds, the entry for "@the failure" becomes "".
             The one's indent becomes outer joined to "        ".
-            Cast one's line on ("CufetFailure {cast c-name on ("the failure")} = cf_failure_{label};").
+            Define c-language cufetfailure-name-label-form, given (the term c-name, the term label-cf-failure),
+                as [CufetFailure the c-name = the label-cf-failure;].
+            Cast one's put on (cufetfailure-name-label-form on (cast c-name on ("the failure"), "cf_failure_{label}")).
             Define failure-begun as cast one's opening-scope.
             For each inner in (cast field-of on (statement, 2))'s children, repeat:
                 Cast one's emit-statement on (inner) or pass the failure off.
@@ -548,11 +570,15 @@ Pull books on collections, and the c-language.
             The one's kinds becomes kept.
             The one's indent becomes outer joined to "    ".
             Cast one's put on ([}]).
-            Cast one's line on ("goto cf_tried_{label};").
+            Define c-language goto-label-tried-form-2, given (the term label-cf-tried),
+                as [goto the label-cf-tried;].
+            Cast one's put on (goto-label-tried-form-2 on ("cf_tried_{label}")).
         Done.
         If catching:
             // What the jump passed over: files opened and regions entered since the `Try` began.
-            Cast one's line on ("cf_catch_{label}: cufet_exc_top--; cf_xmsg_{label} = cufet_exc_msg; cufet_close_files_from(cf_xf_{label}); while (cufet_arena_top > cf_xa_{label}) cufet_arena_merge_down(); cufet_alloc_override = cf_tov_{label};").
+            Define c-language label-catch-cufet-form, given (the term label-cf-catch, the term label-cf-xmsg, the term label-cf-xf, the term label-cf-xa, the term label-cf-tov),
+                as [the label-cf-catch: cufet_exc_top--; the label-cf-xmsg = cufet_exc_msg; cufet_close_files_from(the label-cf-xf); while (cufet_arena_top > the label-cf-xa) cufet_arena_merge_down(); cufet_alloc_override = the label-cf-tov;].
+            Cast one's put on (label-catch-cufet-form on ("cf_catch_{label}", "cf_xmsg_{label}", "cf_xf_{label}", "cf_xa_{label}", "cf_tov_{label}")).
             Cast one's put on ([{]).
             Define kept as cast one's kinds-kept.
             Define bound as cast exception-binding on (statement).
@@ -562,7 +588,9 @@ Pull books on collections, and the c-language.
             In one's kinds, the entry for "@{bound}" becomes "".
             In one's kinds, the entry for "%suppress" becomes label.
             The one's indent becomes outer joined to "        ".
-            Cast one's line on ("const char* {cast c-name on (bound)} = cf_xmsg_{label};").
+            Define c-language name-label-xmsg-form, given (the term c-name, the term label-cf-xmsg),
+                as [const char* the c-name = the label-cf-xmsg;].
+            Cast one's put on (name-label-xmsg-form on (cast c-name on (bound), "cf_xmsg_{label}")).
             Define exception-begun as cast one's opening-scope.
             For each inner in (cast field-of on (statement, 3))'s children, repeat:
                 Cast one's emit-statement on (inner) or pass the failure off.
@@ -571,10 +599,16 @@ Pull books on collections, and the c-language.
             The one's kinds becomes kept.
             The one's indent becomes outer joined to "    ".
             Cast one's put on ([}]).
-            Cast one's line on ("cf_done_{label}: ;").
-            Cast one's line on ("if (!cf_sup_{label}) cufet_raise(cf_xmsg_{label});").
+            Define c-language label-done-form, given (the term label-cf-done),
+                as [the label-cf-done: ;].
+            Cast one's put on (label-done-form on ("cf_done_{label}")).
+            Define c-language label-sup-cufet-form, given (the term label-cf-sup, the term label-cf-xmsg),
+                as [if (!the label-cf-sup) cufet_raise(the label-cf-xmsg);].
+            Cast one's put on (label-sup-cufet-form on ("cf_sup_{label}", "cf_xmsg_{label}")).
         Done.
-        Cast one's line on ("cf_tried_{label}: ;").
+        Define c-language label-tried-form, given (the term label-cf-tried),
+            as [the label-cf-tried: ;].
+        Cast one's put on (label-tried-form on ("cf_tried_{label}")).
         The one's indent becomes outer.
         If keeps is false, cast one's put on ([}]).
     Done.
@@ -590,7 +624,8 @@ Pull books on collections, and the c-language.
         For each statement in statements's children, repeat:
             Cast one's emit-statement on (statement) or pass the failure off.
         Done.
-        If begun is not "" and was-in-block is not "yes", cast one's line on ("cufet_num = {begun};").
+        Define c-language depth-put-back, given (the term begun), as [cufet_num = the begun;].
+        If begun is not "" and was-in-block is not "yes", cast one's put on (depth-put-back on (begun)).
         In one's kinds, the entry for "%in-block" becomes was-in-block.
         In one's kinds, the entry for "%blocks" becomes blocks-before.
     Done.
@@ -606,7 +641,9 @@ Pull books on collections, and the c-language.
             as [({ cfl_void cf_w; memset(&cf_w, 0, sizeof cf_w); CufetFailure cf_we; if (cufet_file_write(the file-path, the written, the appending, &cf_we)) cf_w.ok = 1; else cf_w.failure = cf_we; cf_w; })].
         Define write-c as file-written on (path-c, written-c, appending).
         If cast one's current-try is not "":
-            Cast one's line on ("{cast one's c-unwrapped on (write-c, "failure of void")};").
+            Define c-language unwrapped-form, given (the c-language axiom c-unwrapped),
+                as [the c-unwrapped;].
+            Cast one's put on (unwrapped-form on (cast one's c-unwrapped on (write-c, "failure of void"))).
             Return.
         Done.
         Define c-language cfl-write-fpr-form, given (the c-language axiom write-c),
@@ -617,7 +654,7 @@ Pull books on collections, and the c-language.
     /// What a function that can only fail or be done says when it reaches its end: done.
     Bind void to close-failable unto emitter:
         If (the entry for "%return" in one's kinds but void is "") is "failure of void":
-            Cast one's line on ("return cfl_void_done();").
+            Cast one's put on ([return cfl_void_done();]).
         Done.
     Done.
 Done.

@@ -76,10 +76,10 @@ the freeing        fflush(stdout); return 130;
     // ── A rabbit that may start tasks ─────────────────────────────────────
 
     /// What a rabbit that may start tasks keeps, at its start.
-    Bind text to c-task-slots, given (the text label):
+    Bind c-language axiom to c-task-slots, given (the text label):
         Define c-language pthread-label-thr-form, given (the term label-cf-thr, the term label-cf-nthr, the term label-cf-chan, the term label-cf-nchan, the term label-cf-rbox, the term label-cf-fault),
             as [pthread_t the label-cf-thr[CUFET_TASK_MAX]; int the label-cf-nthr = 0; cufet_chan* the label-cf-chan[CUFET_TASK_MAX]; int the label-cf-nchan = 0; cufet_rbox* the label-cf-rbox[CUFET_TASK_MAX] = {0}; char* the label-cf-fault[CUFET_TASK_MAX] = {0}; (void)the label-cf-thr; (void)the label-cf-chan; (void)the label-cf-rbox;].
-        Return "{pthread-label-thr-form on ("cf_thr_{label}", "cf_nthr_{label}", "cf_chan_{label}", "cf_nchan_{label}", "cf_rbox_{label}", "cf_fault_{label}")}".
+        Return pthread-label-thr-form on ("cf_thr_{label}", "cf_nthr_{label}", "cf_chan_{label}", "cf_nchan_{label}", "cf_rbox_{label}", "cf_fault_{label}").
     Done.
 
     /// What it does at its `Done`: every task joined, what went unhandled raised, the boxes and the
@@ -123,12 +123,16 @@ the freeing        fflush(stdout); return 130;
         Cast one's register-copy on (element) or pass the failure off.
         Define value-c as cast one's c-of-as on (cast field-of on (statement, 1), element) or pass the failure off.
         Define channel-c as cast one's c-of on (cast field-of on (statement, 2)) or pass the failure off.
-        Cast one's line on ("cufet_chan_send({channel-c}, {cast copy-family on (element)}_heapenv({value-c}));").
+        Define c-language copy-family-heapenv-form, given (the c-language axiom channel-c, the term copy-family-heapenv, the c-language axiom value-c),
+            as [cufet_chan_send(the channel-c, the copy-family-heapenv(the value-c));].
+        Cast one's put on (copy-family-heapenv-form on (channel-c, "{cast copy-family on (element)}_heapenv", value-c)).
     Done.
 
     Bind void or failure to emit-close unto emitter, given (the node statement):
         Define channel-c as cast one's c-of on (cast field-of on (statement, 1)) or pass the failure off.
-        Cast one's line on ("cufet_chan_close({channel-c});").
+        Define c-language cufet-chan-close-form, given (the c-language axiom channel-c),
+            as [cufet_chan_close(the channel-c);].
+        Cast one's put on (cufet-chan-close-form on (channel-c)).
     Done.
 
     // ── Tasks ─────────────────────────────────────────────────────────────
@@ -248,7 +252,9 @@ the freeing        fflush(stdout); return 130;
         // A named task's box, under its own name, so an await reaches it.
         Define box as "NULL".
         If task-name is not "" and result is not "void":
-            Cast one's line on ("cufet_rbox* {cast c-name on (task-name)} = cufet_rbox_new({cast copy-family on (result)}_freeenv);").
+            Define c-language cufet-rbox-name-form, given (the term c-name, the term copy-family-freeenv),
+                as [cufet_rbox* the c-name = cufet_rbox_new(the copy-family-freeenv);].
+            Cast one's put on (cufet-rbox-name-form on (cast c-name on (task-name), "{cast copy-family on (result)}_freeenv")).
             In one's kinds, the entry for task-name becomes "task of {result}".
             Cast one's declared-here on (task-name).
             In one's kinds, the entry for "%{task-name}" becomes "task of {result}".

@@ -400,14 +400,14 @@ size_t the length = strlen(the pieces[the index]); memcpy(the cursor, the pieces
             Define prefix as cast order-prefix on (operands, sides).
             Define series-type as cast series-c-name on (element).
             If (cast field-of on (statement, 4))'s word is "true":
-                Cast one's line on (cast in-order-statement on (prefix, "{series-type}_prepend({item 1 of sides}, {item 2 of sides});")).
+                Cast one's put on (cast in-order-statement on (prefix, done-with on (call-of-two on ("{series-type}_prepend", item 1 of sides, item 2 of sides)))).
                 Return.
             Done.
             If cast is-nothing on (following):
-                Cast one's line on (cast in-order-statement on (prefix, "{series-type}_append({item 1 of sides}, {item 2 of sides});")).
+                Cast one's put on (cast in-order-statement on (prefix, done-with on (call-of-two on ("{series-type}_append", item 1 of sides, item 2 of sides)))).
                 Return.
             Done.
-            Cast one's line on (cast in-order-statement on (prefix, "{series-type}_insert_after({item 1 of sides}, cufet_to_int({item 3 of sides}), {item 2 of sides});")).
+            Cast one's put on (cast in-order-statement on (prefix, done-with on (call-of-three on ("{series-type}_insert_after", item 1 of sides, call-of-one on ("cufet_to_int", item 3 of sides), item 2 of sides)))).
             Return.
         Done.
         If kind is "SeriesRemoveValueStatement":
@@ -424,7 +424,7 @@ size_t the length = strlen(the pieces[the index]); memcpy(the cursor, the pieces
             Done.
             Define element as cast one's changed-element on (target) or pass the failure off.
             Define sides as cast one's c-fields-in-order on (statement, 1, 2) or pass the failure off.
-            Cast one's line on (cast in-order-statement on (item 1 of sides, "{cast series-c-name on (element)}_remove_value({item 2 of sides}, {item 3 of sides});")).
+            Cast one's put on (cast in-order-statement on (item 1 of sides, done-with on (call-of-two on ("{cast series-c-name on (element)}_remove_value", item 2 of sides, item 3 of sides)))).
             Return.
         Done.
         If kind is "SeriesRemoveAtStatement":
@@ -454,7 +454,7 @@ size_t the length = strlen(the pieces[the index]); memcpy(the cursor, the pieces
             Define record-c as cast one's c-of on (target) or pass the failure off.
             Define member as cast one's c-record-item on (record-c, set-kind, cast field-of on (statement, 2)) or pass the failure off.
             Define part-held as cast one's record-item-kind on (set-kind, cast field-of on (statement, 2)) or pass the failure off.
-            Cast one's line on ("{member} = {cast one's c-of-as on (cast field-of on (statement, 3), part-held) or pass the failure off};").
+            Cast one's put on (assigned-to on (member, cast one's c-of-as on (cast field-of on (statement, 3), part-held) or pass the failure off)).
             Return.
         Done.
         Define element as cast one's changed-element on (target) or pass the failure off.
@@ -509,8 +509,10 @@ size_t the length = strlen(the pieces[the index]); memcpy(the cursor, the pieces
         Done.
         Define outer as one's indent.
         The one's indent becomes outer joined to "    ".
-        Cast one's line on ("{cast series-c-name on (element)}* cf_each = {series-c};").
-        Cast one's line on ("int cf_each_n = cf_each->len;").
+        Define c-language series-name-each-form, given (the term series-c-name, the c-language axiom series-c),
+            as [the series-c-name* cf_each = the series-c;].
+        Cast one's put on (series-name-each-form on (cast series-c-name on (element), series-c)).
+        Cast one's put on ([int cf_each_n = cf_each->len;]).
         // ⚠ Inserting into or removing from the series it loops over is refused while it runs —
         // checked before each pass and once more on the way out, which `Stop` leaves without, as
         // the interpreter does (GRAMMAR: "The for-each body cannot add or remove elements").
@@ -518,9 +520,13 @@ size_t the length = strlen(the pieces[the index]); memcpy(the cursor, the pieces
         In one's kinds, the entry for name becomes element.
         Cast one's declared-here on (name).
         The one's indent becomes outer joined to "        ".
-        Cast one's line on ("if (cf_each->len != cf_each_n) cufet_raise(cufet_msgf(\"'{cast series-label on (over)}' was modified during a for-each loop on line {(cast field-of on (statement, 4))'s word} — collect into a separate series, or use a While loop if you need to change it while looping.\"));").
-        Cast one's line on ("if (cf_i >= cf_each_n) break;").
-        Cast one's line on ("{cast c-type on (element)} {cast c-name on (name)} = cf_each->data[cf_i];").
+        Define c-language each-len-each-form, given (the text message),
+            as [if (cf_each->len != cf_each_n) cufet_raise(cufet_msgf(the message));].
+        Cast one's put on (each-len-each-form on ("'{cast series-label on (over)}' was modified during a for-each loop on line {(cast field-of on (statement, 4))'s word} — collect into a separate series, or use a While loop if you need to change it while looping.")).
+        Cast one's put on ([if (cf_i >= cf_each_n) break;]).
+        Define c-language type-name-each-form, given (the c-language axiom c-type, the term c-name),
+            as [the c-type the c-name = cf_each->data[cf_i];].
+        Cast one's put on (type-name-each-form on (cast c-type on (element), cast c-name on (name))).
         The one's indent becomes outer joined to "    ".
         Define loop-kept as cast one's entering-loop.
         Cast one's emit-block on (cast field-of on (statement, 3)) or pass the failure off.

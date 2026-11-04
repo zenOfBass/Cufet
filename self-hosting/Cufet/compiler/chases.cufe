@@ -257,7 +257,7 @@ Pull books on collections, and the c-language.
         Define chase-c as cast one's c-of on (target) or pass the failure off.
         Define value as cast one's c-of on (cast field-of on (statement, 1)) or pass the failure off.
         Define value-kind as cast one's kind-of on (cast field-of on (statement, 1)) or pass the failure off.
-        Define at-line as (cast field-of on (statement, 5))'s word.
+        Define at-line as cast line-number on (cast field-of on (statement, 5)).
         // The chase, then the value, then the place, as the interpreter works them out.
         Define operands as a series of node with (target, cast field-of on (statement, 1)).
         Define sides as a series of c-language axiom with (chase-c, value).
@@ -267,26 +267,39 @@ Pull books on collections, and the c-language.
             Insert after-c into sides.
         Done.
         Define prefix as cast order-prefix on (operands, sides).
-        Define bound as "{prefix}CufetChase* cf_ch = {item 1 of sides};".
+        Define c-language chase-bound, given (the c-language axiom prefix, the c-language axiom held), as [the prefix CufetChase* cf_ch = the held;].
+        Define bound as chase-bound on (prefix, item 1 of sides).
         The value becomes item 2 of sides.
-        Define at as "cf_ch->len".
-        If (cast field-of on (statement, 4))'s word is "true", the at becomes "0".
-        Otherwise if the number of sides is 3:
-            The at becomes "(int)cufet_idx_check(cufet_to_int({item 3 of sides}), cf_ch->len, \"{cast chase-label on (target)}\", {at-line})".
+        Define c-language place-checked, given (the c-language axiom place, the text label, the number at-line),
+            as [(int)cufet_idx_check(cufet_to_int(the place), cf_ch->len, the label, the at-line)].
+        Define at-end as false.
+        Define at as c-verbatim on ([0]).
+        If (cast field-of on (statement, 4))'s word is not "true":
+            If the number of sides is 3, the at becomes place-checked on (item 3 of sides, cast chase-label on (target), at-line).
+            Otherwise:
+                The at becomes c-verbatim on ([cf_ch->len]).
+                The at-end becomes true.
+            Done.
         Done.
         If value-kind is "number":
-            Cast one's line on ("{cast c-open} {bound} cufet_chase_insert_point(cf_ch, {at}, cufet_code_point({value}, {at-line})); {cast c-close}").
+            Define c-language point-inserted, given (the c-language axiom bound, the c-language axiom at, the c-language axiom value, the number at-line),
+                as [{ the bound cufet_chase_insert_point(cf_ch, the at, cufet_code_point(the value, the at-line)); }].
+            Cast one's put on (point-inserted on (bound, at, value, at-line)).
             Return.
         Done.
         If value-kind is not "text", return a failure (cast not-built on ("inserting a {value-kind} into a chase")).
         // At the end, decoded straight onto it, as `cufet build` does. Anywhere else the text is
         // decoded apart first, to know how far to move what follows — a chase of its own, every time,
         // which at the end cost the compiled checker 19 million chases on one file.
-        If at is "cf_ch->len":
-            Cast one's line on ("{cast c-open} {bound} cufet_chase_append(cf_ch, {value}); {cast c-close}").
+        If at-end:
+            Define c-language text-appended, given (the c-language axiom bound, the c-language axiom value),
+                as [{ the bound cufet_chase_append(cf_ch, the value); }].
+            Cast one's put on (text-appended on (bound, value)).
             Return.
         Done.
-        Cast one's line on ("{cast c-open} {bound} cufet_chase_insert(cf_ch, {at}, {value}); {cast c-close}").
+        Define c-language text-inserted, given (the c-language axiom bound, the c-language axiom at, the c-language axiom value),
+            as [{ the bound cufet_chase_insert(cf_ch, the at, the value); }].
+        Cast one's put on (text-inserted on (bound, at, value)).
     Done.
 
     /// `Remove item … from`, `Remove the last from`, and `Remove "<character>" from` a chase.
@@ -295,16 +308,22 @@ Pull books on collections, and the c-language.
         Define label as cast chase-label on (target).
         If cast is-nothing on (cast field-of on (statement, 2)):
             Define chase-c as cast one's c-of on (target) or pass the failure off.
-            Cast one's line on ("cufet_chase_remove_at({chase-c}, -1, \"{label}\", {(cast field-of on (statement, 3))'s word});").
+            Define c-language cufet-chase-remove-form, given (the c-language axiom chase-c, the text message, the number word),
+                as [cufet_chase_remove_at(the chase-c, -1, the message, the word);].
+            Cast one's put on (cufet-chase-remove-form on (chase-c, "{label}", cast line-number on (cast field-of on (statement, 3)))).
             Return.
         Done.
         // The chase first, then what goes, as the interpreter works them out.
         Define sides as cast one's c-fields-in-order on (statement, 1, 2) or pass the failure off.
         If statement's kind is "SeriesRemoveValueStatement":
-            Cast one's line on (cast in-order-statement on (item 1 of sides, "cufet_chase_remove_value({item 2 of sides}, {item 3 of sides}, \"{label}\", {(cast field-of on (statement, 3))'s word});")).
+            Define c-language value-removed, given (the c-language axiom held, the c-language axiom value, the text label, the number at-line),
+                as [cufet_chase_remove_value(the held, the value, the label, the at-line);].
+            Cast one's put on (cast in-order-statement on (item 1 of sides, value-removed on (item 2 of sides, item 3 of sides, label, cast line-number on (cast field-of on (statement, 3))))).
             Return.
         Done.
-        Cast one's line on (cast in-order-statement on (item 1 of sides, "cufet_chase_remove_at({item 2 of sides}, cufet_to_int({item 3 of sides}), \"{label}\", {(cast field-of on (statement, 3))'s word});")).
+        Define c-language place-removed, given (the c-language axiom held, the c-language axiom place, the text label, the number at-line),
+            as [cufet_chase_remove_at(the held, cufet_to_int(the place), the label, the at-line);].
+        Cast one's put on (cast in-order-statement on (item 1 of sides, place-removed on (item 2 of sides, item 3 of sides, label, cast line-number on (cast field-of on (statement, 3))))).
     Done.
 
     /// `The item … of <chase> becomes <character>.`
@@ -312,7 +331,7 @@ Pull books on collections, and the c-language.
         Define target as cast field-of on (statement, 1).
         Define chase-c as cast one's c-of on (target) or pass the failure off.
         Define label as cast chase-label on (target).
-        Define at-line as (cast field-of on (statement, 4))'s word.
+        Define at-line as cast line-number on (cast field-of on (statement, 4)).
         Define value as cast one's c-of on (cast field-of on (statement, 3)) or pass the failure off.
         // The chase, then the place, then the character, as the interpreter works them out.
         Define index as cast field-of on (statement, 2).
@@ -324,11 +343,14 @@ Pull books on collections, and the c-language.
             The sides becomes a series of c-language axiom with (chase-c, index-c, value).
         Done.
         Define prefix as cast order-prefix on (operands, sides).
-        Define placed-at as "cufet_last_check(cf_ch->len, \"{label}\", {at-line})".
-        If the number of sides is 3:
-            The placed-at becomes "cufet_idx_check(cufet_to_int({item 2 of sides}), cf_ch->len, \"{label}\", {at-line})".
-        Done.
-        Cast one's line on ("{cast c-open} {prefix}CufetChase* cf_ch = {item 1 of sides}; cufet_chase_set(cf_ch, (int){placed-at}, {item (the number of sides) of sides}, {at-line}); {cast c-close}").
+        Define c-language last-placed, given (the text label, the number at-line), as [cufet_last_check(cf_ch->len, the label, the at-line)].
+        Define c-language index-placed, given (the c-language axiom place, the text label, the number at-line),
+            as [cufet_idx_check(cufet_to_int(the place), cf_ch->len, the label, the at-line)].
+        Define placed-at as last-placed on (label, at-line).
+        If the number of sides is 3, the placed-at becomes index-placed on (item 2 of sides, label, at-line).
+        Define c-language character-set, given (the c-language axiom prefix, the c-language axiom held, the c-language axiom placed-at, the c-language axiom value, the number at-line),
+            as [{ the prefix CufetChase* cf_ch = the held; cufet_chase_set(cf_ch, (int)the placed-at, the value, the at-line); }].
+        Cast one's put on (character-set on (prefix, item 1 of sides, placed-at, item (the number of sides) of sides, at-line)).
     Done.
 
     /// `For each <name> in <chase>` — each character, as a text. Changing the chase while it runs is
@@ -345,17 +367,23 @@ Pull books on collections, and the c-language.
         Define kept as cast one's kinds-kept.
         Define outer as one's indent.
         The one's indent becomes outer joined to "    ".
-        Cast one's line on ("CufetChase* cf_each = {chase-c};").
-        Cast one's line on ("int cf_each_n = cf_each->len;").
+        Define c-language cufetchase-each-chase-form, given (the c-language axiom chase-c),
+            as [CufetChase* cf_each = the chase-c;].
+        Cast one's put on (cufetchase-each-chase-form on (chase-c)).
+        Cast one's put on ([int cf_each_n = cf_each->len;]).
         Cast one's put on ([for (int cf_i = 0; ; cf_i++) {]).
         In one's kinds, the entry for name becomes "text".
         Cast one's declared-here on (name).
         In one's kinds, the entry for "%{name}" becomes "text".
         In one's kinds, the entry for "@{name}" becomes "".
         The one's indent becomes outer joined to "        ".
-        Cast one's line on ("if (cf_each->len != cf_each_n) cufet_raise(cufet_msgf(\"{label} was modified during a for-each loop on line {(cast field-of on (statement, 4))'s word} — collect into a separate series, or use a While loop if you need to change it while looping.\"));").
-        Cast one's line on ("if (cf_i >= cf_each_n) break;").
-        Cast one's line on ("const char* {cast c-name on (name)} = cufet_chase_at(cf_each, cf_i + 1);").
+        Define c-language each-len-each-form, given (the text message),
+            as [if (cf_each->len != cf_each_n) cufet_raise(cufet_msgf(the message));].
+        Cast one's put on (each-len-each-form on ("{label} was modified during a for-each loop on line {(cast field-of on (statement, 4))'s word} — collect into a separate series, or use a While loop if you need to change it while looping.")).
+        Cast one's put on ([if (cf_i >= cf_each_n) break;]).
+        Define c-language name-cufet-chase-form, given (the term c-name),
+            as [const char* the c-name = cufet_chase_at(cf_each, cf_i + 1);].
+        Cast one's put on (name-cufet-chase-form on (cast c-name on (name))).
         The one's indent becomes outer joined to "    ".
         Define loop-kept as cast one's entering-loop.
         Cast one's emit-block on (cast field-of on (statement, 3)) or pass the failure off.
