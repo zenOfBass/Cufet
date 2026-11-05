@@ -918,8 +918,15 @@ public static class BookLoading
                     break;
 
                 case BindStatement or ObjectDefinition or InterfaceDefinition or ShorthandDefinition
-                  or GetterDeclaration or SetterDeclaration or UnmakerDeclaration or OperatorOverloadDeclaration:
+                  or GetterDeclaration or SetterDeclaration or UnmakerDeclaration or OperatorOverloadDeclaration
+                  or CufetAxiomDefinition:
                     kept.Add(statement);
+                    break;
+
+                // What a block places is a declaration of the file that cites it — and only what
+                // is one: CiteExpansion holds a carried `Cite` to the line this method draws.
+                case CiteStatement cite:
+                    kept.Add(cite with { Carried = true });
                     break;
             }
         return kept;
@@ -1227,15 +1234,15 @@ public static class BookLoading
 
         // Types first — AstSearch deliberately does not descend into a CufetType, so the two
         // rewrites do not overlap.
-        var rebuilt = AstRebuilder.Apply(statements,
-            t => AstRebuilder.SubstituteDeep(t, leaf => leaf switch
-            {
-                ObjectType o when hidden.TryGetValue(o.Name, out var to)
-                    => new ObjectType(to, o.PositionalTypes, o.NamedFields, o.Methods),
-                // An interface is a type as well as a declaration — `given (the speaker who)`.
-                InterfaceType i when hidden.TryGetValue(i.Name, out var ito) => new InterfaceType(ito),
-                _ => leaf,
-            }));
+        CufetType Hidden(CufetType t) => AstRebuilder.SubstituteDeep(t, leaf => leaf switch
+        {
+            ObjectType o when hidden.TryGetValue(o.Name, out var to)
+                => new ObjectType(to, o.PositionalTypes, o.NamedFields, o.Methods),
+            // An interface is a type as well as a declaration — `given (the speaker who)`.
+            InterfaceType i when hidden.TryGetValue(i.Name, out var ito) => new InterfaceType(ito),
+            _ => leaf,
+        });
+        var rebuilt = AstRebuilder.Apply(statements, Hidden);
 
         // ⚠ Taken here, before the references are renamed: a `Bind` among these is a declaration
         // of the file's, and one anywhere else is a local function that shadows it.
@@ -1263,8 +1270,14 @@ public static class BookLoading
         // `Define` inside some function body may be spelled like a hidden helper, and renaming
         // THAT would rewrite a binding the host was never able to reach.
 
+        // ⚠ The rebuilder offers a replacement back to the hook, and a block's is always a new node.
+        var blocksDone = new HashSet<IStatement>(ByReference.Instance);
+        IStatement Once(IStatement made) { blocksDone.Add(made); return made; }
+
         return AstRebuilder.Apply(rebuilt, type => type, replace: statement =>
-            !toRename.Contains(statement) ? statement : statement switch
+            blocksDone.Contains(statement) ? statement
+            : statement is CufetAxiomDefinition block ? Once(WithHiddenNames(block, hidden, Hidden))
+            : !toRename.Contains(statement) ? statement : statement switch
             {
                 // ⚠ ConformedInterfaces is a list of STRINGS, so neither the type substitution nor
                 // the reflective walk reaches it — renaming a private interface without this left the
@@ -1296,21 +1309,48 @@ public static class BookLoading
             });
     }
 
+    /// <summary>A block's names that the file hides: what its methods are `unto`, and its holes.</summary>
+    /// <remarks>
+    /// ⚠ A `Cite` places these statements as written, so a name left as it was would be a name
+    /// nothing declares any more. Measured the day a folder's parser rungs became a block: the
+    /// stamped methods were `unto parser` and the object was `parser in parser`.
+    /// </remarks>
+    private static CufetAxiomDefinition WithHiddenNames(
+        CufetAxiomDefinition block, Dictionary<string, string> hidden, Func<CufetType, CufetType> hide)
+    {
+        var body = AstRebuilder.Apply(block.Body, type => type, replace: statement =>
+            statement is BindStatement { UntoType: { } target } bind && hidden.TryGetValue(target, out var to)
+                ? bind with { UntoType = to }
+                : statement);
+        var holes = block.Holes.Select(hole => hole with
+        {
+            Type = hide(hole.Type),
+            Unto = hole.Unto is { } target && hidden.TryGetValue(target, out var to) ? to : hole.Unto,
+        }).ToList();
+        return block with { Body = body, Holes = holes };
+    }
+
     /// <summary>
     /// Renames each reference to a hidden name, except where something nearer binds that name: a
     /// parameter, a loop's variable, a handle, a named rabbit or task, or a `Define` or `Bind`
     /// inside a body, which binds it for the statements after it.
     /// </summary>
     /// <remarks>
-    /// Walked the way <see cref="AstSearch.Contains"/> walks — a cufet block's body is not entered,
-    /// since a `Cite` places it — carrying what is bound on the way down.
+    /// Walked the way <see cref="AstSearch.Contains"/> walks, carrying what is bound on the way down.
+    /// ⚠ A cufet block IS entered, unlike there: it is not in the program yet, but it is this file's
+    /// source, and a `Cite` will place it just as written. Its holes bind their names.
     /// </remarks>
     private static void RenameReferences(object? node, Dictionary<string, string> hidden,
         HashSet<IStatement> topLevel, HashSet<IStatement> declarations, ImmutableHashSet<string> bound)
     {
         switch (node)
         {
-            case null or string or CufetType or CufetAxiomDefinition: return;
+            case null or string or CufetType: return;
+
+            case CufetAxiomDefinition block:
+                RenameReferences(block.Body, hidden, topLevel, declarations,
+                    bound.Union(block.Holes.Select(hole => hole.Name)));
+                return;
 
             case VariableReference v:
                 if (!bound.Contains(v.Name) && hidden.TryGetValue(v.Name, out var to)) v.Name = to;

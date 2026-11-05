@@ -1316,8 +1316,10 @@ public sealed partial class TypeChecker
         // citing, dispatch and the hoist, every one of which reads written types.
         program = ShorthandExpansion.Expand(program, out _shorthandNames);
 
-        var placed = CiteExpansion.Expand(program.Statements);
+        var placed = CiteExpansion.Expand(program.Statements, out var unfilled);
         if (!ReferenceEquals(placed, program.Statements)) program = new Program(placed);
+        if (unfilled is not null)
+            new TypeChecker { _instantiationDepth = _instantiationDepth + 1 }.Check(new Program(unfilled));
 
         // ⭐ After citing, before the hoist. A cited block may itself declare a version of a name,
         // so the versions have to be all present before they can be gathered; and the hoist is

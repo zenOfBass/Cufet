@@ -108,7 +108,7 @@ every value of every type, with `x is not the phrase` answering true.
 | `bury` | Bury | `Have <rabbit> bury <v>.` — hand one value out and suspend there. Never bare: a rabbit always does it |
 | `unbury` | Unbury | Resume a stash and take its next value — a `voidable T` |
 | `stash` | Stash | The TYPE, as in `a stash of number`. Never a call form |
-| `cite` | Cite | `Cite <name>.` — place what a `cufet` axiom holds |
+| `cite` | Cite | `Cite <name>.`, `Cite <name> on (…).` — place what a `cufet` axiom holds |
 
 ### Control flow
 
@@ -2410,7 +2410,8 @@ fills it too. `cast` on source with holes is refused with the fix, and so is `x 
 that is not source, so a forgotten `cast` never quietly makes a fragment. Holes are filled by
 position: a named argument is refused.
 
-⚠ **Only `c-language` source is filled.** A `cufet` source axiom still takes no parameters.
+⚠ **`on` fills only `c-language` source.** `cufet` source is filled by `Cite`, before the program
+runs: see [Holes in cufet source](#-holes-in-cufet-source).
 
 ### ★ An axiom as a value
 
@@ -2657,9 +2658,72 @@ one redeclaration in this language that is. Every other kind holds a value or a 
 answer already (`Define a shadow`, or last-wins); a name holding source waiting to be placed would
 leave every `Cite` of it ambiguous at a glance.
 
-⚠ **Source takes no parameters**, the same as a resultless `c-language` axiom: a parameter's value
-comes from a call, and nothing calls source — it is placed. `Define cufet shape, given (…), as [ … ]`
-is refused at the declaration.
+#### ★ Holes in cufet source
+
+**A block's `given` names holes, and `Cite <name> on (…)` fills them.** Each `Cite` places a copy
+with the holes filled, as if it had been written out there. This reaches what a function cannot: a
+method cannot be passed, and a lambda calling one works on a snapshot of the object, so a step it
+takes is lost.
+
+```cufet
+Define object counter with (the number place):
+    Bind number to step:
+        One's place becomes one's place + 1.
+        Return one's place.
+    Done.
+Done.
+
+Pull a book on cufet.
+    Define cufet twice-over, given (the term made, the number function next unto counter, the number extra), as [
+        Bind number to made unto counter:
+            Cast one's next.
+            Return cast one's next + extra.
+        Done.
+    ].
+
+    Cite twice-over on ("two-steps", step, 0).
+    Cite twice-over on ("four-steps", two-steps, 100).
+Done.
+
+Define the tally as a new counter { the place 0 }.
+State cast tally's four-steps.
+State tally's place.
+```
+```output
+104
+4
+```
+
+| declared | means | filled with |
+| --- | --- | --- |
+| `the term made` | a name the block makes | a name in quotes |
+| `the number function next`, `… unto counter` | a function, or a method of that object, the block calls | its name, written bare |
+| `the text x`, `the number n`, `the fact f` | a value | a literal |
+
+A hole can say what a function hole gives back in full, spelled as a `Bind` spells it:
+`the node or failure function next unto parser`. Those two spellings belong to a hole, because a
+hole is filled with a NAME; a function VALUE can be neither a method nor written that way.
+
+⚠ **What fills a hole is written out at the `Cite`.** The `Cite` happens before the program runs, so
+nothing has a value yet, and a variable is refused where a literal goes.
+
+⚠ **There is no hole for code.** A fill can name something or be a value, and cannot change the shape
+of what it lands in.
+
+★ **A block is checked as written.** Each hole says what it is, so a mistake in a block is reported at
+the block's own line, whether or not anything cites it, and a fill that does not fit is reported at
+the `Cite`. This is the opposite of a generic, whose body is not checked until it is
+filled: an `element` could be anything, and a hole says what it is.
+
+⚠ **A term is a name the block MAKES**, so the block must declare it with a `Bind` or a `Define`; a
+name it only calls says what it is. A hole nothing uses is refused, as C source's is. A hole for a
+value is refused if the block declares that name again, since only its reads are filled.
+
+⚠ **A folder carries its blocks and its `Cite`s**, so a file may cite a neighbour's block and a method
+one file stamps is seen by the others. A `Cite` from a neighbour places declarations only: a plain
+`Define` would run, and a neighbour's working lines stay in its file. A pulled book holds neither.
+
+⚠ `Cite` fills holes, and `on` without a `Cite` does not: cufet source is not a value.
 
 ⚠ **A runnable axiom cannot be cited**, and citing one says so rather than claiming the name is
 undeclared. Call it instead.

@@ -1671,8 +1671,8 @@ stays a preamble, pasted above every wrapper, so a small fragment cannot be name
 scope does not build. A bare one had been refused (nothing named its language), so no program
 changed meaning.
 
-⚠ **Only `c-language` source is fillable.** A `cufet` source axiom still takes no parameters; filling
-Cufet source is the macro half, and it waits for macros.
+⚠ **`on` fills only `c-language` source.** Cufet source is filled at compile time, by `Cite`: see
+*Holes in cufet source*, below.
 
 **No gluing syntax.** A hole counts only where no letter, digit, `_` or `-` follows it, so
 `the type-c_eq` fills nothing and stays as written — and when that is the name's only appearance,
@@ -1683,6 +1683,37 @@ is one parameter per glued name.
 ★ **This answers the recorded reason splicing was declined.** Splicing one axiom into another was
 refused because the outer substitution would search the inner text, merging two parameter lists.
 Holes are filled in **one pass over the axiom's own text**; what is pasted in is never searched.
+
+### Holes in cufet source — BUILT 2026-11-05
+
+The same axiom with its other consumer: the tag names who reads it, and for `cufet` that is the
+compiler, so the fill happens at compile time and leaves ordinary declarations.
+
+**The need, measured:** 1,286 declarations across `self-hosting/`, `examples/` and `tools/` held 23
+families of near-copies (56 declarations). Most differ in a string, a number or their own name, and
+an ordinary function folds those. What it cannot fold is a difference in WHICH METHOD is called: a
+method cannot be passed, and a lambda calling one works on a snapshot of the object, so a parser's
+step through it is lost (measured: it printed `1` and then `0`). The parser's ladder was five such
+copies. It is the first use, in `parser/chains.cufe`.
+
+**A name hole says what it is.** Holes in C source need no types, since Cufet never reads C. Cufet
+source is checked, and `cast one's next` means nothing until `next` is known. So a name a block MAKES
+is a `term`, and its own declaration says what it is; a name it CALLS states its type.
+
+★ **This settles the macro entry's open question — typed holes want types before expansion, and
+expansion runs before the checker — without moving either.** A hole's type is compared with the name
+that fills it as each `Cite` is placed, so the blame lands on the `Cite`. Past that, a body right
+against the hole is right for every name that fits, and the filled copies are ordinary code holding
+the block's own lines, so checking them IS checking the block, blamed where it was written. Only a
+block nothing cites needs anything more: a throwaway copy of the program with the block standing in
+its own place, a stand-in declared for each hole.
+
+⚠ **Different from a generic on purpose.** A generic's body is checked only when filled, because
+`element` could be anything and there is nothing to check against. A hole states what it is, so that
+reason does not reach it.
+
+**No code hole yet, and nothing wants one.** Every family above varies by a name or a literal. A hole
+taking a Cufet fragment is the next tier and has its own question: what type a fragment has.
 
 ### Runtime `eval` of Cufet stays out — the reason that actually holds
 

@@ -65,7 +65,7 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     : PipelineTestBase, IClassFixture<CompiledCufetCompiler>
 {
     /// <summary>How many hand-written programs must build and print alike. Raised as it grows; never lowered.</summary>
-    private const int BuiltFloor = 459;
+    private const int BuiltFloor = 465;
 
     private static string[] PreludeArgs =>
         ["--prelude", Path.Combine(RepoRoot, "src", "Interpreter", "Prelude").Replace('\\', '/')];
@@ -75,6 +75,13 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     /// </summary>
     private static readonly string[] Built =
     [
+        // Cufet source with holes: `Cite x on (…)`, and each refusal of one (2026-11-05).
+        "Pull a book on cufet.\n    Define cufet s, given (the term made, the text who), as [\n        Bind text to made:\n            Return \"hello {who}\".\n        Done.\n    ].\n    Cite s on (\"greet\", \"world\").\nDone.\nState cast greet.",
+        "Pull a book on cufet.\n    Define cufet s, given (the term made, the number n), as [\n        Define the made as n.\n    ].\n    Bind number to f:\n        Cite s on (\"tally\", 5).\n        The tally becomes tally + 1.\n        Return tally.\n    Done.\nDone.\nState cast f.",
+        "Bind number to level:\n    Return 7.\nDone.\nPull a book on cufet.\n    Define cufet s, given (the term made, the number function called), as [\n        Bind number to made:\n            Return cast called + 1.\n        Done.\n    ].\n    Cite s on (\"called\", level).\nDone.\nState cast called.",
+        "Pull a book on cufet.\n    Define cufet s, given (the term made, the number n), as [\n        Bind number to made:\n            Define kept as 0.\n            If n is greater than 0, the kept becomes n * 2.\n            Return kept.\n        Done.\n    ].\n    Cite s on (\"first\", 4).\n    Cite s on (\"second\", -1).\nDone.\nState cast first.\nState cast second.",
+        "Define object walker with (the number place):\n    Bind number to peek:\n        Return one's place.\n    Done.\n    Bind number or failure to atom:\n        Return 1.\n    Done.\n    Bind text to wrong:\n        Return \"\".\n    Done.\nDone.\n\nPull a book on cufet.\n    Define cufet rung, given (the term level, the number or failure function next unto walker, the text kind), as [\n        Bind number or failure to level unto walker:\n            Define left as cast one's next or pass the failure off.\n            If kind is \"x\", return left + 1.\n            Return left.\n        Done.\n    ].\n\nDone.\nState 1.",
+        "// Three rungs of a toy ladder, two of them stamped from one block.\nDefine object walker with (the series of text words, the number place):\n    Bind text to peek:\n        If one's place is greater than the number of one's words, return \"\".\n        Return item (one's place) of one's words.\n    Done.\n    Bind void to advance:\n        One's place becomes one's place + 1.\n    Done.\nDone.\n\nBind number or failure to atom unto walker:\n    Define word as cast one's peek.\n    Cast one's advance.\n    If word is \"1\", return 1.\n    If word is \"2\", return 2.\n    If word is \"3\", return 3.\n    Return a failure (\"not a digit: {word}\").\nDone.\n\nPull a book on cufet.\n    Define cufet left-chain, given (the term level, the number or failure function next unto walker, the text kind, the number weight), as [\n        Bind number or failure to level unto walker:\n            Define left as cast one's next or pass the failure off.\n            While cast one's peek is kind, repeat:\n                Cast one's advance.\n                Define right as cast one's next or pass the failure off.\n                The left becomes left + right * weight.\n            Done.\n            Return left.\n        Done.\n    ].\n\n    Cite left-chain on (\"tens\", atom, \"*\", 10).\n    Cite left-chain on (\"hundreds\", tens, \"+\", 100).\nDone.\n\nDefine the reading as a new walker { the words a series with (\"1\", \"*\", \"2\", \"+\", \"3\"), the place 1 }.\nDefine answer as cast reading's hundreds but on failure 0.\nState answer.\nState reading's place.",
         // Text, numbers and the arithmetic on them.
         "State \"hello\".",
         "State 42.",

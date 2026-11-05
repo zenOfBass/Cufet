@@ -1,0 +1,32 @@
+/*  The rungs of the ladder that are all one rung: left-associative, one operator each, and differing
+    only in that operator and in the rung below. Each is a method of the parser, because a rung takes
+    the parser's own place in the tokens with it — and a method cannot be passed, which is what makes
+    this a block rather than a function.
+
+    `expr-or` looks the same and is not: `or pass the failure off` is not an operator, so it stops early.
+*/
+
+Pull a book on cufet.
+    /// One rung: `next ( token-kind next )*`.
+    Define cufet left-chain, given (the term level, the node or failure function next unto parser, the text token-kind), as [
+        Bind node or failure to level unto parser:
+            Define left as cast one's next or pass the failure off.
+            While cast one's peek-kind is token-kind, repeat:
+                Define op-tok as cast one's advance.
+                Cast one's skip-noise.
+                Define right as cast one's next or pass the failure off.
+                The left becomes cast binary on (left, token-kind, right, op-tok).
+            Done.
+            Return left.
+        Done.
+    ].
+
+    // In an expression.
+    Cite left-chain on ("expr-xor", expr-and, "Xor").
+    Cite left-chain on ("expr-and", expr-not, "And").
+
+    // In a condition.
+    Cite left-chain on ("condition", logical-xor, "Or").
+    Cite left-chain on ("logical-xor", logical-and, "Xor").
+    Cite left-chain on ("logical-and", cond-not, "And").
+Done.

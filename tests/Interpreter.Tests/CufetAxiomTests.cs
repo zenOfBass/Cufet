@@ -353,10 +353,10 @@ public class CufetAxiomTests
     }
 
     [Fact]
-    public void SourceWithAGivenClause_IsRefused()
+    public void SourceWithAHoleItNeverUses_IsRefused()
     {
-        // The same refusal the c-language tag makes, for the same reason: a parameter's value comes
-        // from a call, and nothing calls source.
+        // 2026-11-05: source takes parameters now, as holes a `Cite` fills, so what this pinned has
+        // moved. The refusal that is left matches the one C source makes for an unused hole.
         //
         // ⚠ Reported at the DECLARATION. A `Cite` of the name used to report first, and "there is
         // no cufet source called 'shape'" is a true sentence about the wrong line.
@@ -369,7 +369,7 @@ public class CufetAxiomTests
             Done.
             """);
 
-        Assert.Contains("source takes no parameters", error.Message);
+        Assert.Contains("'shape' never uses its hole 'n'", error.Message);
         Assert.Equal(2, error.Line);
     }
 

@@ -19,11 +19,20 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   a hole is never searched for one. A bare `[…]` may be an argument or a return, taking its language
   from where it lands, and `Bind c-language axiom to …` hands source back from a function. Filling
   runs no C, so it needs no toolchain. `cast` on source, and `on (…)` on anything else, are refused
-  with the fix. Only `c-language` source fills; a `cufet` source axiom still takes no parameters.
-  Both checkers, the interpreter, and both compilers (DESIGN *An axiom's text as a value*).
+  with the fix. Both checkers, the interpreter, and both compilers (DESIGN *An axiom's text as a
+  value*).
+- **Cufet source has holes, filled by `Cite <name> on (…)`.** A block's `given` names them, and each
+  `Cite` places a copy as if written out there, before the program runs. A hole takes a name the
+  block makes (`the term level`), a function or method it calls (`the node or failure function next
+  unto parser`), or a literal. There is no hole for code. Everything in a block is checked, cited or
+  not: a mistake is reported at the block's own line, and a fill that does not fit at the `Cite`. This
+  reaches what a function cannot, since a method cannot be passed. A folder now carries its blocks and
+  `Cite`s between files, and what a folder hides is hidden inside its blocks too. Both front ends
+  (DESIGN *Holes in cufet source*).
 
 ### Changed
 
+- **Five rungs of the parser written in Cufet are one block now**, in `parser/chains.cufe`.
 - **The compiler written in Cufet now hands its C around as source, not text.** Every function that
   turns an expression into C gives back a `c-language axiom`, built by filling source with holes,
   and shared shapes live in `compiler/axioms.cufe`. A C name goes through a term, a C string through

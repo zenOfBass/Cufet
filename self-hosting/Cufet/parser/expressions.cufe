@@ -117,28 +117,6 @@ Pull a book on collections.
         Return left.
     Done.
 
-    Bind node or failure to expr-xor unto parser:
-        Define left as cast one's expr-and or pass the failure off.
-        While cast one's peek-kind is "Xor", repeat:
-            Define op-tok as cast one's advance.
-            Cast one's skip-noise.
-            Define right as cast one's expr-and or pass the failure off.
-            The left becomes cast binary on (left, "Xor", right, op-tok).
-        Done.
-        Return left.
-    Done.
-
-    Bind node or failure to expr-and unto parser:
-        Define left as cast one's expr-not or pass the failure off.
-        While cast one's peek-kind is "And", repeat:
-            Define op-tok as cast one's advance.
-            Cast one's skip-noise.
-            Define right as cast one's expr-not or pass the failure off.
-            The left becomes cast binary on (left, "And", right, op-tok).
-        Done.
-        Return left.
-    Done.
-
     Bind node or failure to expr-not unto parser:
         If cast one's peek-kind is "Not":
             Define not-tok as cast one's advance.

@@ -173,13 +173,16 @@ public class PipelineSourceFillTests : PipelineTestBase
     }
 
     [Fact]
-    public void CufetSource_StillTakesNoParameters()
+    public void CufetSource_IsFilledByCite_NotByOn()
     {
-        var e = Assert.Throws<TypeException>(() => GenerateC("""
+        // 2026-11-05: cufet source has holes now (PipelineCufetHoleTests), and `Cite` fills them.
+        // `on` hands back a value, and cufet source is not a value: it is gone before the program runs.
+        var e = Assert.ThrowsAny<Exception>(() => GenerateC("""
             Pull a book on cufet.
-                Define cufet src, given (the number n), as [State the n.].
+                Define cufet src, given (the term made), as [Define the made as 1.].
+                State src on ("tally").
             Done.
             """));
-        Assert.Contains("source takes no parameters", e.Message);
+        Assert.DoesNotContain("source takes no parameters", e.Message);
     }
 }

@@ -148,8 +148,34 @@ Pull a book on collections.
             Cast one's advance.
             Cast one's skip-noise.
             Define name-tok as cast one's consume on ("Identifier") or pass the failure off.
-            Return cast one's finish-with-dot on (cast placed on ("CiteStatement", a series with (cast quoted on (name-tok's lexeme)), tok))
-                or pass the failure off.
+            Cast one's skip-noise.
+            Define citing as cast placed on ("CiteStatement", a series with (cast quoted on (name-tok's lexeme)), tok).
+            Define fills as cast listed.
+            If cast one's peek-kind is "On":
+                Cast one's advance.
+                Cast one's skip-noise.
+                Cast one's consume on ("LParen") or pass the failure off.
+                Cast one's skip-noise.
+                If cast one's peek-kind is not "RParen":
+                    Define first-fill as cast one's expression or pass the failure off.
+                    Cast fills's add on (first-fill).
+                    Cast one's skip-noise.
+                    While cast one's peek-kind is "Comma", repeat:
+                        Cast one's advance.
+                        Cast one's skip-noise.
+                        Define next-fill as cast one's expression or pass the failure off.
+                        Cast fills's add on (next-fill).
+                        Cast one's skip-noise.
+                    Done.
+                Done.
+                Cast one's consume on ("RParen") or pass the failure off.
+                Cast one's skip-noise.
+            Done.
+            If the number of fills's children is greater than 0:
+                Cast citing's add on (cast atom on (":Arguments")).
+                Cast citing's add on (fills).
+            Done.
+            Return cast one's finish-with-dot on (citing) or pass the failure off.
         Done.
         If kind is "HaveKw", return cast one's have-statement or pass the failure off.
         If kind is "Send":
@@ -222,7 +248,11 @@ Pull a book on collections.
         // `Define c-language open-file, given (the text path), as [ … ].` — parsed for ANY Define and
         // refused by the checker for the rest; the clause sits between two commas.
         Define has-parameters as cast one's peek-kind is "Comma" and cast one's past-comma-is on ("Given").
+        // Only a cufet block's `given` can name a method or a function that fails.
+        The one's reading-holes becomes cast names-language on (declared, "cufet") and cast gives-back on (declared) is false.
+        The one's hole-unto becomes a map from text to text.
         Define parameters as cast one's given-clause or pass the failure off.
+        The one's reading-holes becomes false.
         If has-parameters and cast one's peek-kind is "Comma":
             Cast one's advance.
             Cast one's skip-noise.
@@ -289,7 +319,7 @@ Pull a book on collections.
                 the row cast numeral-value on (item 2 of value's children),
                 the column cast numeral-value on (item 3 of value's children) }.
             // Says what it gives back ⇒ a function, lowered to a Bind right here.
-            If declared's kind is "AxiomType" and (item 2 of declared's children)'s word is not "_":
+            If cast gives-back on (declared):
                 Define held-body as cast one's held-cufet on (source-tok, true) or pass the failure off.
                 Define lowered as cast made on ("BindStatement", a series with (cast quoted on (name-tok's lexeme),
                     item 2 of declared's children, parameters, held-body, cast nothing, cast nothing,
@@ -303,6 +333,17 @@ Pull a book on collections.
             If has-parameters:
                 Cast holding's add on (cast atom on (":HasParameterClause")).
                 Cast holding's add on (cast flag on (true)).
+            Done.
+            If the number of parameters's children is greater than 0:
+                Define holes as cast listed.
+                For each hole-pair in parameters's children, repeat:
+                    Define hole-unto as the entry for cast unquoted on (item 2 of hole-pair's children) in one's hole-unto.
+                    Define unto-part as cast nothing.
+                    If hole-unto is not void, the unto-part becomes cast quoted on (hole-unto).
+                    Cast holes's add on (cast made on ("SourceHole", a series with (item 1 of hole-pair's children, item 2 of hole-pair's children, unto-part))).
+                Done.
+                Cast holding's add on (cast atom on (":Holes")).
+                Cast holding's add on (holes).
             Done.
             Return holding.
         Done.
@@ -499,6 +540,11 @@ Pull a book on collections.
     Done.
 
     /// NamesRegex / NamesCufet — the declared type names that language's tag.
+    /// Whether a language tag says what the axiom gives back.
+    Bind fact to gives-back, given (the node declared):
+        Return declared's kind is "AxiomType" and (item 2 of declared's children)'s word is not "_".
+    Done.
+
     Bind fact to names-language, given (the node declared, the text language):
         Define wanted as "\"" joined to language joined to "\"".
         If declared's kind is "ObjectType" or declared's kind is "AxiomType":
@@ -981,39 +1027,6 @@ Pull a book on collections.
 
     // ── Conditions ────────────────────────────────────────────────────────
 
-    Bind node or failure to condition unto parser:
-        Define left as cast one's logical-xor or pass the failure off.
-        While cast one's peek-kind is "Or", repeat:
-            Define op-tok as cast one's advance.
-            Cast one's skip-noise.
-            Define right as cast one's logical-xor or pass the failure off.
-            The left becomes cast binary on (left, "Or", right, op-tok).
-        Done.
-        Return left.
-    Done.
-
-    Bind node or failure to logical-xor unto parser:
-        Define left as cast one's logical-and or pass the failure off.
-        While cast one's peek-kind is "Xor", repeat:
-            Define op-tok as cast one's advance.
-            Cast one's skip-noise.
-            Define right as cast one's logical-and or pass the failure off.
-            The left becomes cast binary on (left, "Xor", right, op-tok).
-        Done.
-        Return left.
-    Done.
-
-    Bind node or failure to logical-and unto parser:
-        Define left as cast one's cond-not or pass the failure off.
-        While cast one's peek-kind is "And", repeat:
-            Define op-tok as cast one's advance.
-            Cast one's skip-noise.
-            Define right as cast one's cond-not or pass the failure off.
-            The left becomes cast binary on (left, "And", right, op-tok).
-        Done.
-        Return left.
-    Done.
-
     Bind node or failure to cond-not unto parser:
         If cast one's peek-kind is "Not":
             Define not-tok as cast one's advance.
@@ -1261,6 +1274,14 @@ Pull a book on collections.
         Otherwise:
             The returned becomes cast one's type-annotation or pass the failure off.
             Cast one's skip-noise.
+            // `the node or failure function next` — spelled as a `Bind` spells what it gives back.
+            If one's reading-holes and cast one's peek-kind is "Or" and cast one's kind-after is "Failure":
+                Cast one's advance.
+                Cast one's skip-noise.
+                Cast one's consume on ("Failure") or pass the failure off.
+                Cast one's skip-noise.
+                The returned becomes cast made on ("FailureType", a series with (returned)).
+            Done.
             If cast one's peek-kind is not "FunctionKw":
                 Define name-tok as cast one's consume on ("Identifier") or pass the failure off.
                 Define pair as cast listed.
@@ -1273,6 +1294,14 @@ Pull a book on collections.
         Cast one's skip-noise.
         Define name-tok as cast one's consume on ("Identifier") or pass the failure off.
         Cast one's skip-noise.
+        // `the node function next unto parser` — a hole naming a method of that object.
+        If one's reading-holes and cast one's peek-kind is "Unto":
+            Cast one's advance.
+            Cast one's skip-noise.
+            Define owner-tok as cast one's consume on ("Identifier") or pass the failure off.
+            In one's hole-unto, the entry for name-tok's lexeme becomes owner-tok's lexeme.
+            Cast one's skip-noise.
+        Done.
         Define inner as cast one's function-param-type-list or pass the failure off.
         Define pair as cast listed.
         Cast pair's add on (cast made on ("FunctionType", a series with (inner, returned))).

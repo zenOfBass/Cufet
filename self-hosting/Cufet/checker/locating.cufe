@@ -515,8 +515,16 @@ Pull a book on collections.
             Done.
             Otherwise if kind is "BindStatement" or kind is "ObjectDefinition" or kind is "InterfaceDefinition"
                     or kind is "ShorthandDefinition" or kind is "GetterDeclaration" or kind is "SetterDeclaration" or kind is "UnmakerDeclaration"
-                    or kind is "OperatorOverloadDeclaration":
+                    or kind is "OperatorOverloadDeclaration" or kind is "CufetAxiomDefinition":
                 Cast kept's add on (statement).
+            Done.
+            // What a block places is a declaration of the file that cites it — and only what is
+            // one: a carried `Cite` is held to the line this method draws.
+            Otherwise if kind is "CiteStatement":
+                Define carried as cast copied-node on (statement).
+                Cast carried's add on (cast atom on (":Carried")).
+                Cast carried's add on (cast flag on (true)).
+                Cast kept's add on (carried).
             Done.
         Done.
         Return kept.
@@ -1120,6 +1128,11 @@ Pull a book on collections.
         Otherwise if kind is "SetterDeclaration" or kind is "WithOpenStatement":
             Insert cast unquoted on (cast field-of on (tree, 3)) into names.
         Done.
+        Otherwise if kind is "CufetAxiomDefinition":
+            For each hole in cast holes-of on (tree), repeat:
+                Insert cast hole-name on (hole) into names.
+            Done.
+        Done.
         Otherwise if kind is "OperatorOverloadDeclaration":
             Insert cast unquoted on (cast field-of on (tree, 2)) into names.
             Insert cast unquoted on (cast field-of on (tree, 3)) into names.
@@ -1192,6 +1205,16 @@ Pull a book on collections.
     Bind void to rename-declaration, given (the node statement, the map from text to text hidden,
             the map from text to text own, the map from text to fact top):
         Define kind as statement's kind.
+        // A `Cite` places a block as written, so what its methods are `unto` follows too.
+        If kind is "CufetAxiomDefinition":
+            For each held in (cast field-of on (statement, 2))'s children, repeat:
+                If held's kind is "BindStatement", cast rename-field-text on (held, 5, hidden).
+            Done.
+            For each hole in cast holes-of on (statement), repeat:
+                Cast rename-field-text on (hole, 3, hidden).
+            Done.
+            Return.
+        Done.
         If kind is "ObjectDefinition":
             Cast rename-field-text on (statement, 1, own).
             Cast rename-field-text on (statement, 7, hidden).

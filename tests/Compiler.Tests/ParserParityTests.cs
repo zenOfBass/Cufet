@@ -188,6 +188,9 @@ public class ParserParityTests(ITestOutputHelper output, CompiledCufetParser com
     /// <summary>Refusals no cut or deletion of the corpus reaches.</summary>
     private static readonly string[] Refused =
     [
+        // A hole's spellings stay out of an ordinary `given` (2026-11-05).
+        "Bind number to f, given (the number function next unto walker):\n    Return 1.\nDone.\n",
+        "Bind number to f, given (the number or failure function next):\n    Return 1.\nDone.\n",
         // The lexer, in its own two shapes.
         "State \"never closed.",
         "State 1 # 2.",

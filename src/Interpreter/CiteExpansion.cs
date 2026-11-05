@@ -1,3 +1,5 @@
+using Cufet.Lexer;
+
 namespace Cufet.Interpreter;
 
 /// <summary>
@@ -29,8 +31,17 @@ public static class CiteExpansion
     /// Hands back the very same list when the program has no cufet blocks and no citations, which
     /// is the usual case.
     /// </summary>
-    public static IReadOnlyList<IStatement> Expand(IReadOnlyList<IStatement> statements)
+    public static IReadOnlyList<IStatement> Expand(IReadOnlyList<IStatement> statements) =>
+        Expand(statements, out _);
+
+    /// <param name="unfilled">
+    /// The program with every block gone and each block nothing cites standing in its place, holes
+    /// and all — or null when no such block exists. See <see cref="WithStandIns"/>.
+    /// </param>
+    public static IReadOnlyList<IStatement> Expand(
+        IReadOnlyList<IStatement> statements, out IReadOnlyList<IStatement>? unfilled)
     {
+        unfilled = null;
         var blocks = new Dictionary<string, CufetAxiomDefinition>(StringComparer.Ordinal);
         // The cufet axioms that say what they give back — lowered to functions by the parser, and
         // gathered here only so that citing one can say why it cannot be cited.
@@ -97,10 +108,81 @@ public static class CiteExpansion
             ? []
             : new HashSet<IStatement>(TypeChecker.FlattenHoistable(statements), ByReference.Instance);
 
-        return AstRebuilder.Apply(statements, type => type, splice: statement =>
+        var named = new List<(CiteStatement Cite, SourceHole Hole, VariableReference Name)>();
+        var placed = AstRebuilder.Apply(statements, type => type, splice: statement =>
             statement is CiteStatement cite
-                ? Held(blocks, runnable, placesAFunction, functionScope, cite)
+                ? Held(blocks, runnable, placesAFunction, functionScope, cite, named)
                 : null);
+        if (named.Count > 0) RequireNamesFit(placed, named);
+
+        var citedNames = AstSearch.EveryStatement(statements).OfType<CiteStatement>()
+            .Select(cite => cite.Name).ToHashSet(StringComparer.Ordinal);
+        var waiting = new HashSet<IStatement>(
+            blocks.Values.Where(block => block.Holes.Count > 0 && !citedNames.Contains(block.Name)),
+            ByReference.Instance);
+        if (waiting.Count > 0) unfilled = WithStandIns(placed, waiting);
+        return placed;
+    }
+
+    /// <summary>The program with each waiting block standing in its own place, to be checked.</summary>
+    /// <remarks>
+    /// ⭐⭐ A block with holes is checked before it is filled, and every fill is checked as the
+    /// ordinary code it became — each statement keeps the block's own lines, and a function hole's
+    /// name was held to what the hole says — so a block that is cited needs nothing more. This is
+    /// the block nobody has cited yet: as in a file open in an editor. It is checked
+    /// as written, with a stand-in for what its `given` promises: the holes keep their marked names,
+    /// which nothing can collide with and which the checker's messages put back as written.
+    ///
+    /// ★ A copy of the program, thrown away. Nothing here reaches either backend.
+    /// </remarks>
+    private static IReadOnlyList<IStatement> WithStandIns(
+        IReadOnlyList<IStatement> placed, HashSet<IStatement> waiting) =>
+        AstRebuilder.Apply(placed, type => type, splice: statement =>
+            statement is not CufetAxiomDefinition block ? null
+            : waiting.Contains(block) ? StandIn(block)
+            : []);
+
+    private static IReadOnlyList<IStatement> StandIn(CufetAxiomDefinition block)
+    {
+        var values = new Dictionary<string, IExpression>(StringComparer.Ordinal);
+        var stated = new List<IStatement>();
+        foreach (var hole in block.Holes)
+            switch (hole.Type)
+            {
+                case FunctionType function: stated.Add(StatedFunction(block, hole, function)); break;
+                case TextType:   values[Held(block, hole)] = new StringLiteral(""); break;
+                case NumberType: values[Held(block, hole)] = new NumberLiteral(0); break;
+                case FactType:   values[Held(block, hole)] = new BooleanLiteral(false, block.Line, block.Column); break;
+            }
+
+        var holes = block.Holes.ToDictionary(hole => hole.Name, hole => Held(block, hole), StringComparer.Ordinal);
+        var marked = Renamed(block.Body, holes,
+            new Dictionary<string, IExpression>(StringComparer.Ordinal), fresh: false);
+        return [.. stated, .. Renamed(marked, [], values, fresh: true)];
+    }
+
+    /// <summary>A function saying exactly what a hole says, for the body to be checked against.</summary>
+    private static BindStatement StatedFunction(
+        CufetAxiomDefinition block, SourceHole hole, FunctionType function)
+    {
+        int line = block.Line, column = block.Column;
+        var name = Held(block, hole);
+        var parameters = function.ParameterTypes.Select((type, i) => (type, $"given-{i + 1}")).ToList();
+        var passed = parameters
+            .Select(parameter => (IExpression)new VariableReference(parameter.Item2, line, column))
+            .ToList();
+        IExpression callee = hole.Unto is null
+            ? new VariableReference(name, line, column)
+            : new PossessiveAccess(new VariableReference("one", line, column), name, line, column);
+        IExpression? given = function.ReturnType switch
+        {
+            null        => null,
+            FailureType => new FailureLiteral(new StringLiteral(""), null, line, column),
+            _           => new CastExpression(callee, passed, line, column),
+        };
+        IReadOnlyList<IStatement> body = given is null ? [] : [new ReturnStatement(given, line, column)];
+        return new BindStatement(name, function.ReturnType, parameters, body,
+            hole.Unto, ConstructsTypeName: null, line, column);
     }
 
     /// <summary>Takes the blocks themselves out, once everything that reads one has run.</summary>
@@ -136,7 +218,8 @@ public static class CiteExpansion
         HashSet<string> runnable,
         HashSet<string> placesAFunction,
         HashSet<IStatement> functionScope,
-        CiteStatement cite)
+        CiteStatement cite,
+        List<(CiteStatement Cite, SourceHole Hole, VariableReference Name)> named)
     {
         if (blocks.TryGetValue(cite.Name, out var block))
         {
@@ -154,7 +237,10 @@ public static class CiteExpansion
                     $"cite '{cite.Name}' inside a body",
                     $"Cite '{cite.Name}' at the top level, or directly inside a 'Pull' block.");
 
-            return block.Body;
+            var filled = Filled(block, cite, named);
+            return cite.Carried
+                ? filled.Where(held => held is not DefineStatement { Permanent: false }).ToList()
+                : filled;
         }
 
         // ⚠ The name IS declared, just not as source — saying "there is no cufet source called
@@ -181,6 +267,225 @@ public static class CiteExpansion
             $"Declare it first: 'Define cufet {cite.Name} as [ ... ].'");
     }
 
+    /// <summary>What one `Cite` places: the block's own statements, with its holes filled.</summary>
+    /// <remarks>
+    /// ⭐⭐ One pass, for the reason C source has one: what fills a hole is never searched. Each hole
+    /// is first renamed to a name holding a SPACE, which no written name can be, so a fill that
+    /// happens to spell another hole cannot be filled a second time.
+    ///
+    /// ★ A block with no holes is placed as it stands, and always was.
+    /// </remarks>
+    private static IReadOnlyList<IStatement> Filled(
+        CufetAxiomDefinition block, CiteStatement cite,
+        List<(CiteStatement Cite, SourceHole Hole, VariableReference Name)> named)
+    {
+        if (block.Holes.Count == 0)
+        {
+            if (cite.Arguments.Count == 0) return block.Body;
+            throw TypeChecker.TypeError(
+                $"'{block.Name}' has no holes, so there is nothing to fill",
+                "'on' hands a block what its 'given' asks for, and this block asks for nothing",
+                cite.Line, cite.Column,
+                $"fill '{block.Name}'",
+                $"Write 'Cite {block.Name}.'");
+        }
+        if (cite.Arguments.Count != block.Holes.Count)
+            throw TypeChecker.TypeError(
+                $"'{block.Name}' has {block.Holes.Count} holes, and this fills {cite.Arguments.Count}",
+                "Each hole is filled by one thing, in the order the 'given' names them",
+                cite.Line, cite.Column,
+                $"cite '{block.Name}'",
+                $"Write 'Cite {block.Name} on (…)' with "
+              + string.Join(", ", block.Holes.Select(hole => hole.Name)) + ".");
+
+        var names  = new Dictionary<string, string>(StringComparer.Ordinal);
+        var values = new Dictionary<string, IExpression>(StringComparer.Ordinal);
+        for (int i = 0; i < block.Holes.Count; i++)
+        {
+            var hole = block.Holes[i];
+            var fill = cite.Arguments[i];
+            var held = Held(block, hole);
+            if (IsTerm(hole))
+                names[held] = TermOf(block, hole, fill, cite);
+            else if (hole.Type is FunctionType)
+            {
+                if (fill is not VariableReference function)
+                    throw NotAFill(block, hole, cite, "a name, written bare", hole.Name);
+                names[held] = function.Name;
+                named.Add((cite, hole, function));
+            }
+            else
+                values[held] = ValueOf(block, hole, fill, cite);
+        }
+
+        var holes = block.Holes.ToDictionary(hole => hole.Name, hole => Held(block, hole), StringComparer.Ordinal);
+        var marked = Renamed(block.Body, holes,
+            new Dictionary<string, IExpression>(StringComparer.Ordinal), fresh: false);
+        return Renamed(marked, names, values, fresh: true);
+    }
+
+    /// <summary>The name a hole goes by between being cut and being filled.</summary>
+    private static string Held(CufetAxiomDefinition block, SourceHole hole) =>
+        $"{hole.Name} in {block.Name}";
+
+    private static bool IsTerm(SourceHole hole) =>
+        hole.Type is ObjectType { Name: "term" };
+
+    /// <summary>Statements with their names swapped, and with their holes for values filled.</summary>
+    /// <param name="fresh">
+    /// Whether every call and read comes out a new node, as a generic's fillings do
+    /// (GenericInstantiation.FilledCopy). ⚠ A precaution, not a proof: MEASURED 2026-11-05, turning
+    /// it off fails no test. A generic needs it because its fillings differ in TYPE; a hole states
+    /// its type, so every copy of a block types alike and the checker writes the same notes on each.
+    /// </param>
+    private static IReadOnlyList<IStatement> Renamed(
+        IReadOnlyList<IStatement> body,
+        Dictionary<string, string> names,
+        Dictionary<string, IExpression> values,
+        bool fresh)
+    {
+        var done = new HashSet<object>(ReferenceEqualityComparer.Instance);
+        T Once<T>(T made) where T : class { done.Add(made); return made; }
+        string Swap(string name) => names.GetValueOrDefault(name, name);
+
+        IExpression? Expression(IExpression expression)
+        {
+            if (done.Contains(expression)) return null;
+            return expression switch
+            {
+                VariableReference read when values.TryGetValue(read.Name, out var value) => Once(value),
+                VariableReference read when fresh || names.ContainsKey(read.Name) =>
+                    Once(read with { Name = Swap(read.Name) }),
+                PossessiveAccess access when names.ContainsKey(access.Member) =>
+                    Once(access with { Member = Swap(access.Member) }),
+                CastExpression call when fresh => Once(call with { }),
+                _ => null,
+            };
+        }
+
+        IStatement? Statement(IStatement statement)
+        {
+            if (done.Contains(statement)) return null;
+            return statement switch
+            {
+                BindStatement bind when names.ContainsKey(bind.Name) => Once(bind with { Name = Swap(bind.Name) }),
+                DefineStatement define when names.ContainsKey(define.Name) => Once(define with { Name = Swap(define.Name) }),
+                BecomesStatement becomes when names.ContainsKey(becomes.Name) => Once(becomes with { Name = Swap(becomes.Name) }),
+                PossessiveSetStatement set when names.ContainsKey(set.Member) => Once(set with { Member = Swap(set.Member) }),
+                CastStatement call when fresh => Once(call with { }),
+                _ => null,
+            };
+        }
+
+        return AstRebuilder.Apply(body, type => type, replace: Statement, rewrite: Expression);
+    }
+
+    /// <summary>The name a term hole is filled with, which has to be one.</summary>
+    private static string TermOf(
+        CufetAxiomDefinition block, SourceHole hole, IExpression fill, CiteStatement cite)
+    {
+        if (fill is not StringLiteral { Value: var text })
+            throw NotAFill(block, hole, cite, "a name in quotes", hole.Name);
+
+        // ⚠ A text that does not lex is simply not a name, so it gets the same answer.
+        IReadOnlyList<Token> tokens;
+        try { tokens = new Cufet.Lexer.Lexer(text).Tokenize(); }
+        catch (LexerException) { tokens = []; }
+        if (tokens.Count == 2 && tokens[0].Type == TokenType.Identifier
+                              && tokens[0].Lexeme == text) return text;
+
+        throw TypeChecker.TypeError(
+            $"'{text}' cannot name anything, so it cannot fill '{hole.Name}'",
+            "A term is a name the block makes, so it has to be a name Cufet can read — and not a "
+          + "word Cufet has taken",
+            cite.Line, cite.Column,
+            $"fill '{hole.Name}' with '{text}'",
+            "Choose a name made of letters, digits and hyphens.");
+    }
+
+    /// <summary>The literal a hole for a value is filled with.</summary>
+    /// <remarks>
+    /// ⚠ A literal and nothing else. A `Cite` happens before the program runs, so nothing has a
+    /// value yet — a name here could only mean its TEXT, and that is the code hole this does not
+    /// have.
+    /// </remarks>
+    private static IExpression ValueOf(
+        CufetAxiomDefinition block, SourceHole hole, IExpression fill, CiteStatement cite)
+    {
+        var fits = hole.Type switch
+        {
+            TextType   => fill is StringLiteral,
+            FactType   => fill is BooleanLiteral,
+            NumberType => fill is NumberLiteral or UnaryExpression { Op: TokenType.Minus, Operand: NumberLiteral },
+            _          => false,
+        };
+        if (fits) return fill;
+        throw NotAFill(block, hole, cite, $"a {TypeChecker.FormatType(hole.Type)} written out", hole.Name);
+    }
+
+    private static Exception NotAFill(
+        CufetAxiomDefinition block, SourceHole hole, CiteStatement cite, string wanted, string name) =>
+        TypeChecker.TypeError(
+            $"'{name}' in '{block.Name}' is filled with {wanted}",
+            "A 'Cite' happens before the program runs, so what fills a hole has to be written out "
+          + "right there",
+            cite.Line, cite.Column,
+            $"fill '{name}' this way",
+            $"Fill '{name}' with {wanted}.");
+
+    /// <summary>Refuses a name filled into a function hole that is not what the hole says.</summary>
+    /// <remarks>
+    /// ⭐ Asked after every `Cite` is placed, because a name may be one another `Cite` makes. This is
+    /// what puts the blame on the `Cite`: the hole states the type, so a body that is right against
+    /// it stays right for any name that fits — and the name that does not fit is the line to fix.
+    /// </remarks>
+    private static void RequireNamesFit(
+        IReadOnlyList<IStatement> placed,
+        List<(CiteStatement Cite, SourceHole Hole, VariableReference Name)> named)
+    {
+        var functions = new List<(BindStatement Bind, string? Owner)>();
+        foreach (var statement in AstSearch.EveryStatement(placed))
+            switch (statement)
+            {
+                case BindStatement bind:
+                    functions.Add((bind, bind.UntoType));
+                    break;
+                case ObjectDefinition type:
+                    foreach (var method in type.Methods) functions.Add((method, type.Name));
+                    break;
+            }
+
+        foreach (var (cite, hole, name) in named)
+        {
+            var wanted = (FunctionType)hole.Type;
+            var found = functions.Where(function => function.Bind.Name == name.Name
+                                                 && function.Owner == hole.Unto).ToList();
+            var whose = hole.Unto is null ? "function" : $"method of '{hole.Unto}'";
+            if (found.Count == 0)
+                throw TypeChecker.TypeError(
+                    $"there is no {whose} called '{name.Name}' to fill '{hole.Name}'",
+                    "A hole for a function is filled with the name of one, and that name has to "
+                  + "exist",
+                    name.Line, name.Column,
+                    $"fill '{hole.Name}' with '{name.Name}'",
+                    $"Declare it, or fill '{hole.Name}' with a name that is one.");
+
+            if (found.Any(function => Fits(function.Bind, wanted))) continue;
+            throw TypeChecker.TypeError(
+                $"'{name.Name}' does not fit '{hole.Name}', which asks for "
+              + TypeChecker.FormatType(wanted),
+                "What a block calls through a hole is checked against what the hole says, so the "
+              + "name has to be exactly that",
+                name.Line, name.Column,
+                $"fill '{hole.Name}' with '{name.Name}'",
+                $"Fill '{hole.Name}' with a {whose} of that shape.");
+        }
+    }
+
+    private static bool Fits(BindStatement bind, FunctionType wanted) =>
+        Equals(bind.ReturnType, wanted.ReturnType)
+        && bind.Parameters.Select(parameter => parameter.Type).SequenceEqual(wanted.ParameterTypes);
+
     /// <summary>Refuses a block holding anything but a declaration.</summary>
     /// <remarks>
     /// ★ An object, an interface and a `Define` — and the difference between them is the whole
@@ -205,16 +510,15 @@ public static class CiteExpansion
         // comes from a call, and nothing calls source — it is placed. Said here rather than left to
         // the checker because a `Cite` of this name would otherwise report first, and "there is no
         // cufet source called 'shape'" is a true sentence about the wrong line.
-        if (block.HasParameterClause)
+        if (block.HasParameterClause && block.Holes.Count == 0)
             throw TypeChecker.TypeError(
-                $"'{block.Name}' says nothing about what it gives back, so it is source rather "
-              + "than something to run — and source takes no parameters",
-                "A parameter's value comes from a call, and nothing calls this: it is placed where "
-              + "a 'Cite' says",
+                $"'{block.Name}' has a 'given' that names nothing",
+                "A block's 'given' names the holes a 'Cite' fills",
                 block.Line, block.Column,
-                $"give '{block.Name}' parameters",
-                $"Drop the 'given' clause — or say what running it gives back, as in "
-              + $"'Define cufet number {block.Name}, given (…), as [ … ].'");
+                $"give '{block.Name}' an empty 'given'",
+                "Drop the 'given' clause, or name what it leaves to be filled.");
+
+        foreach (var hole in block.Holes) RequireFillable(block, hole);
 
         foreach (var statement in block.Body)
         {
@@ -231,6 +535,88 @@ public static class CiteExpansion
                 "Move it out of the block, or declare an object or an interface here.");
         }
     }
+
+    /// <summary>Refuses a hole nothing can fill, or one its block does not honour.</summary>
+    /// <remarks>
+    /// ★ A hole takes a name or a plain value, which is what keeps a fill from changing the shape
+    /// of what it lands in.
+    ///
+    /// ⚠ A TERM is a name the block MAKES, so the block has to declare it: that declaration is what
+    /// says what the name is, and a name it only calls has to say so itself, in the `given`.
+    ///
+    /// ⚠ A hole for a value is replaced where it is read, so a block that declares the name again
+    /// would keep its declaration and lose its reads, without a word.
+    /// </remarks>
+    private static void RequireFillable(CufetAxiomDefinition block, SourceHole hole)
+    {
+        if (!AstSearch.Contains(block.Body, node => Uses(node, hole.Name)))
+            throw TypeChecker.TypeError(
+                $"'{block.Name}' never uses its hole '{hole.Name}'",
+                "A hole is filled at every 'Cite', so one nothing reads is a fill that goes nowhere",
+                block.Line, block.Column,
+                $"leave '{hole.Name}' unused",
+                $"Use '{hole.Name}' in the block, or take it out of the 'given'.");
+
+        if (block.Holes.Count(other => other.Name == hole.Name) > 1)
+            throw TypeChecker.TypeError(
+                $"'{block.Name}' has two holes called '{hole.Name}'",
+                "A hole is filled by its place in the 'given', and read by its name",
+                block.Line, block.Column,
+                $"name two holes '{hole.Name}'",
+                "Give one of them another name.");
+
+        if (IsTerm(hole))
+        {
+            if (block.Body.Any(held => held is BindStatement { Name: var name } && name == hole.Name
+                                    || held is DefineStatement { Name: var made } && made == hole.Name))
+                return;
+            throw TypeChecker.TypeError(
+                $"'{hole.Name}' is a term, so '{block.Name}' has to make it, and it does not",
+                "A term is a name the block declares. A name it only calls has to say what it is",
+                block.Line, block.Column,
+                $"leave '{hole.Name}' as a term",
+                $"Declare '{hole.Name}' in the block, or say what it is, as in "
+              + $"'the number function {hole.Name}'.");
+        }
+
+        if (hole.Type is FunctionType) return;
+
+        if (hole.Type is not (TextType or NumberType or FactType))
+            throw TypeChecker.TypeError(
+                $"'{hole.Name}' cannot be a hole: a hole takes a term, a function's name, or a "
+              + "text, number or fact",
+                "What fills a hole is written out at the 'Cite', before the program runs",
+                block.Line, block.Column,
+                $"make '{hole.Name}' a hole of this type",
+                "Use one of those.");
+
+        if (AstSearch.Contains(block.Body, node => Declares(node, hole.Name)))
+            throw TypeChecker.TypeError(
+                $"'{block.Name}' declares '{hole.Name}' again, and it is a hole",
+                "A hole is filled where it is read, so a second declaration would be left with "
+              + "nothing reading it",
+                block.Line, block.Column,
+                $"declare '{hole.Name}' inside '{block.Name}'",
+                "Give one of the two another name.");
+    }
+
+    private static bool Uses(object node, string name) => node switch
+    {
+        VariableReference read   => read.Name == name,
+        PossessiveAccess access  => access.Member == name,
+        BindStatement bind       => bind.Name == name,
+        DefineStatement define   => define.Name == name,
+        _ => false,
+    };
+
+    private static bool Declares(object node, string name) => node switch
+    {
+        DefineStatement define  => define.Name == name,
+        ForEachStatement loop   => loop.IteratorName == name,
+        BindStatement bind      => bind.Parameters.Any(parameter => parameter.Name == name),
+        LambdaLiteral lambda    => lambda.Parameters.Any(parameter => parameter.Name == name),
+        _ => false,
+    };
 
     /// <summary>The names a cited block is allowed to reach for — the program's, not the cite site's.</summary>
     /// <remarks>
@@ -296,6 +682,9 @@ public static class CiteExpansion
                 case ObjectDefinition type:      declared.Add(type.Name); break;
                 case InterfaceDefinition shape:  declared.Add(shape.Name); break;
             }
+
+        // What the block leaves to be filled comes from the `Cite`, by name, so it captures nothing.
+        foreach (var hole in block.Holes) declared.Add(hole.Name);
 
         // The pronouns, which no writer declares and every body may use.
         foreach (var pronoun in new[] { "it", "one", "input", "failure", "the failure" })

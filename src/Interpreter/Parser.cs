@@ -212,7 +212,14 @@ public sealed class Parser
         // declares what it takes here. Parsed for ANY `Define` and refused by the checker for the
         // rest, because "a value that takes parameters" is a type question rather than a shape the
         // parser can rule on: `Define x, given (…), as 5.` is well-formed and meaningless.
+        // ⚠ Only a cufet block's `given` can name a method or a function that fails, because only a
+        // hole is filled with a name: a function VALUE can be neither.
+        _holeUnto = NamesCufet(declaredType) && declaredType is not AxiomType { ReturnType: not null }
+            ? new(StringComparer.Ordinal)
+            : null;
         var parameters = TryParseGivenClause();
+        var holeUnto = _holeUnto;
+        _holeUnto = null;
         // `Define c-language open-file, given (…), as [ … ].` — the clause sits between two commas,
         // the way an aside does in English. The second one only exists when the clause does.
         if (parameters is not null && Peek().Type == TokenType.Comma) { Advance(); SkipNoise(); }
@@ -340,11 +347,14 @@ public sealed class Parser
                     FromAxiomLanguage = TypeChecker.CufetLanguage,
                 };
 
-            // Says nothing ⇒ source, held until a `Cite` places it. A `given` clause on source is
-            // the one mistake left, and it rides along to be refused by the pass that owns blocks.
+            // Says nothing ⇒ source, held until a `Cite` places it. Its `given` names the holes a
+            // `Cite` fills, and the pass that owns blocks judges them.
             return new CufetAxiomDefinition(name, HeldCufetSource(cufetSource), line, col)
             {
                 HasParameterClause = parameters is not null,
+                Holes = (parameters ?? [])
+                    .Select(p => new SourceHole(p.Type, p.Name, holeUnto?.GetValueOrDefault(p.Name)))
+                    .ToList(),
             };
         }
         return new DefineStatement(name, value, permanent, shadow, line, col, declaredType)
@@ -444,8 +454,24 @@ public sealed class Parser
         SkipNoise();
         var name = Consume(TokenType.Identifier).Lexeme;
         SkipNoise();
+        var arguments = new List<IExpression>();
+        if (Peek().Type == TokenType.On)
+        {
+            Advance(); SkipNoise();
+            Consume(TokenType.LParen); SkipNoise();
+            if (Peek().Type != TokenType.RParen)
+            {
+                arguments.Add(ParseExpression()); SkipNoise();
+                while (Peek().Type == TokenType.Comma)
+                {
+                    Advance(); SkipNoise();
+                    arguments.Add(ParseExpression()); SkipNoise();
+                }
+            }
+            Consume(TokenType.RParen); SkipNoise();
+        }
         Consume(TokenType.Dot);
-        return new CiteStatement(name, tok.Line, tok.Column);
+        return new CiteStatement(name, tok.Line, tok.Column) { Arguments = arguments };
     }
 
     /// <summary>`, and free it with &lt;name&gt;` — the release half of an acquiring axiom.</summary>
@@ -5225,6 +5251,10 @@ public sealed class Parser
         return parameters;
     }
 
+    // The holes of the cufet block whose `given` is being read, and the object each method hole
+    // names. Null everywhere else, which is what keeps these spellings out of an ordinary `given`.
+    private Dictionary<string, string>? _holeUnto;
+
     private (CufetType Type, string Name) ParseParameter()
     {
         // A parameter is `<type> <name>`, so this leading skip is a type position:
@@ -5252,6 +5282,14 @@ public sealed class Parser
         {
             candidateType = ParseTypeAnnotation();
             SkipNoise();
+            // `the node or failure function next` — spelled as a `Bind` spells what it gives back.
+            if (_holeUnto is not null && Peek().Type == TokenType.Or
+                && PeekAfterCurrent() == TokenType.Failure)
+            {
+                Advance(); SkipNoise();
+                Consume(TokenType.Failure); SkipNoise();
+                candidateType = new FailureType(candidateType);
+            }
             if (Peek().Type != TokenType.FunctionKw)
             {
                 var regularName = Consume(TokenType.Identifier).Lexeme;
@@ -5263,6 +5301,14 @@ public sealed class Parser
         Advance(); SkipNoise(); // consume 'function'
         var paramName = Consume(TokenType.Identifier).Lexeme;
         SkipNoise();
+
+        // `the node function next unto parser` — a hole naming a method of that object.
+        if (_holeUnto is not null && Peek().Type == TokenType.Unto)
+        {
+            Advance(); SkipNoise();
+            _holeUnto[paramName] = Consume(TokenType.Identifier).Lexeme;
+            SkipNoise();
+        }
 
         var innerParamTypes = ParseFunctionParamTypeList();
         return (new FunctionType(innerParamTypes, candidateType), paramName);

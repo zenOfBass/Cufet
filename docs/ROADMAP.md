@@ -44,10 +44,11 @@ The compiler written in Cufet is done: it builds every program in `examples/` an
     (shape words cost no names), words reserved only inside a pull (as `chase` is), and refusal on
     collision (two pulled books declaring clashing shapes are refused, never ranked). Bracketed DSLs,
     as `regex` does now, remain the nearer route; parse-time code that a book RUNS is declined, since
-    a parser running arbitrary code cannot say what it expected. The near-term piece is templates for
-    the `cufet` tag, after Nim's: hygienic substitution first, full macros later if ever.
-    ⚠ **Open, to settle on paper first:** typed holes want types checked BEFORE expansion (as Nim's
-    typed macros do), and this entry says the expander runs before the checker.
+    a parser running arbitrary code cannot say what it expected. Hygienic substitution shipped as
+    [holes in cufet source](DESIGN.md#holes-in-cufet-source--built-2026-11-05); full macros later, if ever.
+
+    ⚠ **A bug in that:** a free function a `Cite` makes in a sibling folder is visible outside the
+    folder, because hiding knows only the names written out in a file.
 
     ⚠ **Its blocker was the compiler written in Cufet, and that is done.** An expander generates Cufet AST, and both front ends now read Cufet — the C# one and the one written in Cufet — so an expander is built in each and held to the same answers. Macro errors are the worst part of every language that has them, and clear errors are this language's distinguishing feature — that tax is still paid deliberately, not early.
 

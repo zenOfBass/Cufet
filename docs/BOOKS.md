@@ -935,9 +935,13 @@ Where a cited declaration lands is not a rule of its own. A type declaration bel
 wherever it is written, so a cited object is usable after the function that cited it — exactly as
 one written there by hand would be.
 
-⚠ One name holds one block; a second under the same name is refused. ⚠ Source takes no parameters,
-exactly as a resultless C axiom takes none — a parameter's value comes from a call, and nothing
-calls source. ⚠ `and free it with` is refused, and it is the one thing the two tags differ on: a
+**A block's `given` names holes, and `Cite <name> on (…)` fills them**, placing a copy as if written
+out there. A hole takes a name the block makes (`the term level`, filled with a name in quotes), a
+function or method it calls (`the number function next unto reader`, filled with the bare name), or
+a literal. Everything in a block is checked, so a mistake in one is reported at its own line, and a
+fill that does not fit at the `Cite`. GRAMMAR, *Holes in cufet source*, has the rules.
+
+⚠ One name holds one block; a second under the same name is refused. ⚠ `and free it with` is refused, and it is the one thing the two tags differ on: a
 release clause hands memory back to the language that allocated it, and nothing was allocated across
 a boundary here. ⚠ A message from inside a block reports the line it occupies in the file that
 holds it, not the line it would have on its own.

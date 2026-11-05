@@ -25,7 +25,11 @@ Pull a book on collections.
         the fact in-object-def,
         the fact in-free-function,
         the fact in-cast-callee,
-        the series of node starts).
+        the series of node starts,
+        // Reading a cufet block's `given`, and the object each method hole names. Only a hole can
+        // name a method or a function that fails, because a hole is filled with a name.
+        the fact reading-holes,
+        the map from text to text hole-unto).
 
     // ── Where the parser stands ───────────────────────────────────────────
 

@@ -568,13 +568,35 @@ public sealed record CufetAxiomDefinition(
     /// the source is right there and the clause is the problem.
     /// </remarks>
     public bool HasParameterClause { get; init; }
+
+    /// <summary>What this block leaves to be filled, in the order its `given` names them.</summary>
+    public IReadOnlyList<SourceHole> Holes { get; init; } = [];
 }
 
+// One hole in cufet source: a parameter of a block, filled where the block is cited.
+//
+// ★ `Unto` is the object whose method a function hole names — `the number function next unto
+// reader`. It lives here rather than on FunctionType because a function VALUE cannot be a method:
+// only a hole can say so, since a hole is filled with the name itself.
+public sealed record SourceHole(CufetType Type, string Name, string? Unto);
+
 // Cite <name>.  — place the declarations a cufet axiom holds, here.
+// Cite <name> on (<fills>).  — the same, with the block's holes filled.
 //
 // ★ A STATEMENT, not an expression. Citing yields no value and happens before the program runs;
 // spelling it `cast` would have promised both.
-public sealed record CiteStatement(string Name, int Line, int Column) : IStatement;
+public sealed record CiteStatement(string Name, int Line, int Column) : IStatement
+{
+    /// <summary>What fills the block's holes. Read by CiteExpansion and by nothing after it.</summary>
+    public IReadOnlyList<IExpression> Arguments { get; init; } = [];
+
+    /// <summary>Whether this `Cite` came in from a neighbouring file.</summary>
+    /// <remarks>
+    /// ⚠ What it places is held to the loader's own line: a neighbour's declarations arrive and its
+    /// working lines do not, because a plain `Define` carried in would RUN.
+    /// </remarks>
+    public bool Carried { get; set; }
+}
 
 // Bury <value>.  — hand one value out to whoever resumed this function, and pause here.
 //

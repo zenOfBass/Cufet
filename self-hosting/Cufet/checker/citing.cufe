@@ -8,6 +8,11 @@
     ⚠ What a block holds may reach only for what belongs to the program — a free function, a type,
     a `permanently` constant, a pulled book — since anything else would mean whatever the citing
     site happens to have under that name.
+
+    ★ A block's `given` names its holes, and `Cite <name> on (…)` fills them: a term is a name the
+    block makes, a function hole a name it calls, and anything else a literal. One walk over a fresh
+    copy fills them, so what fills a hole is never searched and no two copies share a node. A block
+    nothing cites is checked as written, with a stand-in for what its `given` promises.
 */
 
 Pull a book on collections.
@@ -39,7 +44,415 @@ Pull a book on collections.
         For each statement in cast hoistable on (program), repeat:
             If statement's kind is "CiteStatement", in function-scope, the entry for cast cite-key on (statement) becomes true.
         Done.
-        Return cast placed-cites on (program, blocks, runnable, places-function, function-scope) or pass the failure off.
+        Define named as a series of node.
+        Define cited-program as cast placed-cites on (program, blocks, runnable, places-function, function-scope, named) or pass the failure off.
+        If the number of named is greater than 0, cast require-names-fit on (cited-program, named) or pass the failure off.
+
+        Define waiting as a map from text to fact.
+        For each block-name in block-order, repeat:
+            Define block as the entry for block-name in blocks but void is cast unknown-type.
+            If the number of cast holes-of on (block) is greater than 0, in waiting, the entry for block-name becomes true.
+        Done.
+        For each citation in cited, repeat:
+            Define cited-name as cast unquoted on (cast field-of on (citation, 1)).
+            If (the entry for cited-name in waiting) is not void, remove cited-name from waiting.
+        Done.
+        If the size of waiting is greater than 0:
+            Define child as cast fresh-checker on (one's prelude-defs).
+            The child's instantiation-depth becomes one's instantiation-depth + 1.
+            Cast child's check-program on (cast with-stand-ins on (cited-program, waiting)) or pass the failure off.
+        Done.
+        Return cited-program.
+    Done.
+
+    /// What a block leaves to be filled, as `(SourceHole type name unto)` nodes.
+    Bind series of node to holes-of, given (the node block):
+        Define found as a series of node.
+        Define place as 1.
+        While place is less than the number of block's children, repeat:
+            If (cast field-of on (block, place))'s word is ":Holes":
+                For each hole in (cast field-of on (block, place + 1))'s children, repeat:
+                    Insert hole into found.
+                Done.
+            Done.
+            Increment place by 1.
+        Done.
+        Return found.
+    Done.
+
+    /// What a `Cite` fills its block's holes with.
+    Bind series of node to fills-of, given (the node citation):
+        Define found as a series of node.
+        Define place as 1.
+        While place is less than the number of citation's children, repeat:
+            If (cast field-of on (citation, place))'s word is ":Arguments":
+                For each fill in (cast field-of on (citation, place + 1))'s children, repeat:
+                    Insert fill into found.
+                Done.
+            Done.
+            Increment place by 1.
+        Done.
+        Return found.
+    Done.
+
+    Bind text to hole-name, given (the node hole):
+        Return cast unquoted on (cast field-of on (hole, 2)).
+    Done.
+
+    Bind fact to is-term, given (the node hole):
+        Define shape as cast field-of on (hole, 1).
+        Return shape's kind is "ObjectType" and cast unquoted on (cast field-of on (shape, 1)) is "term".
+    Done.
+
+    /// The name a hole goes by while its block is checked unfilled.
+    Bind text to held-hole, given (the node block, the node hole):
+        Return "{cast hole-name on (hole)} in {cast unquoted on (cast field-of on (block, 1))}".
+    Done.
+
+    /// Where a node holds a name a hole can fill, or 0.
+    Bind number to name-place, given (the text kind):
+        Judge kind, where it is:
+            "VariableReference" or "BindStatement" or "DefineStatement" or "BecomesStatement", return 1.
+            "PossessiveAccess" or "PossessiveSetStatement", return 2.
+            Otherwise, return 0.
+        Done.
+    Done.
+
+    /// A fresh copy of a tree with names swapped and holes for values filled, in one walk: what
+    /// fills a hole is never searched, since a filled name is not walked again.
+    Bind node to filled-tree, given (the node tree, the map from text to text names, the map from text to node values):
+        If tree's kind is "atom", return tree.
+        If tree's kind is "VariableReference":
+            Define value as the entry for cast unquoted on (cast field-of on (tree, 1)) in values.
+            If value is not void, return cast copied-node on (value).
+        Done.
+        Define place as cast name-place on (tree's kind).
+        Define rebuilt as a new node { the kind tree's kind, the word tree's word, the children a series of node }.
+        Define at as 1.
+        For each child in tree's children, repeat:
+            Define swapped as "".
+            If at is place, the swapped becomes the entry for cast unquoted on (child) in names but void is "".
+            If swapped is not "", insert cast quoted on (swapped) into rebuilt's children.
+            Otherwise, insert cast filled-tree on (child, names, values) into rebuilt's children.
+            Increment at by 1.
+        Done.
+        Return rebuilt.
+    Done.
+
+    /// The program with every block gone, and each block in `waiting` standing in its own place.
+    Bind node to with-stand-ins, given (the node tree, the map from text to fact waiting):
+        If tree's kind is "atom", return tree.
+        Define rebuilt as a new node { the kind tree's kind, the word tree's word, the children a series of node }.
+        For each child in tree's children, repeat:
+            If child's kind is "CufetAxiomDefinition" and tree's kind is "list":
+                If (the entry for cast unquoted on (cast field-of on (child, 1)) in waiting) is not void:
+                    For each held in cast stand-in on (child), repeat:
+                        Insert held into rebuilt's children.
+                    Done.
+                Done.
+            Done.
+            Otherwise, insert cast with-stand-ins on (child, waiting) into rebuilt's children.
+        Done.
+        Return rebuilt.
+    Done.
+
+    /// A block as written, with what its `given` promises declared beside it.
+    Bind series of node to stand-in, given (the node block):
+        Define names as a map from text to text.
+        Define values as a map from text to node.
+        Define stated as a series of node.
+        Define at-row as cast number-of on (cast field-of on (block, 3)).
+        Define at-column as cast number-of on (cast field-of on (block, 4)).
+        For each hole in cast holes-of on (block), repeat:
+            Define shape as cast field-of on (hole, 1).
+            Define held as cast held-hole on (block, hole).
+            Judge shape's kind, where it is:
+                "FunctionType":
+                    In names, the entry for cast hole-name on (hole) becomes held.
+                    Insert cast stated-function on (held, hole, at-row, at-column) into stated.
+                Done.
+                "TextType", in values, the entry for cast hole-name on (hole) becomes cast made on ("StringLiteral", a series with (cast quoted on (""))).
+                "NumberType", in values, the entry for cast hole-name on (hole) becomes cast made on ("NumberLiteral", a series with (cast numeral on (0))).
+                "FactType", in values, the entry for cast hole-name on (hole) becomes
+                    cast made on ("BooleanLiteral", a series with (cast flag on (false), cast numeral on (at-row), cast numeral on (at-column))).
+                Otherwise, in names, the entry for cast hole-name on (hole) becomes held.
+            Done.
+        Done.
+        For each held-statement in (cast field-of on (block, 2))'s children, repeat:
+            Insert cast filled-tree on (held-statement, names, values) into stated.
+        Done.
+        Return stated.
+    Done.
+
+    /// A function saying exactly what a hole says, for the body to be checked against.
+    Bind node to stated-function, given (the text held, the node hole, the number at-row, the number at-column):
+        Define shape as cast field-of on (hole, 1).
+        Define returned as cast field-of on (shape, 2).
+        Define parameters as cast listed.
+        Define passed as cast listed.
+        Define counted as 0.
+        For each taken in (cast field-of on (shape, 1))'s children, repeat:
+            Increment counted by 1.
+            Define pair as cast listed.
+            Cast pair's add on (taken).
+            Cast pair's add on (cast quoted on ("given-{counted}")).
+            Cast parameters's add on (pair).
+            Cast passed's add on (cast placed-reference on ("given-{counted}", at-row, at-column)).
+        Done.
+        Define owning as cast field-of on (hole, 3).
+        Define callee as cast placed-reference on (held, at-row, at-column).
+        If cast is-nothing on (owning) is false:
+            The callee becomes cast made on ("PossessiveAccess", a series with (cast placed-reference on ("one", at-row, at-column), cast quoted on (held),
+                cast numeral on (at-row), cast numeral on (at-column))).
+        Done.
+        Define body as cast listed.
+        If cast is-nothing on (returned) is false:
+            Define given-back as cast nothing.
+            If returned's kind is "FailureType":
+                The given-back becomes cast made on ("FailureLiteral", a series with (cast made on ("StringLiteral", a series with (cast quoted on (""))), cast nothing,
+                    cast numeral on (at-row), cast numeral on (at-column))).
+            Done.
+            Otherwise:
+                The given-back becomes cast made on ("CastExpression", a series with (callee, passed, cast numeral on (at-row), cast numeral on (at-column))).
+            Done.
+            Cast body's add on (cast made on ("ReturnStatement", a series with (given-back, cast numeral on (at-row), cast numeral on (at-column)))).
+        Done.
+        Return cast made on ("BindStatement", a series with (cast quoted on (held), returned, parameters, body, owning, cast nothing,
+            cast numeral on (at-row), cast numeral on (at-column))).
+    Done.
+
+    /// What one `Cite` places: its block's statements, with the holes filled.
+    Bind node or failure to filled-block, given (the node block, the node citation, the series of node named):
+        Define name as cast unquoted on (cast field-of on (block, 1)).
+        Define at-row as cast number-of on (cast field-of on (citation, 2)).
+        Define holes as cast holes-of on (block).
+        Define fills as cast fills-of on (citation).
+        If the number of holes is 0:
+            If the number of fills is 0, return cast field-of on (block, 2).
+            Return a failure (cast refusal-of on ("'{name}' has no holes, so there is nothing to fill",
+                "'on' hands a block what its 'given' asks for, and this block asks for nothing",
+                at-row, "fill '{name}'", "Write 'Cite {name}.'")).
+        Done.
+        If the number of fills is not the number of holes:
+            Define listed-holes as "".
+            For each hole in holes, repeat:
+                If listed-holes is not "", the listed-holes becomes "{listed-holes}, ".
+                The listed-holes becomes "{listed-holes}{cast hole-name on (hole)}".
+            Done.
+            Return a failure (cast refusal-of on ("'{name}' has {the number of holes} holes, and this fills {the number of fills}",
+                "Each hole is filled by one thing, in the order the 'given' names them",
+                at-row, "cite '{name}'", "Write 'Cite {name} on (…)' with {listed-holes}.")).
+        Done.
+
+        Define names as a map from text to text.
+        Define values as a map from text to node.
+        Define at as 1.
+        For each hole in holes, repeat:
+            Define fill as item at of fills.
+            Define shape as cast field-of on (hole, 1).
+            If cast is-term on (hole):
+                In names, the entry for cast hole-name on (hole) becomes cast term-of on (name, hole, fill, at-row) or pass the failure off.
+            Done.
+            Otherwise if shape's kind is "FunctionType":
+                If fill's kind is not "VariableReference":
+                    Return a failure (cast not-a-fill on (name, hole, at-row, "a name, written bare")).
+                Done.
+                In names, the entry for cast hole-name on (hole) becomes cast unquoted on (cast field-of on (fill, 1)).
+                Define pairing as cast listed.
+                Cast pairing's add on (hole).
+                Cast pairing's add on (fill).
+                Insert pairing into named.
+            Done.
+            Otherwise:
+                If cast is-literal-of on (shape, fill) is false:
+                    Return a failure (cast not-a-fill on (name, hole, at-row, "a {cast type-words on (shape)} written out")).
+                Done.
+                In values, the entry for cast hole-name on (hole) becomes fill.
+            Done.
+            Increment at by 1.
+        Done.
+        Return cast filled-tree on (cast field-of on (block, 2), names, values).
+    Done.
+
+    Bind text to not-a-fill, given (the text block-name, the node hole, the number at-row, the text wanted):
+        Define hole-called as cast hole-name on (hole).
+        Return cast refusal-of on ("'{hole-called}' in '{block-name}' is filled with {wanted}",
+            "A 'Cite' happens before the program runs, so what fills a hole has to be written out right there",
+            at-row, "fill '{hole-called}' this way", "Fill '{hole-called}' with {wanted}.").
+    Done.
+
+    /// The name a term hole is filled with, which has to be one.
+    Bind text or failure to term-of, given (the text block-name, the node hole, the node fill, the number at-row):
+        If fill's kind is not "StringLiteral":
+            Return a failure (cast not-a-fill on (block-name, hole, at-row, "a name in quotes")).
+        Done.
+        Define term as cast unquoted on (cast field-of on (fill, 1)).
+        Define found as cast tokens-of on (term) but on failure a series of token.
+        If the number of found is 2 and (item 1 of found)'s kind is "Identifier" and (item 1 of found)'s lexeme is term, return term.
+        Define hole-called as cast hole-name on (hole).
+        Return a failure (cast refusal-of on ("'{term}' cannot name anything, so it cannot fill '{hole-called}'",
+            "A term is a name the block makes, so it has to be a name Cufet can read — and not a word Cufet has taken",
+            at-row, "fill '{hole-called}' with '{term}'", "Choose a name made of letters, digits and hyphens.")).
+    Done.
+
+    /// ⚠ A literal and nothing else: a `Cite` happens before the program runs, so nothing has a value.
+    Bind fact to is-literal-of, given (the node shape, the node fill):
+        Judge shape's kind, where it is:
+            "TextType", return fill's kind is "StringLiteral".
+            "FactType", return fill's kind is "BooleanLiteral".
+            "NumberType":
+                If fill's kind is "NumberLiteral", return true.
+                Return fill's kind is "UnaryExpression" and (cast field-of on (fill, 1))'s word is "Minus"
+                    and (cast field-of on (fill, 2))'s kind is "NumberLiteral".
+            Done.
+            Otherwise, return false.
+        Done.
+    Done.
+
+    /// Every function and method in the tree, as `(owner, statement)` pairs.
+    Bind void to gather-functions, given (the node tree, the series of node found):
+        If tree's kind is "atom" or tree's kind is "CufetAxiomDefinition", return.
+        If tree's kind is "BindStatement":
+            Define pair as cast listed.
+            Cast pair's add on (cast field-of on (tree, 5)).
+            Cast pair's add on (tree).
+            Insert pair into found.
+        Done.
+        If tree's kind is "ObjectDefinition":
+            For each method in (cast field-of on (tree, 4))'s children, repeat:
+                Define pair as cast listed.
+                Cast pair's add on (cast field-of on (tree, 1)).
+                Cast pair's add on (method).
+                Insert pair into found.
+            Done.
+        Done.
+        For each child in tree's children, repeat:
+            Cast gather-functions on (child, found).
+        Done.
+    Done.
+
+    Bind fact to fits-hole, given (the node found, the node shape):
+        If cast same-type on (cast field-of on (found, 2), cast field-of on (shape, 2)) is false, return false.
+        Define parameters as (cast field-of on (found, 3))'s children.
+        Define wanted as (cast field-of on (shape, 1))'s children.
+        If the number of parameters is not the number of wanted, return false.
+        Define at as 1.
+        For each parameter-pair in parameters, repeat:
+            If cast same-type on (item 1 of parameter-pair's children, item at of wanted) is false, return false.
+            Increment at by 1.
+        Done.
+        Return true.
+    Done.
+
+    /// Asked after every `Cite` is placed, because a name may be one another `Cite` makes.
+    Bind void or failure to require-names-fit, given (the node whole, the series of node named):
+        Define functions as a series of node.
+        Cast gather-functions on (whole, functions).
+        For each pairing in named, repeat:
+            Define hole as item 1 of pairing's children.
+            Define fill as item 2 of pairing's children.
+            Define shape as cast field-of on (hole, 1).
+            Define hole-called as cast hole-name on (hole).
+            Define called as cast unquoted on (cast field-of on (fill, 1)).
+            Define at-row as cast number-of on (cast field-of on (fill, 2)).
+            Define owning as cast field-of on (hole, 3).
+            Define whose as "function".
+            If cast is-nothing on (owning) is false, the whose becomes "method of '{cast unquoted on (owning)}'".
+            Define any-found as false.
+            Define any-fits as false.
+            For each known in functions, repeat:
+                Define owner as item 1 of known's children.
+                Define statement as item 2 of known's children.
+                If cast unquoted on (cast field-of on (statement, 1)) is called and owner's word is owning's word:
+                    The any-found becomes true.
+                    If cast fits-hole on (statement, shape), the any-fits becomes true.
+                Done.
+            Done.
+            If any-found is false:
+                Return a failure (cast refusal-of on ("there is no {whose} called '{called}' to fill '{hole-called}'",
+                    "A hole for a function is filled with the name of one, and that name has to exist",
+                    at-row, "fill '{hole-called}' with '{called}'", "Declare it, or fill '{hole-called}' with a name that is one.")).
+            Done.
+            If any-fits is false:
+                Return a failure (cast refusal-of on ("'{called}' does not fit '{hole-called}', which asks for {cast type-words on (shape)}",
+                    "What a block calls through a hole is checked against what the hole says, so the name has to be exactly that",
+                    at-row, "fill '{hole-called}' with '{called}'", "Fill '{hole-called}' with a {whose} of that shape.")).
+            Done.
+        Done.
+    Done.
+
+    /// Whether a tree uses a name, in the places a hole can fill.
+    Bind fact to uses-name, given (the node tree, the text name):
+        If tree's kind is "atom", return false.
+        Define place as cast name-place on (tree's kind).
+        If place is greater than 0 and cast unquoted on (cast field-of on (tree, place)) is name, return true.
+        For each child in tree's children, repeat:
+            If cast uses-name on (child, name), return true.
+        Done.
+        Return false.
+    Done.
+
+    Bind fact to names-parameter, given (the node parameters, the text name):
+        For each bound in cast bound-names-of on (parameters), repeat:
+            If bound is name, return true.
+        Done.
+        Return false.
+    Done.
+
+    /// Whether a tree declares a name, where filling only its reads would lose them.
+    Bind fact to declares-name, given (the node tree, the text name):
+        If tree's kind is "atom", return false.
+        If tree's kind is "DefineStatement" and cast unquoted on (cast field-of on (tree, 1)) is name, return true.
+        If tree's kind is "ForEachStatement" and (cast field-of on (tree, 1))'s word is (cast quoted on (name))'s word, return true.
+        If tree's kind is "BindStatement" and cast names-parameter on (cast field-of on (tree, 3), name), return true.
+        If tree's kind is "LambdaLiteral" and cast names-parameter on (cast field-of on (tree, 1), name), return true.
+        For each child in tree's children, repeat:
+            If cast declares-name on (child, name), return true.
+        Done.
+        Return false.
+    Done.
+
+    /// `RequireFillable`: a hole nothing can fill, or one its block does not honour.
+    Bind void or failure to require-fillable, given (the node block, the node hole, the series of node holes):
+        Define name as cast unquoted on (cast field-of on (block, 1)).
+        Define block-row as cast number-of on (cast field-of on (block, 3)).
+        Define hole-called as cast hole-name on (hole).
+        Define body as cast field-of on (block, 2).
+        If cast uses-name on (body, hole-called) is false:
+            Return a failure (cast refusal-of on ("'{name}' never uses its hole '{hole-called}'",
+                "A hole is filled at every 'Cite', so one nothing reads is a fill that goes nowhere",
+                block-row, "leave '{hole-called}' unused", "Use '{hole-called}' in the block, or take it out of the 'given'.")).
+        Done.
+        Define twins as 0.
+        For each other in holes, repeat:
+            If cast hole-name on (other) is hole-called, the twins becomes twins + 1.
+        Done.
+        If twins is greater than 1:
+            Return a failure (cast refusal-of on ("'{name}' has two holes called '{hole-called}'",
+                "A hole is filled by its place in the 'given', and read by its name",
+                block-row, "name two holes '{hole-called}'", "Give one of them another name.")).
+        Done.
+        Define shape as cast field-of on (hole, 1).
+        If cast is-term on (hole):
+            For each held in body's children, repeat:
+                If (held's kind is "BindStatement" or held's kind is "DefineStatement") and cast unquoted on (cast field-of on (held, 1)) is hole-called, return.
+            Done.
+            Return a failure (cast refusal-of on ("'{hole-called}' is a term, so '{name}' has to make it, and it does not",
+                "A term is a name the block declares. A name it only calls has to say what it is",
+                block-row, "leave '{hole-called}' as a term",
+                "Declare '{hole-called}' in the block, or say what it is, as in 'the number function {hole-called}'.")).
+        Done.
+        If shape's kind is "FunctionType", return.
+        If shape's kind is not "TextType" and shape's kind is not "NumberType" and shape's kind is not "FactType":
+            Return a failure (cast refusal-of on ("'{hole-called}' cannot be a hole: a hole takes a term, a function's name, or a text, number or fact",
+                "What fills a hole is written out at the 'Cite', before the program runs",
+                block-row, "make '{hole-called}' a hole of this type", "Use one of those.")).
+        Done.
+        If cast declares-name on (body, hole-called):
+            Return a failure (cast refusal-of on ("'{name}' declares '{hole-called}' again, and it is a hole",
+                "A hole is filled where it is read, so a second declaration would be left with nothing reading it",
+                block-row, "declare '{hole-called}' inside '{name}'", "Give one of the two another name.")).
+        Done.
     Done.
 
     Bind text to cite-key, given (the node citation):
@@ -123,16 +536,20 @@ Pull a book on collections.
         Return cast number-of on (cast field-of on (statement, place)).
     Done.
 
-    /// `RequireDeclarationsOnly`: source takes no parameters, and holds only declarations.
+    /// `RequireDeclarationsOnly`: its holes are ones a `Cite` can fill, and it holds only declarations.
     Bind void or failure to require-declarations-only, given (the node block):
         Define name as cast unquoted on (cast field-of on (block, 1)).
         Define block-row as cast number-of on (cast field-of on (block, 3)).
-        If cast bind-mark on (block, ":HasParameterClause") is "true":
+        Define holes as cast holes-of on (block).
+        If cast bind-mark on (block, ":HasParameterClause") is "true" and the number of holes is 0:
             Return a failure (cast refusal-of on (
-                "'{name}' says nothing about what it gives back, so it is source rather than something to run — and source takes no parameters",
-                "A parameter's value comes from a call, and nothing calls this: it is placed where a 'Cite' says",
-                block-row, "give '{name}' parameters",
-                "Drop the 'given' clause — or say what running it gives back, as in 'Define cufet number {name}, given (…), as [ … ].'")).
+                "'{name}' has a 'given' that names nothing",
+                "A block's 'given' names the holes a 'Cite' fills",
+                block-row, "give '{name}' an empty 'given'",
+                "Drop the 'given' clause, or name what it leaves to be filled.")).
+        Done.
+        For each hole in holes, repeat:
+            Cast require-fillable on (block, hole, holes) or pass the failure off.
         Done.
         For each statement in (cast field-of on (block, 2))'s children, repeat:
             Define kind as statement's kind.
@@ -158,6 +575,10 @@ Pull a book on collections.
             If kind is "DefineStatement" or kind is "ObjectDefinition" or kind is "InterfaceDefinition":
                 In visible, the entry for cast unquoted on (cast field-of on (statement, 1)) becomes true.
             Done.
+        Done.
+        // What the block leaves to be filled comes from the `Cite`, by name, so it captures nothing.
+        For each hole in cast holes-of on (block), repeat:
+            In visible, the entry for cast hole-name on (hole) becomes true.
         Done.
         For each pronoun in a series with ("it", "one", "input", "failure", "the failure"), repeat:
             In visible, the entry for pronoun becomes true.
@@ -200,18 +621,18 @@ Pull a book on collections.
 
     /// The tree with each `Cite` replaced by what its block holds.
     Bind node or failure to placed-cites, given (the node tree, the map from text to node blocks, the map from text to fact runnable,
-            the map from text to fact places-function, the map from text to fact function-scope):
+            the map from text to fact places-function, the map from text to fact function-scope, the series of node named):
         If tree's kind is "atom", return tree.
         Define rebuilt as a new node { the kind tree's kind, the word tree's word, the children a series of node }.
         For each child in tree's children, repeat:
             If child's kind is "CiteStatement" and tree's kind is "list":
-                Define spliced as cast held-by-cite on (child, blocks, runnable, places-function, function-scope) or pass the failure off.
+                Define spliced as cast held-by-cite on (child, blocks, runnable, places-function, function-scope, named) or pass the failure off.
                 For each held in spliced's children, repeat:
                     Cast rebuilt's add on (held).
                 Done.
             Done.
             Otherwise:
-                Cast rebuilt's add on (cast placed-cites on (child, blocks, runnable, places-function, function-scope) or pass the failure off).
+                Cast rebuilt's add on (cast placed-cites on (child, blocks, runnable, places-function, function-scope, named) or pass the failure off).
             Done.
         Done.
         Return rebuilt.
@@ -219,7 +640,7 @@ Pull a book on collections.
 
     /// What one `Cite` places — or why it cannot.
     Bind node or failure to held-by-cite, given (the node citation, the map from text to node blocks, the map from text to fact runnable,
-            the map from text to fact places-function, the map from text to fact function-scope):
+            the map from text to fact places-function, the map from text to fact function-scope, the series of node named):
         Define name as cast unquoted on (cast field-of on (citation, 1)).
         Define at-row as cast number-of on (cast field-of on (citation, 2)).
         Define block as the entry for name in blocks.
@@ -230,7 +651,15 @@ Pull a book on collections.
                     at-row, "cite '{name}' inside a body",
                     "Cite '{name}' at the top level, or directly inside a 'Pull' block.")).
             Done.
-            Return cast field-of on (block, 2).
+            Define filled as cast filled-block on (block, citation, named) or pass the failure off.
+            If cast has-mark on (citation, ":Carried") is false, return filled.
+            // A neighbour's working lines stay in its file: a plain `Define` carried in would run.
+            Define declaring as cast listed.
+            For each held in filled's children, repeat:
+                Define runs as held's kind is "DefineStatement" and cast truth-of on (cast field-of on (held, 3)) is false.
+                If runs is false, cast declaring's add on (held).
+            Done.
+            Return declaring.
         Done.
         If (the entry for name in runnable) is not void:
             Return a failure (cast refusal-of on ("'{name}' says what it gives back, so it is something you run rather than source to cite",
