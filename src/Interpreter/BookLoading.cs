@@ -822,7 +822,7 @@ public static class BookLoading
 
             gathered.AddRange(DeclarationsOnly(inner.Statements));
         }
-        return gathered;
+        return CiteExpansion.PlaceCarried(gathered);
     }
 
     private static TypeException Unreadable(string file, string why) =>

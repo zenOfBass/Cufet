@@ -344,6 +344,29 @@ Pull a book on collections.
         Return true.
     Done.
 
+    /// Words naming something a folder hides, as the writer wrote them: `helper in lib` reads
+    /// `helper`. This pass runs ahead of the checker, whose own refusals put hidden names back.
+    Bind text to as-written, given (the text words):
+        Define kept as "".
+        Define skipping as false.
+        Define parts as words split by " ".
+        Define at as 0.
+        For each part in parts, repeat:
+            Increment at by 1.
+            If skipping:
+                The skipping becomes false.
+            Done.
+            Otherwise if part is "in" and at is less than the number of parts:
+                The skipping becomes true.
+            Done.
+            Otherwise:
+                If kept is not "", the kept becomes "{kept} ".
+                The kept becomes "{kept}{part}".
+            Done.
+        Done.
+        Return kept.
+    Done.
+
     /// Asked after every `Cite` is placed, because a name may be one another `Cite` makes.
     Bind void or failure to require-names-fit, given (the node whole, the series of node named):
         Define functions as a series of node.
@@ -353,17 +376,18 @@ Pull a book on collections.
             Define fill as item 2 of pairing's children.
             Define shape as cast field-of on (hole, 1).
             Define hole-called as cast hole-name on (hole).
-            Define called as cast unquoted on (cast field-of on (fill, 1)).
+            Define full-name as cast unquoted on (cast field-of on (fill, 1)).
+            Define called as cast as-written on (full-name).
             Define at-row as cast number-of on (cast field-of on (fill, 2)).
             Define owning as cast field-of on (hole, 3).
             Define whose as "function".
-            If cast is-nothing on (owning) is false, the whose becomes "method of '{cast unquoted on (owning)}'".
+            If cast is-nothing on (owning) is false, the whose becomes "method of '{cast as-written on (cast unquoted on (owning))}'".
             Define any-found as false.
             Define any-fits as false.
             For each known in functions, repeat:
                 Define owner as item 1 of known's children.
                 Define statement as item 2 of known's children.
-                If cast unquoted on (cast field-of on (statement, 1)) is called and owner's word is owning's word:
+                If cast unquoted on (cast field-of on (statement, 1)) is full-name and owner's word is owning's word:
                     The any-found becomes true.
                     If cast fits-hole on (statement, shape), the any-fits becomes true.
                 Done.
@@ -374,7 +398,7 @@ Pull a book on collections.
                     at-row, "fill '{hole-called}' with '{called}'", "Declare it, or fill '{hole-called}' with a name that is one.")).
             Done.
             If any-fits is false:
-                Return a failure (cast refusal-of on ("'{called}' does not fit '{hole-called}', which asks for {cast type-words on (shape)}",
+                Return a failure (cast refusal-of on ("'{called}' does not fit '{hole-called}', which asks for {cast as-written on (cast type-words on (shape))}",
                     "What a block calls through a hole is checked against what the hole says, so the name has to be exactly that",
                     at-row, "fill '{hole-called}' with '{called}'", "Fill '{hole-called}' with a {whose} of that shape.")).
             Done.
@@ -652,14 +676,9 @@ Pull a book on collections.
                     "Cite '{name}' at the top level, or directly inside a 'Pull' block.")).
             Done.
             Define filled as cast filled-block on (block, citation, named) or pass the failure off.
+            If cast has-mark on (citation, ":Placed"), return cast listed.
             If cast has-mark on (citation, ":Carried") is false, return filled.
-            // A neighbour's working lines stay in its file: a plain `Define` carried in would run.
-            Define declaring as cast listed.
-            For each held in filled's children, repeat:
-                Define runs as held's kind is "DefineStatement" and cast truth-of on (cast field-of on (held, 3)) is false.
-                If runs is false, cast declaring's add on (held).
-            Done.
-            Return declaring.
+            Return cast declarations-among on (filled).
         Done.
         If (the entry for name in runnable) is not void:
             Return a failure (cast refusal-of on ("'{name}' says what it gives back, so it is something you run rather than source to cite",
@@ -672,6 +691,69 @@ Pull a book on collections.
             at-row, "cite '{name}'",
             "Declare it first: 'Define cufet {name} as [ ... ].'")).
     Done.
+    /// What a neighbour's `Cite` may place: a plain `Define` carried in would run.
+    Bind node to declarations-among, given (the node filled):
+        Define declaring as cast listed.
+        For each held in filled's children, repeat:
+            Define runs as held's kind is "DefineStatement" and cast truth-of on (cast field-of on (held, 3)) is false.
+            If runs is false, cast declaring's add on (held).
+        Done.
+        Return declaring.
+    Done.
+
+    Bind void to gather-blocks, given (the node tree, the map from text to node blocks):
+        If tree's kind is "atom", return.
+        If tree's kind is "CufetAxiomDefinition":
+            Define name as cast unquoted on (cast field-of on (tree, 1)).
+            If (the entry for name in blocks) is void, in blocks, the entry for name becomes tree.
+            Return.
+        Done.
+        For each child in tree's children, repeat:
+            Cast gather-blocks on (child, blocks).
+        Done.
+    Done.
+
+    /// A folder's statements with each `Cite` of the folder's own blocks placed, before the loader
+    /// asks the folder what it declares: what it hides and what qualifying it reaches are read from
+    /// its declarations, so a name a `Cite` makes has to be one by then. The `Cite` stays, marked, so
+    /// its fills can still be held to the holes once the whole program is here.
+    Bind node or failure to placed-carried, given (the node statements):
+        Define blocks as a map from text to node.
+        Cast gather-blocks on (statements, blocks).
+        If the size of blocks is 0, return statements.
+        Return cast carried-into on (statements, blocks) or pass the failure off.
+    Done.
+
+    Bind node or failure to carried-into, given (the node tree, the map from text to node blocks):
+        If tree's kind is "atom" or tree's kind is "CufetAxiomDefinition", return tree.
+        Define rebuilt as a new node { the kind tree's kind, the word tree's word, the children a series of node }.
+        For each child in tree's children, repeat:
+            Define block as cast unknown-type.
+            Define placing as false.
+            If child's kind is "CiteStatement" and tree's kind is "list" and cast has-mark on (child, ":Carried"):
+                Define found as the entry for cast unquoted on (cast field-of on (child, 1)) in blocks.
+                If found is not void and cast has-mark on (child, ":Placed") is false:
+                    The block becomes found.
+                    The placing becomes true.
+                Done.
+            Done.
+            If placing:
+                Define marked as cast copied-node on (child).
+                Cast marked's add on (cast atom on (":Placed")).
+                Cast marked's add on (cast flag on (true)).
+                Cast rebuilt's add on (marked).
+                Define filled as cast filled-block on (block, child, a series of node) or pass the failure off.
+                For each held in (cast declarations-among on (filled))'s children, repeat:
+                    Cast rebuilt's add on (cast copied-node on (held)).
+                Done.
+            Done.
+            Otherwise:
+                Cast rebuilt's add on (cast carried-into on (child, blocks) or pass the failure off).
+            Done.
+        Done.
+        Return rebuilt.
+    Done.
+
     /// After checking: every cufet block taken out of the tree, wherever it stands — C#'s
     /// `CiteExpansion.WithoutBlocks`. Its contents were placed by `Cite`; what is left is only the
     /// definition, which nothing after the checker can meet.

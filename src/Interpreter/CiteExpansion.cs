@@ -185,6 +185,36 @@ public static class CiteExpansion
             hole.Unto, ConstructsTypeName: null, line, column);
     }
 
+    /// <summary>A folder's statements with each `Cite` of the folder's own blocks placed.</summary>
+    /// <remarks>
+    /// ⭐⭐ Before the loader asks a folder what it declares. What a folder hides, what qualifying it
+    /// reaches and what it claims are all read from its declarations, so a name a `Cite` makes has to
+    /// be one by then: measured, a function stamped in a sibling folder was callable from outside
+    /// it, bare, because nothing had seen it to hide it.
+    ///
+    /// ⚠ The `Cite` stays, marked <see cref="CiteStatement.Placed"/>: whether a name fits its hole
+    /// can only be asked once the whole program is here, and the blame still belongs on that line.
+    /// </remarks>
+    public static IReadOnlyList<IStatement> PlaceCarried(IReadOnlyList<IStatement> statements)
+    {
+        var blocks = new Dictionary<string, CufetAxiomDefinition>(StringComparer.Ordinal);
+        foreach (var block in AstSearch.EveryStatement(statements).OfType<CufetAxiomDefinition>())
+            blocks.TryAdd(block.Name, block);
+        if (blocks.Count == 0) return statements;
+
+        return AstRebuilder.Apply(statements, type => type, splice: statement =>
+        {
+            if (statement is not CiteStatement { Carried: true, Placed: false } cite
+                || !blocks.TryGetValue(cite.Name, out var block)) return null;
+            var filled = Renamed(Declarations(Filled(block, cite, [])), [], [], fresh: true);
+            return [cite with { Placed = true }, .. filled];
+        });
+    }
+
+    /// <summary>What a neighbour's `Cite` may place: not a plain `Define`, which would run.</summary>
+    private static IReadOnlyList<IStatement> Declarations(IReadOnlyList<IStatement> filled) =>
+        filled.Where(held => held is not DefineStatement { Permanent: false }).ToList();
+
     /// <summary>Takes the blocks themselves out, once everything that reads one has run.</summary>
     /// <remarks>
     /// ★ Separate from <see cref="Expand"/>, and after the checker rather than before it, because
@@ -238,9 +268,7 @@ public static class CiteExpansion
                     $"Cite '{cite.Name}' at the top level, or directly inside a 'Pull' block.");
 
             var filled = Filled(block, cite, named);
-            return cite.Carried
-                ? filled.Where(held => held is not DefineStatement { Permanent: false }).ToList()
-                : filled;
+            return cite.Placed ? [] : cite.Carried ? Declarations(filled) : filled;
         }
 
         // ⚠ The name IS declared, just not as source — saying "there is no cufet source called
@@ -460,26 +488,42 @@ public static class CiteExpansion
             var wanted = (FunctionType)hole.Type;
             var found = functions.Where(function => function.Bind.Name == name.Name
                                                  && function.Owner == hole.Unto).ToList();
-            var whose = hole.Unto is null ? "function" : $"method of '{hole.Unto}'";
+            var whose = hole.Unto is null ? "function" : $"method of '{AsWritten(hole.Unto)}'";
+            var called = AsWritten(name.Name);
             if (found.Count == 0)
                 throw TypeChecker.TypeError(
-                    $"there is no {whose} called '{name.Name}' to fill '{hole.Name}'",
+                    $"there is no {whose} called '{called}' to fill '{hole.Name}'",
                     "A hole for a function is filled with the name of one, and that name has to "
                   + "exist",
                     name.Line, name.Column,
-                    $"fill '{hole.Name}' with '{name.Name}'",
+                    $"fill '{hole.Name}' with '{called}'",
                     $"Declare it, or fill '{hole.Name}' with a name that is one.");
 
             if (found.Any(function => Fits(function.Bind, wanted))) continue;
             throw TypeChecker.TypeError(
-                $"'{name.Name}' does not fit '{hole.Name}', which asks for "
-              + TypeChecker.FormatType(wanted),
+                $"'{called}' does not fit '{hole.Name}', which asks for "
+              + AsWritten(TypeChecker.FormatType(wanted)),
                 "What a block calls through a hole is checked against what the hole says, so the "
               + "name has to be exactly that",
                 name.Line, name.Column,
-                $"fill '{hole.Name}' with '{name.Name}'",
+                $"fill '{hole.Name}' with '{called}'",
                 $"Fill '{hole.Name}' with a {whose} of that shape.");
         }
+    }
+
+    /// <summary>Words naming something a folder hides, as the writer wrote them.</summary>
+    /// <remarks>
+    /// ⚠ This pass runs ahead of the checker, whose own refusals put hidden names back, so it does
+    /// that itself: `helper in lib` reads `helper`.
+    /// </remarks>
+    private static string AsWritten(string words)
+    {
+        var kept = new List<string>();
+        var parts = words.Split(' ');
+        for (int i = 0; i < parts.Length; i++)
+            if (parts[i] == "in" && i + 1 < parts.Length) i++;
+            else kept.Add(parts[i]);
+        return string.Join(' ', kept);
     }
 
     private static bool Fits(BindStatement bind, FunctionType wanted) =>

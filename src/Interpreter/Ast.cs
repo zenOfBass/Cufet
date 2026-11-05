@@ -596,6 +596,13 @@ public sealed record CiteStatement(string Name, int Line, int Column) : IStateme
     /// working lines do not, because a plain `Define` carried in would RUN.
     /// </remarks>
     public bool Carried { get; set; }
+
+    /// <summary>Whether what this `Cite` places is already in the program.</summary>
+    /// <remarks>
+    /// ★ Set by CiteExpansion.PlaceCarried, for a `Cite` and its block in one folder. The statement
+    /// stays so the placing pass can still hold its fills to the holes, once every name is here.
+    /// </remarks>
+    public bool Placed { get; set; }
 }
 
 // Bury <value>.  — hand one value out to whoever resumed this function, and pause here.

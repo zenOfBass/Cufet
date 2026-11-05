@@ -67,6 +67,98 @@ public class CommandLineTests
         return path;
     }
 
+    // ── A block in a folder ──────────────────────────────────────────────
+
+    private const string StampingBlocks = """
+        Bind number to noisy:
+            State "ran".
+            Return 1.
+        Done.
+        Pull a book on cufet.
+            Define cufet made-here, given (the term made), as [
+                Bind number to made:
+                    Return 7.
+                Done.
+            ].
+            Define cufet no-holes as [
+                Bind number to plain-made:
+                    Return 8.
+                Done.
+                Define object made-box with (the number held).
+            ].
+            Define cufet working-line as [
+                Define the kept as cast noisy.
+            ].
+            Cite made-here on ("stamped").
+            Cite no-holes.
+            Cite working-line.
+        Done.
+
+        """;
+
+    /// <summary>A sibling folder holding <paramref name="lib"/>, and a program beside it.</summary>
+    private static (int Exit, string Out, string Err) WithSibling(string lib, string app)
+    {
+        var dir = Directory.CreateTempSubdirectory("cufet-stamped-").FullName;
+        try
+        {
+            File.WriteAllText(Path.Combine(dir, "blueprint.cufe"), "");
+            Directory.CreateDirectory(Path.Combine(dir, "lib"));
+            Directory.CreateDirectory(Path.Combine(dir, "app"));
+            File.WriteAllText(Path.Combine(dir, "lib", "lib.cufe"), lib);
+            File.WriteAllText(Path.Combine(dir, "app", "app.cufe"), app);
+            return Run(Path.Combine(dir, "app", "app.cufe"));
+        }
+        finally { Directory.Delete(dir, recursive: true); }
+    }
+
+    /// <remarks>
+    /// ⚠ Stated outright rather than left to parity: both front ends leaked alike at first, so
+    /// comparing them passed. A folder is a namespace, and a name a `Cite` makes is one of its names.
+    /// </remarks>
+    [Theory]
+    [InlineData("State cast stamped.", "'stamped' isn't defined")]
+    [InlineData("State cast plain-made.", "'plain-made' isn't defined")]
+    [InlineData("Define the box as a new made-box { the held 1 }.", "made-box")]
+    public void WhatACiteMakesInAFolder_StaysInTheFolder(string reaches, string message)
+    {
+        var (exit, _, err) = WithSibling(StampingBlocks, "State cast lib's stamped.\n" + reaches + "\n");
+        Assert.Equal(1, exit);
+        Assert.Contains(message, err);
+    }
+
+    [Fact]
+    public void WhatACiteMakesInAFolder_IsReachedByQualifying_AndItsWorkingLinesStayBehind()
+    {
+        var (exit, output, err) = WithSibling(StampingBlocks,
+            "State cast lib's stamped.\nState cast lib's plain-made.\n");
+        Assert.True(exit == 0, err);
+        // No `ran`: a plain `Define` placed from a neighbour would have run on the way in.
+        Assert.Equal("7\n8", output.Replace("\r\n", "\n").TrimEnd('\n'));
+    }
+
+    /// <remarks>⚠ Placing a folder's `Cite`s early must not lose the blame: the name is judged later.</remarks>
+    [Fact]
+    public void AFillThatDoesNotFit_IsStillBlamedOnTheCite_InAFolder()
+    {
+        var (exit, _, err) = WithSibling("""
+            Bind text to wordy:
+                Return "".
+            Done.
+            Pull a book on cufet.
+                Define cufet relay, given (the term made, the number function next), as [
+                    Bind number to made:
+                        Return cast next.
+                    Done.
+                ].
+                Cite relay on ("relayed", wordy).
+            Done.
+            """, "State cast lib's relayed.\n");
+        Assert.Equal(1, exit);
+        Assert.Contains("'wordy' does not fit 'next'", err);
+        Assert.Contains("Here on line 10", err);
+    }
+
     // ── A refusal in a neighbour names its file ───────────────────────────
 
     [Fact]

@@ -27,7 +27,9 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   unto parser`), or a literal. There is no hole for code. Everything in a block is checked, cited or
   not: a mistake is reported at the block's own line, and a fill that does not fit at the `Cite`. This
   reaches what a function cannot, since a method cannot be passed. A folder now carries its blocks and
-  `Cite`s between files, and what a folder hides is hidden inside its blocks too. Both front ends
+  `Cite`s between files, what a folder hides is hidden inside its blocks too, and a name a `Cite`
+  makes in a folder is one of that folder's names: hidden from outside, reached by qualifying it. Both
+  front ends
   (DESIGN *Holes in cufet source*).
 
 ### Changed

@@ -571,7 +571,7 @@ Pull a book on collections.
                 Done.
             Done.
         Done.
-        Return gathered.
+        Return cast placed-carried on (gathered) or pass the failure off.
     Done.
 
     /// The refusal for a folder declaring a name a folder above it already has.

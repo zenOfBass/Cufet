@@ -39,7 +39,7 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
     private const int HandWrittenTreeFloor = 310;
 
     /// <summary>The same, of the hand-written projects both checkers accept.</summary>
-    private const int ProjectTreeFloor = 17;
+    private const int ProjectTreeFloor = 18;
 
     /// <summary>How many hand-written programs draw warnings and are warned of alike. Raised; never lowered.</summary>
     private const int HandWrittenWarnedFloor = 20;
@@ -1414,6 +1414,11 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
         // The same with the `Cite` in a third file, and a carried `Cite` placing only declarations.
         new() { ["top/lib/lib.cufe"] = "Define object box with (the number held).\nBind number to base unto box:\n    Return one's held.\nDone.\nBind number to doubled, given (the number n):\n    Define made as a new box { the held n }.\n    Return cast made's once.\nDone.\nBind number to helper, given (the number n):\n    Return n * 2.\nDone.\n", ["top/lib/rungs.cufe"] = "Pull a book on cufet.\n    Define cufet stepped, given (the term made, the number function next unto box, the number amount), as [\n        Bind number to made unto box:\n            Return cast helper on (cast one's next + amount).\n        Done.\n    ].\nDone.\n", ["top/lib/placed.cufe"] = "Pull a book on cufet.\n    Cite stepped on (\"once\", base, 1).\nDone.\n", ["top/app/app.cufe"] = ProjectHelper + CallsLib },
         new() { ["top/app/more.cufe"] = "Pull a book on cufet.\n    Define cufet noted, given (the term made), as [\n        Define the made as 1.\n        Bind number to read-it:\n            Return 2.\n        Done.\n    ].\n    Cite noted on (\"tally\").\nDone.\n", ["top/app/app.cufe"] = "State cast read-it." },
+        // What a `Cite` makes in a folder stays in it, is reached by qualifying, and still answers to its hole.
+        new() { ["top/lib/lib.cufe"] = "Pull a book on cufet.\n    Define cufet made-here, given (the term made), as [\n        Bind number to made:\n            Return 7.\n        Done.\n    ].\n    Define cufet no-holes as [\n        Bind number to plain-made:\n            Return 8.\n        Done.\n    ].\n    Cite made-here on (\"stamped\").\n    Cite no-holes.\nDone.\n", ["top/app/app.cufe"] = "State cast stamped." },
+        new() { ["top/lib/lib.cufe"] = "Pull a book on cufet.\n    Define cufet made-here, given (the term made), as [\n        Bind number to made:\n            Return 7.\n        Done.\n    ].\n    Define cufet no-holes as [\n        Bind number to plain-made:\n            Return 8.\n        Done.\n    ].\n    Cite made-here on (\"stamped\").\n    Cite no-holes.\nDone.\n", ["top/app/app.cufe"] = "State cast plain-made." },
+        new() { ["top/lib/lib.cufe"] = "Pull a book on cufet.\n    Define cufet made-here, given (the term made), as [\n        Bind number to made:\n            Return 7.\n        Done.\n    ].\n    Define cufet no-holes as [\n        Bind number to plain-made:\n            Return 8.\n        Done.\n    ].\n    Cite made-here on (\"stamped\").\n    Cite no-holes.\nDone.\n", ["top/app/app.cufe"] = "State cast lib's stamped.\nState cast lib's plain-made." },
+        new() { ["top/lib/lib.cufe"] = "Bind text to wordy:\n    Return \"\".\nDone.\nPull a book on cufet.\n    Define cufet relay, given (the term made, the number function next), as [\n        Bind number to made:\n            Return cast next.\n        Done.\n    ].\n    Cite relay on (\"relayed\", wordy).\nDone.\n", ["top/app/app.cufe"] = "State cast lib's relayed." },
     ];
 
     [Fact]

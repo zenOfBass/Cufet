@@ -2721,7 +2721,9 @@ value is refused if the block declares that name again, since only its reads are
 
 ⚠ **A folder carries its blocks and its `Cite`s**, so a file may cite a neighbour's block and a method
 one file stamps is seen by the others. A `Cite` from a neighbour places declarations only: a plain
-`Define` would run, and a neighbour's working lines stay in its file. A pulled book holds neither.
+`Define` would run, and a neighbour's working lines stay in its file. A pulled book holds neither. A name
+a `Cite` makes in a folder is one of that folder's names: hidden from outside, and reached by
+qualifying it, `lib's stamped`.
 
 ⚠ `Cite` fills holes, and `on` without a `Cite` does not: cufet source is not a value.
 

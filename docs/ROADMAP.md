@@ -47,9 +47,6 @@ The compiler written in Cufet is done: it builds every program in `examples/` an
     a parser running arbitrary code cannot say what it expected. Hygienic substitution shipped as
     [holes in cufet source](DESIGN.md#holes-in-cufet-source--built-2026-11-05); full macros later, if ever.
 
-    ⚠ **A bug in that:** a free function a `Cite` makes in a sibling folder is visible outside the
-    folder, because hiding knows only the names written out in a file.
-
     ⚠ **Its blocker was the compiler written in Cufet, and that is done.** An expander generates Cufet AST, and both front ends now read Cufet — the C# one and the one written in Cufet — so an expander is built in each and held to the same answers. Macro errors are the worst part of every language that has them, and clear errors are this language's distinguishing feature — that tax is still paid deliberately, not early.
 
     ★ Fexprs stay out, but the recorded reason was the weaker one. Wand's result (no two expressions
