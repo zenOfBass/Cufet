@@ -65,7 +65,7 @@ public static class CiteExpansion
                     // glance, which is the one thing a placement keyword cannot afford to be.
                     if (blocks.TryGetValue(block.Name, out var first))
                         throw TypeChecker.TypeError(
-                            $"there is already cufet source called '{block.Name}', on line {first.Line}",
+                            $"there is already cufet source called '{AsWritten(block.Name)}', on line {first.Line}",
                             "A name holds one block, because a 'Cite' of it has to say which one "
                           + "without looking anywhere else",
                             block.Line, block.Column,
@@ -195,11 +195,15 @@ public static class CiteExpansion
     /// ⚠ The `Cite` stays, marked <see cref="CiteStatement.Placed"/>: whether a name fits its hole
     /// can only be asked once the whole program is here, and the blame still belongs on that line.
     /// </remarks>
-    public static IReadOnlyList<IStatement> PlaceCarried(IReadOnlyList<IStatement> statements)
+    /// <param name="above">What this folder also sees, nearest first — so nearer blocks win here,
+    /// and <see cref="Expand"/> refuses two blocks of one name once they meet.</param>
+    public static IReadOnlyList<IStatement> PlaceCarried(
+        IReadOnlyList<IStatement> statements, IEnumerable<IReadOnlyList<IStatement>> above)
     {
         var blocks = new Dictionary<string, CufetAxiomDefinition>(StringComparer.Ordinal);
-        foreach (var block in AstSearch.EveryStatement(statements).OfType<CufetAxiomDefinition>())
-            blocks.TryAdd(block.Name, block);
+        foreach (var group in above.Prepend(statements))
+            foreach (var block in AstSearch.EveryStatement(group).OfType<CufetAxiomDefinition>())
+                blocks.TryAdd(block.Name, block);
         if (blocks.Count == 0) return statements;
 
         return AstRebuilder.Apply(statements, type => type, splice: statement =>
@@ -287,12 +291,12 @@ public static class CiteExpansion
               + "result is cited.");
 
         throw TypeChecker.TypeError(
-            $"there is no cufet source called '{cite.Name}' to cite",
+            $"there is no cufet source called '{AsWritten(cite.Name)}' to cite",
             "'Cite' places what a cufet block holds, and the name is the block's, not a "
           + "variable's",
             cite.Line, cite.Column,
-            $"cite '{cite.Name}'",
-            $"Declare it first: 'Define cufet {cite.Name} as [ ... ].'");
+            $"cite '{AsWritten(cite.Name)}'",
+            $"Declare it first: 'Define cufet {AsWritten(cite.Name)} as [ ... ].'");
     }
 
     /// <summary>What one `Cite` places: the block's own statements, with its holes filled.</summary>

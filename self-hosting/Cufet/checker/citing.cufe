@@ -493,7 +493,7 @@ Pull a book on collections.
             Define name as cast unquoted on (cast field-of on (tree, 1)).
             Define first as the entry for name in blocks.
             If first is not void:
-                Return a failure (cast refusal-of on ("there is already cufet source called '{name}', on line {(cast field-of on (first, 3))'s word}",
+                Return a failure (cast refusal-of on ("there is already cufet source called '{cast as-written on (name)}', on line {(cast field-of on (first, 3))'s word}",
                     "A name holds one block, because a 'Cite' of it has to say which one without looking anywhere else",
                     cast number-of on (cast field-of on (tree, 3)), "declare a second block called '{name}'",
                     "Give this one another name, or fold the two together.")).
@@ -686,10 +686,11 @@ Pull a book on collections.
                 at-row, "cite '{name}'",
                 "Call it: 'cast {name} on (...)'. Only a block that says nothing about a result is cited.")).
         Done.
-        Return a failure (cast refusal-of on ("there is no cufet source called '{name}' to cite",
+        Define written-name as cast as-written on (name).
+        Return a failure (cast refusal-of on ("there is no cufet source called '{written-name}' to cite",
             "'Cite' places what a cufet block holds, and the name is the block's, not a variable's",
-            at-row, "cite '{name}'",
-            "Declare it first: 'Define cufet {name} as [ ... ].'")).
+            at-row, "cite '{written-name}'",
+            "Declare it first: 'Define cufet {written-name} as [ ... ].'")).
     Done.
     /// What a neighbour's `Cite` may place: a plain `Define` carried in would run.
     Bind node to declarations-among, given (the node filled):
@@ -717,9 +718,12 @@ Pull a book on collections.
     /// asks the folder what it declares: what it hides and what qualifying it reaches are read from
     /// its declarations, so a name a `Cite` makes has to be one by then. The `Cite` stays, marked, so
     /// its fills can still be held to the holes once the whole program is here.
-    Bind node or failure to placed-carried, given (the node statements):
+    Bind node or failure to placed-carried, given (the node statements, the series of node above):
         Define blocks as a map from text to node.
         Cast gather-blocks on (statements, blocks).
+        For each group in above, repeat:
+            Cast gather-blocks on (group, blocks).
+        Done.
         If the size of blocks is 0, return statements.
         Return cast carried-into on (statements, blocks) or pass the failure off.
     Done.

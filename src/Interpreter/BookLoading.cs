@@ -285,15 +285,23 @@ public static class BookLoading
         var claimed = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var (name, _, _) in TopLevelNames(statements)) claimed[name] = self;
 
+        // ⭐ Gathered first and placed second, because a file sees the folders above it and so may
+        // cite their blocks: a folder's `Cite`s are placed with all of those in view.
+        var chainGathered = new Dictionary<string, IReadOnlyList<IStatement>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var folder in ownChain) chainGathered[folder] = Gathered(folder, map, self, claimed);
+
         var here = new List<IStatement>();
         // What each folder of this file's chain declares — the names a folder loaded under a rename
         // must not see, unless the folder is above it as well.
         var chainNames = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
-        foreach (var folder in ownChain)
+        for (int i = 0; i < ownChain.Count; i++)
         {
-            var gatheredHere = Gathered(folder, map, self, claimed);
+            // The file being checked sits in the first of them, so its blocks are in view there.
+            var above = ownChain.Skip(i + 1).Select(up => chainGathered[up]).ToList();
+            if (i == 0) above.Insert(0, statements);
+            var gatheredHere = CiteExpansion.PlaceCarried(chainGathered[ownChain[i]], above);
             here.AddRange(gatheredHere);
-            chainNames[folder] = TopLevelNames(gatheredHere).Select(n => n.Name).ToList();
+            chainNames[ownChain[i]] = TopLevelNames(gatheredHere).Select(n => n.Name).ToList();
         }
 
         // ── The folders and directories this program QUALIFIES, and the ones they do ───
@@ -352,12 +360,22 @@ public static class BookLoading
                 {
                     // A folder of this namespace: it, and each folder above it that is not on this
                     // file's chain, under their own renames — so a sibling may repeat any name.
-                    foreach (var folder in FolderChain(inHere[0], namespaceFolder)
-                                 .TakeWhile(f => !ownChain.Contains(f, StringComparer.OrdinalIgnoreCase)))
+                    //
+                    // ⚠ From the top down: a folder's `Cite`s are placed here, so the blocks of the
+                    // folders above it have to be in hand first.
+                    var upward = FolderChain(inHere[0], namespaceFolder);
+                    foreach (var folder in upward
+                                 .TakeWhile(f => !ownChain.Contains(f, StringComparer.OrdinalIgnoreCase))
+                                 .Reverse())
                         if (!renamedFolders.ContainsKey(folder))
                         {
-                            var gathered = Gathered(folder, map, skipFile: null,
-                                claimed: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
+                            var above = upward.Skip(upward.FindIndex(f => f.Equals(folder, StringComparison.OrdinalIgnoreCase)) + 1)
+                                .Select(up => renamedFolders.TryGetValue(up, out var upper) ? upper.Statements : chainGathered[up])
+                                .ToList();
+                            var gathered = CiteExpansion.PlaceCarried(
+                                Gathered(folder, map, skipFile: null,
+                                    claimed: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)),
+                                above);
                             var names = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
                             foreach (var (member, _, _) in TopLevelNames(gathered))
                                 names[member] = ModuleTypeLifting.LiftedName(FolderTag(root, folder), member);
@@ -369,8 +387,10 @@ public static class BookLoading
                 }
 
                 // Another namespace: reached by its own folder's names.
-                var other = Gathered(directories[0], map, skipFile: null,
-                    claimed: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
+                var other = CiteExpansion.PlaceCarried(
+                    Gathered(directories[0], map, skipFile: null,
+                        claimed: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)),
+                    []);
                 loaded[name] = other;
                 var members = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
                 foreach (var (member, _, _) in TopLevelNames(other))
@@ -448,6 +468,7 @@ public static class BookLoading
                         ObjectDefinition o => o.Name,
                         InterfaceDefinition i => i.Name,
                         ShorthandDefinition sh => sh.Name,
+                        CufetAxiomDefinition block => block.Name,
                         DefineStatement d => d.Name,
                         _ => null,
                     } is { } declared)
@@ -822,7 +843,7 @@ public static class BookLoading
 
             gathered.AddRange(DeclarationsOnly(inner.Statements));
         }
-        return CiteExpansion.PlaceCarried(gathered);
+        return gathered;
     }
 
     private static TypeException Unreadable(string file, string why) =>
@@ -858,6 +879,8 @@ public static class BookLoading
                 case ObjectDefinition o:            yield return (o.Name, o.Line, o.Column); break;
                 case InterfaceDefinition i:         yield return (i.Name, i.Line, i.Column); break;
                 case ShorthandDefinition sh:        yield return (sh.Name, sh.Line, sh.Column); break;
+                // A block's name is one of its folder's, so siblings may repeat one.
+                case CufetAxiomDefinition block:    yield return (block.Name, block.Line, block.Column); break;
                 case BindStatement { UntoType: null } b: yield return (b.Name, b.Line, b.Column); break;
 
                 // ⚠⚠ A PLAIN `Define` IS NOT A NAME A DIRECTORY OFFERS, and `permanently` is
@@ -1209,6 +1232,7 @@ public static class BookLoading
                 // above. Nobody decided that; the switch simply had no case for it.
                 InterfaceDefinition i => i.Name,
                 ShorthandDefinition sh => sh.Name,
+                CufetAxiomDefinition block => block.Name,
 
                 // ⚠⚠ A `Define` ONLY AT THE FLAT TOP LEVEL, unlike the three above. The others are
                 // program-scope wherever they are written — that is what makes them reachable and
@@ -1276,7 +1300,8 @@ public static class BookLoading
 
         return AstRebuilder.Apply(rebuilt, type => type, replace: statement =>
             blocksDone.Contains(statement) ? statement
-            : statement is CufetAxiomDefinition block ? Once(WithHiddenNames(block, hidden, Hidden))
+            : statement is CufetAxiomDefinition block ? Once(WithHiddenNames(block, hidden, own, Hidden))
+            : statement is CiteStatement cite && hidden.TryGetValue(cite.Name, out var citedTo) ? cite with { Name = citedTo }
             : !toRename.Contains(statement) ? statement : statement switch
             {
                 // ⚠ ConformedInterfaces is a list of STRINGS, so neither the type substitution nor
@@ -1316,7 +1341,8 @@ public static class BookLoading
     /// stamped methods were `unto parser` and the object was `parser in parser`.
     /// </remarks>
     private static CufetAxiomDefinition WithHiddenNames(
-        CufetAxiomDefinition block, Dictionary<string, string> hidden, Func<CufetType, CufetType> hide)
+        CufetAxiomDefinition block, Dictionary<string, string> hidden, Dictionary<string, string> own,
+        Func<CufetType, CufetType> hide)
     {
         var body = AstRebuilder.Apply(block.Body, type => type, replace: statement =>
             statement is BindStatement { UntoType: { } target } bind && hidden.TryGetValue(target, out var to)
@@ -1327,7 +1353,7 @@ public static class BookLoading
             Type = hide(hole.Type),
             Unto = hole.Unto is { } target && hidden.TryGetValue(target, out var to) ? to : hole.Unto,
         }).ToList();
-        return block with { Body = body, Holes = holes };
+        return block with { Name = own.GetValueOrDefault(block.Name, block.Name), Body = body, Holes = holes };
     }
 
     /// <summary>

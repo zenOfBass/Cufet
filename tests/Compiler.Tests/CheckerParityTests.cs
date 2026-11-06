@@ -39,7 +39,7 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
     private const int HandWrittenTreeFloor = 310;
 
     /// <summary>The same, of the hand-written projects both checkers accept.</summary>
-    private const int ProjectTreeFloor = 18;
+    private const int ProjectTreeFloor = 21;
 
     /// <summary>How many hand-written programs draw warnings and are warned of alike. Raised; never lowered.</summary>
     private const int HandWrittenWarnedFloor = 20;
@@ -1419,6 +1419,14 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
         new() { ["top/lib/lib.cufe"] = "Pull a book on cufet.\n    Define cufet made-here, given (the term made), as [\n        Bind number to made:\n            Return 7.\n        Done.\n    ].\n    Define cufet no-holes as [\n        Bind number to plain-made:\n            Return 8.\n        Done.\n    ].\n    Cite made-here on (\"stamped\").\n    Cite no-holes.\nDone.\n", ["top/app/app.cufe"] = "State cast plain-made." },
         new() { ["top/lib/lib.cufe"] = "Pull a book on cufet.\n    Define cufet made-here, given (the term made), as [\n        Bind number to made:\n            Return 7.\n        Done.\n    ].\n    Define cufet no-holes as [\n        Bind number to plain-made:\n            Return 8.\n        Done.\n    ].\n    Cite made-here on (\"stamped\").\n    Cite no-holes.\nDone.\n", ["top/app/app.cufe"] = "State cast lib's stamped.\nState cast lib's plain-made." },
         new() { ["top/lib/lib.cufe"] = "Bind text to wordy:\n    Return \"\".\nDone.\nPull a book on cufet.\n    Define cufet relay, given (the term made, the number function next), as [\n        Bind number to made:\n            Return cast next.\n        Done.\n    ].\n    Cite relay on (\"relayed\", wordy).\nDone.\n", ["top/app/app.cufe"] = "State cast lib's relayed." },
+        // A `Cite` of a block in a folder above: the name is the citing folder's, seen from a sibling.
+        new() { ["top/shared.cufe"] = "Pull a book on cufet.\n    Define cufet made-here, given (the term made), as [\n        Bind number to made:\n            Return cast helper + 1.\n        Done.\n    ].\nDone.\nBind number to helper:\n    Return 10.\nDone.\n", ["top/lib/lib.cufe"] = "Bind number to doubled, given (the number n):\n    Return n * 2.\nDone.\nPull a book on cufet.\n    Cite made-here on (\"stamped\").\nDone.\n", ["top/app/app.cufe"] = "State cast lib's stamped." },
+        new() { ["top/shared.cufe"] = "Pull a book on cufet.\n    Define cufet made-here, given (the term made), as [\n        Bind number to made:\n            Return cast helper + 1.\n        Done.\n    ].\nDone.\nBind number to helper:\n    Return 10.\nDone.\n", ["top/lib/lib.cufe"] = "Bind number to doubled, given (the number n):\n    Return n * 2.\nDone.\nPull a book on cufet.\n    Cite made-here on (\"stamped\").\nDone.\n", ["top/app/app.cufe"] = "State cast lib's doubled on (1).\nState cast stamped." },
+        // A `Cite` beside the entry, of a block above it.
+        new() { ["top/shared.cufe"] = "Pull a book on cufet.\n    Define cufet made-here, given (the term made), as [\n        Bind number to made:\n            Return cast helper + 1.\n        Done.\n    ].\nDone.\nBind number to helper:\n    Return 10.\nDone.\n", ["top/app/more.cufe"] = "Pull a book on cufet.\n    Cite made-here on (\"stamped\").\nDone.\n", ["top/app/app.cufe"] = "State cast stamped." },
+        // A block's name is its folder's: a sibling may repeat it, and cannot cite it.
+        new() { ["top/lib/lib.cufe"] = "Pull a book on cufet.\n    Define cufet shared-name, given (the term made), as [\n        Bind number to made:\n            Return 1.\n        Done.\n    ].\n    Cite shared-name on (\"stamped\").\nDone.\n", ["top/app/more.cufe"] = "Pull a book on cufet.\n    Define cufet shared-name, given (the term made), as [\n        Bind number to made:\n            Return 2.\n        Done.\n    ].\n    Cite shared-name on (\"stamped\").\nDone.\n", ["top/app/app.cufe"] = "State cast lib's stamped.\nState cast stamped." },
+        new() { ["top/lib/lib.cufe"] = "Pull a book on cufet.\n    Define cufet shared-name, given (the term made), as [\n        Bind number to made:\n            Return 1.\n        Done.\n    ].\n    Cite shared-name on (\"stamped\").\nDone.\n", ["top/app/app.cufe"] = "State cast lib's stamped.\nPull a book on cufet.\n    Cite shared-name on (\"mine\").\nDone." },
     ];
 
     [Fact]

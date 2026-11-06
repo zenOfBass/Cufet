@@ -137,6 +137,127 @@ public class CommandLineTests
         Assert.Equal("7\n8", output.Replace("\r\n", "\n").TrimEnd('\n'));
     }
 
+    private const string DrawnTree = """
+        Pull a book on blueprints.
+            Bind text to tree:
+                Return <<
+        top
+            lib
+            app
+        >>.
+            Done.
+        Done.
+
+        """;
+
+    /// <summary>A drawn tree: a block in `top`, cited in `top/lib`, reached from `top/app`.</summary>
+    private static (int Exit, string Out, string Err) CitedFromAbove(string app, string entry = "app/app.cufe")
+    {
+        var dir = Directory.CreateTempSubdirectory("cufet-above-").FullName;
+        try
+        {
+            File.WriteAllText(Path.Combine(dir, "blueprint.cufe"), DrawnTree);
+            Directory.CreateDirectory(Path.Combine(dir, "top", "lib"));
+            Directory.CreateDirectory(Path.Combine(dir, "top", "app"));
+            File.WriteAllText(Path.Combine(dir, "top", "shared.cufe"), """
+                Pull a book on cufet.
+                    Define cufet made-here, given (the term made), as [
+                        Bind number to made:
+                            Return cast helper + 1.
+                        Done.
+                    ].
+                Done.
+                Bind number to helper:
+                    Return 10.
+                Done.
+
+                """);
+            File.WriteAllText(Path.Combine(dir, "top", "lib", "lib.cufe"), """
+                Bind number to doubled, given (the number n):
+                    Return n * 2.
+                Done.
+                Pull a book on cufet.
+                    Cite made-here on ("stamped").
+                Done.
+
+                """);
+            File.WriteAllText(Path.Combine(dir, "top", "app", "app.cufe"), app);
+            return Run("check", Path.Combine(dir, "top", entry)) is { Exit: not 0 } refused
+                ? refused
+                : Run(Path.Combine(dir, "top", "app", "app.cufe"));
+        }
+        finally { Directory.Delete(dir, recursive: true); }
+    }
+
+    /// <remarks>
+    /// ⚠ A `Cite` belongs to the folder it is written in, wherever its block sits. MEASURED: with the
+    /// block a folder above, `secret` ran bare from a sibling and `lib's secret` was refused.
+    /// </remarks>
+    [Fact]
+    public void WhatACiteMakesFromABlockAbove_IsTheCitingFoldersName()
+    {
+        var (exit, output, err) = CitedFromAbove("State cast lib's stamped.\n");
+        Assert.True(exit == 0, err);
+        Assert.Equal("11", output.Trim());
+
+        var (bareExit, _, bareErr) = CitedFromAbove("State cast lib's doubled on (1).\nState cast stamped.\n");
+        Assert.Equal(1, bareExit);
+        Assert.Contains("'stamped' isn't defined", bareErr);
+
+        var (fromLib, _, libErr) = CitedFromAbove("State 1.\n", "lib/lib.cufe");
+        Assert.True(fromLib == 0, libErr);
+    }
+
+    /// <remarks>⚠ Folders beside each other may share any name, and a block's name is one of them.</remarks>
+    [Fact]
+    public void SiblingFolders_MayEachHaveABlockOfOneName()
+    {
+        static string Block(int value) => "Pull a book on cufet.\n"
+            + "    Define cufet shared-name, given (the term made), as [\n"
+            + "        Bind number to made:\n"
+            + $"            Return {value}.\n"
+            + "        Done.\n"
+            + "    ].\n"
+            + "    Cite shared-name on (\"stamped\").\n"
+            + "Done.\n";
+
+        var dir = Directory.CreateTempSubdirectory("cufet-siblings-").FullName;
+        try
+        {
+            File.WriteAllText(Path.Combine(dir, "blueprint.cufe"), DrawnTree.Replace("    app\n", "    app\n    spare\n"));
+            foreach (var folder in new[] { "lib", "app", "spare" })
+                Directory.CreateDirectory(Path.Combine(dir, "top", folder));
+            File.WriteAllText(Path.Combine(dir, "top", "lib", "lib.cufe"), Block(1));
+            File.WriteAllText(Path.Combine(dir, "top", "spare", "spare.cufe"), Block(2));
+            File.WriteAllText(Path.Combine(dir, "top", "app", "app.cufe"), "State cast lib's stamped.\nState cast spare's stamped.\n");
+            var (exit, output, err) = Run(Path.Combine(dir, "top", "app", "app.cufe"));
+            Assert.True(exit == 0, err);
+            Assert.Equal("1\n2", output.Replace("\r\n", "\n").TrimEnd('\n'));
+        }
+        finally { Directory.Delete(dir, recursive: true); }
+    }
+
+    /// <remarks>⚠ A sibling's block is no more in sight than a sibling's function.</remarks>
+    [Fact]
+    public void ASiblingsBlock_CannotBeCited_AndSaysSoInWrittenWords()
+    {
+        var dir = Directory.CreateTempSubdirectory("cufet-siblings-").FullName;
+        try
+        {
+            File.WriteAllText(Path.Combine(dir, "blueprint.cufe"), DrawnTree);
+            Directory.CreateDirectory(Path.Combine(dir, "top", "lib"));
+            Directory.CreateDirectory(Path.Combine(dir, "top", "app"));
+            File.WriteAllText(Path.Combine(dir, "top", "lib", "lib.cufe"),
+                "Pull a book on cufet.\n    Define cufet kept-here, given (the term made), as [\n        Bind number to made:\n            Return 1.\n        Done.\n    ].\n    Cite kept-here on (\"stamped\").\nDone.\n");
+            File.WriteAllText(Path.Combine(dir, "top", "app", "app.cufe"),
+                "State cast lib's stamped.\nPull a book on cufet.\n    Cite kept-here on (\"mine\").\nDone.\n");
+            var (exit, _, err) = Run(Path.Combine(dir, "top", "app", "app.cufe"));
+            Assert.Equal(1, exit);
+            Assert.Contains("there is no cufet source called 'kept-here'", err);
+        }
+        finally { Directory.Delete(dir, recursive: true); }
+    }
+
     /// <remarks>⚠ Placing a folder's `Cite`s early must not lose the blame: the name is judged later.</remarks>
     [Fact]
     public void AFillThatDoesNotFit_IsStillBlamedOnTheCite_InAFolder()

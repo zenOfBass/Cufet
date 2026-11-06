@@ -488,13 +488,15 @@ Pull a book on collections.
             Define kind as statement's kind.
             Define named as false.
             If kind is "ObjectDefinition" or kind is "InterfaceDefinition" or kind is "ShorthandDefinition", the named becomes true.
+            // A block's name is one of its folder's, so siblings may repeat one.
+            If kind is "CufetAxiomDefinition", the named becomes true.
             If kind is "BindStatement" and cast is-nothing on (cast field-of on (statement, 5)), the named becomes true.
             If kind is "DefineStatement" and cast truth-of on (cast field-of on (statement, 3)), the named becomes true.
             If named:
                 Define line-place as 5.
                 If kind is "ObjectDefinition", the line-place becomes 9.
                 If kind is "BindStatement", the line-place becomes 7.
-                If kind is "InterfaceDefinition" or kind is "ShorthandDefinition", the line-place becomes 3.
+                If kind is "InterfaceDefinition" or kind is "ShorthandDefinition" or kind is "CufetAxiomDefinition", the line-place becomes 3.
                 Insert cast made on ("list", a series with (cast field-of on (statement, 1), cast field-of on (statement, line-place),
                     cast field-of on (statement, line-place + 1))) into found.
             Done.
@@ -571,7 +573,19 @@ Pull a book on collections.
                 Done.
             Done.
         Done.
-        Return cast placed-carried on (gathered) or pass the failure off.
+        Return gathered.
+    Done.
+
+    /// The statements held for a folder, whichever list has it — or nothing.
+    Bind series of node to group-at, given (the text folder, the map from text to node chain-gathered,
+            the map from text to node renamed-statements):
+        For each pair in renamed-statements, repeat:
+            If cast same-path on (the key of pair, folder), return a series of node with (the value of pair).
+        Done.
+        For each pair in chain-gathered, repeat:
+            If cast same-path on (the key of pair, folder), return a series of node with (the value of pair).
+        Done.
+        Return a series of node.
     Done.
 
     /// The refusal for a folder declaring a name a folder above it already has.
@@ -604,7 +618,8 @@ Pull a book on collections.
         For each statement in cast declared-anywhere on (group), repeat:
             Define kind as statement's kind.
             If kind is "BindStatement" or kind is "ObjectDefinition" or kind is "InterfaceDefinition" or kind is "DefineStatement"
-                    or kind is "GetterDeclaration" or kind is "SetterDeclaration" or kind is "ShorthandDefinition":
+                    or kind is "GetterDeclaration" or kind is "SetterDeclaration" or kind is "ShorthandDefinition"
+                    or kind is "CufetAxiomDefinition":
                 In declares, the entry for cast unquoted on (cast field-of on (statement, 1)) becomes true.
             Done.
         Done.
@@ -662,12 +677,30 @@ Pull a book on collections.
         For each named in cast top-level-names on (statements), repeat:
             In claimed, the entry for (cast unquoted on (cast field-of on (named, 1)) in lowercase) becomes self.
         Done.
+        // Gathered first and placed second: a file sees the folders above it and so may cite their
+        // blocks, so a folder's `Cite`s are placed with all of those in view.
+        Define chain-gathered as a map from text to node.
+        For each chain-folder in own-chain, repeat:
+            In chain-gathered, the entry for chain-folder becomes cast one's gathered-from on (chain-folder, self, claimed) or pass the failure off.
+        Done.
         Define here as cast listed.
         // What each folder of this file's chain declares — what a folder loaded under a rename must not
         // see, unless the folder is above it as well.
         Define chain-folder-names as a map from text to series of text.
+        Define chain-at as 0.
         For each chain-folder in own-chain, repeat:
-            Define gathered-here as cast one's gathered-from on (chain-folder, self, claimed) or pass the failure off.
+            Increment chain-at by 1.
+            Define above-here as a series of node.
+            // The file being checked sits in the first of them, so its blocks are in view there.
+            If chain-at is 1, insert statements into above-here.
+            Define chain-past as 0.
+            For each up-chain in own-chain, repeat:
+                Increment chain-past by 1.
+                If chain-past is greater than chain-at:
+                    Insert (the entry for up-chain in chain-gathered but void is cast listed) into above-here.
+                Done.
+            Done.
+            Define gathered-here as cast placed-carried on (the entry for chain-folder in chain-gathered but void is cast listed, above-here) or pass the failure off.
             Define its-names as a series of text.
             For each named in cast top-level-names on (gathered-here), repeat:
                 Insert cast unquoted on (cast field-of on (named, 1)) into its-names.
@@ -742,14 +775,33 @@ Pull a book on collections.
                 Done.
                 If the number of in-here is greater than 0:
                     // A folder of this namespace: it, and each folder above it off this file's chain.
-                    For each up-folder in cast folder-chain on (item 1 of in-here, namespace-folder), repeat:
-                        Define on-chain as false.
+                    // ⚠ From the top down: a folder's `Cite`s are placed here, so the blocks of the
+                    // folders above it have to be in hand first.
+                    Define upward as cast folder-chain on (item 1 of in-here, namespace-folder).
+                    Define off-chain as 0.
+                    Define still-off as true.
+                    For each up-folder in upward, repeat:
                         For each chain-folder in own-chain, repeat:
-                            If cast same-path on (chain-folder, up-folder), the on-chain becomes true.
+                            If cast same-path on (chain-folder, up-folder), the still-off becomes false.
                         Done.
-                        If on-chain, stop.
+                        If still-off, increment off-chain by 1.
+                    Done.
+                    Define rung as off-chain.
+                    While rung is greater than 0, repeat:
+                        Define up-folder as item rung of upward.
                         If (the entry for up-folder in renamed-statements) is void:
-                            Define gathered as cast one's gathered-from on (up-folder, "", a map from text to text) or pass the failure off.
+                            Define above-it as a series of node.
+                            Define past as 0.
+                            For each up-more in upward, repeat:
+                                Increment past by 1.
+                                If past is greater than rung:
+                                    For each held-group in cast group-at on (up-more, chain-gathered, renamed-statements), repeat:
+                                        Insert held-group into above-it.
+                                    Done.
+                                Done.
+                            Done.
+                            Define gathered as cast placed-carried on (cast one's gathered-from on (up-folder, "", a map from text to text) or pass the failure off, above-it)
+                                or pass the failure off.
                             Define names as a map from text to text.
                             For each named in cast top-level-names on (gathered), repeat:
                                 Define member as cast unquoted on (cast field-of on (named, 1)).
@@ -760,12 +812,14 @@ Pull a book on collections.
                             Insert up-folder into renamed-order.
                             Insert gathered into frontier.
                         Done.
+                        Decrement rung by 1.
                     Done.
                     In reach, the entry for key becomes the entry for (item 1 of in-here) in renamed-names but void is a map from text to text.
                 Done.
                 Otherwise:
                     // Another namespace: reached by its own folder's names.
-                    Define other as cast one's gathered-from on (item 1 of directories, "", a map from text to text) or pass the failure off.
+                    Define other as cast placed-carried on (cast one's gathered-from on (item 1 of directories, "", a map from text to text) or pass the failure off, a series of node)
+                        or pass the failure off.
                     In loaded, the entry for name becomes other.
                     Insert name into loaded-order.
                     Define members as a map from text to text.
@@ -1059,7 +1113,8 @@ Pull a book on collections.
         For each statement in cast hoistable on (statements), repeat:
             If the size of only is greater than 0, stop.
             Define kind as statement's kind.
-            Define named as kind is "ObjectDefinition" or kind is "InterfaceDefinition" or kind is "ShorthandDefinition".
+            Define named as kind is "ObjectDefinition" or kind is "InterfaceDefinition" or kind is "ShorthandDefinition"
+                or kind is "CufetAxiomDefinition".
             If kind is "ObjectDefinition" and exempt-modules:
                 If cast conforms-as on (statement, "module") or cast conforms-as on (statement, "book") or cast conforms-as on (statement, "region"):
                     The named becomes false.
@@ -1206,7 +1261,12 @@ Pull a book on collections.
             the map from text to text own, the map from text to fact top):
         Define kind as statement's kind.
         // A `Cite` places a block as written, so what its methods are `unto` follows too.
+        If kind is "CiteStatement":
+            Cast rename-field-text on (statement, 1, hidden).
+            Return.
+        Done.
         If kind is "CufetAxiomDefinition":
+            Cast rename-field-text on (statement, 1, own).
             For each held in (cast field-of on (statement, 2))'s children, repeat:
                 If held's kind is "BindStatement", cast rename-field-text on (held, 5, hidden).
             Done.
