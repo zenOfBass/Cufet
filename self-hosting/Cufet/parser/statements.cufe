@@ -1529,7 +1529,22 @@ Pull a book on collections.
     Bind node or failure to pull-statement unto parser:
         Define pull-tok as cast one's advance.
         Cast one's skip-noise.
+        // `Pull an automatic rabbit.` — a mode word only where `rabbit` follows it, so none is reserved.
+        Define mode as cast nothing.
+        Define has-mode as false.
         Define here as cast one's peek.
+        If here's kind is "Identifier" and cast spelled on (cast one's token-at on (one's at + 1), "rabbit"):
+            For each word in a series with ("automatic", "sequential", "parallel"), repeat:
+                If cast spelled on (here, word):
+                    The mode becomes cast quoted on (word).
+                    The has-mode becomes true.
+                Done.
+            Done.
+            If has-mode:
+                Cast one's advance.
+                The here becomes cast one's peek.
+            Done.
+        Done.
         If here's kind is "Identifier" and cast spelled on (here, "rabbit"):
             Cast one's advance.
             Cast one's skip-noise.
@@ -1545,7 +1560,9 @@ Pull a book on collections.
             Increment one's rabbit-depth by 1.
             Define body as cast one's pull-body on (cast listed) or pass the failure off.
             Decrement one's rabbit-depth by 1.
-            Return cast placed on ("PullRabbitStatement", a series with (name, body), pull-tok).
+            Define rabbit-node as cast placed on ("PullRabbitStatement", a series with (name, body), pull-tok).
+            Cast rabbit-node's add on (mode).
+            Return rabbit-node.
         Done.
         Define books as cast listed.
         Define via-book as false.

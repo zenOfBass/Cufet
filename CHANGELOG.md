@@ -32,6 +32,13 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   reached by qualifying it. A block's own name is its folder's too, so a file may cite blocks from its
   folder and those above it, and folders beside each other may repeat a name. Both front ends
   (DESIGN *Holes in cufet source*).
+- **Composition modes for rabbits.** A word before `rabbit` says how its tasks compose:
+  `parallel` (the default), `sequential` (one at a time, in the order started), or `automatic`.
+  Every task of an automatic rabbit waits on a channel (`Have dispatcher start a task for an order
+  in orders:`), and at `Done.` the rabbit runs only the one whose delivery was sent first, across
+  all its channels. A closed, empty channel runs its task with void. None of the three words is
+  reserved. In the interpreter, the C# compiler, and the parser, checker and compiler written in
+  Cufet (REFERENCE *Composition modes*, DESIGN *Composition modes for rabbits*).
 
 ### Changed
 
@@ -50,6 +57,9 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **A task whose body pulls a rabbit and starts a task of its own did not build** with
+  `cufet build`: the inner task's C landed inside the outer one's, and gcc refused it. The same
+  program ran interpreted. Each task's C is now written whole and then added.
 - **A `permanently` axiom could not be filled or run from a body above its declaration**, in its
   own file or a neighbour's, so whether a folder checked depended on which file was opened. It is
   now known ahead of its declaration, as any shared constant is. Its pull is still asked for at

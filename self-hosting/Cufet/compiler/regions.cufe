@@ -164,9 +164,16 @@ Pull books on collections, and the c-language.
         In one's kinds, the entry for "%rabbits" becomes "{the entry for "%rabbits" in one's kinds but void is ""},{label}".
         // A rabbit in a program that starts tasks keeps their slots, and joins them at its `Done`.
         Define keeps-tasks as statement's kind is "PullRabbitStatement" and (the entry for "%tasks" in one's inferred) is not void.
+        // How its tasks compose: "automatic", "sequential", or "" for all at once.
+        Define mode as "".
+        If statement's kind is "PullRabbitStatement":
+            If cast is-nothing on (cast field-of on (statement, 5)) is false, the mode becomes cast unquoted on (cast field-of on (statement, 5)).
+        Done.
         If keeps-tasks:
             Cast one's put on (cast c-task-slots on (label)).
+            If mode is "automatic", cast one's put on (cast c-offered-slots on (label)).
             In one's kinds, the entry for "%task-rabbit" becomes label.
+            In one's kinds, the entry for "%task-mode" becomes mode.
         Done.
         Define outer as one's indent.
         The one's indent becomes outer joined to "    ".
@@ -176,7 +183,7 @@ Pull books on collections, and the c-language.
                 Cast one's emit-statement on (inner) or pass the failure off.
             Done.
         Done.
-        If keeps-tasks, cast one's line on (cast c-task-teardown on (label)).
+        If keeps-tasks, cast one's line on (cast c-task-teardown on (label, mode)).
         // Unmade after its tasks are joined: they may still be reading what it made.
         Cast one's closing-scope on (begun).
         The one's indent becomes outer.

@@ -4422,6 +4422,85 @@ Done.
 `Close` is idempotent; sending after a close is a runtime error. A blocked receive wakes
 when a value arrives, when the channel closes, or when the program is interrupted.
 
+#### Composition modes
+
+A word between the article and `rabbit` says how its **tasks** compose. The rabbit's own
+statements are ordinary sequential code in every mode.
+
+- **`parallel`**: every task runs at once. This is the default, and `Pull a rabbit.` means
+  `Pull a parallel rabbit.`
+- **`sequential`**: one task at a time, in the order they were started. Each starts once the one
+  before it has ended.
+- **`automatic`**: every task waits on a channel, and only **one** of them runs.
+
+None of the three words is reserved. Each is a mode only where `rabbit` follows it.
+
+**An automatic rabbit** is how a program waits on several channels at once and takes whichever
+has something. Each of its tasks names the channel it waits on and what to call the delivery:
+
+```cufet
+Pull a rabbit.
+    Define orders as a channel of text.
+    Define cancels as a channel of number.
+    Send 17 through cancels.
+    Send "kale" through orders.
+    Send "carrots" through orders.
+    For each turn in range 1 to 3, repeat:
+        Pull an automatic rabbit as dispatcher.
+            Have dispatcher start a task for an order in orders:
+                State "packing {order but void is "nothing"}".
+            Done.
+            Have dispatcher start a task for a ticket in cancels:
+                State "cancelling ticket {ticket but void is 0}".
+            Done.
+        Done.
+    Done.
+Done.
+```
+```output
+cancelling ticket 17
+packing kale
+packing carrots
+```
+
+- The rabbit runs its body, then waits at its `Done.` until one of the channels has something,
+  runs the matching task with it, and ends. The loop around it is what keeps it serving.
+- ★ **Whatever was sent first wins.** When several channels hold something, the task that runs is
+  the one whose delivery went in earliest, across all of them. The order the tasks are written in
+  does not matter. Ticket 17 was sent before either order, so it is handled first.
+- **A closed, empty channel is ready too.** Its task runs, and the delivery is void, exactly as
+  `the delivery from` gives once a channel is closed and empty. So the delivery is `voidable T`,
+  and the task handles the void case. A closed channel counts as of the moment it was closed, so
+  it stays ready on every later round.
+- Two tasks waiting on the same channel see the same item, and the one written first takes it.
+
+What an automatic rabbit refuses:
+
+- a task that waits on nothing, since it could never be chosen;
+- `for … in …` on a task of any other rabbit;
+- a name on its task (`as packer`), since a task that never ran has no result to await;
+- a task given to it from inside one of its own tasks, which would arrive after it chose.
+
+**A sequential rabbit** runs its tasks in the order they were started:
+
+```cufet
+Pull a sequential rabbit.
+    Have rabbit start a task:
+        State "first".
+    Done.
+    Have rabbit start a task:
+        State "second".
+    Done.
+Done.
+```
+```output
+first
+second
+```
+
+Every task still runs when one fails, and the faults are reported together at `Done.`, as a
+parallel rabbit's are.
+
 #### What crosses a boundary, and what a task may touch
 
 **Values are deep-copied when they cross between tasks** — both on a channel send and

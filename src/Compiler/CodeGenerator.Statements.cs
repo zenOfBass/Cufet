@@ -612,7 +612,13 @@ public sealed partial class CodeGenerator
                     // instead of calling exit(), and the join below reports whatever is in it.
                     sb.AppendLine($"{inner}char* cf_fault{n}[CUFET_TASK_MAX] = {{0}};");
                     sb.AppendLine($"{inner}(void)cf_thr{n}; (void)cf_chan{n}; (void)cf_rbox{n};");
+                    // An automatic rabbit's offered tasks: the channel each waits on, its argument,
+                    // its thread function, and how to free the argument if it is not chosen.
+                    if (prs.Mode == "automatic")
+                        sb.AppendLine($"{inner}cufet_chan* cf_altch{n}[CUFET_TASK_MAX]; void* cf_altarg{n}[CUFET_TASK_MAX]; " +
+                                      $"void* (*cf_altfn{n}[CUFET_TASK_MAX])(void*); void (*cf_altdrop{n}[CUFET_TASK_MAX])(void*); int cf_nalt{n} = 0;");
                     _rabbitCtx.Add(n);
+                    _rabbitCtxMode[n] = prs.Mode;
                 }
                 // ★ A NAMED rabbit is a value in its block, matching the interpreter, which binds a
                 // `RabbitValue` under the same name. Without this the name existed to the checker
@@ -659,13 +665,30 @@ public sealed partial class CodeGenerator
                 if (_usesConcurrency)
                 {
                     _rabbitCtx.RemoveAt(_rabbitCtx.Count - 1);
+                    // ★ An automatic rabbit chooses here, at its `Done.`: the offered task whose
+                    // delivery was sent first is started with it, and every other one is dropped.
+                    if (prs.Mode == "automatic")
+                    {
+                        sb.AppendLine($"{inner}if (cf_nalt{n} > 0) {{");
+                        sb.AppendLine($"{inner}    void* cf_sv = NULL; int cf_sh = 0;");
+                        sb.AppendLine($"{inner}    int cf_sk = cufet_chan_select(cf_altch{n}, cf_nalt{n}, &cf_sv, &cf_sh);");
+                        sb.AppendLine($"{inner}    for (int cf_di = 0; cf_di < cf_nalt{n}; cf_di++) if (cf_di != cf_sk) cf_altdrop{n}[cf_di](cf_altarg{n}[cf_di]);");
+                        sb.AppendLine($"{inner}    if (cf_sk < 0) cufet_checkpoint();");
+                        sb.AppendLine($"{inner}    else {{ cufet_alt_head* cf_sa = (cufet_alt_head*)cf_altarg{n}[cf_sk]; cf_sa->gv = cf_sv; cf_sa->gh = cf_sh;");
+                        sb.AppendLine($"{inner}           pthread_create(&cf_thr{n}[cf_nthr{n}++], NULL, cf_altfn{n}[cf_sk], cf_sa); }}");
+                        sb.AppendLine($"{inner}}}");
+                    }
                     // Structured join: reap EVERY task — no exceptions now, because no await joins.
                     // Then free each result box, which frees the envelope through its own freeenv, so
                     // a reference-typed result's nested heap goes too whether it was awaited N times
                     // or never. Freeing after the join is what makes it safe: no task can still be
                     // publishing, and no awaiter can still be reading, once every thread has been
                     // reaped and this is the only thread left in the rabbit.
-                    sb.AppendLine($"{inner}for (int cf_ji = 0; cf_ji < cf_nthr{n}; cf_ji++) pthread_join(cf_thr{n}[cf_ji], NULL);");
+                    // A sequential rabbit's tasks each joined the one before, so joining the last
+                    // reaps them all — and joining any thread twice is undefined.
+                    sb.AppendLine(prs.Mode == "sequential"
+                        ? $"{inner}if (cf_nthr{n} > 0) pthread_join(cf_thr{n}[cf_nthr{n} - 1], NULL);"
+                        : $"{inner}for (int cf_ji = 0; cf_ji < cf_nthr{n}; cf_ji++) pthread_join(cf_thr{n}[cf_ji], NULL);");
                     // ★ AFTER every thread is reaped and BEFORE the boxes are freed: the rabbit is the
                     // supervisor, and this is the point where it has the whole picture and nothing is
                     // still running. Raising here is what makes the body's output complete first.

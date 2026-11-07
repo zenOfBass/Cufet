@@ -1194,6 +1194,10 @@ Pull a book on collections.
         Done.
         Otherwise if kind is "ForEachStatement" or kind is "ForEachFromInputStatement" or kind is "PullRabbitStatement" or kind is "LaunchTaskStatement":
             If cast is-nothing on (cast field-of on (tree, 1)) is false, insert cast unquoted on (cast field-of on (tree, 1)) into names.
+            // What an automatic rabbit's task calls its delivery.
+            If kind is "LaunchTaskStatement":
+                If cast is-nothing on (cast field-of on (tree, 6)) is false, insert cast unquoted on (cast field-of on (tree, 6)) into names.
+            Done.
         Done.
         Return names.
     Done.

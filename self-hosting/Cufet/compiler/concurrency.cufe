@@ -82,10 +82,29 @@ the freeing        fflush(stdout); return 130;
         Return pthread-label-thr-form on ("cf_thr_{label}", "cf_nthr_{label}", "cf_chan_{label}", "cf_nchan_{label}", "cf_rbox_{label}", "cf_fault_{label}").
     Done.
 
+    /// What an automatic rabbit keeps besides: each task it was OFFERED — the channel it waits on,
+    /// its argument, its thread, and how to free the argument if it is not the one chosen.
+    Bind c-language axiom to c-offered-slots, given (the text label):
+        Define c-language offered-slots, given (the term altch, the term altarg, the term altfn, the term altdrop, the term nalt),
+            as [cufet_chan* the altch[CUFET_TASK_MAX]; void* the altarg[CUFET_TASK_MAX]; void* (*the altfn[CUFET_TASK_MAX])(void*); void (*the altdrop[CUFET_TASK_MAX])(void*); int the nalt = 0;].
+        Return offered-slots on ("cf_altch_{label}", "cf_altarg_{label}", "cf_altfn_{label}", "cf_altdrop_{label}", "cf_nalt_{label}").
+    Done.
+
     /// What it does at its `Done`: every task joined, what went unhandled raised, the boxes and the
     /// channels freed — then a check for an interrupt that arrived while it waited.
-    Bind text to c-task-teardown, given (the text label):
-        Return "for (int cf_ji = 0; cf_ji < cf_nthr_{label}; cf_ji++) pthread_join(cf_thr_{label}[cf_ji], NULL); cufet_raise_task_faults(cf_fault_{label}, cf_rbox_{label}, cf_nthr_{label}); for (int cf_bi = 0; cf_bi < cf_nthr_{label}; cf_bi++) cufet_rbox_free(cf_rbox_{label}[cf_bi]); for (int cf_ci = 0; cf_ci < cf_nchan_{label}; cf_ci++) cufet_chan_free_if_live(cf_chan_{label}[cf_ci]); cufet_checkpoint();".
+    /// ★ An automatic rabbit chooses first: the offered task whose delivery was sent first is started
+    /// with it, the rest are dropped. A sequential rabbit's tasks each joined the one before, so it
+    /// joins only the last — joining a thread twice is undefined.
+    Bind text to c-task-teardown, given (the text label, the text mode):
+        Define chosen as "".
+        If mode is "automatic":
+            Define c-language offered-chosen, given (the term nalt, the term altch, the term altarg, the term altfn, the term altdrop, the term thr, the term nthr),
+                as [if (the nalt > 0) { void* cf_sv = NULL; int cf_sh = 0; int cf_sk = cufet_chan_select(the altch, the nalt, &cf_sv, &cf_sh); for (int cf_di = 0; cf_di < the nalt; cf_di++) if (cf_di != cf_sk) the altdrop[cf_di](the altarg[cf_di]); if (cf_sk < 0) cufet_checkpoint(); else { cufet_alt_head* cf_sa = (cufet_alt_head*)the altarg[cf_sk]; cf_sa->gv = cf_sv; cf_sa->gh = cf_sh; pthread_create(&the thr[the nthr++], NULL, the altfn[cf_sk], cf_sa); } } ].
+            The chosen becomes "{offered-chosen on ("cf_nalt_{label}", "cf_altch_{label}", "cf_altarg_{label}", "cf_altfn_{label}", "cf_altdrop_{label}", "cf_thr_{label}", "cf_nthr_{label}")}".
+        Done.
+        Define reaped as "for (int cf_ji = 0; cf_ji < cf_nthr_{label}; cf_ji++) pthread_join(cf_thr_{label}[cf_ji], NULL);".
+        If mode is "sequential", the reaped becomes "if (cf_nthr_{label} > 0) pthread_join(cf_thr_{label}[cf_nthr_{label} - 1], NULL);".
+        Return "{chosen}{reaped} cufet_raise_task_faults(cf_fault_{label}, cf_rbox_{label}, cf_nthr_{label}); for (int cf_bi = 0; cf_bi < cf_nthr_{label}; cf_bi++) cufet_rbox_free(cf_rbox_{label}[cf_bi]); for (int cf_ci = 0; cf_ci < cf_nchan_{label}; cf_ci++) cufet_chan_free_if_live(cf_chan_{label}[cf_ci]); cufet_checkpoint();".
     Done.
 
     // ── Channels ──────────────────────────────────────────────────────────
@@ -164,6 +183,21 @@ the freeing        fflush(stdout); return 130;
         Define body as cast field-of on (statement, 2).
         Define task-name as "".
         If cast is-nothing on (cast field-of on (statement, 1)) is false, the task-name becomes cast unquoted on (cast field-of on (statement, 1)).
+        // ★ An automatic rabbit's task is OFFERED, not started: its argument is made here, and the
+        // rabbit's `Done` starts the one whose delivery was sent first. A sequential rabbit's task
+        // waits, first thing, for the thread started before it.
+        Define mode as the entry for "%task-mode" in one's kinds but void is "".
+        Define binder as "".
+        If cast is-nothing on (cast field-of on (statement, 6)) is false, the binder becomes cast unquoted on (cast field-of on (statement, 6)).
+        Define offered as binder is not "".
+        Define sequential as mode is "sequential".
+        Define waited as "".
+        If offered:
+            Define source-kind as cast one's kind-of on (cast field-of on (statement, 7)) or pass the failure off.
+            The waited becomes cast channel-element on (source-kind).
+            Cast one's register-copy on (waited) or pass the failure off.
+            Cast one's register-union on ("voidable {waited}").
+        Done.
 
         // What it captures: every name its body reads that is known here.
         Define found as a map from text to fact.
@@ -196,6 +230,9 @@ the freeing        fflush(stdout); return 130;
 
         // The thread's argument: its box, where its fault goes, and each capture.
         Define fields as "cufet_rbox* cf_selfbox; char** cf_faultslot;".
+        If sequential, the fields becomes "int cf_hasprev; pthread_t cf_prev; {fields}".
+        If offered, the fields becomes "cufet_alt_head cf_head; {fields}".
+        Define dropped as "".
         Define c-language plain-capture, given (the c-language axiom filled, the term member, the c-language axiom captured),
             as [the filled cf_a->the member = the captured;].
         Define c-language copied-capture, given (the c-language axiom filled, the term member, the term copier, the c-language axiom captured),
@@ -214,6 +251,7 @@ the freeing        fflush(stdout); return 130;
             Otherwise:
                 Cast one's register-copy on (held) or pass the failure off.
                 The fields becomes "{fields} void* {member};".
+                The dropped becomes "{dropped}    {cast copy-family on (held)}_freeenv(cf_a->{member});\n".
                 The filled becomes copied-capture on (filled, member, "{cast copy-family on (held)}_heapenv", captured-c).
                 The unpacked becomes "{unpacked}    {cast c-type on (held)} {member} = {cast copy-family on (held)}_arenacopy(cf_a->{member}); {cast copy-family on (held)}_freeenv(cf_a->{member}); (void){member};\n".
             Done.
@@ -223,6 +261,11 @@ the freeing        fflush(stdout); return 130;
         If (the entry for "built:task_{label}" in one's inferred) is void:
             In one's inferred, the entry for "built:task_{label}" becomes "yes".
             Define writer as cast one's task-writer on (captured, result, label).
+            If offered:
+                In writer's kinds, the entry for binder becomes "voidable {waited}".
+                In writer's kinds, the entry for "%{binder}" becomes "voidable {waited}".
+                In writer's kinds, the entry for "@{binder}" becomes "".
+            Done.
             Define task-begun as cast writer's opening-scope.
             For each inner in body's children, repeat:
                 Cast writer's emit-statement on (inner) or pass the failure off.
@@ -239,7 +282,14 @@ the freeing        fflush(stdout); return 130;
     cufet_arena_push();
     cufet_fault_slot = cf_a->cf_faultslot;].
             Insert "{head} {cast c-open}{head-cufet-watch-form on ("cft_arg_{label}")}\n" into thread.
+            If sequential, insert "    if (cf_a->cf_hasprev) pthread_join(cf_a->cf_prev, NULL);\n" into thread.
             Insert unpacked into thread.
+            // The delivery it was chosen for, copied into its own arena like any received value.
+            If offered:
+                Define c-language delivery-unpacked, given (the term voidable-c, the term binder-c, the term arena-copy, the term free-element),
+                    as [    the voidable-c the binder-c; memset(&the binder-c, 0, sizeof the binder-c); if (cf_a->cf_head.gh) { the binder-c.has = 1; the binder-c.value = the arena-copy(cf_a->cf_head.gv); the free-element(cf_a->cf_head.gv); } (void)the binder-c;].
+                Insert "{delivery-unpacked on (cast voidable-c-name on ("voidable {waited}"), cast c-name on (binder), "{cast copy-family on (waited)}_arenacopy", "{cast copy-family on (waited)}_freeenv")}\n" into thread.
+            Done.
             Insert "    if (CUFET_SETJMP(cufet_thread_top) == 0) {cast c-open} cufet_pad_set = 1;\n" into thread.
             Insert writer's body converted to text into thread.
             // Reached when the body falls off its end, or is abandoned at its landing pad by an
@@ -247,6 +297,12 @@ the freeing        fflush(stdout); return 130;
             // waits for ever — with the fault beside it, when there was one.
             Insert "    {cast c-close}\n    cufet_close_files_from(0);\n    cufet_rbox_set_fault(cf_a->cf_selfbox, *cf_a->cf_faultslot);\n    cufet_rbox_publish(cf_a->cf_selfbox, NULL);\n    cufet_arena_pop();\n    free(cf_a);\n    return NULL;\n{cast c-close}\n\n" into thread.
             Insert thread converted to text into one's lambda-code.
+            // An offered task that is not chosen never runs, so what it was handed is freed here.
+            If offered:
+                Define drop-head as "static void cft_drop_{label}(void* argp)".
+                Insert "{drop-head};\n" into one's lambda-protos.
+                Insert "{drop-head} {cast c-open}\n    struct cft_arg_{label}* cf_a = (struct cft_arg_{label}*)argp;\n{dropped}    free(cf_a);\n{cast c-close}\n\n" into one's lambda-code.
+            Done.
         Done.
 
         // A named task's box, under its own name, so an await reaches it.
@@ -264,6 +320,18 @@ the freeing        fflush(stdout); return 130;
         Define c-language box-recorded, given (the term boxes, the term count, the term box), as [ the boxes[the count] = the box;].
         Define recorded as cast no-c.
         If box is not "NULL", the recorded becomes box-recorded on ("cf_rbox_{rabbit-label}", "cf_nthr_{rabbit-label}", box).
+        If offered:
+            Define source-c as cast one's c-of on (cast field-of on (statement, 7)) or pass the failure off.
+            Define c-language offered-made, given (the term label-cft-arg, the c-language axiom filled, the term rabbit-label-cf-fault, the c-language axiom source, the term altch, the term altarg, the term altfn, the term altdrop, the term nalt, the term label-cft-task, the term label-cft-drop),
+                as [{ struct the label-cft-arg* cf_a = (struct the label-cft-arg*)malloc(sizeof(struct the label-cft-arg));the filled cf_a->cf_selfbox = NULL; cf_a->cf_faultslot = &the rabbit-label-cf-fault[0]; cf_a->cf_head.gv = NULL; cf_a->cf_head.gh = 0; the altch[the nalt] = the source; the altarg[the nalt] = cf_a; the altfn[the nalt] = the label-cft-task; the altdrop[the nalt++] = the label-cft-drop; }].
+            Cast one's put on (offered-made on ("cft_arg_{label}", filled, "cf_fault_{rabbit-label}", source-c, "cf_altch_{rabbit-label}", "cf_altarg_{rabbit-label}", "cf_altfn_{rabbit-label}", "cf_altdrop_{rabbit-label}", "cf_nalt_{rabbit-label}", "cft_task_{label}", "cft_drop_{label}")).
+            Return.
+        Done.
+        If sequential:
+            Define c-language previous-noted, given (the c-language axiom filled, the term thr, the term nthr),
+                as [the filled cf_a->cf_hasprev = the nthr > 0; if (cf_a->cf_hasprev) cf_a->cf_prev = the thr[the nthr - 1];].
+            The filled becomes previous-noted on (filled, "cf_thr_{rabbit-label}", "cf_nthr_{rabbit-label}").
+        Done.
         Define c-language struct-label-cft-form, given (the term label-cft-arg, the c-language axiom filled, the term box, the c-language axiom recorded, the term rabbit-label-cf-fault, the term rabbit-label-cf-nthr, the term rabbit-label-cf-thr, the term label-cft-task),
             as [{ struct the label-cft-arg* cf_a = (struct the label-cft-arg*)malloc(sizeof(struct the label-cft-arg));the filled cf_a->cf_selfbox = the box;the recorded cf_a->cf_faultslot = &the rabbit-label-cf-fault[the rabbit-label-cf-nthr]; pthread_create(&the rabbit-label-cf-thr[the rabbit-label-cf-nthr++], NULL, the label-cft-task, cf_a); }].
         Cast one's put on (struct-label-cft-form on ("cft_arg_{label}", filled, box, recorded, "cf_fault_{rabbit-label}", "cf_nthr_{rabbit-label}", "cf_thr_{rabbit-label}", "cft_task_{label}")).

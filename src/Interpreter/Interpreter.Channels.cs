@@ -2,16 +2,25 @@ namespace Cufet.Interpreter;
 
 public sealed partial class Interpreter
 {
+    // ★ Every send and every close takes the next number from one counter, so an automatic rabbit
+    // can tell which of several channels holds the thing that was sent FIRST — the rule it chooses
+    // by. A closed, empty channel is ready too (its task runs with void), and it counts as of the
+    // moment it was closed.
+    private long _channelStamp;
+
     private sealed class ChannelValue
     {
-        private readonly Queue<object> _queue = new();
+        private readonly Queue<(object Value, long Stamp)> _queue = new();
         private bool _closed;
+        private long _closedStamp;
         public bool IsEmpty  => _queue.Count == 0;
         public bool IsClosed => _closed;
         public bool HasValue => _queue.Count > 0;
-        public void Enqueue(object value) => _queue.Enqueue(value);
-        public object Dequeue()           => _queue.Dequeue();
-        public void Close() { _closed = true; } // idempotent
+        public void Enqueue(object value, long stamp) => _queue.Enqueue((value, stamp));
+        public object Dequeue()           => _queue.Dequeue().Value;
+        public void Close(long stamp) { if (!_closed) { _closed = true; _closedStamp = stamp; } } // idempotent
+        /// <summary>When what a delivery would hand out was sent (or the channel closed); null if it would wait.</summary>
+        public long? ReadyStamp => _queue.Count > 0 ? _queue.Peek().Stamp : _closed ? _closedStamp : null;
     }
 
     private object EvaluateChannelCreation(ChannelCreation _) => new ChannelValue();
@@ -23,7 +32,7 @@ public sealed partial class Interpreter
             throw new RuntimeException(
                 $"Send through a closed channel on line {ss.Line}. " +
                 "'Close ch.' signals no more values — sending after closing is a logic error.");
-        chan.Enqueue(DeepCopyForChannel(Evaluate(ss.Value)));
+        chan.Enqueue(DeepCopyForChannel(Evaluate(ss.Value)), ++_channelStamp);
     }
 
     private object EvaluateDeliveryExpression(DeliveryExpression de)
@@ -37,7 +46,7 @@ public sealed partial class Interpreter
     }
 
     private void ExecuteCloseStatement(CloseStatement cs)
-        => ((ChannelValue)Evaluate(cs.Channel)).Close();
+        => ((ChannelValue)Evaluate(cs.Channel)).Close(++_channelStamp);
 
     private static object DeepCopyForChannel(object value) => value switch
     {

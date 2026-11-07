@@ -136,6 +136,8 @@ Pull a book on collections.
             Done.
         Done.
 
+        Define guard as cast one's check-task-mode on (statement) or pass the failure off.
+
         Define fallible as cast has-direct-failure-return on (body).
         Define earlier-in-function as one's in-function.
         Define earlier-line as one's function-line.
@@ -147,7 +149,25 @@ Pull a book on collections.
         Insert cast unknown-type into one's expected-returns.
         The one's function-line becomes at-row.
         Cast one's enter-scope.
+        // Inside a task of an automatic rabbit, that rabbit is marked, so a task given to it from in
+        // here is refused — it would arrive after the rabbit chose.
+        Define modes as the number of one's rabbit-modes.
+        Define marked as false.
+        If modes is greater than 0:
+            If item modes of one's rabbit-modes is "automatic":
+                Item modes of one's rabbit-modes becomes "automatic-task".
+                The marked becomes true.
+            Done.
+        Done.
+        If cast is-none on (guard) is false:
+            Define binder as cast unquoted on (cast field-of on (statement, 6)).
+            Cast one's bind-name on (binder, a new binding {
+                the shape guard,
+                the established-by cast placed-reference on (binder, at-row, cast number-of on (cast field-of on (statement, 4))),
+                the line at-row, the permanent false, the module false, the depth one's rabbit-depth, the parameter false, the judged false }).
+        Done.
         Cast one's check-block on (body) or pass the failure off.
+        If marked, item modes of one's rabbit-modes becomes "automatic".
         Cast one's exit-scope.
         Define inferred as item (the number of one's expected-returns) of one's expected-returns.
         Remove item (the number of one's expected-returns) from one's expected-returns.
@@ -173,6 +193,65 @@ Pull a book on collections.
             the shape handle,
             the established-by cast placed-reference on (name, at-row, cast number-of on (cast field-of on (statement, 4))),
             the line at-row, the permanent false, the module false, the depth 0, the parameter false, the judged false }).
+    Done.
+
+    /// The rules a rabbit's mode puts on its tasks (`CheckTaskMode`): what the task's delivery is
+    /// called as — `voidable T` — or the unknown type for a task that waits on nothing.
+    /// ★ An automatic rabbit runs exactly ONE of its tasks, so every task it has says what it waits
+    /// on, no other rabbit's task may, and none may be named: nothing could await one that never ran.
+    Bind node or failure to check-task-mode unto checker, given (the node statement):
+        Define at-row as cast number-of on (cast field-of on (statement, 3)).
+        Define mode as "".
+        Define modes as the number of one's rabbit-modes.
+        If modes is greater than 0, the mode becomes item modes of one's rabbit-modes.
+        Define in-task as mode is "automatic-task".
+        Define automatic as mode is "automatic" or in-task.
+        If automatic and in-task:
+            Return a failure (cast refusal-of on ("this task is given to an automatic rabbit from inside one of its own tasks",
+                "An automatic rabbit chooses its one task at its 'Done.', so a task started by that task would arrive after the choice",
+                at-row, "start a task inside a task of an automatic rabbit",
+                "Pull a rabbit inside the task and give the new task to that one.")).
+        Done.
+        Define given-binder as cast field-of on (statement, 6).
+        If cast is-nothing on (given-binder):
+            If automatic:
+                Return a failure (cast refusal-of on ("every task of an automatic rabbit waits on a channel",
+                    "An automatic rabbit runs the one task whose delivery was sent first, so a task waiting on nothing could never be chosen",
+                    at-row, "start a task in an automatic rabbit without saying what it waits on",
+                    "Say which channel it waits on and what to call the delivery: 'Have rabbit start a task for an order in orders:'.")).
+            Done.
+            Return cast unknown-type.
+        Done.
+        Define binder as cast unquoted on (given-binder).
+        If automatic is false:
+            Define said-mode as mode.
+            If said-mode is "", the said-mode becomes "parallel".
+            Return a failure (cast refusal-of on ("only a task of an automatic rabbit waits on a channel this way",
+                "'for an order in orders' says the task is one of several alternatives, and only an automatic rabbit chooses between them",
+                at-row, "start a task for '{binder}' in a {said-mode} rabbit",
+                "Pull the rabbit as 'Pull an automatic rabbit.', or take the value inside the task with 'the delivery from <channel>'.")).
+        Done.
+        Define given-name as cast field-of on (statement, 1).
+        If cast is-nothing on (given-name) is false:
+            Define name as cast unquoted on (given-name).
+            Return a failure (cast refusal-of on ("a task of an automatic rabbit cannot be named '{name}'",
+                "Only one of an automatic rabbit's tasks runs, so a name could stand for a task that never ran, with no result to await",
+                at-row, "name a task of an automatic rabbit",
+                "Leave the name off. To get a value out, send it through a channel from inside the task.")).
+        Done.
+        If cast one's look-up on (binder) is not void:
+            Return a failure (cast refusal-of on ("'{binder}' already names something here", "",
+                at-row, "call this task's delivery '{binder}'",
+                "Pick a name that is not already in use for the delivery.")).
+        Done.
+        Define carrier as cast one's infer on (cast field-of on (statement, 7)) or pass the failure off.
+        If carrier's kind is not "ChannelType":
+            If cast is-none on (carrier), return cast wrapped on ("VoidableType", cast plain-type on ("NumberType")).
+            Return a failure (cast refusal-of on ("a task waits on a channel, but '{binder}' would come from a {cast type-words on (carrier)}", "",
+                at-row, "wait on a {cast type-words on (carrier)}",
+                "The expression after 'in' must be a channel.")).
+        Done.
+        Return cast wrapped on ("VoidableType", cast field-of on (carrier, 1)).
     Done.
 
     // ── What a task captures (`TaskCaptures`) ─────────────────────────────

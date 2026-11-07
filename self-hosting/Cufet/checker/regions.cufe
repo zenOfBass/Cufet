@@ -52,6 +52,10 @@ Pull a book on collections.
     /// `Pull a rabbit [as <name>].` — one region deeper for the length of the block.
     Bind void or failure to check-pull-rabbit unto checker, given (the node statement):
         Define at-row as cast number-of on (cast field-of on (statement, 3)).
+        // How its tasks compose: "automatic", "sequential", "parallel", or "" when nothing was said.
+        Define mode as "".
+        If cast is-nothing on (cast field-of on (statement, 5)) is false, the mode becomes cast unquoted on (cast field-of on (statement, 5)).
+        Insert mode into one's rabbit-modes.
         Increment one's rabbit-depth by 1.
         Cast one's enter-scope.
         Define named as cast field-of on (statement, 1).
@@ -65,5 +69,6 @@ Pull a book on collections.
         Cast one's check-block on (cast field-of on (statement, 2)) or pass the failure off.
         Cast one's exit-scope.
         Decrement one's rabbit-depth by 1.
+        Remove item (the number of one's rabbit-modes) from one's rabbit-modes.
     Done.
 Done.

@@ -1189,11 +1189,19 @@ public sealed record ChaseLiteral(int Line, int Column) : IExpression;
 // supply it only when the rabbit needs to be passed as a parameter to a callee.
 // The rabbit may be passed DOWN to callees but may never be returned (downward-only rule).
 // In the interpreter (GC-backed) the region is semantic — values become unreachable at Done.
+//
+// Mode — how the rabbit's TASKS compose, written between the article and `rabbit`:
+//   null / "parallel"  every task runs at once (the default, and what a rabbit always did);
+//   "sequential"       one task at a time, in the order they were started;
+//   "automatic"        every task waits on a channel, and only the ONE whose delivery was sent
+//                      first runs (Occam's ALT). See LaunchTaskStatement.Binder.
+// The rabbit's own statements are ordinary sequential code in every mode.
 public sealed record PullRabbitStatement(
     string? Name,
     IReadOnlyList<IStatement> Body,
     int Line,
-    int Column
+    int Column,
+    string? Mode = null
 ) : IStatement;
 
 // Have rabbit start a task [as <name>]: ... Done.
@@ -1210,12 +1218,19 @@ public sealed record PullRabbitStatement(
 // RabbitName != null → a rabbit addressed BY NAME. A rabbit is an agent you summon and give a job
 // to, so naming one at the point you give it work is the whole reason names exist; requiring the
 // keyword made every name decorative.
+//
+// Binder + Source — `Have dispatcher start a task for an order in orders:`. Only in an AUTOMATIC
+// rabbit, where every task has them: the task waits on Source, and if its delivery is the one
+// chosen, runs with Binder holding it (`voidable T` — void once the channel is closed and empty,
+// exactly as `the delivery from` gives).
 public sealed record LaunchTaskStatement(
     string? Name,
     IReadOnlyList<IStatement> Body,
     int Line,
     int Column,
-    string? RabbitName = null
+    string? RabbitName = null,
+    string? Binder = null,
+    IExpression? Source = null
 ) : IStatement;
 
 // a matrix with ((r1e1, r1e2, ...), (r2e1, r2e2, ...), ...)

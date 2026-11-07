@@ -36,7 +36,7 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
     private const int TreeFloor = 91;
 
     /// <summary>The same, of the hand-written programs both checkers accept.</summary>
-    private const int HandWrittenTreeFloor = 310;
+    private const int HandWrittenTreeFloor = 320;
 
     /// <summary>The same, of the hand-written projects both checkers accept.</summary>
     private const int ProjectTreeFloor = 21;
@@ -110,6 +110,19 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
     /// </summary>
     private static readonly string[] Judged =
     [
+        // Composition modes for rabbits — automatic, sequential, parallel — and each refusal (2026-11-07).
+        "Pull a rabbit.\n    Define orders as a channel of text.\n    Define cancels as a channel of number.\n    Send 17 through cancels.\n    Send \"kale\" through orders.\n    Send \"carrots\" through orders.\n    Send 18 through cancels.\n    Close orders.\n    For each turn in range 1 to 6, repeat:\n        Pull an automatic rabbit as dispatcher.\n            Have dispatcher start a task for an order in orders:\n                State \"order {order but void is \"(closed)\"}\".\n            Done.\n            Have dispatcher start a task for a ticket in cancels:\n                State \"ticket {ticket but void is 0}\".\n            Done.\n        Done.\n    Done.\nDone.\n",
+        "Pull a rabbit.\n    Define batches as a channel of series of number.\n    Define notes as a channel of text.\n    Define label as \"batch\".\n    Send \"first note\" through notes.\n    Send a series with (1, 2, 3) through batches.\n    For each turn in range 1 to 2, repeat:\n        Pull an automatic rabbit.\n            Have rabbit start a task for a batch in batches:\n                Define numbers as batch but void is a series with (0).\n                Define total as 0.\n                For each n in numbers, repeat:\n                    The total becomes total + n.\n                Done.\n                State \"{label} totals {total}\".\n            Done.\n            Have rabbit start a task for a note in notes:\n                State \"{label} note: {note but void is \"\"}\".\n            Done.\n        Done.\n    Done.\nDone.\n",
+        "Pull a rabbit.\n    Define readings as a channel of number.\n    Send 1 through readings.\n    Pull an automatic rabbit.\n        Have rabbit start a task for a reading in readings:\n            State \"first {reading but void is 0}\".\n        Done.\n        Have rabbit start a task for a reading in readings:\n            State \"second {reading but void is 0}\".\n        Done.\n    Done.\nDone.\n",
+        "Pull a sequential rabbit.\n    Have rabbit start a task:\n        State \"task 1\".\n    Done.\n    Have rabbit start a task:\n        State \"task 2\".\n    Done.\n    Have rabbit start a task:\n        State \"task 3\".\n    Done.\nDone.\n",
+        "Pull a parallel rabbit as hopper.\n    Have hopper start a task:\n        State \"ran\".\n    Done.\nDone.\nDefine automatic as 1.\nState automatic.\n",
+        "Pull an automatic rabbit.\n    Have rabbit start a task:\n        State \"x\".\n    Done.\nDone.\n",
+        "Pull a rabbit.\n    Define orders as a channel of text.\n    Have rabbit start a task for an order in orders:\n        State \"x\".\n    Done.\nDone.\n",
+        "Pull a rabbit.\n    Define orders as a channel of text.\n    Pull an automatic rabbit.\n        Have rabbit start a task for an order in orders as packer:\n            State \"x\".\n        Done.\n    Done.\nDone.\n",
+        "Pull a rabbit.\n    Define orders as 5.\n    Pull an automatic rabbit.\n        Have rabbit start a task for an order in orders:\n            State \"x\".\n        Done.\n    Done.\nDone.\n",
+        "Pull a rabbit.\n    Define orders as a channel of text.\n    Define order as 1.\n    Pull an automatic rabbit.\n        Have rabbit start a task for an order in orders:\n            State \"x\".\n        Done.\n    Done.\nDone.\n",
+        "Pull a rabbit.\n    Define orders as a channel of text.\n    Pull an automatic rabbit.\n        Have rabbit start a task for an order in orders:\n            Have rabbit start a task for an other in orders:\n                State \"x\".\n            Done.\n        Done.\n    Done.\nDone.\n",
+        "Pull a rabbit.\n    Define orders as a channel of text.\n    Pull an automatic rabbit.\n        Have rabbit start a task for an order in orders:\n            Define size as the length of order.\n        Done.\n    Done.\nDone.\n",
         // Cufet source with holes: `Cite x on (…)`, and each refusal of one (2026-11-05).
         "Pull a book on cufet.\n    Define cufet s, given (the term made, the text who), as [\n        Bind text to made:\n            Return \"hello {who}\".\n        Done.\n    ].\n    Cite s on (\"greet\", \"world\").\nDone.\nState cast greet.\n",
         "Pull a book on cufet.\n    Define cufet s, given (the term made, the number n), as [\n        Define the made as n.\n    ].\n    Bind number to f:\n        Cite s on (\"tally\", 5).\n        The tally becomes tally + 1.\n        Return tally.\n    Done.\nDone.\nState cast f.\n",

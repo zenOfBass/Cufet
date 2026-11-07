@@ -192,25 +192,6 @@ around it. Nobody has asked for one.
   — transferring ownership and invalidating the sender's binding — would avoid the copy.
   *Blocker:* the language has no way to express "this binding is spent."
 
-- **Composition modes for rabbits** — `sequential` / `parallel` / `automatic`, an optional adjective
-  in the type-annotation slot: `Pull an automatic rabbit as dispatcher.` The mode governs how a
-  rabbit's TASKS compose, never its ordinary statements, which stay sequential imperative code.
-
-  - ★ **`automatic` is the only new capability, and the gap is real:** `the delivery from <channel>`
-    blocks on ONE channel, so nothing today can wait on several and take whichever arrives first.
-    Occam's ALT, Go's select.
-
-  - **`parallel` is the default**, which is what a task-spawning rabbit already does. All three stay
-    sayable: a default is a voiceable choice, not an inferred silence. A rabbit that spawns no tasks
-    has no mode at all.
-  - **One discipline per rabbit.** Mixed needs nest, as composition does everywhere else here.
-  - ⚠ Inherit the existing concurrency caveat rather than restating it: cooperative interpreted, real
-    threads compiled, no interleaving promised.
-
-  Open: whether `sequential` and `parallel` are thin labels over the join behaviour that exists, or
-  need machinery of their own. `automatic` is the real build — a guarded multi-input wait, now
-  waiting on a witness rather than on a design.
-
 ### Books
 
 - **A logic-gates book** — circuit composition over `bits`: gates as components you wire together,

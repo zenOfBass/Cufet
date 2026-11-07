@@ -1421,7 +1421,10 @@ public static class BookLoading
             OperatorOverloadDeclaration o => bound.Add(o.LeftName).Add(o.RightName),
             ForEachFromInputStatement input => bound.Add(input.IteratorName),
             PullRabbitStatement { Name: { } rabbit } => bound.Add(rabbit),
+            // What an automatic rabbit's task calls its delivery is bound in its body too.
+            LaunchTaskStatement { Name: { } task, Binder: { } delivery } => bound.Add(task).Add(delivery),
             LaunchTaskStatement { Name: { } task } => bound.Add(task),
+            LaunchTaskStatement { Binder: { } delivery } => bound.Add(delivery),
             _ => bound,
         };
 

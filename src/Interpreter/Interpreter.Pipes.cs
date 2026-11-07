@@ -47,7 +47,7 @@ public sealed partial class Interpreter
 
                 // Signal to the next stage that no more values are coming.
                 if (i < channels.Count)
-                    channels[i].Close();
+                    channels[i].Close(++_channelStamp);
             }
         }
         finally
@@ -269,7 +269,7 @@ public sealed partial class Interpreter
                 $"'output' used outside of a pipe on line {os.Line} — 'output' can only appear inside a function that is used as a pipe stage.");
 
         var value = Evaluate(os.Value);
-        _pipeOutputChan.Enqueue(DeepCopyForChannel(value));
+        _pipeOutputChan.Enqueue(DeepCopyForChannel(value), ++_channelStamp);
     }
 
     // ── for each … from the input ────────────────────────────────────────────────

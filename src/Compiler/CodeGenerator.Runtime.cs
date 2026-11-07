@@ -2594,8 +2594,19 @@ static int cufet_worker_fault(const char* msg) {
 #include <pthread.h>
 #include <time.h>
 #define CUFET_TASK_MAX 4096
-typedef struct cufet_chan_node { void* val; struct cufet_chan_node* next; } cufet_chan_node;
-typedef struct { pthread_mutex_t m; pthread_cond_t c; cufet_chan_node* head; cufet_chan_node* tail; int closed; void (*freeval)(void*); } cufet_chan;
+typedef struct cufet_chan_node { void* val; unsigned long long stamp; struct cufet_chan_node* next; } cufet_chan_node;
+typedef struct { pthread_mutex_t m; pthread_cond_t c; cufet_chan_node* head; cufet_chan_node* tail; int closed; unsigned long long closed_stamp; void (*freeval)(void*); } cufet_chan;
+/* ★ Every send and every close takes the next number from one counter, so an automatic rabbit can
+   tell which of several channels holds what was sent FIRST. And every send and close bumps one
+   generation and wakes whoever is choosing — that is how a wait on several channels at once
+   sleeps without missing the send that should wake it. */
+static unsigned long long cufet_chan_stamp = 0;
+static pthread_mutex_t cufet_sel_m = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t cufet_sel_c = PTHREAD_COND_INITIALIZER;
+static unsigned long long cufet_sel_gen = 0;
+static void cufet_sel_notify(void) {
+    pthread_mutex_lock(&cufet_sel_m); cufet_sel_gen++; pthread_cond_broadcast(&cufet_sel_c); pthread_mutex_unlock(&cufet_sel_m);
+}
 /* Live-channel registry — so an interrupt unwind (CONC.E) can free channels the longjmp jumped past.
    A normal cufet_chan_free unregisters; the interrupt teardown frees whatever is still registered. */
 static cufet_chan* cufet_live_chans[CUFET_TASK_MAX];
@@ -2613,8 +2624,10 @@ static void cufet_chan_send(cufet_chan* ch, void* env) {
     cufet_chan_node* n = (cufet_chan_node*)malloc(sizeof(cufet_chan_node));
     n->val = env; n->next = NULL;
     pthread_mutex_lock(&ch->m);
+    n->stamp = __atomic_add_fetch(&cufet_chan_stamp, 1, __ATOMIC_SEQ_CST);
     if (ch->tail) ch->tail->next = n; else ch->head = n; ch->tail = n;
     pthread_cond_signal(&ch->c); pthread_mutex_unlock(&ch->m);
+    cufet_sel_notify();
 }
 /* Blocking receive → 1 with *out set to the heap envelope if a value is available, 0 if the channel
    is empty-and-closed (→ Cufet void), -1 if a SIGINT arrived while blocked (CONC.E — the caller runs
@@ -2748,8 +2761,57 @@ static void cufet_raise_task_faults(char** slots, cufet_rbox** boxes, int n) {
 }
 
 static void cufet_chan_close(cufet_chan* ch) {
-    pthread_mutex_lock(&ch->m); ch->closed = 1; pthread_cond_broadcast(&ch->c); pthread_mutex_unlock(&ch->m);
+    pthread_mutex_lock(&ch->m);
+    if (!ch->closed) { ch->closed = 1; ch->closed_stamp = __atomic_add_fetch(&cufet_chan_stamp, 1, __ATOMIC_SEQ_CST); }
+    pthread_cond_broadcast(&ch->c); pthread_mutex_unlock(&ch->m);
+    cufet_sel_notify();
 }
+/* An automatic rabbit's choice. Waits until one of the n channels holds something or is closed and
+   empty, then takes what was SENT FIRST across all of them: returns its index, with *out the heap
+   envelope and *has 1 — or *has 0 for a closed, empty channel, whose task runs with void. -1 when
+   a SIGINT arrived while waiting (the caller checkpoints). Two entries naming the same channel see
+   the same item, and the strict `<` gives it to the one written first.
+   ⚠ The pick and the take are two steps, so another receiver can take the item in between; the
+   take re-checks the stamp and the loop simply looks again. */
+static int cufet_chan_select(cufet_chan** chs, int n, void** out, int* has) {
+    for (;;) {
+        pthread_mutex_lock(&cufet_sel_m); unsigned long long gen = cufet_sel_gen; pthread_mutex_unlock(&cufet_sel_m);
+        int best = -1; unsigned long long bstamp = 0;
+        for (int i = 0; i < n; i++) {
+            cufet_chan* ch = chs[i]; int ready = 0; unsigned long long s = 0;
+            pthread_mutex_lock(&ch->m);
+            if (ch->head) { ready = 1; s = ch->head->stamp; }
+            else if (ch->closed) { ready = 1; s = ch->closed_stamp; }
+            pthread_mutex_unlock(&ch->m);
+            if (ready && (best < 0 || s < bstamp)) { best = i; bstamp = s; }
+        }
+        if (best >= 0) {
+            cufet_chan* ch = chs[best];
+            pthread_mutex_lock(&ch->m);
+            if (ch->head && ch->head->stamp == bstamp) {
+                cufet_chan_node* nd = ch->head; ch->head = nd->next; if (!ch->head) ch->tail = NULL;
+                pthread_mutex_unlock(&ch->m);
+                *out = nd->val; *has = 1; free(nd); return best;
+            }
+            if (!ch->head && ch->closed && ch->closed_stamp == bstamp) {
+                pthread_mutex_unlock(&ch->m);
+                *out = NULL; *has = 0; return best;
+            }
+            pthread_mutex_unlock(&ch->m);
+            continue;
+        }
+        if (cufet_interrupted) return -1;
+        pthread_mutex_lock(&cufet_sel_m);
+        if (cufet_sel_gen == gen) {
+            struct timespec ts; clock_gettime(CLOCK_REALTIME, &ts);
+            ts.tv_nsec += 50000000L; if (ts.tv_nsec >= 1000000000L) { ts.tv_sec++; ts.tv_nsec -= 1000000000L; }
+            pthread_cond_timedwait(&cufet_sel_c, &cufet_sel_m, &ts);
+        }
+        pthread_mutex_unlock(&cufet_sel_m);
+    }
+}
+/* The head of an automatic rabbit's task argument: where the chosen delivery is handed over. */
+typedef struct { void* gv; int gh; } cufet_alt_head;
 static void cufet_chan_free(cufet_chan* ch) {   /* frees un-received envelopes (teardown/close-with-pending) */
     pthread_mutex_lock(&cufet_live_m);
     for (int i = 0; i < cufet_nlive; i++) if (cufet_live_chans[i] == ch) { cufet_live_chans[i] = cufet_live_chans[--cufet_nlive]; break; }

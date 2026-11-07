@@ -14,6 +14,17 @@ public sealed partial class Interpreter
     // the scheduler stays ignorant of what a task handle is.
     private readonly Stack<List<TaskHandle?>> _rabbitHandleStacks = new();
 
+    // How each open rabbit composes its tasks, parallel to the stacks above. A sequential rabbit
+    // remembers its last task so the next can wait for it; an automatic one collects its tasks
+    // here instead of starting them, and starts the chosen one at its `Done.`.
+    private sealed class RabbitMode
+    {
+        public string? Mode;
+        public Task? LastTask;
+        public readonly List<(ChannelValue Channel, string Binder, IReadOnlyList<IStatement> Body)> Alternatives = [];
+    }
+    private readonly Stack<RabbitMode> _rabbitModeStack = new();
+
     // Runtime handle for a named task (slice 4). Created at task launch and bound to
     // the task's name in scope. The C# Task completes when the task body finishes;
     // the returned value (if any) is stored by RunTaskBody catching ReturnException.
@@ -44,8 +55,10 @@ public sealed partial class Interpreter
     {
         var myTasks = new List<Task>();
         var myHandles = new List<TaskHandle?>();
+        var myMode = new RabbitMode { Mode = prs.Mode };
         _rabbitTaskStacks.Push(myTasks);
         _rabbitHandleStacks.Push(myHandles);
+        _rabbitModeStack.Push(myMode);
         EnterScope();
         if (prs.Name != null)
             Scope[prs.Name] = new RabbitValue(prs.Name);
@@ -53,6 +66,8 @@ public sealed partial class Interpreter
         {
             foreach (var s in prs.Body)
                 Execute(s);
+            if (myMode.Alternatives.Count > 0)
+                StartChosenAlternative(myMode, myTasks, myHandles);
             // Join all spawned tasks before releasing the scope. This is the structured
             // guarantee: tasks cannot outlive their rabbit. The scope is still open here,
             // so task bodies can access rabbit-local variables.
@@ -63,6 +78,7 @@ public sealed partial class Interpreter
         {
             _rabbitTaskStacks.Pop();
             _rabbitHandleStacks.Pop();
+            _rabbitModeStack.Pop();
             ExitScope();
         }
     }
@@ -75,13 +91,28 @@ public sealed partial class Interpreter
     private void ExecuteLaunchTask(LaunchTaskStatement lts)
     {
         var body   = lts.Body; // capture for closure — do not close over lts
+        var mode   = _rabbitModeStack.Peek();
+
+        // An automatic rabbit's task does not start here: it joins the alternatives, and the
+        // channel it waits on is the one this line names NOW.
+        if (lts.Binder is { } binder)
+        {
+            mode.Alternatives.Add(((ChannelValue)Evaluate(lts.Source!), binder, body));
+            return;
+        }
+
         TaskHandle? handle = lts.Name != null ? new TaskHandle() : null;
 
-        var task = _scheduler!.Enqueue(() =>
+        // A sequential rabbit's task waits for the one started before it — whether that one ended
+        // normally or failed, since every task still runs and its faults are reported together.
+        var previous = mode.Mode == "sequential" ? mode.LastTask : null;
+        var task = _scheduler!.Enqueue(async () =>
         {
+            if (previous != null)
+                try { await previous; } catch { /* reported at the join */ }
             RunTaskBody(body, handle);
-            return Task.CompletedTask;
         });
+        mode.LastTask = task;
 
         if (handle != null)
             handle.CSharpTask = task;
@@ -93,13 +124,44 @@ public sealed partial class Interpreter
             Scope[lts.Name] = handle!;
     }
 
+    // An automatic rabbit's `Done.`: wait until one of its channels holds something (or is closed
+    // and empty), take what was SENT FIRST across all of them, and start that one task with it.
+    // ★ Two tasks waiting on the same channel see the same item; the one written first takes it.
+    private void StartChosenAlternative(RabbitMode mode, List<Task> tasks, List<TaskHandle?> handles)
+    {
+        var alternatives = mode.Alternatives;
+        int Chosen()
+        {
+            int best = -1; long bestStamp = long.MaxValue;
+            for (int i = 0; i < alternatives.Count; i++)
+                if (alternatives[i].Channel.ReadyStamp is long s && s < bestStamp) { best = i; bestStamp = s; }
+            return best;
+        }
+        if (Chosen() < 0)
+        {
+            _scheduler!.DrainUntil(() => Chosen() >= 0 || _interruptRequested);
+            if (_interruptRequested) throw new InterruptUnwind();
+        }
+        var (channel, binder, body) = alternatives[Chosen()];
+        object delivered = channel.HasValue ? channel.Dequeue() : VoidValue.Instance;
+        var task = _scheduler!.Enqueue(() =>
+        {
+            RunTaskBody(body, null, (binder, delivered));
+            return Task.CompletedTask;
+        });
+        tasks.Add(task);
+        handles.Add(null);
+    }
+
     // Executes a task body in its own nested scope. The enclosing rabbit's scope is still
     // open (this runs during JoinTasks before ExitScope), so task bodies have full read
     // access to rabbit-local variables. If a handle is provided, ReturnException is caught
     // and the returned value is stored on the handle (rather than propagating as a fault).
-    private void RunTaskBody(IReadOnlyList<IStatement> body, TaskHandle? handle = null)
+    private void RunTaskBody(IReadOnlyList<IStatement> body, TaskHandle? handle = null,
+                             (string Name, object Value)? delivery = null)
     {
         EnterScope();
+        if (delivery is { } d) Scope[d.Name] = d.Value;
         try
         {
             foreach (var s in body)

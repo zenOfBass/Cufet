@@ -2557,6 +2557,13 @@ public sealed class Parser
         var col = lineTok.Column;
         SkipNoise();                             // eats 'a' (singular forms); no-op for 'books'
 
+        // `Pull an automatic rabbit.` — the mode word is recognised only where `rabbit` follows it,
+        // so none of the three is reserved.
+        string? mode = null;
+        if (Peek().Type == TokenType.Identifier && IsRabbitModeWord(Peek().Lexeme)
+            && _pos + 1 < _tokens.Count && IsRabbitWord(_tokens[_pos + 1]))
+            mode = Advance().Lexeme.ToLowerInvariant();
+
         if (IsRabbitWord(Peek()))
         {
             Advance(); // consume 'rabbit'
@@ -2573,7 +2580,7 @@ public sealed class Parser
             _rabbitDepth++;
             var body = ParsePullBody(); // consumes Done.
             _rabbitDepth--;
-            return new PullRabbitStatement(name, body, line, col);
+            return new PullRabbitStatement(name, body, line, col, mode);
         }
 
         if (IsBookWord(Peek(), "books"))
@@ -2681,6 +2688,21 @@ public sealed class Parser
         SkipNoise();                // eats 'a'
         Consume(TokenType.TaskKw);
         SkipNoise();
+        // `for an order in orders` — the task of an automatic rabbit names the channel it waits on
+        // and what to call the delivery. Whether the rabbit IS automatic is the checker's question.
+        string? binder = null;
+        IExpression? source = null;
+        if (Peek().Type == TokenType.For)
+        {
+            Advance();   // consume 'for'
+            SkipNoise(); // eats 'an'
+            binder = Consume(TokenType.Identifier).Lexeme;
+            SkipNoise();
+            Consume(TokenType.In);
+            SkipNoise();
+            source = ParseExpression();
+            SkipNoise();
+        }
         string? name = null;
         if (Peek().Type == TokenType.As)
         {
@@ -2709,7 +2731,7 @@ public sealed class Parser
             body = ParsePullBody(); // consumes Done.
         }
         _functionDepth--;
-        return new LaunchTaskStatement(name, body, line, col, rabbitName);
+        return new LaunchTaskStatement(name, body, line, col, rabbitName, binder, source);
     }
 
     // Body parser for Pull...Done. scopes. Allows zero statements (unlike ParseLoopBody).
@@ -6237,6 +6259,11 @@ public sealed class Parser
     /// name is not reserving a word, and a writer may now use `rabbit` for their own names.
     /// Case-insensitive, like every other word in the language.
     /// </remarks>
+    private static bool IsRabbitModeWord(string word) =>
+        word.Equals("automatic", StringComparison.OrdinalIgnoreCase)
+        || word.Equals("sequential", StringComparison.OrdinalIgnoreCase)
+        || word.Equals("parallel", StringComparison.OrdinalIgnoreCase);
+
     private static bool IsRabbitWord(Token tok) =>
         tok.Type == TokenType.Identifier
         && string.Equals(tok.Lexeme, "rabbit", StringComparison.OrdinalIgnoreCase);

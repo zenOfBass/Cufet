@@ -25,7 +25,19 @@ public sealed partial class TypeChecker
             ? rabbitType
             : new ObjectType(RabbitModuleName, [], [], []);
 
+    // The mode of every rabbit open around the code being checked, innermost last, with a task
+    // body of an automatic rabbit marked as such — a task given to that rabbit from INSIDE one of
+    // its own tasks would arrive after the rabbit already chose, so it is refused.
+    private readonly List<(string? Mode, bool InTask)> _rabbitModes = [];
+
     private void CheckPullRabbit(PullRabbitStatement prs)
+    {
+        _rabbitModes.Add((prs.Mode, false));
+        try { CheckPullRabbitBody(prs); }
+        finally { _rabbitModes.RemoveAt(_rabbitModes.Count - 1); }
+    }
+
+    private void CheckPullRabbitBody(PullRabbitStatement prs)
     {
         _rabbitDepth++;
         EnterScope();
@@ -108,6 +120,8 @@ public sealed partial class TypeChecker
                     $"Send the result back through a channel, or return it from a named task and "
                   + $"await it.");
 
+        var guardType = CheckTaskMode(lts);
+
         bool bodyIsFallible = HasDirectFailureReturn(lts.Body);
 
         var prevInFunction       = _inFunction;
@@ -124,6 +138,15 @@ public sealed partial class TypeChecker
 
         CufetType? inferredResultType = null;
         EnterScope();
+        bool markedTask = false;
+        if (_rabbitModes.Count > 0 && _rabbitModes[^1].Mode == "automatic")
+        {
+            _rabbitModes[^1] = (_rabbitModes[^1].Mode, true);
+            markedTask = true;
+        }
+        if (lts.Binder is { } binder && guardType != null)
+            Scope[binder] = new TypeInfo(guardType, new DeliveryExpression(lts.Source!, lts.Line, lts.Column),
+                                         lts.Line, false, _rabbitDepth);
         try
         {
             CheckBlock(lts.Body);
@@ -136,6 +159,7 @@ public sealed partial class TypeChecker
             _functionDeclarationLine = prevFunctionLine;
             _inferringLambdaReturn   = prevInferring;
             _overloadBodyIsFallible  = prevOverloadFallible;
+            if (markedTask) _rabbitModes[^1] = (_rabbitModes[^1].Mode, false);
             ExitScope();
         }
 
@@ -156,6 +180,77 @@ public sealed partial class TypeChecker
                 new TaskHandleType(inferredResultType),
                 new VariableReference(lts.Name, lts.Line, lts.Column),
                 lts.Line);
+    }
+
+    /// <summary>
+    /// The rules a rabbit's mode puts on its tasks; returns what the task's delivery is called
+    /// as (`voidable T`), or null for a task that waits on nothing.
+    /// </summary>
+    /// <remarks>
+    /// ★ An automatic rabbit runs exactly ONE of its tasks — the one whose delivery was sent first —
+    /// so every task it has must say what it waits on, and no other rabbit's task may. A task that
+    /// may never run cannot be named, because nothing could await it.
+    /// </remarks>
+    private CufetType? CheckTaskMode(LaunchTaskStatement lts)
+    {
+        var (mode, inTask) = _rabbitModes.Count > 0 ? _rabbitModes[^1] : (null, false);
+        bool automatic = mode == "automatic";
+
+        if (automatic && inTask)
+            throw TypeError(
+                "this task is given to an automatic rabbit from inside one of its own tasks",
+                "An automatic rabbit chooses its one task at its 'Done.', so a task started by that task would arrive after the choice",
+                lts.Line, lts.Column,
+                "start a task inside a task of an automatic rabbit",
+                "Pull a rabbit inside the task and give the new task to that one.");
+
+        if (lts.Binder == null)
+        {
+            if (automatic)
+                throw TypeError(
+                    "every task of an automatic rabbit waits on a channel",
+                    "An automatic rabbit runs the one task whose delivery was sent first, so a task waiting on nothing could never be chosen",
+                    lts.Line, lts.Column,
+                    "start a task in an automatic rabbit without saying what it waits on",
+                    "Say which channel it waits on and what to call the delivery: 'Have rabbit start a task for an order in orders:'.");
+            return null;
+        }
+
+        if (!automatic)
+            throw TypeError(
+                "only a task of an automatic rabbit waits on a channel this way",
+                "'for an order in orders' says the task is one of several alternatives, and only an automatic rabbit chooses between them",
+                lts.Line, lts.Column,
+                $"start a task for '{lts.Binder}' in a {mode ?? "parallel"} rabbit",
+                "Pull the rabbit as 'Pull an automatic rabbit.', or take the value inside the task with 'the delivery from <channel>'.");
+
+        if (lts.Name != null)
+            throw TypeError(
+                $"a task of an automatic rabbit cannot be named '{lts.Name}'",
+                "Only one of an automatic rabbit's tasks runs, so a name could stand for a task that never ran, with no result to await",
+                lts.Line, lts.Column,
+                "name a task of an automatic rabbit",
+                "Leave the name off. To get a value out, send it through a channel from inside the task.");
+
+        if (TryLookup(lts.Binder, out _))
+            throw TypeError(
+                $"'{lts.Binder}' already names something here",
+                null, lts.Line, lts.Column,
+                $"call this task's delivery '{lts.Binder}'",
+                "Pick a name that is not already in use for the delivery.");
+
+        var sourceType = InferType(lts.Source!);
+        if (sourceType is not ChannelType ct)
+        {
+            if (sourceType != null)
+                throw TypeError(
+                    $"a task waits on a channel, but '{lts.Binder}' would come from a {FormatType(sourceType)}",
+                    null, lts.Line, lts.Column,
+                    $"wait on a {FormatType(sourceType)}",
+                    "The expression after 'in' must be a channel.");
+            return new VoidableType(CufetType.Number);
+        }
+        return new VoidableType(ct.ElementType);
     }
 
     // ── Outward-only store invariant helpers ─────────────────────────────────

@@ -1748,6 +1748,11 @@ Anonymous form (`Pull a rabbit.`) omits the name. A NAMED rabbit can be given wo
 `Have hopper start a task as job:` — as well as through the bare `rabbit` keyword, which means the
 enclosing one. Naming a rabbit pulled further out is refused: a task is joined by its rabbit's
 `Done.`, so it would have to outlive the block it is written in.
+
+A **mode** may stand between the article and `rabbit`: `Pull an automatic rabbit.`,
+`Pull a sequential rabbit.`, `Pull a parallel rabbit.` (the default). It says how the rabbit's
+TASKS compose. None of the three words is reserved: each is a mode only where `rabbit` follows it.
+See REFERENCE, *Composition modes*.
  Rabbits stay singular — multiple arenas
 usually want independent lifetimes (nest two `Pull a rabbit` blocks with separate `Done.`s).
 
@@ -1785,6 +1790,10 @@ Done.   ← all tasks spawned in this rabbit JOIN here
 
 - **Requires an active rabbit** — `Have rabbit start a task` must appear inside a
   `Pull a rabbit. ... Done.` block. Using it outside any rabbit is a parse error.
+- **In an automatic rabbit**, and only there, every task says what it waits on:
+  `Have dispatcher start a task for an order in orders:`. The name after `for` (its article is
+  noise) holds the delivery, as `voidable T`, inside the task body. The expression after `in` is
+  the channel, worked out when the `Have` line runs. Such a task may not also be named.
 - **Optional name** (`as <name>`) — binds an identity so the task's result can be awaited
   with `the awaited result of <name>`. Both backends support this; an anonymous task is
   fire-and-forget and its `return` value is dropped.

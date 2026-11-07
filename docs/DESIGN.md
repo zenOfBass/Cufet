@@ -1152,6 +1152,32 @@ The two arcs where soundness was the whole problem.
   ran its own scope's unmakers *before* joining its tasks, destroying rabbit-local objects while
   the tasks that could still read them ran. That fix stayed. See the CHANGELOG entry.
 
+- **Composition modes for rabbits — agreed with the user and built 2026-11-07.** Occam's SEQ, PAR
+  and ALT are `sequential`, `parallel` and `automatic`. Taken up before the tutorial, so that
+  concurrency is settled when the lesson is written rather than added to it afterwards.
+
+  ★ **The tasks of an automatic rabbit are marked where they are written, and nothing is hidden.**
+  `Have dispatcher start a task for an order in orders:` names the channel and the delivery in
+  the header. Two shapes were refused: a guard on the task's first line, which hides a branch, and
+  borrowing `it` from `Judge`.
+
+  ★★ **Whatever was SENT first wins**, across channels. The user wanted the choice principled,
+  never random. The task written first was the other candidate, and it loses on a plain case: had
+  a hundred orders queued before a cancel was sent, all hundred would be packed before the older
+  cancel. So every send and close takes the next number from one counter, in both backends.
+
+  ★ **A closed, empty channel runs its task with void**, exactly as `the delivery from` does. The
+  alternative, never running that task, gives the program no way to learn the channel finished.
+  ⚠ **Swapping this rule later would break programs silently**: their void branches would go dead
+  and loops waiting on them would hang. So anything further, such as a test for a closed channel
+  or a task that skips one, is ADDED beside it, and only once a real program shows its shape.
+
+  **No timeout**, for the same reason: no program needs one yet, and one would sit beside the rest.
+
+  **`parallel` is a label** for what a rabbit always did. **`sequential`** starts each task once
+  the one before has ended; compiled, each thread joins the one before it, so `Done.` joins only
+  the last.
+
 ---
 
 ## Foreign interoperability

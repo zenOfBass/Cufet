@@ -160,6 +160,20 @@ Pull a book on collections.
         Cast one's skip-noise.
         Cast one's consume on ("TaskKw") or pass the failure off.
         Cast one's skip-noise.
+        // `for an order in orders` — what an automatic rabbit's task waits on, and what it calls it.
+        Define binder as cast nothing.
+        Define source as cast nothing.
+        If cast one's peek-kind is "For":
+            Cast one's advance.
+            Cast one's skip-noise.
+            Define binder-tok as cast one's consume on ("Identifier") or pass the failure off.
+            The binder becomes cast quoted on (binder-tok's lexeme).
+            Cast one's skip-noise.
+            Cast one's consume on ("In") or pass the failure off.
+            Cast one's skip-noise.
+            The source becomes cast one's expression or pass the failure off.
+            Cast one's skip-noise.
+        Done.
         Define task-name as cast nothing.
         If cast one's peek-kind is "As":
             Cast one's advance.
@@ -183,6 +197,8 @@ Pull a book on collections.
         Decrement one's function-depth by 1.
         Define launch as cast placed on ("LaunchTaskStatement", a series with (task-name, body), have-tok).
         Cast launch's add on (rabbit-name).
+        Cast launch's add on (binder).
+        Cast launch's add on (source).
         Return launch.
     Done.
 
