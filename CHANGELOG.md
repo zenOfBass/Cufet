@@ -35,7 +35,11 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Changed
 
+- **The playground's example menu is a written list now.** It used to list every file in `examples/`,
+  so anything added went public: a second Game of Life that waits for Enter and the pieces of the
+  tutorial's projects, each shown as a program. `ON_THE_SITE` in `playground/build.mjs` is the menu.
 - **Five rungs of the parser written in Cufet are one block now**, in `parser/chains.cufe`.
+- **The record kinds in the compiler written in Cufet are one block now**, in `compiler/records.cufe`.
 - **The compiler written in Cufet now hands its C around as source, not text.** Every function that
   turns an expression into C gives back a `c-language axiom`, built by filling source with holes,
   and shared shapes live in `compiler/axioms.cufe`. A C name goes through a term, a C string through

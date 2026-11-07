@@ -290,74 +290,47 @@ await writeFile(join(out, "seed-manifest.json"), JSON.stringify(assetPaths, null
 // wrong. Their CONTENT is fetched when one is picked, never at boot — seeding is on the critical
 // path to `ready` and 38 more requests do not belong there.
 
-// ⚠⚠ EXCLUDED: what a browser genuinely cannot do. Matched on the CONSTRUCT, anchored at the
-// start of a line, because `examples/language/axioms.cufe` DISCUSSES c-language axioms at length
-// in its opening comment while using none — a bare word search drops a working example from the
-// list and nobody would notice. Measured: this selects exactly the three the runtime reports as
-// unable to run here, and `playground/test/examples.test.mjs` holds the scan to that.
-// ⚠⚠ And the ones a SCAN CANNOT SEE, because the reason is behavioural rather than textual.
+// ★★ THE MENU IS THIS LIST, and nothing reaches it any other way. A list of examples PROMISES that
+// the things on it work, and that is a decision somebody makes. It used to be a scan of the folder,
+// so every file added to examples/ went public unchosen: a second Game of Life that waits for Enter
+// between generations, and the pieces of the tutorial's projects, listed as if each were a program.
 //
-// ★ Why exclude at all: a list of examples PROMISES that the things on it work. A refusal is
-// honest when someone wrote the program themselves; it is a broken promise when the page handed
-// it to them.
+// A group is a folder, and the order here is the order on the page. A name that is not a file stops
+// the build, so a renamed example cannot quietly vanish from the menu.
 //
-// `verifiable: true` means the RUNTIME can confirm the claim — it refuses the program, and
-// test/examples-list.test.mjs fails if it ever stops refusing, so the entry cannot go stale.
-// `verifiable: false` is a JUDGEMENT the runtime cannot check, and is marked as such rather
-// than dressed up as a fact.
-const EXCLUDED = {
-    'sudoku.cufe': {
-        verifiable: true,
-        why: 'its backtracking recursion needs more stack than a browser has. It prints a partial '
-           + 'board and stops with the stack refusal — honest, but a demonstration of the limit '
-           + 'rather than of the language. It runs to completion under `cufet`.',
-    },
-    'gameoflife.cufe': {
-        verifiable: false,
-        why: 'it prints one board per generation and the point is watching them ARRIVE. A terminal '
-           + 'shows output as it is written; this page buffers a run and paints it once, so the '
-           + 'animation becomes a static wall of boards. Nothing refuses it — the output is just '
-           + 'no longer the thing the example is about. Revisit if output ever streams.',
-    },
+// ⚠ Left off deliberately, by the owner's word or because a browser cannot do them:
+//   gameoflife, life   a terminal shows generations arriving; this page buffers a run. `life` also
+//                      waits for Enter.
+//   sudoku             its backtracking recursion needs more stack than a browser has.
+//   garden/, planting/, circuits/   projects, in pieces. No file of one stands alone in this menu.
+//   pennies, bookkeeping, spans     a book or module only declares, so Run prints nothing. The
+//                      programs that pull them are listed, and still find them: seeding is above.
+const ON_THE_SITE = {
+    basics: ["averageseries", "evenfiltergreaterthan", "fibonacci", "fizzbuzz", "geometry",
+        "largestinseries", "towerofhanoi"],
+    algorithms: ["beamforming", "dijkstra", "easter", "huffmancoding", "markov", "montecarlo", "nqueens",
+        "reversiblelogic", "wordfreq"],
+    parsing: ["config", "json", "logtriage", "precedence", "readings", "recursivedescent", "semver"],
+    structures: ["arbtree", "binarysearchtree", "cards", "renderer"],
+    language: ["axioms", "basket", "booking", "dispatch", "documentation", "generics",
+        "interfacedefaults", "interfaces", "lambdas", "ledger", "lifecycle", "patterns",
+        "permanently", "rawtext", "stashes", "workshop"],
+    concurrency: ["actor-mailbox", "channel-deepcopy", "parallelsum", "sensor-averages", "work-queue"],
+    systems: ["interruptible", "permissions", "search"],
 };
 
-const NEEDS_A_TERMINAL =
-    /^\s*(?:Pull a book on the c-language\b|Define c-language\b|Run\s+")|\|\s*run\s+"/im;
-
-// ★ The folder is the group, and the order here is the order they are met in. A file in a folder
-// not named here still ships — it lands under its own folder name at the end, so adding one is
-// never silently dropped.
-const GROUP_ORDER = ["basics", "algorithms", "parsing", "structures", "language", "concurrency", "systems"];
-
 const examples = [];
-if (existsSync(examplesDir)) {
-    for (const path of (await cufeFilesUnder(examplesDir)).sort()) {
-        const text = await readFile(path, "utf8");
-        if (NEEDS_A_TERMINAL.test(text)) continue;
-        if (Object.hasOwn(EXCLUDED, path.split(/[\\/]/).pop())) continue;
-
-        const relative = path.slice(join(here, "..").length + 1).split(/[\\/]/).join("/");
-        const parts = relative.split("/");
-        await mkdir(join(out, ...parts.slice(0, -1)), { recursive: true });
-        await cp(path, join(out, ...parts));
-
-        examples.push({
-            path: relative,
-            group: parts.at(-2) ?? "other",
-            // The bare filename, which is what a person calls it. `.cufe` is noise in a list
-            // where every single row has it.
-            name: parts.at(-1).replace(/\.cufe$/, ""),
-        });
+for (const [group, names] of Object.entries(ON_THE_SITE)) {
+    await mkdir(join(out, "examples", group), { recursive: true });
+    for (const name of names) {
+        const path = `examples/${group}/${name}.cufe`;
+        await cp(join(here, "..", path), join(out, path));
+        examples.push({ path, group, name });
     }
-
-    examples.sort((a, b) => {
-        const rank = g => { const i = GROUP_ORDER.indexOf(g); return i < 0 ? GROUP_ORDER.length : i; };
-        return rank(a.group) - rank(b.group) || a.group.localeCompare(b.group) || a.name.localeCompare(b.name);
-    });
 }
 
 await writeFile(join(out, "examples-manifest.json"), JSON.stringify(
-    { examples, excluded: EXCLUDED }, null, 2) + "\n");
+    { examples }, null, 2) + "\n");
 console.log(`examples:       ${examples.length} browsable`);
 console.log(`seeded:         ${assetPaths.length} file(s) the examples read`);
 

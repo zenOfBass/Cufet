@@ -94,11 +94,9 @@ build in one step, and can also re-enable `InvariantGlobalization` (see the cspr
   — the playground could not demonstrate the module system at all. `build.mjs` seeds books by
   BASENAME at the root (a book is found by the name you pull), while assets keep their folders (an
   asset is found by the path you write).
-- **The example list is DERIVED, and the derivation is tested against behaviour.** `build.mjs`
-  copies every example except those needing a terminal, matching the construct anchored at the
-  start of a line rather than the word anywhere — `axioms.cufe` discusses C axioms without using
-  one. `test/examples-list.test.mjs` then checks both directions: everything listed runs, and
-  everything omitted genuinely cannot run here.
+- **The example list is WRITTEN OUT, in `ON_THE_SITE` in `build.mjs`.** A file does not reach the
+  menu by being in `examples/`: adding it to the list is the decision. `test/examples-list.test.mjs`
+  checks that everything listed runs here, and a listed file that does not exist stops the build.
 - **There is already a filesystem in the browser, and it starts empty.** Emscripten gives the
   runtime an in-memory one and .NET's File APIs sit on it — a Cufet program can write a file and
   read it back under wasm, and listing, appending and existence checks all work. Nothing had to be

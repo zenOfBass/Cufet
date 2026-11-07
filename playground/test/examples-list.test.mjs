@@ -1,19 +1,15 @@
-﻿// The browsable example list: that it exists, that everything on it works, and — the part that
-// cannot be eyeballed — that the reason things are left OFF it is still true.
+﻿// The browsable example list: that it exists, and that everything on it works.
 //
-// ★★ Two things keep an example off the list, and only one of them is visible in source.
-// build.mjs scans for constructs a browser cannot do (a C axiom, launching a program), and
-// carries a short list of programs that start fine and cannot FINISH — sudoku needs more stack
-// than a browser has. Both are claims about behaviour, and this holds them to it: every example
-// on the list must actually run, and every one left off must actually be unable to. Either half
-// drifting silently is how a list rots.
+// ★★ What is on the list is a decision, written out in build.mjs. A file does not reach the menu by
+// being in examples/, so being left off says nothing about whether a program runs. What can be
+// checked is the other half: a list PROMISES its entries work, so each one has to.
 //
 // ⚠ Requires a built playground: `dotnet publish` then `node build.mjs`.
 
 import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync, existsSync } from 'node:fs';
-import { join, dirname, basename } from 'node:path';
+import { readFileSync, existsSync } from 'node:fs';
+import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -22,21 +18,8 @@ const repoRoot = join(playground, '..');
 const site = join(playground, 'site');
 const manifestPath = join(site, 'examples-manifest.json');
 
-/** Every .cufe in the corpus, so "what was left off" can be worked out rather than assumed. */
-function exampleFiles(dir = join(repoRoot, 'examples')) {
-    const found = [];
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-        const path = join(dir, entry.name);
-        if (entry.isDirectory()) found.push(...exampleFiles(path));
-        else if (entry.name.endsWith('.cufe')) found.push(path);
-    }
-    return found;
-}
-
 let runtime;
 let listed = [];
-/** filename -> { verifiable, why }, exactly the claims build.mjs acted on. */
-let excluded = {};
 
 before(async () => {
     assert.ok(existsSync(join(site, '_framework')),
@@ -45,7 +28,6 @@ before(async () => {
         'site/examples-manifest.json is missing — build.mjs did not write it');
     const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
     listed = manifest.examples;
-    excluded = manifest.excluded;
 
     const { dotnet } = await import('../site/_framework/dotnet.js');
     const { getAssemblyExports, getConfig } = await dotnet.create();
@@ -92,32 +74,20 @@ test('every listed example runs here', () => {
         + 'browser has, or the runtime gained a new way to refuse:\n  ' + broken.join('\n  '));
 });
 
-test('every example left off the list genuinely cannot deliver here', () => {
-    // ⚠ The half nobody would check by hand. An example dropped by a scan that has quietly started
-    // over-matching is invisible: the picker just has one fewer row, and it still looks fine.
-    const shown = new Set(listed.map(e => basename(e.path)));
-    const wronglyDropped = [];
+test('every listed example shows something when it runs', () => {
+    // ★ A book or a module only declares, so it finishes cleanly and prints nothing. To a visitor
+    // who picked it and pressed Run, that is a broken page.
+    const silent = listed.filter(e => runtime.Run(readFileSync(join(site, e.path), 'utf8')).trim() === '');
+    assert.deepEqual(silent.map(e => e.path), [], 'on the menu, and Run shows nothing');
+});
 
-    for (const file of exampleFiles()) {
-        const name = basename(file);
-        if (shown.has(name)) continue;
-
-        // ⚠⚠ Some exclusions are JUDGEMENTS the runtime cannot check. `gameoflife.cufe` runs
-        // perfectly and finishes; it is left out because its output is one board per generation
-        // and the point is watching them arrive, which a buffered pane cannot show. Asserting
-        // that the runtime refuses it would be asserting something false. They are marked
-        // `verifiable: false` at the source rather than quietly skipped here.
-        if (excluded[name]?.verifiable === false) continue;
-
-        const output = runtime.Run(readFileSync(file, 'utf8'));
-        if (!cannotDeliverHere(output)) wronglyDropped.push(name);
-    }
-
-    assert.deepEqual(wronglyDropped, [],
-        'these examples run perfectly well here but are missing from the picker. Either the scan '
-        + 'in build.mjs is over-matching — it matches a CONSTRUCT at line start, not the word '
-        + 'anywhere, because axioms.cufe discusses C axioms without using one — or an entry in '
-        + 'CANNOT_FINISH has come good and should be deleted:\n  ' + wronglyDropped.join('\n  '));
+test('what was ruled off the menu stays off it', () => {
+    // ★ Both Games of Life, by name: the first exclusion was by FILENAME, and the second program
+    // walked straight past it. And no piece of a project, which cannot be judged on its own.
+    const ruledOff = new Set(['gameoflife', 'life']);
+    const projects = new Set(['garden', 'planting', 'circuits']);
+    const offending = listed.filter(e => ruledOff.has(e.name) || projects.has(e.group)).map(e => e.path);
+    assert.deepEqual(offending, [], 'on the menu, and ruled off it');
 });
 
 test('the page is wired to the list', () => {
@@ -138,22 +108,4 @@ test('the page is wired to the list', () => {
         'index.html has no menu button for app.ts to enable');
     assert.match(markup, /id="examples-panel"/,
         'index.html has no panel for app.ts to fill');
-});
-
-test('an exclusion the runtime cannot check still carries a reason, and still runs', () => {
-    // ★ A judgement cannot be verified, but it can be kept honest in two smaller ways: it must
-    // say WHY in words, and the program must still work — so if `gameoflife.cufe` ever breaks
-    // outright, that is not hidden behind an exclusion made for a completely different reason.
-    for (const [name, claim] of Object.entries(excluded)) {
-        assert.ok(claim.why && claim.why.length > 40,
-            `${name} is excluded with no real reason recorded; a bare exclusion rots into folklore`);
-        if (claim.verifiable !== false) continue;
-
-        const file = exampleFiles().find(f => basename(f) === name);
-        assert.ok(file, `${name} is excluded but is not in the corpus at all — delete the entry`);
-        const output = runtime.Run(readFileSync(file, 'utf8'));
-        assert.doesNotMatch(output, /cannot run here|ran out of stack|That doesn't work/,
-            `${name} is excluded as a presentation judgement, but it is actually FAILING now:`
-            + `\n${output.trim().split('\n').slice(-2).join('\n')}`);
-    }
 });
