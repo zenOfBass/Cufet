@@ -13,7 +13,7 @@
       cannot hold a record yet, for the same reason it cannot hold a union.
 */
 
-Pull books on collections, and the c-language.
+Pull books on collections, the c-language, and cufet.
     Bind fact to is-record, given (the text kind):
         Return kind starts with "record(".
     Done.
@@ -160,43 +160,31 @@ static int the equal(the type-c a, the type-c b) { return the tests; }
 
     // ── Expressions ───────────────────────────────────────────────────────
 
-    /// The kind of a written record type.
-    Bind text or failure to record-kind-of-type unto emitter, given (the node written):
-        Define positional as a series of text.
-        For each inner in (cast field-of on (written, 1))'s children, repeat:
-            Define held as cast one's kind-of-type on (inner) or pass the failure off.
-            If cast is-field-kind on (held) is false, return a failure (cast not-built on ("a record holding a {held}")).
-            Insert held into positional.
+    /// The kind of a record, written as a type or as a value: the same walk over its parts either way,
+    /// and only how a part's kind is worked out differs. That is a method, which cannot be passed, so
+    /// this is a block rather than a function.
+    Define cufet kind-of-record, given (the term made, the text or failure function part-kind unto emitter given (the node)), as [
+        Bind text or failure to made unto emitter, given (the node shape):
+            Define positional as a series of text.
+            For each inner in (cast field-of on (shape, 1))'s children, repeat:
+                Define held as cast one's part-kind on (inner) or pass the failure off.
+                If cast is-field-kind on (held) is false, return a failure (cast not-built on ("a record holding a {held}")).
+                Insert held into positional.
+            Done.
+            Define named as a map from text to text.
+            For each pair in (cast field-of on (shape, 2))'s children, repeat:
+                Define held as cast one's part-kind on (item 2 of pair's children) or pass the failure off.
+                If cast is-field-kind on (held) is false, return a failure (cast not-built on ("a record holding a {held}")).
+                In named, the entry for cast unquoted on (item 1 of pair's children) becomes held.
+            Done.
+            Define kind as cast record-kind-of on (positional, named).
+            Cast one's register-record on (kind).
+            Return kind.
         Done.
-        Define named as a map from text to text.
-        For each pair in (cast field-of on (written, 2))'s children, repeat:
-            Define held as cast one's kind-of-type on (item 2 of pair's children) or pass the failure off.
-            If cast is-field-kind on (held) is false, return a failure (cast not-built on ("a record holding a {held}")).
-            In named, the entry for cast unquoted on (item 1 of pair's children) becomes held.
-        Done.
-        Define kind as cast record-kind-of on (positional, named).
-        Cast one's register-record on (kind).
-        Return kind.
-    Done.
+    ].
 
-    /// The kind of `a record with (…)`.
-    Bind text or failure to record-literal-kind unto emitter, given (the node expression):
-        Define positional as a series of text.
-        For each inner in (cast field-of on (expression, 1))'s children, repeat:
-            Define held as cast one's kind-of on (inner) or pass the failure off.
-            If cast is-field-kind on (held) is false, return a failure (cast not-built on ("a record holding a {held}")).
-            Insert held into positional.
-        Done.
-        Define named as a map from text to text.
-        For each pair in (cast field-of on (expression, 2))'s children, repeat:
-            Define held as cast one's kind-of on (item 2 of pair's children) or pass the failure off.
-            If cast is-field-kind on (held) is false, return a failure (cast not-built on ("a record holding a {held}")).
-            In named, the entry for cast unquoted on (item 1 of pair's children) becomes held.
-        Done.
-        Define kind as cast record-kind-of on (positional, named).
-        Cast one's register-record on (kind).
-        Return kind.
-    Done.
+    Cite kind-of-record on ("record-kind-of-type", kind-of-type).
+    Cite kind-of-record on ("record-literal-kind", kind-of).
 
     /// One more field of a struct value being written: `.<member> = <value>`, after those before it.
     Bind c-language axiom to c-field-given, given (the c-language axiom assigned, the text member, the c-language axiom value):

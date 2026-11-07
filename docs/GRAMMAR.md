@@ -2701,7 +2701,8 @@ State tally's place.
 | `the text x`, `the number n`, `the fact f` | a value | a literal |
 
 A hole can say what a function hole gives back in full, spelled as a `Bind` spells it:
-`the node or failure function next unto parser`. Those two spellings belong to a hole, because a
+`the node or failure function next unto parser`, and what it takes comes after that, as on any
+function parameter: `… next unto parser given (the node)`. Those two spellings belong to a hole, because a
 hole is filled with a NAME; a function VALUE can be neither a method nor written that way.
 
 ⚠ **What fills a hole is written out at the `Cite`.** The `Cite` happens before the program runs, so
