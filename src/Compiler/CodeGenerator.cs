@@ -45,6 +45,9 @@ public sealed partial class CodeGenerator
     // storage). The closure value is `(cfn_N){ .fn = cv_clos<id>, .env = <env or NULL> }`.
     private readonly StringBuilder _closureFns = new();
     private readonly StringBuilder _closureEnvs = new();
+    // One declaration per closure, written ahead of the task functions: a function Bound inside a
+    // task body is a closure, and the task's C names it before the closure bodies come.
+    private readonly StringBuilder _closureProtos = new();
     private int _closureCounter;
     // Inside a recursive nested Bind's body, its own name resolves to a SELF-CALL of the closure fn
     // reusing the current env (`cv_clos<id>(cf_envp, args)`) — recursion by-name, matching the
@@ -96,7 +99,7 @@ public sealed partial class CodeGenerator
     // so re-running is idempotent (and the shapes discovered are needed either way).
     private void ResetEmissionBuffers()
     {
-        _taskFns.Clear(); _closureFns.Clear(); _closureEnvs.Clear(); _preEmits.Clear();
+        _taskFns.Clear(); _closureFns.Clear(); _closureEnvs.Clear(); _closureProtos.Clear(); _preEmits.Clear();
         _openFiles.Clear(); _loopExits.Clear();
         _rabbitCtx.Clear(); _rabbitCtxMode.Clear(); _offeredTasks.Clear(); _rabbitDepth = 0; _excOpen = 0;
         _varRabbitDepth.Clear(); _closureEscapeDepth = null;

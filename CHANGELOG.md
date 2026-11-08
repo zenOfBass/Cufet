@@ -63,6 +63,10 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   after the start was seen changed (`after 3`) where the compiled program saw it as it was
   (`before 2`). A task now copies what it uses when it is started, in both backends, as REFERENCE
   already said it did.
+- **A function Bound inside a task body could not be called.** Interpreted, nothing made the
+  function, and calling it failed with "'shout' is not a method on this value". Compiled, its C came
+  after the task that named it, and a `Return` inside it was written as the task's own. Both
+  backends now treat it as the nested function it is, as the checker always did.
 - **A task whose body pulls a rabbit and starts a task of its own did not build** with
   `cufet build`: the inner task's C landed inside the outer one's, and gcc refused it. The same
   program ran interpreted. Each task's C is now written whole and then added.

@@ -1088,6 +1088,9 @@ public sealed partial class CodeGenerator
         var savedSelf = _closureSelf;
         _closureSelf = selfName != null ? (selfName, clos, ft) : null;   // self-reference → self-call
         _currentReturnType = ret;
+        // ⚠ A closure made inside a task returns from ITSELF. Left set, the task's return context
+        // made its `Return` free the task's argument and leave the thread.
+        var savedTaskReturn = _currentTaskReturn; _currentTaskReturn = null;
         _varTypes.Clear();
         foreach (var v in free) _varTypes[v] = savedVT[v];
         foreach (var (pt, pn) in parameters) _varTypes[pn] = pt;
@@ -1098,6 +1101,7 @@ public sealed partial class CodeGenerator
         var fnBuf = new StringBuilder();
         var sigParams = new[] { "void* cf_envp" }.Concat(parameters.Select(p => $"{EmitCType(p.Type)} {MangleName(p.Name)}"));
         fnBuf.AppendLine($"{retC} {clos}({string.Join(", ", sigParams)}) {{");
+        _closureProtos.AppendLine($"{retC} {clos}({string.Join(", ", sigParams)});");
         if (envType != null)
         {
             fnBuf.AppendLine($"    {envType}* cf_env = ({envType}*)cf_envp;");
@@ -1126,7 +1130,7 @@ public sealed partial class CodeGenerator
         // Restore the enclosing compiler state.
         _preEmits.Clear(); _preEmits.AddRange(savedPre);
         _currentReturnType = savedRet; _excOpen = savedExc; _currentFailVar = savedFail;
-        _closureSelf = savedSelf;
+        _closureSelf = savedSelf; _currentTaskReturn = savedTaskReturn;
         _varTypes.Clear();
         foreach (var kv in savedVT) _varTypes[kv.Key] = kv.Value;
 

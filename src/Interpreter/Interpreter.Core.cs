@@ -1386,7 +1386,10 @@ public sealed partial class Interpreter
                 break; // already hoisted / no runtime action
 
             case BindStatement bind:
-                if (_callDepth > 0)
+                // ★ A task body counts as a function body here, as the checker already treats it:
+                // nothing hoists a Bind out of a task, so without this the function was never made
+                // and calling it failed with "'shout' is not a method on this value".
+                if (_callDepth > 0 || _taskBodyDepth > 0)
                 {
                     // Inside a function body: create a closure carrying the current environment.
                     // Capture before setting the name so we can add self-reference for recursion.

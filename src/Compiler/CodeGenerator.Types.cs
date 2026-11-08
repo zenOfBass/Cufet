@@ -853,7 +853,10 @@ static int cufet_str_code_point(const char* s) {
 
         // ── Generated task thread functions (bodies — after the forward decls they may call) ──
         if (_usesConcurrency)
+        {
+            sb.Append(_closureProtos);
             sb.Append(_taskFns);
+        }
 
         // ── Named-function value thunks (after the function forward-decls they call) ──
         EmitFnThunks(sb);

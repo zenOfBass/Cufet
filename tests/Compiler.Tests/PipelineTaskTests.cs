@@ -917,6 +917,51 @@ public class PipelineTaskTests : PipelineTestBase
         Assert.Equal(Interpret(src), Compile(src));
     }
 
+    // ★ A function Bound inside a task body. Interpreted, nothing hoists a Bind out of a task, so
+    // the function was never made ("'shout' is not a method on this value"); compiled, its C came
+    // after the task that named it, and its `Return` was written as the task's. It recurses and
+    // captures here, so both halves of a closure are reached.
+    [Fact]
+    public void AFunctionBoundInsideATask_CanBeCalled()
+    {
+        const string src = """
+            Pull a rabbit.
+                Define mark as "!".
+                Have rabbit start a task:
+                    Bind text to shout, given (the text word, the number times):
+                        If times is 0, return word.
+                        Return cast shout on ("{word}{mark}", times - 1).
+                    Done.
+                    State cast shout on ("hey", 3).
+                Done.
+            Done.
+            """;
+        Assert.Equal("hey!!!", Interpret(src));
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    // The same inside an automatic rabbit's chosen task, which runs as the rabbit's own code.
+    [Fact]
+    public void AFunctionBoundInsideAnAutomaticRabbitsTask_CanBeCalled()
+    {
+        const string src = """
+            Pull a rabbit.
+                Define words as a channel of text.
+                Send "hello" through words.
+                Pull an automatic rabbit.
+                    Have rabbit start a task for a word in words:
+                        Bind text to shout, given (the text said):
+                            Return "{said}!".
+                        Done.
+                        State cast shout on (word but void is "").
+                    Done.
+                Done.
+            Done.
+            """;
+        Assert.Equal("hello!", Interpret(src));
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
     // The other half of the same bug: a name changed after the task started was seen changed
     // interpreted and unchanged compiled.
     [Fact]

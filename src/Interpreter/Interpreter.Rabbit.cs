@@ -170,6 +170,7 @@ public sealed partial class Interpreter
                              Dictionary<string, object>? captured = null)
     {
         EnterScope();
+        _taskBodyDepth++;
         if (captured != null)
             foreach (var (name, value) in captured) Scope[name] = value;
         if (delivery is { } d) Scope[d.Name] = d.Value;
@@ -189,7 +190,12 @@ public sealed partial class Interpreter
         }
         finally
         {
+            _taskBodyDepth--;
             ExitScope();
         }
     }
+
+    // How many task bodies are running, innermost-first. Task bodies nest like calls — another
+    // task only ever runs inside a drain this one started — so a counter is enough.
+    private int _taskBodyDepth;
 }

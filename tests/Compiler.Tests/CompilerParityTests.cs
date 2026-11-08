@@ -65,7 +65,7 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     : PipelineTestBase, IClassFixture<CompiledCufetCompiler>
 {
     /// <summary>How many hand-written programs must build and print alike. Raised as it grows; never lowered.</summary>
-    private const int BuiltFloor = 472;
+    private const int BuiltFloor = 473;
 
     private static string[] PreludeArgs =>
         ["--prelude", Path.Combine(RepoRoot, "src", "Interpreter", "Prelude").Replace('\\', '/')];
@@ -75,6 +75,8 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     /// </summary>
     private static readonly string[] Built =
     [
+        // A function Bound inside a task body, recursing and capturing (2026-11-07).
+        "Pull a rabbit.\n    Define mark as \"!\".\n    Have rabbit start a task:\n        Bind text to shout, given (the text word, the number times):\n            If times is 0, return word.\n            Return cast shout on (\"{word}{mark}\", times - 1).\n        Done.\n        State cast shout on (\"hey\", 3).\n    Done.\nDone.\n",
         // Composition modes for rabbits: the oldest send wins, a closed channel gives void, one at a time (2026-11-07).
         "Pull a rabbit.\n    Define orders as a channel of text.\n    Define cancels as a channel of number.\n    Send \"kale\" through orders.\n    Send \"carrots\" through orders.\n    Close orders.\n    Send 17 through cancels.\n    Send 18 through cancels.\n    Define orders-open as true.\n    Define handled as 0.\n    While handled is less than 4, repeat:\n        Pull an automatic rabbit as dispatcher.\n            If orders-open:\n                Have dispatcher start a task for an order in orders:\n                    If order is void:\n                        The orders-open becomes false.\n                    Done.\n                    Otherwise:\n                        State \"packing {order}\".\n                        Increment handled by 1.\n                    Done.\n                Done.\n            Done.\n            Have dispatcher start a task for a ticket in cancels:\n                State \"cancelling ticket {ticket but void is 0}\".\n                Increment handled by 1.\n            Done.\n        Done.\n    Done.\n    State \"handled {handled}\".\nDone.\n",
         "Pull a rabbit.\n    Define orders as a channel of text.\n    Send \"a\" through orders.\n    Pull an automatic rabbit.\n        Define label as \"seen\".\n        If true:\n            Have rabbit start a task for an order in orders:\n                State \"{label} {order but void is \"\"}\".\n                The label becomes \"changed\".\n            Done.\n        Done.\n        State label.\n    Done.\nDone.\n",
