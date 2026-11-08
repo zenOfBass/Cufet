@@ -29,12 +29,15 @@ public sealed partial class TypeChecker
     // body of an automatic rabbit marked as such — a task given to that rabbit from INSIDE one of
     // its own tasks would arrive after the rabbit already chose, so it is refused.
     private readonly List<(string? Mode, bool InTask)> _rabbitModes = [];
+    // Where each open rabbit's own scope sits in _scopes, parallel to the list above.
+    private readonly List<int> _rabbitScopes = [];
 
     private void CheckPullRabbit(PullRabbitStatement prs)
     {
         _rabbitModes.Add((prs.Mode, false));
+        _rabbitScopes.Add(_scopes.Count);
         try { CheckPullRabbitBody(prs); }
-        finally { _rabbitModes.RemoveAt(_rabbitModes.Count - 1); }
+        finally { _rabbitModes.RemoveAt(_rabbitModes.Count - 1); _rabbitScopes.RemoveAt(_rabbitScopes.Count - 1); }
     }
 
     private void CheckPullRabbitBody(PullRabbitStatement prs)
@@ -107,8 +110,10 @@ public sealed partial class TypeChecker
         // afterwards — because that is the case where the backends genuinely differ. A write
         // nothing reads still only warns, from the compiler, where saying so costs nothing:
         // refusing it would be a rule wider than its reason.
+        // ★ Not for an automatic rabbit's task: it runs on the rabbit's own flow, with nothing
+        // beside it, so a change to what it uses lands where everyone sees it. See CheckTaskMode.
         foreach (var captured in TaskCaptures.Of(lts.Body, n => TryLookup(n, out _)))
-            if (TaskCaptures.MayMutate(lts.Body, captured)
+            if (lts.Binder == null && TaskCaptures.MayMutate(lts.Body, captured)
              && TaskCaptures.WriteIsObservable(_wholeProgram, lts.Body, captured))
                 throw TypeError(
                     $"this task changes '{captured}', which it captured from outside the task",
@@ -239,6 +244,26 @@ public sealed partial class TypeChecker
                 $"call this task's delivery '{lts.Binder}'",
                 "Pick a name that is not already in use for the delivery.");
 
+        // ★ The chosen task runs at the rabbit's `Done.`, as the rabbit's own code. So a `Return`
+        // in it would leave whatever the rabbit sits in, and a name from a block that ended
+        // before `Done.` — the loop that offered the task, an `If` arm — is gone by then.
+        if (HasOwnReturn(lts.Body))
+            throw TypeError(
+                "a task of an automatic rabbit cannot return",
+                "The chosen task runs as the rabbit's own code at its 'Done.', so a return would leave what the rabbit sits in",
+                lts.Line, lts.Column,
+                "return from a task of an automatic rabbit",
+                "Let the task reach its end; use 'If' and 'Otherwise' to skip the rest.");
+        int rabbitScope = _rabbitScopes.Count > 0 ? _rabbitScopes[^1] : 0;
+        foreach (var used in TaskCaptures.Of(lts.Body, n => TryLookup(n, out _)))
+            if (ScopeOf(used) > rabbitScope)
+                throw TypeError(
+                    $"'{used}' ends before this automatic rabbit chooses",
+                    $"The chosen task runs at the rabbit's 'Done.', and '{used}' belongs to a block that has ended by then",
+                    lts.Line, lts.Column,
+                    $"use '{used}' in a task of an automatic rabbit",
+                    $"Define '{used}' in the rabbit's own body, or outside the rabbit.");
+
         var sourceType = InferType(lts.Source!);
         if (sourceType is not ChannelType ct)
         {
@@ -252,6 +277,28 @@ public sealed partial class TypeChecker
         }
         return new VoidableType(ct.ElementType);
     }
+
+    /// <summary>The index in _scopes of the innermost scope holding the name, or -1.</summary>
+    private int ScopeOf(string name)
+    {
+        for (int i = _scopes.Count - 1; i >= 0; i--)
+            if (_scopes[i].ContainsKey(name)) return i;
+        return -1;
+    }
+
+    /// <summary>Whether a body returns from ITSELF — a return inside a function, a lambda, an
+    /// object or another task it holds belongs to that.</summary>
+    private static bool HasOwnReturn(object? node) => node switch
+    {
+        null or string => false,
+        ReturnStatement => true,
+        BindStatement or LambdaLiteral or LaunchTaskStatement or ObjectDefinition
+            or GetterDeclaration or SetterDeclaration or UnmakerDeclaration or OperatorOverloadDeclaration => false,
+        System.Collections.IEnumerable items => items.Cast<object?>().Any(HasOwnReturn),
+        _ when node.GetType().Namespace == typeof(Program).Namespace && node is not CufetType
+            => node.GetType().GetProperties().Any(p => p.GetIndexParameters().Length == 0 && HasOwnReturn(p.GetValue(node))),
+        _ => false,
+    };
 
     // ── Outward-only store invariant helpers ─────────────────────────────────
 

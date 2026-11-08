@@ -98,7 +98,7 @@ public sealed partial class CodeGenerator
     {
         _taskFns.Clear(); _closureFns.Clear(); _closureEnvs.Clear(); _preEmits.Clear();
         _openFiles.Clear(); _loopExits.Clear();
-        _rabbitCtx.Clear(); _rabbitCtxMode.Clear(); _rabbitDepth = 0; _excOpen = 0;
+        _rabbitCtx.Clear(); _rabbitCtxMode.Clear(); _offeredTasks.Clear(); _rabbitDepth = 0; _excOpen = 0;
         _varRabbitDepth.Clear(); _closureEscapeDepth = null;
         _currentFailVar = null; _closureSelf = null; _currentTaskReturn = null;
         // The channel deep-copy registry IS reset: an OPEN union's TypeSig is the constant "U(*)"
@@ -459,6 +459,8 @@ public sealed partial class CodeGenerator
     private readonly List<string> _rabbitCtx = new();   // suffix N of cf_thr{N}/cf_chan{N} per open rabbit
     // The mode each open rabbit was pulled with ("automatic", "sequential", or null), by suffix.
     private readonly Dictionary<string, string?> _rabbitCtxMode = new();
+    // What each automatic rabbit was offered, by suffix: the task's id and its statement.
+    private readonly Dictionary<string, List<(int Id, LaunchTaskStatement Task)>> _offeredTasks = new();
     private int _rabbitDepth;   // open `Pull a rabbit` arena scopes (concurrency-independent; escape guard)
     // ESC.4 — each in-scope variable's DECLARING rabbit depth (mirrors the checker's TypeInfo.RabbitDepth).
     // Used to decide, per closure CAPTURE, whether it escapes the closure's destination: a capture
@@ -1543,6 +1545,40 @@ public sealed partial class CodeGenerator
         return $"(cf_dh{id} ? ({cvd}){{ .has = 1, .val = cf_dv{id} }} : ({cvd}){{ .has = 0 }})";
     }
 
+    // An automatic rabbit's `Done.`: wait for whichever of its channels holds what was sent first,
+    // then run THAT task's body here, on the rabbit's own thread — nothing runs beside it, so it is
+    // ordinary code, as an Occam ALT's branch and a Go select's case are. Written once per offered
+    // task, picked by the id its `Have` line recorded; a task offered from a loop is one case.
+    private void EmitOfferedChoice(StringBuilder sb, string n, string indent)
+    {
+        if (!_offeredTasks.TryGetValue(n, out var offered) || offered.Count == 0) return;
+        string inner = indent + "        ";
+        sb.AppendLine($"{indent}if (cf_nalt{n} > 0) {{");
+        sb.AppendLine($"{indent}    void* cf_sv{n} = NULL; int cf_sh{n} = 0;");
+        sb.AppendLine($"{indent}    int cf_sk{n} = cufet_chan_select(cf_altch{n}, cf_nalt{n}, &cf_sv{n}, &cf_sh{n});");
+        sb.AppendLine($"{indent}    if (cf_sk{n} < 0) cufet_checkpoint();");
+        sb.AppendLine($"{indent}    else switch (cf_altid{n}[cf_sk{n}]) {{");
+        foreach (var (id, lts) in offered.DistinctBy(o => o.Id))
+        {
+            var elem = (TypeOf(lts.Source!) as ChannelType)?.ElementType ?? TNumber;
+            RegisterChanElem(elem, isTop: true);
+            var bt = new VoidableType(elem);
+            string cvd = RegisterVoidableStruct(bt);
+            string b = MangleName(lts.Binder!);
+            sb.AppendLine($"{indent}    case {id}: {{");
+            sb.AppendLine($"{inner}{cvd} {b} = {{0}}; (void){b};");
+            sb.AppendLine($"{inner}if (cf_sh{n}) {{ {b}.has = 1; {b}.val = {ChanArenaCopy(elem)}(cf_sv{n}); {ChanFreeEnv(elem)}(cf_sv{n}); }}");
+            bool had = _varTypes.TryGetValue(lts.Binder!, out var saved);
+            _varTypes[lts.Binder!] = bt;
+            EmitScopedBlock(sb, lts.Body, inner);
+            if (had) _varTypes[lts.Binder!] = saved!; else _varTypes.Remove(lts.Binder!);
+            sb.AppendLine($"{inner}break;");
+            sb.AppendLine($"{indent}    }}");
+        }
+        sb.AppendLine($"{indent}    }}");
+        sb.AppendLine($"{indent}}}");
+    }
+
     // `an interrupt is requested` → the current interrupt flag as a fact (0/1).
     private string EmitInterruptRequested()
     {
@@ -1571,13 +1607,20 @@ public sealed partial class CodeGenerator
         // ("invalid storage class"). Back to 0.29.0 at least, every task-in-a-task failed to build.
         var fn = new StringBuilder();
         int tid = _taskCounter++;
-        // ★ An automatic rabbit's task is not started here but OFFERED: its argument is made now,
-        // and the rabbit's `Done.` starts the one whose delivery was sent first and drops the rest.
+        // ★ An automatic rabbit's task is not started here but OFFERED: the channel it waits on is
+        // noted now, and the rabbit's `Done.` runs the body of the one whose delivery was sent first,
+        // on the rabbit's own thread. See EmitOfferedChoice.
+        if (lts.Binder != null)
+        {
+            string source = EmitExpr(lts.Source!);
+            FlushPreEmits(sb, indent);
+            if (!_offeredTasks.TryGetValue(ctx, out var offered)) _offeredTasks[ctx] = offered = [];
+            offered.Add((tid, lts));
+            sb.AppendLine($"{indent}cf_altch{ctx}[cf_nalt{ctx}] = {source}; cf_altid{ctx}[cf_nalt{ctx}++] = {tid};");
+            return;
+        }
         // A sequential rabbit's task waits, first thing, for the thread started before it.
-        bool guarded = lts.Binder != null;
         bool sequential = _rabbitCtxMode.GetValueOrDefault(ctx) == "sequential";
-        CufetType? guardElem = guarded ? ((TypeOf(lts.Source!) as ChannelType)?.ElementType ?? TNumber) : null;
-        if (guardElem != null) RegisterChanElem(guardElem, isTop: true);
 
         // Result type (named tasks only) — inferred from the body's returns, mirroring the checker.
         CufetType? resultType = lts.Name != null ? InferTaskResultType(lts.Body) : null;
@@ -1644,18 +1687,9 @@ public sealed partial class CodeGenerator
 
         // Arg struct + thread function (accumulated; emitted before the bodies). cf_selfbox is where
         // a named task publishes its own result; it is unused by fire-and-forget tasks.
-        string head = (guarded ? "cufet_alt_head cf_head; " : "") + (sequential ? "int cf_hasprev; pthread_t cf_prev; " : "");
+        string head = sequential ? "int cf_hasprev; pthread_t cf_prev; " : "";
         fn.AppendLine($"struct cufet_targ{tid} {{ {head}cufet_rbox* cf_selfbox; char** cf_faultslot; {string.Join(" ", caps.Select(c => $"{CapCType(c)} {MangleName(c)};"))} }};");
-        if (guarded)
-        {
-            // An offered task that was not chosen never runs, so what it was handed is freed here.
-            fn.AppendLine($"static void cufet_task{tid}_drop(void* argp) {{");
-            fn.AppendLine($"    struct cufet_targ{tid}* cf_a = (struct cufet_targ{tid}*)argp;");
-            foreach (var c in caps)
-                if (Bridged(c)) fn.AppendLine($"    {ChanFreeEnv(_varTypes[c])}(cf_a->{MangleName(c)});");
-            fn.AppendLine($"    free(cf_a);");
-            fn.AppendLine($"}}");
-        }
+
         fn.AppendLine($"static void* cufet_task{tid}(void* argp) {{");
         // ⚠ Per thread, and this is why: a rabbit runs on its OWN stack, with its own bounds and
         // its own need for somewhere to land when that stack runs out. The handler is installed
@@ -1685,19 +1719,6 @@ public sealed partial class CodeGenerator
             fn.AppendLine(Bridged(c)
                 ? $"    {t} {m} = {ChanArenaCopy(_varTypes[c])}(cf_a->{m}); {ChanFreeEnv(_varTypes[c])}(cf_a->{m}); (void){m};"
                 : $"    {t} {m} = cf_a->{m}; (void){m};");
-        }
-        // The delivery this task was chosen for, copied into its own arena like any received value.
-        CufetType? savedBinderType = null;
-        bool hadBinder = false;
-        if (guarded)
-        {
-            var bt = new VoidableType(guardElem!);
-            string cvd = RegisterVoidableStruct(bt);
-            string b = MangleName(lts.Binder!);
-            fn.AppendLine($"    {cvd} {b} = {{0}}; (void){b};");
-            fn.AppendLine($"    if (cf_a->cf_head.gh) {{ {b}.has = 1; {b}.val = {ChanArenaCopy(guardElem!)}(cf_a->cf_head.gv); {ChanFreeEnv(guardElem!)}(cf_a->cf_head.gv); }}");
-            hadBinder = _varTypes.TryGetValue(lts.Binder!, out savedBinderType);
-            _varTypes[lts.Binder!] = bt;
         }
         var savedRet     = _currentReturnType;
         var savedTaskRet = _currentTaskReturn;
@@ -1737,11 +1758,6 @@ public sealed partial class CodeGenerator
         // arena base, escape arithmetic); only the block scope is added back.
         EmitScopedBlock(fn, lts.Body, bodyIndent);
         ExitFrame(savedTF);
-        if (guarded)
-        {
-            if (hadBinder) _varTypes[lts.Binder!] = savedBinderType!;
-            else _varTypes.Remove(lts.Binder!);
-        }
         _currentReturnType = savedRet;
         _excOpen = savedExcOpen;
         _currentTaskReturn = savedTaskRet;
@@ -1786,14 +1802,6 @@ public sealed partial class CodeGenerator
         if (lts.Name != null && resultType != null)
             sb.AppendLine($"{indent}cufet_rbox* {MangleName(lts.Name)} = cufet_rbox_new({ChanFreeEnv(resultType)});");
 
-        // The channel an offered task waits on is the one its line names NOW.
-        string? source = null;
-        if (guarded)
-        {
-            source = EmitExpr(lts.Source!);
-            FlushPreEmits(sb, indent);
-        }
-
         // Spawn: snapshot captures into the heap arg (PODs copied, channels shared by pointer,
         // regions deep-copied into a heap envelope the task owns and frees) + create.
         sb.AppendLine($"{indent}{{ struct cufet_targ{tid}* cf_a = (struct cufet_targ{tid}*)malloc(sizeof(struct cufet_targ{tid}));");
@@ -1809,15 +1817,6 @@ public sealed partial class CodeGenerator
         else
             // Fire-and-forget: malloc does not zero, and the unwind path publishes unconditionally.
             sb.AppendLine($"{indent}  cf_a->cf_selfbox = NULL;");
-        if (guarded)
-        {
-            // Only one offered task ever runs, and an automatic rabbit has no other kind, so the
-            // one that does is always its first thread.
-            sb.AppendLine($"{indent}  cf_a->cf_faultslot = &cf_fault{ctx}[0]; cf_a->cf_head.gv = NULL; cf_a->cf_head.gh = 0;");
-            sb.AppendLine($"{indent}  cf_altch{ctx}[cf_nalt{ctx}] = {source}; cf_altarg{ctx}[cf_nalt{ctx}] = cf_a;");
-            sb.AppendLine($"{indent}  cf_altfn{ctx}[cf_nalt{ctx}] = cufet_task{tid}; cf_altdrop{ctx}[cf_nalt{ctx}++] = cufet_task{tid}_drop; }}");
-            return;
-        }
         sb.AppendLine($"{indent}  cf_a->cf_faultslot = &cf_fault{ctx}[cf_nthr{ctx}];");
         if (sequential)
             sb.AppendLine($"{indent}  cf_a->cf_hasprev = cf_nthr{ctx} > 0; if (cf_a->cf_hasprev) cf_a->cf_prev = cf_thr{ctx}[cf_nthr{ctx} - 1];");

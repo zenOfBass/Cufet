@@ -1174,6 +1174,17 @@ The two arcs where soundness was the whole problem.
 
   **No timeout**, for the same reason: no program needs one yet, and one would sit beside the rest.
 
+  ★★ **The chosen task runs on the rabbit's own thread, at its `Done.`** (agreed the same day). It
+  was first built as a thread like every other task, and writing the closed-pipe loop showed the
+  cost: a task may not change what it captured, so the loop could only learn what the chosen task
+  did through an extra channel and a send in every task. But nothing ever runs beside an automatic
+  rabbit's chosen task, so the reason for the capture rule is absent. Occam's ALT runs its chosen
+  branch in the process that ran the ALT, and Go's `select` runs a case in its own goroutine, for
+  that same reason. So the task may change the names around it, as ordinary code. Two refusals
+  follow from where it runs: a `return` in it would leave whatever the rabbit sits in, and a name
+  from a block ended by `Done.` (the loop that offered the task) is gone by then. ⚠ The cost is that
+  a task follows different rules in this one mode, and the docs say so rather than hide it.
+
   **`parallel` is a label** for what a rabbit always did. **`sequential`** starts each task once
   the one before has ended; compiled, each thread joins the one before it, so `Done.` joins only
   the last.

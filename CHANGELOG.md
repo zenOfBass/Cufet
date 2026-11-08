@@ -36,8 +36,9 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   `parallel` (the default), `sequential` (one at a time, in the order started), or `automatic`.
   Every task of an automatic rabbit waits on a channel (`Have dispatcher start a task for an order
   in orders:`), and at `Done.` the rabbit runs only the one whose delivery was sent first, across
-  all its channels. A closed, empty channel runs its task with void. None of the three words is
-  reserved. In the interpreter, the C# compiler, and the parser, checker and compiler written in
+  all its channels, as its own code: that task may change the names around it, so a loop can stop
+  offering a channel once it has closed. A closed, empty channel runs its task with void. None of
+  the three words is reserved. In the interpreter, the C# compiler, and the parser, checker and compiler written in
   Cufet (REFERENCE *Composition modes*, DESIGN *Composition modes for rabbits*).
 
 ### Changed

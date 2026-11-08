@@ -1793,7 +1793,9 @@ Done.   ← all tasks spawned in this rabbit JOIN here
 - **In an automatic rabbit**, and only there, every task says what it waits on:
   `Have dispatcher start a task for an order in orders:`. The name after `for` (its article is
   noise) holds the delivery, as `voidable T`, inside the task body. The expression after `in` is
-  the channel, worked out when the `Have` line runs. Such a task may not also be named.
+  the channel, worked out when the `Have` line runs. Such a task may not also be named. The one
+  chosen runs at the rabbit's `Done.` as the rabbit's own code, so it may change the names around
+  it, may not `return`, and may not use a name from a block ended by then.
 - **Optional name** (`as <name>`) — binds an identity so the task's result can be awaited
   with `the awaited result of <name>`. Both backends support this; an anonymous task is
   fire-and-forget and its `return` value is dropped.

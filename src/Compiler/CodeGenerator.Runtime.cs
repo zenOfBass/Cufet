@@ -2810,8 +2810,7 @@ static int cufet_chan_select(cufet_chan** chs, int n, void** out, int* has) {
         pthread_mutex_unlock(&cufet_sel_m);
     }
 }
-/* The head of an automatic rabbit's task argument: where the chosen delivery is handed over. */
-typedef struct { void* gv; int gh; } cufet_alt_head;
+
 static void cufet_chan_free(cufet_chan* ch) {   /* frees un-received envelopes (teardown/close-with-pending) */
     pthread_mutex_lock(&cufet_live_m);
     for (int i = 0; i < cufet_nlive; i++) if (cufet_live_chans[i] == ch) { cufet_live_chans[i] = cufet_live_chans[--cufet_nlive]; break; }

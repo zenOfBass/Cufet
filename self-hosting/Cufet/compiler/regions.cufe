@@ -171,7 +171,17 @@ Pull books on collections, and the c-language.
         Done.
         If keeps-tasks:
             Cast one's put on (cast c-task-slots on (label)).
-            If mode is "automatic", cast one's put on (cast c-offered-slots on (label)).
+            If mode is "automatic":
+                Cast one's put on (cast c-offered-slots on (label)).
+                // Each task it offers is known by its place, so its `Have` line can say which it is.
+                Define offered as a series of node.
+                Cast offered-in on (cast field-of on (statement, 2), offered).
+                Define place as 0.
+                For each offer in offered, repeat:
+                    Increment place by 1.
+                    In one's kinds, the entry for "%offer:{(cast field-of on (offer, 3))'s word}_{(cast field-of on (offer, 4))'s word}" becomes "{place}".
+                Done.
+            Done.
             In one's kinds, the entry for "%task-rabbit" becomes label.
             In one's kinds, the entry for "%task-mode" becomes mode.
         Done.
@@ -183,6 +193,9 @@ Pull books on collections, and the c-language.
                 Cast one's emit-statement on (inner) or pass the failure off.
             Done.
         Done.
+        // ★ An automatic rabbit chooses here, at its `Done` — with its own names still in scope,
+        // since the chosen body runs as its own code.
+        If keeps-tasks and mode is "automatic", cast one's emit-offered-choice on (statement, label) or pass the failure off.
         If keeps-tasks, cast one's line on (cast c-task-teardown on (label, mode)).
         // Unmade after its tasks are joined: they may still be reading what it made.
         Cast one's closing-scope on (begun).

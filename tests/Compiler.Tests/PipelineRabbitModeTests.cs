@@ -72,6 +72,47 @@ public class PipelineRabbitModeTests : PipelineTestBase
         Assert.Equal(Interpret(src), Compile(src));
     }
 
+    // ★★ The chosen task runs on the rabbit's own thread, so a change it makes is the rabbit's.
+    [Fact]
+    public void Automatic_TheChosenTask_ChangesNamesAroundIt()
+    {
+        const string src = """
+            Pull a rabbit.
+                Define orders as a channel of text.
+                Define cancels as a channel of number.
+                Send "kale" through orders.
+                Send "carrots" through orders.
+                Close orders.
+                Send 17 through cancels.
+                Send 18 through cancels.
+                Define orders-open as true.
+                Define handled as 0.
+                While handled is less than 4, repeat:
+                    Pull an automatic rabbit as dispatcher.
+                        If orders-open:
+                            Have dispatcher start a task for an order in orders:
+                                If order is void:
+                                    The orders-open becomes false.
+                                Done.
+                                Otherwise:
+                                    State "packing {order}".
+                                    Increment handled by 1.
+                                Done.
+                            Done.
+                        Done.
+                        Have dispatcher start a task for a ticket in cancels:
+                            State "cancelling ticket {ticket but void is 0}".
+                            Increment handled by 1.
+                        Done.
+                    Done.
+                Done.
+                State "handled {handled}".
+            Done.
+            """;
+        Assert.Equal("packing kale\npacking carrots\ncancelling ticket 17\ncancelling ticket 18\nhandled 4", Interpret(src));
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
     [Fact]
     public void Automatic_TwoTasksOnOneChannel_TheFirstWrittenTakesIt()
     {

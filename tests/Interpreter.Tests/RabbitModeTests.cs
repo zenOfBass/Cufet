@@ -125,6 +125,44 @@ public class RabbitModeTests
             """));
     }
 
+    // ★★ The chosen task runs at `Done.` as the rabbit's own code, so it may change the names
+    // around it — which is what lets a loop stop offering a pipe once that pipe has closed.
+    [Fact]
+    public void Automatic_TheChosenTask_ChangesNamesAroundIt()
+    {
+        Assert.Equal("packing kale\ncancelling ticket 17\nhandled 2", Run("""
+            Pull a rabbit.
+                Define orders as a channel of text.
+                Define cancels as a channel of number.
+                Send "kale" through orders.
+                Close orders.
+                Send 17 through cancels.
+                Define orders-open as true.
+                Define handled as 0.
+                While handled is less than 2, repeat:
+                    Pull an automatic rabbit as dispatcher.
+                        If orders-open:
+                            Have dispatcher start a task for an order in orders:
+                                If order is void:
+                                    The orders-open becomes false.
+                                Done.
+                                Otherwise:
+                                    State "packing {order}".
+                                    Increment handled by 1.
+                                Done.
+                            Done.
+                        Done.
+                        Have dispatcher start a task for a ticket in cancels:
+                            State "cancelling ticket {ticket but void is 0}".
+                            Increment handled by 1.
+                        Done.
+                    Done.
+                Done.
+                State "handled {handled}".
+            Done.
+            """));
+    }
+
     [Fact]
     public void Sequential_RunsItsTasksOneAtATime_InTheOrderStarted()
     {
@@ -239,6 +277,58 @@ public class RabbitModeTests
                     Have rabbit start a task for an order in orders:
                         Have rabbit start a task for an other in orders:
                             State "x".
+                        Done.
+                    Done.
+                Done.
+            Done.
+            """));
+
+    // It runs as the rabbit's own code, so a return would leave whatever the rabbit sits in.
+    [Fact]
+    public void Automatic_ATaskThatReturns_IsRefused() =>
+        Assert.Contains("a task of an automatic rabbit cannot return", Refusal("""
+            Pull a rabbit.
+                Define orders as a channel of text.
+                Pull an automatic rabbit.
+                    Have rabbit start a task for an order in orders:
+                        If order is void:
+                            Return.
+                        Done.
+                        State "x".
+                    Done.
+                Done.
+            Done.
+            """));
+
+    // ★ The same, with the return ONLY inside a `Judge` arm's body — the walk behind the refusal
+    // has to see inside a JudgeArm, which is neither an expression nor a statement. The test above
+    // is its `If`-arm twin (the return sits only inside a ConditionArm's body).
+    [Fact]
+    public void Automatic_ATaskThatReturnsFromAJudgeArm_IsRefused() =>
+        Assert.Contains("a task of an automatic rabbit cannot return", Refusal("""
+            Pull a rabbit.
+                Define orders as a channel of text.
+                Pull an automatic rabbit.
+                    Have rabbit start a task for an order in orders:
+                        Judge order, where it is:
+                            A void, return.
+                            Otherwise, state "x".
+                        Done.
+                    Done.
+                Done.
+            Done.
+            """));
+
+    // It runs at `Done.`, by which time the loop that offered it has ended.
+    [Fact]
+    public void Automatic_ANameFromABlockEndedByDone_IsRefused() =>
+        Assert.Contains("'n' ends before this automatic rabbit chooses", Refusal("""
+            Pull a rabbit.
+                Define orders as a channel of text.
+                Pull an automatic rabbit.
+                    For each n in range 1 to 2, repeat:
+                        Have rabbit start a task for an order in orders:
+                            State n.
                         Done.
                     Done.
                 Done.

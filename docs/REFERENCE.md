@@ -4465,13 +4465,54 @@ packing carrots
 
 - The rabbit runs its body, then waits at its `Done.` until one of the channels has something,
   runs the matching task with it, and ends. The loop around it is what keeps it serving.
+- ★ **The chosen task runs as the rabbit's own code**, at its `Done.`, as an Occam ALT's branch
+  does. Nothing runs beside it, so unlike any other task it **may change the names around it**.
+  That is also why it cannot `return`, and cannot use a name from a block that has ended by
+  `Done.`, such as the loop that offered it.
 - ★ **Whatever was sent first wins.** When several channels hold something, the task that runs is
   the one whose delivery went in earliest, across all of them. The order the tasks are written in
   does not matter. Ticket 17 was sent before either order, so it is handled first.
 - **A closed, empty channel is ready too.** Its task runs, and the delivery is void, exactly as
   `the delivery from` gives once a channel is closed and empty. So the delivery is `voidable T`,
   and the task handles the void case. A closed channel counts as of the moment it was closed, so
-  it stays ready on every later round.
+  it stays ready on every later round. A loop stops offering that task once it has heard the
+  void:
+
+```cufet
+Pull a rabbit.
+    Define orders as a channel of text.
+    Define cancels as a channel of number.
+    Send "kale" through orders.
+    Close orders.
+    Send 17 through cancels.
+    Define orders-open as true.
+    Define handled as 0.
+    While handled is less than 2, repeat:
+        Pull an automatic rabbit as dispatcher.
+            If orders-open:
+                Have dispatcher start a task for an order in orders:
+                    If order is void:
+                        The orders-open becomes false.
+                    Done.
+                    Otherwise:
+                        State "packing {order}".
+                        Increment handled by 1.
+                    Done.
+                Done.
+            Done.
+            Have dispatcher start a task for a ticket in cancels:
+                State "cancelling ticket {ticket but void is 0}".
+                Increment handled by 1.
+            Done.
+        Done.
+    Done.
+Done.
+```
+```output
+packing kale
+cancelling ticket 17
+```
+
 - Two tasks waiting on the same channel see the same item, and the one written first takes it.
 
 What an automatic rabbit refuses:
@@ -4479,7 +4520,8 @@ What an automatic rabbit refuses:
 - a task that waits on nothing, since it could never be chosen;
 - `for … in …` on a task of any other rabbit;
 - a name on its task (`as packer`), since a task that never ran has no result to await;
-- a task given to it from inside one of its own tasks, which would arrive after it chose.
+- a task given to it from inside one of its own tasks, which would arrive after it chose;
+- a `return` in its task, or a name from a block that has ended by its `Done.`.
 
 **A sequential rabbit** runs its tasks in the order they were started:
 

@@ -381,6 +381,11 @@ public class ExhaustivenessTests
         // IStatement/IExpression instead of the namespace, and in both the captured name appears
         // ONLY inside an arm's BODY — a `Judge` subject is an ordinary property any walk reaches.
         "CiteExpansion.cs: RequireNoCapture",
+        // An automatic rabbit's chosen task runs as the rabbit's own code, so a return of its own
+        // is refused. Proof it sees inside ConditionArm and JudgeArm: Interpreter.Tests/
+        // RabbitModeTests.Automatic_ATaskThatReturns_IsRefused (the return only in an `If` arm's
+        // body) and Automatic_ATaskThatReturnsFromAJudgeArm_IsRefused (only in a `Judge` arm's).
+        "TypeChecker.Rabbit.cs: HasOwnReturn",
         // A qualified folder's references renamed where they mean a hidden name, and not where a
         // parameter or local binds it. Proof it sees inside ConditionArm and JudgeArm:
         // Interpreter.Tests/DirectoryNamespaceTests.AQualifiedSiblingsHiddenFunction_IsReached_

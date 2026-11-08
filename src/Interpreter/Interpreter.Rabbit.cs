@@ -125,8 +125,10 @@ public sealed partial class Interpreter
     }
 
     // An automatic rabbit's `Done.`: wait until one of its channels holds something (or is closed
-    // and empty), take what was SENT FIRST across all of them, and start that one task with it.
+    // and empty), take what was SENT FIRST across all of them, and run that one task with it.
     // ★ Two tasks waiting on the same channel see the same item; the one written first takes it.
+    // ★★ The chosen task runs HERE, on the rabbit's own flow, as an Occam ALT's branch does: nothing
+    // runs beside it, so it is ordinary code and may change the names around it.
     private void StartChosenAlternative(RabbitMode mode, List<Task> tasks, List<TaskHandle?> handles)
     {
         var alternatives = mode.Alternatives;
@@ -144,13 +146,7 @@ public sealed partial class Interpreter
         }
         var (channel, binder, body) = alternatives[Chosen()];
         object delivered = channel.HasValue ? channel.Dequeue() : VoidValue.Instance;
-        var task = _scheduler!.Enqueue(() =>
-        {
-            RunTaskBody(body, null, (binder, delivered));
-            return Task.CompletedTask;
-        });
-        tasks.Add(task);
-        handles.Add(null);
+        RunTaskBody(body, null, (binder, delivered));
     }
 
     // Executes a task body in its own nested scope. The enclosing rabbit's scope is still

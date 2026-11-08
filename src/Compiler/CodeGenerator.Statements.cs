@@ -612,11 +612,9 @@ public sealed partial class CodeGenerator
                     // instead of calling exit(), and the join below reports whatever is in it.
                     sb.AppendLine($"{inner}char* cf_fault{n}[CUFET_TASK_MAX] = {{0}};");
                     sb.AppendLine($"{inner}(void)cf_thr{n}; (void)cf_chan{n}; (void)cf_rbox{n};");
-                    // An automatic rabbit's offered tasks: the channel each waits on, its argument,
-                    // its thread function, and how to free the argument if it is not chosen.
+                    // An automatic rabbit's offered tasks: the channel each waits on, and which task.
                     if (prs.Mode == "automatic")
-                        sb.AppendLine($"{inner}cufet_chan* cf_altch{n}[CUFET_TASK_MAX]; void* cf_altarg{n}[CUFET_TASK_MAX]; " +
-                                      $"void* (*cf_altfn{n}[CUFET_TASK_MAX])(void*); void (*cf_altdrop{n}[CUFET_TASK_MAX])(void*); int cf_nalt{n} = 0;");
+                        sb.AppendLine($"{inner}cufet_chan* cf_altch{n}[CUFET_TASK_MAX]; int cf_altid{n}[CUFET_TASK_MAX]; int cf_nalt{n} = 0;");
                     _rabbitCtx.Add(n);
                     _rabbitCtxMode[n] = prs.Mode;
                 }
@@ -652,6 +650,9 @@ public sealed partial class CodeGenerator
                 _rabbitDepth++;   // this rabbit pops its arena at Done. (independent of concurrency) —
                 EmitScopedBlock(sb, prs.Body, inner,                    // so a region-capturing closure
                                 s => rabbitSnap = s, deferUnmakerRun: true);  // created here can dangle
+                // ★ An automatic rabbit chooses here, at its `Done.` — still at its own depth and
+                // with its own names in scope, since the chosen body runs as its own code.
+                if (prs.Mode == "automatic" && _usesConcurrency) EmitOfferedChoice(sb, n, inner);
                 _rabbitDepth--;
                 // The caller now owes the run on every path reaching the end of the block — except
                 // when the body always exits, where EmitScopedBlock would have skipped it too.
@@ -665,19 +666,6 @@ public sealed partial class CodeGenerator
                 if (_usesConcurrency)
                 {
                     _rabbitCtx.RemoveAt(_rabbitCtx.Count - 1);
-                    // ★ An automatic rabbit chooses here, at its `Done.`: the offered task whose
-                    // delivery was sent first is started with it, and every other one is dropped.
-                    if (prs.Mode == "automatic")
-                    {
-                        sb.AppendLine($"{inner}if (cf_nalt{n} > 0) {{");
-                        sb.AppendLine($"{inner}    void* cf_sv = NULL; int cf_sh = 0;");
-                        sb.AppendLine($"{inner}    int cf_sk = cufet_chan_select(cf_altch{n}, cf_nalt{n}, &cf_sv, &cf_sh);");
-                        sb.AppendLine($"{inner}    for (int cf_di = 0; cf_di < cf_nalt{n}; cf_di++) if (cf_di != cf_sk) cf_altdrop{n}[cf_di](cf_altarg{n}[cf_di]);");
-                        sb.AppendLine($"{inner}    if (cf_sk < 0) cufet_checkpoint();");
-                        sb.AppendLine($"{inner}    else {{ cufet_alt_head* cf_sa = (cufet_alt_head*)cf_altarg{n}[cf_sk]; cf_sa->gv = cf_sv; cf_sa->gh = cf_sh;");
-                        sb.AppendLine($"{inner}           pthread_create(&cf_thr{n}[cf_nthr{n}++], NULL, cf_altfn{n}[cf_sk], cf_sa); }}");
-                        sb.AppendLine($"{inner}}}");
-                    }
                     // Structured join: reap EVERY task — no exceptions now, because no await joins.
                     // Then free each result box, which frees the envelope through its own freeenv, so
                     // a reference-typed result's nested heap goes too whether it was awaited N times

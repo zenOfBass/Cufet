@@ -125,8 +125,11 @@ Pull a book on collections.
             Done.
         Done.
 
+        // ★ Not for an automatic rabbit's task: it runs on the rabbit's own flow, with nothing
+        // beside it, so a change to what it uses lands where everyone sees it.
+        Define offered as cast is-nothing on (cast field-of on (statement, 6)) is false.
         For each carried in cast one's task-captures on (body), repeat:
-            If cast may-mutate on (body, carried):
+            If offered is false and cast may-mutate on (body, carried):
                 If cast one's write-is-observable on (statement, carried):
                     Return a failure (cast refusal-of on ("this task changes '{carried}', which it captured from outside the task",
                         "A task gets its own copy of everything it captures, because captures cross a thread boundary — so the change would not be visible outside, and two tasks changing it at once would race",
@@ -244,6 +247,25 @@ Pull a book on collections.
                 at-row, "call this task's delivery '{binder}'",
                 "Pick a name that is not already in use for the delivery.")).
         Done.
+        // ★ The chosen task runs at the rabbit's `Done.`, as the rabbit's own code: a `Return` in it
+        // would leave what the rabbit sits in, and a name from a block ended by then is gone.
+        Define body as cast field-of on (statement, 2).
+        If cast has-own-return on (body):
+            Return a failure (cast refusal-of on ("a task of an automatic rabbit cannot return",
+                "The chosen task runs as the rabbit's own code at its 'Done.', so a return would leave what the rabbit sits in",
+                at-row, "return from a task of an automatic rabbit",
+                "Let the task reach its end; use 'If' and 'Otherwise' to skip the rest.")).
+        Done.
+        Define rabbit-scope as 0.
+        If the number of one's rabbit-scopes is greater than 0, the rabbit-scope becomes item (the number of one's rabbit-scopes) of one's rabbit-scopes.
+        For each used in cast one's task-captures on (body), repeat:
+            If cast one's scope-of on (used) is greater than rabbit-scope:
+                Return a failure (cast refusal-of on ("'{used}' ends before this automatic rabbit chooses",
+                    "The chosen task runs at the rabbit's 'Done.', and '{used}' belongs to a block that has ended by then",
+                    at-row, "use '{used}' in a task of an automatic rabbit",
+                    "Define '{used}' in the rabbit's own body, or outside the rabbit.")).
+            Done.
+        Done.
         Define carrier as cast one's infer on (cast field-of on (statement, 7)) or pass the failure off.
         If carrier's kind is not "ChannelType":
             If cast is-none on (carrier), return cast wrapped on ("VoidableType", cast plain-type on ("NumberType")).
@@ -252,6 +274,33 @@ Pull a book on collections.
                 "The expression after 'in' must be a channel.")).
         Done.
         Return cast wrapped on ("VoidableType", cast field-of on (carrier, 1)).
+    Done.
+
+    /// Where the innermost scope holding the name sits, counting from 1; 0 when none does.
+    Bind number to scope-of unto checker, given (the text name):
+        Define place as the number of one's scopes.
+        While place is greater than 0, repeat:
+            If (the entry for name in item place of one's scopes) is not void, return place.
+            Decrement place by 1.
+        Done.
+        Return 0.
+    Done.
+
+    /// Whether a body returns from ITSELF — a return inside a function, a lambda, an object or
+    /// another task it holds belongs to that (`HasOwnReturn`).
+    Bind fact to has-own-return, given (the node tree):
+        Define kind as tree's kind.
+        If kind is "atom", return false.
+        If kind is "ReturnStatement", return true.
+        If kind is "BindStatement" or kind is "LambdaLiteral" or kind is "LaunchTaskStatement" or kind is "ObjectDefinition"
+                or kind is "GetterDeclaration" or kind is "SetterDeclaration" or kind is "UnmakerDeclaration"
+                or kind is "OperatorOverloadDeclaration":
+            Return false.
+        Done.
+        For each child in tree's children, repeat:
+            If cast has-own-return on (child), return true.
+        Done.
+        Return false.
     Done.
 
     // ── What a task captures (`TaskCaptures`) ─────────────────────────────
