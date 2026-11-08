@@ -687,7 +687,9 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     private static readonly HashSet<string> NotReproducible = ["markov.cufe", "work-queue.cufe"];
 
     /// <summary>How many programs of `examples/` must build and print alike. Raised as it grows; never lowered.</summary>
-    private const int CorpusFloor = 64;
+    /// <remarks>⚠ Lowered ONCE, 2026-11-07, from 64, when the tutorial's lesson projects moved out of
+    /// `examples/` to `docs/tutorial/`. Nothing that stayed was given up.</remarks>
+    private const int CorpusFloor = 63;
 
     /// <remarks>
     /// ★ The corpus is copied first: the compiler writes each program beside its source.

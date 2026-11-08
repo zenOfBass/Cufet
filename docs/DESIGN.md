@@ -838,7 +838,7 @@ path the existing tests, written by people who knew the right form, had never wa
   unit.
 
 ⚠ **A multi-file lesson cannot be checked a block at a time**, since the checks run one block alone.
-Lessons 11 and 12 therefore quote real projects — `examples/garden/`, `examples/planting/` — which the
+Lessons 11 and 12 therefore quote real projects — `docs/tutorial/garden/`, `docs/tutorial/planting/` — which the
 corpus suite runs on both backends, and the lesson says so.
 
 ---

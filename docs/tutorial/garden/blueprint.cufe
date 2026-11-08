@@ -1,4 +1,4 @@
-/*  The file that makes `examples/garden/` a project — lesson 11 of `docs/TUTORIAL.md`.
+/*  The file that makes `docs/tutorial/garden/` a project — lesson 11 of `docs/TUTORIAL.md`.
 
     Its LOCATION does the first job: a folder with a `blueprint.cufe` in it is a project, so
     `garden.cufe` sees `bed` from `beds.cufe` with nothing pulled. Its CONTENTS do the second:

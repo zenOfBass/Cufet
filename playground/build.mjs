@@ -302,7 +302,7 @@ await writeFile(join(out, "seed-manifest.json"), JSON.stringify(assetPaths, null
 //   gameoflife, life   a terminal shows generations arriving; this page buffers a run. `life` also
 //                      waits for Enter.
 //   sudoku             its backtracking recursion needs more stack than a browser has.
-//   garden/, planting/, circuits/   projects, in pieces. No file of one stands alone in this menu.
+//   circuits/          a project, in pieces. No file of it stands alone in this menu.
 //   pennies, bookkeeping, spans     a book or module only declares, so Run prints nothing. The
 //                      programs that pull them are listed, and still find them: seeding is above.
 const ON_THE_SITE = {

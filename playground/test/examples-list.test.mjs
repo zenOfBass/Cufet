@@ -85,7 +85,7 @@ test('what was ruled off the menu stays off it', () => {
     // ★ Both Games of Life, by name: the first exclusion was by FILENAME, and the second program
     // walked straight past it. And no piece of a project, which cannot be judged on its own.
     const ruledOff = new Set(['gameoflife', 'life']);
-    const projects = new Set(['garden', 'planting', 'circuits']);
+    const projects = new Set(['circuits']);
     const offending = listed.filter(e => ruledOff.has(e.name) || projects.has(e.group)).map(e => e.path);
     assert.deepEqual(offending, [], 'on the menu, and ruled off it');
 });

@@ -1,6 +1,6 @@
 /*  Planning a bed with the `planting` book beside this file — lesson 12 of `docs/TUTORIAL.md`.
 
-        cufet examples/planting/plan.cufe
+        cufet docs/tutorial/planting/plan.cufe
 
     No blueprint is needed for this: a book is looked for beside the file that pulls it.
 */

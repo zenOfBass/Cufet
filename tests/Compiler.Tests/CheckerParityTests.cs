@@ -28,12 +28,14 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
 {
     /// <summary>How many corpus files must agree. Raised as the checker grows; never lowered.</summary>
     /// <remarks>⚠ Lowered ONCE, 2026-10-25, from 163, when the corpus took one file of each large folder —
-    /// see <see cref="CheckedCorpus"/>. Nothing it held was given up.</remarks>
-    private const int CorpusFloor = 95;
+    /// see <see cref="CheckedCorpus"/>. Nothing it held was given up. ⚠ And by 2, 2026-11-07, from 95,
+    /// when the tutorial's two lesson projects moved out of `examples/` to `docs/tutorial/`.</remarks>
+    private const int CorpusFloor = 93;
 
     /// <summary>How many corpus files' CHECKED TREES must match, of those both checkers accept. Raised; never lowered.</summary>
-    /// <remarks>⚠ Lowered ONCE, 2026-10-25, from 159 — see <see cref="CorpusFloor"/>.</remarks>
-    private const int TreeFloor = 91;
+    /// <remarks>⚠ Lowered ONCE, 2026-10-25, from 159 — see <see cref="CorpusFloor"/>. ⚠ And by 2, 2026-11-07,
+    /// from 91, for the same move as <see cref="CorpusFloor"/>.</remarks>
+    private const int TreeFloor = 89;
 
     /// <summary>The same, of the hand-written programs both checkers accept.</summary>
     private const int HandWrittenTreeFloor = 323;

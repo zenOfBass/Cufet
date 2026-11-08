@@ -53,7 +53,9 @@ public class ExampleOracleTests
     /// 49 runs, about 465 s, asserting that two empty outputs agree. The lexer, parser and checker
     /// parity tests compile that code and hold it to what it actually does.
     /// </remarks>
-    private static string[] Roots => [ExampleDir, Path.Combine(RepoRoot, "tools")];
+    /// ★ `docs/tutorial/` holds the projects lessons 11 and 12 quote. They are lesson material, not
+    /// examples, and TUTORIAL.md tells its reader the suite runs them both ways — this is where.
+    private static string[] Roots => [ExampleDir, Path.Combine(RepoRoot, "tools"), Path.Combine(RepoRoot, "docs", "tutorial")];
 
     // Pinned outputs live in their own directory rather than beside the programs. `examples/` is
     // read by people looking for programs, and interleaving a fixture with every example halves

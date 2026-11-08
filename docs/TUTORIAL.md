@@ -14,7 +14,7 @@ and Cufet's refusals are written to be read — so learning to read them is the 
 > Every program in this file is run by the test suite, and every message beneath one is compared to
 > what the language actually says. If a lesson claims Cufet prints something, Cufet prints it.
 > Lessons 11 and 12 are the exception in form only: a project spans several files, so theirs live in
-> `examples/garden/` and `examples/planting/`, and the suite runs them there.
+> `docs/tutorial/garden/` and `docs/tutorial/planting/`, and the suite runs them there.
 
 ---
 
@@ -1140,7 +1140,7 @@ loop only ends by `stop`.
 
 Programs grow, and one file stops being a comfortable size. Hopper's garden program has a kind of
 thing in it — a `bed` — that deserves a file of its own. This lesson's project lives in
-`examples/garden/`, and the test suite runs it there, both ways; the blocks below are its files.
+`docs/tutorial/garden/`, and the test suite runs it there, both ways; the blocks below are its files.
 
 `beds.cufe` says what a bed is:
 
@@ -1252,7 +1252,7 @@ another makes runs after it, without you saying so: the order comes from the `ne
 
 Inside a project, a folder's files see each other. A **book** is how something you wrote travels
 further — to another folder, another project, or somebody else. Lesson 5 borrowed from the books
-that come with Cufet; this one writes one. Its files are in `examples/planting/`, where the test
+that come with Cufet; this one writes one. Its files are in `docs/tutorial/planting/`, where the test
 suite runs them.
 
 Hopper wants to know how many plants fit in a bed. `planting.cufe` is going to be the book:
