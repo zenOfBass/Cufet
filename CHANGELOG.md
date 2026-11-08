@@ -63,6 +63,11 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   after the start was seen changed (`after 3`) where the compiled program saw it as it was
   (`before 2`). A task now copies what it uses when it is started, in both backends, as REFERENCE
   already said it did.
+- **`cufet build` worked out a voidable compared with a plain value twice**, once to ask whether it
+  was there and once to read it. So `If (the delivery from ch) is "a":` took two messages off the
+  channel, and a program reading the next one waited for ever. The plain side also ran only when
+  the voidable was present, and after it even when written first. Both sides now run once, in the
+  order written, as interpreted.
 - **A function Bound inside a task body could not be called.** Interpreted, nothing made the
   function, and calling it failed with "'shout' is not a method on this value". Compiled, its C came
   after the task that named it, and a `Return` inside it was written as the task's own. Both

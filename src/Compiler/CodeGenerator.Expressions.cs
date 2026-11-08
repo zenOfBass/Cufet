@@ -1254,9 +1254,9 @@ public sealed partial class CodeGenerator
             return eq ? $"({e})" : $"(!({e}))";
         }
         if (lt is VoidableType lv && rt.Equals(lv.Inner))         // voidable vs plain T
-            return VoidableVsInner(EmitExpr(b.Left), EmitExpr(b.Right), lv.Inner, eq);
+            return VoidableVsInner(EmitExpr(b.Left), EmitExpr(b.Right), lv, eq, voidableFirst: true);
         if (rt is VoidableType rv && lt.Equals(rv.Inner))         // plain T vs voidable
-            return VoidableVsInner(EmitExpr(b.Right), EmitExpr(b.Left), rv.Inner, eq);
+            return VoidableVsInner(EmitExpr(b.Right), EmitExpr(b.Left), rv, eq, voidableFirst: false);
 
         return null;
     }
@@ -1275,10 +1275,19 @@ public sealed partial class CodeGenerator
     }
 
     // A voidable equals a plain T iff it's present and the value matches.
-    private string VoidableVsInner(string voidableExpr, string tExpr, CufetType inner, bool eq)
+    // ★★ Each side is worked out ONCE, both always, in the order written — as the interpreter does.
+    // The voidable's C used to be pasted in twice, once for `.has` and once for `.val`, so a side
+    // with an effect ran twice: `(the delivery from ch) is "x"` took TWO messages off the channel.
+    // And the plain side ran only when the voidable was present, after it even when written first.
+    private string VoidableVsInner(string voidableExpr, string tExpr, VoidableType voidable, bool eq, bool voidableFirst)
     {
-        string present = $"(({voidableExpr}).has && {EqCall($"({voidableExpr}).val", tExpr, inner)})";
-        return eq ? present : $"(!{present})";
+        int id = _freshId++;
+        string vv = $"cf_vv{id}", vt = $"cf_vt{id}";
+        string vDecl = $"{RegisterVoidableStruct(voidable)} {vv} = {voidableExpr};";
+        string tDecl = $"{EmitCType(voidable.Inner)} {vt} = {tExpr};";
+        string present = $"({vv}.has && {EqCall($"{vv}.val", vt, voidable.Inner)})";
+        string body = voidableFirst ? $"{vDecl} {tDecl}" : $"{tDecl} {vDecl}";
+        return $"({{ {body} {(eq ? present : $"!{present}")}; }})";
     }
 
     private string EmitUnary(UnaryExpression u) => u.Op switch

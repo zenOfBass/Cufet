@@ -418,4 +418,50 @@ public class PipelineEvaluationOrderTests : PipelineTestBase
             """;
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
+
+    // ★★ A voidable compared with a plain value is worked out ONCE. Its C was pasted in twice, once
+    // to ask whether it is there and once to read it, so a delivery compared this way took TWO
+    // messages off the channel — and the second read below then waited for ever.
+    [Fact]
+    public void AVoidableComparedWithAValue_IsWorkedOutOnce()
+    {
+        const string src = """
+            Pull a rabbit.
+                Define heard as a channel of text.
+                Send "a" through heard.
+                Send "b" through heard.
+                If (the delivery from heard) is "a":
+                    State "first was a".
+                Done.
+                State (the delivery from heard) but void is "(nothing left)".
+            Done.
+            """;
+        Assert.Equal("first was a\nb", Interpret(src));
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    // And both sides are worked out, in the order written. The plain side ran only when the
+    // voidable was present — never, here — and after it even though it is written first.
+    [Fact]
+    public void AVoidableComparedWithAValue_WorksOutBothSidesInOrder()
+    {
+        const string src = """
+            Bind number to plain-side:
+                State "plain side".
+                Return 1.
+            Done.
+            Bind voidable number to voidable-side:
+                State "voidable side".
+                Return void.
+            Done.
+            If cast plain-side is cast voidable-side:
+                State "equal".
+            Done.
+            Otherwise:
+                State "not equal".
+            Done.
+            """;
+        Assert.Equal("plain side\nvoidable side\nnot equal", Interpret(src));
+        Assert.Equal(Interpret(src), Compile(src));
+    }
 }
