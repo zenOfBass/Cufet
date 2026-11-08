@@ -58,6 +58,11 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **An interpreted task read the names it used when it RAN, not when it was started.** A task
+  started inside a loop failed with "'n' isn't defined" once the loop had ended, and a name changed
+  after the start was seen changed (`after 3`) where the compiled program saw it as it was
+  (`before 2`). A task now copies what it uses when it is started, in both backends, as REFERENCE
+  already said it did.
 - **A task whose body pulls a rabbit and starts a task of its own did not build** with
   `cufet build`: the inner task's C landed inside the outer one's, and gcc refused it. The same
   program ran interpreted. Each task's C is now written whole and then added.

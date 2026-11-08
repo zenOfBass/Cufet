@@ -896,4 +896,44 @@ public class PipelineTaskTests : PipelineTestBase
             """;
         AssertSameLinesInAnyOrder(InterpretRaw(src), CompileRaw(src));
     }
+
+    // ★★ A task copies what it uses when it is STARTED. Interpreted, the body runs later — at the
+    // rabbit's `Done.` here — and it used to read the live names then, so a task started inside a
+    // loop failed with "'n' isn't defined" once the loop had ended. Compiled always worked. A
+    // sequential rabbit keeps the output in order on real threads.
+    [Fact]
+    public void ATaskStartedInALoop_ReadsTheLoopVariable()
+    {
+        const string src = """
+            Pull a sequential rabbit.
+                For each n in range 1 to 3, repeat:
+                    Have rabbit start a task:
+                        State "task {n}".
+                    Done.
+                Done.
+            Done.
+            """;
+        Assert.Equal("task 1\ntask 2\ntask 3", Interpret(src));
+        Assert.Equal(Interpret(src), Compile(src));
+    }
+
+    // The other half of the same bug: a name changed after the task started was seen changed
+    // interpreted and unchanged compiled.
+    [Fact]
+    public void ATask_SeesWhatItUsed_AsItWasWhenStarted()
+    {
+        const string src = """
+            Pull a rabbit.
+                Define word as "before".
+                Define scores as a series of number with (1, 2).
+                Have rabbit start a task:
+                    State "{word} {the number of scores}".
+                Done.
+                The word becomes "after".
+                Insert 3 into scores.
+            Done.
+            """;
+        Assert.Equal("before 2", Interpret(src));
+        Assert.Equal(Interpret(src), Compile(src));
+    }
 }

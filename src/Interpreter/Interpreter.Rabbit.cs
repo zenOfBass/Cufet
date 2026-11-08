@@ -106,11 +106,23 @@ public sealed partial class Interpreter
         // A sequential rabbit's task waits for the one started before it — whether that one ended
         // normally or failed, since every task still runs and its faults are reported together.
         var previous = mode.Mode == "sequential" ? mode.LastTask : null;
+
+        // ★★ A task gets its OWN copy of what it uses, taken NOW, when it is started — as a
+        // compiled task's captures are copied in at spawn. The body only runs later, at a yield
+        // or the rabbit's `Done.`, and it used to read the live names then: a loop variable was
+        // gone by that time ("'n' isn't defined" for a task started inside a `For each`), and a
+        // name changed after the start was seen changed here and unchanged compiled. Writes to
+        // what a task captured are refused where anyone could see them, so a copy loses nothing.
+        // Set into the task's scope directly, not Defined, so a copied object is never unmade.
+        var captured = new Dictionary<string, object>();
+        foreach (var name in TaskCaptures.Of(body, n => TryLookupValue(n, out _)))
+            if (TryLookupValue(name, out var value)) captured[name] = DeepCopyForChannel(value);
+
         var task = _scheduler!.Enqueue(async () =>
         {
             if (previous != null)
                 try { await previous; } catch { /* reported at the join */ }
-            RunTaskBody(body, handle);
+            RunTaskBody(body, handle, captured: captured);
         });
         mode.LastTask = task;
 
@@ -154,9 +166,12 @@ public sealed partial class Interpreter
     // access to rabbit-local variables. If a handle is provided, ReturnException is caught
     // and the returned value is stored on the handle (rather than propagating as a fault).
     private void RunTaskBody(IReadOnlyList<IStatement> body, TaskHandle? handle = null,
-                             (string Name, object Value)? delivery = null)
+                             (string Name, object Value)? delivery = null,
+                             Dictionary<string, object>? captured = null)
     {
         EnterScope();
+        if (captured != null)
+            foreach (var (name, value) in captured) Scope[name] = value;
         if (delivery is { } d) Scope[d.Name] = d.Value;
         try
         {
