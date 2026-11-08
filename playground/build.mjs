@@ -315,7 +315,7 @@ const ON_THE_SITE = {
     language: ["axioms", "basket", "booking", "dispatch", "documentation", "generics",
         "interfacedefaults", "interfaces", "lambdas", "ledger", "lifecycle", "patterns",
         "permanently", "rawtext", "stashes", "workshop"],
-    concurrency: ["actor-mailbox", "channel-deepcopy", "parallelsum", "sensor-averages", "work-queue"],
+    concurrency: ["actor-mailbox", "channel-deepcopy", "dispatcher", "parallelsum", "sensor-averages", "work-queue"],
     systems: ["interruptible", "permissions", "search"],
 };
 

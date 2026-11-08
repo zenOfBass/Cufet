@@ -7,14 +7,7 @@
 
     ★★ THE ONE THAT SURPRISES PEOPLE: **a channel can carry a union**, so one mailbox takes
     several kinds of message. `Judge` then dispatches on what arrived, and its coverage is
-    PROVED — leave a kind unhandled and the program is refused before it runs. That is the pair
-    that removes the need for a select.
-
-    ⚠ Go and Occam need a guarded multi-input wait (`select`, `ALT`) for exactly this job,
-    because their channels carry ONE type: an actor there listens on several channels at once
-    and takes whichever speaks first. The reasoning does not transfer. Cufet puts the alternation
-    in the TYPE rather than in the wait, and a union channel with a total `Judge` is the same
-    expressive power with the exhaustiveness checked. See DESIGN, *Memory and concurrency*.
+    PROVED — leave a kind unhandled and the program is refused before it runs.
 
     ★ A worker like this KEEPS STATE across messages — `total` lives above the loop and survives
     every turn. That is why the loop is written inside an ordinary task rather than the task

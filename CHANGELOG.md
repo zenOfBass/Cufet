@@ -40,7 +40,7 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   offering a channel once it has closed. A closed, empty channel runs its task with void. None of
   the three words is reserved. In the interpreter, the C# compiler, and the parser, checker and compiler written in
   Cufet (REFERENCE *Composition modes*, DESIGN *Composition modes for rabbits*). Example:
-  `examples/concurrency/dispatcher.cufe`.
+  `examples/concurrency/dispatcher.cufe`, also on the playground's menu.
 
 ### Changed
 
