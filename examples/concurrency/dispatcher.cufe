@@ -1,0 +1,64 @@
+/*  A dispatcher: one clerk, two pipes, and whichever has something is served first.
+
+    Customers send orders through one channel and complaints cancel tickets through another, each
+    from a task of its own. The clerk does not know which will speak next, so it waits on BOTH at
+    once with an automatic rabbit: each of its tasks names the channel it waits on, and at the
+    rabbit's `Done.` the one whose delivery was SENT FIRST runs. The loop around it keeps serving.
+
+    ★ The chosen task runs as the clerk's own code, so it can change the counts and the two
+    `-open` facts directly. That is what lets the loop stop offering a channel once it has heard it
+    close: a closed, empty channel runs its task with void, and stays ready on every later round.
+
+    ★ Only the totals are printed. Compiled, the tasks are real threads, so orders and cancels may
+    interleave differently on every run; the totals come out the same however they arrive.
+*/
+
+Pull a rabbit as hopper.
+    Define orders as a channel of text.
+    Define cancels as a channel of number.
+
+    // Customers send their orders, then close the pipe.
+    Have hopper start a task:
+        For each vegetable in a series with ("kale", "carrots", "leeks"), repeat:
+            Send vegetable through orders.
+        Done.
+        Close orders.
+    Done.
+
+    // Two tickets are cancelled.
+    Have hopper start a task:
+        Send 17 through cancels.
+        Send 18 through cancels.
+        Close cancels.
+    Done.
+
+    Define orders-open as true.
+    Define cancels-open as true.
+    Define packed as 0.
+    Define cancelled as 0.
+    While orders-open or cancels-open, repeat:
+        Pull an automatic rabbit as grace.
+            If orders-open:
+                Have grace start a task for an order in orders:
+                    If order is void:
+                        The orders-open becomes false.
+                    Done.
+                    Otherwise:
+                        Increment packed by 1.
+                    Done.
+                Done.
+            Done.
+            If cancels-open:
+                Have grace start a task for a ticket in cancels:
+                    If ticket is void:
+                        The cancels-open becomes false.
+                    Done.
+                    Otherwise:
+                        Increment cancelled by 1.
+                    Done.
+                Done.
+            Done.
+        Done.
+    Done.
+    State "packed {packed} orders, cancelled {cancelled} tickets".
+Done.
