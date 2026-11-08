@@ -1058,6 +1058,7 @@ Pull a book on collections.
         Done.
         Cast one's check-region-store on (value, given-type, cast one's container-depth on (target), at-row,
             "add a region-scoped value to a series in a longer-lived region") or pass the failure off.
+        Cast one's note-escape on (statement, ":EscapeToDepth", value, given-type, cast one's container-depth on (target)).
     Done.
 
     Bind void or failure to check-series-set unto checker, given (the node statement):
@@ -1321,6 +1322,7 @@ Pull a book on collections.
         Done.
         Cast one's check-region-store on (value, given-type, existing's depth, at-row,
             "reassign '{name}' to a value from a shorter-lived region") or pass the failure off.
+        Cast one's note-escape on (statement, ":EscapeToDepth", value, given-type, existing's depth).
     Done.
 
     /// Does a value of type `source` fit where `target` is wanted — C#'s `IsAssignable`.

@@ -1064,11 +1064,20 @@ Pull a book on collections.
             Cast one's check-setter-write on (setter, member, cast field-of on (statement, 3), at-row,
                 cast one's container-depth on (cast field-of on (statement, 1)),
                 "set '{member}' to a value from a shorter-lived region than the object") or pass the failure off.
+            Cast one's note-escape-of on (statement, cast field-of on (statement, 1)) or pass the failure off.
             Return.
         Done.
         Cast one's check-field-write on (owner, member, cast field-of on (statement, 3), at-row,
             cast one's container-depth on (cast field-of on (statement, 1)),
             "set '{member}' to a value from a shorter-lived region than the object") or pass the failure off.
+        Cast one's note-escape-of on (statement, cast field-of on (statement, 1)) or pass the failure off.
+    Done.
+
+    /// The escape note for a field write whose value is the statement's third field, into `target`.
+    Bind void or failure to note-escape-of unto checker, given (the node statement, the node target):
+        Define value as cast field-of on (statement, 3).
+        Define value-type as cast one's infer on (value) or pass the failure off.
+        Cast one's note-escape on (statement, ":EscapeToDepth", value, value-type, cast one's container-depth on (target)).
     Done.
 
     Bind void or failure to check-named-set unto checker, given (the node statement):
@@ -1089,11 +1098,13 @@ Pull a book on collections.
                 Cast one's check-setter-write on (setter, field, cast field-of on (statement, 3), at-row,
                     cast one's container-depth on (cast field-of on (statement, 2)),
                     "set field '{field}' to a value from a shorter-lived region") or pass the failure off.
+                Cast one's note-escape-of on (statement, cast field-of on (statement, 2)) or pass the failure off.
                 Return.
             Done.
             Cast one's check-field-write on (owner, field, cast field-of on (statement, 3), at-row,
                 cast one's container-depth on (cast field-of on (statement, 2)),
                 "set field '{field}' to a value from a shorter-lived region") or pass the failure off.
+            Cast one's note-escape-of on (statement, cast field-of on (statement, 2)) or pass the failure off.
             Return.
         Done.
         If target's kind is "RecordType":

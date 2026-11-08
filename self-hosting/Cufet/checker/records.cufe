@@ -117,6 +117,7 @@ Pull a book on collections.
         Done.
         Cast one's check-region-store on (value, value-type, cast one's container-depth on (cast field-of on (statement, 2)), at-row,
             "set field '{name}' to a value from a shorter-lived region") or pass the failure off.
+        Cast one's note-escape on (statement, ":EscapeToDepth", value, value-type, cast one's container-depth on (cast field-of on (statement, 2))).
     Done.
 
     /// `item N of <record>` — its Nth positional field; a position that is not written out is

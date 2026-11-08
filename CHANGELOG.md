@@ -63,6 +63,11 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   after the start was seen changed (`after 3`) where the compiled program saw it as it was
   (`before 2`). A task now copies what it uses when it is started, in both backends, as REFERENCE
   already said it did.
+- **The checker written in Cufet now marks a store that outlives its region**, as C#'s does
+  (`EscapeToDepth`, and `KeyEscapeToDepth` for a map's key): a value stored from inside a rabbit
+  into something an outer rabbit holds. Its checked tree differed from C#'s for every such store.
+  What either compiler builds is unchanged, since the compiler written in Cufet works this out
+  itself.
 - **`cufet build` worked out a voidable compared with a plain value twice**, once to ask whether it
   was there and once to read it. So `If (the delivery from ch) is "a":` took two messages off the
   channel, and a program reading the next one waited for ever. The plain side also ran only when

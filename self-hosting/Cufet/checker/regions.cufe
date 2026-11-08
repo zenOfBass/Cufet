@@ -36,6 +36,68 @@ Pull a book on collections.
         Return one's rabbit-depth.
     Done.
 
+    /// `IsRegionBearing`: whether a type's compiled form holds an arena pointer anywhere in its
+    /// shape — text and every collection do, a record or a voidable when something inside does, an
+    /// open union always.
+    Bind fact to is-region-bearing unto checker, given (the node shape):
+        Define kind as shape's kind.
+        If kind is "TextType" or kind is "SeriesType" or kind is "MapType" or kind is "MatrixType" or kind is "ChannelType"
+                or kind is "FunctionType" or kind is "StashType" or kind is "ObjectType":
+            Return true.
+        Done.
+        If kind is "RecordType":
+            For each part in (cast field-of on (shape, 1))'s children, repeat:
+                If cast one's is-region-bearing on (part), return true.
+            Done.
+            For each pair in (cast field-of on (shape, 2))'s children, repeat:
+                If cast one's is-region-bearing on (item 2 of pair's children), return true.
+            Done.
+            Return false.
+        Done.
+        If kind is "VoidableType" or kind is "FailureType", return cast one's is-region-bearing on (cast field-of on (shape, 1)).
+        If kind is "UnionType":
+            If cast is-open-union on (shape), return true.
+            For each member in (cast field-of on (shape, 1))'s children, repeat:
+                If cast one's is-region-bearing on (member), return true.
+            Done.
+        Done.
+        Return false.
+    Done.
+
+    /// `EscapeDepthFor`: where a stored value must be copied to — the destination's depth — when it
+    /// would outlive its own region there, or -1. A value holding no region memory counts as made
+    /// where the store stands, which is what decides whether the destination's own growth moves.
+    Bind number to escape-depth-for unto checker, given (the node value, the node value-type, the number target-depth):
+        Define value-depth as one's rabbit-depth.
+        If cast one's is-region-bearing on (value-type):
+            Define kind as value's kind.
+            If kind is "VariableReference":
+                Define found as cast one's look-up on (cast unquoted on (cast field-of on (value, 1))).
+                If found is not void, the value-depth becomes found's depth.
+            Done.
+            If kind is "CastExpression":
+                Define cached as the entry for cast node-place on (value, 3) in one's call-depths.
+                If cached is not void, the value-depth becomes cached.
+            Done.
+            If kind is "PossessiveAccess" or kind is "RecordNamedAccess":
+                Define cached-member as the entry for cast node-place on (value, 3) in one's member-depths.
+                If cached-member is not void, the value-depth becomes cached-member.
+            Done.
+        Done.
+        If value-depth is greater than target-depth, return target-depth.
+        Return -1.
+    Done.
+
+    /// Writes C#'s `EscapeToDepth` (or `KeyEscapeToDepth`, by `mark`) onto a store — the depth a
+    /// compiler copies the value out to. Never refuses anything. A depth of 0 is written as nothing,
+    /// as C#'s tree prints it.
+    Bind void to note-escape unto checker, given (the node statement, the text mark, the node value,
+            the node value-type, the number target-depth):
+        Define depth as cast one's escape-depth-for on (value, value-type, target-depth).
+        If depth is greater than 0, cast note on (statement, mark, cast numeral on (depth)).
+        Otherwise, cast note on (statement, mark, cast nothing).
+    Done.
+
     /// A value stored where it would outlive its region is refused.
     Bind void or failure to check-region-store unto checker, given (the node value, the node value-type,
             the number target-depth, the number at-row, the text action):

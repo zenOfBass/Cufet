@@ -227,6 +227,8 @@ Pull a book on collections.
         Done.
         Cast one's check-region-store on (value, value-type, cast one's container-depth on (target), at-row,
             "store a region-scoped value in a map that lives in a longer-lived region") or pass the failure off.
+        Cast one's note-escape on (statement, ":EscapeToDepth", value, value-type, cast one's container-depth on (target)).
+        Cast one's note-escape on (statement, ":KeyEscapeToDepth", cast field-of on (statement, 2), key-type, cast one's container-depth on (target)).
     Done.
 
     /// `Exit.` and `Exit with <status>.` — a whole number from 0 to 255 when it is written out.
