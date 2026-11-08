@@ -1108,16 +1108,17 @@ The two arcs where soundness was the whole problem.
   does not transfer.** Those languages need a select because a channel there carries ONE type, so
   an actor must listen on several at once and take whichever speaks first. Cufet puts the
   alternation in the TYPE instead: one channel of `(number or text)`, dispatched by a `Judge`
-  whose exhaustiveness is checked. Same expressive power, and the coverage is proved rather than
-  hoped for.
+  whose exhaustiveness is checked. For a mailbox, that is all a select would give, and the
+  coverage is proved rather than hoped for.
 
   ⚠ The entry contradicted itself and the wrong half was load-bearing: a later line already said
   *"the mailbox and message-send surface are separate, later work."* MEASURED before deleting the
   item — a full actor with state, multi-kind dispatch and replies, byte-identical on both
   backends, on the already-shipped 0.23.0 with no new feature.
 
-  ★ **What this leaves `automatic`:** only the logic-gates witness the entry itself named. Its
-  actor justification is gone, so it stands or falls on circuits alone.
+  ★ **`automatic` was built later for what a union channel cannot do:** senders that each own a
+  pipe of their own, so no single channel exists to carry the union. See *Composition modes for
+  rabbits*.
 
   ★ **What was declined:** a `Have hopper …` message-send sugar, making the mailbox implicit.
   It would trade capability for a shorter line — an explicit channel gives an inbox AND an
