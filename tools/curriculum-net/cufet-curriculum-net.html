@@ -1,0 +1,354 @@
+<title>Cufet Curriculum Net</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@500;700&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a working board. Header strip with the counts, then the net (wide) beside a
+   detail panel; the panel stacks under the net on a phone. */
+:root {
+  --bg: #f3f5f2;
+  --surface: #ffffff;
+  --ink: #1d2420;
+  --muted: #5f6b64;
+  --line: #d5dcd7;
+  --main: #2f7d55;
+  --main-soft: #d7ecdf;
+  --side: #6a6fa8;
+  --side-soft: #e3e4f3;
+  --hard: #b5622b;
+  --open: #d49a12;
+  --dropped: #b9c2bc;
+  --display: "Familjen Grotesk", "Segoe UI", system-ui, sans-serif;
+  --body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #141916; --surface: #1c2320; --ink: #e5ebe7; --muted: #9aa69f; --line: #2f3a34;
+    --main: #5cc28d; --main-soft: #1f3a2c; --side: #9ea3e0; --side-soft: #2a2c45;
+    --hard: #e08a4f; --open: #f0bd3c; --dropped: #46524b; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #141916; --surface: #1c2320; --ink: #e5ebe7; --muted: #9aa69f; --line: #2f3a34;
+  --main: #5cc28d; --main-soft: #1f3a2c; --side: #9ea3e0; --side-soft: #2a2c45;
+  --hard: #e08a4f; --open: #f0bd3c; --dropped: #46524b; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 16px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; }
+h1 { font-family: var(--display); font-weight: 700; font-size: 1.6rem; margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+.sub { color: var(--muted); margin: 2px 0 0; max-width: 65ch; }
+.stats { display: flex; gap: 8px; flex-wrap: wrap; font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; }
+.stat { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; }
+.stat b { font-weight: 600; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; font-size: 13px; }
+.toolbar label { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
+button {
+  font: inherit; font-size: 13px; border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+  border-radius: 6px; padding: 4px 10px; cursor: pointer;
+}
+button[aria-pressed="true"] { background: var(--main); color: var(--surface); border-color: var(--main); }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--open); outline-offset: 2px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; color: var(--muted); font-size: 12px; align-items: center; }
+.sw { display: inline-block; width: 22px; height: 0; border-top: 2px solid var(--muted); vertical-align: middle; margin-right: 4px; }
+.sw.hard { border-top: 2px dashed var(--hard); }
+.sw.dropped { border-top: 2px dotted var(--dropped); }
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: middle; margin-right: 4px; }
+.board { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 12px; }
+.net { position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; min-height: 520px; overflow: hidden; }
+.net svg { width: 100%; height: 100%; display: block; touch-action: none; }
+.playbar {
+  position: absolute; left: 10px; top: 10px; background: var(--surface); border: 1px solid var(--line);
+  border-radius: 6px; padding: 6px 10px; font-size: 13px; font-variant-numeric: tabular-nums;
+}
+.playbar strong { font-family: var(--mono); }
+aside { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; overflow: auto; min-width: 0; }
+aside h2 { font-family: var(--display); font-size: 1.25rem; margin: 0 0 4px; }
+.chip { display: inline-block; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; padding: 2px 8px; border-radius: 99px; font-weight: 700; }
+.chip.main { background: var(--main-soft); color: var(--main); }
+.chip.side { background: var(--side-soft); color: var(--side); }
+.chip.trunk { background: var(--ink); color: var(--surface); }
+aside h3 { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin: 16px 0 6px; }
+aside ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+aside li { font-size: 13.5px; }
+.ev { color: var(--muted); font-size: 12.5px; }
+.code { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.lnk { background: none; border: 0; padding: 0; color: var(--main); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; font: inherit; }
+.progs { font-family: var(--mono); font-size: 12px; color: var(--muted); line-height: 1.7; }
+.drop { opacity: 0.7; }
+.hint { color: var(--muted); font-size: 13px; }
+text { font-family: var(--body); fill: var(--ink); pointer-events: none; }
+@media (max-width: 820px) {
+  .board { grid-template-columns: minmax(0, 1fr); }
+  .net { min-height: 460px; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .opening { animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 50% { stroke-opacity: 0.35; } }
+}
+</style>
+
+<header>
+  <div>
+    <h1>Cufet Curriculum Net</h1>
+    <p class="sub">First draft from the audit of 9 November 2026. Every topic in the language, the edges the data supports, and the ones kept to hold the choices down. Click a topic to see why it is connected.</p>
+  </div>
+  <div class="stats" id="stats"></div>
+</header>
+
+<div class="toolbar">
+  <button id="play" aria-pressed="false">Play mode</button>
+  <button id="reset" hidden>Start over</button>
+  <button id="resetLayout" title="Forget the positions you dragged in this browser">Reset layout</button>
+  <label><input type="checkbox" id="showDropped"> Show dropped candidate edges</label>
+  <label><input type="checkbox" id="showSide" checked> Show side quests</label>
+  <div class="legend">
+    <span><span class="dot" style="background:var(--main)"></span>main topic</span>
+    <span><span class="dot" style="background:var(--side)"></span>side quest</span>
+    <span><span class="sw"></span>related (any one opens)</span>
+    <span><span class="sw hard"></span>needed first</span>
+    <span><span class="sw dropped"></span>dropped</span>
+  </div>
+</div>
+
+<div class="board">
+  <div class="net" id="net">
+    <svg id="svg" role="img" aria-label="Curriculum net of Cufet topics"></svg>
+    <div class="playbar" id="playbar" hidden></div>
+  </div>
+  <aside id="panel" aria-live="polite"></aside>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script>
+const DATA = {"nodes": [{"id": "trunk", "label": "Trunk", "kind": "trunk", "note": "saying something, names, choosing, repeating (with a series), functions, void", "hard": [], "ex": null, "sh": null, "programs": ["averageseries", "booking", "evenfiltergreaterthan", "fibonacci", "fizzbuzz", "largestinseries", "nqueens", "towerofhanoi"]}, {"id": "text", "label": "Text", "kind": "main", "note": "split, contains, converted to number (void)", "hard": [], "ex": 16, "sh": 49, "programs": ["axioms", "beamforming", "config", "easter", "huffmancoding", "json", "markov", "permissions", "precedence", "rawtext", "readings", "recursivedescent", "semver", "sensor-averages", "sudoku", "wordfreq"]}, {"id": "maps", "label": "Maps", "kind": "main", "note": "lookups give void", "hard": [], "ex": 10, "sh": 52, "programs": ["channel-deepcopy", "circuits", "config", "dijkstra", "gates", "geometry", "huffmancoding", "markov", "netlist", "wordfreq"]}, {"id": "records", "label": "Records", "kind": "main", "note": "values with named parts; map keys", "hard": [], "ex": 3, "sh": 2, "programs": ["blueprint", "geometry", "wordfreq"]}, {"id": "sorting", "label": "Sorting", "kind": "side", "note": "sorted, in reverse", "hard": [], "ex": 3, "sh": 14, "programs": ["huffmancoding", "precedence", "wordfreq"]}, {"id": "things", "label": "Objects", "kind": "main", "note": "objects: fields, made with new", "hard": [], "ex": 26, "sh": 11, "programs": ["arbtree", "axioms", "binarysearchtree", "bookkeeping", "dijkstra", "dispatch", "documentation", "gates", "generics", "geometry", "huffmancoding", "interfacedefaults", "interfaces", "json", "lifecycle", "patterns", "pennies", "permanently", "precedence", "recursivedescent", "renderer", "reversiblelogic", "signal", "spans", "stashes", "workshop"]}, {"id": "methods", "label": "Methods", "kind": "main", "note": "methods: one's, unto", "hard": [], "ex": 13, "sh": 66, "programs": ["axioms", "binarysearchtree", "bookkeeping", "cards", "generics", "interfacedefaults", "interfaces", "lifecycle", "pennies", "permanently", "recursivedescent", "spans", "stashes"]}, {"id": "getset", "label": "Getters & setters", "kind": "side", "note": "getters and setters", "hard": [], "ex": 2, "sh": 0, "programs": ["cards", "lifecycle"]}, {"id": "makers", "label": "Makers & unmakers", "kind": "side", "note": "named makers, unmakers", "hard": [], "ex": 2, "sh": 0, "programs": ["cards", "lifecycle"]}, {"id": "interfaces", "label": "Interfaces", "kind": "side", "note": "interfaces", "hard": [], "ex": 2, "sh": 5, "programs": ["interfacedefaults", "interfaces"]}, {"id": "embedding", "label": "Embedding", "kind": "side", "note": "embedding", "hard": [], "ex": null, "sh": null, "programs": []}, {"id": "overloading", "label": "Operator overloading", "kind": "side", "note": "operator overloading", "hard": [], "ex": 1, "sh": 0, "programs": ["geometry"]}, {"id": "kinds", "label": "Unions", "kind": "main", "note": "unions, is a, Judge", "hard": [], "ex": 12, "sh": 18, "programs": ["actor-mailbox", "circuits", "config", "dispatch", "gates", "geometry", "interfaces", "netlist", "recursivedescent", "renderer", "reversiblelogic", "signal"]}, {"id": "catalogues", "label": "Catalogues & atlases", "kind": "side", "note": "catalogue and atlas", "hard": ["kinds"], "ex": 9, "sh": 0, "programs": ["circuits", "config", "dispatch", "interfaces", "netlist", "parts", "recursivedescent", "renderer", "reversiblelogic"]}, {"id": "shorthands", "label": "Shorthands", "kind": "side", "note": "shorthands", "hard": ["kinds"], "ex": 1, "sh": 0, "programs": ["gates"]}, {"id": "failure", "label": "Failure", "kind": "main", "note": "or failure, Try, In case of", "hard": [], "ex": 13, "sh": 69, "programs": ["beamforming", "config", "documentation", "easter", "geometry", "logtriage", "precedence", "readings", "recursivedescent", "search", "semver", "sensor-averages", "subprocess-pipes"]}, {"id": "files", "label": "Files", "kind": "main", "note": "reading and writing files", "hard": ["failure"], "ex": 9, "sh": 8, "programs": ["beamforming", "config", "easter", "logtriage", "precedence", "readings", "search", "semver", "wordfreq"]}, {"id": "input", "label": "Reading input", "kind": "main", "note": "read a line from the input (void at end)", "hard": [], "ex": 1, "sh": 0, "programs": ["life"]}, {"id": "args", "label": "Arguments & environment", "kind": "side", "note": "arguments, environment, exit status", "hard": [], "ex": 6, "sh": 4, "programs": ["beamforming", "logtriage", "precedence", "readings", "search", "semver"]}, {"id": "processes", "label": "Running programs", "kind": "side", "note": "run a program", "hard": ["failure"], "ex": 0, "sh": 0, "programs": []}, {"id": "directories", "label": "Directories", "kind": "side", "note": "making, listing, the current directory", "hard": ["failure"], "ex": null, "sh": null, "programs": []}, {"id": "rabbits", "label": "Rabbits", "kind": "main", "note": "pull a rabbit; things end at Done", "hard": [], "ex": 15, "sh": 2, "programs": ["actor-mailbox", "arbtree", "binarysearchtree", "channel-deepcopy", "dispatcher", "foreign-memory", "json", "lifecycle", "parallelsum", "patterns", "reversiblelogic", "sensor-averages", "stashes", "wordfreq", "work-queue"]}, {"id": "tasks", "label": "Tasks", "kind": "main", "note": "tasks, awaited results", "hard": ["rabbits"], "ex": 7, "sh": 0, "programs": ["actor-mailbox", "channel-deepcopy", "dispatcher", "lifecycle", "parallelsum", "sensor-averages", "work-queue"]}, {"id": "channels", "label": "Channels", "kind": "main", "note": "channels, send, delivery", "hard": ["tasks"], "ex": 4, "sh": 0, "programs": ["actor-mailbox", "channel-deepcopy", "dispatcher", "work-queue"]}, {"id": "modes", "label": "Composition modes", "kind": "side", "note": "automatic, sequential rabbits", "hard": ["channels"], "ex": 1, "sh": 0, "programs": ["dispatcher"]}, {"id": "pipes", "label": "Pipes", "kind": "side", "note": "streaming stages", "hard": ["tasks"], "ex": null, "sh": null, "programs": []}, {"id": "interrupts", "label": "Interrupts", "kind": "side", "note": "an interrupt is requested", "hard": [], "ex": 1, "sh": 0, "programs": ["interruptible"]}, {"id": "stashes", "label": "Stashes", "kind": "side", "note": "bury, unbury", "hard": ["rabbits"], "ex": 2, "sh": 7, "programs": ["stashes", "workshop"]}, {"id": "books", "label": "Books", "kind": "main", "note": "pull a book on math, collections", "hard": [], "ex": 22, "sh": 51, "programs": ["axioms", "basket", "beamforming", "blueprint", "easter", "foreign", "foreign-memory", "gameoflife", "geometry", "huffmancoding", "json", "ledger", "life", "logtriage", "markov", "montecarlo", "pennies", "permissions", "precedence", "readings", "semver", "sudoku"]}, {"id": "modules", "label": "Modules", "kind": "main", "note": "an object that is a module", "hard": ["things"], "ex": 1, "sh": 0, "programs": ["spans"]}, {"id": "projects", "label": "Projects", "kind": "side", "note": "directories as namespaces, blueprints", "hard": ["modules"], "ex": null, "sh": null, "programs": []}, {"id": "own-book", "label": "A book of your own", "kind": "side", "note": "a book of your own", "hard": ["books", "modules"], "ex": null, "sh": null, "programs": []}, {"id": "patterns", "label": "Regular expressions", "kind": "side", "note": "regex book", "hard": ["text"], "ex": 4, "sh": 0, "programs": ["logtriage", "precedence", "readings", "semver"]}, {"id": "matrices", "label": "Matrices", "kind": "side", "note": "matrix book (reached through Sets, which needs Books)", "hard": [], "ex": 3, "sh": 6, "programs": ["gameoflife", "geometry", "sudoku"]}, {"id": "sets", "label": "Sets", "kind": "side", "note": "sets", "hard": ["books"], "ex": 1, "sh": 0, "programs": ["dijkstra"]}, {"id": "chase", "label": "Chases", "kind": "side", "note": "editable text", "hard": ["books", "text"], "ex": 3, "sh": 29, "programs": ["huffmancoding", "json", "life"]}, {"id": "bits", "label": "Bits", "kind": "side", "note": "bit patterns", "hard": [], "ex": 5, "sh": 10, "programs": ["circuits", "foreign", "huffmancoding", "permissions", "reversiblelogic"]}, {"id": "chance", "label": "Chance", "kind": "side", "note": "random draws", "hard": ["books"], "ex": 1, "sh": 0, "programs": ["markov"]}, {"id": "char-classes", "label": "Character classes", "kind": "side", "note": "alphabetic, numeric, code points", "hard": ["text"], "ex": 0, "sh": 2, "programs": []}, {"id": "foreign", "label": "Foreign code", "kind": "side", "note": "axioms: C code from Cufet", "hard": [], "ex": null, "sh": null, "programs": []}, {"id": "cufet-source", "label": "Cufet source", "kind": "side", "note": "holes: Cufet code from Cufet", "hard": ["books"], "ex": null, "sh": null, "programs": []}], "edges": [{"a": "trunk", "b": "text", "evidence": "door", "kept": true}, {"a": "trunk", "b": "things", "evidence": "door", "kept": true}, {"a": "trunk", "b": "rabbits", "evidence": "door", "kept": false}, {"a": "trunk", "b": "kinds", "evidence": "door", "kept": false}, {"a": "trunk", "b": "books", "evidence": "door", "kept": true}, {"a": "trunk", "b": "maps", "evidence": "door", "kept": false}, {"a": "text", "b": "failure", "evidence": "E 62%: failure with text work", "kept": false}, {"a": "text", "b": "maps", "evidence": "E markov, wordfreq", "kept": false}, {"a": "text", "b": "books", "evidence": "E 69%: text work with books", "kept": false}, {"a": "text", "b": "input", "evidence": "L: what someone types is text", "kept": false}, {"a": "text", "b": "args", "evidence": "E: args with text in 67%", "kept": false}, {"a": "text", "b": "patterns", "evidence": "R: a pattern is held by a text", "kept": false}, {"a": "text", "b": "chase", "evidence": "L: editable text", "kept": true}, {"a": "text", "b": "char-classes", "evidence": "R", "kept": true}, {"a": "text", "b": "files", "evidence": "E: search, easter, readings", "kept": false}, {"a": "text", "b": "sorting", "evidence": "L: sorting words", "kept": false}, {"a": "maps", "b": "records", "evidence": "R: a record of keys", "kept": true}, {"a": "maps", "b": "kinds", "evidence": "E: netlist, config, gates", "kept": true}, {"a": "maps", "b": "sets", "evidence": "R: a set is a map with the value removed (BOOKS.md, Sets)", "kept": true}, {"a": "sets", "b": "matrices", "evidence": "L: the user's line of book side quests", "kept": true}, {"a": "maps", "b": "books", "evidence": "L: the collections book", "kept": false}, {"a": "records", "b": "things", "evidence": "L: records copy, objects are shared", "kept": false}, {"a": "records", "b": "sorting", "evidence": "R: sorting series of records", "kept": true}, {"a": "records", "b": "overloading", "evidence": "L: values with arithmetic", "kept": false}, {"a": "things", "b": "kinds", "evidence": "E 78%: Judge over objects", "kept": true}, {"a": "things", "b": "failure", "evidence": "R: a maker that can fail", "kept": true}, {"a": "things", "b": "rabbits", "evidence": "E: trees (arbtree, bst)", "kept": false}, {"a": "things", "b": "getset", "evidence": "R", "kept": false}, {"a": "things", "b": "makers", "evidence": "R", "kept": false}, {"a": "things", "b": "interfaces", "evidence": "R", "kept": false}, {"a": "things", "b": "embedding", "evidence": "R", "kept": false}, {"a": "things", "b": "overloading", "evidence": "R", "kept": false}, {"a": "things", "b": "modules", "evidence": "R", "kept": true}, {"a": "trunk", "b": "records", "evidence": "door", "kept": true}, {"a": "things", "b": "methods", "evidence": "R: methods are declared on an object (REFERENCE, Objects)", "kept": true}, {"a": "methods", "b": "getset", "evidence": "L: the user's line: a getter or setter is a method", "kept": true}, {"a": "methods", "b": "interfaces", "evidence": "R: an interface is a set of method signatures (REFERENCE, Interfaces)", "kept": true}, {"a": "makers", "b": "overloading", "evidence": "L: the user's line", "kept": true}, {"a": "getset", "b": "makers", "evidence": "L: controlling how one is made and read", "kept": true}, {"a": "makers", "b": "interfaces", "evidence": "L: the user's line: reading a field, making one, then how objects relate", "kept": false}, {"a": "makers", "b": "failure", "evidence": "R: making a point or failure", "kept": false}, {"a": "makers", "b": "rabbits", "evidence": "R: unmakers run when the rabbit ends", "kept": false}, {"a": "interfaces", "b": "kinds", "evidence": "E: interfaces.cufe (two ways to say 'one of several')", "kept": false}, {"a": "interfaces", "b": "embedding", "evidence": "L", "kept": true}, {"a": "overloading", "b": "matrices", "evidence": "E geometry", "kept": false}, {"a": "kinds", "b": "catalogues", "evidence": "R", "kept": true}, {"a": "kinds", "b": "shorthands", "evidence": "R", "kept": true}, {"a": "catalogues", "b": "maps", "evidence": "R", "kept": false}, {"a": "failure", "b": "files", "evidence": "R", "kept": true}, {"a": "failure", "b": "processes", "evidence": "R", "kept": true}, {"a": "failure", "b": "directories", "evidence": "R", "kept": true}, {"a": "failure", "b": "tasks", "evidence": "R: when a task goes wrong", "kept": false}, {"a": "files", "b": "directories", "evidence": "L", "kept": true}, {"a": "files", "b": "args", "evidence": "E 100%", "kept": false}, {"a": "files", "b": "input", "evidence": "L", "kept": true}, {"a": "args", "b": "processes", "evidence": "L: exit status", "kept": true}, {"a": "processes", "b": "pipes", "evidence": "L", "kept": true}, {"a": "input", "b": "interrupts", "evidence": "R: the interrupt example reads input", "kept": true}, {"a": "rabbits", "b": "tasks", "evidence": "R", "kept": true}, {"a": "rabbits", "b": "stashes", "evidence": "R", "kept": true}, {"a": "rabbits", "b": "foreign", "evidence": "E foreign-memory", "kept": false}, {"a": "tasks", "b": "channels", "evidence": "R", "kept": true}, {"a": "tasks", "b": "pipes", "evidence": "R", "kept": false}, {"a": "tasks", "b": "interrupts", "evidence": "L", "kept": false}, {"a": "channels", "b": "modes", "evidence": "R", "kept": true}, {"a": "channels", "b": "kinds", "evidence": "E actor-mailbox", "kept": true}, {"a": "books", "b": "matrices", "evidence": "R", "kept": false}, {"a": "books", "b": "sets", "evidence": "R", "kept": true}, {"a": "books", "b": "chance", "evidence": "R", "kept": true}, {"a": "books", "b": "patterns", "evidence": "R", "kept": false}, {"a": "books", "b": "modules", "evidence": "R: a book is a module", "kept": false}, {"a": "books", "b": "foreign", "evidence": "R", "kept": false}, {"a": "books", "b": "cufet-source", "evidence": "R", "kept": true}, {"a": "modules", "b": "rabbits", "evidence": "R: a module may own a lifetime; a rabbit is the one that does (DESIGN, book vs module)", "kept": true}, {"a": "modules", "b": "projects", "evidence": "R", "kept": true}, {"a": "modules", "b": "own-book", "evidence": "R", "kept": true}, {"a": "bits", "b": "text", "evidence": "R: crossing over", "kept": false}, {"a": "bits", "b": "foreign", "evidence": "E foreign", "kept": false}, {"a": "bits", "b": "books", "evidence": "E 5 programs", "kept": true}, {"a": "bits", "b": "maps", "evidence": "E circuits", "kept": false}, {"a": "foreign", "b": "cufet-source", "evidence": "R: Cufet source is 'the same surface as a foreign one' (BOOKS.md)", "kept": true}, {"a": "own-book", "b": "foreign", "evidence": "L", "kept": false}, {"a": "foreign", "b": "patterns", "evidence": "L: the third language held in [ \u2026 ] (the user's line: Cufet source, C, regex)", "kept": true}, {"a": "projects", "b": "files", "evidence": "L", "kept": false}], "nex": 67, "nsh": 80, "layout": {"modes": [183.9, 35.0], "tasks": [140.4, 310.3], "stashes": [106.9, 631.7], "rabbits": [197.0, 537.7], "projects": [422.5, 677.9], "modules": [437.7, 544.1], "files": [367.5, 441.4], "own-book": [594.4, 584.8], "things": [524.0, 308.5], "books": [743.7, 488.9], "trunk": [653.0, 340.9], "sets": [958.7, 370.6], "matrices": [1065.0, 433.2], "maps": [843.8, 168.8], "catalogues": [547.8, 35.0], "shorthands": [679.3, 35.0], "kinds": [589.1, 122.4], "channels": [295.7, 98.7], "records": [709.5, 197.3], "chance": [637.7, 505.6], "bits": [719.5, 399.5], "chase": [778.0, 392.1], "char-classes": [839.2, 336.8], "text": [768.9, 291.2], "patterns": [875.0, 271.0], "foreign": [899.6, 361.5], "cufet-source": [823.7, 428.0], "sorting": [802.5, 218.7], "pipes": [184.8, 394.6], "args": [246.7, 486.5], "processes": [269.1, 385.2], "overloading": [208.1, 287.0], "failure": [353.8, 281.1], "makers": [250.6, 212.8], "input": [374.2, 342.9], "interrupts": [417.7, 369.7], "directories": [473.1, 338.7], "getset": [324.1, 159.3], "methods": [418.0, 207.8], "interfaces": [426.3, 130.8], "embedding": [513.1, 164.8]}};
+const byId = Object.fromEntries(DATA.nodes.map(n => [n.id, n]));
+const kept = DATA.edges.filter(e => e.kept);
+const doors = kept.filter(e => e.a === "trunk").map(e => e.b);
+const nbr = {};
+DATA.nodes.forEach(n => nbr[n.id] = new Set());
+kept.forEach(e => { nbr[e.a].add(e.b); nbr[e.b].add(e.a); });
+
+const counts = { main: 0, side: 0 };
+DATA.nodes.forEach(n => { if (n.kind !== "trunk") counts[n.kind]++; });
+document.getElementById("stats").innerHTML =
+  `<span class="stat"><b>${counts.main}</b> main</span>` +
+  `<span class="stat"><b>${counts.side}</b> side quests</span>` +
+  `<span class="stat"><b>${kept.length}</b> of ${DATA.edges.length} edges kept</span>` +
+  `<span class="stat"><b>${doors.length}</b> doors: ${doors.map(d => byId[d].label).join(", ")}</span>`;
+
+// ---- layout ----
+const svg = d3.select("#svg");
+const W = 1100, H = 820;
+svg.attr("viewBox", `0 0 ${W} ${H}`);
+const root = svg.append("g");
+svg.call(d3.zoom().scaleExtent([0.4, 3]).on("zoom", ev => root.attr("transform", ev.transform)));
+svg.append("defs").append("marker").attr("id", "arrow").attr("viewBox", "0 0 10 10")
+  .attr("refX", 10).attr("refY", 5).attr("markerWidth", 7).attr("markerHeight", 7).attr("orient", "auto-start-reverse")
+  .append("path").attr("d", "M0,0L10,5L0,10z").attr("fill", "var(--hard)");
+
+const radius = n => n.kind === "trunk" ? 30 : n.kind === "main" ? 17 : 9;
+const simNodes = DATA.nodes.map(n => ({ ...n }));
+const simById = Object.fromEntries(simNodes.map(n => [n.id, n]));
+simById.trunk.fx = W / 2; simById.trunk.fy = H / 2;
+const hardLinks = [];
+DATA.nodes.forEach(n => n.hard.forEach(h => hardLinks.push({ source: h, target: n.id })));
+const links = DATA.edges.map(e => ({ source: e.a, target: e.b, e }));
+const sim = d3.forceSimulation(simNodes)
+  .force("link", d3.forceLink(links.filter(l => l.e.kept).concat(hardLinks)).id(d => d.id)
+    .distance(l => (l.source.kind === "side" || l.target.kind === "side") ? 70 : 115).strength(0.5))
+  .force("charge", d3.forceManyBody().strength(d => d.kind === "side" ? -220 : -520))
+  .force("collide", d3.forceCollide(d => radius(d) + 26))
+  .force("x", d3.forceX(W / 2).strength(0.04)).force("y", d3.forceY(H / 2).strength(0.05))
+  .stop();
+// Positions: a computed crossing-free layout (DATA.layout), then any the viewer dragged in this browser.
+const LAYOUT_KEY = "cufet-net-positions";
+function savedPositions() {
+  try { return JSON.parse(localStorage.getItem(LAYOUT_KEY) || "{}"); } catch (e) { return {}; }
+}
+function applyPositions() {
+  const saved = savedPositions();
+  simNodes.forEach(n => {
+    const p = saved[n.id] || (DATA.layout && DATA.layout[n.id]);
+    if (p) { n.x = p[0]; n.y = p[1]; }
+  });
+}
+if (DATA.layout) applyPositions(); else for (let i = 0; i < 400; i++) sim.tick();
+if (!DATA.layout) applyPositions();
+function savePositions() {
+  try {
+    const out = {}; simNodes.forEach(n => { out[n.id] = [Math.round(n.x), Math.round(n.y)]; });
+    localStorage.setItem(LAYOUT_KEY, JSON.stringify(out));
+  } catch (e) { /* storage unavailable: drags simply are not remembered */ }
+}
+
+const P = id => simById[id];
+const gDropped = root.append("g");
+const gRel = root.append("g");
+const gHard = root.append("g");
+const gNodes = root.append("g");
+
+const droppedSel = gDropped.selectAll("line").data(DATA.edges.filter(e => !e.kept)).join("line")
+  .attr("stroke", "var(--dropped)").attr("stroke-width", 1.3).attr("stroke-dasharray", "2 4");
+const relSel = gRel.selectAll("line").data(kept).join("line")
+  .attr("stroke", "var(--muted)").attr("stroke-opacity", 0.55).attr("stroke-width", 1.6);
+const hardSel = gHard.selectAll("line").data(hardLinks).join("line")
+  .attr("stroke", "var(--hard)").attr("stroke-width", 1.6).attr("stroke-dasharray", "6 4")
+  .attr("marker-end", "url(#arrow)");
+
+const nodeSel = gNodes.selectAll("g").data(simNodes).join("g")
+  .attr("tabindex", 0).attr("role", "button").attr("aria-label", d => d.label).style("cursor", "pointer");
+nodeSel.append("circle").attr("class", "ring").attr("r", d => radius(d) + 5).attr("fill", "none")
+  .attr("stroke", "var(--open)").attr("stroke-width", 3).attr("stroke-opacity", 0);
+nodeSel.append("circle").attr("class", "body").attr("r", radius);
+nodeSel.append("text").attr("text-anchor", "middle")
+  .attr("dy", d => d.kind === "trunk" ? 5 : radius(d) + 14)
+  .attr("font-size", d => d.kind === "side" ? 11 : d.kind === "trunk" ? 14 : 13)
+  .attr("font-weight", d => d.kind === "side" ? 400 : 700)
+  .style("fill", d => d.kind === "trunk" ? "var(--surface)" : "var(--ink)")
+  .text(d => d.label);
+
+function placeLine(sel, endPad) {
+  sel.each(function (l) {
+    const a = P(l.a || l.source.id || l.source), b = P(l.b || l.target.id || l.target);
+    let x2 = b.x, y2 = b.y;
+    if (endPad) {
+      const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 1;
+      x2 = b.x - dx / d * (radius(b) + 4); y2 = b.y - dy / d * (radius(b) + 4);
+    }
+    d3.select(this).attr("x1", a.x).attr("y1", a.y).attr("x2", x2).attr("y2", y2);
+  });
+}
+function place() {
+  placeLine(droppedSel); placeLine(relSel); placeLine(hardSel, true);
+  nodeSel.attr("transform", d => `translate(${d.x},${d.y})`);
+}
+place();
+nodeSel.call(d3.drag()
+  .on("drag", (ev, d) => { d.x = ev.x; d.y = ev.y; place(); })
+  .on("end", () => savePositions()));
+document.getElementById("resetLayout").addEventListener("click", () => {
+  try { localStorage.removeItem(LAYOUT_KEY); } catch (e) {}
+  simNodes.forEach(n => { const p = DATA.layout && DATA.layout[n.id]; if (p) { n.x = p[0]; n.y = p[1]; } });
+  place();
+});
+
+// ---- state ----
+let playing = false, done = new Set(["trunk"]), selected = "trunk";
+const showDropped = document.getElementById("showDropped");
+const showSide = document.getElementById("showSide");
+
+function isOpen(id) {
+  const n = byId[id];
+  if (done.has(id) || n.kind === "trunk") return false;
+  if (!n.hard.every(h => done.has(h))) return false;
+  return doors.includes(id) && done.has("trunk") || [...nbr[id]].some(x => done.has(x));
+}
+function render() {
+  const sideOn = showSide.checked;
+  const vis = d => sideOn || d.kind !== "side";
+  nodeSel.style("display", d => vis(d) ? null : "none");
+  relSel.style("display", e => vis(byId[e.a]) && vis(byId[e.b]) ? null : "none");
+  hardSel.style("display", l => vis(byId[l.source.id || l.source]) && vis(byId[l.target.id || l.target]) ? null : "none");
+  droppedSel.style("display", e => showDropped.checked && vis(byId[e.a]) && vis(byId[e.b]) ? null : "none");
+  nodeSel.select("circle.body")
+    .attr("fill", d => {
+      if (d.kind === "trunk") return "var(--ink)";
+      const c = d.kind === "main" ? "var(--main)" : "var(--side)";
+      if (!playing) return c;
+      return done.has(d.id) ? c : "var(--surface)";
+    })
+    .attr("stroke", d => d.kind === "main" ? "var(--main)" : d.kind === "side" ? "var(--side)" : "var(--ink)")
+    .attr("stroke-width", d => d.id === selected ? 4 : 2)
+    .attr("opacity", d => !playing || done.has(d.id) || isOpen(d.id) ? 1 : 0.3);
+  nodeSel.select("circle.ring")
+    .attr("stroke-opacity", d => playing && isOpen(d.id) ? 1 : 0)
+    .attr("class", d => "ring" + (playing && isOpen(d.id) ? " opening" : ""));
+  nodeSel.select("text").attr("opacity", d => !playing || done.has(d.id) || isOpen(d.id) ? 1 : 0.35);
+  const pb = document.getElementById("playbar");
+  pb.hidden = !playing;
+  if (playing) {
+    const open = DATA.nodes.filter(n => isOpen(n.id));
+    const m = open.filter(n => n.kind === "main").length, s = open.length - m;
+    pb.innerHTML = `Open now: <strong>${m}</strong> main · <strong>${s}</strong> side · ${done.size - 1} done`;
+  }
+  panel(selected);
+}
+
+function edgeItem(other, ev, isKept) {
+  return `<li class="${isKept ? "" : "drop"}"><button class="lnk" data-go="${other}">${byId[other].label}</button>` +
+    ` <span class="ev">${ev}${isKept ? "" : " (dropped)"}</span></li>`;
+}
+function panel(id) {
+  const n = byId[id];
+  const rel = DATA.edges.filter(e => e.a === id || e.b === id);
+  const keptRel = rel.filter(e => e.kept).map(e => edgeItem(e.a === id ? e.b : e.a, e.evidence, true));
+  const dropRel = rel.filter(e => !e.kept).map(e => edgeItem(e.a === id ? e.b : e.a, e.evidence, false));
+  const needs = n.hard.map(h => `<li><button class="lnk" data-go="${h}">${byId[h].label}</button></li>`);
+  const leadsTo = DATA.nodes.filter(m => m.hard.includes(id)).map(m => `<li><button class="lnk" data-go="${m.id}">${m.label}</button></li>`);
+  const usage = n.ex == null ? (n.kind === "trunk" ? "" : `<p class="hint">No detector for this one, so no usage count.</p>`)
+    : `<p class="code">in ${n.ex} of ${DATA.nex} example programs · ${n.sh} of ${DATA.nsh} self-hosted compiler files</p>`;
+  let playNote = "";
+  if (playing && id !== "trunk") {
+    playNote = done.has(id) ? `<p class="hint">Done. <button class="lnk" data-undo="${id}">Undo</button></p>`
+      : isOpen(id) ? `<p class="hint">Open. <button class="lnk" data-do="${id}">Mark it done</button></p>`
+      : `<p class="hint">Not open yet.</p>`;
+  }
+  document.getElementById("panel").innerHTML =
+    `<span class="chip ${n.kind}">${n.kind === "side" ? "side quest" : n.kind}</span>` +
+    `<h2>${n.label}</h2><p>${n.note}</p>${usage}${playNote}` +
+    (doors.includes(id) ? `<p class="hint">A door: it opens straight off the trunk.</p>` : "") +
+    (needs.length ? `<h3>Needs first</h3><ul>${needs.join("")}</ul>` : "") +
+    (leadsTo.length ? `<h3>Needed first by</h3><ul>${leadsTo.join("")}</ul>` : "") +
+    (keptRel.length ? `<h3>Related, kept</h3><ul>${keptRel.join("")}</ul>` : "") +
+    (dropRel.length && showDropped.checked ? `<h3>Related, dropped</h3><ul>${dropRel.join("")}</ul>` : "") +
+    (n.programs.length ? `<h3>${id === "trunk" ? "Programs the trunk alone can write" : "Example programs using it"}</h3><p class="progs">${n.programs.join(", ")}</p>` : "") +
+    `<h3>Evidence codes</h3><p class="ev">E: the example programs use the two together. R: the reference needs one to explain the other. L: my judgment of where a lesson leads. door: opens off the trunk.</p>`;
+}
+
+function choose(id) {
+  selected = id;
+  if (playing && isOpen(id)) done.add(id);
+  render();
+}
+nodeSel.on("click", (ev, d) => choose(d.id))
+  .on("keydown", (ev, d) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); choose(d.id); } });
+document.getElementById("panel").addEventListener("click", ev => {
+  const t = ev.target;
+  if (t.dataset.go) { selected = t.dataset.go; render(); }
+  if (t.dataset.do) { done.add(t.dataset.do); render(); }
+  if (t.dataset.undo) { undo(t.dataset.undo); render(); }
+});
+function undo(id) {
+  done.delete(id);
+  // drop anything that no longer has a way in
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const x of [...done]) {
+      if (x === "trunk") continue;
+      done.delete(x);
+      if (!isOpen(x)) { changed = true; } else done.add(x);
+    }
+  }
+}
+const playBtn = document.getElementById("play"), resetBtn = document.getElementById("reset");
+playBtn.addEventListener("click", () => {
+  playing = !playing;
+  playBtn.setAttribute("aria-pressed", String(playing));
+  resetBtn.hidden = !playing;
+  render();
+});
+resetBtn.addEventListener("click", () => { done = new Set(["trunk"]); selected = "trunk"; render(); });
+showDropped.addEventListener("change", render);
+showSide.addEventListener("change", render);
+render();
+</script>
