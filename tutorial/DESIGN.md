@@ -61,13 +61,14 @@ with the evidence for every edge, is in [`tools/curriculum-net/`](../tools/curri
 
 ## The first lesson
 
-- **The first exercise is a demonstration.** Grace and Hopper type a `State` line, press Run, and
-  show what appears in the output box. Then the player does the same.
-- **The first text is not "Hello, garden".** There is no garden yet.
+- **The first exercise is a demonstration.** Grace and Hopper write `State "Hello, world.".`,
+  press Run, and show what appears in the output box.
+- **Then the first question.** They change it to `State "Hello, rabbits.".` and ask what the
+  player thinks the output will be, before running it.
 
 ## Open
 
-- What the first `State` line actually says.
+- How questions are asked on screen (multiple choice, typed guesses, "will it run?", Parsons).
 - Whether Grace and Hopper speak the hints and reactions, or only the story moments.
 - How Reading input works in a browser: input written before Run, or typing while the program runs.
   The playground today gives every program empty input.
