@@ -108,14 +108,6 @@ Hello, rabbits.
 
 > **Hopper:** See? When you change what's in the quotes, you change what `State` says in the **output box**.
 
-*Then one more exchange:*
-
-> **Hopper:** Grace. It knows we're here.
->
-> **Grace:** It says what it's told, Hopper.
->
-> **Hopper:** ...It still said it.
-
 ## Beat 4: your turn (Modify)
 
 > **Hopper:** Your turn! You write one.
@@ -148,8 +140,8 @@ Each hint needs an attempt since the last one.
 | They type | What Cufet does | The rabbits say |
 | --- | --- | --- |
 | `State "hello, grace.".` | Runs, prints `hello, grace.` | **Grace:** Nearly. The computer copies you exactly, capital letters and all. I'm Grace with a big G. |
-| `State "Hello, Grace".` | Runs, prints `Hello, Grace` | **Grace:** So close. The hello lost its full stop. Put one back before the closing quote mark. |
-| `State "Hello, Grace."` | `Line 1, column 22: expected '.', got Eof "".` | **Grace:** Every instruction ends with a full stop, like a sentence. This one stopped without it. Add one at the very end. |
+| `State "Hello, Grace".` | Runs, prints `Hello, Grace` | **Grace:** So close. The hello lost its period. Put one back before the closing quote mark. |
+| `State "Hello, Grace."` | `Line 1, column 22: expected '.', got Eof "".` | **Grace:** Every instruction ends with a period, like a sentence. This one stopped without it. Add one at the very end. |
 | `State "Hello, Grace..` | `Line 1, column 22: unterminated string literal.` | **Hopper:** A quote mark went missing! They come in pairs: one before the words, one after. |
 | `State Hello, Grace.` | `Line 1, column 7: identifier 'Hello' must start with a lowercase letter.` | **Hopper:** Both quote marks are gone! Without them the computer doesn't know those are words to say. |
 | `Stat "Hello, Grace.".` | `Line 1, column 1: identifier 'Stat' must start with a lowercase letter.` | **Grace:** The first word has to be exactly `State`. One letter off and the computer doesn't know it. |
@@ -161,29 +153,24 @@ Each hint needs an attempt since the last one.
 
 *Done when the output is exactly `Hello, Hopper.` There is no answer rung here.*
 
-> **Hopper:** It said my name. Grace, it said my *name.*
+> **Hopper:** That's me! That's me! Hello, friend!
 >
-> **Grace:** You two are going to get along.
+> **Grace:** Cufet makes it easy to say whatever you need to. But there's a lot more you can use `State` for than just saying words. Come on, we'll show you.
 
 ---
 
 ## Things this draft found
 
-1. **`State "Hello, world.".` has two full stops in a row.** One belongs to the hello and one ends
+1. **`State "Hello, world.".` has two periods in a row.** One belongs to the hello and one ends
    the instruction. A beginner will stumble on that, and several reactions above exist only
-   because of it. Two ways out: Grace explains it in Beat 2 ("the first full stop is part of the
-   hello; the last one ends the instruction"), or the first texts carry no full stop of their own
+   because of it. Two ways out: Grace explains it in Beat 2 ("the first period is part of the
+   hello; the last one ends the instruction"), or the first texts carry no period of their own
    (`State "Hello, world".`), and the doubled one waits for a later lesson.
 2. **Four of Cufet's messages here would baffle a child**, so the rabbits talk over them:
    `expected '.', got Eof ""`, `unterminated string literal`, and the two
    `must start with a lowercase letter` ones. The emptied-editor message talks about libraries and
    declarations. Should the output box show the real message at all in lesson 1, or only the
    rabbits' version?
-3. **Judging is exact**, so a missing capital or full stop counts as not done. The reactions are
+3. **Judging is exact**, so a missing capital or period counts as not done. The reactions are
    gentle about it, and "the computer copies you exactly" is worth teaching. Say if that feels
    too strict for a first exercise.
-4. **The "it knows we're here" exchange** in Beat 3 is my one reach toward the story: Hopper is
-   moved that something greeted them, and Grace is literal. It doubles as the lesson (the computer
-   says what it's told). Cut it if it's not how you hear them.
-5. **"Full stop" or "period"?** I wrote "full stop" in the rabbits' mouths; swap to whichever you
-   want them to say.
