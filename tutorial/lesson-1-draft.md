@@ -160,7 +160,7 @@ Each hint needs an attempt since the last one.
 
 > **Hopper:** That's me! That's me! Hello, friend!
 >
-> **Grace:** Very good job. Saying one thing is a fine start, but sometimes you need to stack more than one State in a row. Come on, we'll show you.
+> **Grace:** Very good job. Saying one thing is a fine start, but sometimes you need to stack more than one `State` in a row. Come on, we'll show you.
 
 ---
 
