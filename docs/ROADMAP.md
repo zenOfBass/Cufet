@@ -144,6 +144,15 @@ around it. Nobody has asked for one.
   checked and invalidate on mutation, which is unsound against mutable maps unless done very
   carefully. "Name your lookups" covers the need meanwhile.
 
+- **The first errors a newcomer meets are the parser's, and they are terse.** A missing period
+  gives `expected '.', got Eof ""`; a missing closing quote gives `unterminated string literal`;
+  a mistyped or unknown first word (`Stat`, `Say`) and words written without quotes
+  (`State Hello.`) both give `identifier '…' must start with a lowercase letter`, which
+  misleads. Each has a clear why and a clear fix, so by "warmth scales with teachable content"
+  they have earned a warm message, and three of them show internal vocabulary. Found while
+  drafting the tutorial's first lesson (`tutorial/lesson-1-draft.md`). The Cufet parser matches
+  these refusals, so each changes in both parsers.
+
 ### Types and object
 
 - **Reference-semantics opt-in.** Objects and map values are value-typed. An explicit way to
