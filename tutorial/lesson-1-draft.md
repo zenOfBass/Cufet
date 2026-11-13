@@ -160,7 +160,7 @@ Each hint needs an attempt since the last one.
 
 > **Hopper:** That's me! That's me! Hello, friend!
 >
-> **Grace:** Cufet makes it easy to say whatever you need to. But there's a lot more you can use `State` for than just saying words. Come on, we'll show you.
+> **Grace:** Very good job. Saying one thing is a fine start, but sometimes you need to stack more than one State in a row. Come on, we'll show you.
 
 ---
 
