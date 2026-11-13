@@ -73,7 +73,7 @@ with the evidence for every edge, is in [`tools/curriculum-net/`](../tools/curri
   ignored, so nobody fails over a comma. A rabbit may remark on a small difference without
   failing the player. The wrong words, or a refused program, still don't count as done.
 - The working scripts are [lesson-1-draft.md](lesson-1-draft.md) (the opening) and
-  [lesson-2-draft.md](lesson-2-draft.md) (more than one line).
+  [lesson-2-draft.md](lesson-2-draft.md) (more lines, and numbers).
 
 ## How questions are asked
 
