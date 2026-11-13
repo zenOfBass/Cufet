@@ -1,0 +1,22 @@
+/*  A function returns a new series holding its parameter.
+    Obligation broken: O1, what is read must not be deeper than the checker thinks. See docs/SOUNDNESS.md.  */
+
+Bind series of series of number to wrap, given (the series of number s):
+    Define result as a series of series of number.
+    Insert s into result.
+    Return result.
+Done.
+Define outer as a series of series of number.
+Pull a rabbit.
+    Define inner as a series of number with (1, 2, 3).
+    outer becomes cast wrap on (inner).
+Done.
+
+/*  Make and drop enough values that freed memory is handed out again. */
+Define churn as a series of text.
+Define tick as 0.
+While tick is less than 400, repeat:
+    Insert ("zzzzzzzz" joined to "yyyyyyyy") into churn.
+    tick becomes tick + 1.
+Done.
+State outer.

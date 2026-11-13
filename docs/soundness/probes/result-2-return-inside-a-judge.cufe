@@ -1,0 +1,23 @@
+/*  A function returns its parameter from inside a Judge, which the return-depth walk does not enter.
+    Obligation broken: O1, what is read must not be deeper than the checker thinks. See docs/SOUNDNESS.md.  */
+
+Bind series of number to launder, given (the series of number s, the (number or text) flag):
+    Judge flag, where it is:
+        A number, return s.
+        A text, return s.
+    Done.
+Done.
+Define outer as a series of number.
+Pull a rabbit.
+    Define inner as a series of number with (1, 2, 3).
+    outer becomes cast launder on (inner, 1).
+Done.
+
+/*  Make and drop enough values that freed memory is handed out again. */
+Define churn as a series of text.
+Define tick as 0.
+While tick is less than 400, repeat:
+    Insert ("zzzzzzzz" joined to "yyyyyyyy") into churn.
+    tick becomes tick + 1.
+Done.
+State outer.

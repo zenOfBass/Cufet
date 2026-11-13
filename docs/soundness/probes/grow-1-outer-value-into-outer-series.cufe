@@ -1,0 +1,17 @@
+/*  An outer series grows inside a rabbit, and what is inserted is also from outside.
+    Obligation broken: O3, a series must grow in its own region. See docs/SOUNDNESS.md.  */
+
+Define first as a series of number with (1, 2, 3).
+Define keeper as a series of series of number.
+Pull a rabbit.
+    Insert first into keeper.
+Done.
+
+/*  Make and drop enough values that freed memory is handed out again. */
+Define churn as a series of text.
+Define tick as 0.
+While tick is less than 400, repeat:
+    Insert ("zzzzzzzz" joined to "yyyyyyyy") into churn.
+    tick becomes tick + 1.
+Done.
+State keeper.

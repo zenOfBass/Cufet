@@ -1,0 +1,19 @@
+/*  The same with text made inside the helper.
+    Obligation broken: O4, what a function stores into its parameters is its caller's business. See docs/SOUNDNESS.md.  */
+
+Bind void to label-it, given (the series of text bag):
+    Insert ("a" joined to "b") into bag.
+Done.
+Define names as a series of text.
+Pull a rabbit.
+    Cast label-it on (names).
+Done.
+
+/*  Make and drop enough values that freed memory is handed out again. */
+Define churn as a series of text.
+Define tick as 0.
+While tick is less than 400, repeat:
+    Insert ("zzzzzzzz" joined to "yyyyyyyy") into churn.
+    tick becomes tick + 1.
+Done.
+State names.

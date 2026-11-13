@@ -1,0 +1,19 @@
+/*  CONTROL. Nothing leaves the rabbit; both backends must agree.
+    Obligation broken: none. See docs/SOUNDNESS.md.  */
+
+Define keeper as a series of series of number.
+Pull a rabbit.
+    Define inner as a series of number with (1, 2, 3).
+    Define local as a series of series of number.
+    Insert inner into local.
+    State local.
+Done.
+
+/*  Make and drop enough values that freed memory is handed out again. */
+Define churn as a series of text.
+Define tick as 0.
+While tick is less than 400, repeat:
+    Insert ("zzzzzzzz" joined to "yyyyyyyy") into churn.
+    tick becomes tick + 1.
+Done.
+State keeper.

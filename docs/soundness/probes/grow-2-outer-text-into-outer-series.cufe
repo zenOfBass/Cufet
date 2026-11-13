@@ -1,0 +1,17 @@
+/*  The same with text: both the word and the series were made outside the rabbit.
+    Obligation broken: O3, a series must grow in its own region. See docs/SOUNDNESS.md.  */
+
+Define word as "in" joined to "ner".
+Define names as a series of text.
+Pull a rabbit.
+    Insert word into names.
+Done.
+
+/*  Make and drop enough values that freed memory is handed out again. */
+Define churn as a series of text.
+Define tick as 0.
+While tick is less than 400, repeat:
+    Insert ("zzzzzzzz" joined to "yyyyyyyy") into churn.
+    tick becomes tick + 1.
+Done.
+State names.

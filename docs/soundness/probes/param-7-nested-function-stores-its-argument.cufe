@@ -1,0 +1,21 @@
+/*  A nested function stores its own argument into the enclosing function's series.
+    Obligation broken: O4, what a function stores into its parameters is its caller's business. See docs/SOUNDNESS.md.  */
+
+Bind void to run-it:
+    Define sink as a series of series of number.
+    Bind void to tuck, given (the series of number s):
+        Insert s into sink.
+    Done.
+    Pull a rabbit.
+        Define inner as a series of number with (1, 2, 3).
+        Cast tuck on (inner).
+    Done.
+    Define churn as a series of text.
+    Define tick as 0.
+    While tick is less than 400, repeat:
+        Insert ("zzzzzzzz" joined to "yyyyyyyy") into churn.
+        tick becomes tick + 1.
+    Done.
+    State sink.
+Done.
+Cast run-it on ().

@@ -1,0 +1,20 @@
+/*  A helper makes a series and stores it in the one it is given.
+    Obligation broken: O4, what a function stores into its parameters is its caller's business. See docs/SOUNDNESS.md.  */
+
+Bind void to push-into, given (the series of series of number bag):
+    Define fresh as a series of number with (1, 2, 3).
+    Insert fresh into bag.
+Done.
+Define keeper as a series of series of number.
+Pull a rabbit.
+    Cast push-into on (keeper).
+Done.
+
+/*  Make and drop enough values that freed memory is handed out again. */
+Define churn as a series of text.
+Define tick as 0.
+While tick is less than 400, repeat:
+    Insert ("zzzzzzzz" joined to "yyyyyyyy") into churn.
+    tick becomes tick + 1.
+Done.
+State keeper.

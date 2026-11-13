@@ -1,0 +1,19 @@
+/*  A rabbit's series is stored into an outer one through a second name for it.
+    Obligation broken: O2, a store needs to know exactly where its target lives. See docs/SOUNDNESS.md.  */
+
+Define keeper as a series of series of number.
+Insert (a series of number with (0)) into keeper.
+Pull a rabbit.
+    Define alias as keeper.
+    Define inner as a series of number with (1, 2, 3).
+    Item 1 of alias becomes inner.
+Done.
+
+/*  Make and drop enough values that freed memory is handed out again. */
+Define churn as a series of text.
+Define tick as 0.
+While tick is less than 400, repeat:
+    Insert ("zzzzzzzz" joined to "yyyyyyyy") into churn.
+    tick becomes tick + 1.
+Done.
+State keeper.

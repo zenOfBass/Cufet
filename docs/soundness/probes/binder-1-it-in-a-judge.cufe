@@ -1,0 +1,24 @@
+/*  The name a Judge arm binds carries no depth, so it reads as made outside every rabbit.
+    Obligation broken: O1, what is read must not be deeper than the checker thinks. See docs/SOUNDNESS.md.  */
+
+Define outer as a series of number.
+Pull a rabbit.
+    Define inner as a series of number with (1, 2, 3).
+    Define either as a catalogue of (number or series of number) with (0).
+    Insert inner into either.
+    For each entry in either, repeat:
+        Judge entry, where it is:
+            A number, state "n".
+            A series of number, outer becomes it.
+        Done.
+    Done.
+Done.
+
+/*  Make and drop enough values that freed memory is handed out again. */
+Define churn as a series of text.
+Define tick as 0.
+While tick is less than 400, repeat:
+    Insert ("zzzzzzzz" joined to "yyyyyyyy") into churn.
+    tick becomes tick + 1.
+Done.
+State outer.

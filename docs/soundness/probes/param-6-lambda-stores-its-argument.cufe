@@ -1,0 +1,18 @@
+/*  A function value stores its own argument into a series it captured.
+    Obligation broken: O4, what a function stores into its parameters is its caller's business. See docs/SOUNDNESS.md.  */
+
+Define keeper as a series of series of number.
+Define tuck as a function given (the series of number s): Insert s into keeper. Done.
+Pull a rabbit.
+    Define inner as a series of number with (1, 2, 3).
+    Cast tuck on (inner).
+Done.
+
+/*  Make and drop enough values that freed memory is handed out again. */
+Define churn as a series of text.
+Define tick as 0.
+While tick is less than 400, repeat:
+    Insert ("zzzzzzzz" joined to "yyyyyyyy") into churn.
+    tick becomes tick + 1.
+Done.
+State keeper.

@@ -1,0 +1,17 @@
+/*  A second name for an outer series, given inside the rabbit, is taken to live in the rabbit.
+    Obligation broken: O2, a store needs to know exactly where its target lives. See docs/SOUNDNESS.md.  */
+
+Define totals as a series of number.
+Pull a rabbit.
+    Define alias as totals.
+    Insert 5 into alias.
+Done.
+
+/*  Make and drop enough values that freed memory is handed out again. */
+Define churn as a series of text.
+Define tick as 0.
+While tick is less than 400, repeat:
+    Insert ("zzzzzzzz" joined to "yyyyyyyy") into churn.
+    tick becomes tick + 1.
+Done.
+State totals.

@@ -1,0 +1,23 @@
+/*  A helper appends to the series it is given. Called inside a rabbit, on a series from outside.
+    Obligation broken: O4, what a function stores into its parameters is its caller's business. See docs/SOUNDNESS.md.  */
+
+Bind void to add-some, given (the series of number bag):
+    Define n as 0.
+    While n is less than 40, repeat:
+        Insert n into bag.
+        n becomes n + 1.
+    Done.
+Done.
+Define totals as a series of number.
+Pull a rabbit.
+    Cast add-some on (totals).
+Done.
+
+/*  Make and drop enough values that freed memory is handed out again. */
+Define churn as a series of text.
+Define tick as 0.
+While tick is less than 400, repeat:
+    Insert ("zzzzzzzz" joined to "yyyyyyyy") into churn.
+    tick becomes tick + 1.
+Done.
+State totals.

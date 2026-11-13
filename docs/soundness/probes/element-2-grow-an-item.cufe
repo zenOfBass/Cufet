@@ -1,0 +1,18 @@
+/*  The same row, reached as an item of the table.
+    Obligation broken: O2, a store needs to know exactly where its target lives. See docs/SOUNDNESS.md.  */
+
+Define first as a series of number.
+Pull a rabbit.
+    Define table as a series of series of number.
+    Insert first into table.
+    Insert 5 into item 1 of table.
+Done.
+
+/*  Make and drop enough values that freed memory is handed out again. */
+Define churn as a series of text.
+Define tick as 0.
+While tick is less than 400, repeat:
+    Insert ("zzzzzzzz" joined to "yyyyyyyy") into churn.
+    tick becomes tick + 1.
+Done.
+State first.

@@ -1,0 +1,20 @@
+/*  A method stores a text argument in a field.
+    Obligation broken: O4, what a function stores into its parameters is its caller's business. See docs/SOUNDNESS.md.  */
+
+Define object box with (the text tag).
+Bind void to retag unto box, given (the text t):
+    one's tag becomes t.
+Done.
+Define keeper as a new box { the tag "outer" }.
+Pull a rabbit.
+    Cast keeper's retag on ("in" joined to "ner").
+Done.
+
+/*  Make and drop enough values that freed memory is handed out again. */
+Define churn as a series of text.
+Define tick as 0.
+While tick is less than 400, repeat:
+    Insert ("zzzzzzzz" joined to "yyyyyyyy") into churn.
+    tick becomes tick + 1.
+Done.
+State keeper's tag.
