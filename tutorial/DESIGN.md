@@ -61,12 +61,18 @@ with the evidence for every edge, is in [`tools/curriculum-net/`](../tools/curri
 
 ## The first lesson
 
-- **The first exercise is a demonstration.** Grace and Hopper write `State "Hello, world.".`,
+- **The first exercise is a demonstration.** Grace and Hopper write `State "Hello, world!".`,
   press Run, and show what appears in the output box.
-- **Then the first question.** They change it to `State "Hello, rabbits.".` and ask what the
+- **Then the first question.** They change it to `State "Hello, rabbits!".` and ask what the
   player thinks the output will be, before running it.
 - **The rabbits press Run only once, in that demonstration.** From then on the player presses it:
   once they've answered, the Run button lights up and a rabbit nudges them toward it.
+- **The first texts end in `!`, not a period,** so the only period on the line is the one that
+  ends the instruction.
+- **The first writing exercises judge the words only.** Punctuation and capital letters are
+  ignored, so nobody fails over a comma. A rabbit may remark on a small difference without
+  failing the player. The wrong words, or a refused program, still don't count as done.
+- The working script is [lesson-1-draft.md](lesson-1-draft.md).
 
 ## How questions are asked
 
