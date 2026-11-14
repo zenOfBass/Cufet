@@ -1,0 +1,28 @@
+/*  EXPECTED: REJECTED at type-check, identically by both backends.
+    A function returns its parameter from inside a Judge, which the return-depth walk does not enter.
+
+    A call opens no region, so what a function makes lies in whatever region its caller
+    has open, and what it hands back is as deep as the call unless all of it comes from
+    its parameters. This was accepted, and the compiled program read the value after the
+    rabbit's Done. had freed it (docs/SOUNDNESS.md, obligation O1). */
+
+Bind series of number to launder, given (the series of number s, the (number or text) flag):
+    Judge flag, where it is:
+        A number, return s.
+        A text, return s.
+    Done.
+Done.
+Define outer as a series of number.
+Pull a rabbit.
+    Define inner as a series of number with (1, 2, 3).
+    outer becomes cast launder on (inner, 1).
+Done.
+
+/*  Make and drop enough values that freed memory is handed out again. */
+Define churn as a series of text.
+Define tick as 0.
+While tick is less than 400, repeat:
+    Insert ("zzzzzzzz" joined to "yyyyyyyy") into churn.
+    tick becomes tick + 1.
+Done.
+State outer.

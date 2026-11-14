@@ -38,7 +38,12 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
     private const int TreeFloor = 89;
 
     /// <summary>The same, of the hand-written programs both checkers accept.</summary>
-    private const int HandWrittenTreeFloor = 323;
+    // ⚠ 323 until 2026-11-13. Three of these programs keep a series that a call MADE inside a
+    // rabbit in a series outside it, and were written to pin that as accepted. It is refused now,
+    // by both checkers (docs/SOUNDNESS.md, obligation O1), so they count under the verdicts and no
+    // longer under the trees. The floor fell because three programs changed sides, not because
+    // three trees stopped matching.
+    private const int HandWrittenTreeFloor = 320;
 
     /// <summary>The same, of the hand-written projects both checkers accept.</summary>
     private const int ProjectTreeFloor = 21;
@@ -1311,6 +1316,16 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
         // A name holding filled source is an ordinary value, and may be replaced (2026-11-03).
 
         "Pull a book on the c-language.\n    Define c-language word, given (the term name), as [the name].\n    Define head as word on (\"void\").\n    If true, the head becomes word on (\"int\").\n    State head.\nDone.\n",
+        // What a call hands back is as deep as the call unless all of it comes from parameters,
+        // and `it` in a `Judge` is as deep as its subject (2026-11-13). Each is REFUSED; they are
+        // here so the walk that finds a `Return` inside an `If` arm, a `Judge` arm, behind an
+        // `Insert` and inside an object literal is held to the same answer in both checkers.
+        "Bind series of number to make-it:\n    Return a series of number with (1, 2, 3).\nDone.\nDefine outer as a series of number.\nPull a rabbit.\n    outer becomes cast make-it on ().\nDone.\nState outer.\n",
+        "Define blank as a series of number permanently.\n\nBind series of number to launder, given (the series of number s, the fact flag):\n    If flag:\n        Return s.\n    Done.\n    Return blank.\nDone.\n\nDefine outer as a series of number.\nPull a rabbit.\n    Define inner as a series of number with (1, 2, 3).\n    outer becomes cast launder on (inner, true).\nDone.\nState outer.\n",
+        "Bind series of number to launder, given (the series of number s, the (number or text) flag):\n    Judge flag, where it is:\n        A number, return s.\n        A text, return s.\n    Done.\nDone.\nDefine outer as a series of number.\nPull a rabbit.\n    Define inner as a series of number with (1, 2, 3).\n    outer becomes cast launder on (inner, 1).\nDone.\nState outer.\n",
+        "Bind series of series of number to wrap, given (the series of number s):\n    Define result as a series of series of number.\n    Insert s into result.\n    Return result.\nDone.\nDefine outer as a series of series of number.\nPull a rabbit.\n    Define inner as a series of number with (1, 2, 3).\n    outer becomes cast wrap on (inner).\nDone.\nState outer.\n",
+        "Define object bag with (the series of number items).\nBind bag to make-bag, given (the series of number s):\n    Return a new bag { the items s }.\nDone.\nDefine keeper as a new bag { the items (a series of number) }.\nPull a rabbit.\n    Define inner as a series of number with (1, 2, 3).\n    keeper becomes cast make-bag on (inner).\nDone.\nState keeper's items.\n",
+        "Define outer as a series of number.\nPull a rabbit.\n    Define inner as a series of number with (1, 2, 3).\n    Define either as a catalogue of (number or series of number) with (0).\n    Insert inner into either.\n    For each entry in either, repeat:\n        Judge entry, where it is:\n            A number, state \"n\".\n            A series of number, outer becomes it.\n        Done.\n    Done.\nDone.\nState outer.\n",
     ];
 
     /// <remarks>

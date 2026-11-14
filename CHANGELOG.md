@@ -45,7 +45,7 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   states what the compiled program needs, shows nineteen programs that pass `check` and read freed memory when compiled, traces them to four
   gaps in the rules, and proves a repaired set of rules sound for a core of the language. The programs
   are in `docs/soundness/probes/`, and a model that checks the proof by search is in
-  `docs/soundness/model/`. One of the four gaps is closed (see Fixed); the other three are rules the
+  `docs/soundness/model/`. Two of the four gaps are closed (see Fixed); the other two are rules the
   checker does not have yet.
 
 ### Changed
@@ -72,6 +72,16 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   a function appended to a series it was given. The compiled program crashed or printed other
   memory; the interpreted one was always right. A series and a map now remember the region they
   were made in and grow there. Both compilers (`docs/SOUNDNESS.md`, obligation O3).
+- **A series a function made could be kept after the rabbit it was made in had ended.** A call opens
+  no region, so what a function makes lies in whatever region its caller has open; the checker took
+  it to lie outside every region. `outer becomes cast make-it on ()` inside a rabbit was accepted,
+  and the compiled program read `outer` after `Done.` had freed it. This is REFUSED now, with the
+  same message as any other value stored where it outlives its region: what a call hands back is
+  as deep as the call, unless all of it comes from the function's parameters, and then it is as
+  deep as those arguments. A result whose function is not known where it is called (a function
+  held in a name, a call to itself) counts as made. The same check now sees a `Return` inside a
+  `Judge` arm, a parameter put into the series or object being returned, and `it` in a `Judge`,
+  which lives where its subject does. Both checkers (`docs/SOUNDNESS.md`, obligation O1).
 - **An interpreted task read the names it used when it RAN, not when it was started.** A task
   started inside a loop failed with "'n' isn't defined" once the loop had ended, and a name changed
   after the start was seen changed (`after 3`) where the compiled program saw it as it was

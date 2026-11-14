@@ -381,6 +381,14 @@ public class ExhaustivenessTests
         // IStatement/IExpression instead of the namespace, and in both the captured name appears
         // ONLY inside an arm's BODY — a `Judge` subject is an ordinary property any walk reaches.
         "CiteExpansion.cs: RequireNoCapture",
+        // Where what a function returns can live: every `Return`, `Define` and `becomes` of its
+        // body, whatever holds them. Proof it sees inside ConditionArm and JudgeArm: the fixtures
+        // `escape-call-return-in-if.cufe` and `escape-call-return-in-judge.cufe`, run by
+        // SoundnessFixtureTests. In each the parameter is returned ONLY from inside an arm's BODY
+        // and every other return is in no region at all, so a walk that misses the arm accepts the
+        // program. Both were shown RED by keying the walk on IStatement/IExpression instead of the
+        // namespace.
+        "TypeChecker.Functions.cs: CollectDepthNodes",
         // An automatic rabbit's chosen task runs as the rabbit's own code, so a return of its own
         // is refused. Proof it sees inside ConditionArm and JudgeArm: Interpreter.Tests/
         // RabbitModeTests.Automatic_ATaskThatReturns_IsRefused (the return only in an `If` arm's

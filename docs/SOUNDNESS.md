@@ -8,10 +8,11 @@ the `Done.` that freed it?**
 
 **Where it stands.** Yes, still, but less often than at 0.29.0. Nineteen small programs were found
 that pass `cufet check`, run correctly interpreted, and read freed memory when compiled. They come
-from four places where the rules assume something that is not true (section 4). One of the four
-has been closed, in the runtime, and six of the nineteen programs are right on both backends
-because of it. The other thirteen still read freed memory. Closing them takes new checker rules,
-which refuse programs, and that has not been done.
+from four places where the rules assume something that is not true (section 4). Two of the four
+have been closed. One was closed in the runtime, and six of the nineteen programs are right on
+both backends because of it. One was closed in the checker, and five more are refused by `check`.
+The other eight still read freed memory. Closing them takes two more checker rules, which refuse
+programs, and that has not been done.
 
 The rest of the document is in three parts.
 
@@ -99,11 +100,13 @@ new buffer must go. A number that is right as an upper bound is not right as a l
 of what follows is that one confusion.
 
 Any set of rules that is going to be sound has to meet four obligations. At 0.29.0 none was met
-completely. O3 is met now; O1, O2 and O4 are not.
+completely. O1 and O3 are met now; O2 and O4 are not.
 
 ### O1. What is read must not be deeper than the checker thinks
 
-*Not met.*
+*Met, in both checkers. What a call hands back is as deep as the call, unless all of it comes from
+the function's parameters; `it` in a `Judge` is as deep as its subject. What follows is how it
+was.*
 
 *Broken by a call's result.* A function that makes a series and returns it is taken to return it
 at depth 0. By F2 it was allocated wherever the call happened, which inside a rabbit is the
@@ -211,15 +214,18 @@ built under AddressSanitizer on Linux (`result-1`, `param-1`, `alias-2`), and ea
 | `param-5-method-stores-text` | O4 | wrong output | wrong output |
 | `param-6-lambda-stores-its-argument` | O4 | crashes | crashes |
 | `param-7-nested-function-stores-its-argument` | O4 | crashes | crashes |
-| `result-1-fresh-series-from-a-call` | O1 | crashes | crashes |
-| `result-2-return-inside-a-judge` | O1 | crashes | crashes |
-| `result-3-parameter-wrapped-in-a-series` | O1 | crashes, or wrong output | crashes |
-| `result-4-parameter-wrapped-in-an-object` | O1 | crashes | crashes |
-| `binder-1-it-in-a-judge` | O1 | crashes | crashes, or wrong output |
+| `result-1-fresh-series-from-a-call` | O1 | crashes | **refused** |
+| `result-2-return-inside-a-judge` | O1 | crashes | **refused** |
+| `result-3-parameter-wrapped-in-a-series` | O1 | crashes, or wrong output | **refused** |
+| `result-4-parameter-wrapped-in-an-object` | O1 | crashes | **refused** |
+| `binder-1-it-in-a-judge` | O1 | crashes | **refused** |
 | `control-nothing-escapes` | nothing | same on both | same on both |
 
 "Wrong output" is the worse result: the program exits 0. Which of the two a failing row shows is
 chance, since both are a read of freed memory.
+
+The five that are refused are fixtures too, as `escape-*.cufe`, with a sixth that returns its
+parameter only from inside an `If` arm.
 
 The six that are right were only ever growing something, and the three under O2 and O4 among them
 show that the growth was all that was wrong with them. They are fixtures now, in
@@ -553,11 +559,24 @@ It is checked by the model's search and by the test suite, **not proved**. W1 ho
 construction on this runtime and the rest of section 6 should go through unchanged, but that has
 not been written out.
 
+Then O1, in both checkers, which is rule B9 fitted to the checker as it is. The checker keeps its
+one number per name; a function's return-depth signature gained a third kind of entry beside "this
+parameter" and "the receiver", meaning "something the function made, or anything not traced to a
+parameter". A call whose signature holds it is as deep as the call. The walk that builds the
+signature no longer names the statements it enters: it reaches every `Return`, `Define` and
+`becomes` of a body and stops only at a body that returns for itself, and anything it cannot trace
+counts as made. That is coarser than B9, which can tell "exactly here" from "no deeper than here",
+and the difference costs nothing until a store needs the exact answer, which is O2.
+
+What it refused that was accepted before, measured: none of the 229 programs in the repository,
+and three of the 1,128 hand-written programs the two checkers are compared on. All three were
+the hole itself, written down earlier as accepted: a series a call made inside a rabbit, inserted
+into a series outside it.
+
 ### What is left
 
-The checker half: O1, O2 for stores of a series or an object, and O4. On the runtime as it is now
-that is rules B1 to B4 and B8 to B12 as they stand, and B5 to B7 only where the value stored is
-itself a series. Of the three refusals above, the first then applies only to a function that
+The rest of the checker half: O2 for stores of a series or an object, and O4. On the runtime as
+it is now that is rules B5 to B8, and B5 to B7 only where the value stored is itself a series. Of the three refusals above, the first then applies only to a function that
 stores a series or an object into its parameter, and the second only to storing one into an
 element. Appending a number is refused nowhere.
 
@@ -566,11 +585,11 @@ copied only where the checker sees it escape. A text made inside a function and 
 parameter is not seen to (`param-3`, `param-5`), so O4 has a second half for text: the copy has to
 happen at such a store as well.
 
-These rules refuse programs that are accepted today, so they are a change to the language, and one
-question in them is open: a function called inside a rabbit that returns a series it made, kept
-in a name outside. O1 says the result lives in the rabbit. The rules as written refuse it. The
-other choice is to copy it out, as text is copied; that keeps the program, and makes the name
-outside a different series from the one the function returned.
+These rules refuse programs that are accepted today, so they are a change to the language. The
+one question that was open in them is settled: a function called inside a rabbit that returns a
+series it made, kept in a name outside, is refused and not copied out. Copying would keep the
+program and make the name outside a different series from the one the function returned, which
+the interpreter would not show.
 
 ## 10. Running it again
 
@@ -584,6 +603,6 @@ python docs/soundness/model/witnesses.py             the directed programs, and 
 ```
 
 A probe is fixed when `check` refuses it or the compiled program agrees with the interpreted one.
-The six that are fixed are also in `tests/fixtures/soundness/` as `*-legal.cufe`. The thirteen that
-are not stay out of it: that folder's tests require every `escape-*` file to be refused, and these
-are not refused yet.
+The eleven that are fixed are also in `tests/fixtures/soundness/`: six as `*-legal.cufe`, five as
+`escape-*.cufe`. The eight that are not stay out of it: that folder's tests require every
+`escape-*` file to be refused, and these are not refused yet.

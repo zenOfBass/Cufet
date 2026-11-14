@@ -1,0 +1,25 @@
+/*  EXPECTED: REJECTED at type-check, identically by both backends.
+    A function returns its parameter from inside an If arm, and nowhere else.
+
+    What a call hands back is as deep as the arguments its function may return. The only place
+    this one returns its parameter is the BODY of an If arm; its other return is a top-level
+    constant, which lives in no region. A walk that does not look inside an If arm finds nothing
+    flowing to the return, takes the result to be in no region, and accepts this — and the compiled
+    program then reads `inner` after the rabbit's Done. has freed it
+    (docs/SOUNDNESS.md, obligation O1). */
+
+Define blank as a series of number permanently.
+
+Bind series of number to launder, given (the series of number s, the fact flag):
+    If flag:
+        Return s.
+    Done.
+    Return blank.
+Done.
+
+Define outer as a series of number.
+Pull a rabbit.
+    Define inner as a series of number with (1, 2, 3).
+    outer becomes cast launder on (inner, true).
+Done.
+State outer.

@@ -2,20 +2,25 @@
     `PopulateCastDepthCache`, `ComputeMemberAccessDepth` and `ValueDepthOf` in
     `src/Interpreter/TypeChecker.Functions.cs`, `.Objects.cs` and `.Rabbit.cs`.
 
-    ★ Once a function's body has been checked, the parameters whose depth can flow into what it
-    gives back are worked out — its RETURN-DEPTH SIGNATURE, as 0-based positions, with -1 for the
-    object a method or getter is called on. At a call, the value handed back is as deep as the
-    deepest argument in those positions; a member read is as deep as its object, unless it is a
-    getter whose signature says it makes something new.
+    ★ Once a function's body has been checked, where what it gives back can LIVE is worked out —
+    its RETURN-DEPTH SIGNATURE: the 0-based positions of the parameters it may come from, -1 for
+    the object a method or getter is called on, and -2 for something the function MADE, or anything
+    that cannot be traced to a parameter. At a call, the value handed back is as deep as the
+    deepest argument in those positions — and, when the signature holds -2, as deep as the call
+    itself: a call opens no region, so what a function makes lies in whatever region its caller
+    has open (docs/SOUNDNESS.md, obligation O1).
+
+    ★ The walk reaches every `Return`, `Define` and `becomes` in the body, whatever holds them, and
+    stops only at a body that returns for itself. A name carries everything it was ever given.
 
     ★ A name whose function has no signature yet — a recursive call, a lambda, one declared later —
-    is taken to flow from every reference-typed parameter: the cautious answer.
+    is not traced: it may be any reference-typed parameter, or something made.
 */
 
 Pull a book on collections.
     // ── The signature ─────────────────────────────────────────────────────
 
-    /// Which parameters' depth reaches what this body gives back — ascending, -1 for `one`.
+    /// Where what this body gives back can live — ascending, -1 for `one`, -2 for something made.
     Bind series of number to return-depth-signature unto checker, given (the node parameters, the node body, the fact with-receiver):
         Define positions as a map from text to number.
         Define referenced as a series of number.
@@ -30,11 +35,50 @@ Pull a book on collections.
             In positions, the entry for "one" becomes -1.
             Insert -1 into referenced.
         Done.
+        Define gathered as a series of node.
+        Cast gather-depth-nodes on (body, gathered).
+
+        // Every name the body gives a value to starts empty, so that a name read before the walk
+        // has reached its `Define` is not taken for one the walk knows nothing about.
         Define locals as a map from text to series of number.
+        For each statement in gathered, repeat:
+            If cast gives-a-name on (statement's kind):
+                Define target-name as cast depth-target-name on (statement).
+                If the entry for target-name in locals is void, in locals, the entry for target-name becomes a series of number.
+            Done.
+        Done.
+
+        // To a fixed point: a loop can carry a value from its end back to its start, and the
+        // sets only ever grow, so this ends.
+        Define grew as true.
+        While grew, repeat:
+            The grew becomes false.
+            For each statement in gathered, repeat:
+                If cast gives-a-name on (statement's kind):
+                    Define carried as the entry for cast depth-target-name on (statement) in locals.
+                    If carried is not void:
+                        Define reaching as cast one's symbolic-depth on (cast depth-target-value on (statement), positions, referenced, locals).
+                        For each one-index in reaching, repeat:
+                            If cast holds-number on (carried, one-index) is false:
+                                Insert one-index into carried.
+                                The grew becomes true.
+                            Done.
+                        Done.
+                    Done.
+                Done.
+            Done.
+        Done.
+
         Define flows as a series of number.
-        Cast one's walk-return-depths on (body, positions, referenced, locals, flows).
+        For each statement in gathered, repeat:
+            If statement's kind is "ReturnStatement":
+                If cast is-nothing on (cast field-of on (statement, 1)) is false:
+                    Cast union-into on (cast one's symbolic-depth on (cast field-of on (statement, 1), positions, referenced, locals), flows).
+                Done.
+            Done.
+        Done.
         Define ascending as a series of number.
-        Define candidate as -1.
+        Define candidate as -2.
         While candidate is less than the number of parameters's children, repeat:
             If cast holds-number on (flows, candidate), insert candidate into ascending.
             Increment candidate by 1.
@@ -49,71 +93,44 @@ Pull a book on collections.
         Done.
     Done.
 
-    Bind void to walk-return-depths unto checker, given (the node body, the map from text to number positions,
-            the series of number referenced, the map from text to series of number locals, the series of number flows):
-        For each statement in body's children, repeat:
-            Define kind as statement's kind.
-            Judge kind, where it is:
-                "DefineStatement":
-                    In locals, the entry for cast unquoted on (cast field-of on (statement, 1)) becomes
-                        cast one's symbolic-depth on (cast field-of on (statement, 2), positions, referenced, locals).
-                Done.
-                "BecomesStatement":
-                    Define name as cast unquoted on (cast field-of on (statement, 1)).
-                    Define reached as cast one's symbolic-depth on (cast field-of on (statement, 2), positions, referenced, locals).
-                    Define earlier as the entry for name in locals.
-                    If earlier is not void:
-                        For each one-index in reached, repeat:
-                            If cast holds-number on (earlier, one-index) is false, insert one-index into earlier.
-                        Done.
-                    Done.
-                    Otherwise, in locals, the entry for name becomes reached.
-                Done.
-                "ReturnStatement":
-                    If cast is-nothing on (cast field-of on (statement, 1)) is false:
-                        Cast union-into on (cast one's symbolic-depth on (cast field-of on (statement, 1), positions, referenced, locals), flows).
-                    Done.
-                Done.
-                "IfStatement":
-                    For each arm in (cast field-of on (statement, 1))'s children, repeat:
-                        Cast one's walk-return-depths on (cast field-of on (arm, 2), positions, referenced, locals, flows).
-                    Done.
-                    If cast is-nothing on (cast field-of on (statement, 2)) is false:
-                        Cast one's walk-return-depths on (cast field-of on (statement, 2), positions, referenced, locals, flows).
-                    Done.
-                Done.
-                "WhileStatement" or "PullRabbitStatement":
-                    Cast one's walk-return-depths on (cast field-of on (statement, 2), positions, referenced, locals, flows).
-                Done.
-                "RepeatUntilStatement":
-                    Cast one's walk-return-depths on (cast field-of on (statement, 1), positions, referenced, locals, flows).
-                Done.
-                "ForEachStatement":
-                    // The iterator is as deep as what it walks.
-                    Define iterator as "it".
-                    If cast is-nothing on (cast field-of on (statement, 1)) is false, the iterator becomes cast unquoted on (cast field-of on (statement, 1)).
-                    Define earlier as the entry for iterator in locals.
-                    In locals, the entry for iterator becomes cast one's symbolic-depth on (cast field-of on (statement, 2), positions, referenced, locals).
-                    Cast one's walk-return-depths on (cast field-of on (statement, 3), positions, referenced, locals, flows).
-                    If earlier is not void, in locals, the entry for iterator becomes earlier.
-                    Otherwise, remove iterator from locals.
-                Done.
-                "TryStatement":
-                    For each place in a series with (1, 2, 3), repeat:
-                        If cast is-nothing on (cast field-of on (statement, place)) is false:
-                            Cast one's walk-return-depths on (cast field-of on (statement, place), positions, referenced, locals, flows).
-                        Done.
-                    Done.
-                Done.
-                Otherwise:
-                    // Stores, states and the rest neither define a name nor give anything back.
-                    Define ignored as kind.
-                Done.
-            Done.
+    /// A body that returns for itself: what it gives back is its own, and so are its names.
+    Bind fact to owns-its-returns, given (the text kind):
+        Return kind is "BindStatement" or kind is "LambdaLiteral" or kind is "LaunchTaskStatement" or kind is "ObjectDefinition"
+            or kind is "GetterDeclaration" or kind is "SetterDeclaration" or kind is "UnmakerDeclaration"
+            or kind is "OperatorOverloadDeclaration".
+    Done.
+
+    /// A statement that gives a name a value. An iterator is an element of what it walks, and `it`
+    /// in a `Judge` is the subject: both live no deeper than what they came from.
+    Bind fact to gives-a-name, given (the text kind):
+        Return kind is "DefineStatement" or kind is "BecomesStatement" or kind is "ForEachStatement" or kind is "JudgeStatement".
+    Done.
+
+    Bind text to depth-target-name, given (the node statement):
+        Define kind as statement's kind.
+        If kind is "JudgeStatement", return "it".
+        If kind is "ForEachStatement":
+            If cast is-nothing on (cast field-of on (statement, 1)), return "it".
+        Done.
+        Return cast unquoted on (cast field-of on (statement, 1)).
+    Done.
+
+    Bind node to depth-target-value, given (the node statement):
+        If statement's kind is "JudgeStatement", return cast field-of on (statement, 1).
+        Return cast field-of on (statement, 2).
+    Done.
+
+    /// Every statement of a body that gives a name a value or returns one, however deep.
+    Bind void to gather-depth-nodes, given (the node branch, the series of node gathered):
+        Define kind as branch's kind.
+        If cast owns-its-returns on (kind), return.
+        If kind is "ReturnStatement" or cast gives-a-name on (kind), insert branch into gathered.
+        For each part in branch's children, repeat:
+            Cast gather-depth-nodes on (part, gathered).
         Done.
     Done.
 
-    /// Every reference-typed parameter — the cautious answer.
+    /// Every reference-typed parameter.
     Bind series of number to all-referenced, given (the series of number referenced):
         Define copied as a series of number.
         For each one-index in referenced, repeat:
@@ -122,7 +139,14 @@ Pull a book on collections.
         Return copied.
     Done.
 
-    /// The parameters whose depth flows into this expression.
+    /// What cannot be traced: any reference-typed parameter, or something made.
+    Bind series of number to untraced, given (the series of number referenced):
+        Define copied as cast all-referenced on (referenced).
+        Insert -2 into copied.
+        Return copied.
+    Done.
+
+    /// Where this expression's value may come from. Empty: it lives outside every region.
     Bind series of number to symbolic-depth unto checker, given (the node said, the map from text to number positions,
             the series of number referenced, the map from text to series of number locals):
         Define kind as said's kind.
@@ -131,6 +155,7 @@ Pull a book on collections.
             Define spot as the entry for name in positions.
             If spot is not void:
                 If cast holds-number on (referenced, spot), return a series with (spot).
+                Return a series of number.
             Done.
             Define local as the entry for name in locals.
             If local is not void:
@@ -140,7 +165,14 @@ Pull a book on collections.
                 Done.
                 Return copied.
             Done.
-            Return a series of number.
+            // A top-level constant is made before any region opens. Any other name — one captured
+            // from an enclosing function, or bound by a statement this walk does not model — is
+            // not traced.
+            Define seen as cast one's look-up on (name).
+            If seen is not void:
+                If seen's permanent and seen's parameter is false, return a series of number.
+            Done.
+            Return cast untraced on (referenced).
         Done.
         If kind is "CastExpression":
             Define callee as cast field-of on (said, 1).
@@ -150,11 +182,20 @@ Pull a book on collections.
                 If found is not void:
                     If found's shape's kind is "FunctionType":
                         Define signature as the entry for "{callee-name}@{found's line}" in one's depth-signatures.
-                        If signature is void, return cast all-referenced on (referenced).
+                        If signature is void, return cast untraced on (referenced).
                         Define reached as a series of number.
                         Define given-args as (cast field-of on (said, 2))'s children.
                         For each one-index in signature, repeat:
-                            If one-index is not less than 0 and one-index is less than the number of given-args:
+                            If one-index is -2:
+                                If cast holds-number on (reached, -2) is false, insert -2 into reached.
+                            Done.
+                            Otherwise if one-index is -1:
+                                // Which argument was the receiver is settled by dispatch, not here.
+                                For each argument in given-args, repeat:
+                                    Cast union-into on (cast one's symbolic-depth on (argument, positions, referenced, locals), reached).
+                                Done.
+                            Done.
+                            Otherwise if one-index is less than the number of given-args:
                                 Cast union-into on (cast one's symbolic-depth on (item (one-index + 1) of given-args, positions, referenced, locals), reached).
                             Done.
                         Done.
@@ -162,7 +203,7 @@ Pull a book on collections.
                     Done.
                 Done.
             Done.
-            Return cast all-referenced on (referenced).
+            Return cast untraced on (referenced).
         Done.
         If kind is "SeriesAccess" or kind is "PossessiveAccess":
             Return cast one's symbolic-depth on (cast field-of on (said, 1), positions, referenced, locals).
@@ -170,7 +211,13 @@ Pull a book on collections.
         If kind is "MapLookup":
             Return cast one's symbolic-depth on (cast field-of on (said, 1), positions, referenced, locals).
         Done.
-        Return a series of number.
+        If kind is "SeriesLiteral" or kind is "MapLiteral" or kind is "MatrixLiteral" or kind is "MatrixSized"
+                or kind is "RangeExpression" or kind is "ChannelCreation":
+            // Made here, which is wherever the caller is.
+            Return a series with (-2).
+        Done.
+        // A missed flow has to cost a refusal: "nothing reaches it" is the unsound answer.
+        Return cast untraced on (referenced).
     Done.
 
     // ── At a call, and at a member read ───────────────────────────────────
@@ -216,7 +263,8 @@ Pull a book on collections.
     Done.
 
     /// `PopulateCastDepthCache`: what a call gives back is as deep as its deepest argument in the
-    /// positions its callee's signature names.
+    /// positions its callee's signature names, and as deep as the call itself when the callee may
+    /// have made it.
     Bind void to record-call-depth unto checker, given (the node said, the call reached, the node call-args, the node gives):
         If cast is-reference-type on (gives) is false, return.
         Define callee as cast field-of on (said, 1).
@@ -236,8 +284,11 @@ Pull a book on collections.
         Done.
         Define deepest as 0.
         Define signature as the entry for reached's depth-key in one's depth-signatures.
+        // Nothing known about the callee: what it gives back may be something it made.
+        If signature is void, the deepest becomes one's rabbit-depth.
         If signature is not void:
             For each one-index in signature, repeat:
+                If one-index is -2 and one's rabbit-depth is greater than deepest, the deepest becomes one's rabbit-depth.
                 Define reaching as cast unknown-type.
                 If one-index is -1, the reaching becomes receiver.
                 Otherwise if one-index is not less than 0 and one-index is less than the number of validated:
@@ -270,6 +321,7 @@ Pull a book on collections.
             Define signature as the entry for "{getter-owner}\t{member}" in one's getter-signatures.
             If signature is not void:
                 If cast holds-number on (signature, -1) is false, the depth becomes 0.
+                If cast holds-number on (signature, -2) and one's rabbit-depth is greater than depth, the depth becomes one's rabbit-depth.
             Done.
         Done.
         In one's member-depths, the entry for cast node-place on (said, 3) becomes depth.

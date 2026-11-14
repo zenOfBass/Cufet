@@ -3,16 +3,25 @@ namespace Cufet.Interpreter;
 public sealed partial class TypeChecker
 {
     // ── Return-depth signature inference ─────────────────────────────────────────
-    // Determines which parameter indices (by position) "flow to" the return value's depth.
-    // Called inside CheckBind's try-block so callee signatures are already available.
-    // Returns [] when no params contribute (fresh alloc / scalar / global returns).
-    // Falls back to "all reference-type param indices" when the exact flow can't be determined
-    // (recursive call found before self's signature is set, or unknown callee).
-    // includeReceiver = true for method bodies: adds 'one' → ReceiverDepthIndex to paramIdx
-    // so that 'return one's field' correctly taint-propagates the receiver's depth.
+    // Says where what a function returns can LIVE, in terms a call site can evaluate:
+    //   a parameter index   — it may be that argument, or something reached through it;
+    //   ReceiverDepthIndex  — the same for the receiver of a method or getter;
+    //   FreshDepthIndex     — it may be something the function MADE, or anything this walk cannot
+    //                         trace to a parameter.
+    //
+    // ★ FreshDepthIndex is the half that was missing (docs/SOUNDNESS.md, obligation O1). A call
+    // pushes no arena, so what a function makes lands in whatever region its CALLER has open —
+    // inside a rabbit, that rabbit. "No parameter flows to the return" used to be read as depth 0,
+    // which let `outer becomes cast make-it on ()` keep a rabbit's series after its `Done.`.
+    //
+    // ⚠ The walk reaches every `Return`, `Define` and `becomes` in the body WHATEVER holds them. It
+    // used to name the statements it entered — `If`, the loops, `Try`, a rabbit — and a `Return`
+    // inside anything else (a `Judge` arm was the measured one) contributed nothing. Enumerating
+    // the containers is the thing that goes stale, so this asks the tree instead and stops only at
+    // a body that returns for ITSELF. It is not flow-sensitive: a name carries everything it was
+    // ever given, which can only over-state.
     private IReadOnlyList<int> ComputeReturnDepthSignature(BindStatement bind, bool includeReceiver = false)
     {
-        // Build param-name → index and reference-type-param-index set.
         var paramIdx     = new Dictionary<string, int>(StringComparer.Ordinal);
         var refParamIdxs = new HashSet<int>();
         for (int i = 0; i < bind.Parameters.Count; i++)
@@ -27,11 +36,7 @@ public sealed partial class TypeChecker
             paramIdx["one"] = ReceiverDepthIndex;
             refParamIdxs.Add(ReceiverDepthIndex);
         }
-
-        var localDepths = new Dictionary<string, HashSet<int>>(StringComparer.Ordinal);
-        var result      = new HashSet<int>();
-        WalkBodyForReturnDepths(bind.Body, paramIdx, refParamIdxs, localDepths, result);
-        return result.OrderBy(x => x).ToList();
+        return ReturnDepthsOf(bind.Body, paramIdx, refParamIdxs);
     }
 
     // Getter variant: no explicit params, only the receiver ('one') as a depth source.
@@ -39,86 +44,84 @@ public sealed partial class TypeChecker
     {
         var paramIdx     = new Dictionary<string, int>(StringComparer.Ordinal) { ["one"] = ReceiverDepthIndex };
         var refParamIdxs = new HashSet<int> { ReceiverDepthIndex };
-        var localDepths  = new Dictionary<string, HashSet<int>>(StringComparer.Ordinal);
-        var result       = new HashSet<int>();
-        WalkBodyForReturnDepths(getter.Body, paramIdx, refParamIdxs, localDepths, result);
+        return ReturnDepthsOf(getter.Body, paramIdx, refParamIdxs);
+    }
+
+    private IReadOnlyList<int> ReturnDepthsOf(
+        IReadOnlyList<IStatement> body, Dictionary<string, int> paramIdx, HashSet<int> refParamIdxs)
+    {
+        var nodes = new List<object>();
+        CollectDepthNodes(body, nodes);
+
+        // Every name the body gives a value to starts EMPTY, so that a name read before the walk
+        // has reached its `Define` is not mistaken for one the walk knows nothing about.
+        var localDepths = new Dictionary<string, HashSet<int>>(StringComparer.Ordinal);
+        foreach (var node in nodes)
+            if (DepthTargetOf(node) is { } target) localDepths.TryAdd(target.Name, []);
+
+        // To a fixed point: a loop can carry a value from its end back to its start, and the
+        // sets only ever grow, so this ends.
+        bool changed = true;
+        while (changed)
+        {
+            changed = false;
+            foreach (var node in nodes)
+            {
+                if (DepthTargetOf(node) is not { } target) continue;
+                var into = localDepths[target.Name];
+                foreach (var i in SymbolicExprDepth(target.Value, paramIdx, refParamIdxs, localDepths))
+                    changed |= into.Add(i);
+            }
+        }
+
+        var result = new HashSet<int>();
+        foreach (var node in nodes)
+            if (node is ReturnStatement { Value: { } returned })
+                result.UnionWith(SymbolicExprDepth(returned, paramIdx, refParamIdxs, localDepths));
         return result.OrderBy(x => x).ToList();
     }
 
-    private void WalkBodyForReturnDepths(
-        IReadOnlyList<IStatement> body,
-        Dictionary<string, int>       paramIdx,
-        HashSet<int>                  refParamIdxs,
-        Dictionary<string, HashSet<int>> localDepths,
-        HashSet<int>                  result)
+    /// <summary>The name a statement gives a value to, and the value — or null when it gives none.</summary>
+    private static (string Name, IExpression Value)? DepthTargetOf(object node) => node switch
     {
-        foreach (var stmt in body)
+        DefineStatement define   => (define.Name, define.Value),
+        BecomesStatement becomes => (becomes.Name, becomes.Value),
+        // An iterator is an ELEMENT of what it walks, and `it` in a `Judge` IS the subject: both
+        // live no deeper than the thing they came from.
+        ForEachStatement forEach => (forEach.IteratorName ?? "it", forEach.Series),
+        JudgeStatement judge     => ("it", judge.Subject),
+        _ => null,
+    };
+
+    /// <summary>Every statement of a body that gives a name a value or returns one, however deep.</summary>
+    /// <remarks>A function, a lambda, a task and an object are not entered: what they return is
+    /// theirs, and so are the names they define.</remarks>
+    private static void CollectDepthNodes(object? node, List<object> found)
+    {
+        switch (node)
         {
-            switch (stmt)
-            {
-                case DefineStatement def:
-                    localDepths[def.Name] =
-                        SymbolicExprDepth(def.Value, paramIdx, refParamIdxs, localDepths);
-                    break;
-
-                case BecomesStatement becomes:
-                    var bd = SymbolicExprDepth(becomes.Value, paramIdx, refParamIdxs, localDepths);
-                    if (localDepths.TryGetValue(becomes.Name, out var prev))
-                        foreach (var i in bd) prev.Add(i);
-                    else
-                        localDepths[becomes.Name] = bd;
-                    break;
-
-                case ReturnStatement { Value: not null } ret:
-                    foreach (var i in SymbolicExprDepth(ret.Value, paramIdx, refParamIdxs, localDepths))
-                        result.Add(i);
-                    break;
-
-                case IfStatement ifStmt:
-                    foreach (var arm in ifStmt.Arms)
-                        WalkBodyForReturnDepths(arm.Body, paramIdx, refParamIdxs, localDepths, result);
-                    if (ifStmt.ElseBody != null)
-                        WalkBodyForReturnDepths(ifStmt.ElseBody, paramIdx, refParamIdxs, localDepths, result);
-                    break;
-
-                case WhileStatement ws:
-                    WalkBodyForReturnDepths(ws.Body, paramIdx, refParamIdxs, localDepths, result);
-                    break;
-
-                case RepeatUntilStatement rus:
-                    WalkBodyForReturnDepths(rus.Body, paramIdx, refParamIdxs, localDepths, result);
-                    break;
-
-                case ForEachStatement forEach:
-                    // Iterator depth flows from the series — tracks elements of a rabbit-scoped series.
-                    var iterName = forEach.IteratorName ?? "it";
-                    var iterDepth = SymbolicExprDepth(forEach.Series, paramIdx, refParamIdxs, localDepths);
-                    localDepths.TryGetValue(iterName, out var prevIter);
-                    localDepths[iterName] = iterDepth;
-                    WalkBodyForReturnDepths(forEach.Body, paramIdx, refParamIdxs, localDepths, result);
-                    if (prevIter != null) localDepths[iterName] = prevIter;
-                    else localDepths.Remove(iterName);
-                    break;
-
-                case PullRabbitStatement prs:
-                    WalkBodyForReturnDepths(prs.Body, paramIdx, refParamIdxs, localDepths, result);
-                    break;
-
-                case TryStatement ts:
-                    WalkBodyForReturnDepths(ts.Body, paramIdx, refParamIdxs, localDepths, result);
-                    if (ts.FailureHandler != null)
-                        WalkBodyForReturnDepths(ts.FailureHandler, paramIdx, refParamIdxs, localDepths, result);
-                    if (ts.ExceptionHandler != null)
-                        WalkBodyForReturnDepths(ts.ExceptionHandler, paramIdx, refParamIdxs, localDepths, result);
-                    break;
-
-                // All other statements (stores, state, etc.) don't define variables or return.
-            }
+            case null or string:
+                return;
+            case BindStatement or LambdaLiteral or LaunchTaskStatement or ObjectDefinition
+                or GetterDeclaration or SetterDeclaration or UnmakerDeclaration or OperatorOverloadDeclaration:
+                return;
+            case System.Collections.IEnumerable items:
+                foreach (var item in items) CollectDepthNodes(item, found);
+                return;
         }
+        if (node.GetType().Namespace != typeof(Program).Namespace || node is CufetType) return;
+        if (node is ReturnStatement || DepthTargetOf(node) != null) found.Add(node);
+        foreach (var property in node.GetType().GetProperties())
+            if (property.GetIndexParameters().Length == 0)
+                CollectDepthNodes(property.GetValue(node), found);
     }
 
-    // Returns the set of caller-parameter indices whose depth flows into this expression.
-    // Empty set = expression is always depth-0 (fresh allocation, scalar, or global).
+    // Everything this walk cannot trace: it may be any reference-typed parameter, or fresh.
+    private static HashSet<int> UntracedDepth(HashSet<int> refParamIdxs) =>
+        new(refParamIdxs) { FreshDepthIndex };
+
+    // The set of depth sources an expression's value may come from. Empty = it lives outside every
+    // region there is (a top-level constant, or no reference at all).
     private HashSet<int> SymbolicExprDepth(
         IExpression                      expr,
         Dictionary<string, int>          paramIdx,
@@ -128,33 +131,40 @@ public sealed partial class TypeChecker
         switch (expr)
         {
             case VariableReference vr:
-                if (paramIdx.TryGetValue(vr.Name, out var pi) && refParamIdxs.Contains(pi))
-                    return [pi];
+                if (paramIdx.TryGetValue(vr.Name, out var pi))
+                    return refParamIdxs.Contains(pi) ? [pi] : [];
                 if (localDepths.TryGetValue(vr.Name, out var ld))
                     return new HashSet<int>(ld);   // copy to avoid aliasing
-                return [];   // global variable or value-type param
+                // A top-level constant is made before any region opens, and it is all a function's
+                // body can see of the top level. Any other name — one captured from an enclosing
+                // function, or bound by a statement this walk does not model — is not traced.
+                if (TryLookup(vr.Name, out var seen) && seen!.Permanent && !seen.IsParameter)
+                    return [];
+                return UntracedDepth(refParamIdxs);
 
             case CastExpression cast:
-                // Look up the callee's already-computed ReturnDepthSignature.
-                // For recursive calls the self-signature is still null (computed after this walk),
-                // so the fallback fires — sound (conservative/over-strict).
                 if (cast.Function is VariableReference funcVr
                     && TryLookup(funcVr.Name, out var callTi)
-                    && callTi!.Type is FunctionType callFt)
+                    && callTi!.Type is FunctionType callFt
+                    && callFt.ReturnDepthSignature is { } calleeSig)
                 {
-                    if (callFt.ReturnDepthSignature == null)
-                        return new HashSet<int>(refParamIdxs);  // unknown / recursive — conservative
-
                     var r = new HashSet<int>();
-                    foreach (var cpIdx in callFt.ReturnDepthSignature)
+                    foreach (var cpIdx in calleeSig)
                     {
-                        if (cpIdx >= 0 && cpIdx < cast.Args.Count)
+                        if (cpIdx == FreshDepthIndex)
+                            r.Add(FreshDepthIndex);
+                        else if (cpIdx == ReceiverDepthIndex)
+                            // Which argument was the receiver is settled by dispatch, not here.
+                            foreach (var arg in cast.Args)
+                                r.UnionWith(SymbolicExprDepth(arg, paramIdx, refParamIdxs, localDepths));
+                        else if (cpIdx < cast.Args.Count)
                             r.UnionWith(SymbolicExprDepth(cast.Args[cpIdx], paramIdx, refParamIdxs, localDepths));
                     }
                     return r;
                 }
-                // Unknown callee (method dispatch, unresolved name) — conservative.
-                return new HashSet<int>(refParamIdxs);
+                // No signature: a recursive call before its own is known, a method reached some
+                // other way, a function VALUE. Not traced.
+                return UntracedDepth(refParamIdxs);
 
             case SeriesAccess sa:
                 // Element depth = series depth (elements are references inside the series).
@@ -169,17 +179,16 @@ public sealed partial class TypeChecker
                 // but we can't check that here without full type resolution).
                 return SymbolicExprDepth(pa.Target, paramIdx, refParamIdxs, localDepths);
 
-            case SeriesLiteral or MapLiteral or ObjectLiteral or MatrixLiteral or MatrixSized or RangeExpression:
-                // Fresh allocations: born at current depth (which at definition time is 0).
-                return [];
+            case SeriesLiteral or MapLiteral or MatrixLiteral or MatrixSized or RangeExpression or ChannelCreation:
+                // Made here, which is wherever the caller is. Whatever was put IN it is no deeper.
+                return [FreshDepthIndex];
 
             default:
-                // Conservative-safe default: unknown expression → depth flows from nothing (depth 0).
-                // This is the lenient direction for the analysis (may undercount contributing params
-                // for rare complex expressions), but preserves soundness because missed flows
-                // produce false-negatives in the signature → depth-0 return → checked at call site
-                // only via the direct CheckRegionStore path.
-                return [];
+                // ⚠ This used to answer "nothing", on the reasoning that a missed flow only meant a
+                // depth-0 return. A depth-0 return is the unsound answer, so a missed flow has to
+                // cost a refusal instead. An object literal lands here deliberately: it is a value
+                // that holds whatever its fields were given.
+                return UntracedDepth(refParamIdxs);
         }
     }
 
@@ -811,9 +820,12 @@ public sealed partial class TypeChecker
 
     // Computes and caches the concrete rabbit depth of a CastExpression's return value.
     // Called right before returning from InferCastExpr so nested casts are already cached.
-    //   sig == null  → unanalyzed (shouldn't happen for methods now); depth 0 as fallback.
-    //   sig == []    → return is always depth-0 (fresh/global); depth 0.
-    //   sig == [i,…] → max depth of contributing args; ReceiverDepthIndex (-1) → receiver depth.
+    //   sig == null  → nothing is known about the callee (a function value, a recursive call not
+    //                  yet analysed): the result may be fresh, so it lives HERE.
+    //   sig == []    → the result is in no region at all; depth 0.
+    //   sig == [i,…] → max depth of contributing args; ReceiverDepthIndex (-1) → receiver depth;
+    //                  FreshDepthIndex → the depth of this call, since a call pushes no arena and
+    //                  what the callee made is in whatever region is open here.
     // receiverExpr is the object the method was called on (null for free-function calls).
     private void PopulateCastDepthCache(
         CastExpression             cast,
@@ -825,13 +837,15 @@ public sealed partial class TypeChecker
         if (!IsReferenceType(effectiveRetType)) return;
 
         var sig = funcType.ReturnDepthSignature;
-        int retDepth = 0;
+        int retDepth = sig == null ? _rabbitDepth : 0;
 
         if (sig != null)
         {
             foreach (var pIdx in sig)
             {
-                if (pIdx == ReceiverDepthIndex)
+                if (pIdx == FreshDepthIndex)
+                    retDepth = Math.Max(retDepth, _rabbitDepth);
+                else if (pIdx == ReceiverDepthIndex)
                 {
                     if (receiverExpr != null)
                         retDepth = Math.Max(retDepth, ValueDepthOf(receiverExpr, InferType(receiverExpr)));

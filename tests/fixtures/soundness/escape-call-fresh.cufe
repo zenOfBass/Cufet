@@ -1,0 +1,24 @@
+/*  EXPECTED: REJECTED at type-check, identically by both backends.
+    A function makes a series and returns it. Called inside a rabbit, the result is kept outside.
+
+    A call opens no region, so what a function makes lies in whatever region its caller
+    has open, and what it hands back is as deep as the call unless all of it comes from
+    its parameters. This was accepted, and the compiled program read the value after the
+    rabbit's Done. had freed it (docs/SOUNDNESS.md, obligation O1). */
+
+Bind series of number to make-it:
+    Return a series of number with (1, 2, 3).
+Done.
+Define outer as a series of number.
+Pull a rabbit.
+    outer becomes cast make-it on ().
+Done.
+
+/*  Make and drop enough values that freed memory is handed out again. */
+Define churn as a series of text.
+Define tick as 0.
+While tick is less than 400, repeat:
+    Insert ("zzzzzzzz" joined to "yyyyyyyy") into churn.
+    tick becomes tick + 1.
+Done.
+State outer.

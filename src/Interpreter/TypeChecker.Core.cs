@@ -1150,6 +1150,9 @@ public sealed partial class TypeChecker
     // Index -1 in ReturnDepthSignature: the receiver ('one') contributes to return depth.
     // Used for method and getter signatures; never present in free-function signatures.
     private const int ReceiverDepthIndex = -1;
+    // Index -2: the return may be something the callee MADE, which lives in whatever region the
+    // call was made in. See ComputeReturnDepthSignature.
+    private const int FreshDepthIndex = -2;
 
     // Assigned to captured reference-type parameters in nested function scopes.
     // Parameters are always registered at RabbitDepth=0 (the function's own perspective),
@@ -1157,6 +1160,16 @@ public sealed partial class TypeChecker
     // makes CheckRegionStore reject any store of a captured parameter into outer state,
     // preventing the depth-0 sentinel from hiding a potential depth-N escape.
     private const int CapturedParameterDepth = int.MaxValue;
+
+    /// <summary>The rabbit depth `it` has inside a `Judge`: the subject's.</summary>
+    /// <remarks>
+    /// `it` IS the subject under another name, so it lives where the subject does. It was given
+    /// no depth, which reads as 0, and a rabbit's series could be stored outside through it
+    /// (docs/SOUNDNESS.md, `binder-1`). A subject that is not a plain name is taken to live in the
+    /// region open here, which is the deepest it could be.
+    /// </remarks>
+    private int JudgedDepth(IExpression subject) =>
+        subject is VariableReference named && TryLookup(named.Name, out var info) ? info!.RabbitDepth : _rabbitDepth;
 
     // Populated by InferPossessiveAccess; read by ValueDepthOf for 'obj's member' accesses.
     private readonly Dictionary<PossessiveAccess, int> _possessiveDepthCache = new();
@@ -2827,7 +2840,7 @@ public sealed partial class TypeChecker
                         // an arm nothing a type arm's tag would have told it.
                         EnterScope();
                         if (subjectType != null)
-                            Scope["it"] = new TypeInfo(subjectType, judge.Subject, arm.Line, Judged: true);
+                            Scope["it"] = new TypeInfo(subjectType, judge.Subject, arm.Line, Judged: true, RabbitDepth: JudgedDepth(judge.Subject));
                         try { CheckBlock(arm.Body); } finally { ExitScope(); }
                         continue;
                     }
@@ -2857,7 +2870,7 @@ public sealed partial class TypeChecker
                         : new UnionType(arm.Cases.ToList());
 
                     EnterScope();
-                    Scope["it"] = new TypeInfo(armType, judge.Subject, arm.Line, Judged: true);
+                    Scope["it"] = new TypeInfo(armType, judge.Subject, arm.Line, Judged: true, RabbitDepth: JudgedDepth(judge.Subject));
                     try { CheckBlock(arm.Body); } finally { ExitScope(); }
                 }
 
@@ -2868,7 +2881,7 @@ public sealed partial class TypeChecker
                     // to — the subject's own type is the honest answer, and it is non-null here
                     // because a subject whose type could not be inferred never reaches this far.
                     EnterScope();
-                    Scope["it"] = new TypeInfo(remaining ?? subjectType!, judge.Subject, judge.Line, Judged: true);
+                    Scope["it"] = new TypeInfo(remaining ?? subjectType!, judge.Subject, judge.Line, Judged: true, RabbitDepth: JudgedDepth(judge.Subject));
                     try { CheckBlock(judge.OtherwiseBody); } finally { ExitScope(); }
                 }
                 else if (remaining != null && valueJudgement)

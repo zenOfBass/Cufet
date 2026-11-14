@@ -221,7 +221,9 @@ public sealed partial class TypeChecker
             && _getterDepthSigs.TryGetValue(ownerOt.Name, out var gDict)
             && gDict.TryGetValue(memberName, out var gSig))
         {
-            return gSig.Any(i => i == ReceiverDepthIndex) ? receiverDepth : 0;
+            // A getter that may hand back something it MADE hands it back in the region open here.
+            int depth = gSig.Contains(ReceiverDepthIndex) ? receiverDepth : 0;
+            return gSig.Contains(FreshDepthIndex) ? Math.Max(depth, _rabbitDepth) : depth;
         }
         // No sig (stored field, or getter not yet analyzed): conservative = receiver depth.
         return receiverDepth;
