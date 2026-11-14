@@ -102,9 +102,15 @@ Pull a book on collections.
         // MEASURED 15 GB at the end of the corpus, and the compiled checker died with an access
         // violation when the test suite was running beside it.
         Pull a rabbit.
+            // ⚠ Its OWN copy of the bundled books and of the project's trees, made in this region.
+            // Checking builds a checker around what it is given and stores what it makes into
+            // that, so what it is given has to end with this region too: handed the long-lived
+            // ones, it is refused (docs/SOUNDNESS.md, obligation O4). The copies are the price.
+            Define own-prelude as cast copied-nodes on (prelude).
+            Define own-trees as cast copied-trees on (shared-trees).
             Try to:
                 // Checked where it sits: inside a project, its folder is part of its program.
-                State cast verdict on (read all from the file name, prelude, with-tree, cast full-path on (name), shared-trees).
+                State cast verdict on (read all from the file name, own-prelude, with-tree, cast full-path on (name), own-trees).
             Done.
             In case of failure:
                 State "crash\t{the message of the failure}".

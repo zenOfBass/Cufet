@@ -1006,11 +1006,16 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     /// ★ Measured 2026-10-24 on Windows: the checker `cufet build` builds peaked at 2,086 MB over this
     /// file, and the one the Cufet compiler builds at 2,288 MB. The ceiling is 1.5 times the first.
     /// Raise it, with a new measurement of both, when the file grows — never to make a red test green.
+    /// ★ Measured again 2026-11-14: 2,963 MB and 3,278 MB, and the ceiling raised from 3,100 MB to 1.5
+    /// times the first, as before. Three things had grown: the checker's own source, which this file's
+    /// folder loads (the checker of the day before took 2,799 MB over the day's sources); what the store
+    /// rule keeps for each cast (about 140 MB); and each file's own copy of the bundled books and the
+    /// project's trees, which that rule made the price of checking a file in a region of its own.
     /// ⚠ The test this exists for: the same checker once peaked at 4,799 MB here, from one lowering that
     /// made a throwaway chase on every insert at a chase's end. Every parity test stayed green, because
     /// they compare only what the checker prints.
     /// </remarks>
-    private const long HeavyFileMemoryCeilingBytes = 3_100L * 1024 * 1024;
+    private const long HeavyFileMemoryCeilingBytes = 4_400L * 1024 * 1024;
 
     [Fact]
     public void TheCompiledCompiler_BuildsTheChecker_WhichChecksAsCSharpDoes()

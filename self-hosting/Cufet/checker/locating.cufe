@@ -118,6 +118,24 @@ Pull a book on collections.
         Return copy.
     Done.
 
+    /// A copy of each tree, for a check that is to own what it is given.
+    Bind series of node to copied-nodes, given (the series of node trees):
+        Define copies as a series of node.
+        For each tree in trees, repeat:
+            Insert cast copied-node on (tree) into copies.
+        Done.
+        Return copies.
+    Done.
+
+    /// The same for a run's shared trees, each under the name it had.
+    Bind map from text to node to copied-trees, given (the map from text to node shared):
+        Define copies as a map from text to node.
+        For each pair in shared, repeat:
+            In copies, the entry for (the key of pair) becomes cast copied-node on (the value of pair).
+        Done.
+        Return copies.
+    Done.
+
     /// A file's statements, read at `offset` — copied from the run's shared trees with every line
     /// moved by `offset`, or parsed here when the file is not among them. A fresh tree either way,
     /// since checking writes notes into the tree it is given.

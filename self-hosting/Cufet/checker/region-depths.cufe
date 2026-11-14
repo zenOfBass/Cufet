@@ -102,6 +102,21 @@ Pull a book on collections.
         Return locals.
     Done.
 
+    /// A named field's type as it was WRITTEN — its own, the embed handle, or promoted — or void.
+    /// ⚠ Not `field-type-of`, which resolves the type and keeps what it resolved on the checker:
+    /// this is asked from inside the rabbit a signature is worked out in.
+    Bind voidable node to written-field-type unto checker, given (the text name, the text field):
+        Define definition as cast one's definition-of on (name).
+        If definition is void, return void.
+        For each pair in (cast field-of on (definition, 3))'s children, repeat:
+            If cast unquoted on (cast field-of on (pair, 1)) is field, return cast field-of on (pair, 2).
+        Done.
+        Define embedded as cast embedded-name on (definition).
+        If embedded is "" or cast one's definition-of on (embedded) is void, return void.
+        If field is embedded, return cast object-type-named on (embedded).
+        Return cast one's written-field-type on (embedded, field).
+    Done.
+
     /// Adds each index not already held.
     Bind void to union-into, given (the series of number source, the series of number held):
         For each one-index in source, repeat:
@@ -239,6 +254,25 @@ Pull a book on collections.
         Done.
         If kind is "SeriesAccess" or kind is "PossessiveAccess":
             Return cast one's symbolic-depth on (cast field-of on (said, 1), positions, referenced, locals, captured, storing).
+        Done.
+        // For the store rule only. An object written out is MADE here, and holds exactly what its
+        // fields were given: a field that can hold no series (a number, a text) carries nothing
+        // with it. The return signature leaves a literal untraced.
+        If kind is "ObjectLiteral" and storing:
+            Define holds as a series with (-2).
+            For each value in (cast field-of on (said, 2))'s children, repeat:
+                Cast union-into on (cast one's symbolic-depth on (value, positions, referenced, locals, captured, storing), holds).
+            Done.
+            Define made-name as cast unquoted on (cast field-of on (said, 1)).
+            For each pair in (cast field-of on (said, 3))'s children, repeat:
+                Define field-type as cast one's written-field-type on (made-name, cast unquoted on (item 1 of pair's children)).
+                Define carries as true.
+                If field-type is not void, the carries becomes cast one's field-holds-container on (field-type, a map from text to fact).
+                If carries:
+                    Cast union-into on (cast one's symbolic-depth on (item 2 of pair's children, positions, referenced, locals, captured, storing), holds).
+                Done.
+            Done.
+            Return holds.
         Done.
         // `the items of bag`, the other spelling of the access above — for the store rule only:
         // the return signature leaves it untraced, as it always has.

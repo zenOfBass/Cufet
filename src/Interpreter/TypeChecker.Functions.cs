@@ -203,6 +203,24 @@ public sealed partial class TypeChecker
                 // but we can't check that here without full type resolution).
                 return SymbolicExprDepth(pa.Target, paramIdx, refParamIdxs, localDepths, captured);
 
+            case ObjectLiteral made when captured != null:
+            {
+                // For the store rule only. An object written out is MADE here, and holds exactly
+                // what its fields were given: a field that can hold no series (a number, a text)
+                // carries nothing with it. The return signature leaves a literal untraced, which
+                // says it may be any parameter at all, and here that would make a function that
+                // builds an object and fills it look as though it stored into its arguments.
+                var holds = new HashSet<int> { FreshDepthIndex };
+                foreach (var value in made.PositionalValues)
+                    holds.UnionWith(SymbolicExprDepth(value, paramIdx, refParamIdxs, localDepths, captured));
+                _objectDefs.TryGetValue(made.TypeName, out var madeType);
+                foreach (var (name, value) in made.NamedValues)
+                    if (madeType == null || FindFieldInOtOrPromoted(madeType, name) is not { } fieldType
+                        || FieldHoldsContainer(fieldType, new HashSet<string>(StringComparer.Ordinal)))
+                        holds.UnionWith(SymbolicExprDepth(value, paramIdx, refParamIdxs, localDepths, captured));
+                return holds;
+            }
+
             case RecordNamedAccess rna when captured != null:
                 // `the items of bag`, the other spelling of the access above. For the store rule
                 // only: the return signature leaves it untraced, as it always has.

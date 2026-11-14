@@ -170,8 +170,14 @@ Pull books on collections, and the c-language.
         Cast checker's share-project-trees on (cast checker's full-path on (name), shared-trees).
         // Each file in a region of its own, as the checker does, so what building it made is gone before the next.
         Pull a rabbit.
+            // ⚠ Its OWN copy of the bundled books and of the project's trees, made in this region.
+            // Checking builds a checker around what it is given and stores what it makes into
+            // that, so what it is given has to end with this region too: handed the long-lived
+            // ones, it is refused (docs/SOUNDNESS.md, obligation O4). The copies are the price.
+            Define own-prelude as cast checker's copied-nodes on (prelude).
+            Define own-trees as cast checker's copied-trees on (shared-trees).
             Try to:
-                State cast built on (name, prelude, runtime-folder, shared-trees, prelude-folder).
+                State cast built on (name, own-prelude, runtime-folder, own-trees, prelude-folder).
             Done.
             In case of failure:
                 State "crash\t{cast flattened on (the message of the failure)}".

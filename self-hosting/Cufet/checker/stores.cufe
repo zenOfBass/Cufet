@@ -30,7 +30,7 @@ Pull a book on collections.
     Define object call-note with (the text callee, the text display, the series of node handed-args, the node receiver,
         the series of number given-depths, the series of fact given-holds, the number receiver-depth,
         the number call-depth, the number line, the number within,
-        the series of series of number given-sources, the series of number receiver-sources,
+        the series of number given-sources, the series of number receiver-sources,
         the series of store-pass passes).
     Define object store-frame with (the text summary, the fact setter, the node body,
         the map from text to number positions, the series of number referenced,
@@ -257,14 +257,6 @@ Pull a book on collections.
         In one's stores's traced, the entry for index becomes true.
         Define frame as item index of one's stores's frames.
         If the number of frame's stores is 0 and the number of frame's calls is 0, return.
-        // ⚠ Made out here, one for each argument: a series made inside the rabbit below would
-        // go with it, and these are kept.
-        For each call-index in frame's calls, repeat:
-            Define awaiting as item call-index of one's stores's calls.
-            For each argument in awaiting's handed-args, repeat:
-                Insert (a series of number) into awaiting's given-sources.
-            Done.
-        Done.
         // What the walk makes on the way goes with this rabbit; the places are numbers, and stay.
         Pull a rabbit.
             Define gathered as a series of node.
@@ -280,13 +272,14 @@ Pull a book on collections.
             Done.
             For each call-index in frame's calls, repeat:
                 Define noted as item call-index of one's stores's calls.
-                Define spot as 0.
+                // One flat run of numbers: each argument's places, then the mark that ends them.
+                // ⚠ Not a series of series: one made inside this rabbit would go with it, and the
+                // compiler written in Cufet cannot yet build an object that holds one.
                 For each argument in noted's handed-args, repeat:
-                    Increment spot by 1.
-                    Define reaching as item spot of noted's given-sources.
                     For each place in cast one's symbolic-depth on (argument, frame's positions, frame's referenced, locals, frame's captured, true), repeat:
-                        Insert place into reaching.
+                        Insert place into noted's given-sources.
                     Done.
+                    Insert cast sources-end into noted's given-sources.
                 Done.
                 If cast is-none on (noted's receiver) is false:
                     For each place in cast one's symbolic-depth on (noted's receiver, frame's positions, frame's referenced, locals, frame's captured, true), repeat:
@@ -365,6 +358,22 @@ Pull a book on collections.
         Define frame as item (one's store-now) of one's stores's frames.
         Insert (a new store-note { the value value, the target target, the line at-row,
             the sources a series of number, the targets a series of number }) into frame's stores.
+    Done.
+
+    /// What ends one argument's places in a cast's flat list of them: no place is this number.
+    Bind number to sources-end:
+        Return 999999999.
+    Done.
+
+    /// Where the `wanted`th argument of a traced cast can come from.
+    Bind series of number to argument-sources, given (the call-note noted, the number wanted):
+        Define found as a series of number.
+        Define reading as 1.
+        For each entry-number in noted's given-sources, repeat:
+            If entry-number is cast sources-end, increment reading by 1.
+            Otherwise if reading is wanted, insert entry-number into found.
+        Done.
+        Return found.
     Done.
 
     /// The key what a name's function stores is kept under.
@@ -483,7 +492,7 @@ Pull a book on collections.
         Insert (a new call-note { the callee callee-key, the display display, the handed-args handed-args, the receiver receiver,
             the given-depths depths, the given-holds holds, the receiver-depth receiver-depth,
             the call-depth one's rabbit-depth, the line at-row, the within one's store-now,
-            the given-sources a series of series of number, the receiver-sources a series of number,
+            the given-sources a series of number, the receiver-sources a series of number,
             the passes passes }) into one's stores's calls.
         If one's store-now is greater than 0:
             Define frame as item (one's store-now) of one's stores's frames.
@@ -634,9 +643,9 @@ Pull a book on collections.
         Define frame as item frame-index of one's stores's frames.
         Define reach as a series with (-2).
         Define place as 0.
-        For each reaching in noted's given-sources, repeat:
+        For each holding in noted's given-holds, repeat:
             Increment place by 1.
-            If item place of noted's given-holds, cast union-into on (reaching, reach).
+            If holding, cast union-into on (cast argument-sources on (noted, place), reach).
         Done.
         If cast is-none on (noted's receiver) is false, cast union-into on (noted's receiver-sources, reach).
         If cast one's captures-names on (noted's callee):
@@ -711,7 +720,7 @@ Pull a book on collections.
             Return noted's receiver-sources.
         Done.
         If place is not less than 0:
-            If place is less than the number of noted's handed-args, return item (place + 1) of noted's given-sources.
+            If place is less than the number of noted's handed-args, return cast argument-sources on (noted, place + 1).
             Return void.
         Done.
         Return cast one's captured-place on (frame-index, stored-as, place).
