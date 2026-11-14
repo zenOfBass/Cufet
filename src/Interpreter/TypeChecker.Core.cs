@@ -3237,7 +3237,7 @@ public sealed partial class TypeChecker
                     NoteCall(funcType, displayName, argsToValidate,
                              argsToValidate.Count < cs.Args.Count ? cs.Args[0]
                              : cs.Function is PossessiveAccess calledOn ? calledOn.Target : null,
-                             cs.Line, cs.Column);
+                             cs.Line, cs.Column, cs.Function);
                     if (cs.PassesFailureOff)
                         CheckPassOffStatement(cs, funcType, displayName);
                     else if (!_inTryBlock && funcType.ReturnType is FailureType)
@@ -3411,7 +3411,8 @@ public sealed partial class TypeChecker
         var type = InferType(define.Value);
         // A function written straight into a name is cast BY that name, so each cast of it can be
         // checked against what it stores. See InferLambdaLiteral.
-        if (define.Value is LambdaLiteral && type is FunctionType heldFunction)
+        // A second name for one is the same: the type it carries is the same function's.
+        if (type is FunctionType heldFunction && define.Value is LambdaLiteral or VariableReference)
             _functionValues.RemoveAll(value => ReferenceEquals(value.Stores, heldFunction.Stores));
         if (type == null)
             throw TypeError(

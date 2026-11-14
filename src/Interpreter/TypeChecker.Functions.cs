@@ -130,7 +130,7 @@ public sealed partial class TypeChecker
     private static HashSet<int> UntracedDepth(HashSet<int> refParamIdxs, Dictionary<string, int>? captured = null)
     {
         var all = new HashSet<int>(refParamIdxs) { FreshDepthIndex };
-        if (captured != null) foreach (var depth in captured.Values) all.Add(OuterCode(depth));
+        if (captured != null) all.UnionWith(captured.Values);
         return all;
     }
 
@@ -151,9 +151,9 @@ public sealed partial class TypeChecker
             case VariableReference vr:
                 if (paramIdx.TryGetValue(vr.Name, out var pi))
                     return refParamIdxs.Contains(pi) ? [pi] : [];
-                if (captured != null && captured.TryGetValue(vr.Name, out var capturedDepth))
+                if (captured != null && captured.TryGetValue(vr.Name, out var capturedAs))
                 {
-                    var outer = new HashSet<int> { OuterCode(capturedDepth) };
+                    var outer = new HashSet<int> { capturedAs };
                     if (localDepths.TryGetValue(vr.Name, out var given)) outer.UnionWith(given);
                     return outer;
                 }
@@ -496,8 +496,9 @@ public sealed partial class TypeChecker
                 "Make sure every path through the lambda ends with a return statement.");
 
         var paramTypes = lambda.Parameters.Select(p => (CufetType)ResolveParamType(p.Type)).ToList();
-        // ⚠ Until the rule for a function handed to another function is settled, one that stores
-        // may only be held in a name and cast by it. `Define` takes this note back off.
+        // A function that stores may be held in a name, or handed to another function, and each
+        // of those takes this note back off. Anywhere else it is being kept where nothing follows
+        // it, and CheckStoresAtCalls refuses it.
         _functionValues.Add((lambdaStores, "this function", lambda.Line, lambda.Column));
         return new FunctionType(paramTypes, inferredReturn)
                { ParameterNames = lambda.Parameters.Select(p => p.Name).ToList(), Stores = lambdaStores };
@@ -818,7 +819,7 @@ public sealed partial class TypeChecker
         NoteCall(funcType, displayName, argsToValidate,
                  argsToValidate.Count < cast.Args.Count ? cast.Args[0]
                  : cast.Function is PossessiveAccess calledOn ? calledOn.Target : null,
-                 cast.Line, cast.Column);
+                 cast.Line, cast.Column, cast.Function);
 
         if (funcType.ReturnType == null)
             throw TypeError(

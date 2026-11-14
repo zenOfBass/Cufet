@@ -14,6 +14,16 @@ public sealed class StoreSummary
     /// <summary>The body this function was written inside, or null at the top level. A pair that
     /// names a captured depth means that depth THERE.</summary>
     internal object? DefinedIn { get; set; }
+    /// <summary>A body was checked for it. Without one nothing is known of what it does with a
+    /// function it is handed.</summary>
+    internal bool Known { get; set; }
+    /// <summary>The body reaches names from outside itself.</summary>
+    internal bool Captures { get; set; }
+    /// <summary>Function parameters the body casts inside a rabbit of its own, or keeps, or hands
+    /// to something that does. A function that stores may not be passed for one of these.</summary>
+    internal HashSet<int> Wild { get; } = [];
+    /// <summary>Function parameters handed straight on, as that parameter of that function.</summary>
+    internal List<(int Parameter, StoreSummary To, int ToParameter)> Relays { get; } = [];
 }
 
 public sealed partial class TypeChecker
@@ -38,8 +48,18 @@ public sealed partial class TypeChecker
     // way that depth was counted. A function written beside it, capturing the same names, takes
     // the pair over as its own. Anywhere else the two counts cannot be compared, and it is refused.
     //
-    // ⚠ A function HANDED ON as a value (passed, kept in a field, returned) is still refused if it
-    // stores anything: the rule for a cast through a function type is not settled.
+    // ★ A function HANDED TO ANOTHER FUNCTION is judged where it is handed over. Its captured
+    // depths are known there, and so are the other arguments; what is not known is what the
+    // receiver will cast it ON. That can only be the receiver's other arguments, what the receiver
+    // makes, or what the receiver captured, so the pass is judged as though the function were
+    // cast right there on any of those. The one thing that would make this wrong is the receiver
+    // casting it somewhere DEEPER, inside a rabbit of its own, so each function records which of
+    // its function parameters it does that with (or keeps, or relays to a function that does),
+    // and a function that stores is refused for such a parameter. One that stores nothing passes
+    // anywhere. A cast through a function TYPE needs no check of its own because of this.
+    //
+    // ⚠ A function that stores, kept in a field or a series or handed back with `Return`, is
+    // refused: nothing follows it there.
     //
     // ⚠ Only a value that HOLDS A CONTAINER counts: a series, a map, or an object with one
     // somewhere inside. A number is in no region, and an object of numbers is copied whole.
@@ -69,6 +89,10 @@ public sealed partial class TypeChecker
         public required StoreFrame? Frame;
         public HashSet<int>[]? ArgSources;
         public HashSet<int>? ReceiverSources;
+        /// <summary>Which arguments can hold a container, so that a number's depth is not read.</summary>
+        public required bool[] ArgHolds;
+        /// <summary>Functions handed over in this call: which argument, and what the function stores.</summary>
+        public List<(int Argument, StoreSummary Function)> Passes = [];
     }
 
     private sealed class StoreFrame
@@ -80,7 +104,8 @@ public sealed partial class TypeChecker
         public required IReadOnlyList<IStatement> Body;
         public required Dictionary<string, int> ParamIdx;
         public required HashSet<int> RefParamIdxs;
-        /// <summary>Each captured name, with its rabbit depth where this body was written.</summary>
+        /// <summary>Each captured name, with the index it has in a pair: its rabbit depth where
+        /// this body was written, or the parameter it is there. See OuterCode.</summary>
         public required Dictionary<string, int> Captured;
         public required StoreFrame? Parent;
         public List<StoreNote> Stores = [];
@@ -92,6 +117,9 @@ public sealed partial class TypeChecker
     private readonly List<StoreFrame> _storeFrames = [];
     private readonly List<CallNote> _callNotes = [];
     private readonly List<(StoreSummary Stores, string Name, int Line, int Column)> _functionValues = [];
+    // A function PARAMETER read as a value. Taken back off when the read turns out to be a plain
+    // hand-over to another function; what is left at the end makes the parameter wild.
+    private readonly List<(StoreSummary Owner, int Parameter, int Line, int Column)> _parameterValues = [];
 
     /// <summary>The index a captured name at this rabbit depth has in a pair.</summary>
     private static int OuterCode(int depth) =>
@@ -100,6 +128,14 @@ public sealed partial class TypeChecker
     // one, or a name that function captured in its turn.
     private const int OuterUnknownIndex = int.MinValue;
     private static bool IsOuter(int index) => index <= OuterDepthIndex;
+    // A captured name that is a PARAMETER of the body this one was written in (-1 for its
+    // receiver). Its depth is known no better there than here, but there it is a parameter like
+    // any other, and the pair is carried up to that body's own.
+    private const int OuterParameterBase = -1_000_001;
+    private static int OuterParameterCode(int parameter) => OuterParameterBase - parameter;
+    private static bool IsOuterParameter(int index) => index <= OuterParameterBase + 1 && index != OuterUnknownIndex;
+    // The rabbit depth a captured place has in the body it was captured from.
+    private static int OuterDepth(int index) => IsOuterParameter(index) ? 0 : OuterDepthIndex - index;
 
     private StoreFrame OpenStoreFrame(
         StoreSummary? summary, IReadOnlyList<IStatement> body,
@@ -125,11 +161,17 @@ public sealed partial class TypeChecker
         captured ??= new Dictionary<string, int>(StringComparer.Ordinal);
         // A parameter hides a captured name it shares a spelling with.
         foreach (var name in paramIdx.Keys) captured.Remove(name);
-        // What the body around this one captured was counted somewhere further out still.
-        if (_storeFrame is { } around)
-            foreach (var name in around.Captured.Keys)
-                if (captured.ContainsKey(name)) captured[name] = CapturedParameterDepth;
-        if (summary != null) summary.DefinedIn = _storeFrame;
+        foreach (var name in captured.Keys.ToList())
+            captured[name] =
+                // What the body around this one captured was counted somewhere further out still.
+                _storeFrame is { } around && around.Captured.ContainsKey(name) ? OuterUnknownIndex
+                : _storeFrame is { } owner && owner.ParamIdx.TryGetValue(name, out int parameter) ? OuterParameterCode(parameter)
+                : OuterCode(captured[name]);
+        if (summary != null)
+        {
+            summary.DefinedIn = _storeFrame;
+            summary.Captures  = captured.Count > 0;
+        }
         return _storeFrame = new StoreFrame
         {
             Summary = summary, Body = body, ParamIdx = paramIdx, RefParamIdxs = refs,
@@ -154,6 +196,7 @@ public sealed partial class TypeChecker
         // functions bound beside it are still in scope. A top-level body reaches nothing that the
         // top level will not still have at the end, so it waits, and is traced only if asked.
         if (frame.Parent != null || frame.Captured.Count > 0) Trace(frame);
+        if (frame.Summary != null) frame.Summary.Known = true;
         _storeFrames.Add(frame);
     }
 
@@ -191,17 +234,61 @@ public sealed partial class TypeChecker
     }
 
     private void NoteCall(
-        FunctionType callee, string display, IReadOnlyList<IExpression> args, IExpression? receiver, int line, int col)
+        FunctionType callee, string display, IReadOnlyList<IExpression> args, IExpression? receiver,
+        int line, int col, IExpression function)
     {
+        var types = args.Select(InferType).ToList();
         var note = new CallNote
         {
             Callee = callee.Stores, Display = display, Args = args, Receiver = receiver,
-            ArgDepths = [.. args.Select(PlaceDepth)],
+            ArgDepths = [.. args.Select((arg, i) =>
+                arg is VariableReference held && TryLookup(held.Name, out var info) ? info!.RabbitDepth
+                : ValueDepthOf(arg, types[i]))],
+            ArgHolds = [.. types.Select(type => IsReferenceType(type) || type is InterfaceType)],
             ReceiverDepth = receiver is null ? 0 : PlaceDepth(receiver),
             CallDepth = _rabbitDepth, Line = line, Column = col, Frame = _storeFrame,
         };
         _callNotes.Add(note);
         _storeFrame?.Calls.Add(note);
+
+        // A function parameter cast anywhere but plainly in its own body, outside every rabbit of
+        // that body, may be cast deeper than where it was handed over.
+        if (function is VariableReference cast && FunctionParameter(cast.Name) is { } castParameter
+            && (!ReferenceEquals(castParameter.Owner, _storeFrame) || _rabbitDepth > 0))
+            castParameter.Owner.Summary?.Wild.Add(castParameter.Index);
+
+        for (int i = 0; i < args.Count; i++)
+        {
+            if (types[i] is not FunctionType handed) continue;
+            // Handed over in a call: judged here, so the note that it was read as a value goes.
+            if (args[i] is VariableReference named)
+            {
+                _functionValues.RemoveAll(v => v.Name == named.Name && v.Line == named.Line && v.Column == named.Column);
+                if (FunctionParameter(named.Name) is { } relayed)
+                {
+                    _parameterValues.RemoveAll(v => v.Line == named.Line && v.Column == named.Column);
+                    if (ReferenceEquals(relayed.Owner, _storeFrame) && _rabbitDepth == 0)
+                        relayed.Owner.Summary?.Relays.Add((relayed.Index, callee.Stores, i));
+                    else
+                        relayed.Owner.Summary?.Wild.Add(relayed.Index);
+                    continue;
+                }
+            }
+            else if (args[i] is LambdaLiteral written)
+                _functionValues.RemoveAll(v => v.Name == "this function" && v.Line == written.Line && v.Column == written.Column);
+            else
+                continue;
+            note.Passes.Add((i, handed.Stores));
+        }
+    }
+
+    /// <summary>The body a name is a function-typed PARAMETER of, looking outward from here.</summary>
+    private (StoreFrame Owner, int Index)? FunctionParameter(string name)
+    {
+        if (!TryLookup(name, out var info) || !info!.IsParameter || info.Type is not FunctionType) return null;
+        for (var frame = _storeFrame; frame != null; frame = frame.Parent)
+            if (frame.ParamIdx.TryGetValue(name, out int index) && index >= 0) return (frame, index);
+        return null;
     }
 
     // What is held in a name is as deep as the name, whatever its type: an object seen through an
@@ -214,7 +301,11 @@ public sealed partial class TypeChecker
     private TypeInfo NoteFunctionValue(TypeInfo info, string name, IExpression expr)
     {
         if (info.Type is FunctionType function && expr is VariableReference named)
+        {
             _functionValues.Add((function.Stores, name, named.Line, named.Column));
+            if (FunctionParameter(name) is { } parameter && parameter.Owner.Summary is { } owner)
+                _parameterValues.Add((owner, parameter.Index, named.Line, named.Column));
+        }
         return info;
     }
 
@@ -274,27 +365,86 @@ public sealed partial class TypeChecker
         foreach (var call in frame.Calls)
         {
             var pairs = PairsOf(call.Callee);
-            if (pairs.Count == 0) continue;
-            Trace(frame);
-            foreach (var (source, target) in pairs)
-                if (PlaceSources(frame, call, source) is { } sources
-                    && PlaceSources(frame, call, target) is { } targets)
-                    yield return (sources, targets, call.Line, call.Column, call.Display);
+            if (pairs.Count > 0)
+            {
+                Trace(frame);
+                foreach (var (source, target) in pairs)
+                    if (PlaceSources(frame, call, call.Callee, source) is { } sources
+                        && PlaceSources(frame, call, call.Callee, target) is { } targets)
+                        yield return (sources, targets, call.Line, call.Column, call.Display);
+            }
+
+            // A function handed over here, judged as though it were cast here on anything the
+            // receiver could cast it on.
+            foreach (var (_, function) in call.Passes)
+            {
+                var stored = PairsOf(function);
+                if (stored.Count == 0) continue;
+                Trace(frame);
+                var reach = ReceiverReach(frame, call);
+                foreach (var (source, target) in stored)
+                    yield return (HandedSide(frame, function, source, reach), HandedSide(frame, function, target, reach),
+                                  call.Line, call.Column, "the function handed to " + call.Display);
+            }
         }
     }
 
+    /// <summary>Everything the receiver of a call could cast a function it is handed on, in the
+    /// terms of the body making the call.</summary>
+    private static HashSet<int> ReceiverReach(StoreFrame frame, CallNote call)
+    {
+        var reach = new HashSet<int> { FreshDepthIndex };
+        for (int i = 0; i < call.Args.Count; i++)
+            if (call.ArgHolds[i]) reach.UnionWith(call.ArgSources![i]);
+        if (call.ReceiverSources != null) reach.UnionWith(call.ReceiverSources);
+        if (call.Callee.Captures)
+        {
+            // What the receiver captured. Written in this body, those are this body's names.
+            if (ReferenceEquals(call.Callee.DefinedIn, frame)) reach.UnionWith(UntracedDepth(frame.RefParamIdxs));
+            else if (ReferenceEquals(call.Callee.DefinedIn, frame.Parent))
+                reach.UnionWith(frame.Captured.Values);
+            else reach.Add(OuterUnknownIndex);
+        }
+        return reach;
+    }
+
+    private static HashSet<int> HandedSide(StoreFrame frame, StoreSummary function, int place, HashSet<int> reach)
+    {
+        if (place == FreshDepthIndex) return [FreshDepthIndex];
+        if (!IsOuter(place)) return reach;
+        return CapturedPlace(frame, function, place);
+    }
+
+    /// <summary>A captured place of some function, in the terms of the body that casts or hands it.</summary>
+    private static HashSet<int> CapturedPlace(StoreFrame frame, StoreSummary function, int place)
+    {
+        if (place == OuterUnknownIndex) return [place];
+        // Written in this body: the name is one of this body's own, a parameter or made here.
+        if (ReferenceEquals(function.DefinedIn, frame))
+            return [IsOuterParameter(place) ? OuterParameterBase - place : FreshDepthIndex];
+        // Written beside this body: the same name, captured by both, the same way.
+        if (ReferenceEquals(function.DefinedIn, frame.Parent)) return [place];
+        return [OuterUnknownIndex];
+    }
+
     /// <summary>What one side of a callee's pair is, in the terms of the body making the call.</summary>
-    private static HashSet<int>? PlaceSources(StoreFrame frame, CallNote call, int place)
+    private static HashSet<int>? PlaceSources(StoreFrame frame, CallNote call, StoreSummary callee, int place)
     {
         if (place == FreshDepthIndex) return [FreshDepthIndex];
         if (place == ReceiverDepthIndex) return call.ReceiverSources;
         if (place >= 0) return place < call.Args.Count ? call.ArgSources![place] : null;
-        // A captured name of the callee's.
-        // Written in this body: the name is one of this body's own, made here.
-        if (ReferenceEquals(call.Callee.DefinedIn, frame)) return [FreshDepthIndex];
-        // Written beside this body: the same name, captured by both, at the same depth.
-        if (ReferenceEquals(call.Callee.DefinedIn, frame.Parent)) return [place];
-        return [OuterUnknownIndex];
+        return CapturedPlace(frame, callee, place);
+    }
+
+    /// <summary>Whether a function may cast this parameter of its own deeper than it was handed it.</summary>
+    private bool IsWild(StoreSummary receiver, int parameter)
+    {
+        if (receiver.Interface is { } interfaceName)
+            return _objectDefs.Values.Any(objectType =>
+                objectType.ConformedInterfaces.Contains(interfaceName)
+                && FindMethodInOtOrPromoted(objectType, receiver.Method!) is { } method
+                && IsWild(method.Stores, parameter));
+        return !receiver.Known || receiver.Wild.Contains(parameter);
     }
 
     private enum StoreVerdict { Nothing, Pair, Refused }
@@ -303,9 +453,11 @@ public sealed partial class TypeChecker
     {
         if (source == target || target == FreshDepthIndex) return StoreVerdict.Nothing;
         bool unknown = source == OuterUnknownIndex || target == OuterUnknownIndex;
-        // Both captured: both depths are known in the body, and CheckRegionStore judged them there.
-        if (IsOuter(source) && IsOuter(target)) return unknown ? StoreVerdict.Refused : StoreVerdict.Nothing;
         if (unknown) return StoreVerdict.Refused;
+        // Both captured, at depths known in the body: CheckRegionStore judged them there. With a
+        // parameter of the body around on either side it is that body's pair, like any other.
+        if (IsOuter(source) && IsOuter(target) && !IsOuterParameter(source) && !IsOuterParameter(target))
+            return StoreVerdict.Nothing;
         return frame.Summary != null || frame.Allowed.Contains((source, target))
             ? StoreVerdict.Pair : StoreVerdict.Refused;
     }
@@ -314,11 +466,19 @@ public sealed partial class TypeChecker
     {
         try
         {
+            // A function parameter read as a value and not simply handed on is kept somewhere.
+            foreach (var (owner, parameter, _, _) in _parameterValues) owner.Wild.Add(parameter);
+
             // What each body stores, to a fixed point: a function that hands its parameter on to
-            // one that stores into it stores into it too.
+            // one that stores into it stores into it too. The same for a function parameter handed
+            // on to a function that casts it deeper.
             for (bool changed = true; changed;)
             {
                 changed = false;
+                foreach (var frame in _storeFrames)
+                    if (frame.Summary is { } relaying)
+                        foreach (var (parameter, to, toParameter) in relaying.Relays)
+                            if (IsWild(to, toParameter)) changed |= relaying.Wild.Add(parameter);
                 foreach (var frame in _storeFrames)
                 {
                     if (frame.Summary is not { } summary) continue;
@@ -345,18 +505,69 @@ public sealed partial class TypeChecker
                         "Each cast of it is checked against what it stores, and a cast through a value "
                       + "does not say which function it reaches",
                         line, column,
-                        "use it without casting it",
-                        "Hold it in a name with 'Define' and cast it by that name.");
+                        "keep it where nothing can follow it",
+                        "Hold it in a name with 'Define' and cast it by that name, or hand it straight to the function that casts it.");
 
             foreach (var call in _callNotes)
+            {
                 foreach (var (source, target) in PairsOf(call.Callee))
                     RefuseAtCall(call, source, target);
+                foreach (var (argument, function) in call.Passes)
+                    RefuseAtPass(call, argument, function);
+            }
         }
         finally
         {
             _storeFrames.Clear();
             _callNotes.Clear();
             _functionValues.Clear();
+            _parameterValues.Clear();
+        }
+    }
+
+    private void RefuseAtPass(CallNote call, int argument, StoreSummary function)
+    {
+        var stored = PairsOf(function);
+        if (stored.Count == 0) return;
+        string receiver = $"{char.ToUpperInvariant(call.Display[0])}{call.Display[1..]}";
+
+        if (IsWild(call.Callee, argument))
+            throw TypeError(
+                "this function stores into what it is given or what is around it, and it is handed to something that may cast it in a shorter-lived region",
+                $"{receiver} casts the function it is given inside a rabbit of its own, or keeps it, or nothing is known of what it does with it",
+                call.Line, call.Column,
+                $"hand it over as argument {argument + 1}",
+                "Hand over a function that gives its result back with 'Return', and store the result here.");
+
+        // As though cast here: what it makes is as deep as this call, and what it is given is as
+        // deep as this call or as any container handed over beside it.
+        bool written = ReferenceEquals(function.DefinedIn, call.Frame);
+        var reach = new List<int> { call.CallDepth };
+        for (int i = 0; i < call.ArgDepths.Length; i++)
+            if (call.ArgHolds[i]) reach.Add(call.ArgDepths[i]);
+        if (call.Receiver != null) reach.Add(call.ReceiverDepth);
+        // What the receiver captured is no deeper than where the receiver was written.
+        if (call.Callee.Captures) reach.Add(0);
+
+        (int Deepest, int Shallowest)? DepthsOf(int place) =>
+            place == FreshDepthIndex ? (call.CallDepth, call.CallDepth)
+            : !IsOuter(place) ? (reach.Max(), reach.Min())
+            : written && place != OuterUnknownIndex ? (OuterDepth(place), OuterDepth(place))
+            : null;
+
+        foreach (var (source, target) in stored)
+        {
+            if (target == FreshDepthIndex) continue;
+            if (DepthsOf(source) is not { } from || DepthsOf(target) is not { } into
+                || from.Deepest <= into.Shallowest) continue;
+            throw TypeError(
+                "this value lives in a shorter-lived region than its destination — it will be gone when that region ends",
+                $"The function handed to {call.Display} stores {PlaceName(source)} into {PlaceName(target)}, "
+              + $"and {call.Display} can cast it on anything it is given here or makes here",
+                call.Line, call.Column,
+                $"hand it over as argument {argument + 1}, inside a region, with a container from outside that region in reach",
+                "Declare the container inside that region too, so both end at its 'Done.', "
+              + "or make the cast before the region opens.");
         }
     }
 
@@ -393,7 +604,7 @@ public sealed partial class TypeChecker
             place == FreshDepthIndex ? call.CallDepth
             : place == ReceiverDepthIndex ? (call.Receiver is null ? null : call.ReceiverDepth)
             : place >= 0 ? (place < call.ArgDepths.Length ? call.ArgDepths[place] : null)
-            : written && place != OuterUnknownIndex ? OuterDepthIndex - place
+            : written && place != OuterUnknownIndex ? OuterDepth(place)
             : null;
 
         if (DepthOf(source) is not { } from || DepthOf(target) is not { } into || from <= into) return;
