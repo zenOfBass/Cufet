@@ -237,6 +237,17 @@ public sealed class FunctionType : CufetType
     // Not part of type equality — same signature with different depth signatures are still the same type.
     public IReadOnlyList<int>? ReturnDepthSignature { get; set; } = null;
 
+    /// <summary>What the function's body stores into what it was given. See TypeChecker.Stores.cs.</summary>
+    /// <remarks>
+    /// One object shared by every COPY of this type (ResolveParamType and the rebuilders copy a
+    /// function type freely), because it is filled in after the calls that will ask it have been
+    /// checked. Not part of equality, as the depth signature is not.
+    /// </remarks>
+    // ⚠ The setter is internal so that the tree printer the parity tests compare with, which shows
+    // every publicly settable property that holds something, leaves it out: it is this checker's
+    // working, not part of the tree.
+    public StoreSummary Stores { get; internal set; } = new();
+
     /// <summary>What the parameters are CALLED, when this type came from a declaration.</summary>
     /// <remarks>
     /// <para>
@@ -1153,6 +1164,9 @@ public sealed partial class TypeChecker
     // Index -2: the return may be something the callee MADE, which lives in whatever region the
     // call was made in. See ComputeReturnDepthSignature.
     private const int FreshDepthIndex = -2;
+    // Index -3, in the sets the store rule works with and nowhere else: a name the body CAPTURED
+    // from the function around it (or, for a function value, from wherever it was written).
+    private const int OuterDepthIndex = -3;
 
     // Assigned to captured reference-type parameters in nested function scopes.
     // Parameters are always registered at RabbitDepth=0 (the function's own perspective),
@@ -1348,6 +1362,9 @@ public sealed partial class TypeChecker
         Pass2HoistSharedConstants(program); // top-level `permanently` — visible to bodies checked below
         Pass2CheckOverloads(program); // body-check all overloads; populates _overloadReturnTypes
         CheckBlock(program.Statements);
+        // Every body has been checked, so what each function stores is known whatever order they
+        // were written in. See TypeChecker.Stores.cs.
+        CheckStoresAtCalls();
 
         // ⚠ HERE, not at each pull. Every module body has now been checked, so every module's needs
         // are known — including a module defined after the block that pulls it, which is the order
@@ -3217,6 +3234,10 @@ public sealed partial class TypeChecker
                 if (funcType != null)
                 {
                     ValidateCastArgs(funcType, displayName, declLine, argsToValidate, cs.Line, cs.Column);
+                    NoteCall(funcType, displayName, argsToValidate,
+                             argsToValidate.Count < cs.Args.Count ? cs.Args[0]
+                             : cs.Function is PossessiveAccess calledOn ? calledOn.Target : null,
+                             cs.Line, cs.Column);
                     if (cs.PassesFailureOff)
                         CheckPassOffStatement(cs, funcType, displayName);
                     else if (!_inTryBlock && funcType.ReturnType is FailureType)
@@ -3521,6 +3542,11 @@ public sealed partial class TypeChecker
         // Region invariant: don't let a shorter-lived reference escape into longer-lived storage.
         CheckRegionStore(becomes.Value, rhsType, existing.RabbitDepth, becomes.Line, becomes.Column,
             $"reassign '{becomes.Name}' to a value from a shorter-lived region");
+        // A name of the function's own is only pointed somewhere else. A CAPTURED one is a place
+        // outside the function, and giving it a value is a store into that place.
+        if (_storeFrame is { } frame && frame.Captured.Contains(becomes.Name))
+            NoteStore(becomes.Value, rhsType, new VariableReference(becomes.Name, becomes.Line, becomes.Column),
+                      becomes.Line, becomes.Column);
         // ESC.1 — annotate (never reject) so the compiler can copy an escaping value outward.
         becomes.EscapeToDepth = EscapeDepthFor(becomes.Value, rhsType, existing.RabbitDepth);
     }
@@ -3883,7 +3909,7 @@ public sealed partial class TypeChecker
                                             && ati.Type is AxiomType { ReturnType: null } axiomInfo
                                             && !IsSourceValue(axiomInfo)
                                                                                                  => throw AxiomUsedAsValue(an, axiomInfo, expr),
-        VariableReference { Name: var n } when TryLookup(n, out var ti)                                  => NoteModuleUse(n, ti),
+        VariableReference { Name: var n } when TryLookup(n, out var ti)                                  => NoteModuleUse(n, NoteFunctionValue(ti, n, expr)),
         VariableReference hv when _hiddenTopLevelData.Contains(hv.Name)                                  => throw HiddenTopLevelDataError(hv),
         VariableReference vr                                                                              => NoteUnresolvedName(vr),
         SeriesLiteral lit                                                                                => InferSeriesLiteral(lit),

@@ -50,7 +50,22 @@ public sealed partial class TypeChecker
     private IReadOnlyList<int> ReturnDepthsOf(
         IReadOnlyList<IStatement> body, Dictionary<string, int> paramIdx, HashSet<int> refParamIdxs)
     {
-        var nodes = new List<object>();
+        var localDepths = LocalDepthsOf(body, paramIdx, refParamIdxs, null, out var nodes);
+        var result = new HashSet<int>();
+        foreach (var node in nodes)
+            if (node is ReturnStatement { Value: { } returned })
+                result.UnionWith(SymbolicExprDepth(returned, paramIdx, refParamIdxs, localDepths));
+        return result.OrderBy(x => x).ToList();
+    }
+
+    /// <summary>Where each name a body gives a value to can come from.</summary>
+    /// <remarks><paramref name="captured"/> is null for the return signature and the body's captured
+    /// names for the store rule; see SymbolicExprDepth.</remarks>
+    private Dictionary<string, HashSet<int>> LocalDepthsOf(
+        IReadOnlyList<IStatement> body, Dictionary<string, int> paramIdx, HashSet<int> refParamIdxs,
+        HashSet<string>? captured, out List<object> nodes)
+    {
+        nodes = new List<object>();
         CollectDepthNodes(body, nodes);
 
         // Every name the body gives a value to starts EMPTY, so that a name read before the walk
@@ -69,16 +84,11 @@ public sealed partial class TypeChecker
             {
                 if (DepthTargetOf(node) is not { } target) continue;
                 var into = localDepths[target.Name];
-                foreach (var i in SymbolicExprDepth(target.Value, paramIdx, refParamIdxs, localDepths))
+                foreach (var i in SymbolicExprDepth(target.Value, paramIdx, refParamIdxs, localDepths, captured))
                     changed |= into.Add(i);
             }
         }
-
-        var result = new HashSet<int>();
-        foreach (var node in nodes)
-            if (node is ReturnStatement { Value: { } returned })
-                result.UnionWith(SymbolicExprDepth(returned, paramIdx, refParamIdxs, localDepths));
-        return result.OrderBy(x => x).ToList();
+        return localDepths;
     }
 
     /// <summary>The name a statement gives a value to, and the value — or null when it gives none.</summary>
@@ -117,8 +127,12 @@ public sealed partial class TypeChecker
     }
 
     // Everything this walk cannot trace: it may be any reference-typed parameter, or fresh.
-    private static HashSet<int> UntracedDepth(HashSet<int> refParamIdxs) =>
-        new(refParamIdxs) { FreshDepthIndex };
+    private static HashSet<int> UntracedDepth(HashSet<int> refParamIdxs, HashSet<string>? captured = null)
+    {
+        var all = new HashSet<int>(refParamIdxs) { FreshDepthIndex };
+        if (captured is { Count: > 0 }) all.Add(OuterDepthIndex);
+        return all;
+    }
 
     // The set of depth sources an expression's value may come from. Empty = it lives outside every
     // region there is (a top-level constant, or no reference at all).
@@ -126,13 +140,23 @@ public sealed partial class TypeChecker
         IExpression                      expr,
         Dictionary<string, int>          paramIdx,
         HashSet<int>                     refParamIdxs,
-        Dictionary<string, HashSet<int>> localDepths)
+        Dictionary<string, HashSet<int>> localDepths,
+        // The store rule's addition. A captured name is OuterDepthIndex, and stays that even where
+        // the body gives it a new value. The return signature passes null and is as it was: there a
+        // captured name is untraced, which a call site reads as "as deep as the call".
+        HashSet<string>?                 captured = null)
     {
         switch (expr)
         {
             case VariableReference vr:
                 if (paramIdx.TryGetValue(vr.Name, out var pi))
                     return refParamIdxs.Contains(pi) ? [pi] : [];
+                if (captured != null && captured.Contains(vr.Name))
+                {
+                    var outer = new HashSet<int> { OuterDepthIndex };
+                    if (localDepths.TryGetValue(vr.Name, out var given)) outer.UnionWith(given);
+                    return outer;
+                }
                 if (localDepths.TryGetValue(vr.Name, out var ld))
                     return new HashSet<int>(ld);   // copy to avoid aliasing
                 // A top-level constant is made before any region opens, and it is all a function's
@@ -140,7 +164,7 @@ public sealed partial class TypeChecker
                 // function, or bound by a statement this walk does not model — is not traced.
                 if (TryLookup(vr.Name, out var seen) && seen!.Permanent && !seen.IsParameter)
                     return [];
-                return UntracedDepth(refParamIdxs);
+                return UntracedDepth(refParamIdxs, captured);
 
             case CastExpression cast:
                 if (cast.Function is VariableReference funcVr
@@ -156,28 +180,33 @@ public sealed partial class TypeChecker
                         else if (cpIdx == ReceiverDepthIndex)
                             // Which argument was the receiver is settled by dispatch, not here.
                             foreach (var arg in cast.Args)
-                                r.UnionWith(SymbolicExprDepth(arg, paramIdx, refParamIdxs, localDepths));
+                                r.UnionWith(SymbolicExprDepth(arg, paramIdx, refParamIdxs, localDepths, captured));
                         else if (cpIdx < cast.Args.Count)
-                            r.UnionWith(SymbolicExprDepth(cast.Args[cpIdx], paramIdx, refParamIdxs, localDepths));
+                            r.UnionWith(SymbolicExprDepth(cast.Args[cpIdx], paramIdx, refParamIdxs, localDepths, captured));
                     }
                     return r;
                 }
                 // No signature: a recursive call before its own is known, a method reached some
                 // other way, a function VALUE. Not traced.
-                return UntracedDepth(refParamIdxs);
+                return UntracedDepth(refParamIdxs, captured);
 
             case SeriesAccess sa:
                 // Element depth = series depth (elements are references inside the series).
-                return SymbolicExprDepth(sa.Target, paramIdx, refParamIdxs, localDepths);
+                return SymbolicExprDepth(sa.Target, paramIdx, refParamIdxs, localDepths, captured);
 
             case MapLookup ml:
                 // Value depth = map depth.
-                return SymbolicExprDepth(ml.Map, paramIdx, refParamIdxs, localDepths);
+                return SymbolicExprDepth(ml.Map, paramIdx, refParamIdxs, localDepths, captured);
 
             case PossessiveAccess pa:
                 // Field depth = object depth (conservative — the field might be value-typed,
                 // but we can't check that here without full type resolution).
-                return SymbolicExprDepth(pa.Target, paramIdx, refParamIdxs, localDepths);
+                return SymbolicExprDepth(pa.Target, paramIdx, refParamIdxs, localDepths, captured);
+
+            case RecordNamedAccess rna when captured != null:
+                // `the items of bag`, the other spelling of the access above. For the store rule
+                // only: the return signature leaves it untraced, as it always has.
+                return SymbolicExprDepth(rna.Record, paramIdx, refParamIdxs, localDepths, captured);
 
             case SeriesLiteral or MapLiteral or MatrixLiteral or MatrixSized or RangeExpression or ChannelCreation:
                 // Made here, which is wherever the caller is. Whatever was put IN it is no deeper.
@@ -188,7 +217,7 @@ public sealed partial class TypeChecker
                 // depth-0 return. A depth-0 return is the unsound answer, so a missed flow has to
                 // cost a refusal instead. An object literal lands here deliberately: it is a value
                 // that holds whatever its fields were given.
-                return UntracedDepth(refParamIdxs);
+                return UntracedDepth(refParamIdxs, captured);
         }
     }
 
@@ -311,10 +340,15 @@ public sealed partial class TypeChecker
         _expectedReturnType       = ResolvedDeclaredType(bind.ReturnType);
         _functionDeclarationLine  = bind.Line;
         _rabbitDepth              = 0; // function bodies start outside any rabbit region
+        var storeFrame = OpenStoreFrame(
+            TryLookup(bind.Name, out var ownInfo) && ownInfo!.Type is FunctionType ownType ? ownType.Stores : null,
+            bind.Body, bind.Parameters.Select(p => (p.Name, (CufetType?)ResolveParamType(p.Type))), false,
+            isNested ? CapturedNames(saved.V) : []);
 
         try
         {
             CheckBlock(bind.Body);
+            CloseStoreFrame(storeFrame);
 
             // Compute return-depth signature so call sites can propagate rabbit depth through
             // function calls instead of treating every return as depth-0.
@@ -338,6 +372,7 @@ public sealed partial class TypeChecker
             _rabbitDepth              = prevRabbitDepth;
             _hiddenTopLevelData       = prevHidden;
             _recordingStashFn         = prevRecordingStash;
+            _storeFrame               = storeFrame.Parent;
             RestoreScopes(saved);
         }
 
@@ -424,14 +459,19 @@ public sealed partial class TypeChecker
         _inferringLambdaReturn    = true;
         _rabbitDepth              = 0; // lambda bodies start outside any rabbit region
         _overloadBodyIsFallible   = false; // nested lambdas are standalone, not part of the overload
+        var storeFrame = OpenStoreFrame(
+            null, lambda.Body, lambda.Parameters.Select(p => (p.Name, (CufetType?)ResolveParamType(p.Type))), false,
+            CapturedNames(saved.V));
 
         CufetType? inferredReturn = null;
         try
         {
             CheckBlock(lambda.Body);
+            CloseStoreFrame(storeFrame);
         }
         finally
         {
+            _storeFrame              = storeFrame.Parent;
             _inFunction              = prevInFunction;
             _functionDeclarationLine = prevFunctionLine;
             _inferringLambdaReturn   = prevInferring;
@@ -769,6 +809,10 @@ public sealed partial class TypeChecker
         if (funcType == null) return null;
 
         ValidateCastArgs(funcType, displayName, declLine, argsToValidate, cast.Line, cast.Column);
+        NoteCall(funcType, displayName, argsToValidate,
+                 argsToValidate.Count < cast.Args.Count ? cast.Args[0]
+                 : cast.Function is PossessiveAccess calledOn ? calledOn.Target : null,
+                 cast.Line, cast.Column);
 
         if (funcType.ReturnType == null)
             throw TypeError(
@@ -1013,7 +1057,8 @@ public sealed partial class TypeChecker
         {
             var ifaceSig = ifaceDef.Methods.FirstOrDefault(m => m.MethodName == name);
             if (ifaceSig == default) return null;
-            return (new FunctionType(ifaceSig.ParamTypes, ifaceSig.ReturnType),
+            return (new FunctionType(ifaceSig.ParamTypes, ifaceSig.ReturnType)
+                        { Stores = new StoreSummary { Interface = ifaceT.Name, Method = name } },
                     $"method '{name}' on interface '{ifaceT.Name}'", callLine);
         }
 
@@ -1371,7 +1416,8 @@ public sealed partial class TypeChecker
                                     ft.ParameterTypes.Select(ResolveParamType).ToList(),
                                     ft.ReturnType is null ? null : ResolveParamType(ft.ReturnType))
                                    { ParameterNames = ft.ParameterNames,
-                                     ReturnDepthSignature = ft.ReturnDepthSignature },
+                                     ReturnDepthSignature = ft.ReturnDepthSignature,
+                                     Stores = ft.Stores },
         ReadableStreamType rst  => new ReadableStreamType(ResolveParamType(rst.ElementType)),
         WritableStreamType wst  => new WritableStreamType(ResolveParamType(wst.ElementType)),
         UnionType { Cases: { } cases } => new UnionType(cases.Select(ResolveParamType).ToList()),

@@ -42,7 +42,7 @@ public sealed partial class TypeChecker
                     null, stmt.Line, stmt.Column,
                     $"set '{stmt.Member}' to a {FormatType(valueType)}",
                     $"The setter for '{stmt.Member}' accepts a {FormatType(setterSig.Value.ParamType)}.");
-            CheckRegionStore(stmt.Value, InferType(stmt.Value), ContainerDepthOf(stmt.Target), stmt.Line, stmt.Column,
+            CheckRegionStore(stmt.Value, InferType(stmt.Value), stmt.Target, stmt.Line, stmt.Column,
                 $"set '{stmt.Member}' to a value from a shorter-lived region than the object");
             stmt.EscapeToDepth = EscapeDepthFor(stmt.Value, InferType(stmt.Value), ContainerDepthOf(stmt.Target));
             return;
@@ -52,7 +52,7 @@ public sealed partial class TypeChecker
         CheckObjectNamedSet(ot, stmt.Member, stmt.Value, stmt.Line, stmt.Column);
         // Region invariant: the value being stored cannot outlive the object's rabbit region.
         var valType = InferType(stmt.Value);
-        CheckRegionStore(stmt.Value, valType, ContainerDepthOf(stmt.Target), stmt.Line, stmt.Column,
+        CheckRegionStore(stmt.Value, valType, stmt.Target, stmt.Line, stmt.Column,
             $"set '{stmt.Member}' to a value from a shorter-lived region than the object");
         stmt.EscapeToDepth = EscapeDepthFor(stmt.Value, valType, ContainerDepthOf(stmt.Target));
     }
@@ -633,10 +633,14 @@ public sealed partial class TypeChecker
         _expectedReturnType      = method.ReturnType;
         _functionDeclarationLine = method.Line;
         _rabbitDepth             = 0; // method bodies start outside any rabbit region
+        var storeFrame = OpenStoreFrame(
+            FindMethodInOtOrPromoted(objType, method.Name)?.Stores,
+            method.Body, method.Parameters.Select(p => (p.Name, (CufetType?)ResolveParamType(p.Type))), true, []);
 
         try
         {
             CheckBlock(method.Body);
+            CloseStoreFrame(storeFrame);
 
             // Compute and store the method's return-depth signature so call sites can
             // propagate rabbit depth through method calls instead of treating every return as depth-0.
@@ -668,6 +672,7 @@ public sealed partial class TypeChecker
             _rabbitDepth             = prevRabbitDepth;
             _hiddenTopLevelData      = prevHidden;
             _recordingStashFn        = prevRecordingStash;
+            _storeFrame              = storeFrame.Parent;
             RestoreScopes(saved);
         }
     }
@@ -703,10 +708,12 @@ public sealed partial class TypeChecker
         _expectedReturnType      = getter.ReturnType;
         _functionDeclarationLine = getter.Line;
         _rabbitDepth             = 0;
+        var storeFrame = OpenStoreFrame(null, getter.Body, [], true, []);
 
         try
         {
             CheckBlock(getter.Body);
+            CloseStoreFrame(storeFrame);
 
             // Compute and store the getter's return-depth signature.
             if (IsReferenceType(getter.ReturnType))
@@ -725,6 +732,7 @@ public sealed partial class TypeChecker
         }
         finally
         {
+            _storeFrame              = storeFrame.Parent;
             _inFunction              = prevInFunction;
             _expectedReturnType      = prevReturnType;
             _functionDeclarationLine = prevFunctionLine;
@@ -757,13 +765,19 @@ public sealed partial class TypeChecker
         _expectedReturnType      = null; // void — setters never return a value
         _functionDeclarationLine = setter.Line;
         _rabbitDepth             = 0;
+        // The one store a setter is FOR, its value into its object, is checked where the field is
+        // set, as the store it is.
+        var storeFrame = OpenStoreFrame(null, setter.Body, [(setter.ParamName, (CufetType?)setter.ParamType)], true, []);
+        storeFrame.Allowed.Add((0, ReceiverDepthIndex));
 
         try
         {
             CheckBlock(setter.Body);
+            CloseStoreFrame(storeFrame);
         }
         finally
         {
+            _storeFrame              = storeFrame.Parent;
             _inFunction              = prevInFunction;
             _expectedReturnType      = prevReturnType;
             _functionDeclarationLine = prevFunctionLine;
@@ -815,10 +829,12 @@ public sealed partial class TypeChecker
         _expectedReturnType      = null; // void — 'return a failure' is caught as "returning a value from void"
         _functionDeclarationLine = ud.Line;
         _rabbitDepth             = 0;
+        var storeFrame = OpenStoreFrame(null, ud.Body, [], true, []);
 
-        try { CheckBlock(ud.Body); }
+        try { CheckBlock(ud.Body); CloseStoreFrame(storeFrame); }
         finally
         {
+            _storeFrame              = storeFrame.Parent;
             _inFunction              = prevInFunction;
             _expectedReturnType      = prevReturnType;
             _functionDeclarationLine = prevFunctionLine;
@@ -1071,7 +1087,10 @@ public sealed partial class TypeChecker
                     ifaceDef.Methods.Count > 0
                         ? $"Available methods: {string.Join(", ", ifaceDef.Methods.Select(m => $"'{m.MethodName}'"))}."
                         : $"Interface '{ifaceT.Name}' declares no methods.");
-            return new FunctionType(ifaceSig.ParamTypes, ifaceSig.ReturnType);
+            var reached = new FunctionType(ifaceSig.ParamTypes, ifaceSig.ReturnType)
+                { Stores = new StoreSummary { Interface = ifaceT.Name, Method = poss.Member } };
+            if (!calledHere) _functionValues.Add((reached.Stores, poss.Member, poss.Line, poss.Column));
+            return reached;
         }
 
         if (targetType is BookType bt)
@@ -1276,10 +1295,13 @@ public sealed partial class TypeChecker
         _rabbitDepth             = 0;
         _inferringLambdaReturn   = true;
         _overloadBodyIsFallible  = isFallible;
+        var storeFrame = OpenStoreFrame(
+            null, oad.Body, [(oad.LeftName, (CufetType?)leftType), (oad.RightName, (CufetType?)rightType)], false, []);
 
         try
         {
             CheckBlock(oad.Body);
+            CloseStoreFrame(storeFrame);
 
             if (!DefinitelyReturns(oad.Body))
                 throw TypeError(
@@ -1291,6 +1313,7 @@ public sealed partial class TypeChecker
         }
         finally
         {
+            _storeFrame              = storeFrame.Parent;
             var inferredReturn       = _expectedReturnType;
             _inFunction              = prevInFunction;
             _expectedReturnType      = prevReturnType;

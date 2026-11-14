@@ -146,7 +146,7 @@ public sealed partial class TypeChecker
                 $"Values in this map must be {FormatTypePlural(mt.ValueType)}.");
 
         // Region invariant: don't store a region-scoped value in a longer-lived map.
-        CheckRegionStore(mapSet.Value, valType, ContainerDepthOf(mapSet.Map), mapSet.Line, mapSet.Column,
+        CheckRegionStore(mapSet.Value, valType, mapSet.Map, mapSet.Line, mapSet.Column,
             "store a region-scoped value in a map that lives in a longer-lived region");
         mapSet.EscapeToDepth = EscapeDepthFor(mapSet.Value, valType, ContainerDepthOf(mapSet.Map));
         // The key is stored too, so it escapes on the same terms as the value (a text key built

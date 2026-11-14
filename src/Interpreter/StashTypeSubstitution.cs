@@ -110,6 +110,7 @@ internal static class StashTypeSubstitution
                 return new FunctionType(parameters, returned)
                     {
                         ReturnDepthSignature = function.ReturnDepthSignature,
+                        Stores = function.Stores,
                         ParameterNames       = function.ParameterNames,
                     };
             }

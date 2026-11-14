@@ -100,6 +100,7 @@ internal static class AstRebuilder
                 return new FunctionType(parameters, returned)
                     {
                         ReturnDepthSignature = function.ReturnDepthSignature,
+                        Stores = function.Stores,
                         // Carried for the same reason: a rebuilt type with its parameter names
                         // dropped would silently stop accepting named arguments at every call.
                         ParameterNames = function.ParameterNames,
