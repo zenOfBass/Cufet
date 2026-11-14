@@ -78,7 +78,9 @@ Pull a book on collections.
         the map from text to series of number getter-signatures,
         the map from text to number call-depths,
         the map from text to number member-depths,
-        the series of map from text to fact bound-below).
+        the series of map from text to fact bound-below,
+        the number store-now,
+        the store-book stores).
 
     /// A pull of a module, remembered with the names visible at it — its needs are verified once
     /// every module's body has been checked, since one may be defined after the block that pulls it.
@@ -364,7 +366,17 @@ Pull a book on collections.
         Done.
         Cast one's hoist-shared-constants on (program) or pass the failure off.
         Cast one's check-overloads on (program) or pass the failure off.
+        // A value typed ahead of its statement may have been refused inside a body and the refusal
+        // set aside; the store rule starts from outside every body all the same.
+        The one's store-now becomes 0.
         Cast one's check-block on (program) or pass the failure off.
+        // Every body has been checked, so what each function stores is known whatever order they
+        // were written in. Not on a pass that filled a template: its filled bodies are checked on
+        // the pass that follows, which judges every cast, these included.
+        If the number of one's instantiated-functions is 0 and the number of one's filled-methods is 0
+                and the number of one's instantiated-objects is 0:
+            Cast one's judge-stores or pass the failure off.
+        Done.
         Cast one's check-pending-pulls or pass the failure off.
         // The templates come out of what is handed on, filled or not — a template's blank names no
         // type — and only then are shells resolved, or a template's own `stack of element` would be.
@@ -1058,6 +1070,7 @@ Pull a book on collections.
         Done.
         Cast one's check-region-store on (value, given-type, cast one's container-depth on (target), at-row,
             "add a region-scoped value to a series in a longer-lived region") or pass the failure off.
+        Cast one's note-store on (value, given-type, target, at-row).
         Cast one's note-escape on (statement, ":EscapeToDepth", value, given-type, cast one's container-depth on (target)).
     Done.
 
@@ -1082,6 +1095,7 @@ Pull a book on collections.
             Done.
             Cast one's check-region-store on (cast field-of on (statement, 3), given-type, cast one's container-depth on (target), at-row,
                 "set an item in a series to a region-scoped value from a shorter-lived region") or pass the failure off.
+            Cast one's note-store on (cast field-of on (statement, 3), given-type, target, at-row).
             Return.
         Done.
         If container's kind is "ObjectType":
@@ -1216,6 +1230,7 @@ Pull a book on collections.
             Done.
         Done.
         Define value-type as cast one's infer on (value) or pass the failure off.
+        If value-type's kind is "FunctionType", cast one's hold-function on (name, at-row, value).
         If value-type's kind is "none":
             Return a failure (cast refusal-of on ("the type of the value for '{name}' can't be determined", "",
                 at-row, "define a variable without a clear starting type",
@@ -1322,6 +1337,14 @@ Pull a book on collections.
         Done.
         Cast one's check-region-store on (value, given-type, existing's depth, at-row,
             "reassign '{name}' to a value from a shorter-lived region") or pass the failure off.
+        // A name of the body's own is only pointed somewhere else. A CAPTURED one is a place
+        // outside the body, and giving it a value is a store into that place.
+        If one's store-now is greater than 0:
+            Define storing-frame as item (one's store-now) of one's stores's frames.
+            If (the entry for name in storing-frame's captured) is not void:
+                Cast one's note-store on (value, given-type, cast named-reference on (name), at-row).
+            Done.
+        Done.
         Cast one's note-escape on (statement, ":EscapeToDepth", value, given-type, existing's depth).
     Done.
 
@@ -1407,7 +1430,9 @@ Pull a book on collections.
             the getter-signatures a map from text to series of number,
             the call-depths a map from text to number,
             the member-depths a map from text to number,
-            the bound-below a series of map from text to fact }.
+            the bound-below a series of map from text to fact,
+            the store-now 0,
+            the stores cast fresh-store-book }.
         Cast walker's register-prelude on (prelude).
         Return walker.
     Done.

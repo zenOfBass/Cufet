@@ -1,0 +1,20 @@
+/*  EXPECTED: REJECTED at type-check, identically by both backends.
+    A function bound inside another stores its argument into the outer function's series; one bound beside it relays to it. Cast inside a rabbit.
+
+    A function written beside another captures the same names the same way, and takes the store over as its own. (docs/SOUNDNESS.md, obligation O4). */
+
+Bind void to run-it:
+    Define sink as a series of series of number.
+    Bind void to tuck, given (the series of number s):
+        Insert s into sink.
+    Done.
+    Bind void to relay, given (the series of number s):
+        Cast tuck on (s).
+    Done.
+    Pull a rabbit.
+        Define inner as a series of number with (1, 2, 3).
+        Cast relay on (inner).
+    Done.
+    State sink.
+Done.
+Cast run-it on ().

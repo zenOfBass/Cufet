@@ -1,0 +1,18 @@
+/*  EXPECTED: REJECTED at type-check, identically by both backends.
+    A helper makes a series and stores it in its argument; a second function hands its own argument on to it. Cast inside a rabbit, on a container from outside.
+
+    What a function makes lies in the region it is cast in. A function that hands its parameter to one
+    that stores into it stores into it too, so the cast of the outer one is refused. (docs/SOUNDNESS.md, obligation O4). */
+
+Bind void to push-into, given (the series of series of number bag):
+    Define fresh as a series of number with (1, 2, 3).
+    Insert fresh into bag.
+Done.
+Bind void to relay, given (the series of series of number bag):
+    Cast push-into on (bag).
+Done.
+Define keeper as a series of series of number.
+Pull a rabbit.
+    Cast relay on (keeper).
+Done.
+State keeper.

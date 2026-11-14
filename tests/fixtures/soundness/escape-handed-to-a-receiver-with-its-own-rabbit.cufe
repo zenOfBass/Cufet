@@ -1,0 +1,19 @@
+/*  EXPECTED: REJECTED at type-check, identically by both backends.
+    A storing closure is handed to a function that casts it inside a rabbit of its own.
+
+    The hand-over is judged as though the function were cast there; a receiver that casts it somewhere
+    deeper breaks that, so each function records which function parameters it does that with. (docs/SOUNDNESS.md, obligation O4). */
+
+Bind void to visit, given (the series of series of number rows, the void function work given (the series of number)):
+    Pull a rabbit.
+        Define scratch as a series of number with (9).
+        Cast work on (scratch).
+    Done.
+Done.
+Define rows as a series of series of number.
+Insert (a series of number with (1, 2)) into rows.
+Define collected as a series of series of number.
+Cast visit on (rows, a function given (the series of number row):
+    Insert row into collected.
+Done).
+State collected.

@@ -1,0 +1,21 @@
+/*  EXPECTED: COMPILES and runs; compiled output must match the interpreter.
+
+    The same, with the rows, the series and the hand-over all inside one rabbit.
+
+    Nothing here outlives its region, and nothing is refused: the store is judged where the
+    function is cast or handed over (docs/SOUNDNESS.md, obligation O4). */
+
+Bind void to visit, given (the series of series of number rows, the void function work given (the series of number)):
+    For each row in rows, repeat:
+        Cast work on (row).
+    Done.
+Done.
+Pull a rabbit.
+    Define rows as a series of series of number.
+    Insert (a series of number with (1, 2)) into rows.
+    Define collected as a series of series of number.
+    Cast visit on (rows, a function given (the series of number row):
+        Insert row into collected.
+    Done).
+    State collected.
+Done.

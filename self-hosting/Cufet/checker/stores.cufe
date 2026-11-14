@@ -1,0 +1,974 @@
+/*  What a function stores into what it was given — `src/Interpreter/TypeChecker.Stores.cs`
+    (docs/SOUNDNESS.md, obligation O4).
+
+    ★ Inside a body every parameter has depth 0, and so does everything the body makes. Neither is
+    true where the function is CAST: what it makes lies in the region open at the cast, and what it
+    is given can lie anywhere outside that. So a store between the two is written down in the body,
+    as a PAIR, and judged at each cast, where both depths are known — after every body has been
+    checked, so that a function cast above its own `Bind` is held to the same rule.
+
+    ★ A place in a pair is a number: a parameter's slot from 0, -1 for the object a method is
+    cast on, -2 for something the body makes, and -3 and below for a name the body CAPTURED — its
+    rabbit depth where the body was written (-3 - place), or the parameter it is there
+    (-1000001 - place), or -2147483648 when nothing can say.
+
+    ★ C# hangs what a function stores on its type. Here it is kept under a KEY: `name@line` for a
+    function, `owner's name` for a method, `lambda@row:column` for one with no name,
+    `interface<tab>name<tab>method` for one reached through an interface. A name that holds a
+    function with no name is pointed at that function's key by `held`.
+
+    ⚠ Every set of places is walked in ascending order, and so is every list of pairs: which pair
+    is met first decides which refusal is given, and C# gives the same one.
+*/
+
+Pull a book on collections.
+    Define object store-pair with (the number from-place, the number into-place).
+    Define object store-relay with (the number slot, the text toward, the number toward-position).
+    Define object store-note with (the node value, the node target, the number line,
+        the series of number sources, the series of number targets).
+    Define object store-pass with (the number slot, the text handed).
+    Define object call-note with (the text callee, the text display, the series of node handed-args, the node receiver,
+        the series of number given-depths, the series of fact given-holds, the number receiver-depth,
+        the number call-depth, the number line, the number within,
+        the series of series of number given-sources, the series of number receiver-sources,
+        the series of store-pass passes).
+    Define object store-frame with (the text summary, the fact setter, the node body,
+        the map from text to number positions, the series of number referenced,
+        the map from text to number captured, the number parent,
+        the series of store-note stores, the series of number calls).
+    Define object function-value with (the text stored-as, the text name, the number line, the number column).
+    Define object parameter-value with (the text owner, the number slot, the number line, the number column).
+
+    /// Everything the rule keeps for the length of one check. Each part is a series or a map, so a
+    /// copy of the book still reaches the one set of them.
+    Define object store-book with (
+        the series of store-frame frames,
+        the series of number closed,
+        the map from number to fact traced,
+        the map from text to series of store-pair pairs,
+        the map from text to fact known,
+        the map from text to fact captures,
+        the map from text to number defined-in,
+        the map from text to series of number wild,
+        the map from text to series of store-relay relays,
+        the series of call-note calls,
+        the series of function-value values,
+        the series of parameter-value parameter-values,
+        the map from text to fact taken-back,
+        the map from text to text held).
+
+    Bind store-book to fresh-store-book:
+        Return a new store-book {
+            the frames a series of store-frame,
+            the closed a series of number,
+            the traced a map from number to fact,
+            the pairs a map from text to series of store-pair,
+            the known a map from text to fact,
+            the captures a map from text to fact,
+            the defined-in a map from text to number,
+            the wild a map from text to series of number,
+            the relays a map from text to series of store-relay,
+            the calls a series of call-note,
+            the values a series of function-value,
+            the parameter-values a series of parameter-value,
+            the taken-back a map from text to fact,
+            the held a map from text to text }.
+    Done.
+
+    // ── Places ────────────────────────────────────────────────────────────
+
+    Bind number to outer-unknown:
+        Return -2147483648.
+    Done.
+
+    Bind number to outer-parameter-base:
+        Return -1000001.
+    Done.
+
+    /// The place a captured name at this rabbit depth has in a pair.
+    Bind number to outer-code, given (the number depth):
+        If depth is cast captured-parameter-depth, return cast outer-unknown.
+        Return -3 - depth.
+    Done.
+
+    Bind fact to is-outer, given (the number place):
+        Return place is less than -2.
+    Done.
+
+    Bind fact to is-outer-parameter, given (the number place):
+        Return place is less than cast outer-parameter-base + 2 and place is not cast outer-unknown.
+    Done.
+
+    /// The rabbit depth a captured place has in the body it was captured from.
+    Bind number to outer-depth, given (the number place):
+        If cast is-outer-parameter on (place), return 0.
+        Return -3 - place.
+    Done.
+
+    /// The same numbers, smallest first.
+    Bind series of number to places-in-order, given (the series of number numbers):
+        Define sorted-out as a series of number.
+        Define taken as a series of fact.
+        For each one-number in numbers, repeat:
+            Insert false into taken.
+        Done.
+        Define round as 0.
+        While round is less than the number of numbers, repeat:
+            Increment round by 1.
+            Define best as 0.
+            Define spot as 0.
+            While spot is less than the number of numbers, repeat:
+                Increment spot by 1.
+                If item spot of taken is false:
+                    If best is 0, the best becomes spot.
+                    Otherwise if item spot of numbers is less than item best of numbers, the best becomes spot.
+                Done.
+            Done.
+            Insert item best of numbers into sorted-out.
+            Item best of taken becomes true.
+        Done.
+        Return sorted-out.
+    Done.
+
+    /// The same pairs, by where they come from and then by where they go.
+    Bind series of store-pair to pairs-in-order, given (the series of store-pair listed-pairs):
+        Define sorted-out as a series of store-pair.
+        Define taken as a series of fact.
+        For each one-pair in listed-pairs, repeat:
+            Insert false into taken.
+        Done.
+        Define round as 0.
+        While round is less than the number of listed-pairs, repeat:
+            Increment round by 1.
+            Define best as 0.
+            Define spot as 0.
+            While spot is less than the number of listed-pairs, repeat:
+                Increment spot by 1.
+                If item spot of taken is false:
+                    If best is 0, the best becomes spot.
+                    Otherwise:
+                        Define this-pair as item spot of listed-pairs.
+                        Define leading as item best of listed-pairs.
+                        If this-pair's from-place is less than leading's from-place, the best becomes spot.
+                        Otherwise if this-pair's from-place is leading's from-place and this-pair's into-place is less than leading's into-place:
+                            The best becomes spot.
+                        Done.
+                    Done.
+                Done.
+            Done.
+            Insert item best of listed-pairs into sorted-out.
+            Item best of taken becomes true.
+        Done.
+        Return sorted-out.
+    Done.
+
+    Bind fact to holds-pair, given (the series of store-pair listed-pairs, the number from-place, the number into-place):
+        For each one-pair in listed-pairs, repeat:
+            If one-pair's from-place is from-place and one-pair's into-place is into-place, return true.
+        Done.
+        Return false.
+    Done.
+
+    // ── Frames ────────────────────────────────────────────────────────────
+
+    /// The names a body written inside another can reach that are not its own, each with its
+    /// rabbit depth there — a parameter's is the one that says "nothing can say".
+    Bind map from text to number to captured-names, given (the series of map from text to binding enclosing):
+        Define names as a map from text to number.
+        For each scope in enclosing, repeat:
+            For each pair in scope, repeat:
+                Define held as the value of pair.
+                If held's shape's kind is not "FunctionType" and held's permanent is false:
+                    If held's parameter, in names, the entry for (the key of pair) becomes cast captured-parameter-depth.
+                    Otherwise, in names, the entry for (the key of pair) becomes held's depth.
+                Done.
+            Done.
+        Done.
+        Return names.
+    Done.
+
+    /// Begins a body. `summary` is the key its pairs go under, or "" for a body no cast can ask;
+    /// `parameters` is a list of `[<type> <name>]`; `reached` is what `captured-names` gave, or
+    /// an empty map for a body that captures nothing. Gives back the frame to go back to.
+    Bind number to open-store-frame unto checker, given (the text summary, the fact setter, the node body,
+            the node parameters, the fact with-receiver, the map from text to number reached):
+        Define positions as a map from text to number.
+        Define referenced as a series of number.
+        Define index as 0.
+        For each parameter in parameters's children, repeat:
+            Define taken as cast one's resolved on (cast field-of on (parameter, 1)).
+            In positions, the entry for cast unquoted on (cast field-of on (parameter, 2)) becomes index.
+            If cast is-reference-type on (taken) or taken's kind is "InterfaceType", insert index into referenced.
+            Increment index by 1.
+        Done.
+        If with-receiver:
+            In positions, the entry for "one" becomes -1.
+            Insert -1 into referenced.
+        Done.
+        Define around as one's store-now.
+        Define captured as a map from text to number.
+        For each pair in reached, repeat:
+            Define name as the key of pair.
+            // A parameter hides a captured name it shares a spelling with.
+            If (the entry for name in positions) is void:
+                Define placed-as as cast outer-code on (the value of pair).
+                If around is greater than 0:
+                    Define outside as item around of one's stores's frames.
+                    Define there as the entry for name in outside's positions.
+                    // What the body around this one captured was counted somewhere further out still.
+                    If (the entry for name in outside's captured) is not void, the placed-as becomes cast outer-unknown.
+                    Otherwise if there is not void, the placed-as becomes cast outer-parameter-base - there.
+                Done.
+                In captured, the entry for name becomes placed-as.
+            Done.
+        Done.
+        If summary is not "":
+            In one's stores's defined-in, the entry for summary becomes around.
+            In one's stores's captures, the entry for summary becomes the size of captured is greater than 0.
+            If (the entry for summary in one's stores's pairs) is void:
+                In one's stores's pairs, the entry for summary becomes a series of store-pair.
+                In one's stores's wild, the entry for summary becomes a series of number.
+                In one's stores's relays, the entry for summary becomes a series of store-relay.
+            Done.
+        Done.
+        Insert (a new store-frame { the summary summary, the setter setter, the body body, the positions positions,
+            the referenced referenced, the captured captured, the parent around,
+            the stores a series of store-note, the calls a series of number }) into one's stores's frames.
+        The one's store-now becomes the number of one's stores's frames.
+        Return around.
+    Done.
+
+    /// Ends a body whose check went through, and goes back to the one around it.
+    Bind void to close-store-frame unto checker, given (the number around):
+        Define index as one's store-now.
+        Define frame as item index of one's stores's frames.
+        // A body written inside another is traced NOW, while the names it captured and the
+        // functions bound beside it are still in scope. A top-level body waits, and is traced only
+        // if asked.
+        If frame's parent is greater than 0 or the size of frame's captured is greater than 0, cast one's trace-frame on (index).
+        If frame's summary is not "", in one's stores's known, the entry for frame's summary becomes true.
+        Insert index into one's stores's closed.
+        The one's store-now becomes around.
+    Done.
+
+    /// Where each side of every store and every argument of every cast in a body can come from.
+    Bind void to trace-frame unto checker, given (the number index):
+        If (the entry for index in one's stores's traced) is not void, return.
+        In one's stores's traced, the entry for index becomes true.
+        Define frame as item index of one's stores's frames.
+        If the number of frame's stores is 0 and the number of frame's calls is 0, return.
+        // ⚠ Made out here, one for each argument: a series made inside the rabbit below would
+        // go with it, and these are kept.
+        For each call-index in frame's calls, repeat:
+            Define awaiting as item call-index of one's stores's calls.
+            For each argument in awaiting's handed-args, repeat:
+                Insert (a series of number) into awaiting's given-sources.
+            Done.
+        Done.
+        // What the walk makes on the way goes with this rabbit; the places are numbers, and stay.
+        Pull a rabbit.
+            Define gathered as a series of node.
+            Cast gather-depth-nodes on (frame's body, gathered).
+            Define locals as cast one's local-depths on (gathered, frame's positions, frame's referenced, frame's captured, true).
+            For each store in frame's stores, repeat:
+                For each place in cast one's symbolic-depth on (store's value, frame's positions, frame's referenced, locals, frame's captured, true), repeat:
+                    Insert place into store's sources.
+                Done.
+                For each place in cast one's symbolic-depth on (store's target, frame's positions, frame's referenced, locals, frame's captured, true), repeat:
+                    Insert place into store's targets.
+                Done.
+            Done.
+            For each call-index in frame's calls, repeat:
+                Define noted as item call-index of one's stores's calls.
+                Define spot as 0.
+                For each argument in noted's handed-args, repeat:
+                    Increment spot by 1.
+                    Define reaching as item spot of noted's given-sources.
+                    For each place in cast one's symbolic-depth on (argument, frame's positions, frame's referenced, locals, frame's captured, true), repeat:
+                        Insert place into reaching.
+                    Done.
+                Done.
+                If cast is-none on (noted's receiver) is false:
+                    For each place in cast one's symbolic-depth on (noted's receiver, frame's positions, frame's referenced, locals, frame's captured, true), repeat:
+                        Insert place into noted's receiver-sources.
+                    Done.
+                Done.
+            Done.
+        Done.
+    Done.
+
+    // ── What is written down as a body is checked ─────────────────────────
+
+    /// Whether a value of this type carries a series or a map: itself, or inside it.
+    Bind fact to holds-container unto checker, given (the node shape):
+        Define kind as shape's kind.
+        If kind is "SeriesType" or kind is "MapType" or kind is "MatrixType" or kind is "ChannelType" or kind is "AddressType", return true.
+        If kind is "ObjectType", return cast one's object-holds-container on (cast unquoted on (cast field-of on (shape, 1)), a map from text to fact).
+        Return false.
+    Done.
+
+    Bind fact to object-holds-container unto checker, given (the text name, the map from text to fact seen):
+        // The registered type, since one that was merely written carries no fields.
+        Define definition as cast one's definition-of on (name).
+        If definition is void, return true.
+        If (the entry for name in seen) is not void, return false.
+        In seen, the entry for name becomes true.
+        Define embedded as cast embedded-name on (definition).
+        If embedded is not "":
+            If cast one's object-holds-container on (embedded, seen), return true.
+        Done.
+        For each positional in (cast field-of on (definition, 2))'s children, repeat:
+            If cast one's field-holds-container on (positional, seen), return true.
+        Done.
+        For each pair in (cast field-of on (definition, 3))'s children, repeat:
+            If cast one's field-holds-container on (item 2 of pair's children, seen), return true.
+        Done.
+        Return false.
+    Done.
+
+    Bind fact to field-holds-container unto checker, given (the node shape, the map from text to fact seen):
+        Define kind as shape's kind.
+        If kind is "NumberType" or kind is "BitsType" or kind is "FactType" or kind is "VoidType" or kind is "TextType", return false.
+        If cast is-nothing on (shape) or kind is "none", return false.
+        If kind is "ObjectType", return cast one's object-holds-container on (cast unquoted on (cast field-of on (shape, 1)), seen).
+        If kind is "RecordType":
+            For each part in (cast field-of on (shape, 1))'s children, repeat:
+                If cast one's field-holds-container on (part, seen), return true.
+            Done.
+            For each pair in (cast field-of on (shape, 2))'s children, repeat:
+                If cast one's field-holds-container on (item 2 of pair's children, seen), return true.
+            Done.
+            Return false.
+        Done.
+        If kind is "VoidableType":
+            Define inner as cast field-of on (shape, 1).
+            // A voidable object can be held behind a pointer, which is a thing in a region.
+            If inner's kind is "ObjectType" or inner's kind is "RecordType", return true.
+            Return cast one's field-holds-container on (inner, seen).
+        Done.
+        If kind is "FailureType", return cast one's field-holds-container on (cast field-of on (shape, 1), seen).
+        If kind is "UnionType":
+            If cast is-open-union on (shape), return true.
+            For each member in (cast field-of on (shape, 1))'s children, repeat:
+                If cast one's field-holds-container on (member, seen), return true.
+            Done.
+            Return false.
+        Done.
+        // A series, a map, a function and its captures, and anything not named above.
+        Return true.
+    Done.
+
+    /// A store of something that holds a container, met inside a body.
+    Bind void to note-store unto checker, given (the node value, the node value-type, the node target, the number at-row):
+        If one's store-now is 0, return.
+        If cast one's holds-container on (value-type) is false, return.
+        Define frame as item (one's store-now) of one's stores's frames.
+        Insert (a new store-note { the value value, the target target, the line at-row,
+            the sources a series of number, the targets a series of number }) into frame's stores.
+    Done.
+
+    /// The key what a name's function stores is kept under.
+    Bind text to store-key-of unto checker, given (the text written):
+        Define pointed as the entry for written in one's stores's held.
+        If pointed is not void, return pointed.
+        Return written.
+    Done.
+
+    /// The frame a name is a function-typed PARAMETER of, looking outward from here — or 0.
+    Bind number to function-parameter-frame unto checker, given (the text name):
+        Define found as cast one's look-up on (name).
+        If found is void, return 0.
+        If found's parameter is false or found's shape's kind is not "FunctionType", return 0.
+        Define index as one's store-now.
+        While index is greater than 0, repeat:
+            Define frame as item index of one's stores's frames.
+            Define spot as the entry for name in frame's positions.
+            If spot is not void:
+                If spot is not less than 0, return index.
+            Done.
+            The index becomes frame's parent.
+        Done.
+        Return 0.
+    Done.
+
+    Bind void to mark-wild unto checker, given (the number frame-index, the text name):
+        Define frame as item frame-index of one's stores's frames.
+        If frame's summary is "", return.
+        Define spot as the entry for name in frame's positions but void is 0.
+        Define marked as the entry for frame's summary in one's stores's wild.
+        If marked is not void:
+            If cast holds-number on (marked, spot) is false, insert spot into marked.
+        Done.
+    Done.
+
+    Bind text to value-mark, given (the text name, the number at-row, the number at-column):
+        Return "{name}\t{at-row}\t{at-column}".
+    Done.
+
+    /// A function's name read as a VALUE, not cast. Remembered for the end.
+    Bind void to note-function-value unto checker, given (the node said, the binding found):
+        If found's shape's kind is not "FunctionType", return.
+        Define name as cast unquoted on (cast field-of on (said, 1)).
+        Define at-row as cast number-of on (cast field-of on (said, 2)).
+        Define at-column as cast number-of on (cast field-of on (said, 3)).
+        Insert (a new function-value { the stored-as cast one's store-key-of on ("{name}@{found's line}"), the name name,
+            the line at-row, the column at-column }) into one's stores's values.
+        Define owner as cast one's function-parameter-frame on (name).
+        If owner is greater than 0:
+            Define frame as item owner of one's stores's frames.
+            If frame's summary is not "":
+                Insert (a new parameter-value { the owner frame's summary, the slot the entry for name in frame's positions but void is 0,
+                    the line at-row, the column at-column }) into one's stores's parameter-values.
+            Done.
+        Done.
+    Done.
+
+    /// A function with no name, written where a value goes.
+    Bind void to note-lambda-value unto checker, given (the text stored-as, the number at-row, the number at-column):
+        Insert (a new function-value { the stored-as stored-as, the name "this function",
+            the line at-row, the column at-column }) into one's stores's values.
+    Done.
+
+    /// A function written straight into a name, or given a second one: cast by that name, so the
+    /// note that it was read as a value is taken back — by where it was READ, not by which
+    /// function it is.
+    Bind void to hold-function unto checker, given (the text name, the number at-row, the node value):
+        Define kind as value's kind.
+        If kind is "LambdaLiteral":
+            Define at-line as cast number-of on (cast field-of on (value, 3)).
+            Define at-column as cast number-of on (cast field-of on (value, 4)).
+            In one's stores's taken-back, the entry for cast value-mark on ("this function", at-line, at-column) becomes true.
+            In one's stores's held, the entry for "{name}@{at-row}" becomes "lambda@{at-line}:{at-column}".
+        Done.
+        If kind is "VariableReference":
+            Define other as cast unquoted on (cast field-of on (value, 1)).
+            In one's stores's taken-back, the entry for cast value-mark on (other, cast number-of on (cast field-of on (value, 2)),
+                cast number-of on (cast field-of on (value, 3))) becomes true.
+            Define found as cast one's look-up on (other).
+            If found is not void, in one's stores's held, the entry for "{name}@{at-row}" becomes cast one's store-key-of on ("{other}@{found's line}").
+        Done.
+    Done.
+
+    /// How deep what an argument names lives: a name's depth whatever its type, or its value's.
+    Bind number to place-depth unto checker, given (the node said, the node shape):
+        If said's kind is "VariableReference":
+            Define found as cast one's look-up on (cast unquoted on (cast field-of on (said, 1))).
+            If found is not void, return found's depth.
+        Done.
+        Return cast one's depth-of-value on (said, shape).
+    Done.
+
+    /// A cast, once its arguments have been checked. `handed-args` are its arguments without the
+    /// object a method is cast on, `receiver` that object or `none`, `callee-key` what its callee's
+    /// stores are kept under.
+    /// ⚠ No argument is inferred again here: `check-arguments` left each one's type in `memo`.
+    /// Inferring them a second time doubles the work at every level of a nested cast.
+    Bind void to note-call unto checker, given (the node callee, the text callee-key, the text display,
+            the series of node handed-args, the node receiver, the node receiver-type, the number at-row,
+            the map from text to node memo):
+        Define depths as a series of number.
+        Define holds as a series of fact.
+        Define shapes as a series of node.
+        Define counted as 0.
+        For each argument in handed-args, repeat:
+            Increment counted by 1.
+            Define shape as the entry for "argument {counted}" in memo but void is cast unknown-type.
+            Insert shape into shapes.
+            Insert cast one's place-depth on (argument, shape) into depths.
+            Insert (cast is-reference-type on (shape) or shape's kind is "InterfaceType") into holds.
+        Done.
+        Define receiver-depth as 0.
+        If cast is-none on (receiver) is false, the receiver-depth becomes cast one's place-depth on (receiver, receiver-type).
+        Define passes as a series of store-pass.
+        Insert (a new call-note { the callee callee-key, the display display, the handed-args handed-args, the receiver receiver,
+            the given-depths depths, the given-holds holds, the receiver-depth receiver-depth,
+            the call-depth one's rabbit-depth, the line at-row, the within one's store-now,
+            the given-sources a series of series of number, the receiver-sources a series of number,
+            the passes passes }) into one's stores's calls.
+        If one's store-now is greater than 0:
+            Define frame as item (one's store-now) of one's stores's frames.
+            Insert the number of one's stores's calls into frame's calls.
+        Done.
+
+        // A function parameter cast anywhere but plainly in its own body, outside every rabbit of
+        // that body, may be cast deeper than where it was handed over.
+        If callee's kind is "VariableReference":
+            Define cast-name as cast unquoted on (cast field-of on (callee, 1)).
+            Define cast-owner as cast one's function-parameter-frame on (cast-name).
+            If cast-owner is greater than 0:
+                If cast-owner is not one's store-now or one's rabbit-depth is greater than 0, cast one's mark-wild on (cast-owner, cast-name).
+            Done.
+        Done.
+
+        Define place as 0.
+        For each argument in handed-args, repeat:
+            Increment place by 1.
+            If (item place of shapes)'s kind is "FunctionType":
+                Define kind as argument's kind.
+                If kind is "VariableReference":
+                    Define name as cast unquoted on (cast field-of on (argument, 1)).
+                    Define mark as cast value-mark on (name, cast number-of on (cast field-of on (argument, 2)), cast number-of on (cast field-of on (argument, 3))).
+                    // Handed over in a cast: judged here, so the note that it was read as a value goes.
+                    In one's stores's taken-back, the entry for mark becomes true.
+                    Define relayed as cast one's function-parameter-frame on (name).
+                    If relayed is greater than 0:
+                        In one's stores's taken-back, the entry for "parameter\t{cast number-of on (cast field-of on (argument, 2))}\t{cast number-of on (cast field-of on (argument, 3))}" becomes true.
+                        Define owning as item relayed of one's stores's frames.
+                        If relayed is one's store-now and one's rabbit-depth is 0:
+                            If owning's summary is not "":
+                                Define relays as the entry for owning's summary in one's stores's relays.
+                                If relays is not void:
+                                    Insert (a new store-relay { the slot the entry for name in owning's positions but void is 0,
+                                        the toward callee-key, the toward-position place - 1 }) into relays.
+                                Done.
+                            Done.
+                        Done.
+                        Otherwise, cast one's mark-wild on (relayed, name).
+                    Done.
+                    Otherwise:
+                        Define found as cast one's look-up on (name).
+                        If found is not void:
+                            Insert (a new store-pass { the slot place - 1, the handed cast one's store-key-of on ("{name}@{found's line}") }) into passes.
+                        Done.
+                    Done.
+                Done.
+                If kind is "LambdaLiteral":
+                    Define at-line as cast number-of on (cast field-of on (argument, 3)).
+                    Define at-column as cast number-of on (cast field-of on (argument, 4)).
+                    In one's stores's taken-back, the entry for cast value-mark on ("this function", at-line, at-column) becomes true.
+                    Insert (a new store-pass { the slot place - 1, the handed "lambda@{at-line}:{at-column}" }) into passes.
+                Done.
+            Done.
+        Done.
+    Done.
+
+    // ── Judging, once every body has been checked ─────────────────────────
+
+    /// The names of every object that says it is this interface.
+    Bind series of text to conformers unto checker, given (the text interface-name):
+        Define found as a series of text.
+        For each name in one's def-order, repeat:
+            Define definition as cast one's definition-of on (name).
+            If definition is not void:
+                For each conformed in cast conformed-names on (definition), repeat:
+                    If conformed is interface-name, insert name into found.
+                Done.
+            Done.
+        Done.
+        Return found.
+    Done.
+
+    /// The keys an interface's method stands for: every conforming object's own.
+    Bind series of text to behind-key unto checker, given (the text stored-as):
+        Define keys as a series of text.
+        If stored-as starts with "interface\t" is false:
+            Insert stored-as into keys.
+            Return keys.
+        Done.
+        Define parts as stored-as split by "\t".
+        Define interface-name as item 2 of parts.
+        Define method-name as item 3 of parts.
+        For each owner in cast one's conformers on (interface-name), repeat:
+            If cast one's method-type-of on (owner, method-name) is not void:
+                Insert "{cast one's method-owner on (owner, method-name)}'s {method-name}" into keys.
+            Done.
+        Done.
+        Return keys.
+    Done.
+
+    /// What a function stores, in order.
+    Bind series of store-pair to pairs-of unto checker, given (the text stored-as):
+        Define all-pairs as a series of store-pair.
+        For each one-key in cast one's behind-key on (stored-as), repeat:
+            Define kept as the entry for one-key in one's stores's pairs.
+            If kept is not void:
+                For each one-pair in kept, repeat:
+                    If cast holds-pair on (all-pairs, one-pair's from-place, one-pair's into-place) is false, insert one-pair into all-pairs.
+                Done.
+            Done.
+        Done.
+        Return cast pairs-in-order on (all-pairs).
+    Done.
+
+    /// Whether a function may cast this parameter of its own deeper than it was handed it.
+    Bind fact to is-wild unto checker, given (the text stored-as, the number slot):
+        If stored-as starts with "interface\t":
+            For each one-key in cast one's behind-key on (stored-as), repeat:
+                If cast one's is-wild on (one-key, slot), return true.
+            Done.
+            Return false.
+        Done.
+        If (the entry for stored-as in one's stores's known) is void, return true.
+        Define marked as the entry for stored-as in one's stores's wild.
+        If marked is void, return false.
+        Return cast holds-number on (marked, slot).
+    Done.
+
+    Bind fact to captures-names unto checker, given (the text stored-as):
+        Return (the entry for stored-as in one's stores's captures but void is false).
+    Done.
+
+    /// The frame a function was written in — 0 at the top level, -1 when nothing was written.
+    Bind number to written-in unto checker, given (the text stored-as):
+        Return (the entry for stored-as in one's stores's defined-in but void is -1).
+    Done.
+
+    /// A captured place of some function, in the terms of the body that casts or hands it.
+    Bind series of number to captured-place unto checker, given (the number frame-index, the text stored-as, the number place):
+        If place is cast outer-unknown, return a series with (place).
+        Define frame as item frame-index of one's stores's frames.
+        Define written as cast one's written-in on (stored-as).
+        // Written in this body: the name is one of this body's own, a parameter or made here.
+        If written is frame-index:
+            If cast is-outer-parameter on (place), return a series with (cast outer-parameter-base - place).
+            Return a series with (-2).
+        Done.
+        // Written beside this body: the same name, captured by both, the same way.
+        If written is frame's parent, return a series with (place).
+        Return a series with (cast outer-unknown).
+    Done.
+
+    /// Everything the receiver of a cast could cast a function it is handed on, in the terms of
+    /// the body making the cast.
+    Bind series of number to receiver-reach unto checker, given (the number frame-index, the call-note noted):
+        Define frame as item frame-index of one's stores's frames.
+        Define reach as a series with (-2).
+        Define place as 0.
+        For each reaching in noted's given-sources, repeat:
+            Increment place by 1.
+            If item place of noted's given-holds, cast union-into on (reaching, reach).
+        Done.
+        If cast is-none on (noted's receiver) is false, cast union-into on (noted's receiver-sources, reach).
+        If cast one's captures-names on (noted's callee):
+            Define written as cast one's written-in on (noted's callee).
+            // What the receiver captured. Written in this body, those are this body's names.
+            If written is frame-index, cast union-into on (cast untraced on (frame's referenced, a map from text to number), reach).
+            Otherwise if written is frame's parent:
+                For each pair in frame's captured, repeat:
+                    If cast holds-number on (reach, the value of pair) is false, insert the value of pair into reach.
+                Done.
+            Done.
+            Otherwise if cast holds-number on (reach, cast outer-unknown) is false, insert cast outer-unknown into reach.
+        Done.
+        Return reach.
+    Done.
+
+    /// One store a body makes, by its own hand or through a function it casts: where it may come
+    /// from, where it may go, and how to say it.
+    Define object store-event with (the series of number sources, the series of number targets, the number line, the text by-way-of).
+
+    Bind series of store-event to stores-of unto checker, given (the number frame-index):
+        Define frame as item frame-index of one's stores's frames.
+        Define events as a series of store-event.
+        If the number of frame's stores is greater than 0, cast one's trace-frame on (frame-index).
+        For each store in frame's stores, repeat:
+            Insert (a new store-event { the sources store's sources, the targets store's targets, the line store's line, the by-way-of "" }) into events.
+        Done.
+        For each call-index in frame's calls, repeat:
+            Define noted as item call-index of one's stores's calls.
+            Define stored as cast one's pairs-of on (noted's callee).
+            If the number of stored is greater than 0:
+                Cast one's trace-frame on (frame-index).
+                For each one-pair in stored, repeat:
+                    Define sources as cast one's place-sources on (frame-index, noted, noted's callee, one-pair's from-place).
+                    Define targets as cast one's place-sources on (frame-index, noted, noted's callee, one-pair's into-place).
+                    If sources is not void and targets is not void:
+                        Insert (a new store-event { the sources sources, the targets targets, the line noted's line, the by-way-of noted's display }) into events.
+                    Done.
+                Done.
+            Done.
+            // A function handed over here, judged as though it were cast here on anything the
+            // receiver could cast it on.
+            For each handing in noted's passes, repeat:
+                Define handed-pairs as cast one's pairs-of on (handing's handed).
+                If the number of handed-pairs is greater than 0:
+                    Cast one's trace-frame on (frame-index).
+                    Define reach as cast one's receiver-reach on (frame-index, noted).
+                    For each one-pair in handed-pairs, repeat:
+                        Insert (a new store-event {
+                            the sources cast one's handed-side on (frame-index, handing's handed, one-pair's from-place, reach),
+                            the targets cast one's handed-side on (frame-index, handing's handed, one-pair's into-place, reach),
+                            the line noted's line, the by-way-of "the function handed to {noted's display}" }) into events.
+                    Done.
+                Done.
+            Done.
+        Done.
+        Return events.
+    Done.
+
+    Bind series of number to handed-side unto checker, given (the number frame-index, the text stored-as, the number place, the series of number reach):
+        If place is -2, return a series with (-2).
+        If cast is-outer on (place) is false, return reach.
+        Return cast one's captured-place on (frame-index, stored-as, place).
+    Done.
+
+    /// What one side of a callee's pair is, in the terms of the body making the cast — or void.
+    Bind voidable series of number to place-sources unto checker, given (the number frame-index, the call-note noted,
+            the text stored-as, the number place):
+        If place is -2, return a series with (-2).
+        If place is -1:
+            If cast is-none on (noted's receiver), return void.
+            Return noted's receiver-sources.
+        Done.
+        If place is not less than 0:
+            If place is less than the number of noted's handed-args, return item (place + 1) of noted's given-sources.
+            Return void.
+        Done.
+        Return cast one's captured-place on (frame-index, stored-as, place).
+    Done.
+
+    /// 0: nothing to say. 1: a pair of this body's. 2: refused.
+    Bind number to store-verdict, given (the store-frame frame, the number from-place, the number into-place):
+        If from-place is into-place or into-place is -2, return 0.
+        If from-place is cast outer-unknown or into-place is cast outer-unknown, return 2.
+        // Both captured, at depths known in the body: `check-region-store` judged them there. With
+        // a parameter of the body around on either side it is that body's pair, like any other.
+        If cast is-outer on (from-place) and cast is-outer on (into-place)
+                and cast is-outer-parameter on (from-place) is false and cast is-outer-parameter on (into-place) is false:
+            Return 0.
+        Done.
+        If frame's summary is not "", return 1.
+        // The one store a setter is FOR is checked where the field is set, as the store it is.
+        If frame's setter and from-place is 0 and into-place is -1, return 1.
+        Return 2.
+    Done.
+
+    Bind text to place-name, given (the number place):
+        If place is -2, return "something it makes".
+        If place is -1, return "the object it is cast on".
+        If cast is-outer on (place), return "a name from outside it".
+        Return "argument {place + 1}".
+    Done.
+
+    Bind text to refused-in-body, given (the number from-place, the number into-place, the number at-row, the text by-way-of):
+        Define doing as "this stores".
+        If by-way-of is not "", the doing becomes "this casts {by-way-of}, which stores".
+        If cast is-outer on (from-place) or cast is-outer on (into-place):
+            Return cast refusal-of on (
+                "{doing} between what this function was given or made and a name from outside it, and nothing here can say which of the two lives longer",
+                "That name is a parameter of the function around this one, or comes from further out than that",
+                at-row, "store where the value may not live long enough",
+                "Pass the container in as a parameter, or give the value back with 'Return' and store it where the function is cast.").
+        Done.
+        Return cast refusal-of on (
+            "{doing} a series or an object into something it was given, where no cast can be checked",
+            "A getter, a setter, an operator and an unmaker are not cast, so there is no call to check what they store against",
+            at-row, "store into what it was given",
+            "Do the storing in a method, and cast that.").
+    Done.
+
+    /// The depth one side of a callee's pair has where it is cast, or -1 when there is none to give.
+    Bind number to depth-at-call unto checker, given (the call-note noted, the number place):
+        If place is -2, return noted's call-depth.
+        If place is -1:
+            If cast is-none on (noted's receiver), return -1.
+            Return noted's receiver-depth.
+        Done.
+        If place is not less than 0:
+            If place is less than the number of noted's given-depths, return item (place + 1) of noted's given-depths.
+            Return -1.
+        Done.
+        // A captured depth means something only in the body the callee was written in.
+        If cast one's written-in on (noted's callee) is noted's within and place is not cast outer-unknown, return cast outer-depth on (place).
+        Return -1.
+    Done.
+
+    Bind void or failure to refuse-at-call unto checker, given (the call-note noted, the number from-place, the number into-place):
+        Define coming as cast one's depth-at-call on (noted, from-place).
+        Define going as cast one's depth-at-call on (noted, into-place).
+        If coming is less than 0 or going is less than 0 or coming is not greater than going, return.
+        Define said as "This cast reaches {noted's display}, which stores {cast place-name on (from-place)} into {cast place-name on (into-place)}".
+        Define action as "cast it with a value from a shorter-lived region than the container".
+        If from-place is -2:
+            The said becomes "{said}, and what a function makes lives in the region it is cast in".
+            The action becomes "cast it inside a region, on a container from outside that region".
+        Done.
+        Return a failure (cast refusal-of on (
+            "this value lives in a shorter-lived region than its destination — it will be gone when that region ends",
+            said, noted's line, action,
+            "Declare the container inside that region too, so both end at its 'Done.', or cast it before the region opens.")).
+    Done.
+
+    Bind void or failure to refuse-at-pass unto checker, given (the call-note noted, the store-pass handing):
+        Define stored as cast one's pairs-of on (handing's handed).
+        If the number of stored is 0, return.
+        If cast one's is-wild on (noted's callee, handing's slot):
+            Return a failure (cast refusal-of on (
+                "this function stores into what it is given or what is around it, and it is handed to something that may cast it in a shorter-lived region",
+                "It is handed to {noted's display}, which casts the function it is given inside a rabbit of its own, or keeps it, or has no body to read",
+                noted's line, "hand it over as argument {handing's slot + 1}",
+                "Hand over a function that gives its result back with 'Return', and store the result here.")).
+        Done.
+        // As though cast here: what it makes is as deep as this cast, and what it is given is as
+        // deep as this cast or as any container handed over beside it.
+        Define written as cast one's written-in on (handing's handed) is noted's within.
+        Define deepest as noted's call-depth.
+        Define shallowest as noted's call-depth.
+        Define place as 0.
+        For each depth in noted's given-depths, repeat:
+            Increment place by 1.
+            If item place of noted's given-holds:
+                If depth is greater than deepest, the deepest becomes depth.
+                If depth is less than shallowest, the shallowest becomes depth.
+            Done.
+        Done.
+        If cast is-none on (noted's receiver) is false:
+            If noted's receiver-depth is greater than deepest, the deepest becomes noted's receiver-depth.
+            If noted's receiver-depth is less than shallowest, the shallowest becomes noted's receiver-depth.
+        Done.
+        // What the receiver captured is no deeper than where the receiver was written.
+        If cast one's captures-names on (noted's callee), the shallowest becomes 0.
+
+        For each one-pair in stored, repeat:
+            If one-pair's into-place is not -2:
+                // -1: nothing to compare.
+                Define from-deepest as deepest.
+                If one-pair's from-place is -2, the from-deepest becomes noted's call-depth.
+                If cast is-outer on (one-pair's from-place):
+                    The from-deepest becomes -1.
+                    If written and one-pair's from-place is not cast outer-unknown, the from-deepest becomes cast outer-depth on (one-pair's from-place).
+                Done.
+                Define into-shallowest as shallowest.
+                If cast is-outer on (one-pair's into-place):
+                    The into-shallowest becomes -1.
+                    If written and one-pair's into-place is not cast outer-unknown, the into-shallowest becomes cast outer-depth on (one-pair's into-place).
+                Done.
+                If from-deepest is not less than 0 and into-shallowest is not less than 0 and from-deepest is greater than into-shallowest:
+                    Return a failure (cast refusal-of on (
+                        "this value lives in a shorter-lived region than its destination — it will be gone when that region ends",
+                        "The function handed to {noted's display} stores {cast place-name on (one-pair's from-place)} into {cast place-name on (one-pair's into-place)}, and {noted's display} can cast it on anything it is given here or makes here",
+                        noted's line,
+                        "hand it over as argument {handing's slot + 1}, inside a region, with a container from outside that region in reach",
+                        "Declare the container inside that region too, so both end at its 'Done.', or make the cast before the region opens.")).
+                Done.
+            Done.
+        Done.
+    Done.
+
+    /// Whether a function stores anything at all — asked before any list is built, since most do not.
+    Bind fact to stores-anything unto checker, given (the text stored-as):
+        If stored-as starts with "interface\t":
+            For each one-key in cast one's behind-key on (stored-as), repeat:
+                If cast one's stores-anything on (one-key), return true.
+            Done.
+            Return false.
+        Done.
+        Define kept as the entry for stored-as in one's stores's pairs.
+        If kept is void, return false.
+        Return the number of kept is greater than 0.
+    Done.
+
+    /// Whether a body has any store to judge: one of its own, a cast of a function that stores, or
+    /// a function that stores handed over. ⚠ Most bodies have none, and nothing is built for them:
+    /// over a large program the lists built for every body were a sixth of the checker's memory.
+    Bind fact to has-stores unto checker, given (the store-frame frame):
+        If the number of frame's stores is greater than 0, return true.
+        For each call-index in frame's calls, repeat:
+            Define noted as item call-index of one's stores's calls.
+            If cast one's stores-anything on (noted's callee), return true.
+            For each handing in noted's passes, repeat:
+                If cast one's stores-anything on (handing's handed), return true.
+            Done.
+        Done.
+        Return false.
+    Done.
+
+    /// `CheckStoresAtCalls`: every body has been checked, so what each function stores is known
+    /// whatever order they were written in.
+    Bind void or failure to judge-stores unto checker:
+        // A function parameter read as a value and not simply handed on is kept somewhere.
+        For each noticed in one's stores's parameter-values, repeat:
+            If (the entry for "parameter\t{noticed's line}\t{noticed's column}" in one's stores's taken-back) is void:
+                Define marked as the entry for noticed's owner in one's stores's wild.
+                If marked is not void:
+                    If cast holds-number on (marked, noticed's slot) is false, insert noticed's slot into marked.
+                Done.
+            Done.
+        Done.
+
+        // What each body stores, to a fixed point: a function that hands its parameter on to one
+        // that stores into it stores into it too. The same for a function parameter handed on to a
+        // function that casts it deeper.
+        Define changed as true.
+        While changed, repeat:
+            The changed becomes false.
+            For each frame-index in one's stores's closed, repeat:
+                Define frame as item frame-index of one's stores's frames.
+                If frame's summary is not "":
+                    Define relays as the entry for frame's summary in one's stores's relays.
+                    Define marked as the entry for frame's summary in one's stores's wild.
+                    If relays is not void and marked is not void:
+                        For each relay in relays, repeat:
+                            If cast one's is-wild on (relay's toward, relay's toward-position) and cast holds-number on (marked, relay's slot) is false:
+                                Insert relay's slot into marked.
+                                The changed becomes true.
+                            Done.
+                        Done.
+                    Done.
+                Done.
+            Done.
+            For each frame-index in one's stores's closed, repeat:
+                Define frame as item frame-index of one's stores's frames.
+                If frame's summary is not "" and cast one's has-stores on (frame):
+                    Define kept as the entry for frame's summary in one's stores's pairs.
+                    If kept is not void:
+                        For each event in cast one's stores-of on (frame-index), repeat:
+                            For each from-place in cast places-in-order on (event's sources), repeat:
+                                For each into-place in cast places-in-order on (event's targets), repeat:
+                                    If cast store-verdict on (frame, from-place, into-place) is 1:
+                                        If cast holds-pair on (kept, from-place, into-place) is false:
+                                            Insert (a new store-pair { the from-place from-place, the into-place into-place }) into kept.
+                                            The changed becomes true.
+                                        Done.
+                                    Done.
+                                Done.
+                            Done.
+                        Done.
+                    Done.
+                Done.
+            Done.
+        Done.
+
+        For each frame-index in one's stores's closed, repeat:
+            Define frame as item frame-index of one's stores's frames.
+            If cast one's has-stores on (frame):
+                For each event in cast one's stores-of on (frame-index), repeat:
+                    For each from-place in cast places-in-order on (event's sources), repeat:
+                        For each into-place in cast places-in-order on (event's targets), repeat:
+                            If cast store-verdict on (frame, from-place, into-place) is 2:
+                                Return a failure (cast refused-in-body on (from-place, into-place, event's line, event's by-way-of)).
+                            Done.
+                        Done.
+                    Done.
+                Done.
+            Done.
+        Done.
+
+        For each noticed in one's stores's values, repeat:
+            If (the entry for cast value-mark on (noticed's name, noticed's line, noticed's column) in one's stores's taken-back) is void:
+                If cast one's stores-anything on (noticed's stored-as):
+                    Define naming as "'{noticed's name}'".
+                    If noticed's name is "this function", the naming becomes noticed's name.
+                    Return a failure (cast refusal-of on (
+                        "{naming} stores into what it is given or what is around it, so it cannot be handed on as a value",
+                        "Each cast of it is checked against what it stores, and a cast through a value does not say which function it reaches",
+                        noticed's line, "keep it where nothing can follow it",
+                        "Hold it in a name with 'Define' and cast it by that name, or hand it straight to the function that casts it.")).
+                Done.
+            Done.
+        Done.
+
+        For each noted in one's stores's calls, repeat:
+            If cast one's stores-anything on (noted's callee):
+                For each one-pair in cast one's pairs-of on (noted's callee), repeat:
+                    Cast one's refuse-at-call on (noted, one-pair's from-place, one-pair's into-place) or pass the failure off.
+                Done.
+            Done.
+            For each handing in noted's passes, repeat:
+                If cast one's stores-anything on (handing's handed):
+                    Cast one's refuse-at-pass on (noted, handing) or pass the failure off.
+                Done.
+            Done.
+        Done.
+    Done.
+Done.

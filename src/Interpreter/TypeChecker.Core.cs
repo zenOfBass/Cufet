@@ -1364,7 +1364,11 @@ public sealed partial class TypeChecker
         CheckBlock(program.Statements);
         // Every body has been checked, so what each function stores is known whatever order they
         // were written in. See TypeChecker.Stores.cs.
-        CheckStoresAtCalls();
+        // ⚠ Not on a pass that filled a template: the filled bodies are checked on the pass that
+        // follows (the splice below), and until then a call that reaches one has no body to ask.
+        // That pass meets them as ordinary functions and judges every call, these included.
+        CheckStoresAtCalls(
+            judge: _instantiated.Count == 0 && _instantiatedFunctions.Count == 0 && _instantiatedMethods.Count == 0);
 
         // ⚠ HERE, not at each pull. Every module body has now been checked, so every module's needs
         // are known — including a module defined after the block that pulls it, which is the order
@@ -3412,8 +3416,15 @@ public sealed partial class TypeChecker
         // A function written straight into a name is cast BY that name, so each cast of it can be
         // checked against what it stores. See InferLambdaLiteral.
         // A second name for one is the same: the type it carries is the same function's.
-        if (type is FunctionType heldFunction && define.Value is LambdaLiteral or VariableReference)
-            _functionValues.RemoveAll(value => ReferenceEquals(value.Stores, heldFunction.Stores));
+        // ⚠ By where it was READ, not by which function it is: the same function put into a series
+        // on another line is still kept where nothing follows it.
+        if (type is FunctionType)
+        {
+            if (define.Value is LambdaLiteral written)
+                _functionValues.RemoveAll(v => v.Name == "this function" && v.Line == written.Line && v.Column == written.Column);
+            else if (define.Value is VariableReference named)
+                _functionValues.RemoveAll(v => v.Name == named.Name && v.Line == named.Line && v.Column == named.Column);
+        }
         if (type == null)
             throw TypeError(
                 $"the type of the value for '{define.Name}' can't be determined",
@@ -4626,14 +4637,21 @@ public sealed partial class TypeChecker
         // an inner generator unrecognised, so its missing terminal `Return` was reported
         // as an error in a function that was never going to return.
         if (BuriesValues(bind)) _buryingFunctions.Add(bind.Name);
-        Scope[bind.Name] = new TypeInfo(
-            new FunctionType(paramTypes,
+        var registered = new FunctionType(paramTypes,
                 _buryingFunctions.Contains(bind.Name) && bind.ReturnType != null
                     ? new StashType(bind.ReturnType)
                     : bind.ReturnType)
-            { ParameterNames = bind.Parameters.Select(p => p.Name).ToList() },
-            new VariableReference(bind.Name, 0, 0),
-            bind.Line);
+            { ParameterNames = bind.Parameters.Select(p => p.Name).ToList() };
+        // ⚠ A function written inside a pull's block is hoisted for the whole program AND
+        // registered here, in the block's own scope, so it has two types: one seen from inside the
+        // block, one from every other file. What its body stores has to be one record for both, or
+        // a cast from outside the block reads an empty one and nothing is judged. MEASURED on the
+        // checker written in Cufet, whose every file is such a block: `checked` stored into its
+        // parameter, and its caller in another file was told it stored nothing.
+        if (TryLookup(bind.Name, out var hoisted) && hoisted!.Type is FunctionType sameFunction
+            && hoisted.EstablishingLine == bind.Line)
+            registered.Stores = sameFunction.Stores;
+        Scope[bind.Name] = new TypeInfo(registered, new VariableReference(bind.Name, 0, 0), bind.Line);
     }
 
     /// <summary>Does this guard body leave the rest of the block behind, without returning?</summary>

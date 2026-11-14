@@ -1,0 +1,17 @@
+/*  EXPECTED: REJECTED at type-check, identically by both backends.
+    A named function that stores into its argument is handed to another function, inside a rabbit, beside a container from outside it.
+
+    The same rule for a function with a name. (docs/SOUNDNESS.md, obligation O4). */
+
+Bind void to push-into, given (the series of series of number bag):
+    Define fresh as a series of number with (1, 2, 3).
+    Insert fresh into bag.
+Done.
+Bind void to run-it, given (the void function work given (the series of series of number), the series of series of number bag):
+    Cast work on (bag).
+Done.
+Define keeper as a series of series of number.
+Pull a rabbit.
+    Cast run-it on (push-into, keeper).
+Done.
+State keeper.

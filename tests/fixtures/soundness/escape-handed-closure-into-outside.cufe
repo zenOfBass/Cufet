@@ -1,0 +1,20 @@
+/*  EXPECTED: REJECTED at type-check, identically by both backends.
+    A closure that gathers rows into a captured series is handed to a function, inside a rabbit, with the series outside it.
+
+    A function handed to another is judged where it is handed over, as though it were cast there on
+    anything the receiver is given or makes. The same hand-over outside the rabbit is accepted. (docs/SOUNDNESS.md, obligation O4). */
+
+Bind void to visit, given (the series of series of number rows, the void function work given (the series of number)):
+    For each row in rows, repeat:
+        Cast work on (row).
+    Done.
+Done.
+Define rows as a series of series of number.
+Insert (a series of number with (1, 2)) into rows.
+Define collected as a series of series of number.
+Pull a rabbit.
+    Cast visit on (rows, a function given (the series of number row):
+        Insert row into collected.
+    Done).
+Done.
+State collected.

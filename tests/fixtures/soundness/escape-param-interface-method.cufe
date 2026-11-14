@@ -1,0 +1,19 @@
+/*  EXPECTED: REJECTED at type-check, identically by both backends.
+    The same store, reached through an interface from inside another function.
+
+    A method reached through an interface stands for every conforming object's version. (docs/SOUNDNESS.md, obligation O4). */
+
+Define interface keeper-of-rows for the void function keep, given (the series of number row).
+Define object bag with (the series of series of number items) and keeper-of-rows.
+Bind void to keep unto bag, given (the series of number s):
+    Insert s into one's items.
+Done.
+Bind void to fill, given (the keeper-of-rows target, the series of number row):
+    Cast target's keep on (row).
+Done.
+Define b as a new bag { the items (a series of series of number) }.
+Pull a rabbit.
+    Define inner as a series of number with (1, 2, 3).
+    Cast fill on (b, inner).
+Done.
+State "done".

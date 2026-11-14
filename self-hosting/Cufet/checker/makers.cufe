@@ -104,6 +104,6 @@ Pull a book on collections.
                 "Define 'object {type-name}' before declaring an unmaker for it.")).
         Done.
         Cast one's check-member-body on (type-name, at-row, cast listed, at-row, false, cast nothing,
-            cast field-of on (statement, 3)) or pass the failure off.
+            cast field-of on (statement, 3), "", false) or pass the failure off.
     Done.
 Done.

@@ -346,13 +346,16 @@ public sealed partial class TypeChecker
 
     private List<(int Source, int Target)> PairsOf(StoreSummary summary)
     {
-        if (summary.Interface is not { } interfaceName) return [.. summary.Pairs];
+        // ⚠ In one fixed order, here and wherever a set of places is walked below. Which pair is
+        // met first decides which refusal is given, and the checker written in Cufet has to give
+        // the same one; the order a set happens to hand its members back in is nothing it can copy.
+        if (summary.Interface is not { } interfaceName) return [.. summary.Pairs.Order()];
         var all = new HashSet<(int, int)>();
         foreach (var objectType in _objectDefs.Values)
             if (objectType.ConformedInterfaces.Contains(interfaceName)
                 && FindMethodInOtOrPromoted(objectType, summary.Method!) is { } method)
                 all.UnionWith(method.Stores.Pairs);
-        return [.. all];
+        return [.. all.Order()];
     }
 
     /// <summary>Every store a body makes, by its own hand or through a function it calls.</summary>
@@ -462,10 +465,11 @@ public sealed partial class TypeChecker
             ? StoreVerdict.Pair : StoreVerdict.Refused;
     }
 
-    private void CheckStoresAtCalls()
+    private void CheckStoresAtCalls(bool judge)
     {
         try
         {
+            if (!judge) return;
             // A function parameter read as a value and not simply handed on is kept somewhere.
             foreach (var (owner, parameter, _, _) in _parameterValues) owner.Wild.Add(parameter);
 
@@ -483,8 +487,8 @@ public sealed partial class TypeChecker
                 {
                     if (frame.Summary is not { } summary) continue;
                     foreach (var store in StoresOf(frame).ToList())
-                        foreach (var source in store.Sources)
-                            foreach (var target in store.Targets)
+                        foreach (var source in store.Sources.Order())
+                            foreach (var target in store.Targets.Order())
                                 if (Judge(frame, source, target) == StoreVerdict.Pair)
                                     changed |= summary.Pairs.Add((source, target));
                 }
@@ -492,8 +496,8 @@ public sealed partial class TypeChecker
 
             foreach (var frame in _storeFrames)
                 foreach (var store in StoresOf(frame).ToList())
-                    foreach (var source in store.Sources)
-                        foreach (var target in store.Targets)
+                    foreach (var source in store.Sources.Order())
+                        foreach (var target in store.Targets.Order())
                             if (Judge(frame, source, target) == StoreVerdict.Refused)
                                 throw RefusedInBody(source, target, store.Line, store.Column, store.Through);
 
@@ -529,12 +533,10 @@ public sealed partial class TypeChecker
     {
         var stored = PairsOf(function);
         if (stored.Count == 0) return;
-        string receiver = $"{char.ToUpperInvariant(call.Display[0])}{call.Display[1..]}";
-
         if (IsWild(call.Callee, argument))
             throw TypeError(
                 "this function stores into what it is given or what is around it, and it is handed to something that may cast it in a shorter-lived region",
-                $"{receiver} casts the function it is given inside a rabbit of its own, or keeps it, or nothing is known of what it does with it",
+                $"It is handed to {call.Display}, which casts the function it is given inside a rabbit of its own, or keeps it, or has no body to read",
                 call.Line, call.Column,
                 $"hand it over as argument {argument + 1}",
                 "Hand over a function that gives its result back with 'Return', and store the result here.");
@@ -610,7 +612,7 @@ public sealed partial class TypeChecker
         if (DepthOf(source) is not { } from || DepthOf(target) is not { } into || from <= into) return;
         throw TypeError(
             "this value lives in a shorter-lived region than its destination — it will be gone when that region ends",
-            $"{char.ToUpperInvariant(call.Display[0])}{call.Display[1..]} stores {PlaceName(source)} into {PlaceName(target)}"
+            $"This cast reaches {call.Display}, which stores {PlaceName(source)} into {PlaceName(target)}"
           + (source == FreshDepthIndex ? ", and what a function makes lives in the region it is cast in" : ""),
             call.Line, call.Column,
             source == FreshDepthIndex

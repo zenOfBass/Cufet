@@ -1,0 +1,9 @@
+/*  EXPECTED: REJECTED at type-check, identically by both backends.
+    A function that stores into what it captured is put into a series.
+
+    Nothing follows a function kept in a series, a field, or handed back, so one that stores is refused there. (docs/SOUNDNESS.md, obligation O4). */
+
+Define collected as a series of series of number.
+Define gather as a function given (the series of number row): Insert row into collected. Done.
+Define kept as a series of void function given (the series of number).
+Insert gather into kept.

@@ -163,7 +163,19 @@ Pull a book on collections.
         Insert cast unknown-type into one's expected-returns.
         The one's function-line becomes at-row.
 
+        // Its two operands are its parameters, and an operator is not cast: see `stores.cufe`.
+        Define left-operand as cast listed.
+        Cast left-operand's add on (left).
+        Cast left-operand's add on (cast field-of on (statement, 2)).
+        Define right-operand as cast listed.
+        Cast right-operand's add on (right).
+        Cast right-operand's add on (cast field-of on (statement, 3)).
+        Define operands as cast listed.
+        Cast operands's add on (left-operand).
+        Cast operands's add on (right-operand).
+        Define store-around as cast one's open-store-frame on ("", false, body, operands, false, a map from text to number).
         Cast one's check-block on (body) or pass the failure off.
+        Cast one's close-store-frame on (store-around).
         If cast definitely-returns on (body) is false:
             Return a failure (cast refusal-of on ("the '{left-name} {cast op-symbol on (op)} {right-name}' overload can reach its end without returning a value", "",
                 at-row, "define an operator overload that might not return a value",

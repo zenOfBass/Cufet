@@ -1,0 +1,13 @@
+/*  EXPECTED: REJECTED at type-check, identically by both backends.
+    A function held in a name stores its argument into a series it captured. Cast inside a rabbit, with the row made there and the series outside.
+
+    A captured name's depth is known where the function was written, and the cast is judged against it.
+    The same closure cast outside the rabbit, or on a row from outside it, is accepted. (docs/SOUNDNESS.md, obligation O4). */
+
+Define collected as a series of series of number.
+Define gather as a function given (the series of number row): Insert row into collected. Done.
+Pull a rabbit.
+    Define first as a series of number with (1, 2).
+    Cast gather on (first).
+Done.
+State collected.

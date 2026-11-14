@@ -45,8 +45,8 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   states what the compiled program needs, shows nineteen programs that pass `check` and read freed memory when compiled, traces them to four
   gaps in the rules, and proves a repaired set of rules sound for a core of the language. The programs
   are in `docs/soundness/probes/`, and a model that checks the proof by search is in
-  `docs/soundness/model/`. Two of the four gaps are closed (see Fixed); the other two are rules the
-  checker does not have yet.
+  `docs/soundness/model/`. Three of the four gaps are closed (see Fixed), the third for everything
+  but text. Four of the nineteen programs still read freed memory.
 
 ### Changed
 
@@ -82,6 +82,27 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   held in a name, a call to itself) counts as made. The same check now sees a `Return` inside a
   `Judge` arm, a parameter put into the series or object being returned, and `it` in a `Judge`,
   which lives where its subject does. Both checkers (`docs/SOUNDNESS.md`, obligation O1).
+- **A function could store a rabbit's series into something that outlives the rabbit.** Inside a
+  function every parameter looks equally long-lived, and so does everything the function makes, so
+  `Insert fresh into bag` checked clean in the body however `bag` was passed. Cast inside a rabbit
+  on a `bag` from outside it, the compiled program read `bag` after `Done.` had freed what was put
+  in it. What a function stores into what it is given is now written down as its body is checked,
+  and judged at each cast, where both depths are known: a cast is REFUSED when it would put a
+  shorter-lived series into a longer-lived one, with the usual message, on the line of the cast.
+  - It follows a function that hands its parameter on to one that stores, a method and the object
+    it is cast on, a method reached through an interface, and a function cast above its own `Bind`.
+  - A function with no name, and one bound inside another, may store into the names around them.
+    The cast is judged against where those names live.
+  - A function handed to another function is judged where it is handed over, as though it were
+    cast there. A function that stores nothing is handed on freely. One that stores is refused for
+    a receiver that casts it inside a rabbit of its own.
+  - A function that stores, put into a series or a field or handed back with `Return`, is refused:
+    nothing follows it there.
+  - Only a series, a map, or an object holding one counts. Numbers, and objects of numbers, are
+    stored anywhere. Text is neither refused nor yet copied (`param-3`, `param-5` in the doc).
+
+  Nothing is refused where a function is written, and a program with no rabbit in it is not
+  affected. Both checkers (`docs/SOUNDNESS.md`, obligation O4).
 - **An interpreted task read the names it used when it RAN, not when it was started.** A task
   started inside a loop failed with "'n' isn't defined" once the loop had ended, and a name changed
   after the start was seen changed (`after 3`) where the compiled program saw it as it was

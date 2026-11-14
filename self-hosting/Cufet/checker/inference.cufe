@@ -154,6 +154,7 @@ Pull a book on collections.
                     and cast is-source-value on (found's shape) is false:
                 Return a failure (cast axiom-used-as-value on (name, found's shape, cast number-of on (cast field-of on (said, 2)))).
             Done.
+            Cast one's note-function-value on (said, found).
             Return found's shape.
         Done.
         If (the entry for name in one's hidden) is not void:

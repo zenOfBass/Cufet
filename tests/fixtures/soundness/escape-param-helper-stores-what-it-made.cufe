@@ -1,0 +1,15 @@
+/*  EXPECTED: REJECTED at type-check, identically by both backends.
+    A helper stores one of its arguments into another. Cast inside a rabbit, with the row made there and the container outside.
+
+    What a function stores into what it is given is written down as it is checked, and judged at each
+    cast, where both depths are known. This was accepted: inside the helper both are parameters, at depth 0. (docs/SOUNDNESS.md, obligation O4). */
+
+Bind void to tuck, given (the series of series of number bag, the series of number row):
+    Insert row into bag.
+Done.
+Define keeper as a series of series of number.
+Pull a rabbit.
+    Define row as a series of number with (1, 2).
+    Cast tuck on (keeper, row).
+Done.
+State keeper.

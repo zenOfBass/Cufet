@@ -8,11 +8,11 @@ the `Done.` that freed it?**
 
 **Where it stands.** Yes, still, but less often than at 0.29.0. Nineteen small programs were found
 that pass `cufet check`, run correctly interpreted, and read freed memory when compiled. They come
-from four places where the rules assume something that is not true (section 4). Two of the four
-have been closed. One was closed in the runtime, and six of the nineteen programs are right on
-both backends because of it. One was closed in the checker, and five more are refused by `check`.
-The other eight still read freed memory. Closing them takes two more checker rules, which refuse
-programs, and that has not been done.
+from four places where the rules assume something that is not true (section 4). Three of the four
+have been closed, the third for everything but text. One was closed in the runtime, and six of the
+nineteen programs are right on both backends because of it. Two were closed in the checker, and
+nine more are refused by `check`. The other four still read freed memory: two need one more
+checker rule, and two need the compiler to copy a text it does not copy yet.
 
 The rest of the document is in three parts.
 
@@ -100,7 +100,7 @@ new buffer must go. A number that is right as an upper bound is not right as a l
 of what follows is that one confusion.
 
 Any set of rules that is going to be sound has to meet four obligations. At 0.29.0 none was met
-completely. O1 and O3 are met now; O2 and O4 are not.
+completely. O1 and O3 are met now, and O4 for everything but text; O2 is not.
 
 ### O1. What is read must not be deeper than the checker thinks
 
@@ -169,8 +169,9 @@ programs written by hand.
 
 ### O4. What a function stores into its parameters is its caller's business
 
-*Not met. A function that only appends numbers to what it is given is safe now, by O3. One that
-stores a series, an object, or a text it made is not (`param-2`, `param-3`).*
+*Met, in both checkers, for a series, a map, or an object holding one: what a function stores into
+what it is given is recorded as its body is checked and judged at each cast (section 9). Not met
+for text (`param-3`, `param-5`). What follows is how it was.*
 
 Inside a function every parameter has depth 0 and so does every series the function makes. By F2
 the second is really the caller's current arena and the first can be anything outside it. A
@@ -208,12 +209,12 @@ built under AddressSanitizer on Linux (`result-1`, `param-1`, `alias-2`), and ea
 | `param-1-helper-appends-numbers` | O4 | crashes | **right** |
 | `alias-2-store-through-a-second-name` | O2 | crashes | crashes |
 | `target-1-store-into-a-field` | O2 | crashes | crashes |
-| `param-2-helper-stores-what-it-made` | O4 | crashes | crashes |
+| `param-2-helper-stores-what-it-made` | O4 | crashes | **refused** |
 | `param-3-helper-stores-text-it-made` | O4 | crashes | wrong output |
-| `param-4-method-stores-its-argument` | O4 | crashes | crashes |
+| `param-4-method-stores-its-argument` | O4 | crashes | **refused** |
 | `param-5-method-stores-text` | O4 | wrong output | wrong output |
-| `param-6-lambda-stores-its-argument` | O4 | crashes | crashes |
-| `param-7-nested-function-stores-its-argument` | O4 | crashes | crashes |
+| `param-6-lambda-stores-its-argument` | O4 | crashes | **refused** |
+| `param-7-nested-function-stores-its-argument` | O4 | crashes | **refused** |
 | `result-1-fresh-series-from-a-call` | O1 | crashes | **refused** |
 | `result-2-return-inside-a-judge` | O1 | crashes | **refused** |
 | `result-3-parameter-wrapped-in-a-series` | O1 | crashes, or wrong output | **refused** |
@@ -224,8 +225,10 @@ built under AddressSanitizer on Linux (`result-1`, `param-1`, `alias-2`), and ea
 "Wrong output" is the worse result: the program exits 0. Which of the two a failing row shows is
 chance, since both are a read of freed memory.
 
-The five that are refused are fixtures too, as `escape-*.cufe`, with a sixth that returns its
-parameter only from inside an `If` arm.
+The five refused under O1 are fixtures too, as `escape-*.cufe`, with a sixth that returns its
+parameter only from inside an `If` arm. The four refused under O4 are among ten `escape-*.cufe`
+fixtures for that rule, beside six `*-legal.cufe` ones for the same functions cast where it is
+safe.
 
 The six that are right were only ever growing something, and the three under O2 and O4 among them
 show that the growth was all that was wrong with them. They are fixtures now, in
@@ -573,12 +576,48 @@ and three of the 1,128 hand-written programs the two checkers are compared on. A
 the hole itself, written down earlier as accepted: a series a call made inside a rabbit, inserted
 into a series outside it.
 
+Then O4, in both checkers, which is B6 with B8 fitted to the checker as it is, and carried
+further than the core language goes.
+
+- **A pair.** As a body is checked, each store of a series, a map, or an object holding one is
+  written down as a pair of places: where the value may come from and where it may go. A place is
+  a parameter, the object a method is cast on, "something this body makes", or a name the body
+  captured, with that name's depth where the body was written. The walk of O1 says which.
+- **At a cast**, each pair of the function cast is judged with the real depths: an argument's, the
+  depth of the cast for what the function makes, a captured name's own. The source may not be
+  deeper than the target. This is done after every body has been checked, so the order functions
+  are written in does not matter, and a function that hands its parameter to one that stores
+  takes that store as its own.
+- **A captured depth** is counted in the body the function was written in. A cast from that body
+  compares it directly. A function written beside it captures the same names and takes the pair
+  over. A parameter of the body around is carried up as that body's parameter. From anywhere else
+  the two counts cannot be compared, and the store is refused in the body.
+- **A function handed to another function** is judged where it is handed over, as though it were
+  cast there on anything the receiver is given or makes. That is wrong only if the receiver casts
+  it somewhere deeper, so each function records which of its function parameters it casts inside a
+  rabbit of its own, or keeps, or hands on to a function that does, and a function that stores is
+  refused for such a parameter. A function that stores nothing is not looked at.
+- **Kept where nothing follows it**, in a series or a field or handed back, a function that
+  stores is refused.
+
+Nothing is refused where a function is written. The first version of this rule did refuse there:
+a function with no name could store into nothing it captured, and a function that stored into its
+parameters could not be a value at all. That was sound and refused ordinary programs with no
+rabbit in them, a closure gathering rows into a list being one, so it was taken out.
+
+What it refused that was accepted before, measured on the rule as built: none of the 235
+programs in the repository and none of the 1,134 hand-written programs. That is no evidence that
+the refusals are rare, only that neither corpus holds the shapes; 45 programs written for the
+rule, accepted and refused, are in the parity list now.
+
+It is not in the model and not proved. The model's functions cannot be values and capture
+nothing, so the search says nothing about either.
+
 ### What is left
 
-The rest of the checker half: O2 for stores of a series or an object, and O4. On the runtime as
-it is now that is rules B5 to B8, and B5 to B7 only where the value stored is itself a series. Of the three refusals above, the first then applies only to a function that
-stores a series or an object into its parameter, and the second only to storing one into an
-element. Appending a number is refused nowhere.
+O2 for stores of a series or an object: through a second name, or into a field, at the top level
+(`alias-2`, `target-1`). That is rules B5 to B7, only where the value stored is itself a series.
+Appending a number is refused nowhere.
 
 Text is outside the core and needs its own line here. It is never refused, only copied, and it is
 copied only where the checker sees it escape. A text made inside a function and stored into a
@@ -603,6 +642,7 @@ python docs/soundness/model/witnesses.py             the directed programs, and 
 ```
 
 A probe is fixed when `check` refuses it or the compiled program agrees with the interpreted one.
-The eleven that are fixed are also in `tests/fixtures/soundness/`: six as `*-legal.cufe`, five as
-`escape-*.cufe`. The eight that are not stay out of it: that folder's tests require every
-`escape-*` file to be refused, and these are not refused yet.
+The fifteen that are fixed are also in `tests/fixtures/soundness/`, as they are or as a program
+of the same shape: `*-legal.cufe` for one that runs right, `escape-*.cufe` for one that is refused.
+The four that are not stay out of it: that folder's tests require every `escape-*` file to be
+refused, and these are not refused yet.

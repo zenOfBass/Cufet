@@ -1,0 +1,15 @@
+/*  EXPECTED: REJECTED at type-check, identically by both backends.
+    A method stores its argument in the object it is cast on. Cast inside a rabbit, with the argument made there and the object outside.
+
+    The object a method is cast on is a parameter like any other. (docs/SOUNDNESS.md, obligation O4). */
+
+Define object bag with (the series of series of number items).
+Bind void to keep unto bag, given (the series of number s):
+    Insert s into one's items.
+Done.
+Define b as a new bag { the items (a series of series of number) }.
+Pull a rabbit.
+    Define inner as a series of number with (1, 2, 3).
+    Cast keep on (b, inner).
+Done.
+State b's items.

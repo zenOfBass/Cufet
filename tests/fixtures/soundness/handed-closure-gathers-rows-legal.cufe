@@ -1,0 +1,27 @@
+/*  EXPECTED: COMPILES and runs; compiled output must match the interpreter.
+
+    The same closure handed to a function that casts it on each row. No rabbit anywhere.
+
+    Nothing here outlives its region, and nothing is refused: the store is judged where the
+    function is cast or handed over (docs/SOUNDNESS.md, obligation O4). */
+
+Bind void to visit, given (the series of series of number rows, the void function work given (the series of number)):
+    For each row in rows, repeat:
+        Cast work on (row).
+    Done.
+Done.
+Define rows as a series of series of number.
+Insert (a series of number with (1, 2)) into rows.
+Define collected as a series of series of number.
+Cast visit on (rows, a function given (the series of number row):
+    Insert row into collected.
+Done).
+
+/*  Make and drop enough values that freed memory is handed out again. */
+Define churn as a series of text.
+Define tick as 0.
+While tick is less than 400, repeat:
+    Insert ("zzzzzzzz" joined to "yyyyyyyy") into churn.
+    tick becomes tick + 1.
+Done.
+State collected.

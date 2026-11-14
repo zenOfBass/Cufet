@@ -318,7 +318,18 @@ Pull a book on collections.
         If cast is-nothing on (cast field-of on (statement, 5)) and cast contains-bury on (cast field-of on (statement, 4)):
             The one's recording-stash becomes name.
         Done.
+        // What it stores is kept under its own name and line, as its return depths are.
+        Define storing-as as "".
+        Define own as cast one's look-up on (name).
+        If own is not void:
+            If own's shape's kind is "FunctionType", the storing-as becomes "{name}@{own's line}".
+        Done.
+        Define reached-names as a map from text to number.
+        If nested, the reached-names becomes cast captured-names on (saved).
+        Define store-around as cast one's open-store-frame on (storing-as, false, cast field-of on (statement, 4),
+            cast field-of on (statement, 3), false, reached-names).
         Cast one's check-block on (cast field-of on (statement, 4)) or pass the failure off.
+        Cast one's close-store-frame on (store-around).
         The one's recording-stash becomes earlier-recording.
         // Which parameters' depth reaches what it gives back, for the calls checked after it.
         If cast is-nothing on (returned) is false:
@@ -412,8 +423,17 @@ Pull a book on collections.
 
         Define earlier-recording as one's recording-stash.
         The one's recording-stash becomes "".
+        // A function value carries what it stores exactly as a named one does, under where it stands.
+        Define at-column as cast number-of on (cast field-of on (said, 4)).
+        Define storing-as as "lambda@{at-row}:{at-column}".
+        Define store-around as cast one's open-store-frame on (storing-as, false, body, cast field-of on (said, 1), false,
+            cast captured-names on (saved)).
         Cast one's check-block on (body) or pass the failure off.
+        Cast one's close-store-frame on (store-around).
         The one's recording-stash becomes earlier-recording.
+        // Held in a name or handed to a function, this note is taken back; anywhere else the
+        // function is kept where nothing follows it.
+        Cast one's note-lambda-value on (storing-as, at-row, at-column).
 
         Define inferred as item (the number of one's expected-returns) of one's expected-returns.
         Remove item (the number of one's expected-returns) from one's expected-returns.
@@ -567,7 +587,7 @@ Pull a book on collections.
                             Done.
                         Done.
                         Return a new call { the shape reached-method, the display "method '{name}' on interface '{interface-name}'",
-                            the declared-on at-row, the receivers 1, the depth-key "" }.
+                            the declared-on at-row, the receivers 1, the depth-key "interface\t{interface-name}\t{name}" }.
                     Done.
                     If cast one's look-up on (name) is void:
                         Define offered as cast one's interface-method-names on (interface-name).
@@ -840,6 +860,8 @@ Pull a book on collections.
             Otherwise:
                 The argument-type becomes cast one's infer on (argument) or pass the failure off.
             Done.
+            // Kept for the store rule, which asks each argument's type once more (`note-call`).
+            In memo, the entry for "argument {place}" becomes argument-type.
             Define formal as cast one's resolved on (item place of formals).
             If formal's kind is "InterfaceType" and cast is-none on (argument-type) is false:
                 Cast one's check-interface-argument on (formal, argument-type, place, reached, at-row) or pass the failure off.
@@ -881,6 +903,31 @@ Pull a book on collections.
         Define found as cast one's infer on (part) or pass the failure off.
         In memo, the entry for which becomes found.
         Return found.
+    Done.
+
+    /// Hands a checked cast to the store rule: its arguments without the object a method is cast
+    /// on, and that object, as `record-call-depth` splits them.
+    Bind void to note-cast unto checker, given (the node callee, the call reached, the node call-args, the number at-row,
+            the map from text to node memo):
+        Define receiver as cast unknown-type.
+        Define given-args as call-args's children.
+        Define validated as a series of node.
+        Define place as 0.
+        For each argument in given-args, repeat:
+            Increment place by 1.
+            If place is greater than reached's receivers, insert argument into validated.
+        Done.
+        If reached's receivers is greater than 0 and the number of given-args is greater than 0:
+            The receiver becomes item 1 of given-args.
+        Done.
+        Otherwise if callee's kind is "PossessiveAccess":
+            The receiver becomes cast field-of on (callee, 1).
+        Done.
+        Define receiver-type as cast unknown-type.
+        If reached's receivers is greater than 0, the receiver-type becomes the entry for "first" in memo but void is cast unknown-type.
+        Otherwise if callee's kind is "PossessiveAccess", the receiver-type becomes the entry for "receiver" in memo but void is cast unknown-type.
+        Cast one's note-call on (callee, cast one's store-key-of on (reached's depth-key), reached's display,
+            validated, receiver, receiver-type, at-row, memo).
     Done.
 
     /// `cast f on (…)`, as a statement or a value. Gives back what it returns, or `none`.
@@ -928,6 +975,7 @@ Pull a book on collections.
         Define reached as cast one's resolve-cast on (callee, call-args, at-row, filled, memo) or pass the failure off.
         If cast is-none on (reached's shape), return reached's shape.
         Cast one's check-arguments on (reached, call-args, at-row, memo) or pass the failure off.
+        Cast one's note-cast on (callee, reached, call-args, at-row, memo).
         Define gives as cast field-of on (reached's shape, 2).
         Define display as reached's display.
         If as-value is false:

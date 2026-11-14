@@ -605,7 +605,7 @@ Pull a book on collections.
         The one's recording-stash becomes "".
         If buries, the one's recording-stash becomes "{owner}'s {method-name}".
         Cast one's check-member-body on (owner, owner-row, cast field-of on (method, 3), at-row, true, returned,
-            cast field-of on (method, 4)) or pass the failure off.
+            cast field-of on (method, 4), "{owner}'s {method-name}", false) or pass the failure off.
         The one's recording-stash becomes earlier-recording.
         If cast is-nothing on (returned) is false:
             Define effective as returned.
@@ -628,8 +628,11 @@ Pull a book on collections.
     /// and otherwise it sees what a top-level function sees — functions and `permanently`
     /// constants. `parameters` is a list of `[<type> <name>]`; `resolving` says whether each type is
     /// checked to name something, which a method's are and a setter's is not.
+    /// ★ `storing-as` is the key what the body stores is kept under (`stores.cufe`), or "" for a
+    /// body no cast can ask; `is-setter` says its one store is checked where the field is set.
     Bind void or failure to check-member-body unto checker, given (the text owner, the number owner-row,
-            the node parameters, the number at-row, the fact resolving, the node returned, the node body):
+            the node parameters, the number at-row, the fact resolving, the node returned, the node body,
+            the text storing-as, the fact is-setter):
         Define saved as one's scopes.
         Define saved-types as the number of one's type-scopes.
         Define fresh as cast builtin-scope.
@@ -671,7 +674,9 @@ Pull a book on collections.
         Otherwise, insert returned into one's expected-returns.
         The one's function-line becomes at-row.
 
+        Define store-around as cast one's open-store-frame on (storing-as, is-setter, body, parameters, true, a map from text to number).
         Cast one's check-block on (body) or pass the failure off.
+        Cast one's close-store-frame on (store-around).
 
         The one's in-function becomes earlier-in-function.
         Remove item (the number of one's expected-returns) from one's expected-returns.
@@ -829,7 +834,13 @@ Pull a book on collections.
             Define interface-name as cast unquoted on (cast field-of on (target, 1)).
             If (the entry for interface-name in one's interfaces) is void, return cast unknown-type.
             Define reached-method as cast one's interface-method-named on (interface-name, member).
-            If reached-method is not void, return reached-method.
+            If reached-method is not void:
+                If called-here is false:
+                    Insert (a new function-value { the stored-as "interface\t{interface-name}\t{member}", the name member,
+                        the line at-row, the column cast number-of on (cast field-of on (said, 4)) }) into one's stores's values.
+                Done.
+                Return reached-method.
+            Done.
             Define offered as cast one's interface-method-names on (interface-name).
             Define fix as "Interface '{interface-name}' declares no methods.".
             If the number of offered is greater than 0, the fix becomes "Available methods: {cast quoted-names on (offered, "")}.".
@@ -1078,6 +1089,7 @@ Pull a book on collections.
         Define value as cast field-of on (statement, 3).
         Define value-type as cast one's infer on (value) or pass the failure off.
         Cast one's note-escape on (statement, ":EscapeToDepth", value, value-type, cast one's container-depth on (target)).
+        Cast one's note-store on (value, value-type, target, cast number-of on (cast field-of on (statement, 4))).
     Done.
 
     Bind void or failure to check-named-set unto checker, given (the node statement):
