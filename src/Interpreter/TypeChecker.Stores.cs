@@ -11,6 +11,9 @@ public sealed class StoreSummary
     public HashSet<(int Source, int Target)> Pairs { get; } = [];
     public string? Interface { get; init; }
     public string? Method { get; init; }
+    /// <summary>The body this function was written inside, or null at the top level. A pair that
+    /// names a captured depth means that depth THERE.</summary>
+    internal object? DefinedIn { get; set; }
 }
 
 public sealed partial class TypeChecker
@@ -29,11 +32,14 @@ public sealed partial class TypeChecker
     // Three things can be on either side of a store in a body, beside names of its own:
     //   a parameter (or the receiver)   — depth known only at the call;
     //   something the body makes        — as deep as the call;
-    //   a name it CAPTURED              — depth known only where the function was written.
-    // A parameter or a made value on one side and a captured name on the other is REFUSED in the
-    // body: no single place knows both depths. A function VALUE is called through a type that
-    // says nothing of what it stores, so it may make no pair at all, and a named function that
-    // makes one may not be used as a value.
+    //   a name it CAPTURED              — depth known where the function was written.
+    // A pair may name any of them. One that names a captured depth is judged where the function
+    // is cast from the body it was written in, which is the one place that counts rabbits the
+    // way that depth was counted. A function written beside it, capturing the same names, takes
+    // the pair over as its own. Anywhere else the two counts cannot be compared, and it is refused.
+    //
+    // ⚠ A function HANDED ON as a value (passed, kept in a field, returned) is still refused if it
+    // stores anything: the rule for a cast through a function type is not settled.
     //
     // ⚠ Only a value that HOLDS A CONTAINER counts: a series, a map, or an object with one
     // somewhere inside. A number is in no region, and an object of numbers is copied whole.
@@ -60,6 +66,7 @@ public sealed partial class TypeChecker
         public required int CallDepth;
         public required int Line;
         public required int Column;
+        public required StoreFrame? Frame;
         public HashSet<int>[]? ArgSources;
         public HashSet<int>? ReceiverSources;
     }
@@ -73,7 +80,8 @@ public sealed partial class TypeChecker
         public required IReadOnlyList<IStatement> Body;
         public required Dictionary<string, int> ParamIdx;
         public required HashSet<int> RefParamIdxs;
-        public required HashSet<string> Captured;
+        /// <summary>Each captured name, with its rabbit depth where this body was written.</summary>
+        public required Dictionary<string, int> Captured;
         public required StoreFrame? Parent;
         public List<StoreNote> Stores = [];
         public List<CallNote> Calls = [];
@@ -85,9 +93,18 @@ public sealed partial class TypeChecker
     private readonly List<CallNote> _callNotes = [];
     private readonly List<(StoreSummary Stores, string Name, int Line, int Column)> _functionValues = [];
 
+    /// <summary>The index a captured name at this rabbit depth has in a pair.</summary>
+    private static int OuterCode(int depth) =>
+        depth == CapturedParameterDepth ? OuterUnknownIndex : OuterDepthIndex - depth;
+    // A captured name whose depth nothing here can say: a parameter of the function around this
+    // one, or a name that function captured in its turn.
+    private const int OuterUnknownIndex = int.MinValue;
+    private static bool IsOuter(int index) => index <= OuterDepthIndex;
+
     private StoreFrame OpenStoreFrame(
         StoreSummary? summary, IReadOnlyList<IStatement> body,
-        IEnumerable<(string Name, CufetType? Type)> parameters, bool hasReceiver, HashSet<string> captured)
+        IEnumerable<(string Name, CufetType? Type)> parameters, bool hasReceiver,
+        Dictionary<string, int>? captured)
     {
         var paramIdx = new Dictionary<string, int>(StringComparer.Ordinal);
         var refs     = new HashSet<int>();
@@ -105,8 +122,14 @@ public sealed partial class TypeChecker
             paramIdx["one"] = ReceiverDepthIndex;
             refs.Add(ReceiverDepthIndex);
         }
+        captured ??= new Dictionary<string, int>(StringComparer.Ordinal);
         // A parameter hides a captured name it shares a spelling with.
-        captured.ExceptWith(paramIdx.Keys);
+        foreach (var name in paramIdx.Keys) captured.Remove(name);
+        // What the body around this one captured was counted somewhere further out still.
+        if (_storeFrame is { } around)
+            foreach (var name in around.Captured.Keys)
+                if (captured.ContainsKey(name)) captured[name] = CapturedParameterDepth;
+        if (summary != null) summary.DefinedIn = _storeFrame;
         return _storeFrame = new StoreFrame
         {
             Summary = summary, Body = body, ParamIdx = paramIdx, RefParamIdxs = refs,
@@ -115,12 +138,13 @@ public sealed partial class TypeChecker
     }
 
     /// <summary>The names a body written inside another can reach that are not its own.</summary>
-    private static HashSet<string> CapturedNames(List<Dictionary<string, TypeInfo>> enclosing)
+    private static Dictionary<string, int> CapturedNames(List<Dictionary<string, TypeInfo>> enclosing)
     {
-        var names = new HashSet<string>(StringComparer.Ordinal);
+        var names = new Dictionary<string, int>(StringComparer.Ordinal);
         foreach (var scope in enclosing)
             foreach (var (name, info) in scope)
-                if (info.Type is not FunctionType && !info.Permanent) names.Add(name);
+                if (info.Type is not FunctionType && !info.Permanent)
+                    names[name] = info.IsParameter ? CapturedParameterDepth : info.RabbitDepth;
         return names;
     }
 
@@ -174,7 +198,7 @@ public sealed partial class TypeChecker
             Callee = callee.Stores, Display = display, Args = args, Receiver = receiver,
             ArgDepths = [.. args.Select(PlaceDepth)],
             ReceiverDepth = receiver is null ? 0 : PlaceDepth(receiver),
-            CallDepth = _rabbitDepth, Line = line, Column = col,
+            CallDepth = _rabbitDepth, Line = line, Column = col, Frame = _storeFrame,
         };
         _callNotes.Add(note);
         _storeFrame?.Calls.Add(note);
@@ -229,8 +253,6 @@ public sealed partial class TypeChecker
         _ => true,
     };
 
-    private static bool IsOwnPlace(int index) => index >= 0 || index == ReceiverDepthIndex;
-
     private List<(int Source, int Target)> PairsOf(StoreSummary summary)
     {
         if (summary.Interface is not { } interfaceName) return [.. summary.Pairs];
@@ -255,26 +277,45 @@ public sealed partial class TypeChecker
             if (pairs.Count == 0) continue;
             Trace(frame);
             foreach (var (source, target) in pairs)
-            {
-                var sources = source == FreshDepthIndex ? [FreshDepthIndex] : PlaceSources(call, source);
-                var targets = PlaceSources(call, target);
-                if (sources != null && targets != null)
+                if (PlaceSources(frame, call, source) is { } sources
+                    && PlaceSources(frame, call, target) is { } targets)
                     yield return (sources, targets, call.Line, call.Column, call.Display);
-            }
         }
     }
 
-    private static HashSet<int>? PlaceSources(CallNote call, int place) =>
-        place == ReceiverDepthIndex ? call.ReceiverSources
-        : place >= 0 && place < call.Args.Count ? call.ArgSources![place]
-        : null;
+    /// <summary>What one side of a callee's pair is, in the terms of the body making the call.</summary>
+    private static HashSet<int>? PlaceSources(StoreFrame frame, CallNote call, int place)
+    {
+        if (place == FreshDepthIndex) return [FreshDepthIndex];
+        if (place == ReceiverDepthIndex) return call.ReceiverSources;
+        if (place >= 0) return place < call.Args.Count ? call.ArgSources![place] : null;
+        // A captured name of the callee's.
+        // Written in this body: the name is one of this body's own, made here.
+        if (ReferenceEquals(call.Callee.DefinedIn, frame)) return [FreshDepthIndex];
+        // Written beside this body: the same name, captured by both, at the same depth.
+        if (ReferenceEquals(call.Callee.DefinedIn, frame.Parent)) return [place];
+        return [OuterUnknownIndex];
+    }
+
+    private enum StoreVerdict { Nothing, Pair, Refused }
+
+    private static StoreVerdict Judge(StoreFrame frame, int source, int target)
+    {
+        if (source == target || target == FreshDepthIndex) return StoreVerdict.Nothing;
+        bool unknown = source == OuterUnknownIndex || target == OuterUnknownIndex;
+        // Both captured: both depths are known in the body, and CheckRegionStore judged them there.
+        if (IsOuter(source) && IsOuter(target)) return unknown ? StoreVerdict.Refused : StoreVerdict.Nothing;
+        if (unknown) return StoreVerdict.Refused;
+        return frame.Summary != null || frame.Allowed.Contains((source, target))
+            ? StoreVerdict.Pair : StoreVerdict.Refused;
+    }
 
     private void CheckStoresAtCalls()
     {
         try
         {
-            // What each named body stores into its parameters, to a fixed point: a function that
-            // hands its parameter on to one that stores into it stores into it too.
+            // What each body stores, to a fixed point: a function that hands its parameter on to
+            // one that stores into it stores into it too.
             for (bool changed = true; changed;)
             {
                 changed = false;
@@ -284,8 +325,7 @@ public sealed partial class TypeChecker
                     foreach (var store in StoresOf(frame).ToList())
                         foreach (var source in store.Sources)
                             foreach (var target in store.Targets)
-                                if (source != target && IsOwnPlace(target)
-                                    && (source == FreshDepthIndex || IsOwnPlace(source)))
+                                if (Judge(frame, source, target) == StoreVerdict.Pair)
                                     changed |= summary.Pairs.Add((source, target));
                 }
             }
@@ -294,17 +334,19 @@ public sealed partial class TypeChecker
                 foreach (var store in StoresOf(frame).ToList())
                     foreach (var source in store.Sources)
                         foreach (var target in store.Targets)
-                            RefuseInBody(frame, source, target, store.Line, store.Column, store.Through);
+                            if (Judge(frame, source, target) == StoreVerdict.Refused)
+                                throw RefusedInBody(source, target, store.Line, store.Column, store.Through);
 
             foreach (var (stores, name, line, column) in _functionValues)
                 if (PairsOf(stores).Count > 0)
                     throw TypeError(
-                        $"'{name}' stores into what it is given, so it cannot be used as a value",
-                        "Each call of it is checked against what it stores, and a call through a value "
+                        (name == "this function" ? name : $"'{name}'")
+                      + " stores into what it is given or what is around it, so it cannot be handed on as a value",
+                        "Each cast of it is checked against what it stores, and a cast through a value "
                       + "does not say which function it reaches",
                         line, column,
-                        $"use '{name}' without casting it",
-                        $"Cast '{name}' by its own name where it is needed.");
+                        "use it without casting it",
+                        "Hold it in a name with 'Define' and cast it by that name.");
 
             foreach (var call in _callNotes)
                 foreach (var (source, target) in PairsOf(call.Callee))
@@ -318,54 +360,40 @@ public sealed partial class TypeChecker
         }
     }
 
-    private static void RefuseInBody(
-        StoreFrame frame, int source, int target, int line, int column, string? through)
+    private static TypeException RefusedInBody(int source, int target, int line, int column, string? through)
     {
-        if (source == target || target == FreshDepthIndex) return;
-        bool made = source == FreshDepthIndex;
         string doing = through is null ? "this stores" : $"this casts {through}, which stores";
-
-        if (target == OuterDepthIndex)
-        {
-            if (source == OuterDepthIndex) return;   // both depths are known here; CheckRegionStore's
-            throw TypeError(
-                $"{doing} {(made ? "a value made in this function" : "a value this function was given")} "
-              + "into something from outside the function",
-                made ? "What a function makes lives in the region it is cast in, which can end before what is outside it does"
-                     : "What a function is given can live in a region that ends before what is outside it does",
+        if (IsOuter(source) || IsOuter(target))
+            return TypeError(
+                $"{doing} between what this function was given or made and a name from outside it, "
+              + "and nothing here can say which of the two lives longer",
+                "That name is a parameter of the function around this one, or comes from further out than that",
                 line, column,
-                "store it where it may not live long enough",
-                "Give the value back with 'Return' and store it where the function is cast.");
-        }
-
-        if (source == OuterDepthIndex)
-            throw TypeError(
-                $"{doing} a value from outside the function into something the function was given",
-                "What a function is given can outlive the place the function was written in",
-                line, column,
-                "store it where it may not live long enough",
-                "Pass the value in as a parameter too, so that each cast can be checked.");
-
-        if (frame.Summary != null || frame.Allowed.Contains((source, target))) return;
-        throw TypeError(
-            $"{doing} a series or an object into something it was given, in a function that has no name",
-            "A function held in a value is cast through its type, which does not say what it stores, so no cast of it can be checked",
+                "store where the value may not live long enough",
+                "Pass the container in as a parameter, or give the value back with 'Return' and store it where the function is cast.");
+        return TypeError(
+            $"{doing} a series or an object into something it was given, where no cast can be checked",
+            "A getter, a setter, an operator and an unmaker are not cast, so there is no call to check what they store against",
             line, column,
-            "store into what the function was given",
-            "Give the function a name with 'Bind', or give the value back with 'Return' and store it where the function is cast.");
+            "store into what it was given",
+            "Do the storing in a method, and cast that.");
     }
 
     private static string PlaceName(int place) =>
         place == FreshDepthIndex ? "something it makes"
         : place == ReceiverDepthIndex ? "the object it is cast on"
+        : IsOuter(place) ? "a name from outside it"
         : $"argument {place + 1}";
 
     private static void RefuseAtCall(CallNote call, int source, int target)
     {
+        // A captured depth means something only in the body the callee was written in.
+        bool written = ReferenceEquals(call.Callee.DefinedIn, call.Frame);
         int? DepthOf(int place) =>
             place == FreshDepthIndex ? call.CallDepth
             : place == ReceiverDepthIndex ? (call.Receiver is null ? null : call.ReceiverDepth)
-            : place >= 0 && place < call.ArgDepths.Length ? call.ArgDepths[place]
+            : place >= 0 ? (place < call.ArgDepths.Length ? call.ArgDepths[place] : null)
+            : written && place != OuterUnknownIndex ? OuterDepthIndex - place
             : null;
 
         if (DepthOf(source) is not { } from || DepthOf(target) is not { } into || from <= into) return;

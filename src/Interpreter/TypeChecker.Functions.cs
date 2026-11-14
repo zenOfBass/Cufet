@@ -63,7 +63,7 @@ public sealed partial class TypeChecker
     /// names for the store rule; see SymbolicExprDepth.</remarks>
     private Dictionary<string, HashSet<int>> LocalDepthsOf(
         IReadOnlyList<IStatement> body, Dictionary<string, int> paramIdx, HashSet<int> refParamIdxs,
-        HashSet<string>? captured, out List<object> nodes)
+        Dictionary<string, int>? captured, out List<object> nodes)
     {
         nodes = new List<object>();
         CollectDepthNodes(body, nodes);
@@ -127,10 +127,10 @@ public sealed partial class TypeChecker
     }
 
     // Everything this walk cannot trace: it may be any reference-typed parameter, or fresh.
-    private static HashSet<int> UntracedDepth(HashSet<int> refParamIdxs, HashSet<string>? captured = null)
+    private static HashSet<int> UntracedDepth(HashSet<int> refParamIdxs, Dictionary<string, int>? captured = null)
     {
         var all = new HashSet<int>(refParamIdxs) { FreshDepthIndex };
-        if (captured is { Count: > 0 }) all.Add(OuterDepthIndex);
+        if (captured != null) foreach (var depth in captured.Values) all.Add(OuterCode(depth));
         return all;
     }
 
@@ -144,16 +144,16 @@ public sealed partial class TypeChecker
         // The store rule's addition. A captured name is OuterDepthIndex, and stays that even where
         // the body gives it a new value. The return signature passes null and is as it was: there a
         // captured name is untraced, which a call site reads as "as deep as the call".
-        HashSet<string>?                 captured = null)
+        Dictionary<string, int>?         captured = null)
     {
         switch (expr)
         {
             case VariableReference vr:
                 if (paramIdx.TryGetValue(vr.Name, out var pi))
                     return refParamIdxs.Contains(pi) ? [pi] : [];
-                if (captured != null && captured.Contains(vr.Name))
+                if (captured != null && captured.TryGetValue(vr.Name, out var capturedDepth))
                 {
-                    var outer = new HashSet<int> { OuterDepthIndex };
+                    var outer = new HashSet<int> { OuterCode(capturedDepth) };
                     if (localDepths.TryGetValue(vr.Name, out var given)) outer.UnionWith(given);
                     return outer;
                 }
@@ -343,7 +343,7 @@ public sealed partial class TypeChecker
         var storeFrame = OpenStoreFrame(
             TryLookup(bind.Name, out var ownInfo) && ownInfo!.Type is FunctionType ownType ? ownType.Stores : null,
             bind.Body, bind.Parameters.Select(p => (p.Name, (CufetType?)ResolveParamType(p.Type))), false,
-            isNested ? CapturedNames(saved.V) : []);
+            isNested ? CapturedNames(saved.V) : null);
 
         try
         {
@@ -459,8 +459,11 @@ public sealed partial class TypeChecker
         _inferringLambdaReturn    = true;
         _rabbitDepth              = 0; // lambda bodies start outside any rabbit region
         _overloadBodyIsFallible   = false; // nested lambdas are standalone, not part of the overload
+        // Made before the body is checked, and given to the type afterwards: a function value
+        // carries what it stores exactly as a named one does.
+        var lambdaStores = new StoreSummary();
         var storeFrame = OpenStoreFrame(
-            null, lambda.Body, lambda.Parameters.Select(p => (p.Name, (CufetType?)ResolveParamType(p.Type))), false,
+            lambdaStores, lambda.Body, lambda.Parameters.Select(p => (p.Name, (CufetType?)ResolveParamType(p.Type))), false,
             CapturedNames(saved.V));
 
         CufetType? inferredReturn = null;
@@ -493,8 +496,11 @@ public sealed partial class TypeChecker
                 "Make sure every path through the lambda ends with a return statement.");
 
         var paramTypes = lambda.Parameters.Select(p => (CufetType)ResolveParamType(p.Type)).ToList();
+        // ⚠ Until the rule for a function handed to another function is settled, one that stores
+        // may only be held in a name and cast by it. `Define` takes this note back off.
+        _functionValues.Add((lambdaStores, "this function", lambda.Line, lambda.Column));
         return new FunctionType(paramTypes, inferredReturn)
-               { ParameterNames = lambda.Parameters.Select(p => p.Name).ToList() };
+               { ParameterNames = lambda.Parameters.Select(p => p.Name).ToList(), Stores = lambdaStores };
     }
 
     /// <summary>

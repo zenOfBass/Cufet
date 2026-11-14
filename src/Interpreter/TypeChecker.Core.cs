@@ -1164,8 +1164,8 @@ public sealed partial class TypeChecker
     // Index -2: the return may be something the callee MADE, which lives in whatever region the
     // call was made in. See ComputeReturnDepthSignature.
     private const int FreshDepthIndex = -2;
-    // Index -3, in the sets the store rule works with and nowhere else: a name the body CAPTURED
-    // from the function around it (or, for a function value, from wherever it was written).
+    // Index -3 and below, in the sets the store rule works with and nowhere else: a name the body
+    // CAPTURED from where it was written, at rabbit depth (-3 - index) there. See OuterCode.
     private const int OuterDepthIndex = -3;
 
     // Assigned to captured reference-type parameters in nested function scopes.
@@ -3409,6 +3409,10 @@ public sealed partial class TypeChecker
             return;
         }
         var type = InferType(define.Value);
+        // A function written straight into a name is cast BY that name, so each cast of it can be
+        // checked against what it stores. See InferLambdaLiteral.
+        if (define.Value is LambdaLiteral && type is FunctionType heldFunction)
+            _functionValues.RemoveAll(value => ReferenceEquals(value.Stores, heldFunction.Stores));
         if (type == null)
             throw TypeError(
                 $"the type of the value for '{define.Name}' can't be determined",
@@ -3544,7 +3548,7 @@ public sealed partial class TypeChecker
             $"reassign '{becomes.Name}' to a value from a shorter-lived region");
         // A name of the function's own is only pointed somewhere else. A CAPTURED one is a place
         // outside the function, and giving it a value is a store into that place.
-        if (_storeFrame is { } frame && frame.Captured.Contains(becomes.Name))
+        if (_storeFrame is { } frame && frame.Captured.ContainsKey(becomes.Name))
             NoteStore(becomes.Value, rhsType, new VariableReference(becomes.Name, becomes.Line, becomes.Column),
                       becomes.Line, becomes.Column);
         // ESC.1 — annotate (never reject) so the compiler can copy an escaping value outward.

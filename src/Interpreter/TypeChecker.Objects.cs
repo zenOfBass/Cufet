@@ -635,7 +635,7 @@ public sealed partial class TypeChecker
         _rabbitDepth             = 0; // method bodies start outside any rabbit region
         var storeFrame = OpenStoreFrame(
             FindMethodInOtOrPromoted(objType, method.Name)?.Stores,
-            method.Body, method.Parameters.Select(p => (p.Name, (CufetType?)ResolveParamType(p.Type))), true, []);
+            method.Body, method.Parameters.Select(p => (p.Name, (CufetType?)ResolveParamType(p.Type))), true, null);
 
         try
         {
@@ -708,7 +708,7 @@ public sealed partial class TypeChecker
         _expectedReturnType      = getter.ReturnType;
         _functionDeclarationLine = getter.Line;
         _rabbitDepth             = 0;
-        var storeFrame = OpenStoreFrame(null, getter.Body, [], true, []);
+        var storeFrame = OpenStoreFrame(null, getter.Body, [], true, null);
 
         try
         {
@@ -767,7 +767,7 @@ public sealed partial class TypeChecker
         _rabbitDepth             = 0;
         // The one store a setter is FOR, its value into its object, is checked where the field is
         // set, as the store it is.
-        var storeFrame = OpenStoreFrame(null, setter.Body, [(setter.ParamName, (CufetType?)setter.ParamType)], true, []);
+        var storeFrame = OpenStoreFrame(null, setter.Body, [(setter.ParamName, (CufetType?)setter.ParamType)], true, null);
         storeFrame.Allowed.Add((0, ReceiverDepthIndex));
 
         try
@@ -829,7 +829,7 @@ public sealed partial class TypeChecker
         _expectedReturnType      = null; // void — 'return a failure' is caught as "returning a value from void"
         _functionDeclarationLine = ud.Line;
         _rabbitDepth             = 0;
-        var storeFrame = OpenStoreFrame(null, ud.Body, [], true, []);
+        var storeFrame = OpenStoreFrame(null, ud.Body, [], true, null);
 
         try { CheckBlock(ud.Body); CloseStoreFrame(storeFrame); }
         finally
@@ -1296,7 +1296,7 @@ public sealed partial class TypeChecker
         _inferringLambdaReturn   = true;
         _overloadBodyIsFallible  = isFallible;
         var storeFrame = OpenStoreFrame(
-            null, oad.Body, [(oad.LeftName, (CufetType?)leftType), (oad.RightName, (CufetType?)rightType)], false, []);
+            null, oad.Body, [(oad.LeftName, (CufetType?)leftType), (oad.RightName, (CufetType?)rightType)], false, null);
 
         try
         {
