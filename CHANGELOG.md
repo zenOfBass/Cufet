@@ -41,6 +41,12 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   the three words is reserved. In the interpreter, the C# compiler, and the parser, checker and compiler written in
   Cufet (REFERENCE *Composition modes*, DESIGN *Composition modes for rabbits*). Example:
   `examples/concurrency/dispatcher.cufe`, also on the playground's menu.
+- **The region model's soundness is written down, and it does not hold yet.** `docs/SOUNDNESS.md`
+  states what the compiled program needs, shows nineteen programs that pass `check` and read freed memory when compiled, traces them to four
+  gaps in the rules, and proves a repaired set of rules sound for a core of the language. The programs
+  are in `docs/soundness/probes/`, and a model that checks the proof by search is in
+  `docs/soundness/model/`. One of the four gaps is closed (see Fixed); the other three are rules the
+  checker does not have yet.
 
 ### Changed
 
@@ -59,6 +65,13 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **A compiled series or map grown inside a rabbit could lose its contents at `Done.`** Growing one
+  gave it a new buffer in whatever region was open, so a series made outside a rabbit and added to
+  inside it kept a buffer that the rabbit then freed. It happened when what was inserted also came
+  from outside, when the series was reached through a second name or as a row of a table, and when
+  a function appended to a series it was given. The compiled program crashed or printed other
+  memory; the interpreted one was always right. A series and a map now remember the region they
+  were made in and grow there. Both compilers (`docs/SOUNDNESS.md`, obligation O3).
 - **An interpreted task read the names it used when it RAN, not when it was started.** A task
   started inside a loop failed with "'n' isn't defined" once the loop had ended, and a name changed
   after the start was seen changed (`after 3`) where the compiled program saw it as it was

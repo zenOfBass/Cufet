@@ -1,25 +1,27 @@
 # Soundness of the region model
 
-*Written 2026-11-13 against the checker and compiler as they stood at 0.29.0. Nothing in the
-checker, the compiler or the other documents was changed to produce this.*
+*Written 2026-11-13 against the checker and compiler as they stood at 0.29.0, and updated the same
+day after the first repair.*
 
 This document answers one question: **can a program that passes `cufet check` read memory after
 the `Done.` that freed it?**
 
-The answer has three parts.
+**Where it stands.** Yes, still, but less often than at 0.29.0. Nineteen small programs were found
+that pass `cufet check`, run correctly interpreted, and read freed memory when compiled. They come
+from four places where the rules assume something that is not true (section 4). One of the four
+has been closed, in the runtime, and six of the nineteen programs are right on both backends
+because of it. The other thirteen still read freed memory. Closing them takes new checker rules,
+which refuse programs, and that has not been done.
 
-1. **Today, yes.** The region rules the checker implements are not sound. Nineteen small programs
-   pass `cufet check`, run correctly interpreted, and read freed memory when compiled. They are in
-   [soundness/probes/](soundness/probes/), and every one of them crashes or prints wrong output on
-   the current compiler. They are not nineteen bugs. They come from four places where the rules
-   assume something that is not true, set out in section 4.
+The rest of the document is in three parts.
+
+1. **What is wrong.** Section 4 sets out the four obligations, with the programs that break each
+   and what each does now. The programs are in [soundness/probes/](soundness/probes/).
 2. **A repaired set of rules is sound, for a core of the language.** Section 5 gives the rules,
    section 6 proves that a program they accept never reaches freed memory.
 3. **The proof was checked by machine as far as a search can check it.** A small executable model
    of the compiled runtime and of both sets of rules is in [soundness/model/](soundness/model/).
-   Section 7 gives what it found.
-
-Which repair to adopt is a language decision, and section 9 says what the one proved here costs.
+   Section 7 gives what it found, and section 9 what has been built from it and what is left.
 
 ---
 
@@ -35,7 +37,8 @@ compiled program does, so the property worth proving is about the compiled progr
 ## 2. What the compiled runtime does
 
 The proof stands on five facts about the generated C. Each was read from the code generator, not
-assumed.
+assumed. They are given as they were at 0.29.0, because that is the runtime sections 4 to 7 are
+about. F4 has changed since, and the change is described under it.
 
 | | Fact | Where |
 |---|---|---|
@@ -46,8 +49,15 @@ assumed.
 | F5 | The allocator points at the top arena, unless a store has set an override to a chosen depth for its own duration. | `cufet_alloc_override`, `EmitStoreWithEscape` |
 
 F2 and F4 are the two that matter most. F2 means a depth written down inside a function is
-relative to wherever the function happened to be called. F4 means a series that was made outside
-a rabbit can have its buffer moved into the rabbit by a single `Insert`.
+relative to wherever the function happened to be called. F4 meant a series that was made outside
+a rabbit could have its buffer moved into the rabbit by a single `Insert`.
+
+**F4 now.** A series header, and a map header, records the arena it was made in, and growing it
+allocates the new buffer in that arena whatever rabbit is open (`cufet_arena_here`,
+`cufet_arena_alloc_in`). An arena is its own heap block, so it can be named; and an arena that a
+`Return` merges into the one below (F3) stays behind as a stub that forwards to where its blocks
+went, so a series carried out of a rabbit still finds the right place. Section 9 has the reason
+it has to be the arena and not its depth.
 
 ## 3. The core language
 
@@ -73,7 +83,7 @@ Left out, and so **not covered by the theorem**: text, records and objects, maps
 and what they capture, tasks and channels, failures and exceptions, loops, recursion. Section 8
 says what each would need.
 
-## 4. Today's rules, and the four obligations they do not meet
+## 4. The checker's rules, and the four obligations they do not meet
 
 The checker gives every name one number, the rabbit depth of its `Define`, and a parameter the
 number 0. A store is refused when the value's number is greater than the target's
@@ -88,10 +98,12 @@ be exact: the object lives in precisely this arena, because that is where its ne
 new buffer must go. A number that is right as an upper bound is not right as a location, and most
 of what follows is that one confusion.
 
-Any set of rules that is going to be sound has to meet four obligations. Today's meets none of
-them completely.
+Any set of rules that is going to be sound has to meet four obligations. At 0.29.0 none was met
+completely. O3 is met now; O1, O2 and O4 are not.
 
 ### O1. What is read must not be deeper than the checker thinks
+
+*Not met.*
 
 *Broken by a call's result.* A function that makes a series and returns it is taken to return it
 at depth 0. By F2 it was allocated wherever the call happened, which inside a rabbit is the
@@ -116,6 +128,10 @@ reads as 0.
 
 ### O2. A store needs to know exactly where its target lives
 
+*Not met for storing anything that is itself in an arena: a series, an object, a text. No longer
+needed for growing a series or storing a number in it: a series finds its own arena now, so
+nothing has to know where it is.*
+
 *Broken by a second name.* `Define alias as keeper.` inside a rabbit gives `alias` the rabbit's
 depth, though the series it names lives outside. A store through `alias` is then checked against
 the wrong depth, and passes.
@@ -125,19 +141,23 @@ at the current depth (`ContainerDepthOf`), which is the one depth that can never
 
 *Broken by an element.* A row of a table can have been made further out than the table. The
 `For each` name is given the table's depth and `item 1 of table` the current depth, and growing
-the row then moves its buffer to an arena that ends before the row does.
+the row then moved its buffer to an arena that ends before the row does. That one is fixed, since
+a row grows where the row lives. Storing a *series* into such a row is still checked against the
+wrong depth.
 
 ### O3. A series must grow in its own region
 
-By F4 a growing series gets a new buffer wherever the allocator points. The allocator is only
-redirected when the checker thinks the *value* is deeper than the target. So an outer series, given
-an outer value, inside a rabbit, grows into the rabbit:
+*Met, in the runtime (F4 now).*
+
+At 0.29.0 a growing series got a new buffer wherever the allocator pointed, and the allocator was
+only redirected when the checker thought the *value* was deeper than the target. So an outer
+series, given an outer value, inside a rabbit, grew into the rabbit:
 
 ```text
 Define word as "in" joined to "ner".
 Define names as a series of text.
 Pull a rabbit.
-    Insert word into names.                 accepted; names' buffer is freed at Done.
+    Insert word into names.                 accepted; names' buffer was freed at Done.
 Done.
 ```
 
@@ -146,19 +166,22 @@ programs written by hand.
 
 ### O4. What a function stores into its parameters is its caller's business
 
+*Not met. A function that only appends numbers to what it is given is safe now, by O3. One that
+stores a series, an object, or a text it made is not (`param-2`, `param-3`).*
+
 Inside a function every parameter has depth 0 and so does every series the function makes. By F2
 the second is really the caller's current arena and the first can be anything outside it. A
-function that stores what it made into what it was given, or simply appends to what it was given,
-checks clean on its own and is unsafe from any call site that sits inside a rabbit and passes
-something from outside.
+function that stores what it made into what it was given checks clean on its own and is unsafe
+from any call site that sits inside a rabbit and passes something from outside.
 
 ```text
-Bind void to add-some, given (the series of number bag):
-    Insert 5 into bag.
+Bind void to push-into, given (the series of series of number bag):
+    Define fresh as a series of number with (1, 2, 3).
+    Insert fresh into bag.
 Done.
-Define totals as a series of number.
+Define keeper as a series of series of number.
 Pull a rabbit.
-    Cast add-some on (totals).              accepted; totals' buffer is freed at Done.
+    Cast push-into on (keeper).             accepted; keeper holds a freed series after Done.
 Done.
 ```
 
@@ -167,40 +190,49 @@ parameter. A function storing its *own* parameter is the general case.
 
 ### The programs
 
-Every row passes `cufet check` and gives the right answer interpreted. The last column is the
-compiled program on Windows, over three runs of the whole set. Three of them were also built under
-AddressSanitizer on Linux (`result-1`, `param-1`, `alias-2`), and each reports
-`heap-use-after-free`, freed by `cufet_arena_pop`.
+Every row passes `cufet check` and gives the right answer interpreted. The third column is the
+compiled program at 0.29.0 on Windows, over three runs of the whole set. Three of them were also
+built under AddressSanitizer on Linux (`result-1`, `param-1`, `alias-2`), and each reported
+`heap-use-after-free`, freed by `cufet_arena_pop`. The last column is the compiled program now.
 
-| Probe | Breaks | Compiled |
-|---|---|---|
-| `grow-1-outer-value-into-outer-series` | O3 | crashes, or wrong output |
-| `grow-2-outer-text-into-outer-series` | O3 | wrong output |
-| `alias-1-append-through-a-second-name` | O2 | wrong output |
-| `alias-2-store-through-a-second-name` | O2 | crashes |
-| `target-1-store-into-a-field` | O2 | crashes |
-| `element-1-grow-a-row-in-for-each` | O2 | crashes |
-| `element-2-grow-an-item` | O2 | crashes |
-| `param-1-helper-appends-numbers` | O4 | crashes |
-| `param-2-helper-stores-what-it-made` | O4 | crashes |
-| `param-3-helper-stores-text-it-made` | O4 | crashes |
-| `param-4-method-stores-its-argument` | O4 | crashes |
-| `param-5-method-stores-text` | O4 | wrong output |
-| `param-6-lambda-stores-its-argument` | O4 | crashes |
-| `param-7-nested-function-stores-its-argument` | O4 | crashes |
-| `result-1-fresh-series-from-a-call` | O1 | crashes |
-| `result-2-return-inside-a-judge` | O1 | crashes |
-| `result-3-parameter-wrapped-in-a-series` | O1 | crashes, or wrong output |
-| `result-4-parameter-wrapped-in-an-object` | O1 | crashes |
-| `binder-1-it-in-a-judge` | O1 | crashes |
-| `control-nothing-escapes` | nothing | same on both |
+| Probe | Breaks | At 0.29.0 | Now |
+|---|---|---|---|
+| `grow-1-outer-value-into-outer-series` | O3 | crashes, or wrong output | **right** |
+| `grow-2-outer-text-into-outer-series` | O3 | wrong output | **right** |
+| `alias-1-append-through-a-second-name` | O2 | wrong output | **right** |
+| `element-1-grow-a-row-in-for-each` | O2 | crashes | **right** |
+| `element-2-grow-an-item` | O2 | crashes | **right** |
+| `param-1-helper-appends-numbers` | O4 | crashes | **right** |
+| `alias-2-store-through-a-second-name` | O2 | crashes | crashes |
+| `target-1-store-into-a-field` | O2 | crashes | crashes |
+| `param-2-helper-stores-what-it-made` | O4 | crashes | crashes |
+| `param-3-helper-stores-text-it-made` | O4 | crashes | wrong output |
+| `param-4-method-stores-its-argument` | O4 | crashes | crashes |
+| `param-5-method-stores-text` | O4 | wrong output | wrong output |
+| `param-6-lambda-stores-its-argument` | O4 | crashes | crashes |
+| `param-7-nested-function-stores-its-argument` | O4 | crashes | crashes |
+| `result-1-fresh-series-from-a-call` | O1 | crashes | crashes |
+| `result-2-return-inside-a-judge` | O1 | crashes | crashes |
+| `result-3-parameter-wrapped-in-a-series` | O1 | crashes, or wrong output | crashes |
+| `result-4-parameter-wrapped-in-an-object` | O1 | crashes | crashes |
+| `binder-1-it-in-a-judge` | O1 | crashes | crashes, or wrong output |
+| `control-nothing-escapes` | nothing | same on both | same on both |
 
-"Wrong output" is the worse result: the program exits 0.
+"Wrong output" is the worse result: the program exits 0. Which of the two a failing row shows is
+chance, since both are a read of freed memory.
+
+The six that are right were only ever growing something, and the three under O2 and O4 among them
+show that the growth was all that was wrong with them. They are fixtures now, in
+`tests/fixtures/soundness/` as `*-legal.cufe`. Three of them were run under AddressSanitizer
+(`grow-2`, `element-1`, `param-1`), with a fourth program that returns series out of nested
+rabbits and grows them afterwards, and all four are clean.
 
 ## 5. Repaired rules
 
-These are rules for the core language of section 3. They need **no change to the runtime**: they
-use the allocation override that already exists (F5), and nothing else.
+These are rules for the core language of section 3, written for the runtime of 0.29.0. They need
+**no change to that runtime**: they use the allocation override that already exists (F5), and
+nothing else. On the runtime as it is now they ask for more than is needed, and section 9 says
+which parts fall away.
 
 ### What the checker knows about a name
 
@@ -386,6 +418,10 @@ does not do that. For `Insert`, the value's expression is emitted inside the sta
 callee thinks it made "here" lands somewhere shallower. B1 and B9 are false of such a call, so the
 value would have to be worked out into a temporary first.
 
+On the runtime as it is now, growth no longer uses the override at all, so rules B5 and B6 would
+not set it and this dependency goes. The override is still what carries an escape *copy* to its
+destination, and a call inside a store still runs under it.
+
 ## 7. The mechanical check
 
 A proof on paper can be wrong in the same way the rules it replaces were wrong, so the model in
@@ -446,9 +482,10 @@ for the proof, not a replacement for it.
 The theorem is about the core. For each thing left out, this is what a proof would have to add.
 None of it has been done.
 
-- **Text.** Immutable, so it cannot be stored *into*, and only O1 and O3 apply: a text is as deep
-  as where it was made, and a text stored outward is copied. `param-3`, `param-5` and `grow-2` show
-  both failing today.
+- **Text.** Immutable, so it cannot be stored *into*. What applies is O1 and the copy: a text is as
+  deep as where it was made, and a text stored outward has to be copied. `param-3` and `param-5`
+  show the copy missing where a function stores a text into its parameter. (`grow-2` was a series
+  of text growing in the wrong place, and is fixed.)
 - **Records and objects.** They are C structs copied by value, so a field that is a series behaves
   as a second name for it. A store into a field is a store into a target that is not a plain name
   (O2), and a method's receiver is a parameter (O4).
@@ -468,39 +505,85 @@ None of it has been done.
 - **Tasks and channels.** Values cross by copy. The obligation is that the copy is complete and
   lands in the receiving thread's arena.
 
-## 9. What the repaired rules cost
+## 9. What the repaired rules cost, and what was built instead
 
-The rules of section 5 were chosen to need no runtime change, and that has a price. They refuse
-three things that are ordinary:
+The rules of section 5 were chosen to need no runtime change, and that has a price. On the runtime
+of 0.29.0 they refuse three things that are ordinary:
 
 1. **Calling a function that stores into its parameter, from inside a rabbit, on a series from
-   outside.** This is `param-1`. It is unsafe today, and with the runtime as it is there is no
-   safe way to compile it, so the refusal is correct.
+   outside.** This was `param-1`. It was unsafe, and with that runtime there was no safe way to
+   compile it, so the refusal was correct.
 2. **Growing or storing into an element.** `Insert 5 into item 1 of table`, and `Insert 5 into row`
    inside `For each row in table`. The checker cannot know where an element lives, only that it
-   is no deeper than the series it came from. Today this is accepted, and it is unsafe when the
-   row was made further out than the table (`element-1`, `element-2`).
+   is no deeper than the series it came from (`element-1`, `element-2`).
 3. **Storing into a series whose region was joined across an `If`.**
 
 In the model's random programs, B refuses about one program in six that would in fact have run
-safely. Today's rules refuse about one in sixteen, and accept unsafe ones.
+safely. The rules of 0.29.0 refuse about one in sixteen, and accept unsafe ones.
 
 The second refusal is the one that would hurt real programs: a table of rows is the commonest
-nested shape there is. It comes entirely from O3. If the series header recorded which arena it was
-allocated in, a growing series could always put its new buffer there, and O3 would be met by the
-runtime instead of by the checker. B5 and B6 would then need exact levels only for stores of
-*series into series*, not for every `Insert`. That variant is not proved here and not in the
-model.
+nested shape there is. It comes entirely from O3. If the series header records which arena it was
+allocated in, a growing series can always put its new buffer there, and O3 is met by the runtime
+instead of by the checker. B5 and B6 then need exact levels only for stores of *series into
+series*; a number can be stored into any series at all.
+
+That variant was put in the model first (`regions.HOME`), and the search run on it, 60,000
+programs, seed 21:
+
+| Runtime | B accepts | B accepts, and unsafe | B refuses, though safe as written | A accepts, and unsafe |
+|---|---:|---:|---:|---:|
+| 0.29.0 | 46,804 | 0 | 9,032 | 1,034 |
+| header remembers its arena, a merged arena forwards | 53,374 | **0** | 3,865 | 212 |
+| header remembers only its depth | 53,374 | **82** | 3,864 | 294 |
+
+Two things to read off it. The runtime change alone removes about four fifths of what the rules
+of 0.29.0 get wrong, and no program is refused for it. And the cheap version of it is unsound: a
+`Return` out of a rabbit merges that rabbit's arena into the one below (F3), so a series made
+inside and returned is no longer at the depth it remembers, and its next growth inside some later
+rabbit lands in that rabbit. The header has to name the arena, and a merged arena has to forward
+to the one it was merged into.
+
+### What was built
+
+The second row. Both compilers give a series and a map header its arena and grow it there, and
+`cufet_arena_merge_down` leaves a forwarding stub. That is "F4 now" in section 2, and it is why six
+probes are right. Nothing was refused that was accepted before.
+
+It is checked by the model's search and by the test suite, **not proved**. W1 holds by
+construction on this runtime and the rest of section 6 should go through unchanged, but that has
+not been written out.
+
+### What is left
+
+The checker half: O1, O2 for stores of a series or an object, and O4. On the runtime as it is now
+that is rules B1 to B4 and B8 to B12 as they stand, and B5 to B7 only where the value stored is
+itself a series. Of the three refusals above, the first then applies only to a function that
+stores a series or an object into its parameter, and the second only to storing one into an
+element. Appending a number is refused nowhere.
+
+Text is outside the core and needs its own line here. It is never refused, only copied, and it is
+copied only where the checker sees it escape. A text made inside a function and stored into a
+parameter is not seen to (`param-3`, `param-5`), so O4 has a second half for text: the copy has to
+happen at such a store as well.
+
+These rules refuse programs that are accepted today, so they are a change to the language, and one
+question in them is open: a function called inside a rabbit that returns a series it made, kept
+in a name outside. O1 says the result lives in the rabbit. The rules as written refuse it. The
+other choice is to copy it out, as text is copied; that keeps the program, and makes the name
+outside a different series from the one the function returned.
 
 ## 10. Running it again
 
 ```text
 pwsh -File docs/soundness/probes/run.ps1             the nineteen probes, on the installed cufet
+pwsh -File docs/soundness/probes/run.ps1 -Cufet <path>     the same, on a build of your choosing
 python docs/soundness/model/search.py 400000 7       both checkers over 400,000 programs, seed 7
 python docs/soundness/model/search.py mutants 400000 5
+python docs/soundness/model/search.py 60000 21 forward   the same, on a runtime where a series grows at home
 python docs/soundness/model/witnesses.py             the directed programs, and the probes in the core
 ```
 
 A probe is fixed when `check` refuses it or the compiled program agrees with the interpreted one.
-The probes are deliberately not in `tests/fixtures/soundness/`: that folder's tests require every
-`escape-*` file to be refused, and these are not refused yet.
+The six that are fixed are also in `tests/fixtures/soundness/` as `*-legal.cufe`. The thirteen that
+are not stay out of it: that folder's tests require every `escape-*` file to be refused, and these
+are not refused yet.

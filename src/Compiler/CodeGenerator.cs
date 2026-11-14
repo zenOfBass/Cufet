@@ -741,6 +741,13 @@ public sealed partial class CodeGenerator
         sb.AppendLine();
     }
 
+    // The arena a COPIED series or map names as its own. A copy made with the arena allocator
+    // lands where an allocation made right now lands — the destination's arena for an escape
+    // copy, since that runs under the override. A copy made with `malloc` is the heap form a
+    // value crosses threads in: it belongs to no arena, is never grown, and is copied out again
+    // on the far side, where it gets a real one.
+    private const string CopyHome = "(a == cufet_arena_alloc ? cufet_arena_here() : NULL)";
+
     private void EmitChanCopyBody(StringBuilder sb, int idx, CufetType t)
     {
         string tc = EmitCType(t);
@@ -757,7 +764,7 @@ public sealed partial class CodeGenerator
             {
                 string sn = RegisterSeriesStruct(st), ec = EmitCType(st.ElementType);
                 int ei = ChanIdxOf(st.ElementType);
-                sb.Append($"if (!v) return v; {sn}* r = ({sn}*)a(sizeof({sn})); r->len = v->len; r->cap = v->len; ");
+                sb.Append($"if (!v) return v; {sn}* r = ({sn}*)a(sizeof({sn})); r->len = v->len; r->cap = v->len; r->home = {CopyHome}; ");
                 sb.Append($"r->data = v->len ? ({ec}*)a((size_t)v->len * sizeof({ec})) : NULL; ");
                 sb.Append($"for (int i = 0; i < v->len; i++) r->data[i] = cchan_{ei}_copy(v->data[i], a); return r;");
                 break;
@@ -766,7 +773,7 @@ public sealed partial class CodeGenerator
             {
                 string mn = RegisterMapStruct(mt), kc = EmitCType(mt.KeyType), vc = EmitCType(mt.ValueType);
                 int ki = ChanIdxOf(mt.KeyType), vi = ChanIdxOf(mt.ValueType);
-                sb.Append($"if (!v) return v; {mn}* r = ({mn}*)a(sizeof({mn})); r->len = v->len; r->cap = v->len; ");
+                sb.Append($"if (!v) return v; {mn}* r = ({mn}*)a(sizeof({mn})); r->len = v->len; r->cap = v->len; r->home = {CopyHome}; ");
                 sb.Append($"r->keys = v->len ? ({kc}*)a((size_t)v->len * sizeof({kc})) : NULL; ");
                 sb.Append($"r->vals = v->len ? ({vc}*)a((size_t)v->len * sizeof({vc})) : NULL; ");
                 sb.Append($"for (int i = 0; i < v->len; i++) {{ r->keys[i] = cchan_{ki}_copy(v->keys[i], a); r->vals[i] = cchan_{vi}_copy(v->vals[i], a); }} return r;");

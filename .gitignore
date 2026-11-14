@@ -58,3 +58,7 @@ publish/
 # holding its argv and the checksum of every path it needs. Machine-local and rebuildable —
 # deleting it is the supported way to ask for a full rebuild, which is why there is no flag.
 .cufet-build
+
+# Bytecode Python writes beside a script each time it runs. Rebuilt from the .py, and specific
+# to the Python version that wrote it.
+__pycache__/

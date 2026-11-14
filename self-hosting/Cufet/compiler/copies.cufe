@@ -90,14 +90,14 @@ Pull books on collections, and the c-language.
         If cast element-of on (kind) is not "":
             Define element as cast element-of on (kind).
             Define c-language series-copied, given (the term series-c, the c-language axiom held-c, the term element-copy),
-                as [if (!v) return v; the series-c* r = (the series-c*)a(sizeof(the series-c)); r->len = v->len; r->cap = v->len; r->data = v->len ? (the held-c*)a((size_t)v->len * sizeof(the held-c)) : NULL; for (int i = 0; i < v->len; i++) r->data[i] = the element-copy(v->data[i], a); return r;].
+                as [if (!v) return v; the series-c* r = (the series-c*)a(sizeof(the series-c)); r->len = v->len; r->cap = v->len; r->home = (a == cufet_arena_alloc ? cufet_arena_here() : NULL); r->data = v->len ? (the held-c*)a((size_t)v->len * sizeof(the held-c)) : NULL; for (int i = 0; i < v->len; i++) r->data[i] = the element-copy(v->data[i], a); return r;].
             Return series-copied on (cast series-c-name on (element), cast c-type on (element), "{cast copy-family on (element)}_copy").
         Done.
         If cast is-map on (kind):
             Define key-kind as cast map-key-kind on (kind).
             Define held as cast map-value-kind on (kind).
             Define c-language map-copied, given (the term map-c, the c-language axiom key-c, the c-language axiom held-c, the term key-copy, the term held-copy),
-                as [if (!v) return v; the map-c* r = (the map-c*)a(sizeof(the map-c)); r->len = v->len; r->cap = v->len; r->keys = v->len ? (the key-c*)a((size_t)v->len * sizeof(the key-c)) : NULL; r->vals = v->len ? (the held-c*)a((size_t)v->len * sizeof(the held-c)) : NULL; for (int i = 0; i < v->len; i++) { r->keys[i] = the key-copy(v->keys[i], a); r->vals[i] = the held-copy(v->vals[i], a); } return r;].
+                as [if (!v) return v; the map-c* r = (the map-c*)a(sizeof(the map-c)); r->len = v->len; r->cap = v->len; r->home = (a == cufet_arena_alloc ? cufet_arena_here() : NULL); r->keys = v->len ? (the key-c*)a((size_t)v->len * sizeof(the key-c)) : NULL; r->vals = v->len ? (the held-c*)a((size_t)v->len * sizeof(the held-c)) : NULL; for (int i = 0; i < v->len; i++) { r->keys[i] = the key-copy(v->keys[i], a); r->vals[i] = the held-copy(v->vals[i], a); } return r;].
             Return map-copied on (cast map-c-name on (kind), cast c-type on (key-kind), cast c-type on (held), "{cast copy-family on (key-kind)}_copy", "{cast copy-family on (held)}_copy").
         Done.
         Define c-language copy-begun, given (the c-language axiom type-c), as [the type-c r = v; (void)a;].

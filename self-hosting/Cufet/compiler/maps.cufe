@@ -130,16 +130,16 @@ Pull books on collections, and the c-language.
         Define looked-c as cast c-type on (cast looked-up-kind on (kind)).
         Define out as a chase.
         Define c-language struct-map-key-form, given (the term map-c-s, the c-language axiom key-c, the c-language axiom held-c),
-            as [struct the map-c-s { the key-c* keys; the held-c* vals; int len; int cap; };].
+            as [struct the map-c-s { the key-c* keys; the held-c* vals; int len; int cap; CufetArena* home; };].
         Insert "{struct-map-key-form on ("{map-c}_s", key-c, held-c)}\n" into out.
         Define c-language typedef-struct-key-form, given (the c-language axiom key-c, the c-language axiom held-c, the term map-c-pair),
             as [typedef struct { the key-c key; the held-c value; } the map-c-pair;].
         Insert "{typedef-struct-key-form on (key-c, held-c, "{map-c}_pair")}\n" into out.
         Define c-language map-c-new-form, given (the term map-c, the term map-c-new),
-            as [static the map-c* the map-c-new(void) { the map-c* m = (the map-c*)cufet_arena_alloc(sizeof(the map-c)); m->keys = NULL; m->vals = NULL; m->len = 0; m->cap = 0; return m; }].
+            as [static the map-c* the map-c-new(void) { the map-c* m = (the map-c*)cufet_arena_alloc(sizeof(the map-c)); m->keys = NULL; m->vals = NULL; m->len = 0; m->cap = 0; m->home = cufet_arena_here(); return m; }].
         Insert "{map-c-new-form on (map-c, "{map-c}_new")}\n" into out.
         Define c-language map-c-ensure-form, given (the term map-c-ensure, the term map-c, the c-language axiom key-c, the c-language axiom held-c),
-            as [static void the map-c-ensure(the map-c* m) { if (m->len >= m->cap) { int nc = m->cap == 0 ? 4 : m->cap * 2; the key-c* nk = (the key-c*)cufet_arena_alloc((size_t)nc * sizeof(the key-c)); the held-c* nv = (the held-c*)cufet_arena_alloc((size_t)nc * sizeof(the held-c)); if (m->len > 0) { memcpy(nk, m->keys, (size_t)m->len * sizeof(the key-c)); memcpy(nv, m->vals, (size_t)m->len * sizeof(the held-c)); } m->keys = nk; m->vals = nv; m->cap = nc; } }].
+            as [static void the map-c-ensure(the map-c* m) { if (m->len >= m->cap) { int nc = m->cap == 0 ? 4 : m->cap * 2; the key-c* nk = (the key-c*)cufet_arena_alloc_in(m->home, (size_t)nc * sizeof(the key-c)); the held-c* nv = (the held-c*)cufet_arena_alloc_in(m->home, (size_t)nc * sizeof(the held-c)); if (m->len > 0) { memcpy(nk, m->keys, (size_t)m->len * sizeof(the key-c)); memcpy(nv, m->vals, (size_t)m->len * sizeof(the held-c)); } m->keys = nk; m->vals = nv; m->cap = nc; } }].
         Insert "{map-c-ensure-form on ("{map-c}_ensure", map-c, key-c, held-c)}\n" into out.
         Define c-language map-c-index-form, given (the term map-c-index, the term map-c, the c-language axiom key-c, the c-language axiom c-equal),
             as [static int the map-c-index(the map-c* m, the key-c k) { for (int i = 0; i < m->len; i++) if (the c-equal) return i; return -1; }].

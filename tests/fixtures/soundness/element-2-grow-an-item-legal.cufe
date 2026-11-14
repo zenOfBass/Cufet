@@ -1,0 +1,24 @@
+/*  EXPECTED: COMPILES and runs; compiled output must match the interpreter.
+
+    The same row, reached as an item of the table.
+
+    Nothing here outlives its region: the series was made outside the rabbit and is only
+    GROWN inside it. The compiled program used to give it a new buffer in the rabbit, which
+    the rabbit's Done. then freed. A series grows in the region it was made in now
+    (docs/SOUNDNESS.md, obligation O3). */
+
+Define first as a series of number.
+Pull a rabbit.
+    Define table as a series of series of number.
+    Insert first into table.
+    Insert 5 into item 1 of table.
+Done.
+
+/*  Make and drop enough values that freed memory is handed out again. */
+Define churn as a series of text.
+Define tick as 0.
+While tick is less than 400, repeat:
+    Insert ("zzzzzzzz" joined to "yyyyyyyy") into churn.
+    tick becomes tick + 1.
+Done.
+State first.

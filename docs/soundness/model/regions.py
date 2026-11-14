@@ -35,6 +35,14 @@ ELEM = {'S': 'N', 'SS': 'S'}
 
 # ───────────────────────────── the machine ─────────────────────────────
 
+# How a series finds the arena to grow in.
+#   None        today's runtime: wherever the allocator points (the top arena, or an override)
+#   'forward'   the header remembers its ARENA, and an arena merged down by a Return forwards to
+#               the one it was merged into
+#   'depth'     the header remembers only its DEPTH, a number, which a merge leaves stale
+HOME = None
+
+
 class Unsafe(Exception):
     """A freed object was reached."""
 
@@ -63,10 +71,11 @@ def find(a):
 
 
 class Obj:
-    __slots__ = ('hdr', 'buf', 'elems', 'T')
+    __slots__ = ('hdr', 'buf', 'elems', 'T', 'depth')
 
-    def __init__(self, T, arena):
+    def __init__(self, T, arena, depth=0):
         self.T = T
+        self.depth = depth          # the stack index it was made at; only 'depth' mode reads it
         self.hdr = arena
         self.buf = arena
         self.elems = []
@@ -122,7 +131,7 @@ class Machine:
         if not isinstance(v, Obj):
             return v
         self.chk(v)
-        c = Obj(v.T, arena)
+        c = Obj(v.T, arena, self.stack.index(arena))
         c.elems = [self.copy_into(e, arena) for e in v.elems]
         return c
 
@@ -154,7 +163,8 @@ class Machine:
         if k == 'var':
             return self.lookup(e[1])
         if k == 'new':
-            return Obj(e[1], self.arena())
+            a = self.arena()
+            return Obj(e[1], a, self.stack.index(a))
         if k == 'item':
             o = self.chk(self.lookup(e[1]))
             if not o.elems:
@@ -196,6 +206,12 @@ class Machine:
 
     def grow(self, sid, o):
         if not self.realloc:
+            return
+        if HOME == 'forward':
+            o.buf = o.hdr                    # find() follows a merge to where the header now is
+            return
+        if HOME == 'depth':
+            o.buf = self.stack[min(o.depth, len(self.stack) - 1)]
             return
         a = self.ann.get(sid)
         saved = self.override
@@ -587,6 +603,8 @@ def _B_body(body, env, funcs, summaries, ann, st):
 
     def store_into(sid, target, e):
         r = region(e)
+        if HOME and r is None:
+            return                           # no pointer is stored, and growth finds its own way
         if target[0] == 'E':
             if r is not None and ub(r) > target[1] and MUTANT != 'store-no-bound':
                 raise Reject()

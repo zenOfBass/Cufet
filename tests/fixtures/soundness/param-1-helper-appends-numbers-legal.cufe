@@ -1,0 +1,29 @@
+/*  EXPECTED: COMPILES and runs; compiled output must match the interpreter.
+
+    A helper appends to the series it is given. Called inside a rabbit, on a series from outside.
+
+    Nothing here outlives its region: the series was made outside the rabbit and is only
+    GROWN inside it. The compiled program used to give it a new buffer in the rabbit, which
+    the rabbit's Done. then freed. A series grows in the region it was made in now
+    (docs/SOUNDNESS.md, obligation O3). */
+
+Bind void to add-some, given (the series of number bag):
+    Define n as 0.
+    While n is less than 40, repeat:
+        Insert n into bag.
+        n becomes n + 1.
+    Done.
+Done.
+Define totals as a series of number.
+Pull a rabbit.
+    Cast add-some on (totals).
+Done.
+
+/*  Make and drop enough values that freed memory is handed out again. */
+Define churn as a series of text.
+Define tick as 0.
+While tick is less than 400, repeat:
+    Insert ("zzzzzzzz" joined to "yyyyyyyy") into churn.
+    tick becomes tick + 1.
+Done.
+State totals.

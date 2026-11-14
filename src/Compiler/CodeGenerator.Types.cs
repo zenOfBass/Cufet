@@ -314,10 +314,18 @@ static int cufet_str_code_point(const char* s) {
         // When a series data buffer grows, the old buffer stays in ptrs
         // (wasted but harmless — freed at pop). No use-after-free, no leak.
         runtime.AppendLine("#define CUFET_ARENA_MAX_DEPTH 64");
-        runtime.AppendLine("typedef struct { void** ptrs; int len; int cap; } CufetArena;");
+        // ★ An arena is its own heap block, not a slot in the stack, so that something can NAME it and
+        // the name stays good for as long as the arena's contents do. A series does: its header
+        // remembers the arena it was made in and grows there (`cufet_arena_alloc_in`), whatever rabbit
+        // happens to be open at the time. A depth number could not be that name — a `Return` out of a
+        // rabbit merges its arena into the one below, and the series it carried out is no longer at the
+        // depth it would have remembered. So a merged arena stays behind as a stub that FORWARDS to
+        // where its blocks went. docs/SOUNDNESS.md (obligation O3, and section 9) has the measurement:
+        // remembering the depth alone let 82 unsafe programs through in 60,000.
+        runtime.AppendLine("typedef struct CufetArena { void** ptrs; int len; int cap; struct CufetArena* fwd; } CufetArena;");
         // Thread-local: each pthread bump-allocates in its OWN arena stack (no cross-thread arena
         // contention — sound because nothing mutable is shared; values cross threads via heap copy).
-        runtime.AppendLine("static _Thread_local CufetArena cufet_arenas[CUFET_ARENA_MAX_DEPTH];");
+        runtime.AppendLine("static _Thread_local CufetArena* cufet_arenas[CUFET_ARENA_MAX_DEPTH];");
         runtime.AppendLine("static _Thread_local int cufet_arena_top = -1;");
         runtime.AppendLine();
         // ★ A rabbit VALUE. The interpreter's is a name and nothing else (`RabbitValue`), printing
@@ -330,42 +338,59 @@ static int cufet_str_code_point(const char* s) {
         runtime.AppendLine("static int cufet_rabbit_eq(cufet_rabbit a, cufet_rabbit b) { return strcmp(a.name, b.name) == 0; }");
         runtime.AppendLine();
         runtime.AppendLine("static void cufet_arena_push(void) {");
-        runtime.AppendLine("    ++cufet_arena_top;");
-        runtime.AppendLine("    cufet_arenas[cufet_arena_top].ptrs = NULL;");
-        runtime.AppendLine("    cufet_arenas[cufet_arena_top].len  = 0;");
-        runtime.AppendLine("    cufet_arenas[cufet_arena_top].cap  = 0;");
+        runtime.AppendLine("    cufet_arenas[++cufet_arena_top] = (CufetArena*)calloc(1, sizeof(CufetArena));");
+        runtime.AppendLine("}");
+        runtime.AppendLine();
+        runtime.AppendLine("static void cufet_arena_track(CufetArena* a, void* p) {");
+        runtime.AppendLine("    if (a->len == a->cap) {");
+        runtime.AppendLine("        a->cap  = a->cap == 0 ? 8 : a->cap * 2;");
+        runtime.AppendLine("        a->ptrs = (void**)realloc(a->ptrs, (size_t)a->cap * sizeof(void*));");
+        runtime.AppendLine("    }");
+        runtime.AppendLine("    a->ptrs[a->len++] = p;");
         runtime.AppendLine("}");
         runtime.AppendLine();
         // Allocate into a SPECIFIC arena depth (not just the top). Used by cufet_raise to place an
         // exception message in the target handler's arena, so it outlives the pops the catch does.
         runtime.AppendLine("static void* cufet_arena_alloc_at(int depth, size_t size) {");
         runtime.AppendLine("    void* p = malloc(size);");
-        runtime.AppendLine("    CufetArena* a = &cufet_arenas[depth];");
-        runtime.AppendLine("    if (a->len == a->cap) {");
-        runtime.AppendLine("        a->cap  = a->cap == 0 ? 8 : a->cap * 2;");
-        runtime.AppendLine("        a->ptrs = (void**)realloc(a->ptrs, (size_t)a->cap * sizeof(void*));");
-        runtime.AppendLine("    }");
-        runtime.AppendLine("    a->ptrs[a->len++] = p;");
+        runtime.AppendLine("    cufet_arena_track(cufet_arenas[depth], p);");
         runtime.AppendLine("    return p;");
         runtime.AppendLine("}");
         runtime.AppendLine();
         // ESC.2 — an allocation OVERRIDE. Normally -1 (allocate at the top, as always). An escaping
         // store sets it to the destination's arena depth for the duration of the store, which
-        // redirects BOTH the value's own allocations AND the destination container's growth
-        // (cser/cmap `_ensure` reallocs) into the arena that outlives the store. Redirecting the
-        // allocator itself is what makes this work with the existing runtime unchanged.
+        // redirects the value's own allocations into the arena that outlives the store. (It used to be
+        // what carried a container's GROWTH there too. A series and a map find their own arena now, so
+        // that half no longer depends on the checker having flagged the store.)
         runtime.AppendLine("static _Thread_local int cufet_alloc_override = -1;");
         runtime.AppendLine("static void* cufet_arena_alloc(size_t size) {");
         runtime.AppendLine("    return cufet_arena_alloc_at(cufet_alloc_override >= 0 ? cufet_alloc_override : cufet_arena_top, size);");
         runtime.AppendLine("}");
         runtime.AppendLine();
+        // The arena an allocation made right now would land in — what a new series or map header
+        // records as its own.
+        runtime.AppendLine("static CufetArena* cufet_arena_here(void) {");
+        runtime.AppendLine("    return cufet_arenas[cufet_alloc_override >= 0 ? cufet_alloc_override : cufet_arena_top];");
+        runtime.AppendLine("}");
+        runtime.AppendLine();
+        // Allocate in the arena a header named, following it to wherever a merge moved its blocks.
+        // ⚠ No arena named means the header was built somewhere that is not an arena at all — the heap
+        // copy a value crosses threads in — and such a header is never grown, only copied out again;
+        // allocating as before keeps that path exactly as it was.
+        runtime.AppendLine("static void* cufet_arena_alloc_in(CufetArena* home, size_t size) {");
+        runtime.AppendLine("    if (!home) return cufet_arena_alloc(size);");
+        runtime.AppendLine("    while (home->fwd) home = home->fwd;");
+        runtime.AppendLine("    void* p = malloc(size);");
+        runtime.AppendLine("    cufet_arena_track(home, p);");
+        runtime.AppendLine("    return p;");
+        runtime.AppendLine("}");
+        runtime.AppendLine();
         runtime.AppendLine("static void cufet_arena_pop(void) {");
-        runtime.AppendLine("    CufetArena* a = &cufet_arenas[cufet_arena_top];");
+        runtime.AppendLine("    CufetArena* a = cufet_arenas[cufet_arena_top];");
         runtime.AppendLine("    for (int i = 0; i < a->len; i++) free(a->ptrs[i]);");
         runtime.AppendLine("    free(a->ptrs);");
-        runtime.AppendLine("    a->ptrs = NULL;");
-        runtime.AppendLine("    a->len  = 0;");
-        runtime.AppendLine("    a->cap  = 0;");
+        runtime.AppendLine("    free(a);");
+        runtime.AppendLine("    cufet_arenas[cufet_arena_top] = NULL;");
         runtime.AppendLine("    --cufet_arena_top;");
         runtime.AppendLine("}");
         runtime.AppendLine();
@@ -376,21 +401,25 @@ static int cufet_str_code_point(const char* s) {
         // Ownership moves outward; the blocks die at the destination's own pop. No copying, so a
         // returned value that ALIASES the caller's data stays the same pointer (measured: the
         // interpreter shares here, so copying would diverge).
+        // ★ The arena itself is not freed here. Headers among the blocks it handed over still name it,
+        // so it stays as a forwarding stub, tracked by the parent like any other block: it goes when
+        // the parent goes, which is exactly when the last header naming it does.
         runtime.AppendLine("static void cufet_arena_merge_down(void) {");
         runtime.AppendLine("    if (cufet_arena_top < 1) { cufet_arena_pop(); return; }   /* no parent to merge into */");
-        runtime.AppendLine("    CufetArena* a = &cufet_arenas[cufet_arena_top];");
-        runtime.AppendLine("    CufetArena* p = &cufet_arenas[cufet_arena_top - 1];");
-        runtime.AppendLine("    if (a->len > 0) {");
-        runtime.AppendLine("        if (p->len + a->len > p->cap) {");
-        runtime.AppendLine("            p->cap  = p->len + a->len;");
-        runtime.AppendLine("            p->ptrs = (void**)realloc(p->ptrs, (size_t)p->cap * sizeof(void*));");
-        runtime.AppendLine("        }");
-        runtime.AppendLine("        for (int i = 0; i < a->len; i++) p->ptrs[p->len++] = a->ptrs[i];");
+        runtime.AppendLine("    CufetArena* a = cufet_arenas[cufet_arena_top];");
+        runtime.AppendLine("    CufetArena* p = cufet_arenas[cufet_arena_top - 1];");
+        runtime.AppendLine("    if (p->len + a->len + 1 > p->cap) {");
+        runtime.AppendLine("        p->cap  = p->len + a->len + 1;");
+        runtime.AppendLine("        p->ptrs = (void**)realloc(p->ptrs, (size_t)p->cap * sizeof(void*));");
         runtime.AppendLine("    }");
+        runtime.AppendLine("    for (int i = 0; i < a->len; i++) p->ptrs[p->len++] = a->ptrs[i];");
+        runtime.AppendLine("    p->ptrs[p->len++] = a;");
         runtime.AppendLine("    free(a->ptrs);");
         runtime.AppendLine("    a->ptrs = NULL;");
         runtime.AppendLine("    a->len  = 0;");
         runtime.AppendLine("    a->cap  = 0;");
+        runtime.AppendLine("    a->fwd  = p;");
+        runtime.AppendLine("    cufet_arenas[cufet_arena_top] = NULL;");
         runtime.AppendLine("    --cufet_arena_top;");
         runtime.AppendLine("}");
         runtime.AppendLine();
@@ -2015,12 +2044,15 @@ static int cufet_str_code_point(const char* s) {
         foreach (var (name, elem) in _seriesStructs)
         {
             string ec = EmitCType(elem);
-            sb.AppendLine($"struct {name}_s {{ {ec}* data; int len; int cap; }};");
-            sb.AppendLine($"static {name}* {name}_new(void) {{ {name}* s = ({name}*)cufet_arena_alloc(sizeof({name})); s->data = NULL; s->len = 0; s->cap = 0; return s; }}");
+            // ★ `home` is the arena the header was made in, and growth goes THERE (docs/SOUNDNESS.md,
+            // O3). Before, a series made outside a rabbit and grown inside one had its buffer freed
+            // at that rabbit's `Done.` unless the checker had happened to flag the store.
+            sb.AppendLine($"struct {name}_s {{ {ec}* data; int len; int cap; CufetArena* home; }};");
+            sb.AppendLine($"static {name}* {name}_new(void) {{ {name}* s = ({name}*)cufet_arena_alloc(sizeof({name})); s->data = NULL; s->len = 0; s->cap = 0; s->home = cufet_arena_here(); return s; }}");
             sb.AppendLine($"static void {name}_ensure({name}* s) {{");
             sb.AppendLine($"    if (s->len >= s->cap) {{");
             sb.AppendLine($"        int nc = s->cap == 0 ? 4 : s->cap * 2;");
-            sb.AppendLine($"        {ec}* nd = ({ec}*)cufet_arena_alloc((size_t)nc * sizeof({ec}));");
+            sb.AppendLine($"        {ec}* nd = ({ec}*)cufet_arena_alloc_in(s->home, (size_t)nc * sizeof({ec}));");
             sb.AppendLine($"        if (s->len > 0) memcpy(nd, s->data, (size_t)s->len * sizeof({ec}));");
             sb.AppendLine($"        s->data = nd; s->cap = nc;");
             sb.AppendLine($"    }}");
@@ -2070,13 +2102,13 @@ static int cufet_str_code_point(const char* s) {
             // voidable as-is. So the lookup return struct IS the value struct when V is voidable.
             bool voidableV = v is VoidableType;
             string cvd = voidableV ? vc : RegisterVoidableStruct(new VoidableType(v));
-            sb.AppendLine($"struct {name}_s {{ {kc}* keys; {vc}* vals; int len; int cap; }};");
-            sb.AppendLine($"static {name}* {name}_new(void) {{ {name}* m = ({name}*)cufet_arena_alloc(sizeof({name})); m->keys = NULL; m->vals = NULL; m->len = 0; m->cap = 0; return m; }}");
+            sb.AppendLine($"struct {name}_s {{ {kc}* keys; {vc}* vals; int len; int cap; CufetArena* home; }};");
+            sb.AppendLine($"static {name}* {name}_new(void) {{ {name}* m = ({name}*)cufet_arena_alloc(sizeof({name})); m->keys = NULL; m->vals = NULL; m->len = 0; m->cap = 0; m->home = cufet_arena_here(); return m; }}");
             sb.AppendLine($"static void {name}_ensure({name}* m) {{");
             sb.AppendLine($"    if (m->len >= m->cap) {{");
             sb.AppendLine($"        int nc = m->cap == 0 ? 4 : m->cap * 2;");
-            sb.AppendLine($"        {kc}* nk = ({kc}*)cufet_arena_alloc((size_t)nc * sizeof({kc}));");
-            sb.AppendLine($"        {vc}* nv = ({vc}*)cufet_arena_alloc((size_t)nc * sizeof({vc}));");
+            sb.AppendLine($"        {kc}* nk = ({kc}*)cufet_arena_alloc_in(m->home, (size_t)nc * sizeof({kc}));");
+            sb.AppendLine($"        {vc}* nv = ({vc}*)cufet_arena_alloc_in(m->home, (size_t)nc * sizeof({vc}));");
             sb.AppendLine($"        if (m->len > 0) {{ memcpy(nk, m->keys, (size_t)m->len * sizeof({kc})); memcpy(nv, m->vals, (size_t)m->len * sizeof({vc})); }}");
             sb.AppendLine($"        m->keys = nk; m->vals = nv; m->cap = nc;");
             sb.AppendLine($"    }}");

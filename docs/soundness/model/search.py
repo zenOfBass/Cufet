@@ -6,6 +6,8 @@ Generates well-typed core programs at random and asks, of each checker:
     python search.py mutants [count] [seed]    checker B with one rule removed at a time
 
 Add the word `tight` to either for programs with few names that are mostly reused.
+Add `forward` or `depth` to run on a runtime where a series grows in its own arena (regions.HOME);
+checker B then lets a number be stored into any series.
 """
 import random
 import sys
@@ -302,6 +304,10 @@ def mutants(count, seed):
 
 
 if __name__ == '__main__':
+    for mode in ('forward', 'depth'):
+        if mode in sys.argv:
+            sys.argv.remove(mode)
+            regions.HOME = mode
     if 'tight' in sys.argv:
         sys.argv.remove('tight')
         TIGHT = True

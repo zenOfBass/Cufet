@@ -71,13 +71,13 @@ Pull books on collections, and the c-language.
         Define out as a chase.
         Insert "typedef struct {series-type}_s {series-type};\n" into out.
         Define c-language struct-series-type-form, given (the term series-type-s, the c-language axiom held),
-            as [struct the series-type-s { the held* data; int len; int cap; };].
+            as [struct the series-type-s { the held* data; int len; int cap; CufetArena* home; };].
         Insert "{struct-series-type-form on ("{series-type}_s", held)}\n" into out.
         Define c-language series-type-new-form, given (the term series-type, the term series-type-new),
-            as [static the series-type* the series-type-new(void) { the series-type* s = (the series-type*)cufet_arena_alloc(sizeof(the series-type)); s->data = NULL; s->len = 0; s->cap = 0; return s; }].
+            as [static the series-type* the series-type-new(void) { the series-type* s = (the series-type*)cufet_arena_alloc(sizeof(the series-type)); s->data = NULL; s->len = 0; s->cap = 0; s->home = cufet_arena_here(); return s; }].
         Insert "{series-type-new-form on (series-type, "{series-type}_new")}\n" into out.
         Define c-language series-type-ensure-form, given (the term series-type-ensure, the term series-type, the c-language axiom held),
-            as [static void the series-type-ensure(the series-type* s) { if (s->len >= s->cap) { int nc = s->cap == 0 ? 4 : s->cap * 2; the held* nd = (the held*)cufet_arena_alloc((size_t)nc * sizeof(the held)); if (s->len > 0) memcpy(nd, s->data, (size_t)s->len * sizeof(the held)); s->data = nd; s->cap = nc; } }].
+            as [static void the series-type-ensure(the series-type* s) { if (s->len >= s->cap) { int nc = s->cap == 0 ? 4 : s->cap * 2; the held* nd = (the held*)cufet_arena_alloc_in(s->home, (size_t)nc * sizeof(the held)); if (s->len > 0) memcpy(nd, s->data, (size_t)s->len * sizeof(the held)); s->data = nd; s->cap = nc; } }].
         Insert "{series-type-ensure-form on ("{series-type}_ensure", series-type, held)}\n" into out.
         Define c-language series-type-append-form, given (the term series-type, the term series-type-append, the c-language axiom held, the term series-type-ensure),
             as [static the series-type* the series-type-append(the series-type* s, the held v) { the series-type-ensure(s); s->data[s->len++] = v; return s; }].
