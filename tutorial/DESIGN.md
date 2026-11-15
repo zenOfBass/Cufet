@@ -72,6 +72,8 @@ with the evidence for every edge, is in [`tools/curriculum-net/`](../tools/curri
 - **The first writing exercises judge the words only.** Punctuation and capital letters are
   ignored, so nobody fails over a comma. A rabbit may remark on a small difference without
   failing the player. The wrong words, or a refused program, still don't count as done.
+- **No hard breaks between lessons, for now.** The format isn't decided, so the dialogue never
+  says "next time" or "another day"; one lesson leads straight into the next.
 - The working scripts are [lesson-1-draft.md](lesson-1-draft.md) (saying words: the opening, several lines, the joke),
   [lesson-2-draft.md](lesson-2-draft.md) (numbers),
   [lesson-3-draft.md](lesson-3-draft.md) (names), and

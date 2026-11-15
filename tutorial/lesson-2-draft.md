@@ -161,7 +161,7 @@ If you meant to join text, use 'joined to': "hello" joined to " world".
 >
 > **Grace:** Cufet reads the whole program before it runs any of it. If one line doesn't make sense, it won't start at all. And look: it tells you which line, and why.
 >
-> **Hopper:** See the bit about "joined to" at the end? That's another trick. We'll get to it another day.
+> **Hopper:** See the bit about "joined to" at the end? That's another trick. We'll get to it later.
 
 ## Beat 4: a blank page (Make)
 
@@ -220,10 +220,8 @@ What is 12 * 12?
    the player can see.
 2. **Beat 3 is the first warm Cufet message the player meets**, and it's shown as is. Its last
    line mentions `joined to`, which hasn't been taught, so Hopper asks and Grace defers it.
-3. **`State 12 * 12 = 144.` runs and prints `true`.** A child might well type that. The reaction
-   explains it without teaching facts yet.
-4. **Left out on purpose:** which sign goes first (`2 + 3 * 4` is 14), brackets, and answers with
+3. **Left out on purpose:** which sign goes first (`2 + 3 * 4` is 14), brackets, and answers with
    a fraction (`7 / 2` is `3.5`). Each needs maths a young child may not have. They could go in a
    later lesson or a side note; say if you want any of them here.
-5. **`State 144.` counts as done in Beat 4**, with a nudge from Grace. The game could require the
-   sum by checking the code, if you'd rather it did.
+4. **`State 144.` counts as done in Beat 4**, with a nudge from Grace. The game could require the
+   sum by checking the code, if you'd rather it did. - Yes, you will need to make it so it checks that they are actually doing that arithmatic. - Nathan

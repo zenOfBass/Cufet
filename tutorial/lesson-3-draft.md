@@ -259,9 +259,6 @@ Each name can only be defined once per block. Use 'becomes' to reassign it, or c
 3. **The "isn't defined" message says "Nothing later in this block can give it a value"**, and the
    "already defined" one mentions "scope" and "block". Neither word has been taught. The rabbits
    say the same thing in plain words.
-4. **Beat 6 ends on a real refusal** whose own last line names the next lesson's word,
-   `becomes`.
-5. **`Define answer as 12 * 12.` on its own prints nothing.** Beat 1's choice C tests exactly that.
-6. **Writing the sentence without a name still counts as done in Beat 5**, with Grace's nudge,
+4. **Writing the sentence without a name still counts as done in Beat 5**, with Grace's nudge,
    since the output can't tell the two apart. The game could check the code for a `Define` if
-   you'd rather it did.
+   you'd rather it did. - Again, yes, you will need to make it so it checks that they are actually doing what the need to, not just checking output. - Nathan

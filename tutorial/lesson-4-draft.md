@@ -182,7 +182,7 @@ Hop 3!
 | `State "Hop hops!".` | Runs, prints `Hop hops!` | **Hopper:** "Hop hops"! The name needs a hole, in curly brackets. |
 | `The hops is hops + 1.` | `Line 2, column 10: expected Becomes, got Is "is".` | **Grace:** Changing a name uses `becomes`, not `is`. |
 | `The hops = hops + 1.` | `'=' is comparison, not assignment. Did you mean 'hops becomes ...' (update) or 'Define hops as ...' (introduce)?` | **Grace:** Cufet says it well itself: changing a name uses `becomes`. |
-| `Define hops as hops + 1.` | `That doesn't work: 'hops' is already defined in this scope.` and more | **Hopper:** That's the one from last time! `Define` is only for the first time. After that, it's `becomes`. |
+| `Define hops as hops + 1.` | `That doesn't work: 'hops' is already defined in this scope.` and more | **Hopper:** That's the one Cufet refused before! `Define` is only for the first time. After that, it's `becomes`. |
 | A typo: `The hosp becomes hops + 1.` | `'hosp' isn't defined on line 2 — use Define to create it first, then becomes to change it. Did you mean 'hops'?` | **Hopper:** Cufet even guessed what you meant! |
 
 ## Before the lesson ends
@@ -191,7 +191,7 @@ Hop 3!
 >
 > **Hopper:** But here's a secret, friend: it can decide things too. Like saying "Rest!" only when I'm tired.
 >
-> **Grace:** That's next time.
+> **Grace:** Come on, we'll show you.
 
 *End of lesson 4.*
 
