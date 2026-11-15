@@ -207,7 +207,11 @@ What is 12 * 12?
 
 ### Before the lesson ends
 
-> **Grace:** Cufet can remember things, you know. Come on, we'll show you.
+> **Hopper:** Look at that! One hundred and forty-four!
+>
+> **Grace:** Yup. But the moment the code tells you the answer, it goes away. What if we want to use the answers for our math?
+>
+> **Hopper:** Oh, yeah! We can **name variables**! It's super super useful. We'll show you!
 
 *End of lesson 2.*
 
