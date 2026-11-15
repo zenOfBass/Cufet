@@ -1,0 +1,15 @@
+/*  EXPECTED: REJECTED at type-check, identically by both backends.
+    A rabbit's series is stored into an outer series through a second name for it, made in the rabbit.
+
+    A name records where the NAME was made; the store is judged against where what it reaches
+    was made, which can be further out. Judged once everything is checked, so a later statement
+    that lowers it counts too (docs/SOUNDNESS.md, obligation O2). */
+
+Define keeper as a series of series of number.
+Insert (a series of number with (0)) into keeper.
+Pull a rabbit.
+    Define alias as keeper.
+    Define inner as a series of number with (1, 2, 3).
+    Item 1 of alias becomes inner.
+Done.
+State keeper.

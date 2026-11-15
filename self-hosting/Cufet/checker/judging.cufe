@@ -1024,10 +1024,13 @@ Pull a book on collections.
                     Define source as cast one's look-up on (cast unquoted on (cast field-of on (looped, 1))).
                     If source is not void, the iterator-depth becomes source's depth.
                 Done.
+                // An element is no deeper than anything the series reaches (O2).
+                Define element-floor as cast one's floor-of on (looped, looped-type).
                 Cast one's enter-scope.
                 Cast one's bind-name on (iterator, a new binding {
                     the shape cast field-of on (looped-type, 1), the established-by looped, the line at-row, the permanent false,
                     the module false, the depth iterator-depth, the parameter false, the judged false }).
+                Cast one's lower-depths on (iterator, true, element-floor, element-floor).
                 Cast one's check-block on (cast field-of on (statement, 3)) or pass the failure off.
                 Cast one's exit-scope.
             Done.
@@ -1071,6 +1074,7 @@ Pull a book on collections.
         Cast one's check-region-store on (value, given-type, cast one's container-depth on (target), at-row,
             "add a region-scoped value to a series in a longer-lived region") or pass the failure off.
         Cast one's note-store on (value, given-type, target, at-row).
+        Cast one's note-floor-store on (value, given-type, target, at-row, "add a region-scoped value to a series in a longer-lived region").
         Cast one's note-escape on (statement, ":EscapeToDepth", value, given-type, cast one's container-depth on (target)).
     Done.
 
@@ -1096,6 +1100,8 @@ Pull a book on collections.
             Cast one's check-region-store on (cast field-of on (statement, 3), given-type, cast one's container-depth on (target), at-row,
                 "set an item in a series to a region-scoped value from a shorter-lived region") or pass the failure off.
             Cast one's note-store on (cast field-of on (statement, 3), given-type, target, at-row).
+            Cast one's note-floor-store on (cast field-of on (statement, 3), given-type, target, at-row,
+                "set an item in a series to a region-scoped value from a shorter-lived region").
             Return.
         Done.
         If container's kind is "ObjectType":
@@ -1293,9 +1299,18 @@ Pull a book on collections.
             If cast is-none on (cast one's axiom-behind on (value)) is false, the held-for-good becomes true.
         Done.
         Cast one's require-rabbit-for-address on (kept, name, at-row) or pass the failure off.
+        // Read before the name is bound: a shadow's value names the one it hides (O2).
+        Define gives-container as cast one's holds-container on (kept).
+        Define given-own as 0.
+        Define given-floor as 0.
+        If gives-container:
+            The given-own becomes cast one's own-of on (value, kept).
+            The given-floor becomes cast one's floor-of on (value, kept).
+        Done.
         Cast one's bind-name on (name, a new binding {
             the shape kept, the established-by value, the line at-row, the permanent held-for-good, the module false,
             the depth one's rabbit-depth, the parameter false, the judged false }).
+        Cast one's note-given-depths on (name, kept, given-own, given-floor).
         Cast one's record-stash-local on (name, kept, at-row) or pass the failure off.
     Done.
 
@@ -1337,6 +1352,9 @@ Pull a book on collections.
         Done.
         Cast one's check-region-store on (value, given-type, existing's depth, at-row,
             "reassign '{name}' to a value from a shorter-lived region") or pass the failure off.
+        If cast one's holds-container on (given-type):
+            Cast one's note-given-depths on (name, given-type, cast one's own-of on (value, given-type), cast one's floor-of on (value, given-type)).
+        Done.
         // A name of the body's own is only pointed somewhere else. A CAPTURED one is a place
         // outside the body, and giving it a value is a store into that place.
         If one's store-now is greater than 0:

@@ -156,11 +156,14 @@ Pull a book on collections.
             Define named as cast one's look-up on (cast unquoted on (cast field-of on (subject, 1))).
             If named is not void, the subject-depth becomes named's depth.
         Done.
+        // `it` reaches whatever the subject reaches (O2).
+        Define subject-floor as cast one's floor-of on (subject, cast unknown-type).
         Cast one's enter-scope.
         If cast is-none on (shape) is false:
             Cast one's bind-name on ("it", a new binding {
                 the shape shape, the established-by subject, the line at-row, the permanent false,
                 the module false, the depth subject-depth, the parameter false, the judged true }).
+            Cast one's lower-depths on ("it", true, subject-floor, subject-floor).
         Done.
         Cast one's check-block on (body) or pass the failure off.
         Cast one's exit-scope.

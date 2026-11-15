@@ -1,0 +1,16 @@
+/*  EXPECTED: REJECTED at type-check, identically by both backends.
+    Each element of an outer table, reached through a second name made in the rabbit, is given a rabbit's series.
+
+    A name records where the NAME was made; the store is judged against where what it reaches
+    was made, which can be further out. Judged once everything is checked, so a later statement
+    that lowers it counts too (docs/SOUNDNESS.md, obligation O2). */
+
+Define keeper as a series of series of series of number.
+Insert (a series of series of number) into keeper.
+Pull a rabbit.
+    Define alias as keeper.
+    For each row in alias, repeat:
+        Insert (a series of number with (1)) into row.
+    Done.
+Done.
+State keeper.

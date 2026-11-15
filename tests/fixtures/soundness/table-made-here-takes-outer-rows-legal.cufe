@@ -1,0 +1,18 @@
+/*  EXPECTED: COMPILES and runs; compiled output must match the interpreter.
+
+    A table made in a rabbit is given outer rows, then a rabbit's row is inserted into the TABLE itself.
+
+    Nothing here outlives its region, and nothing is refused: every store is judged against
+    where its target really lives (docs/SOUNDNESS.md, obligation O2). */
+
+Define rows as a series of series of number.
+Insert (a series of number with (0)) into rows.
+Pull a rabbit.
+    Define table as a series of series of number.
+    For each row in rows, repeat:
+        Insert row into table.
+    Done.
+    Insert (item 1 of rows) into table.
+    Insert (a series of number with (1, 2)) into table.
+    State the number of table.
+Done.

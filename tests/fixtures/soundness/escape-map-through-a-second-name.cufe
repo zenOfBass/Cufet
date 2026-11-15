@@ -1,0 +1,13 @@
+/*  EXPECTED: REJECTED at type-check, identically by both backends.
+    A rabbit's series is stored into an outer map through a second name for it.
+
+    A name records where the NAME was made; the store is judged against where what it reaches
+    was made, which can be further out. Judged once everything is checked, so a later statement
+    that lowers it counts too (docs/SOUNDNESS.md, obligation O2). */
+
+Define keeper as a map from text to series of number.
+Pull a rabbit.
+    Define alias as keeper.
+    In alias, the entry for "a" becomes a series of number with (1, 2).
+Done.
+State the size of keeper.

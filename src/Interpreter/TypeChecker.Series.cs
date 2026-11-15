@@ -90,8 +90,11 @@ public sealed partial class TypeChecker
         int seriesDepth = forEach.Series is VariableReference vrSeries
             && TryLookup(vrSeries.Name, out var seriesTi)
             ? seriesTi.RabbitDepth : _rabbitDepth;
+        // An element is no deeper than anything the series reaches (O2).
+        var elementGiven = GivenOf(forEach.Series, seriesType, element: true, defining: false);
         EnterScope();
         Scope[iterKey2] = new TypeInfo(ResolveParamType(seriesType.ElementType), forEach.Series, forEach.Line, RabbitDepth: seriesDepth);
+        NoteGiven(iterKey2, elementGiven, replacing: false);
         try
         {
             CheckBlock(forEach.Body);

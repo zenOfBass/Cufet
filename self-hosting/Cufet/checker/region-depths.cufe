@@ -45,7 +45,7 @@ Pull a book on collections.
             Define gathered as a series of node.
             Cast gather-depth-nodes on (body, gathered).
 
-            Define locals as cast one's local-depths on (gathered, positions, referenced, a map from text to number, false).
+            Define locals as cast one's local-depths on (gathered, positions, referenced, a map from text to number, false, 0, a map from text to series of number).
 
             Define flows as a series of number.
             For each statement in gathered, repeat:
@@ -66,9 +66,12 @@ Pull a book on collections.
 
     /// Where each name a body gives a value to can come from. `captured` and `storing` are the
     /// store rule's (see `symbolic-depth`); the return signature passes an empty map and false.
+    /// `frame-index` is the store rule's body, or 0: given one, what each name HOLDS is worked out
+    /// into `holds` too, to the same fixed point (`grow-holds`).
     Bind map from text to series of number to local-depths unto checker, given (the series of node gathered,
             the map from text to number positions, the series of number referenced,
-            the map from text to number captured, the fact storing):
+            the map from text to number captured, the fact storing,
+            the number frame-index, the map from text to series of number holds):
         // Every name the body gives a value to starts empty, so that a name read before the walk
         // has reached its `Define` is not taken for one the walk knows nothing about.
         Define locals as a map from text to series of number.
@@ -97,6 +100,9 @@ Pull a book on collections.
                         Done.
                     Done.
                 Done.
+            Done.
+            If frame-index is greater than 0:
+                If cast one's grow-holds on (frame-index, gathered, locals, holds, positions, referenced, captured), the grew becomes true.
             Done.
         Done.
         Return locals.

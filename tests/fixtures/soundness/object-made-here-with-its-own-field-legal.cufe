@@ -1,0 +1,14 @@
+/*  EXPECTED: COMPILES and runs; compiled output must match the interpreter.
+
+    An object made in a rabbit with a field made there; a rabbit's series is inserted through the field.
+
+    Nothing here outlives its region, and nothing is refused: every store is judged against
+    where its target really lives (docs/SOUNDNESS.md, obligation O2). */
+
+Define object bag with (the series of series of number items).
+Pull a rabbit.
+    Define b as a new bag { the items (a series of series of number) }.
+    Define inner as a series of number with (1, 2, 3).
+    Insert inner into b's items.
+    State the number of b's items.
+Done.

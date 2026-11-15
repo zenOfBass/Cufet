@@ -43,7 +43,7 @@ public sealed partial class TypeChecker
                     $"set '{stmt.Member}' to a {FormatType(valueType)}",
                     $"The setter for '{stmt.Member}' accepts a {FormatType(setterSig.Value.ParamType)}.");
             CheckRegionStore(stmt.Value, InferType(stmt.Value), stmt.Target, stmt.Line, stmt.Column,
-                $"set '{stmt.Member}' to a value from a shorter-lived region than the object");
+                $"set '{stmt.Member}' to a value from a shorter-lived region than the object", stmt.Member);
             stmt.EscapeToDepth = EscapeDepthFor(stmt.Value, InferType(stmt.Value), ContainerDepthOf(stmt.Target));
             return;
         }
@@ -53,7 +53,7 @@ public sealed partial class TypeChecker
         // Region invariant: the value being stored cannot outlive the object's rabbit region.
         var valType = InferType(stmt.Value);
         CheckRegionStore(stmt.Value, valType, stmt.Target, stmt.Line, stmt.Column,
-            $"set '{stmt.Member}' to a value from a shorter-lived region than the object");
+            $"set '{stmt.Member}' to a value from a shorter-lived region than the object", stmt.Member);
         stmt.EscapeToDepth = EscapeDepthFor(stmt.Value, valType, ContainerDepthOf(stmt.Target));
     }
 

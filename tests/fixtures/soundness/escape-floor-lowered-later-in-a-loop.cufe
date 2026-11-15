@@ -1,0 +1,22 @@
+/*  EXPECTED: REJECTED at type-check, identically by both backends.
+    A table made in the rabbit is given an outer series AFTER a rabbit's series is stored into its first element, in a loop.
+
+    A name records where the NAME was made; the store is judged against where what it reaches
+    was made, which can be further out. Judged once everything is checked, so a later statement
+    that lowers it counts too (docs/SOUNDNESS.md, obligation O2). */
+
+Define keeper as a series of series of number.
+Insert (a series of number with (0)) into keeper.
+Pull a rabbit.
+    Define bag as a series of series of series of number.
+    Define round as 0.
+    While round is less than 2, repeat:
+        Increment round by 1.
+        Define inner as a series of number with (1, 2, 3).
+        If the number of bag is greater than 0:
+            Insert inner into item 1 of bag.
+        Done.
+        Insert keeper into bag.
+    Done.
+Done.
+State keeper.

@@ -1,0 +1,14 @@
+/*  EXPECTED: COMPILES and runs; compiled output must match the interpreter.
+
+    A second name for a table made in the same rabbit; a rabbit's series is inserted through it.
+
+    Nothing here outlives its region, and nothing is refused: every store is judged against
+    where its target really lives (docs/SOUNDNESS.md, obligation O2). */
+
+Pull a rabbit.
+    Define table as a series of series of number.
+    Define alias as table.
+    Define inner as a series of number with (1, 2, 3).
+    Insert inner into alias.
+    State the number of table.
+Done.

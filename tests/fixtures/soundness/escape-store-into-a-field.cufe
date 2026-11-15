@@ -1,0 +1,14 @@
+/*  EXPECTED: REJECTED at type-check, identically by both backends.
+    A rabbit's series is inserted into a field of an object from outside the rabbit.
+
+    A name records where the NAME was made; the store is judged against where what it reaches
+    was made, which can be further out. Judged once everything is checked, so a later statement
+    that lowers it counts too (docs/SOUNDNESS.md, obligation O2). */
+
+Define object bag with (the series of series of number items).
+Define b as a new bag { the items (a series of series of number) }.
+Pull a rabbit.
+    Define inner as a series of number with (1, 2, 3).
+    Insert inner into b's items.
+Done.
+State b's items.

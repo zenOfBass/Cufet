@@ -1,0 +1,19 @@
+/*  An object made in the rabbit holds a series from outside it; a rabbit's series is stored through the field.
+    Obligation broken: O2, a store needs to know exactly where its target lives. See docs/SOUNDNESS.md.  */
+
+Define object bag with (the series of series of number items).
+Define outer as a series of series of number.
+Pull a rabbit.
+    Define b as a new bag { the items outer }.
+    Define inner as a series of number with (1, 2, 3).
+    Insert inner into b's items.
+Done.
+
+/*  Make and drop enough values that freed memory is handed out again. */
+Define churn as a series of text.
+Define tick as 0.
+While tick is less than 400, repeat:
+    Insert ("zzzzzzzz" joined to "yyyyyyyy") into churn.
+    tick becomes tick + 1.
+Done.
+State outer.

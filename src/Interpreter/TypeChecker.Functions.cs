@@ -64,7 +64,17 @@ public sealed partial class TypeChecker
     private Dictionary<string, HashSet<int>> LocalDepthsOf(
         IReadOnlyList<IStatement> body, Dictionary<string, int> paramIdx, HashSet<int> refParamIdxs,
         Dictionary<string, int>? captured, out List<object> nodes)
+        => LocalDepthsOf(body, paramIdx, refParamIdxs, captured, out nodes, null, out _);
+
+    /// <summary>The same, and for the store rule (<paramref name="storing"/> given) what each name
+    /// holds as well: see GrowHolds. The two are worked out together, to one fixed point, since
+    /// an element of a name comes from whatever that name holds.</summary>
+    private Dictionary<string, HashSet<int>> LocalDepthsOf(
+        IReadOnlyList<IStatement> body, Dictionary<string, int> paramIdx, HashSet<int> refParamIdxs,
+        Dictionary<string, int>? captured, out List<object> nodes,
+        StoreFrame? storing, out Dictionary<string, HashSet<int>> holds)
     {
+        holds = new Dictionary<string, HashSet<int>>(StringComparer.Ordinal);
         nodes = new List<object>();
         CollectDepthNodes(body, nodes);
 
@@ -87,6 +97,8 @@ public sealed partial class TypeChecker
                 foreach (var i in SymbolicExprDepth(target.Value, paramIdx, refParamIdxs, localDepths, captured))
                     changed |= into.Add(i);
             }
+            if (storing != null)
+                changed |= GrowHolds(storing, nodes, localDepths, holds, paramIdx, refParamIdxs, captured!);
         }
         return localDepths;
     }
@@ -834,10 +846,10 @@ public sealed partial class TypeChecker
         if (funcType == null) return null;
 
         ValidateCastArgs(funcType, displayName, declLine, argsToValidate, cast.Line, cast.Column);
-        NoteCall(funcType, displayName, argsToValidate,
+        NoteCastTerm(cast, NoteCall(funcType, displayName, argsToValidate,
                  argsToValidate.Count < cast.Args.Count ? cast.Args[0]
                  : cast.Function is PossessiveAccess calledOn ? calledOn.Target : null,
-                 cast.Line, cast.Column, cast.Function);
+                 cast.Line, cast.Column, cast.Function));
 
         if (funcType.ReturnType == null)
             throw TypeError(

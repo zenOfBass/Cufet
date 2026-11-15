@@ -1,0 +1,17 @@
+/*  EXPECTED: REJECTED at type-check, identically by both backends.
+    A function puts its argument into a table it makes, then stores what it makes into that element. Cast inside a rabbit, on a series from outside.
+
+    A name records where the NAME was made; the store is judged against where what it reaches
+    was made, which can be further out. Judged once everything is checked, so a later statement
+    that lowers it counts too (docs/SOUNDNESS.md, obligation O2). */
+
+Bind void to fill, given (the series of series of number rows):
+    Define table as a series of series of series of number.
+    Insert rows into table.
+    Insert (a series of number with (1, 2, 3)) into item 1 of table.
+Done.
+Define keeper as a series of series of number.
+Pull a rabbit.
+    Cast fill on (keeper).
+Done.
+State keeper.

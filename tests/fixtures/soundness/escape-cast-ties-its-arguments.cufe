@@ -1,0 +1,17 @@
+/*  EXPECTED: REJECTED at type-check, identically by both backends.
+    A table made in the rabbit is handed to a function beside an outer series, then a rabbit's series is stored into its first element.
+
+    A name records where the NAME was made; the store is judged against where what it reaches
+    was made, which can be further out. Judged once everything is checked, so a later statement
+    that lowers it counts too (docs/SOUNDNESS.md, obligation O2). */
+
+Bind void to put, given (the series of series of series of number holder, the series of series of number rows):
+    Insert rows into holder.
+Done.
+Define keeper as a series of series of number.
+Pull a rabbit.
+    Define holder as a series of series of series of number.
+    Cast put on (holder, keeper).
+    Insert (a series of number with (1)) into item 1 of holder.
+Done.
+State keeper.

@@ -2859,9 +2859,11 @@ public sealed partial class TypeChecker
 
                         // No narrowing: `it` reads at the subject's own type. Matching a value tells
                         // an arm nothing a type arm's tag would have told it.
+                        var valueArmGiven = GivenOf(judge.Subject, null, element: true, defining: false);
                         EnterScope();
                         if (subjectType != null)
                             Scope["it"] = new TypeInfo(subjectType, judge.Subject, arm.Line, Judged: true, RabbitDepth: JudgedDepth(judge.Subject));
+                        if (subjectType != null) NoteGiven("it", valueArmGiven, replacing: false);
                         try { CheckBlock(arm.Body); } finally { ExitScope(); }
                         continue;
                     }
@@ -2890,8 +2892,10 @@ public sealed partial class TypeChecker
                         ? arm.Cases[0]
                         : new UnionType(arm.Cases.ToList());
 
+                    var armGiven = GivenOf(judge.Subject, null, element: true, defining: false);
                     EnterScope();
                     Scope["it"] = new TypeInfo(armType, judge.Subject, arm.Line, Judged: true, RabbitDepth: JudgedDepth(judge.Subject));
+                    NoteGiven("it", armGiven, replacing: false);
                     try { CheckBlock(arm.Body); } finally { ExitScope(); }
                 }
 
@@ -2901,8 +2905,10 @@ public sealed partial class TypeChecker
                     // covered everything, `remaining` is null and there is nothing left to narrow
                     // to — the subject's own type is the honest answer, and it is non-null here
                     // because a subject whose type could not be inferred never reaches this far.
+                    var otherwiseGiven = GivenOf(judge.Subject, null, element: true, defining: false);
                     EnterScope();
                     Scope["it"] = new TypeInfo(remaining ?? subjectType!, judge.Subject, judge.Line, Judged: true, RabbitDepth: JudgedDepth(judge.Subject));
+                    NoteGiven("it", otherwiseGiven, replacing: false);
                     try { CheckBlock(judge.OtherwiseBody); } finally { ExitScope(); }
                 }
                 else if (remaining != null && valueJudgement)
@@ -3514,7 +3520,11 @@ public sealed partial class TypeChecker
         // mutated, which is what makes `Bind number to process-id, get-pid.` see the axiom above it.
         bool permanent = define.Permanent || declared is AxiomType;
         RequireRabbitForAddress(declared ?? type, define.Name, define.Line, define.Column);
+        // Read before the name is bound: a shadow's value names the one it hides (O2).
+        bool givesContainer = HoldsContainer(declared ?? type, null);
+        var given = givesContainer ? GivenOf(define.Value, declared ?? type, element: false, defining: true) : null;
         Scope[define.Name] = new TypeInfo(declared ?? type, define.Value, define.Line, permanent, _rabbitDepth);
+        if (given != null) NoteGiven(define.Name, given, replacing: false);
         RecordStashLocal(define.Name, declared ?? type, define.Line, define.Column);
     }
 
@@ -3558,6 +3568,8 @@ public sealed partial class TypeChecker
         // Region invariant: don't let a shorter-lived reference escape into longer-lived storage.
         CheckRegionStore(becomes.Value, rhsType, existing.RabbitDepth, becomes.Line, becomes.Column,
             $"reassign '{becomes.Name}' to a value from a shorter-lived region");
+        if (HoldsContainer(rhsType, null))
+            NoteGiven(becomes.Name, GivenOf(becomes.Value, rhsType, element: false, defining: false), replacing: true);
         // A name of the function's own is only pointed somewhere else. A CAPTURED one is a place
         // outside the function, and giving it a value is a store into that place.
         if (_storeFrame is { } frame && frame.Captured.ContainsKey(becomes.Name))
@@ -4651,6 +4663,8 @@ public sealed partial class TypeChecker
         if (TryLookup(bind.Name, out var hoisted) && hoisted!.Type is FunctionType sameFunction
             && hoisted.EstablishingLine == bind.Line)
             registered.Stores = sameFunction.Stores;
+        // Bound inside another body, it may hand back what it captured (O2).
+        if (_inFunction) _innerFunctions.Add($"{bind.Name}@{bind.Line}");
         Scope[bind.Name] = new TypeInfo(registered, new VariableReference(bind.Name, 0, 0), bind.Line);
     }
 

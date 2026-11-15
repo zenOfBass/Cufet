@@ -31,14 +31,14 @@ public sealed partial class TypeChecker
                         $"set '{stmt.FieldName}' to a {FormatType(setterValueType)}",
                         $"The setter for '{stmt.FieldName}' accepts a {FormatType(setterSig.Value.ParamType)}.");
                 CheckRegionStore(stmt.Value, InferType(stmt.Value), stmt.Record, stmt.Line, stmt.Column,
-                    $"set field '{stmt.FieldName}' to a value from a shorter-lived region");
+                    $"set field '{stmt.FieldName}' to a value from a shorter-lived region", stmt.FieldName);
                 stmt.EscapeToDepth = EscapeDepthFor(stmt.Value, InferType(stmt.Value), ContainerDepthOf(stmt.Record));
                 return;
             }
             CheckObjectNamedSet(ot, stmt.FieldName, stmt.Value, stmt.Line, stmt.Column);
             var objValueType = InferType(stmt.Value);
             CheckRegionStore(stmt.Value, objValueType, stmt.Record, stmt.Line, stmt.Column,
-                $"set field '{stmt.FieldName}' to a value from a shorter-lived region");
+                $"set field '{stmt.FieldName}' to a value from a shorter-lived region", stmt.FieldName);
             stmt.EscapeToDepth = EscapeDepthFor(stmt.Value, objValueType, ContainerDepthOf(stmt.Record));
             return;
         }

@@ -71,6 +71,8 @@ public sealed partial class TypeChecker
         public IExpression Target { get; } = target;
         public int Line { get; } = line;
         public int Column { get; } = column;
+        /// <summary>The field a field set writes; the target is then the object.</summary>
+        public string? Field { get; init; }
         public HashSet<int> Sources = [];
         public HashSet<int> Targets = [];
     }
@@ -205,13 +207,18 @@ public sealed partial class TypeChecker
         if (frame.Traced) return;
         frame.Traced = true;
         if (frame.Stores.Count == 0 && frame.Calls.Count == 0) return;
-        var locals = LocalDepthsOf(frame.Body, frame.ParamIdx, frame.RefParamIdxs, frame.Captured, out _);
+        var locals = LocalDepthsOf(frame.Body, frame.ParamIdx, frame.RefParamIdxs, frame.Captured, out _,
+                                   frame, out var holds);
         HashSet<int> Of(IExpression expr) =>
-            SymbolicExprDepth(expr, frame.ParamIdx, frame.RefParamIdxs, locals, frame.Captured);
+            ReachOf(expr, frame.ParamIdx, frame.RefParamIdxs, locals, frame.Captured, holds);
         foreach (var store in frame.Stores)
         {
             store.Sources = Of(store.Value);
-            store.Targets = Of(store.Target);
+            // Storing into the name itself reaches only what the name is; storing into something
+            // inside it reaches anything it was given as well (O2).
+            store.Targets = store.Target is VariableReference
+                ? SymbolicExprDepth(store.Target, frame.ParamIdx, frame.RefParamIdxs, locals, frame.Captured)
+                : Of(store.Target);
         }
         foreach (var call in frame.Calls)
         {
@@ -221,23 +228,29 @@ public sealed partial class TypeChecker
     }
 
     /// <summary>Overload every store site uses: the container itself, so the store can be noted.</summary>
-    private void CheckRegionStore(IExpression valueExpr, CufetType? valueType, IExpression target, int line, int col, string action)
+    /// <remarks><paramref name="field"/> is the field a field set writes; its target is the object.</remarks>
+    private void CheckRegionStore(IExpression valueExpr, CufetType? valueType, IExpression target, int line, int col, string action,
+                                  string? field = null)
     {
         CheckRegionStore(valueExpr, valueType, ContainerDepthOf(target), line, col, action);
-        NoteStore(valueExpr, valueType, target, line, col);
+        NoteStore(valueExpr, valueType, target, line, col, field);
+        NoteFloorStore(valueExpr, valueType, target, field, line, col, action);
     }
 
-    private void NoteStore(IExpression value, CufetType? valueType, IExpression target, int line, int col)
+    private void NoteStore(IExpression value, CufetType? valueType, IExpression target, int line, int col, string? field = null)
     {
         if (_storeFrame is { } frame && HoldsContainer(valueType, null))
-            frame.Stores.Add(new StoreNote(value, target, line, col));
+            frame.Stores.Add(new StoreNote(value, target, line, col) { Field = field });
     }
 
-    private void NoteCall(
+    /// <summary>Notes a cast for the store rule, and gives back how deep anything it hands back
+    /// can reach (O2's floor of the cast).</summary>
+    private DepthTerm NoteCall(
         FunctionType callee, string display, IReadOnlyList<IExpression> args, IExpression? receiver,
         int line, int col, IExpression function)
     {
         var types = args.Select(InferType).ToList();
+        var castFloor = NoteCallFloors(callee.Stores, args, types, receiver, function);
         var note = new CallNote
         {
             Callee = callee.Stores, Display = display, Args = args, Receiver = receiver,
@@ -280,6 +293,7 @@ public sealed partial class TypeChecker
                 continue;
             note.Passes.Add((i, handed.Stores));
         }
+        return castFloor;
     }
 
     /// <summary>The body a name is a function-typed PARAMETER of, looking outward from here.</summary>
@@ -519,6 +533,8 @@ public sealed partial class TypeChecker
                 foreach (var (argument, function) in call.Passes)
                     RefuseAtPass(call, argument, function);
             }
+
+            JudgeFloorStores();
         }
         finally
         {
@@ -526,6 +542,13 @@ public sealed partial class TypeChecker
             _callNotes.Clear();
             _functionValues.Clear();
             _parameterValues.Clear();
+            _depthStarts.Clear();
+            _depthBounds.Clear();
+            _splitFields.Clear();
+            _castTerms.Clear();
+            _castFloorNotes.Clear();
+            _innerFunctions.Clear();
+            _floorStores.Clear();
         }
     }
 
@@ -620,5 +643,494 @@ public sealed partial class TypeChecker
                 : "cast it with a value from a shorter-lived region than the container",
             "Declare the container inside that region too, so both end at its 'Done.', "
           + "or cast it before the region opens.");
+    }
+
+    // ── Where a store's target really lives (docs/SOUNDNESS.md, obligation O2) ─────────────────
+    //
+    // A name's rabbit depth says where the NAME was made, which is no help when what it reaches
+    // was made further out: a second name for an outer series, an object made here holding one
+    // from outside, an element of a table. So each binding carries two more numbers, under
+    // `name@line`, both starting at its rabbit depth and only ever lowered:
+    //   Own   — no deeper than the container the name itself is;
+    //   Floor — no deeper than anything reachable through it.
+    // Nothing is lowered as it is met. Each statement that could lower one is written down as a
+    // BOUND — "this number is no deeper than the least of these numbers and this depth" — and the
+    // bounds are solved together once everything has been checked, when what each cast's callee
+    // stores is known too. A loop, a second name made before a store through the first, a cast
+    // met before what it stores is known: one fixed point covers all of them. Each store of
+    // something that holds a container is judged against the solution: storing into the name
+    // itself against its Own, into anything reached through it against its Floor.
+    //
+    // ★ A field of an object WRITTEN OUT in a `Define` is a name of its own, `name@line.field`:
+    // the object is held by value, so its field is the very series that was put there, and a
+    // store into it says nothing about what else the object holds.
+    //
+    // ⚠ The checker written in Cufet keeps the same numbers under the same keys
+    // (`self-hosting/Cufet/checker/stores.cufe`), and has to refuse the same store first.
+
+    /// <summary>The least of a depth and some names' numbers ("own K" or "floor K").</summary>
+    private sealed class DepthTerm
+    {
+        public int Least = int.MaxValue;
+        public readonly List<string> Keys = [];
+        public static DepthTerm Of(int depth) => new() { Least = depth };
+        public static DepthTerm Ref(string key) { var term = new DepthTerm(); term.Keys.Add(key); return term; }
+        public DepthTerm With(DepthTerm other)
+        {
+            var both = new DepthTerm { Least = Math.Min(Least, other.Least) };
+            both.Keys.AddRange(Keys);
+            both.Keys.AddRange(other.Keys);
+            return both;
+        }
+    }
+
+    private sealed record FloorStore(int Upper, DepthTerm Limit, int Line, int Column, string Action);
+    private sealed record CastPart(int Position, string? Key, bool Exact, DepthTerm Term);
+    private sealed record CastFloorNote(StoreSummary Callee, List<CastPart> Parts, int Depth);
+
+    private readonly Dictionary<string, int> _depthStarts = new(StringComparer.Ordinal);
+    private readonly List<(string Bounded, DepthTerm Term)> _depthBounds = [];
+    // A field of an object written out, by the object's key: its own name, `key.field`.
+    private readonly Dictionary<string, HashSet<string>> _splitFields = new(StringComparer.Ordinal);
+    // What each cast hands back can reach no deeper than this.
+    private readonly Dictionary<CastExpression, DepthTerm> _castTerms = new(ReferenceEqualityComparer.Instance);
+    private readonly List<CastFloorNote> _castFloorNotes = [];
+    // Functions bound inside another body: what they hand back may be something they captured.
+    private readonly HashSet<string> _innerFunctions = new(StringComparer.Ordinal);
+    private readonly List<FloorStore> _floorStores = [];
+
+    // A parameter, and the object a method is cast on, can be anything from outside.
+    private static int StartDepth(string name, TypeInfo info) =>
+        info.IsParameter || name == "one" ? 0 : info.RabbitDepth;
+
+    /// <summary>The key a name is known by here, or null.</summary>
+    private string? DepthKey(string name)
+    {
+        if (!TryLookup(name, out var info)) return null;
+        string key = $"{name}@{info!.EstablishingLine}";
+        _depthStarts.TryAdd(key, StartDepth(name, info));
+        return key;
+    }
+
+    private bool IsSplitField(string key, string field) =>
+        _splitFields.TryGetValue(key, out var fields) && fields.Contains(field);
+
+    /// <summary>The name a target or a value starts from — a field of an object written out, when
+    /// it is reached through one — and whether the expression IS that name.</summary>
+    private (string? Key, bool Exact) DepthTarget(IExpression expr)
+    {
+        IExpression node = expr;
+        IExpression? above = null;
+        while (IsAccess(node))
+        {
+            above = node;
+            node = node switch
+            {
+                SeriesAccess access     => access.Target,
+                MapLookup lookup        => lookup.Map,
+                PossessiveAccess field  => field.Target,
+                RecordNamedAccess named => named.Record,
+                _ => node,
+            };
+        }
+        if (node is not VariableReference root || DepthKey(root.Name) is not { } key) return (null, false);
+        string? member = above switch
+        {
+            PossessiveAccess field  => field.Member,
+            RecordNamedAccess named => named.FieldName,
+            _ => null,
+        };
+        if (member != null && IsSplitField(key, member)) return ($"{key}.{member}", ReferenceEquals(above, expr));
+        return (key, expr is VariableReference);
+    }
+
+    /// <summary>What lowering a whole name lowers: its floor, and every field of its own.</summary>
+    private List<string> WholeTargets(string key, bool fieldsReplaced)
+    {
+        var targets = new List<string> { "floor " + key };
+        if (_splitFields.TryGetValue(key, out var fields))
+            foreach (var field in fields.Order(StringComparer.Ordinal))
+            {
+                targets.Add($"floor {key}.{field}");
+                if (fieldsReplaced) targets.Add($"own {key}.{field}");
+            }
+        return targets;
+    }
+
+    /// <summary>What lowering through a target lowers.</summary>
+    private List<string> TargetsOf(string key, bool exact, bool fieldsReplaced) =>
+        key.Contains('.') || !exact ? ["floor " + key] : WholeTargets(key, fieldsReplaced);
+
+    private void Bound(string bounded, DepthTerm term) => _depthBounds.Add((bounded, term));
+
+    private static bool IsMadeHere(IExpression expr) =>
+        expr is SeriesLiteral or MapLiteral or ObjectLiteral or MatrixLiteral or MatrixSized
+             or RangeExpression or ChannelCreation or DeliveryExpression;
+
+    /// <summary>How deep the container an expression IS may lie, at the lowest.</summary>
+    private DepthTerm OwnTerm(IExpression expr, CufetType? type)
+    {
+        switch (expr)
+        {
+            case VariableReference named:
+                return DepthKey(named.Name) is { } key ? DepthTerm.Ref("own " + key) : DepthTerm.Of(0);
+            case ButVoidDefault either:
+                return OwnTerm(either.Voidable, type).With(OwnTerm(either.Default, type));
+            case FailureFallback either:
+                return OwnTerm(either.Fallible, type).With(OwnTerm(either.Default, type));
+        }
+        if (IsMadeHere(expr)) return DepthTerm.Of(_rabbitDepth);
+        if (IsAccess(expr) && DepthTarget(expr) is { Key: { } field, Exact: true } && field.Contains('.'))
+            return DepthTerm.Ref("own " + field);
+        return FloorTerm(expr, type);
+    }
+
+    /// <summary>How deep anything reachable through an expression may lie, at the lowest.
+    /// <paramref name="type"/> is what it holds, when known; it says which items of something
+    /// written out can hold a container.</summary>
+    private DepthTerm FloorTerm(IExpression expr, CufetType? type)
+    {
+        switch (expr)
+        {
+            case VariableReference named:
+                return DepthKey(named.Name) is { } key ? DepthTerm.Ref("floor " + key) : DepthTerm.Of(0);
+            case SeriesLiteral made:
+            {
+                var term = DepthTerm.Of(_rabbitDepth);
+                var element = (type as SeriesType)?.ElementType;
+                if (type is not SeriesType || HoldsContainer(element, null))
+                    foreach (var item in made.Elements) term = term.With(FloorTerm(item, element));
+                return term;
+            }
+            case MapLiteral made:
+            {
+                var term = DepthTerm.Of(_rabbitDepth);
+                var mapType = type as MapType;
+                bool keys = mapType == null || HoldsContainer(mapType.KeyType, null);
+                bool values = mapType == null || HoldsContainer(mapType.ValueType, null);
+                foreach (var (key, value) in made.Pairs)
+                {
+                    if (keys) term = term.With(FloorTerm(key, mapType?.KeyType));
+                    if (values) term = term.With(FloorTerm(value, mapType?.ValueType));
+                }
+                return term;
+            }
+            case ObjectLiteral made:
+            {
+                var term = DepthTerm.Of(_rabbitDepth);
+                _objectDefs.TryGetValue(made.TypeName, out var madeType);
+                for (int i = 0; i < made.PositionalValues.Count; i++)
+                {
+                    var fieldType = madeType != null && i < madeType.PositionalTypes.Count ? madeType.PositionalTypes[i] : null;
+                    if (fieldType == null || FieldHoldsContainer(fieldType, new HashSet<string>(StringComparer.Ordinal)))
+                        term = term.With(FloorTerm(made.PositionalValues[i], fieldType));
+                }
+                foreach (var (name, value) in made.NamedValues)
+                    if (CarriedField(madeType, name) is var (carries, fieldType) && carries)
+                        term = term.With(FloorTerm(value, fieldType));
+                return term;
+            }
+            case ButVoidDefault either:
+                return FloorTerm(either.Voidable, type).With(FloorTerm(either.Default, type));
+            case FailureFallback either:
+                return FloorTerm(either.Fallible, type).With(FloorTerm(either.Default, type));
+            case CastExpression cast:
+                return _castTerms.TryGetValue(cast, out var castTerm) ? castTerm : DepthTerm.Of(0);
+        }
+        if (IsMadeHere(expr)) return DepthTerm.Of(_rabbitDepth);
+        if (IsAccess(expr))
+            return DepthTarget(expr) is { Key: { } reached }
+                ? DepthTerm.Ref("floor " + reached)
+                : FloorTerm(AccessRoot(expr), null);
+        return DepthTerm.Of(0);
+    }
+
+    /// <summary>Whether a named field of something written out can hold a container, and its type.</summary>
+    private (bool Carries, CufetType? Type) CarriedField(ObjectType? madeType, string name)
+    {
+        var fieldType = madeType == null ? null : FindFieldInOtOrPromoted(madeType, name);
+        return (fieldType == null || FieldHoldsContainer(fieldType, new HashSet<string>(StringComparer.Ordinal)), fieldType);
+    }
+
+    /// <summary>What a `Define`, a `becomes`, an element or a judged subject gives a name, read
+    /// where it stands — before the name is bound, since a shadow's value names the one it hides.</summary>
+    private sealed record GivenDepths(DepthTerm Own, DepthTerm Floor, List<string> Back,
+                                      List<(string Field, DepthTerm Own, DepthTerm Floor)>? Fields);
+
+    private GivenDepths GivenOf(IExpression value, CufetType? type, bool element, bool defining)
+    {
+        var floor = FloorTerm(value, type);
+        var own = element ? floor : OwnTerm(value, type);
+        // The name it came from can now be reached through this one, so whatever this one is
+        // given reaches that one too.
+        var back = DepthTarget(value) is { Key: { } from } reached
+            ? TargetsOf(from, reached.Exact, fieldsReplaced: false) : [];
+        List<(string, DepthTerm, DepthTerm)>? fields = null;
+        if (defining && value is ObjectLiteral made)
+        {
+            _objectDefs.TryGetValue(made.TypeName, out var madeType);
+            fields = [];
+            foreach (var (name, fieldValue) in made.NamedValues)
+                if (CarriedField(madeType, name) is var (carries, fieldType) && carries)
+                    fields.Add((name, OwnTerm(fieldValue, fieldType), FloorTerm(fieldValue, fieldType)));
+        }
+        return new GivenDepths(own, floor, back, fields);
+    }
+
+    /// <summary>A name given a value: its numbers are no deeper than the value's.</summary>
+    private void NoteGiven(string name, GivenDepths given, bool replacing)
+    {
+        if (DepthKey(name) is not { } key) return;
+        Bound("own " + key, given.Own);
+        Bound("floor " + key, given.Floor);
+        foreach (var back in given.Back) Bound(back, DepthTerm.Ref("floor " + key));
+        if (replacing && _splitFields.TryGetValue(key, out var held))
+            foreach (var field in held.Order(StringComparer.Ordinal))
+            {
+                Bound($"own {key}.{field}", given.Floor);
+                Bound($"floor {key}.{field}", given.Floor);
+            }
+        if (given.Fields is { } fields)
+        {
+            var own = _splitFields[key] = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var (field, fieldOwn, fieldFloor) in fields)
+            {
+                string fieldKey = $"{key}.{field}";
+                own.Add(field);
+                _depthStarts[fieldKey] = _depthStarts[key];
+                Bound("own " + fieldKey, fieldOwn);
+                Bound("floor " + fieldKey, fieldFloor);
+                Bound("floor " + key, DepthTerm.Ref("floor " + fieldKey));
+            }
+        }
+    }
+
+    /// <summary>A store of something that holds a container: written down to judge at the end,
+    /// and what the target reaches now reaches what was stored. <paramref name="field"/> names
+    /// the field a field set writes, whose target is the object.</summary>
+    private void NoteFloorStore(IExpression value, CufetType? valueType, IExpression target, string? field,
+                                int line, int col, string action)
+    {
+        if (!HoldsContainer(valueType, null)) return;
+        int upper = ValueDepthOf(value, valueType);
+        var (key, exact) = DepthTarget(target);
+        var stored = FloorTerm(value, valueType);
+        DepthTerm limit;
+        if (key == null)
+            limit = FloorTerm(target, null);
+        else
+        {
+            limit = DepthTerm.Ref((exact ? "own " : "floor ") + key);
+            if (field != null && exact && IsSplitField(key, field))
+            {
+                // The field is replaced: what it is now is what was stored.
+                Bound($"own {key}.{field}", OwnTerm(value, valueType));
+                Bound($"floor {key}.{field}", stored);
+            }
+            else
+                Bound("floor " + key, stored);
+        }
+        if (upper > 0) _floorStores.Add(new FloorStore(upper, limit, line, col, action));
+    }
+
+    /// <summary>A cast: written down, so that what its callee stores can lower the floors of what
+    /// it was given once that is known. Gives back how deep what it hands back can reach — no
+    /// deeper than what it is given, unless it can hand back something it captured.</summary>
+    private DepthTerm NoteCallFloors(StoreSummary callee, IReadOnlyList<IExpression> args, List<CufetType?> types,
+                                     IExpression? receiver, IExpression function)
+    {
+        var parts = new List<CastPart>();
+        void Part(int position, IExpression given, CufetType? type)
+        {
+            var (key, exact) = DepthTarget(given);
+            parts.Add(new CastPart(position, key, exact, FloorTerm(given, type)));
+        }
+        for (int i = 0; i < args.Count; i++)
+            if (HoldsContainer(types[i], null)) Part(i, args[i], types[i]);
+        if (receiver != null && InferType(receiver) is var receiverType && HoldsContainer(receiverType, null))
+            Part(ReceiverDepthIndex, receiver, receiverType);
+        _castFloorNotes.Add(new CastFloorNote(callee, parts, _rabbitDepth));
+
+        bool named = receiver != null
+            || function is VariableReference called && TryLookup(called.Name, out var info)
+               && info!.Type is FunctionType && !info.IsParameter
+               && info.EstablishingExpr is VariableReference { Line: 0, Column: 0 }
+               && !_innerFunctions.Contains($"{called.Name}@{info.EstablishingLine}");
+        if (!named) return DepthTerm.Of(0);
+        if (parts.Count == 0) return DepthTerm.Of(_rabbitDepth);
+        var handed = new DepthTerm();
+        foreach (var part in parts) handed = handed.With(part.Term);
+        return handed;
+    }
+
+    private void NoteCastTerm(CastExpression cast, DepthTerm term) =>
+        _castTerms[cast] = _castTerms.TryGetValue(cast, out var held) ? held.With(term) : term;
+
+    /// <summary>Whether what a function stores is known: a body was checked for it, or it is an
+    /// interface's method, which stands for every conforming object's.</summary>
+    private static bool StoresKnown(StoreSummary callee) => callee.Interface != null || callee.Known;
+
+    /// <summary>What each cast's callee stores into what it was given, as bounds.</summary>
+    private void BoundCasts()
+    {
+        foreach (var note in _castFloorNotes)
+        {
+            if (!StoresKnown(note.Callee))
+            {
+                // Nothing known: it may store any of them into any other.
+                foreach (var into in note.Parts)
+                    if (into.Key is { } key)
+                        foreach (var from in note.Parts)
+                            if (!ReferenceEquals(from, into))
+                                foreach (var bounded in TargetsOf(key, into.Exact, fieldsReplaced: true))
+                                    Bound(bounded, from.Term);
+                continue;
+            }
+            foreach (var (source, target) in PairsOf(note.Callee))
+            {
+                if (note.Parts.FirstOrDefault(part => part.Position == target) is not { Key: { } key } into) continue;
+                DepthTerm? term =
+                    source == FreshDepthIndex ? DepthTerm.Of(note.Depth)
+                    : IsOuter(source) ? DepthTerm.Of(0)
+                    : note.Parts.FirstOrDefault(part => part.Position == source)?.Term;
+                if (term == null) continue;
+                foreach (var bounded in TargetsOf(key, into.Exact, fieldsReplaced: true))
+                    Bound(bounded, term);
+            }
+        }
+    }
+
+    private int DepthValue(Dictionary<string, int> values, string bounded)
+    {
+        if (values.TryGetValue(bounded, out int held)) return held;
+        return _depthStarts.GetValueOrDefault(bounded[(bounded.IndexOf(' ') + 1)..], 0);
+    }
+
+    private int DepthEval(Dictionary<string, int> values, DepthTerm term)
+    {
+        int least = term.Least;
+        foreach (var key in term.Keys) least = Math.Min(least, DepthValue(values, key));
+        return least;
+    }
+
+    private void JudgeFloorStores()
+    {
+        BoundCasts();
+        var values = new Dictionary<string, int>(StringComparer.Ordinal);
+        for (bool changed = true; changed;)
+        {
+            changed = false;
+            foreach (var (bounded, term) in _depthBounds)
+            {
+                int lowered = DepthEval(values, term);
+                if (lowered < DepthValue(values, bounded))
+                {
+                    values[bounded] = lowered;
+                    changed = true;
+                }
+            }
+        }
+        foreach (var store in _floorStores)
+            if (store.Upper > DepthEval(values, store.Limit))
+                throw TypeError(
+                    "this value lives in a shorter-lived region than its destination — it will be gone when that region ends",
+                    null, store.Line, store.Column,
+                    store.Action,
+                    "Declare the container inside that region too, so both end at its 'Done.', "
+                  + "or make the value before the region opens, so it lives as long as the container.");
+    }
+
+    /// <summary>What an item, an entry or a field is read out of, followed to its start.</summary>
+    private static IExpression AccessRoot(IExpression expr)
+    {
+        while (true)
+        {
+            switch (expr)
+            {
+                case SeriesAccess access:        expr = access.Target; continue;
+                case MapLookup lookup:           expr = lookup.Map; continue;
+                case PossessiveAccess field:     expr = field.Target; continue;
+                case RecordNamedAccess named:    expr = named.Record; continue;
+                default: return expr;
+            }
+        }
+    }
+
+    private static bool IsAccess(IExpression expr) =>
+        expr is SeriesAccess or MapLookup or PossessiveAccess or RecordNamedAccess;
+
+    private static string? RootName(IExpression expr) => AccessRoot(expr) is VariableReference root ? root.Name : null;
+
+    // ── What a name in a body holds (O2, for the store rule's walk) ────────────────────────────
+
+    /// <summary>Where an expression's value may come from, and what its root was given.</summary>
+    private HashSet<int> ReachOf(
+        IExpression expr, Dictionary<string, int> paramIdx, HashSet<int> refParamIdxs,
+        Dictionary<string, HashSet<int>> localDepths, Dictionary<string, int> captured,
+        Dictionary<string, HashSet<int>> holds)
+    {
+        var reach = SymbolicExprDepth(expr, paramIdx, refParamIdxs, localDepths, captured);
+        if (RootName(expr) is { } root && holds.TryGetValue(root, out var held)) reach.UnionWith(held);
+        return reach;
+    }
+
+    private static HashSet<int> HeldBy(Dictionary<string, HashSet<int>> holds, string name)
+    {
+        if (!holds.TryGetValue(name, out var held)) holds[name] = held = [];
+        return held;
+    }
+
+    private static bool Grow(HashSet<int> into, IEnumerable<int> from)
+    {
+        if (ReferenceEquals(into, from)) return false;
+        bool grew = false;
+        foreach (var place in from.ToList()) grew |= into.Add(place);
+        return grew;
+    }
+
+    /// <summary>One round of what each name of a body holds: what was stored into it or into
+    /// anything inside it, what a cast may have stored into it, and, for a second name or an
+    /// element, what the name it came from holds.</summary>
+    private bool GrowHolds(
+        StoreFrame frame, List<object> nodes, Dictionary<string, HashSet<int>> localDepths,
+        Dictionary<string, HashSet<int>> holds, Dictionary<string, int> paramIdx, HashSet<int> refParamIdxs,
+        Dictionary<string, int> captured)
+    {
+        HashSet<int> Reach(IExpression expr) => ReachOf(expr, paramIdx, refParamIdxs, localDepths, captured, holds);
+        bool grew = false;
+        foreach (var node in nodes)
+        {
+            if (DepthTargetOf(node) is not { } given) continue;
+            if (node is DefineStatement or BecomesStatement && given.Value is VariableReference other)
+            {
+                if (other.Name == given.Name) continue;
+                grew |= Grow(HeldBy(holds, given.Name), HeldBy(holds, other.Name));
+                grew |= Grow(HeldBy(holds, other.Name), HeldBy(holds, given.Name));
+            }
+            else if ((node is ForEachStatement or JudgeStatement || IsAccess(given.Value))
+                     && RootName(given.Value) is { } root && root != given.Name)
+            {
+                var rootHeld = HeldBy(holds, root);
+                grew |= Grow(localDepths[given.Name], rootHeld);
+                grew |= Grow(HeldBy(holds, given.Name), rootHeld);
+            }
+        }
+        foreach (var store in frame.Stores)
+            if (RootName(store.Target) is { } into)
+                grew |= Grow(HeldBy(holds, into), Reach(store.Value));
+        foreach (var call in frame.Calls)
+        {
+            var parts = new List<IExpression>();
+            for (int i = 0; i < call.Args.Count; i++)
+                if (call.ArgHolds[i]) parts.Add(call.Args[i]);
+            if (call.Receiver != null) parts.Add(call.Receiver);
+            for (int i = 0; i < parts.Count; i++)
+            {
+                if (RootName(parts[i]) is not { } into) continue;
+                for (int j = 0; j < parts.Count; j++)
+                    if (j != i) grew |= Grow(HeldBy(holds, into), Reach(parts[j]));
+            }
+        }
+        return grew;
     }
 }

@@ -194,6 +194,10 @@ Pull a book on collections.
             the shape cast function-type-of on (statement),
             the established-by cast named-reference on (name), the line cast number-of on (cast field-of on (statement, 7)),
             the permanent false, the module false, the depth 0, the parameter false, the judged false }).
+        // Bound inside another body, it may hand back what it captured (O2).
+        If one's in-function:
+            In one's stores's inner-functions, the entry for "{name}@{cast number-of on (cast field-of on (statement, 7))}" becomes true.
+        Done.
     Done.
 
     // ── A function's body ─────────────────────────────────────────────────
@@ -908,7 +912,7 @@ Pull a book on collections.
     /// Hands a checked cast to the store rule: its arguments without the object a method is cast
     /// on, and that object, as `record-call-depth` splits them.
     Bind void to note-cast unto checker, given (the node callee, the call reached, the node call-args, the number at-row,
-            the map from text to node memo):
+            the map from text to node memo, the text call-place):
         Define receiver as cast unknown-type.
         Define given-args as call-args's children.
         Define validated as a series of node.
@@ -927,7 +931,7 @@ Pull a book on collections.
         If reached's receivers is greater than 0, the receiver-type becomes the entry for "first" in memo but void is cast unknown-type.
         Otherwise if callee's kind is "PossessiveAccess", the receiver-type becomes the entry for "receiver" in memo but void is cast unknown-type.
         Cast one's note-call on (callee, cast one's store-key-of on (reached's depth-key), reached's display,
-            validated, receiver, receiver-type, at-row, memo).
+            validated, receiver, receiver-type, at-row, memo, call-place).
     Done.
 
     /// `cast f on (…)`, as a statement or a value. Gives back what it returns, or `none`.
@@ -975,7 +979,7 @@ Pull a book on collections.
         Define reached as cast one's resolve-cast on (callee, call-args, at-row, filled, memo) or pass the failure off.
         If cast is-none on (reached's shape), return reached's shape.
         Cast one's check-arguments on (reached, call-args, at-row, memo) or pass the failure off.
-        Cast one's note-cast on (callee, reached, call-args, at-row, memo).
+        Cast one's note-cast on (callee, reached, call-args, at-row, memo, cast node-place on (said, 3)).
         Define gives as cast field-of on (reached's shape, 2).
         Define display as reached's display.
         If as-value is false:

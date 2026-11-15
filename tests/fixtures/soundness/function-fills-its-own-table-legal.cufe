@@ -1,0 +1,20 @@
+/*  EXPECTED: COMPILES and runs; compiled output must match the interpreter.
+
+    A function puts its argument's rows and rows it makes into a table of its own. Cast inside a rabbit on rows from outside.
+
+    Nothing here outlives its region, and nothing is refused: every store is judged against
+    where its target really lives (docs/SOUNDNESS.md, obligation O2). */
+
+Bind number to gather, given (the series of series of number rows):
+    Define table as a series of series of number.
+    For each row in rows, repeat:
+        Insert row into table.
+    Done.
+    Insert (a series of number with (1, 2)) into table.
+    Return the number of table.
+Done.
+Define rows as a series of series of number.
+Insert (a series of number with (0)) into rows.
+Pull a rabbit.
+    State cast gather on (rows).
+Done.

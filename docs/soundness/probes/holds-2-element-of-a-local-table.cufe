@@ -1,0 +1,21 @@
+/*  A function puts its argument into a table it makes, then stores what it makes into that element.
+    Obligation broken: O2, a store needs to know exactly where its target lives. See docs/SOUNDNESS.md.  */
+
+Bind void to fill, given (the series of series of number rows):
+    Define table as a series of series of series of number.
+    Insert rows into table.
+    Insert (a series of number with (1, 2, 3)) into item 1 of table.
+Done.
+Define keeper as a series of series of number.
+Pull a rabbit.
+    Cast fill on (keeper).
+Done.
+
+/*  Make and drop enough values that freed memory is handed out again. */
+Define churn as a series of text.
+Define tick as 0.
+While tick is less than 400, repeat:
+    Insert ("zzzzzzzz" joined to "yyyyyyyy") into churn.
+    tick becomes tick + 1.
+Done.
+State keeper.

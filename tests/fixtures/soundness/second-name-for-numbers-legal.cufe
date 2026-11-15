@@ -1,0 +1,21 @@
+/*  EXPECTED: COMPILES and runs; compiled output must match the interpreter.
+
+    A second name, made in a rabbit, for an outer series of numbers; a number is inserted through it.
+
+    Nothing here outlives its region, and nothing is refused: every store is judged against
+    where its target really lives (docs/SOUNDNESS.md, obligation O2). */
+
+Define totals as a series of number.
+Pull a rabbit.
+    Define alias as totals.
+    Insert 5 into alias.
+Done.
+
+/*  Make and drop enough values that freed memory is handed out again. */
+Define churn as a series of text.
+Define tick as 0.
+While tick is less than 400, repeat:
+    Insert ("zzzzzzzz" joined to "yyyyyyyy") into churn.
+    tick becomes tick + 1.
+Done.
+State totals.
