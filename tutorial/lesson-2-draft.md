@@ -1,4 +1,4 @@
-# Lesson 2, more lines and numbers: a first draft
+# Lesson 2, numbers: a first draft
 
 **Status: a draft to react to. Nothing here is agreed until you say so.** The agreed design is in
 [DESIGN.md](DESIGN.md). It follows [lesson 1](lesson-1-draft.md) and is written the same way:
@@ -7,120 +7,16 @@ and every Cufet message below was run through the real build on 12 November 2026
 
 What's new in this lesson, one idea per beat:
 
-1. A program can hold several instructions, and they run from the top down.
-2. Putting lines in order (the first tile exercise).
-3. Numbers: quote marks mean "say exactly this", no quote marks mean "work it out".
-4. The four signs: `+`, `-`, `*`, `/`.
-5. A program can be refused, and then none of it runs.
-6. A blank page, using words and numbers together.
+1. Numbers: quote marks mean "say exactly this", no quote marks mean "work it out".
+2. The four signs: `+`, `-`, `*`, `/`.
+3. A program can be refused, and then none of it runs.
+4. A blank page, using words and numbers together.
 
-It opens where lesson 1 ended, with `State "Hello, Hopper!".` still in the editor.
+It opens where lesson 1 ended, just after Hopper's joke.
 
 ---
 
-## Beat 1: more than one (Predict)
-
-*Grace hops up to the editor. Hopper's hello is still there. She adds a line above it:*
-
-```cufet
-State "Hello, Grace!".
-State "Hello, Hopper!".
-```
-
-> **Grace:** There. Two instructions now, one on each line.
->
-> **Hopper:** Ooo. Two! What's it gonna do with two?
->
-> **Grace:** Good question. What do you think, friend?
-
-*The output box asks: **What will appear here?** Three buttons:*
-
-- **A.** `Hello, Grace!` and then `Hello, Hopper!` under it
-- **B.** `Hello, Hopper!` and then `Hello, Grace!` under it
-- **C.** Only `Hello, Hopper!`
-
-*The player picks one. The Run button lights up, and the player presses it.*
-
-```output
-Hello, Grace!
-Hello, Hopper!
-```
-
-**If they chose A:**
-
-> **Grace:** Exactly right. Both of them, and in the same order I wrote them.
-
-**If they chose B:**
-
-> **Grace:** Not quite. I'm on the top line, so I get said first.
-
-**If they chose C:**
-
-> **Hopper:** Don't forget Grace! Every `State` gets a turn.
-
-*Whichever they chose, Grace sums it up:*
-
-> **Grace:** The computer starts at the top and works its way down, one instruction at a time. Each `State` gets a line of its own in the **output box**.
-
-## Beat 2: Hopper's joke (put the lines in order)
-
-> **Hopper:** Ooo, I know a joke! I'll write it as a program.
->
-> **Grace:** Oh dear.
-
-*Hopper bounces across the editor. Lines land in a jumbled heap.*
-
-> **Hopper:** Aw, shucks, I tripped and dropped them. Friend, can you put my joke back in order?
->
-> **Grace:** Careful. I count one line too many in that heap.
-
-*The editor shows six tiles, shuffled. The player drags them into order. One doesn't belong:*
-
-```cufet
-State "Lettuce who?".
-State "Knock, knock!".
-State "Lettuce in, it's cold out here!".
-State "Who's there?"
-State "Lettuce!".
-State "Who's there?".
-```
-
-*Done when the output is the joke, in order:*
-
-```output
-Knock, knock!
-Who's there?
-Lettuce!
-Lettuce who?
-Lettuce in, it's cold out here!
-```
-
-> **Hopper:** Lettuce in! Get it? *Let us* in!
->
-> **Grace:** ...We get it, Hopper.
->
-> **Hopper:** You know you wanna laugh.
-
-### The hint ladder
-
-1. > **Hopper:** Every knock-knock joke starts the same way. Which line goes on top?
-2. > **Grace:** Two of the tiles look almost the same. Look closely at how each one ends.
-3. > **Grace:** Here's the order. Build it yourself:
-   >
-   > Knock, knock! · Who's there? · Lettuce! · Lettuce who? · Lettuce in, it's cold out here!
-
-### Reactions
-
-| They build | What Cufet does | The rabbits say |
-| --- | --- | --- |
-| The joke in the wrong order | Runs, prints it out of order | **Hopper:** That's not how it goes! Read it out loud. Does it sound like a joke? |
-| The joke using the tile with no period | `Line 3, column 1: expected '.', got State "State".` | **Grace:** One of those `Who's there?` tiles never ends its instruction. Use the other one. |
-| All six tiles | Refused, because the tile with no period is in there | **Grace:** One tile too many. One of them doesn't belong in the joke at all. |
-
-*Measured: a missing period is reported on the line AFTER the one that's missing it, because
-that's where the computer finds the next `State`. The reaction has to point at the right tile.*
-
-## Beat 3: a number (Run, then Predict)
+## Beat 1: a number (Run, then Predict)
 
 > **Hopper:** Five lines! My joke had five whole lines. I counted.
 >
@@ -180,7 +76,7 @@ State "2 + 3".
 
 > **Grace:** Quote marks mean "say exactly this". Without them, Cufet works out the answer first, and says that.
 
-## Beat 4: the four signs (Predict, typed)
+## Beat 2: the four signs (Predict, typed)
 
 > **Grace:** Cufet can add, take away, multiply and divide. Two of the signs may be new to you.
 >
@@ -227,7 +123,7 @@ real answers appear beside their guesses:*
 
 *A wrong guess here is never a fail. Running it shows the answer.*
 
-## Beat 5: will it run? (Predict)
+## Beat 3: will it run? (Predict)
 
 *Hopper writes two lines, looking pleased with himself:*
 
@@ -269,7 +165,7 @@ If you meant to join text, use 'joined to': "hello" joined to " world".
 >
 > **Grace:** A story for another day.
 
-## Beat 6: a blank page (Make)
+## Beat 4: a blank page (Make)
 
 > **Hopper:** All that knocking made me hungry. I found four lettuces!
 >
@@ -331,14 +227,14 @@ Together that makes:
 ## Things this draft found
 
 1. **A refused program prints nothing at all**, not even the lines before the bad one. Measured
-   with the two-line program in Beat 5. It makes "Cufet reads the whole program first" something
+   with the two-line program in Beat 3. It makes "Cufet reads the whole program first" something
    the player can see.
-2. **Beat 5 is the first warm Cufet message the player meets**, and it's shown as is. Its last
+2. **Beat 3 is the first warm Cufet message the player meets**, and it's shown as is. Its last
    line mentions `joined to`, which hasn't been taught, so Hopper asks and Grace defers it.
 3. **`State 4 + 5 = 9.` runs and prints `true`.** A child might well type that. The reaction
    explains it without teaching facts yet.
 4. **Left out on purpose:** which sign goes first (`2 + 3 * 4` is 14), brackets, and answers with
    a fraction (`7 / 2` is `3.5`). Each needs maths a young child may not have. They could go in a
    later lesson or a side note; say if you want any of them here.
-5. **`State 9.` counts as done in Beat 6**, with a nudge from Grace. The game could require the
+5. **`State 9.` counts as done in Beat 4**, with a nudge from Grace. The game could require the
    sum by checking the code, if you'd rather it did.

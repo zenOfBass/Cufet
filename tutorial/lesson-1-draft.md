@@ -162,6 +162,104 @@ Each hint needs an attempt since the last one.
 >
 > **Grace:** Very good job. Saying one thing is a fine start, but sometimes you need to stack more than one `State` in a row. Come on, we'll show you.
 
+## Beat 5: more than one (Predict)
+
+*Grace hops up to the editor. Hopper's hello is still there. She adds a line above it:*
+
+```cufet
+State "Hello, Grace!".
+State "Hello, Hopper!".
+```
+
+> **Grace:** There. Two instructions now, one on each line.
+>
+> **Hopper:** Ooo. Two! What's it gonna do with two?
+>
+> **Grace:** Good question. What do you think, friend?
+
+*The output box asks: **What will appear here?** Three buttons:*
+
+- **A.** `Hello, Grace!` and then `Hello, Hopper!` under it
+- **B.** `Hello, Hopper!` and then `Hello, Grace!` under it
+- **C.** Only `Hello, Hopper!`
+
+*The player picks one. The Run button lights up, and the player presses it.*
+
+```output
+Hello, Grace!
+Hello, Hopper!
+```
+
+**If they chose A:**
+
+> **Grace:** Exactly right. Both of them, and in the same order I wrote them.
+
+**If they chose B:**
+
+> **Grace:** Not quite. I'm on the top line, so I get said first.
+
+**If they chose C:**
+
+> **Hopper:** Don't forget Grace! Every `State` gets a turn.
+
+*Whichever they chose, Grace sums it up:*
+
+> **Grace:** The computer starts at the top and works its way down, one instruction at a time. Each `State` gets a line of its own in the **output box**.
+
+## Beat 6: Hopper's joke (put the lines in order)
+
+> **Hopper:** Ooo, I know a joke! I'll write it as a program.
+>
+> **Grace:** Oh dear.
+
+*Hopper bounces across the editor. Lines land in a jumbled heap.*
+
+> **Hopper:** Aw, shucks, I tripped and dropped them. Friend, can you put my joke back in order?
+
+*The editor shows five tiles, shuffled. The player drags them into order:*
+
+```cufet
+State "Lettuce who?".
+State "Knock, knock!".
+State "Lettuce in, it's cold out here!".
+State "Lettuce!".
+State "Who's there?".
+```
+
+*Done when the output is the joke, in order:*
+
+```output
+Knock, knock!
+Who's there?
+Lettuce!
+Lettuce who?
+Lettuce in, it's cold out here!
+```
+
+> **Hopper:** Lettuce in! Get it? *Let us* in!
+>
+> **Grace:** ...We get it, Hopper.
+>
+> **Hopper:** You know you wanna laugh.
+>
+> **Grace:** Cufet makes it easy to say whatever you need to. But there's a lot more you can use `State` for than just saying words. Come on, we'll show you.
+
+### The hint ladder
+
+1. > **Hopper:** Every knock-knock joke starts the same way. Which line goes on top?
+2. > **Grace:** A question comes before its answer. `Who's there?` has to come before `Lettuce!`
+3. > **Grace:** Here's the order. Build it yourself:
+   >
+   > Knock, knock! · Who's there? · Lettuce! · Lettuce who? · Lettuce in, it's cold out here!
+
+### Reactions
+
+| They build | What Cufet does | The rabbits say |
+| --- | --- | --- |
+| The joke in the wrong order | Runs, prints it out of order | **Hopper:** That's not how it goes! Read it out loud. Does it sound like a joke? |
+
+*End of lesson 1.*
+
 ---
 
 ## Still open
