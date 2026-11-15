@@ -156,7 +156,9 @@ around it. Nobody has asked for one.
   gets `expected As, got NumberKw "number"`; `The hops is hops + 1.` gets
   `expected Becomes, got Is "is"`; a missing comma after an `If` question asks for a colon;
   `Else` gets the lowercase-letter message; `Otherwise` with no `If` gets
-  `expected statement keyword`; and `is greater 3` gets `expected Than, got Number "3"`.
+  `expected statement keyword`; and `is greater 3` gets `expected Than, got Number "3"`. A `While`
+  missing its `Done.` suggests the inline form of `For each`, and a `Repeat` missing its `until` gets
+  `expected statement keyword, got Done`.
 
 ### Types and object
 

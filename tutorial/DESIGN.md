@@ -81,8 +81,9 @@ with the evidence for every edge, is in [`tools/curriculum-net/`](../tools/curri
 - The working scripts are [lesson-1-draft.md](lesson-1-draft.md) (saying words: the opening, several lines, the joke),
   [lesson-2-draft.md](lesson-2-draft.md) (numbers),
   [lesson-3-draft.md](lesson-3-draft.md) (names),
-  [lesson-4-draft.md](lesson-4-draft.md) (becomes), and
-  [lesson-5-draft.md](lesson-5-draft.md) (choosing).
+  [lesson-4-draft.md](lesson-4-draft.md) (becomes),
+  [lesson-5-draft.md](lesson-5-draft.md) (choosing), and
+  [lesson-6-draft.md](lesson-6-draft.md) (repeating).
 
 ## How questions are asked
 
