@@ -9,9 +9,10 @@ What's new in this lesson, one idea per beat:
 
 1. `Define` keeps a value under a name, and using the name gives the value back.
 2. A kept answer can be used in more math.
-3. A name doesn't reach inside quote marks.
-4. A hole, `{pick}`, puts a name's value into text.
-5. A blank page: the quiz from lesson 2, where the number changes in one place.
+3. A name inside quote marks is just text.
+4. A hole, `{answer}`, puts a name's value into text.
+5. A blank page: keep an answer, and say it in a sentence.
+6. A name can only be given once, which leads to the next lesson.
 
 It opens where lesson 2 ended: Grace has asked "What if we want to use the answers for our math?",
 and Hopper has said "We can name variables! It's super super useful. We'll show you!"
@@ -84,63 +85,58 @@ State answer + 12.
 
 *A wrong guess is never a fail. Running it shows the answer.*
 
-## Beat 3: only halfway (Predict)
+## Beat 3: saying it in a sentence (Predict)
 
-> **Hopper:** Ooo! Can we keep the number in the question too? Then I can pick a new one whenever I want!
->
-> **Grace:** We can. Let's call it `pick`, for the number you picked.
+> **Hopper:** A hundred and forty-four is nice. But I want it to say "The answer is 144." Like a real sentence!
 
-*Grace puts the question back on top, the way it was in lesson 2, with its number kept under a name:*
+*Hopper scurries up to the editor and changes the second line:*
 
 ```cufet
-Define pick as 12.
-State "What is 12 times 12?".
-State pick * pick.
+Define answer as 12 * 12.
+State "The answer is answer.".
 ```
 
-> **Hopper:** I pick thirteen! And I only have to change *one* place!
-
-*Hopper changes the first line to `Define pick as 13.` and steps back, very pleased.*
-
-> **Grace:** Hmm. Before you run it, friend: what will it say?
+> **Grace:** Before you run it, friend: what will it say?
 
 *The output box asks: **What will appear here?** Three buttons:*
 
-- **A.** `What is 13 times 13?`, then `169`
-- **B.** `What is 12 times 12?`, then `169`
-- **C.** `What is 12 times 12?`, then `144`
+- **A.** `The answer is 144.`
+- **B.** `The answer is answer.`
+- **C.** Nothing, because Cufet refuses it
 
 *The player picks one and presses Run.*
 
 ```output
-What is 12 times 12?
-169
+The answer is answer.
 ```
 
 **If they chose B:**
 
-> **Grace:** Well spotted. The sum changed, but the question didn't.
+> **Grace:** Well spotted. Inside the quote marks, `answer` is just a word.
 
-**If they chose A or C:**
+**If they chose A:**
 
-> **Grace:** Look closely. The sum uses the name, so it changed. The question doesn't, so it didn't.
+> **Grace:** That's what Hopper hoped for. But inside quote marks, Cufet says exactly what's written.
+
+**If they chose C:**
+
+> **Grace:** It runs. Cufet is happy to say "answer". It just doesn't know you meant the name.
 
 *Whichever they chose:*
 
-> **Hopper:** Aw. The question still says twelve! That's wrong now!
+> **Hopper:** "The answer is answer." Ha! That's not very helpful.
 >
-> **Grace:** Because the twelves in the question are inside quote marks. That's text, and Cufet says text exactly as it's written. It doesn't look for names in there.
+> **Grace:** Inside quote marks, everything is text, and Cufet says text exactly as it's written. It doesn't look for names in there.
 
 ## Beat 4: a hole (Run, then Investigate)
 
 > **Grace:** Unless you leave a hole for it.
 
-*Grace changes the question line:*
+*Grace changes the second line:*
 
 ```cufet
-Define pick as 13.
-State "What is {pick} times {pick}?".
-State pick * pick.
+Define answer as 12 * 12.
+State "The answer is {answer}.".
 ```
 
 > **Hopper:** The curly brackets! What are those for?
@@ -150,80 +146,74 @@ State pick * pick.
 *The player presses Run.*
 
 ```output
-What is 13 times 13?
-169
+The answer is 144.
 ```
 
-> **Hopper:** It's thirteen everywhere!
+> **Hopper:** A real sentence!
 >
-> **Grace:** Now change the first line to `Define pick as 20.`, and run it again. Just the first line.
+> **Grace:** Now change the first line to `13 * 13`, and run it again. Just the first line.
 
-*The player changes the 13 to 20 and presses Run. Done when the output says `What is 20 times 20?` and `400`.*
+*The player changes the first line and presses Run. Done when the output says `The answer is 169.`*
 
-> **Grace:** One change, and everything that uses the name follows along.
+> **Grace:** The sentence followed along. The hole always says whatever the name is keeping.
 
 ### Reactions to what they might type
 
 | They type | What Cufet does | The rabbits say |
 | --- | --- | --- |
-| Changes a hole to `{20}` instead | Runs | **Grace:** That works, but now that hole doesn't follow the name. Put `{pick}` back and change only the first line. |
-| `Define pick as twenty.` | `That doesn't work: 'twenty' isn't defined.` and three more lines | **Hopper:** Numbers are written with digits! Twenty is `20`. |
+| Changes the hole to `{169}` instead | Runs, prints `The answer is 169.` | **Done.** **Grace:** That's the right sentence, but now the hole doesn't follow the name. Put `{answer}` back and let Cufet work it out. |
+| `Define answer as thirteen * thirteen.` | `That doesn't work: 'thirteen' isn't defined.` and three more lines | **Hopper:** Numbers are written with digits! Thirteen is `13`. |
 
 ## Beat 5: a blank page (Make)
 
-> **Hopper:** My turn to quiz Grace again! Friend, write it so I can change the number in just one place.
->
-> **Grace:** The page is empty. Ask what seven times seven is, and let Cufet work out the answer. Use a name.
+> **Grace:** Your turn, friend. The page is empty. Have Cufet work out seven times seven, keep it as `answer`, and say it in a sentence.
 
 *The editor is empty. Done when the output is this, judged on the words and numbers only:*
 
 ```output
-What is 7 times 7?
-49
+The answer is 49.
 ```
 
-> **Hopper:** Forty-nine!
+> **Hopper:** Forty-nine! In a sentence!
 >
-> **Grace:** I'd have got there. Well done, friend.
+> **Grace:** Worked out, kept, and said. Well done, friend.
 
 ### The hint ladder
 
-1. > **Grace:** Start by giving seven a name, with `Define`.
-2. > **Hopper:** Then two `State`s, like before. The question needs holes for the name, and the sum uses the name!
+1. > **Grace:** Two lines. The first keeps the answer, with `Define`. The second says the sentence.
+2. > **Hopper:** The sentence needs a hole with the name in curly brackets, so Cufet fills in the number!
 3. > **Grace:** Here it is. Type it yourself:
    >
-   > `Define pick as 7.`
-   > `State "What is {pick} times {pick}?".`
-   > `State pick * pick.`
+   > `Define answer as 7 * 7.`
+   > `State "The answer is {answer}.".`
 
 ### Reactions to what they might type
 
 | They type | What Cufet does | The rabbits say |
 | --- | --- | --- |
-| No name: `State "What is 7 times 7?".` then `State 7 * 7.` | Runs, prints the right answer | **Done.** **Hopper:** It's right! But if I want eight, you'd have to change four places again. Try it with a name? |
-| `Define pick 7.` | `Line 1, column 13: expected As, got Number "7".` | **Grace:** A name and its value are joined by `as`: `Define pick as 7.` |
-| `Define pick = 7.` | `'=' is comparison, not assignment. A 'Define' introduces a name with 'as': 'Define pick as ...'.` (and more) | **Grace:** Cufet says it well itself: a `Define` uses `as`, not `=`. |
-| `Define Pick as 7.` | `Line 1, column 8: identifier 'Pick' must start with a lowercase letter.` | **Hopper:** Names start with a small letter! `pick`, not `Pick`. |
-| `Define my pick as 7.` | `That doesn't work: 'my' is not a defined type.` | **Grace:** A name can't have a space in it. Join the words with a dash, like `my-pick`, or use one word. |
-| `Define my number as 7.` | `Line 1, column 11: expected As, got NumberKw "number".` | **Grace:** Two things there: a name can't have a space, and `number` is one of Cufet's own words. Try `pick`. |
-| `Define number as 7.` | `'number' is a word Cufet has taken, so it cannot be a name here.` (and more) | **Grace:** `number` is one of Cufet's own words, so it can't be a name. Choose another, like `pick`. |
-| The `Define` line last | `That doesn't work: 'pick' isn't defined.` and three more lines | **Grace:** The computer reads from the top down, remember? Give the name before you use it. |
-| A typo in a hole: `{pik}` | `That doesn't work: 'pik' isn't defined.` and three more lines | **Hopper:** Cufet doesn't know `pik`! Check the spelling in the curly brackets. |
-| `State "pick * pick".` for the answer | Runs, prints `pick * pick` | **Hopper:** That's the sum as text! Take off the quote marks so Cufet works it out. |
-| Spaces in a hole: `{ pick }` | Runs, prints the right answer | **Done.** Spaces inside the curly brackets don't matter. |
+| No name: `State "The answer is 49.".` | Runs, prints the right sentence | **Done.** **Grace:** Right sentence, but you worked it out yourself. Try keeping `7 * 7` as `answer`, and let Cufet do it. |
+| `State "The answer is 7 * 7.".` | Runs, prints `The answer is 7 * 7.` | **Hopper:** The sum is inside the quote marks, so Cufet just says it! Keep the sum with `Define`, and put a hole in the sentence. |
+| Only `State answer.` for the second line | Runs, prints `49` | **Grace:** The right number, but Hopper wanted a sentence. Try `"The answer is {answer}."` |
+| `State "The answer is " answer.` | `Line 2, column 24: expected '.', got Identifier "answer".` | **Grace:** The name has to go inside the sentence, in a hole: `{answer}`. |
+| `Define answer 7 * 7.` | `Line 1, column 15: expected As, got Number "7".` | **Grace:** A name and its value are joined by `as`: `Define answer as 7 * 7.` |
+| `Define answer = 7 * 7.` | `'=' is comparison, not assignment. A 'Define' introduces a name with 'as': 'Define answer as ...'.` (and more) | **Grace:** Cufet says it well itself: a `Define` uses `as`, not `=`. |
+| `Define Answer as 7 * 7.` | `Line 1, column 8: identifier 'Answer' must start with a lowercase letter.` | **Hopper:** Names start with a small letter! `answer`, not `Answer`. |
+| `Define my answer as 7 * 7.` | `That doesn't work: 'my' is not a defined type.` | **Grace:** A name can't have a space in it. Use one word, like `answer`. |
+| The `Define` line last | `That doesn't work: 'answer' isn't defined.` and three more lines | **Grace:** The computer reads from the top down, remember? Keep the answer before you use it. |
+| A typo in the hole: `{answr}` | `That doesn't work: 'answr' isn't defined.` and three more lines | **Hopper:** Cufet doesn't know `answr`! Check the spelling in the curly brackets. |
+| Spaces in the hole: `{ answer }` | Runs, prints the right sentence | **Done.** Spaces inside the curly brackets don't matter. |
 
 ## Beat 6: one more, and a surprise (Predict)
 
-> **Hopper:** Again! Seven, then eight! Both in one program!
+> **Hopper:** Again! Now eight times eight! I'll add it to the bottom.
 
-*Hopper adds two lines to the bottom of the player's program:*
+*Hopper adds two lines to the player's program:*
 
 ```cufet
-Define pick as 7.
-State "What is {pick} times {pick}?".
-State pick * pick.
-Define pick as 8.
-State pick * pick.
+Define answer as 7 * 7.
+State "The answer is {answer}.".
+Define answer as 8 * 8.
+State "The answer is {answer}.".
 ```
 
 > **Grace:** Hmm. Friend, will this one run?
@@ -232,8 +222,8 @@ State pick * pick.
 and presses Run. The output box shows:*
 
 ```output
-That doesn't work: 'pick' is already defined in this scope.
-Here on line 4, you're trying to define 'pick' again in the same block.
+That doesn't work: 'answer' is already defined in this scope.
+Here on line 3, you're trying to define 'answer' again in the same block.
 
 Each name can only be defined once per block. Use 'becomes' to reassign it, or choose a different name.
 ```
@@ -244,7 +234,7 @@ Each name can only be defined once per block. Use 'becomes' to reassign it, or c
 
 **If they chose Runs:**
 
-> **Grace:** It does look like it should. But `Define` makes a *new* name, and there's already one called `pick`.
+> **Grace:** It does look like it should. But `Define` makes a *new* name, and there's already one called `answer`.
 
 *Whichever they chose:*
 
@@ -258,18 +248,18 @@ Each name can only be defined once per block. Use 'becomes' to reassign it, or c
 
 ## Things this draft found
 
-1. **A name with a space gets a misleading message.** `Define my pick as 7.` says
-   `'my' is not a defined type`, which is about something else entirely. The rabbits cover it, but
-   it belongs with the other messages noted in the roadmap. So does `Define my number as 7.`, which
-   says `expected As, got NumberKw "number"`.
-2. **`Define pick = 7.` already has a warm message**, unlike most beginner mistakes so far. The
-   rabbits just point at it.
+1. **A name with a space gets a misleading message.** `Define my answer as 7 * 7.` says
+   `'my' is not a defined type`, which is about something else entirely, and `Define my number as 7.`
+   says `expected As, got NumberKw "number"`. The rabbits cover both, but they belong with the
+   other messages noted in the roadmap.
+2. **`Define answer = 7 * 7.` already has a warm message**, unlike most beginner mistakes so far.
+   The rabbits just point at it.
 3. **The "isn't defined" message says "Nothing later in this block can give it a value"**, and the
    "already defined" one mentions "scope" and "block". Neither word has been taught. The rabbits
    say the same thing in plain words.
 4. **Beat 6 ends on a real refusal** whose own last line names the next lesson's word,
    `becomes`.
 5. **`Define answer as 12 * 12.` on its own prints nothing.** Beat 1's choice C tests exactly that.
-6. **Writing the answer without a name still counts as done in Beat 5**, with Hopper's nudge,
+6. **Writing the sentence without a name still counts as done in Beat 5**, with Grace's nudge,
    since the output can't tell the two apart. The game could check the code for a `Define` if
    you'd rather it did.
