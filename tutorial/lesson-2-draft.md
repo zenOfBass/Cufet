@@ -10,7 +10,7 @@ What's new in this lesson, one idea per beat:
 1. Numbers: quote marks mean "say exactly this", no quote marks mean "work it out".
 2. The four signs: `+`, `-`, `*`, `/`.
 3. A program can be refused, and then none of it runs.
-4. A blank page, using words and numbers together.
+4. A blank page, using text and numbers together.
 
 It opens where lesson 1 ended, just after Hopper's joke.
 
@@ -18,9 +18,9 @@ It opens where lesson 1 ended, just after Hopper's joke.
 
 ## Beat 1: a number (Run, then Predict)
 
-> **Hopper:** Five lines! My joke had five whole lines. I counted.
+> **Hopper:** You said there's more! What else can State say?
 >
-> **Grace:** Cufet can count too, Hopper. It knows numbers. Watch this, friend.
+> **Grace:** **Numbers**. Watch this, friend.
 
 *Grace clears the editor and writes one line:*
 
@@ -74,7 +74,7 @@ State "2 + 3".
 
 *Whichever they chose, Grace sums it up:*
 
-> **Grace:** Quote marks mean "say exactly this". Without them, Cufet works out the answer first, and says that.
+> **Grace:** Quote marks mean "say exactly this". Anything in quote marks is called **text**. Without them, Cufet works out the answer first, and says that.
 
 ## Beat 2: the four signs (Predict, typed)
 
@@ -149,11 +149,11 @@ If you meant to join text, use 'joined to': "hello" joined to " world".
 
 **If they chose Refused:**
 
-> **Grace:** Well spotted. In quote marks, `"2"` isn't a number any more. It's a word that happens to look like one.
+> **Grace:** Well spotted. In quote marks, `"2"` isn't a number any more. It's text that happens to look like one.
 
 **If they chose Runs:**
 
-> **Grace:** It does look like it should. But in quote marks, `"2"` is a word, not a number, and you can't add a word to a number.
+> **Grace:** It does look like it should. But in quote marks, `"2"` is text, not a number, and you can't add text to a number.
 
 *Whichever they chose:*
 
@@ -161,62 +161,59 @@ If you meant to join text, use 'joined to': "hello" joined to " world".
 >
 > **Grace:** Cufet reads the whole program before it runs any of it. If one line doesn't make sense, it won't start at all. And look: it tells you which line, and why.
 >
-> **Hopper:** What's "joined to"?
+> **Hopper:** Hmmmm, but what's "joined to"?
 >
-> **Grace:** A story for another day.
+> **Grace:** That's a story for another day.
 
 ## Beat 4: a blank page (Make)
 
-> **Hopper:** All that knocking made me hungry. I found four lettuces!
+> **Grace:** Hopper, quick: what's twelve times twelve?
 >
-> **Grace:** I found five. Friend, this one is all yours. The page is empty.
+> **Hopper:** Uhhh. Um. Twelve... and then... more twelves?
 >
-> **Hopper:** Tell everyone how many we've got! And make Cufet do the adding up.
+> **Grace:** Friend, help him out. The page is empty. Write a program that asks the question, then lets Cufet work out the answer.
 
 *The editor is empty. Done when the output is this, judged on the words and numbers only:*
 
 ```output
-Hopper has 4 lettuces!
-Grace has 5 lettuces!
-Together that makes:
-9
+What is 12 times 12?
+144
 ```
 
-> **Hopper:** Nine lettuces! That's a feast!
+> **Hopper:** A hundred and forty-four! ...I knew that.
 >
-> **Grace:** Well done, friend. Words and numbers, four lines, and you wrote it from nothing.
+> **Grace:** Of course you did. Well done, friend. Text and a number, and you wrote it from nothing.
 
 ### The hint ladder
 
-1. > **Grace:** Four lines in the output box means four instructions.
-2. > **Hopper:** The first three are words, so they need quote marks. The last one is a sum, so it doesn't.
+1. > **Grace:** Two lines in the output box means two instructions. The question, then the answer.
+2. > **Hopper:** The question is text, so it needs quote marks. The answer is a sum, so it doesn't. And "times" is the star!
 3. > **Grace:** Here it is. Type it yourself:
    >
-   > `State "Hopper has 4 lettuces!".`
-   > `State "Grace has 5 lettuces!".`
-   > `State "Together that makes:".`
-   > `State 4 + 5.`
+   > `State "What is 12 times 12?".`
+   > `State 12 * 12.`
 
 ### Reactions to what they might type
 
 | They type | What Cufet does | The rabbits say |
 | --- | --- | --- |
-| Last line `State "4 + 5".` | Runs, prints `4 + 5` | **Grace:** In quote marks, Cufet says the sum without working it out. Take the quote marks off that last line. |
-| Last line `State 9.` | Runs, prints `9` | **Done.** **Grace:** Nine is right. Next time, write `4 + 5` and let Cufet do the adding for you. |
-| Last line `State 4 plus 5.` | `Line 4, column 9: expected '.', got Identifier "plus".` | **Hopper:** Cufet doesn't know "plus" as a word. Use the sign: `+`. |
-| Last line `State 4 + 5 = 9.` | Runs, prints `true` | **Grace:** You've asked Cufet whether four and five make nine, and it says that's true! Leave off the `= 9` and it will give you the number. |
-| `State "Together that makes: " 9.` | `Line 3, column 31: expected '.', got Number "9".` | **Grace:** One `State` says one thing. Give the nine a `State` of its own, on the next line. |
-| No spaces: `State 4+5.` | Runs, prints `9` | **Done.** Spaces around the sign are only there to make it easy to read. |
+| Last line `State "12 * 12".` | Runs, prints `12 * 12` | **Hopper:** That's just the question again! Take the quote marks off, so Cufet works it out. |
+| Last line `State 144.` | Runs, prints `144` | **Done.** **Grace:** That's right, but you did the sum yourself. Next time, write `12 * 12` and let Cufet do the work. |
+| Last line `State 12 times 12.` | `Line 2, column 10: expected '.', got Identifier "times".` | **Hopper:** Cufet doesn't know "times" as a word. Use the star: `*`. |
+| Last line `State 12 x 12.` | `Line 2, column 10: expected '.', got Identifier "x".` | **Grace:** In Cufet, "times" is written with a star, `*`, not an x. |
+| Last line `State 12 * 12 = 144.` | Runs, prints `true` | **Grace:** You've asked Cufet whether twelve twelves make 144, and it says that's true! Leave off the `= 144` and it will give you the number. |
+| `State "What is 12 times 12?" 12 * 12.` | `Line 1, column 30: expected '.', got Number "12".` | **Grace:** One `State` says one thing. Give the sum a `State` of its own, on the next line. |
+| No spaces: `State 12*12.` | Runs, prints `144` | **Done.** Spaces around the sign are only there to make it easy to read. |
 
 ### One more, no answer offered
 
-> **Hopper:** Wait, wait! I found more! Now I've got seven, and Grace has six.
+> **Hopper:** My turn! Grace, what's thirteen times thirteen? Ha! Friend, don't tell her. Write it!
 
-*Done when the output is the same four lines with the new numbers, ending in `13`.*
+*Done when the output is the question with 13, then `169`.*
 
-> **Grace:** Thirteen. Did you notice you had to change the seven in two places? Once in the words, and once in the sum.
+> **Grace:** One hundred and sixty-nine. Well played, both of you. But did you notice, friend? You had to change twelve into thirteen in four places. Twice in the text, and twice in the sum.
 >
-> **Hopper:** Every time I find a lettuce! That's a lot of changing.
+> **Hopper:** Four! That's a lot of changing.
 >
 > **Grace:** There's a better way. You can give a number a name, and then use the name. That's for next time.
 
@@ -231,10 +228,10 @@ Together that makes:
    the player can see.
 2. **Beat 3 is the first warm Cufet message the player meets**, and it's shown as is. Its last
    line mentions `joined to`, which hasn't been taught, so Hopper asks and Grace defers it.
-3. **`State 4 + 5 = 9.` runs and prints `true`.** A child might well type that. The reaction
+3. **`State 12 * 12 = 144.` runs and prints `true`.** A child might well type that. The reaction
    explains it without teaching facts yet.
 4. **Left out on purpose:** which sign goes first (`2 + 3 * 4` is 14), brackets, and answers with
    a fraction (`7 / 2` is `3.5`). Each needs maths a young child may not have. They could go in a
    later lesson or a side note; say if you want any of them here.
-5. **`State 9.` counts as done in Beat 4**, with a nudge from Grace. The game could require the
+5. **`State 144.` counts as done in Beat 4**, with a nudge from Grace. The game could require the
    sum by checking the code, if you'd rather it did.
