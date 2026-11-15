@@ -76,8 +76,9 @@ with the evidence for every edge, is in [`tools/curriculum-net/`](../tools/curri
   says "next time" or "another day"; one lesson leads straight into the next.
 - The working scripts are [lesson-1-draft.md](lesson-1-draft.md) (saying words: the opening, several lines, the joke),
   [lesson-2-draft.md](lesson-2-draft.md) (numbers),
-  [lesson-3-draft.md](lesson-3-draft.md) (names), and
-  [lesson-4-draft.md](lesson-4-draft.md) (becomes).
+  [lesson-3-draft.md](lesson-3-draft.md) (names),
+  [lesson-4-draft.md](lesson-4-draft.md) (becomes), and
+  [lesson-5-draft.md](lesson-5-draft.md) (choosing).
 
 ## How questions are asked
 

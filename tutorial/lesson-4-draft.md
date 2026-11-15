@@ -19,7 +19,7 @@ grow and be something new!"
 
 ## Beat 1: becoming something else (Predict)
 
-> **Hopper:** And I'll show you how! Remember the program Cufet refused? Watch this.
+> **Hopper:** Then let's do some becoming! Remember the program Cufet refused?
 
 *Hopper changes the third line of the program from lesson 3:*
 
@@ -191,7 +191,7 @@ Hop 3!
 >
 > **Hopper:** But here's a secret, friend: it can decide things too. Like saying "Rest!" only when I'm tired.
 >
-> **Grace:** Come on, we'll show you.
+> **Grace:** And every decision starts with a question.
 
 *End of lesson 4.*
 
