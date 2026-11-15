@@ -176,7 +176,7 @@ If you meant to join text, use 'joined to': "hello" joined to " world".
 *The editor is empty. Done when the output is this, judged on the words and numbers only:*
 
 ```output
-What is 12 times 12?
+What is 12 * 12?
 144
 ```
 
@@ -190,7 +190,7 @@ What is 12 times 12?
 2. > **Hopper:** The question is text, so it needs quote marks. The answer is a sum, so it doesn't. And "times" is the star!
 3. > **Grace:** Here it is. Type it yourself:
    >
-   > `State "What is 12 times 12?".`
+   > `State "What is 12 * 12?".`
    > `State 12 * 12.`
 
 ### Reactions to what they might type
@@ -207,15 +207,7 @@ What is 12 times 12?
 
 ### Before the lesson ends
 
-> **Grace:** Look at your program, friend. How many twelves did you write?
->
-> **Hopper:** One, two, three... four!
->
-> **Grace:** Four. So if Hopper wants to know about thirteen next, that's four places to change, and four chances to miss one.
->
-> **Hopper:** I always want to know about the next number.
->
-> **Grace:** There's a better way. You can give a number a name, and then use the name. That's for next time.
+> **Grace:** Cufet can remember things, you know. Come on, we'll show you.
 
 *End of lesson 2.*
 

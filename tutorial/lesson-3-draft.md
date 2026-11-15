@@ -13,14 +13,14 @@ What's new in this lesson, one idea per beat:
 4. A hole, `{size}`, puts a name's value into text.
 5. A blank page: the quiz from lesson 2, where the number changes in one place.
 
-It opens where lesson 2 ended: Grace has just said "You can give a number a name, and then use the
-name. That's for next time."
+It opens where lesson 2 ended: Grace has just said "Cufet can remember things, you know. Come on,
+we'll show you."
 
 ---
 
 ## Beat 1: a name (Predict)
 
-> **Hopper:** It's next time! Grace, it's next time! Show us the names!
+> **Hopper:** Remember things? Show us, show us!
 >
 > **Grace:** Patience. Watch, friend.
 
