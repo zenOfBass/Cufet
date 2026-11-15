@@ -238,9 +238,11 @@ Each name can only be defined once per block. Use 'becomes' to reassign it, or c
 
 *Whichever they chose:*
 
-> **Hopper:** Aw! But I want it to change!
+> **Hopper:** Oh, but look what the message says at the end: "Use 'becomes'"!
 >
-> **Grace:** Look what Cufet says at the end: "Use 'becomes'." A name *can* change partway through a program. That's for next time.
+> **Grace:** Right, a name *can* change partway through a program.
+>
+> **Hopper:** I love becoming! It means we have a chance to grow and be something new!
 
 *End of lesson 3.*
 
