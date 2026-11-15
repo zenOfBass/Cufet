@@ -25,7 +25,7 @@ possibly a child.
   - Each hint is earned by an attempt since the last one.
   - The last rung is the answer.
   - The answer must be typed in by hand; no pasting.
-  - A close variation follows, with no answer offered.
+  - A close variation may follow, with no answer offered, but only where it adds something.
 
 ## The story
 
@@ -73,7 +73,8 @@ with the evidence for every edge, is in [`tools/curriculum-net/`](../tools/curri
   ignored, so nobody fails over a comma. A rabbit may remark on a small difference without
   failing the player. The wrong words, or a refused program, still don't count as done.
 - The working scripts are [lesson-1-draft.md](lesson-1-draft.md) (saying words: the opening, several lines, the joke) and
-  [lesson-2-draft.md](lesson-2-draft.md) (numbers).
+  [lesson-2-draft.md](lesson-2-draft.md) (numbers), and
+  [lesson-3-draft.md](lesson-3-draft.md) (names).
 
 ## How questions are asked
 

@@ -205,15 +205,15 @@ What is 12 times 12?
 | `State "What is 12 times 12?" 12 * 12.` | `Line 1, column 30: expected '.', got Number "12".` | **Grace:** One `State` says one thing. Give the sum a `State` of its own, on the next line. |
 | No spaces: `State 12*12.` | Runs, prints `144` | **Done.** Spaces around the sign are only there to make it easy to read. |
 
-### One more, no answer offered
+### Before the lesson ends
 
-> **Hopper:** My turn! Grace, what's thirteen times thirteen? Ha! Friend, don't tell her. Write it!
-
-*Done when the output is the question with 13, then `169`.*
-
-> **Grace:** One hundred and sixty-nine. Well played, both of you. But did you notice, friend? You had to change twelve into thirteen in four places. Twice in the text, and twice in the sum.
+> **Grace:** Look at your program, friend. How many twelves did you write?
 >
-> **Hopper:** Four! That's a lot of changing.
+> **Hopper:** One, two, three... four!
+>
+> **Grace:** Four. So if Hopper wants to know about thirteen next, that's four places to change, and four chances to miss one.
+>
+> **Hopper:** I always want to know about the next number.
 >
 > **Grace:** There's a better way. You can give a number a name, and then use the name. That's for next time.
 
