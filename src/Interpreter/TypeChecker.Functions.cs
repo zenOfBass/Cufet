@@ -84,6 +84,12 @@ public sealed partial class TypeChecker
         foreach (var node in nodes)
             if (DepthTargetOf(node) is { } target) localDepths.TryAdd(target.Name, []);
 
+        // The store rule's: a field of an object the body writes out is a name of its own, `L.f`.
+        var split = storing == null ? null : new Dictionary<string, List<(string Field, List<IExpression> Values)>>(StringComparer.Ordinal);
+        if (split != null)
+            foreach (var (name, fields) in split)
+                foreach (var (field, _) in fields) localDepths.TryAdd($"{name}.{field}", []);
+
         // To a fixed point: a loop can carry a value from its end back to its start, and the
         // sets only ever grow, so this ends.
         bool changed = true;
@@ -98,7 +104,7 @@ public sealed partial class TypeChecker
                     changed |= into.Add(i);
             }
             if (storing != null)
-                changed |= GrowHolds(storing, nodes, localDepths, holds, paramIdx, refParamIdxs, captured!);
+                changed |= GrowHolds(storing, nodes, localDepths, holds, paramIdx, refParamIdxs, captured!, split!);
         }
         return localDepths;
     }
@@ -174,13 +180,13 @@ public sealed partial class TypeChecker
                 // A top-level constant is made before any region opens, and it is all a function's
                 // body can see of the top level. Any other name — one captured from an enclosing
                 // function, or bound by a statement this walk does not model — is not traced.
-                if (TryLookup(vr.Name, out var seen) && seen!.Permanent && !seen.IsParameter)
+                if (TraceLookup(vr.Name, out var seen) && seen!.Permanent && !seen.IsParameter)
                     return [];
                 return UntracedDepth(refParamIdxs, captured);
 
             case CastExpression cast:
                 if (cast.Function is VariableReference funcVr
-                    && TryLookup(funcVr.Name, out var callTi)
+                    && TraceLookup(funcVr.Name, out var callTi)
                     && callTi!.Type is FunctionType callFt
                     && callFt.ReturnDepthSignature is { } calleeSig)
                 {
@@ -209,6 +215,14 @@ public sealed partial class TypeChecker
             case MapLookup ml:
                 // Value depth = map depth.
                 return SymbolicExprDepth(ml.Map, paramIdx, refParamIdxs, localDepths, captured);
+
+            // A field of an object the body writes out, for the store rule: a name of its own (O2).
+            case PossessiveAccess { Target: VariableReference owner } own
+                when captured != null && localDepths.TryGetValue($"{owner.Name}.{own.Member}", out var fieldIs):
+                return new HashSet<int>(fieldIs);
+            case RecordNamedAccess { Record: VariableReference holder } named
+                when captured != null && localDepths.TryGetValue($"{holder.Name}.{named.FieldName}", out var namedIs):
+                return new HashSet<int>(namedIs);
 
             case PossessiveAccess pa:
                 // Field depth = object depth (conservative — the field might be value-typed,

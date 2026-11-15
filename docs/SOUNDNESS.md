@@ -8,11 +8,12 @@ the `Done.` that freed it?**
 
 **Where it stands.** Yes, still, but less often than at 0.29.0. Nineteen small programs were found
 that pass `cufet check`, run correctly interpreted, and read freed memory when compiled. They come
-from four places where the rules assume something that is not true (section 4). Three of the four
-have been closed, the third for everything but text. One was closed in the runtime, and six of the
-nineteen programs are right on both backends because of it. Two were closed in the checker, and
-nine more are refused by `check`. The other four still read freed memory: two need one more
-checker rule, and two need the compiler to copy a text it does not copy yet.
+from four places where the rules assume something that is not true (section 4). All four have
+been closed, one of them for everything but text. One was closed in the runtime, and six of the
+nineteen programs are right on both backends because of it. Three were closed in the checker, and
+eleven more are refused by `check`, with two further programs found while closing the last
+(`holds-1`, `holds-2`), which are refused too. Two of the twenty-one still read freed memory: they
+need the compiler to copy a text it does not copy yet.
 
 The rest of the document is in three parts.
 
@@ -100,7 +101,7 @@ new buffer must go. A number that is right as an upper bound is not right as a l
 of what follows is that one confusion.
 
 Any set of rules that is going to be sound has to meet four obligations. At 0.29.0 none was met
-completely. O1 and O3 are met now, and O4 for everything but text; O2 is not.
+completely. O1, O2 and O3 are met now, and O4 for everything but text.
 
 ### O1. What is read must not be deeper than the checker thinks
 
@@ -131,9 +132,10 @@ reads as 0.
 
 ### O2. A store needs to know exactly where its target lives
 
-*Not met for storing anything that is itself in an arena: a series, an object, a text. No longer
-needed for growing a series or storing a number in it: a series finds its own arena now, so
-nothing has to know where it is.*
+*Met, in both checkers, for a series, a map, or an object holding one: a store is judged against
+how long-lived its target really is, not against where the target's name was defined (section 9).
+Not needed for growing a series or storing a number in it: a series finds its own arena. What
+follows is how it was.*
 
 *Broken by a second name.* `Define alias as keeper.` inside a rabbit gives `alias` the rabbit's
 depth, though the series it names lives outside. A store through `alias` is then checked against
@@ -207,8 +209,10 @@ built under AddressSanitizer on Linux (`result-1`, `param-1`, `alias-2`), and ea
 | `element-1-grow-a-row-in-for-each` | O2 | crashes | **right** |
 | `element-2-grow-an-item` | O2 | crashes | **right** |
 | `param-1-helper-appends-numbers` | O4 | crashes | **right** |
-| `alias-2-store-through-a-second-name` | O2 | crashes | crashes |
-| `target-1-store-into-a-field` | O2 | crashes | crashes |
+| `alias-2-store-through-a-second-name` | O2 | crashes | **refused** |
+| `target-1-store-into-a-field` | O2 | crashes | **refused** |
+| `holds-1-field-holds-an-outer-series` | O2 | (found later) crashes | **refused** |
+| `holds-2-element-of-a-local-table` | O2 | (found later) crashes | **refused** |
 | `param-2-helper-stores-what-it-made` | O4 | crashes | **refused** |
 | `param-3-helper-stores-text-it-made` | O4 | crashes | wrong output |
 | `param-4-method-stores-its-argument` | O4 | crashes | **refused** |
@@ -613,11 +617,41 @@ rule, accepted and refused, are in the parity list now.
 It is not in the model and not proved. The model's functions cannot be values and capture
 nothing, so the search says nothing about either.
 
+Then O2, in both checkers. B5 to B7 refuse every store whose target is not known exactly; this
+keeps two lower bounds instead and refuses only what goes below them.
+
+- **Two more numbers for a name**, beside the depth it was defined at: how deep the container it
+  names is (a second name takes this from the name it stands for), and how deep the shallowest
+  thing reachable through it is. Both only ever go down.
+- **What lowers the second:** a store into the name, by any path; a new value for it; and a cast,
+  by what its callee really stores between its arguments (every pair of them, where the callee
+  is not known).
+- **The judgement:** a store into the container a plain name names is held to the first number; a
+  store through an element or a field, to the second. It is made after the whole program has
+  been checked, against the numbers as they ended, because a statement further down a loop can
+  lower a number that a store further up depends on.
+- **Inside a function** every depth is 0 and the numbers say nothing, so the walk of O4 keeps, for
+  each local, what has been stored into it. A store through an element or a field of a local is
+  a store into any of those; a store into the local itself is not.
+
+`holds-1` and `holds-2` were written while fitting this: the first two programs of this
+obligation could be refused by reading a second name's depth from the name it stands for and a
+field's from its object, and that alone would have left both of these accepted.
+
+Known to be coarser than it need be, and refusing programs that are safe:
+
+- A field of an object is "something the object holds", not the series that sits in that field.
+  A function that writes an object out and then inserts into its field what may be its own
+  argument is taken to store into the argument. `copied-node` in the checker written in Cufet was
+  this shape and was rewritten to gather the children under a name of their own first. The code
+  that would tell the two apart is half there and not switched on.
+- An object made from an argument, then a method that grows the object's own field (from O4).
+
+It is not in the model and not proved.
+
 ### What is left
 
-O2 for stores of a series or an object: through a second name, or into a field, at the top level
-(`alias-2`, `target-1`). That is rules B5 to B7, only where the value stored is itself a series.
-Appending a number is refused nowhere.
+Text (`param-3`, `param-5`), below. Appending a number is refused nowhere.
 
 Text is outside the core and needs its own line here. It is never refused, only copied, and it is
 copied only where the checker sees it escape. A text made inside a function and stored into a
@@ -642,7 +676,7 @@ python docs/soundness/model/witnesses.py             the directed programs, and 
 ```
 
 A probe is fixed when `check` refuses it or the compiled program agrees with the interpreted one.
-The fifteen that are fixed are also in `tests/fixtures/soundness/`, as they are or as a program
+The nineteen that are fixed are also in `tests/fixtures/soundness/`, as they are or as a program
 of the same shape: `*-legal.cufe` for one that runs right, `escape-*.cufe` for one that is refused.
-The four that are not stay out of it: that folder's tests require every `escape-*` file to be
+The two that are not stay out of it: that folder's tests require every `escape-*` file to be
 refused, and these are not refused yet.

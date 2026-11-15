@@ -113,6 +113,9 @@ public sealed partial class TypeChecker
         public List<StoreNote> Stores = [];
         public List<CallNote> Calls = [];
         public bool Traced;
+        /// <summary>What each name looked up while it was first traced was, there — the names it
+        /// can reach are out of scope when it is traced again at the end (O2).</summary>
+        public Dictionary<string, TypeInfo?>? Lookups;
     }
 
     private StoreFrame? _storeFrame;
@@ -207,24 +210,31 @@ public sealed partial class TypeChecker
         if (frame.Traced) return;
         frame.Traced = true;
         if (frame.Stores.Count == 0 && frame.Calls.Count == 0) return;
-        var locals = LocalDepthsOf(frame.Body, frame.ParamIdx, frame.RefParamIdxs, frame.Captured, out _,
-                                   frame, out var holds);
-        HashSet<int> Of(IExpression expr) =>
-            ReachOf(expr, frame.ParamIdx, frame.RefParamIdxs, locals, frame.Captured, holds);
-        foreach (var store in frame.Stores)
+        var outerLookups = _traceLookups;
+        _traceLookups = frame.Lookups ??= new Dictionary<string, TypeInfo?>(StringComparer.Ordinal);
+        try
         {
-            store.Sources = Of(store.Value);
-            // Storing into the name itself reaches only what the name is; storing into something
-            // inside it reaches anything it was given as well (O2).
-            store.Targets = store.Target is VariableReference
-                ? SymbolicExprDepth(store.Target, frame.ParamIdx, frame.RefParamIdxs, locals, frame.Captured)
-                : Of(store.Target);
+            var locals = LocalDepthsOf(frame.Body, frame.ParamIdx, frame.RefParamIdxs, frame.Captured, out _,
+                                       frame, out var holds);
+            HashSet<int> Of(IExpression expr) =>
+                ReachOf(expr, frame.ParamIdx, frame.RefParamIdxs, locals, frame.Captured, holds);
+            foreach (var store in frame.Stores)
+            {
+                store.Sources = Of(store.Value);
+                // Storing into the name itself — or into a field of an object written out, which is
+                // a name of its own — reaches only what it is; storing into something inside it
+                // reaches anything it was given as well (O2).
+                store.Targets = store.Field != null || FieldRoot(store.Target, locals).Exact
+                    ? SymbolicExprDepth(store.Target, frame.ParamIdx, frame.RefParamIdxs, locals, frame.Captured)
+                    : Of(store.Target);
+            }
+            foreach (var call in frame.Calls)
+            {
+                call.ArgSources      = [.. call.Args.Select(Of)];
+                call.ReceiverSources = call.Receiver is null ? null : Of(call.Receiver);
+            }
         }
-        foreach (var call in frame.Calls)
-        {
-            call.ArgSources      = [.. call.Args.Select(Of)];
-            call.ReceiverSources = call.Receiver is null ? null : Of(call.Receiver);
-        }
+        finally { _traceLookups = outerLookups; }
     }
 
     /// <summary>Overload every store site uses: the container itself, so the store can be noted.</summary>
@@ -493,6 +503,9 @@ public sealed partial class TypeChecker
             for (bool changed = true; changed;)
             {
                 changed = false;
+                // What a body's names hold depends on what the functions it casts store, which is
+                // what this loop is finding out: each round traces again with what is known now.
+                foreach (var frame in _storeFrames) frame.Traced = false;
                 foreach (var frame in _storeFrames)
                     if (frame.Summary is { } relaying)
                         foreach (var (parameter, to, toParameter) in relaying.Relays)
@@ -808,10 +821,10 @@ public sealed partial class TypeChecker
                 var mapType = type as MapType;
                 bool keys = mapType == null || HoldsContainer(mapType.KeyType, null);
                 bool values = mapType == null || HoldsContainer(mapType.ValueType, null);
-                foreach (var (key, value) in made.Pairs)
+                foreach (var (entryKey, entryValue) in made.Pairs)
                 {
-                    if (keys) term = term.With(FloorTerm(key, mapType?.KeyType));
-                    if (values) term = term.With(FloorTerm(value, mapType?.ValueType));
+                    if (keys) term = term.With(FloorTerm(entryKey, mapType?.KeyType));
+                    if (values) term = term.With(FloorTerm(entryValue, mapType?.ValueType));
                 }
                 return term;
             }
@@ -866,14 +879,6 @@ public sealed partial class TypeChecker
         var back = DepthTarget(value) is { Key: { } from } reached
             ? TargetsOf(from, reached.Exact, fieldsReplaced: false) : [];
         List<(string, DepthTerm, DepthTerm)>? fields = null;
-        if (defining && value is ObjectLiteral made)
-        {
-            _objectDefs.TryGetValue(made.TypeName, out var madeType);
-            fields = [];
-            foreach (var (name, fieldValue) in made.NamedValues)
-                if (CarriedField(madeType, name) is var (carries, fieldType) && carries)
-                    fields.Add((name, OwnTerm(fieldValue, fieldType), FloorTerm(fieldValue, fieldType)));
-        }
         return new GivenDepths(own, floor, back, fields);
     }
 
@@ -1063,6 +1068,48 @@ public sealed partial class TypeChecker
 
     // ── What a name in a body holds (O2, for the store rule's walk) ────────────────────────────
 
+    // While a body is traced: what each name it looked up was, the first time it was traced.
+    private Dictionary<string, TypeInfo?>? _traceLookups;
+
+    /// <summary>TryLookup, answered from what a body saw when it was first traced.</summary>
+    private bool TraceLookup(string name, out TypeInfo? info)
+    {
+        if (_traceLookups is not { } memo) return TryLookup(name, out info);
+        if (!memo.TryGetValue(name, out info))
+            memo[name] = info = TryLookup(name, out var found) ? found : null;
+        return info != null;
+    }
+
+    /// <summary>The name an expression starts from in the walk — `L.f` for a field of an object
+    /// the body writes out — and whether the expression IS that name.</summary>
+    private static (string? Name, bool Exact) FieldRoot(IExpression expr, Dictionary<string, HashSet<int>> localDepths)
+    {
+        IExpression node = expr;
+        IExpression? above = null;
+        while (IsAccess(node))
+        {
+            above = node;
+            node = node switch
+            {
+                SeriesAccess access     => access.Target,
+                MapLookup lookup        => lookup.Map,
+                PossessiveAccess field  => field.Target,
+                RecordNamedAccess named => named.Record,
+                _ => node,
+            };
+        }
+        if (node is not VariableReference root) return (null, false);
+        string? member = above switch
+        {
+            PossessiveAccess field  => field.Member,
+            RecordNamedAccess named => named.FieldName,
+            _ => null,
+        };
+        if (member != null && localDepths.ContainsKey($"{root.Name}.{member}"))
+            return ($"{root.Name}.{member}", ReferenceEquals(above, expr));
+        return (root.Name, expr is VariableReference);
+    }
+
     /// <summary>Where an expression's value may come from, and what its root was given.</summary>
     private HashSet<int> ReachOf(
         IExpression expr, Dictionary<string, int> paramIdx, HashSet<int> refParamIdxs,
@@ -1070,7 +1117,7 @@ public sealed partial class TypeChecker
         Dictionary<string, HashSet<int>> holds)
     {
         var reach = SymbolicExprDepth(expr, paramIdx, refParamIdxs, localDepths, captured);
-        if (RootName(expr) is { } root && holds.TryGetValue(root, out var held)) reach.UnionWith(held);
+        if (FieldRoot(expr, localDepths).Name is { } root && holds.TryGetValue(root, out var held)) reach.UnionWith(held);
         return reach;
     }
 
@@ -1088,45 +1135,107 @@ public sealed partial class TypeChecker
         return grew;
     }
 
+    /// <summary>A name given a value, in the walk: a second name for another shares what it holds;
+    /// an element of another holds what that one holds.</summary>
+    private bool GiveHolds(
+        string name, IExpression value, bool naming, Dictionary<string, HashSet<int>> localDepths,
+        Dictionary<string, HashSet<int>> holds)
+    {
+        var (root, exact) = FieldRoot(value, localDepths);
+        if (root == null || root == name) return false;
+        bool grew = false;
+        if (naming && exact)
+        {
+            grew |= Grow(HeldBy(holds, name), HeldBy(holds, root));
+            grew |= Grow(HeldBy(holds, root), HeldBy(holds, name));
+        }
+        else if (!naming || IsAccess(value))
+        {
+            var rootHeld = HeldBy(holds, root);
+            grew |= Grow(localDepths[name], rootHeld);
+            grew |= Grow(HeldBy(holds, name), rootHeld);
+        }
+        return grew;
+    }
+
     /// <summary>One round of what each name of a body holds: what was stored into it or into
-    /// anything inside it, what a cast may have stored into it, and, for a second name or an
-    /// element, what the name it came from holds.</summary>
+    /// anything inside it, what a cast stores into it, and, for a second name or an element, what
+    /// the name it came from holds. A field of an object the body writes out is a name of its own.</summary>
     private bool GrowHolds(
         StoreFrame frame, List<object> nodes, Dictionary<string, HashSet<int>> localDepths,
         Dictionary<string, HashSet<int>> holds, Dictionary<string, int> paramIdx, HashSet<int> refParamIdxs,
-        Dictionary<string, int> captured)
+        Dictionary<string, int> captured,
+        Dictionary<string, List<(string Field, List<IExpression> Values)>> split)
     {
         HashSet<int> Reach(IExpression expr) => ReachOf(expr, paramIdx, refParamIdxs, localDepths, captured, holds);
+        HashSet<int> Is(IExpression expr) => SymbolicExprDepth(expr, paramIdx, refParamIdxs, localDepths, captured);
         bool grew = false;
         foreach (var node in nodes)
         {
             if (DepthTargetOf(node) is not { } given) continue;
-            if (node is DefineStatement or BecomesStatement && given.Value is VariableReference other)
-            {
-                if (other.Name == given.Name) continue;
-                grew |= Grow(HeldBy(holds, given.Name), HeldBy(holds, other.Name));
-                grew |= Grow(HeldBy(holds, other.Name), HeldBy(holds, given.Name));
-            }
-            else if ((node is ForEachStatement or JudgeStatement || IsAccess(given.Value))
-                     && RootName(given.Value) is { } root && root != given.Name)
-            {
-                var rootHeld = HeldBy(holds, root);
-                grew |= Grow(localDepths[given.Name], rootHeld);
-                grew |= Grow(HeldBy(holds, given.Name), rootHeld);
-            }
+            bool naming = node is DefineStatement or BecomesStatement;
+            grew |= GiveHolds(given.Name, given.Value, naming, localDepths, holds);
+            // An object written out given a new value: each field of its own is now that one's.
+            if (node is BecomesStatement && split.TryGetValue(given.Name, out var replaced))
+                foreach (var (field, _) in replaced)
+                {
+                    var reach = Reach(given.Value);
+                    grew |= Grow(localDepths[$"{given.Name}.{field}"], reach);
+                    grew |= Grow(HeldBy(holds, $"{given.Name}.{field}"), reach);
+                }
         }
+        foreach (var (name, fields) in split)
+            foreach (var (field, values) in fields)
+            {
+                string fieldName = $"{name}.{field}";
+                foreach (var value in values)
+                {
+                    grew |= Grow(localDepths[fieldName], Is(value));
+                    grew |= GiveHolds(fieldName, value, naming: true, localDepths, holds);
+                }
+                // The object holds what its field is and holds.
+                grew |= Grow(HeldBy(holds, name), localDepths[fieldName]);
+                grew |= Grow(HeldBy(holds, name), HeldBy(holds, fieldName));
+            }
         foreach (var store in frame.Stores)
-            if (RootName(store.Target) is { } into)
+        {
+            if (store.Field != null && store.Target is VariableReference written
+                && localDepths.TryGetValue($"{written.Name}.{store.Field}", out var fieldIs))
+            {
+                // A field of its own is set: it IS what was stored.
+                grew |= Grow(fieldIs, Reach(store.Value));
+                continue;
+            }
+            if (FieldRoot(store.Target, localDepths).Name is { } into)
                 grew |= Grow(HeldBy(holds, into), Reach(store.Value));
+        }
         foreach (var call in frame.Calls)
         {
+            if (StoresKnown(call.Callee))
+            {
+                // What the callee really stores, argument into argument.
+                IExpression? At(int place) =>
+                    place == ReceiverDepthIndex ? call.Receiver
+                    : place >= 0 && place < call.Args.Count ? call.Args[place] : null;
+                foreach (var (source, target) in PairsOf(call.Callee))
+                {
+                    if (At(target) is not { } targetExpr || FieldRoot(targetExpr, localDepths).Name is not { } into) continue;
+                    HashSet<int>? from =
+                        source == FreshDepthIndex ? [FreshDepthIndex]
+                        : IsOuter(source) ? CapturedPlace(frame, call.Callee, source)
+                        : At(source) is { } sourceExpr ? Reach(sourceExpr) : null;
+                    if (from != null) grew |= Grow(HeldBy(holds, into), from);
+                }
+                continue;
+            }
+            // Nothing known of the callee: it may store any of them into any other.
             var parts = new List<IExpression>();
             for (int i = 0; i < call.Args.Count; i++)
                 if (call.ArgHolds[i]) parts.Add(call.Args[i]);
             if (call.Receiver != null) parts.Add(call.Receiver);
             for (int i = 0; i < parts.Count; i++)
             {
-                if (RootName(parts[i]) is not { } into) continue;
+                if (FieldRoot(parts[i], localDepths).Name is not { } into) continue;
                 for (int j = 0; j < parts.Count; j++)
                     if (j != i) grew |= Grow(HeldBy(holds, into), Reach(parts[j]));
             }

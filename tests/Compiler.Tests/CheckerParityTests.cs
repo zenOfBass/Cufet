@@ -1389,6 +1389,10 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
         "Define object bag with (the series of series of number items).\nPull a rabbit.\n    Define b as a new bag { the items (a series of series of number) }.\n    Define inner as a series of number with (1, 2, 3).\n    Insert inner into b's items.\n    State the number of b's items.\nDone.\n",
         "Define totals as a series of number.\nPull a rabbit.\n    Define alias as totals.\n    Insert 5 into alias.\nDone.\nState totals.\n",
         "Pull a rabbit.\n    Define table as a series of series of number.\n    Define alias as table.\n    Define inner as a series of number with (1, 2, 3).\n    Insert inner into alias.\n    State the number of table.\nDone.\n",
+        // A channel's delivery is made where it is taken; a cast is judged by what its callee really
+        // stores (2026-11-14; docs/SOUNDNESS.md, obligation O2).
+        "Pull a rabbit.\n    Define ch as a channel of series of series of number.\n    Send (a series of series of number with ()) through ch.\n    Close ch.\n    Define got as the delivery from ch.\n    Define r as (got but void is (a series of series of number with ())).\n    Insert (a series of number with (1, 2, 3)) into r.\n    State the number of (the first of r).\nDone.\n",
+        "Define object tree with (the number label, the series of tree branches).\nBind void to collect, given (the tree walked, the series of tree found):\n    Insert walked into found.\n    For each branch in walked's branches, repeat:\n        Cast collect on (branch, found).\n    Done.\nDone.\nDefine top as a new tree { the label 1, the branches (a series of tree) }.\nInsert (a new tree { the label 2, the branches (a series of tree) }) into top's branches.\nPull a rabbit.\n    Define found as a series of tree.\n    Cast collect on (top, found).\n    State the number of found.\nDone.\n",
     ];
 
     /// <remarks>

@@ -1,0 +1,20 @@
+/*  EXPECTED: COMPILES and runs; compiled output must match the interpreter.
+
+    A recursive walk collects a tree from outside a rabbit into a list made in it. Each cast is judged by what its callee really stores.
+
+    Nothing here outlives its region, and nothing is refused (docs/SOUNDNESS.md, obligation O2). */
+
+Define object tree with (the number label, the series of tree branches).
+Bind void to collect, given (the tree walked, the series of tree found):
+    Insert walked into found.
+    For each branch in walked's branches, repeat:
+        Cast collect on (branch, found).
+    Done.
+Done.
+Define top as a new tree { the label 1, the branches (a series of tree) }.
+Insert (a new tree { the label 2, the branches (a series of tree) }) into top's branches.
+Pull a rabbit.
+    Define found as a series of tree.
+    Cast collect on (top, found).
+    State the number of found.
+Done.

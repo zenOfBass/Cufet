@@ -111,11 +111,14 @@ Pull a book on collections.
     /// A copy of a tree that shares nothing a note could change — every node but its leaves is new.
     Bind node to copied-node, given (the node tree):
         If tree's kind is "atom", return tree.
-        Define copy as a new node { the kind tree's kind, the word tree's word, the children a series of node }.
+        // ⚠ Gathered under a name of their own and THEN put in the node: inserting through
+        // `copy's children` reads, to the store rule, as storing into whatever the copy was given,
+        // which is `tree` itself where an atom is handed back (docs/SOUNDNESS.md, O2).
+        Define copied-children as a series of node.
         For each child in tree's children, repeat:
-            Insert cast copied-node on (child) into copy's children.
+            Insert cast copied-node on (child) into copied-children.
         Done.
-        Return copy.
+        Return a new node { the kind tree's kind, the word tree's word, the children copied-children }.
     Done.
 
     /// A copy of each tree, for a check that is to own what it is given.

@@ -227,8 +227,8 @@ Pull a book on collections.
         Done.
         Cast one's check-region-store on (value, value-type, cast one's container-depth on (target), at-row,
             "store a region-scoped value in a map that lives in a longer-lived region") or pass the failure off.
-        Cast one's note-store on (value, value-type, target, at-row).
-        Cast one's note-floor-store on (value, value-type, target, at-row,
+        Cast one's note-store on (value, value-type, target, at-row, "").
+        Cast one's note-floor-store on (value, value-type, target, "", at-row,
             "store a region-scoped value in a map that lives in a longer-lived region").
         Cast one's note-escape on (statement, ":EscapeToDepth", value, value-type, cast one's container-depth on (target)).
         Cast one's note-escape on (statement, ":KeyEscapeToDepth", cast field-of on (statement, 2), key-type, cast one's container-depth on (target)).

@@ -1,0 +1,15 @@
+/*  EXPECTED: COMPILES and runs; compiled output must match the interpreter.
+
+    A value taken from a channel is copied into the region it is taken in; a rabbit's series is inserted into it.
+
+    Nothing here outlives its region, and nothing is refused (docs/SOUNDNESS.md, obligation O2). */
+
+Pull a rabbit.
+    Define ch as a channel of series of series of number.
+    Send (a series of series of number with ()) through ch.
+    Close ch.
+    Define got as the delivery from ch.
+    Define r as (got but void is (a series of series of number with ())).
+    Insert (a series of number with (1, 2, 3)) into r.
+    State the number of (the first of r).
+Done.

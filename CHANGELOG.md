@@ -45,8 +45,8 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   states what the compiled program needs, shows nineteen programs that pass `check` and read freed memory when compiled, traces them to four
   gaps in the rules, and proves a repaired set of rules sound for a core of the language. The programs
   are in `docs/soundness/probes/`, and a model that checks the proof by search is in
-  `docs/soundness/model/`. Three of the four gaps are closed (see Fixed), the third for everything
-  but text. Four of the nineteen programs still read freed memory.
+  `docs/soundness/model/`. All four gaps are closed (see Fixed), one of them for everything but
+  text. Two more programs were found on the way; of the twenty-one, two still read freed memory.
 
 ### Changed
 
@@ -103,6 +103,19 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
   Nothing is refused where a function is written, and a program with no rabbit in it is not
   affected. Both checkers (`docs/SOUNDNESS.md`, obligation O4).
+- **A rabbit's series could be stored into something longer-lived through a second name, a field,
+  or an element.** A store was judged against where the NAME of its target was defined, or, for
+  `b's items` and `item 1 of table`, against the region open at the store. Neither is where the
+  target lives: `Define alias as keeper.` inside a rabbit names a series from outside it, and a
+  table made in a rabbit can hold a row that was not. Each name now also carries how long-lived the
+  container it names is, and how long-lived the longest-lived thing reachable through it is; every
+  store into it, and every cast that stores through it, lowers the second. A store into the
+  container itself is judged against the first, and a store through an element or a field against
+  the second, once the whole program has been checked, so that a later statement in a loop cannot
+  be missed. Inside a function the same is known of each local: storing through `item 1 of table`
+  counts as storing into whatever was put in the table. REFUSED with the usual message. Inserting
+  a rabbit's row into a table that holds outer rows, which is a store into the table itself, is
+  not. Both checkers (`docs/SOUNDNESS.md`, obligation O2).
 - **An interpreted task read the names it used when it RAN, not when it was started.** A task
   started inside a loop failed with "'n' isn't defined" once the loop had ended, and a name changed
   after the start was seen changed (`after 3`) where the compiled program saw it as it was

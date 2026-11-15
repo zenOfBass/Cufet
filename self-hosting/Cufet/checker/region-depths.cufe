@@ -45,7 +45,7 @@ Pull a book on collections.
             Define gathered as a series of node.
             Cast gather-depth-nodes on (body, gathered).
 
-            Define locals as cast one's local-depths on (gathered, positions, referenced, a map from text to number, false, 0, a map from text to series of number).
+            Define locals as cast one's local-depths on (gathered, positions, referenced, a map from text to number, false, 0, a map from text to series of number, a map from text to fact).
 
             Define flows as a series of number.
             For each statement in gathered, repeat:
@@ -67,11 +67,12 @@ Pull a book on collections.
     /// Where each name a body gives a value to can come from. `captured` and `storing` are the
     /// store rule's (see `symbolic-depth`); the return signature passes an empty map and false.
     /// `frame-index` is the store rule's body, or 0: given one, what each name HOLDS is worked out
-    /// into `holds` too, to the same fixed point (`grow-holds`).
+    /// into `holds` too, to the same fixed point (`grow-holds`); `split-names` is each field of an object
+    /// the body writes out, `L.f`, a name of its own.
     Bind map from text to series of number to local-depths unto checker, given (the series of node gathered,
             the map from text to number positions, the series of number referenced,
             the map from text to number captured, the fact storing,
-            the number frame-index, the map from text to series of number holds):
+            the number frame-index, the map from text to series of number holds, the map from text to fact split-names):
         // Every name the body gives a value to starts empty, so that a name read before the walk
         // has reached its `Define` is not taken for one the walk knows nothing about.
         Define locals as a map from text to series of number.
@@ -80,6 +81,10 @@ Pull a book on collections.
                 Define target-name as cast depth-target-name on (statement).
                 If the entry for target-name in locals is void, in locals, the entry for target-name becomes a series of number.
             Done.
+        Done.
+
+        For each pair in split-names, repeat:
+            If the entry for the key of pair in locals is void, in locals, the entry for the key of pair becomes a series of number.
         Done.
 
         // To a fixed point: a loop can carry a value from its end back to its start, and the
@@ -102,7 +107,7 @@ Pull a book on collections.
                 Done.
             Done.
             If frame-index is greater than 0:
-                If cast one's grow-holds on (frame-index, gathered, locals, holds, positions, referenced, captured), the grew becomes true.
+                If cast one's grow-holds on (frame-index, gathered, locals, holds, positions, referenced, captured, split-names), the grew becomes true.
             Done.
         Done.
         Return locals.
@@ -221,42 +226,51 @@ Pull a book on collections.
             // A top-level constant is made before any region opens. Any other name — one captured
             // from an enclosing function, or bound by a statement this walk does not model — is
             // not traced.
-            Define seen as cast one's look-up on (name).
-            If seen is not void:
-                If seen's permanent and seen's parameter is false, return a series of number.
-            Done.
+            If cast one's traced-constant on (name), return a series of number.
             Return cast untraced on (referenced, captured).
         Done.
         If kind is "CastExpression":
             Define callee as cast field-of on (said, 1).
             If callee's kind is "VariableReference":
                 Define callee-name as cast unquoted on (cast field-of on (callee, 1)).
-                Define found as cast one's look-up on (callee-name).
-                If found is not void:
-                    If found's shape's kind is "FunctionType":
-                        Define signature as the entry for "{callee-name}@{found's line}" in one's depth-signatures.
-                        If signature is void, return cast untraced on (referenced, captured).
-                        Define reached as a series of number.
-                        Define given-args as (cast field-of on (said, 2))'s children.
-                        For each one-index in signature, repeat:
-                            If one-index is -2:
-                                If cast holds-number on (reached, -2) is false, insert -2 into reached.
-                            Done.
-                            Otherwise if one-index is -1:
-                                // Which argument was the receiver is settled by dispatch, not here.
-                                For each argument in given-args, repeat:
-                                    Cast union-into on (cast one's symbolic-depth on (argument, positions, referenced, locals, captured, storing), reached).
-                                Done.
-                            Done.
-                            Otherwise if one-index is less than the number of given-args:
-                                Cast union-into on (cast one's symbolic-depth on (item (one-index + 1) of given-args, positions, referenced, locals, captured, storing), reached).
+                Define callee-key as cast one's traced-callee-key on (callee-name).
+                If callee-key is not "":
+                    Define signature as the entry for callee-key in one's depth-signatures.
+                    If signature is void, return cast untraced on (referenced, captured).
+                    Define reached as a series of number.
+                    Define given-args as (cast field-of on (said, 2))'s children.
+                    For each one-index in signature, repeat:
+                        If one-index is -2:
+                            If cast holds-number on (reached, -2) is false, insert -2 into reached.
+                        Done.
+                        Otherwise if one-index is -1:
+                            // Which argument was the receiver is settled by dispatch, not here.
+                            For each argument in given-args, repeat:
+                                Cast union-into on (cast one's symbolic-depth on (argument, positions, referenced, locals, captured, storing), reached).
                             Done.
                         Done.
-                        Return reached.
+                        Otherwise if one-index is less than the number of given-args:
+                            Cast union-into on (cast one's symbolic-depth on (item (one-index + 1) of given-args, positions, referenced, locals, captured, storing), reached).
+                        Done.
                     Done.
+                    Return reached.
                 Done.
             Done.
             Return cast untraced on (referenced, captured).
+        Done.
+        // A field of an object the body writes out, for the store rule: a name of its own (O2).
+        If storing:
+            If kind is "PossessiveAccess" or kind is "RecordNamedAccess":
+                Define owner-said as cast accessed on (said).
+                If owner-said's kind is "VariableReference":
+                    Define field-is as the entry for "{cast unquoted on (cast field-of on (owner-said, 1))}.{cast accessed-field on (said)}" in locals.
+                    If field-is is not void:
+                        Define field-copy as a series of number.
+                        Cast union-into on (field-is, field-copy).
+                        Return field-copy.
+                    Done.
+                Done.
+            Done.
         Done.
         If kind is "SeriesAccess" or kind is "PossessiveAccess":
             Return cast one's symbolic-depth on (cast field-of on (said, 1), positions, referenced, locals, captured, storing).
