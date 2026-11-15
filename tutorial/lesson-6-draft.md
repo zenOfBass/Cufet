@@ -232,7 +232,7 @@ Hop 6!
 >
 > **Grace:** Counting is one kind of repeating. But say you wanted to greet a whole list of friends, one after another.
 >
-> **Hopper:** Then Cufet needs a way to hold a list. And it has one!
+> **Hopper:** Then we need a way to hold a list. And Cufet has one!
 
 *End of lesson 6.*
 
