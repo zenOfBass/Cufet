@@ -125,14 +125,14 @@ real answers appear beside their guesses:*
 
 ## Beat 3: will it run? (Predict)
 
-*Hopper writes two lines, looking pleased with himself:*
+*Hopper writes two lines, grinning:*
 
 ```cufet
 State "Here goes!".
 State "2" + 3.
 ```
 
-> **Hopper:** I put quote marks on just the two. It's still a two, right?
+> **Hopper:** Here's a sneaky one. I put quote marks around just the two.
 >
 > **Grace:** Hmm. What do you think, friend? Will Cufet run this one?
 
@@ -157,21 +157,17 @@ If you meant to join text, use 'joined to': "hello" joined to " world".
 
 *Whichever they chose:*
 
-> **Hopper:** Hey! It didn't even say "Here goes!" That line was fine!
+> **Hopper:** And look: it didn't even say "Here goes!", even though that line was fine.
 >
 > **Grace:** Cufet reads the whole program before it runs any of it. If one line doesn't make sense, it won't start at all. And look: it tells you which line, and why.
 >
-> **Hopper:** Hmmmm, but what's "joined to"?
->
-> **Grace:** That's a story for another day.
+> **Hopper:** See the bit about "joined to" at the end? That's another trick. We'll get to it another day.
 
 ## Beat 4: a blank page (Make)
 
-> **Grace:** Hopper, quick: what's twelve times twelve?
+> **Hopper:** Pop quiz, friend! What's twelve times twelve? No fair working it out in your head.
 >
-> **Hopper:** Uhhh. Um. Twelve... and then... more twelves?
->
-> **Grace:** Friend, help him out. The page is empty. Write a program that asks the question, then lets Cufet work out the answer.
+> **Grace:** The page is empty. Write a program that asks the question, then lets Cufet work out the answer.
 
 *The editor is empty. Done when the output is this, judged on the words and numbers only:*
 
@@ -180,9 +176,9 @@ What is 12 * 12?
 144
 ```
 
-> **Hopper:** A hundred and forty-four! ...I knew that.
+> **Hopper:** Nailed it! And you didn't have to work out a thing yourself.
 >
-> **Grace:** Of course you did. Well done, friend. Text and a number, and you wrote it from nothing.
+> **Grace:** Well done, friend. Text and a number, and you wrote it from nothing.
 
 ### The hint ladder
 

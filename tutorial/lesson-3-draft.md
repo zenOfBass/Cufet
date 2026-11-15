@@ -32,7 +32,7 @@ State answer.
 
 > **Grace:** The first line works out `12 * 12`, and keeps the answer under a name: `answer`. The second line uses it.
 >
-> **Hopper:** No quote marks on `answer`! What's it gonna say?
+> **Hopper:** Notice there are no quote marks on `answer`. So what do you think it says, friend?
 
 *The output box asks: **What will appear here?** Three buttons:*
 
@@ -87,7 +87,7 @@ State answer + 12.
 
 ## Beat 3: saying it in a sentence (Predict)
 
-> **Hopper:** A hundred and forty-four is nice. But I want it to say "The answer is 144." Like a real sentence!
+> **Hopper:** Now, here's a trap almost everybody falls into. Say you want a real sentence, like "The answer is 144."
 
 *Hopper scurries up to the editor and changes the second line:*
 
@@ -96,7 +96,7 @@ Define answer as 12 * 12.
 State "The answer is answer.".
 ```
 
-> **Grace:** Before you run it, friend: what will it say?
+> **Hopper:** What do you think this says, friend?
 
 *The output box asks: **What will appear here?** Three buttons:*
 
@@ -112,11 +112,11 @@ The answer is answer.
 
 **If they chose B:**
 
-> **Grace:** Well spotted. Inside the quote marks, `answer` is just a word.
+> **Hopper:** You didn't fall for it! Inside the quote marks, `answer` is just a word.
 
 **If they chose A:**
 
-> **Grace:** That's what Hopper hoped for. But inside quote marks, Cufet says exactly what's written.
+> **Hopper:** That's the trap! Inside quote marks, Cufet says exactly what's written.
 
 **If they chose C:**
 
@@ -124,7 +124,7 @@ The answer is answer.
 
 *Whichever they chose:*
 
-> **Hopper:** "The answer is answer." Ha! That's not very helpful.
+> **Hopper:** "The answer is answer." Not very helpful, is it?
 >
 > **Grace:** Inside quote marks, everything is text, and Cufet says text exactly as it's written. It doesn't look for names in there.
 
@@ -139,9 +139,9 @@ Define answer as 12 * 12.
 State "The answer is {answer}.".
 ```
 
-> **Hopper:** The curly brackets! What are those for?
+> **Hopper:** See the curly brackets? They make a **hole** in the text. Cufet fills the hole with whatever the name stands for.
 >
-> **Grace:** They make a **hole** in the text. Cufet fills the hole with whatever the name stands for. Press Run, friend.
+> **Grace:** Press Run, friend.
 
 *The player presses Run.*
 
@@ -205,7 +205,7 @@ The answer is 49.
 
 ## Beat 6: one more, and a surprise (Predict)
 
-> **Hopper:** Again! Now eight times eight! I'll add it to the bottom.
+> **Hopper:** One more thing to try, friend. What if we want eight times eight as well? Say we add it to the bottom, like this.
 
 *Hopper adds two lines to the player's program:*
 
