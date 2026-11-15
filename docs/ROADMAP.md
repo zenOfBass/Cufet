@@ -151,7 +151,12 @@ around it. Nobody has asked for one.
   misleads. Each has a clear why and a clear fix, so by "warmth scales with teachable content"
   they have earned a warm message, and three of them show internal vocabulary. Found while
   drafting the tutorial's first lesson (`tutorial/lesson-1-draft.md`). The Cufet parser matches
-  these refusals, so each changes in both parsers.
+  these refusals, so each changes in both parsers. Later lessons found more of the same: a name
+  with a space (`Define my answer as …`) gets `'my' is not a defined type`; `Define my number as 7.`
+  gets `expected As, got NumberKw "number"`; `The hops is hops + 1.` gets
+  `expected Becomes, got Is "is"`; a missing comma after an `If` question asks for a colon;
+  `Else` gets the lowercase-letter message; `Otherwise` with no `If` gets
+  `expected statement keyword`; and `is greater 3` gets `expected Than, got Number "3"`.
 
 ### Types and object
 

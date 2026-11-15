@@ -194,7 +194,7 @@ What is 12 * 12?
 | They type | What Cufet does | The rabbits say |
 | --- | --- | --- |
 | Last line `State "12 * 12".` | Runs, prints `12 * 12` | **Hopper:** That's just the question again! Take the quote marks off, so Cufet works it out. |
-| Last line `State 144.` | Runs, prints `144` | **Done.** **Grace:** That's right, but you did the sum yourself. Next time, write `12 * 12` and let Cufet do the work. |
+| Last line `State 144.` | Runs, prints `144`, but isn't done | **Grace:** That's the right number, but you worked it out yourself. Write `12 * 12` and let Cufet do the work. |
 | Last line `State 12 times 12.` | `Line 2, column 10: expected '.', got Identifier "times".` | **Hopper:** Cufet doesn't know "times" as a word. Use the star: `*`. |
 | Last line `State 12 x 12.` | `Line 2, column 10: expected '.', got Identifier "x".` | **Grace:** In Cufet, "times" is written with a star, `*`, not an x. |
 | Last line `State 12 * 12 = 144.` | Runs, prints `true` | **Grace:** You've asked Cufet whether twelve twelves make 144, and it says that's true! Leave off the `= 144` and it will give you the number. |
@@ -213,15 +213,8 @@ What is 12 * 12?
 
 ---
 
-## Things this draft found
+## Still open
 
-1. **A refused program prints nothing at all**, not even the lines before the bad one. Measured
-   with the two-line program in Beat 3. It makes "Cufet reads the whole program first" something
-   the player can see.
-2. **Beat 3 is the first warm Cufet message the player meets**, and it's shown as is. Its last
-   line mentions `joined to`, which hasn't been taught, so Hopper asks and Grace defers it.
-3. **Left out on purpose:** which sign goes first (`2 + 3 * 4` is 14), brackets, and answers with
-   a fraction (`7 / 2` is `3.5`). Each needs maths a young child may not have. They could go in a
-   later lesson or a side note; say if you want any of them here.
-4. **`State 144.` counts as done in Beat 4**, with a nudge from Grace. The game could require the
-   sum by checking the code, if you'd rather it did. - Yes, you will need to make it so it checks that they are actually doing that arithmatic. - Nathan
+**Left out on purpose:** which sign goes first (`2 + 3 * 4` is 14), brackets, and answers with a
+fraction (`7 / 2` is `3.5`). Each needs maths a young child may not have. Say if you want any of
+them in this lesson.

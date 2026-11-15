@@ -161,7 +161,7 @@ The answer is 144.
 
 | They type | What Cufet does | The rabbits say |
 | --- | --- | --- |
-| Changes the hole to `{169}` instead | Runs, prints `The answer is 169.` | **Done.** **Grace:** That's the right sentence, but now the hole doesn't follow the name. Put `{answer}` back and let Cufet work it out. |
+| Changes the hole to `{169}` instead | Runs, prints `The answer is 169.`, but isn't done | **Grace:** That's the right sentence, but now the hole doesn't follow the name. Put `{answer}` back and change only the first line. |
 | `Define answer as thirteen * thirteen.` | `That doesn't work: 'thirteen' isn't defined.` and three more lines | **Hopper:** Numbers are written with digits! Thirteen is `13`. |
 
 ## Beat 5: a blank page (Make)
@@ -191,7 +191,7 @@ The answer is 49.
 
 | They type | What Cufet does | The rabbits say |
 | --- | --- | --- |
-| No name: `State "The answer is 49.".` | Runs, prints the right sentence | **Done.** **Grace:** Right sentence, but you worked it out yourself. Try keeping `7 * 7` as `answer`, and let Cufet do it. |
+| No name: `State "The answer is 49.".` | Runs, prints the right sentence, but isn't done | **Grace:** Right sentence, but you worked it out yourself. Keep `7 * 7` as `answer`, and let Cufet do it. |
 | `State "The answer is 7 * 7.".` | Runs, prints `The answer is 7 * 7.` | **Hopper:** The sum is inside the quote marks, so Cufet just says it! Keep the sum with `Define`, and put a hole in the sentence. |
 | Only `State answer.` for the second line | Runs, prints `49` | **Grace:** The right number, but Hopper wanted a sentence. Try `"The answer is {answer}."` |
 | `State "The answer is " answer.` | `Line 2, column 24: expected '.', got Identifier "answer".` | **Grace:** The name has to go inside the sentence, in a hole: `{answer}`. |
@@ -245,20 +245,3 @@ Each name can only be defined once per block. Use 'becomes' to reassign it, or c
 > **Hopper:** I love becoming! It means we have a chance to grow and be something new!
 
 *End of lesson 3.*
-
----
-
-## Things this draft found
-
-1. **A name with a space gets a misleading message.** `Define my answer as 7 * 7.` says
-   `'my' is not a defined type`, which is about something else entirely, and `Define my number as 7.`
-   says `expected As, got NumberKw "number"`. The rabbits cover both, but they belong with the
-   other messages noted in the roadmap.
-2. **`Define answer = 7 * 7.` already has a warm message**, unlike most beginner mistakes so far.
-   The rabbits just point at it.
-3. **The "isn't defined" message says "Nothing later in this block can give it a value"**, and the
-   "already defined" one mentions "scope" and "block". Neither word has been taught. The rabbits
-   say the same thing in plain words.
-4. **Writing the sentence without a name still counts as done in Beat 5**, with Grace's nudge,
-   since the output can't tell the two apart. The game could check the code for a `Define` if
-   you'd rather it did. - Again, yes, you will need to make it so it checks that they are actually doing what the need to, not just checking output. - Nathan

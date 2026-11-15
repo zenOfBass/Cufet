@@ -149,7 +149,7 @@ Keep going!
 | `Otherwise state "Keep going!".` | `Line 4, column 11: expected ':', got State "state".` | **Grace:** `Otherwise` needs a comma after it, the same as the `If` line. |
 | `Else, state "Keep going!".` | `Line 4, column 1: identifier 'Else' must start with a lowercase letter.` | **Hopper:** Some languages say "else". Cufet says `Otherwise`. |
 | The `Otherwise` line above the `If` | `Line 3, column 1: expected statement keyword, got Otherwise "Otherwise".` | **Grace:** `Otherwise` only makes sense after an `If`. Move it below. |
-| A second `If`: `If hops is 2, state "Keep going!".` | Runs, prints the right lines | **Done.** **Grace:** That works for two. But `Otherwise` catches every other number too, not just two. |
+| A second `If`: `If hops is 2, state "Keep going!".` | Runs, prints the right lines, but isn't done | **Grace:** That works for two. But `Otherwise` catches every other number too, not just two. Try it with `Otherwise`. |
 
 ## Beat 4: more than one line (Predict)
 
@@ -243,7 +243,7 @@ Keep going!
 | `If hops > 3, ...` | Runs, prints the right thing | **Done.** **Hopper:** `>` means "is greater than". Cufet knows both! |
 | `If hops is "5", ...` | `That doesn't work: equality comparison requires matching types.` and more | **Grace:** `"5"` in quote marks is text, and a number can never be text. Take off the quote marks. |
 | `If hops is greater than 3 state "Rest!".` | `Line 2, column 27: expected ':', got State "state".` | **Grace:** A comma goes after the question, before `state`. |
-| `If hops is 5, ...` | Passes both steps: `Rest!` with 5, `Keep going!` with 2 | **Done.** **Hopper:** It works for five and two. But if I hop six times, it says "Keep going!" when I'm tired! Asking whether it's *greater than* three works for every number. |
+| `If hops is 5, ...` | Prints the right thing for 5 and 2, but isn't done | **Hopper:** It works for five and two. But if I hop six times, it says "Keep going!" when I'm tired! Ask whether it's *greater than* three. |
 | No period on the end | `expected '.', got Eof ""` | **Grace:** Every instruction ends with a period, even an `If`. |
 
 ## Before the lesson ends
@@ -255,20 +255,3 @@ Keep going!
 > **Hopper:** Not if we let Cufet do the repeating. Here's how.
 
 *End of lesson 5.*
-
----
-
-## Things this draft found
-
-1. **Choosing needs a decision the player can see.** Running the same program twice with a
-   different first line (Beat 2, and the two runs in Beat 5) shows the `If` deciding. Judging Beat
-   5 by both runs also checks the decision without reading the player's code.
-2. **The block-form mistakes already get warm messages**, which explain both forms.
-3. **More terse ones for the roadmap list:** a missing comma after the question gives
-   `expected ':', got State "state"`, which asks for a colon when a comma is just as right;
-   `Else` gets the lowercase-letter message; `Otherwise` with no `If` gets
-   `expected statement keyword, got Otherwise "Otherwise"`; `is greater 3` gets
-   `expected Than, got Number "3"`.
-4. **`If hops = 3` also runs**, since `=` is comparison in Cufet. The lesson doesn't show it.
-5. **`If hops is 3, State "Rest!".` with a capital `State` also runs.** The lesson writes `state`
-   after the comma, as the reference does.

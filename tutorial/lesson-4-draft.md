@@ -194,20 +194,3 @@ Hop 3!
 > **Grace:** And every decision starts with a question.
 
 *End of lesson 4.*
-
----
-
-## Things this draft found
-
-1. **`The hops is hops + 1.` gets `expected Becomes, got Is "is"`.** "Is" is exactly the word a
-   child reaches for, and the message shows parser vocabulary. Another one for the roadmap list.
-2. **Most `becomes` mistakes already get warm messages**, better than `Define`'s: `=` suggests
-   `becomes`, a missing `Define` says to use one, and a typo gets "Did you mean 'hops'?"
-3. **Changing a number name to text** says "Variables keep their type for life." "Type" hasn't
-   been taught. It's not in any exercise here, but a player could hit it.
-4. **`answer becomes 8 * 8.` without `The` also runs.** The lesson writes `The` because Cufet's
-   style capitalises the first word of a line. Beat 1 says so in one line.
-5. **The ending's hook is weak in the same way lesson 2's was at first:** in a fixed program,
-   you always know what will happen, so deciding isn't needed yet. It's a curiosity hook, not
-   a felt limitation. Lesson 5 may need to bring in something the program can't know ahead of
-   time.

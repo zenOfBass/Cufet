@@ -72,6 +72,10 @@ with the evidence for every edge, is in [`tools/curriculum-net/`](../tools/curri
 - **The first writing exercises judge the words only.** Punctuation and capital letters are
   ignored, so nobody fails over a comma. A rabbit may remark on a small difference without
   failing the player. The wrong words, or a refused program, still don't count as done.
+- **Exercises check that the player did what was asked, not just the output.** When the task is
+  to let Cufet do the sum, use a name, or use `Otherwise`, the game checks the code for it, since
+  typing the answer in by hand can produce the same output. A shortcut gets a rabbit's nudge
+  toward what was asked, not "done".
 - **No hard breaks between lessons, for now.** The format isn't decided, so the dialogue never
   says "next time" or "another day"; one lesson leads straight into the next.
 - The working scripts are [lesson-1-draft.md](lesson-1-draft.md) (saying words: the opening, several lines, the joke),
