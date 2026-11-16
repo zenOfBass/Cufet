@@ -259,7 +259,9 @@ Hop 2!
 >
 > **Maria:** You'll find your way out through the garden.
 >
-> **Grace:** Which garden?
+> **Hopper:** The garden? That's where the people are!
+>
+> **Grace:** Rabbits who go in there don't come back out, Maria.
 
 *Maria closes her eyes, and says nothing.*
 

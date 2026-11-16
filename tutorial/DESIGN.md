@@ -46,6 +46,8 @@ to learn it.
   hops like the rabbits but is almost alien beside them, and still common.
 - **She lives at a pond outside the garden.** She tells them "You'll find your way out through the
   garden", and they work out how to get in by themselves.
+- **They already know the garden, and they're afraid of it,** because of the people there, as in
+  the Peter Rabbit stories.
 - **Maria only speaks.** The editor stays the rabbits'; she did it all in her head.
 - **She first appears in the Void lesson,** and is in all of it.
 
