@@ -83,8 +83,9 @@ with the evidence for every edge, is in [`tools/curriculum-net/`](../tools/curri
   [lesson-3-draft.md](lesson-3-draft.md) (names),
   [lesson-4-draft.md](lesson-4-draft.md) (becomes),
   [lesson-5-draft.md](lesson-5-draft.md) (choosing),
-  [lesson-6-draft.md](lesson-6-draft.md) (repeating), and
-  [lesson-7-draft.md](lesson-7-draft.md) (series).
+  [lesson-6-draft.md](lesson-6-draft.md) (repeating),
+  [lesson-7-draft.md](lesson-7-draft.md) (series), and
+  [lesson-8-draft.md](lesson-8-draft.md) (functions).
 
 ## How questions are asked
 
