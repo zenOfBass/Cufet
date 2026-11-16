@@ -1,10 +1,5 @@
 # Lesson 5, choosing: a first draft
 
-**Status: a draft to react to. Nothing here is agreed until you say so.** The agreed design is in
-[DESIGN.md](DESIGN.md). It follows [lesson 4](lesson-4-draft.md) and is written the same way:
-*italics* are what happens on screen, and each spoken line is one speech bubble. Every program
-and every Cufet message below was run through the real build on 15 November 2026.
-
 What's new in this lesson, one idea per beat:
 
 1. A question like `hops is 3` has an answer: `true` or `false`, called a **fact**.

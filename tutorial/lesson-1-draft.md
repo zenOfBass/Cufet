@@ -1,9 +1,5 @@
 # Lesson 1, the opening: a first draft
 
-**Status: a draft to react to. Nothing here is agreed until you say so.** The agreed design is in
-[DESIGN.md](DESIGN.md). Every program and every Cufet message below was run through the real
-build on 12 November 2026.
-
 How to read it: lines in *italics* are what happens on screen. Each spoken line is one speech
 bubble, kept short enough to fit one. The voices are a first guess: **Hopper** is quick and
 delighted by everything; **Grace** is careful and gets things exactly right.
