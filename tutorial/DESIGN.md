@@ -48,6 +48,10 @@ to learn it.
   garden", and they work out how to get in by themselves.
 - **They already know the garden, and they're afraid of it,** because of the people there, as in
   the Peter Rabbit stories.
+- **Two refrains.** Grace quotes "Good little rabbits always…", rules they were raised on, with
+  affection, never as a scold. Most are real habits worth having; "Good little rabbits never go in
+  the garden" is the one the story breaks. Hopper wonders what "Real rabbits…" do; the line keeps
+  moving, as "when is Cufet a real language?" did. A few of each, a bubble or two at a time.
 - **Maria only speaks.** The editor stays the rabbits'; she did it all in her head.
 - **She first appears in the Void lesson,** and is in all of it.
 

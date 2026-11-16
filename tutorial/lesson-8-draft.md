@@ -66,6 +66,8 @@ State cast add-up on (a series with (3, 5, 2)).
 > **Grace:** `Bind` makes a **function**: lines with a name of their own. `number` says it gives back a number. `given` says what it needs: a series of numbers, called `days`.
 >
 > **Hopper:** `Return` hands the answer back. And `cast` is how you run it. `cast add-up on`, and then what to add up, in brackets.
+>
+> **Grace:** And good little rabbits always give back what they promise. This one promised a `number`.
 
 ## Beat 2: anyone's week (Predict)
 
@@ -96,9 +98,11 @@ State cast add-up on (a series with (4, 1, 6)).
 
 > **Hopper:** Grace out-hopped me!
 >
-> **Grace:** I've been practising. Real rabbits can hop all day.
+> **Grace:** I've been practising.
 >
-> **Hopper:** One day, Grace.
+> **Hopper:** Real rabbits can hop all day, you know.
+>
+> **Grace:** One day, Hopper.
 
 **If they chose B:**
 

@@ -168,7 +168,9 @@ Otherwise:
 Done.
 ```
 
-> **Grace:** Each side gets its own `Done.` What do you think it says, friend?
+> **Grace:** Each side gets its own `Done.` Good little rabbits always close what they open.
+>
+> **Hopper:** What do you think it says, friend?
 
 *The output box asks: **What will appear here?** Three buttons:*
 

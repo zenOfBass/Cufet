@@ -261,7 +261,7 @@ Hop 2!
 >
 > **Hopper:** The garden? That's where the people are!
 >
-> **Grace:** Rabbits who go in there don't come back out, Maria.
+> **Grace:** Good little rabbits never go in the garden, Maria.
 
 *Maria closes her eyes, and says nothing.*
 

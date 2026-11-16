@@ -146,7 +146,7 @@ Each hint needs an attempt since the last one.
 | `State "hello, grace!".` | Runs, prints `hello, grace!` | **Done.** **Grace:** That's me! Though I do spell it with a big G. The computer copies you exactly, capital letters and all. |
 | `State "Hello, rabbits!".` (unchanged) | Runs, prints `Hello, rabbits!` | **Hopper:** That's still hello to both of us! Change `rabbits` to Grace's name. |
 | `State "Hello, Hopper!".` | Runs, prints `Hello, Hopper!` | **Hopper:** Hello! ...Oh, wait. Grace asked first. Do her, then me! |
-| `State "Hello, Grace!"` | `Line 1, column 22: expected '.', got Eof "".` | **Grace:** Every instruction ends with a period, like a sentence. This one stopped without it. Add one at the very end. |
+| `State "Hello, Grace!"` | `Line 1, column 22: expected '.', got Eof "".` | **Grace:** Good little rabbits always end with a period. Every instruction does, like a sentence. Add one at the very end. |
 | `State "Hello, Grace!.` | `Line 1, column 22: unterminated string literal.` | **Hopper:** A quote mark went missing! They come in pairs: one before the words, one after. |
 | `State Hello, Grace!.` | `Line 1, column 7: identifier 'Hello' must start with a lowercase letter.` | **Hopper:** Both quote marks are gone! Without them the computer doesn't know those are words to say. |
 | `Stat "Hello, Grace!".` | `Line 1, column 1: identifier 'Stat' must start with a lowercase letter.` | **Grace:** The first word has to be exactly `State`. One letter off and the computer doesn't know it. |
