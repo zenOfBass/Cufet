@@ -160,8 +160,8 @@ around it. Nobody has asked for one.
   missing its `Done.` suggests the inline form of `For each`, and a `Repeat` missing its `until` gets
   `expected statement keyword, got Done`. A function call without `cast` (`State double on (3).`)
   is told about "source with holes" and C; `If x, "Rest!".` gets `expected statement keyword, got
-  String`; and a `Bind` missing its `Done.` suggests an inline form built on `double`, whatever the
-  function was called.
+  String`; and a `Bind` missing its `Done.` suggests a stock inline example (`double` for a number
+  function, `greet` for a void one) instead of the function being written.
 
 ### Types and object
 

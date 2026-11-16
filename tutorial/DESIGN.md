@@ -40,6 +40,14 @@ to learn it.
   the frame takes its time before the quest begins; and Marpa and Milarepa's towers.
 - **The story starts small.** The master's send-off is not at the start; it comes once there's
   something to be sent toward.
+- **The master is Maria, a frog,** named after Maria Mitchell, who computed the planets for the
+  Nautical Almanac in her head. "Velveteen Rabbit" and "Skin Horse" are both a material and an
+  animal, so the horse is named on the rabbits' terms; ours have names, so she has one too. A frog
+  hops like the rabbits but is almost alien beside them, and still common.
+- **She lives at a pond outside the garden.** She tells them "You'll find your way out through the
+  garden", and they work out how to get in by themselves.
+- **Maria only speaks.** The editor stays the rabbits'; she did it all in her head.
+- **She first appears in the Void lesson,** and is in all of it.
 
 ## What is taught, and in what order
 
@@ -84,8 +92,9 @@ with the evidence for every edge, is in [`tools/curriculum-net/`](../tools/curri
   [lesson-4-draft.md](lesson-4-draft.md) (becomes),
   [lesson-5-draft.md](lesson-5-draft.md) (choosing),
   [lesson-6-draft.md](lesson-6-draft.md) (repeating),
-  [lesson-7-draft.md](lesson-7-draft.md) (series), and
-  [lesson-8-draft.md](lesson-8-draft.md) (functions).
+  [lesson-7-draft.md](lesson-7-draft.md) (series),
+  [lesson-8-draft.md](lesson-8-draft.md) (functions), and
+  [lesson-9-draft.md](lesson-9-draft.md) (void).
 
 ## How questions are asked
 
