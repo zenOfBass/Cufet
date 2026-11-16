@@ -125,7 +125,7 @@ Done resting.
 
 ## Beat 3: sometimes nothing (Predict)
 
-> **Hopper:** Here's a sneaky one. Remember `cheer`? This one only says "Rest!" when I'm tired. Otherwise, it gives back nothing at all.
+> **Hopper:** Try this one. Remember `cheer`? This one only says "Rest!" when I'm tired. Otherwise, it gives back nothing at all.
 
 *Hopper writes:*
 
@@ -153,15 +153,15 @@ void
 
 **If they chose A:**
 
-> **Hopper:** You didn't fall for it! Two hops isn't tired, so `cheer` gave back nothing, and Cufet said so.
+> **Hopper:** Right again! Two hops isn't tired, so `cheer` gave back nothing, and Cufet said so.
 
 **If they chose B:**
 
-> **Hopper:** Got you! `cheer` did give something back: `void`. And `State` says whatever it's given.
+> **Hopper:** Not quite! `cheer` did give something back: `void`. And `State` says whatever it's given.
 
 **If they chose C:**
 
-> **Hopper:** Got you! "Keep going!" isn't in this `cheer` anywhere.
+> **Hopper:** Not quite! "Keep going!" isn't in this `cheer` anywhere.
 
 *Whichever they chose:*
 

@@ -71,6 +71,10 @@ the program still uses `While`.*
 > **Hopper:** Ten hops! Three copies would have been six lines. Ten copies would have been twenty.
 >
 > **Grace:** And with `While`, it's still five.
+>
+> **Hopper:** Ten hops would take me right up to the garden wall.
+>
+> **Grace:** Not that close, Hopper. Not with the people in there.
 
 ### The hint ladder
 

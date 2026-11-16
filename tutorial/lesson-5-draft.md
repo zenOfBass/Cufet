@@ -224,6 +224,12 @@ Keep going!
 > **Hopper:** It knew when I was tired! Both times!
 >
 > **Grace:** You didn't touch the `If`, and it still got it right. That's the program deciding. Well done, friend.
+>
+> **Hopper:** Do you think Real rabbits get tired?
+>
+> **Grace:** We get tired.
+>
+> **Hopper:** ...Huh.
 
 ### The hint ladder
 

@@ -95,6 +95,10 @@ State cast add-up on (a series with (4, 1, 6)).
 **If they chose A:**
 
 > **Hopper:** Grace out-hopped me!
+>
+> **Grace:** I've been practising. Real rabbits can hop all day.
+>
+> **Hopper:** One day, Grace.
 
 **If they chose B:**
 
@@ -110,7 +114,7 @@ State cast add-up on (a series with (4, 1, 6)).
 
 ## Beat 3: a sneaky return (Predict)
 
-> **Hopper:** Here's a sneaky one. I've put one more `Return` inside the loop.
+> **Hopper:** Bet you can't spot this one. I've put one more `Return` inside the loop.
 
 *Hopper changes the function, and takes out Grace's line:*
 
@@ -140,11 +144,11 @@ State cast add-up on (a series with (3, 5, 2)).
 
 **If they chose B:**
 
-> **Hopper:** You didn't fall for it!
+> **Hopper:** Spotted it!
 
 **If they chose A or C:**
 
-> **Hopper:** Got you! The first time round, the total is 3, and `Return` hands it straight back. The rest of the week never gets added.
+> **Hopper:** Caught you! The first time round, the total is 3, and `Return` hands it straight back. The rest of the week never gets added.
 
 *Whichever they chose:*
 

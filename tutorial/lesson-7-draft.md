@@ -84,7 +84,7 @@ Hello, Hopper!
 
 > **Grace:** Cufet counts from one, like you would: Grace is the first, Hopper is the second, you're the third. You can say `the last of friends` too.
 >
-> **Hopper:** Here's a sneaky one. What about the fourth?
+> **Hopper:** Now a trick question. What about the fourth?
 
 *Hopper changes the second line to `State the fourth of friends.`*
 
@@ -102,11 +102,11 @@ There's no item 4 — 'friends' has 3 items (you can reach items 1 through 3). T
 
 **If they chose C:**
 
-> **Hopper:** You didn't fall for it! Only three friends, so there's no fourth.
+> **Hopper:** Too smart for me! Only three friends, so there's no fourth.
 
 **If they chose A or B:**
 
-> **Hopper:** Got you! There are only three. Cufet won't make up a fourth. It stops and tells you.
+> **Hopper:** Ha! There are only three. Cufet won't make up a fourth. It stops and tells you.
 
 ## Beat 3: for each (Predict)
 
@@ -232,7 +232,7 @@ I hopped 10 times!
 
 > **Hopper:** Ten hops for me! Now do Grace's week.
 >
-> **Grace:** That's the whole adding-up again, with my numbers. And again for every rabbit in the garden.
+> **Grace:** That's the whole adding-up again, with my numbers. And again for every rabbit we know.
 >
 > **Hopper:** Unless the adding-up gets a name of its own. Then Cufet can do it for anyone's week.
 
