@@ -435,6 +435,17 @@ public sealed partial class TypeChecker
                 && selfTi!.Type is FunctionType selfFt)
             {
                 selfFt.ReturnDepthSignature = ComputeReturnDepthSignature(bind);
+                // ⚠ A function written inside a pull's block has a second type, hoisted for the
+                // whole program (see RegisterNestedFunction), and a cast from another block or file
+                // reaches that one. Without the signature there, what such a cast hands back looked
+                // as though it might be any argument at all. MEASURED: `listed` in the checker
+                // written in Cufet, cast from `stripped` in another file, made `stripped` appear to
+                // store its arguments into each other; the checker written in Cufet, which keys a
+                // signature by name and line, never saw it.
+                foreach (var scope in saved.V)
+                    if (scope.TryGetValue(bind.Name, out var same) && same.Type is FunctionType sameFt
+                        && same.EstablishingLine == bind.Line && !ReferenceEquals(sameFt, selfFt))
+                        sameFt.ReturnDepthSignature = selfFt.ReturnDepthSignature;
             }
         }
         finally
