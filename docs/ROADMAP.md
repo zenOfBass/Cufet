@@ -106,8 +106,23 @@ they are large, not because they are waiting — the order among them means noth
 
 ## Ongoing, no fixed slot
 
-A formal soundness proof or a fresh-eyes red-team · a periodic error-message audit for internal
-vocabulary
+A periodic error-message audit for internal vocabulary.
+
+**The region model's newer rules are tested, not proved.** `docs/SOUNDNESS.md` proves its
+repaired rules for a core language and checks them with a model in `docs/soundness/model/`. The
+rules that close the holes in the full language are not in that model: what a function stores
+into its parameters, a field of an object written out as a name of its own, the depths of captured
+names, a function handed to another, and the copy of a text into the region its target lives in.
+Every round of that work found holes nothing had shown before, so they are where the next one
+would be. Two pieces:
+
+- Teach the model those rules (functions as values, captures, fields, text) and run its random
+  search against them, as it was run against the core.
+- Write out why an arena that forwards after a merge keeps a series growing in its own region.
+  Section 9 says so and the suite agrees; no argument is written down.
+
+A full proof for the whole language is not the next step: the search is cheaper, and the record
+says it finds what reasoning does.
 
 **An axiom's output bypasses the interpreter's writer.** The interpreter loads an axiom with
 `NativeLibrary.Load` and calls it IN-PROCESS, so a `fputs(text, stdout)` inside one writes to the
