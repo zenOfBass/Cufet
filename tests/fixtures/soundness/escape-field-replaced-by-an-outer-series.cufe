@@ -1,0 +1,15 @@
+/*  EXPECTED: REJECTED at type-check, identically by both backends.
+    An object made in a rabbit has its field replaced by a series from outside; a rabbit's series
+    is then inserted into that field.
+
+    The field is judged by what it now is, which outlives the rabbit (docs/SOUNDNESS.md, obligation O2). */
+
+Define object bag with (the series of series of number items).
+Define outer as a series of series of number.
+Pull a rabbit.
+    Define b as a new bag { the items a series of series of number }.
+    b's items becomes outer.
+    Define inner as a series of number with (1, 2, 3).
+    Insert inner into b's items.
+Done.
+State the number of outer.

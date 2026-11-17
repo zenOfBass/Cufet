@@ -1,0 +1,24 @@
+/*  EXPECTED: COMPILES and runs; compiled output must match the interpreter.
+
+    An object made in a rabbit holds a series from outside in one field and its own in the other.
+    A rabbit's series goes into its own one.
+
+    Each field of an object written out is judged by what that field was given, not by the
+    longest-lived thing anywhere in the object (docs/SOUNDNESS.md, obligation O2). */
+
+Define object pair-of-rows with (the series of series of number near, the series of series of number far).
+Define outer as a series of series of number.
+Pull a rabbit.
+    Define both as a new pair-of-rows { the near a series of series of number, the far outer }.
+    Define inner as a series of number with (1, 2, 3).
+    Insert inner into both's near.
+    State the number of both's near.
+Done.
+
+/*  Make and drop enough values that freed memory is handed out again. */
+Define churn as a series of text.
+Define tick as 0.
+While tick is less than 400, repeat:
+    Insert ("zzzzzzzz" joined to "yyyyyyyy") into churn.
+    tick becomes tick + 1.
+Done.

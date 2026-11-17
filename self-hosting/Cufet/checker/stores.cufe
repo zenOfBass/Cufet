@@ -335,6 +335,7 @@ Pull a book on collections.
             Define gathered as a series of node.
             Cast gather-depth-nodes on (frame's body, gathered).
             Define split-names as a map from text to fact.
+            Cast split-written-objects on (gathered, split-names).
             Define holds as a map from text to series of number.
             For each held-name in cast one's holding-names on (index, gathered, split-names), repeat:
                 If (the entry for held-name in holds) is void, in holds, the entry for held-name becomes a series of number.
@@ -1368,8 +1369,23 @@ Pull a book on collections.
         Define back as a series of text.
         Define reach as cast one's depth-target on (said).
         If reach's key is not "", the back becomes cast one's targets-of on (reach's key, reach's exact, false).
+        // An object written out straight into a name: each field that can hold a container is a
+        // name of its own, `key.field`, starting from what it was written with.
         Define fields as a series of field-given.
         Define splitting as false.
+        If defining and said's kind is "ObjectLiteral":
+            The splitting becomes true.
+            Define made-name as cast unquoted on (cast field-of on (said, 1)).
+            For each pair in (cast field-of on (said, 3))'s children, repeat:
+                Define field as cast unquoted on (item 1 of pair's children).
+                If cast one's carried-field on (made-name, field):
+                    Define field-shape as cast one's carried-shape on (made-name, field).
+                    Insert (a new field-given { the field field,
+                        the owned cast one's own-term on (item 2 of pair's children, field-shape),
+                        the floored cast one's floor-term on (item 2 of pair's children, field-shape) }) into fields.
+                Done.
+            Done.
+        Done.
         Return a new given-depths { the owned owned, the floored floored, the back back, the splitting splitting, the fields fields }.
     Done.
 
@@ -1702,6 +1718,33 @@ Pull a book on collections.
     /// given, and every walk would then seem to store into what its caller handed it beside.
     Bind series of number to held-by, given (the map from text to series of number holds, the text name):
         Return the entry for name in holds but void is a series of number.
+    Done.
+
+    /// Each field of an object a body writes out, as a name of its own, `name.field` — for a name
+    /// the body gives only objects written out. An object is held by value, so `copy's children` IS
+    /// the series written into that field. A name given anything else by a `Define`, a `For each` or
+    /// a `Judge` is not split; a later `becomes` is followed by the walk itself.
+    Bind void to split-written-objects, given (the series of node gathered, the map from text to fact split-names):
+        Define written as a map from text to fact.
+        Define given-otherwise as a map from text to fact.
+        For each statement in gathered, repeat:
+            If cast gives-a-name on (statement's kind) and statement's kind is not "BecomesStatement":
+                Define given-name as cast depth-target-name on (statement).
+                Define given-value as cast depth-target-value on (statement).
+                If statement's kind is "DefineStatement" and given-value's kind is "ObjectLiteral":
+                    For each named-pair in (cast field-of on (given-value, 3))'s children, repeat:
+                        In written, the entry for "{given-name}.{cast unquoted on (item 1 of named-pair's children)}" becomes true.
+                    Done.
+                Done.
+                Otherwise:
+                    In given-otherwise, the entry for given-name becomes true.
+                Done.
+            Done.
+        Done.
+        For each pair in written, repeat:
+            Define owner as item 1 of ((the key of pair) split by ".").
+            If (the entry for owner in given-otherwise) is void, in split-names, the entry for the key of pair becomes true.
+        Done.
     Done.
 
     /// Every name a body's walk can ask what it holds.

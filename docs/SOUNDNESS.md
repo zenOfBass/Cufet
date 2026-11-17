@@ -638,14 +638,14 @@ keeps two lower bounds instead and refuses only what goes below them.
 obligation could be refused by reading a second name's depth from the name it stands for and a
 field's from its object, and that alone would have left both of these accepted.
 
-Known to be coarser than it need be, and refusing programs that are safe:
+- **A field of an object written out** into a name, and given no other kind of value, is a name of
+  its own, in both of the above: an object is held by value, so `copy's children` IS the series
+  written into that field, not something the object might hold. Without this a function that
+  writes a node out and inserts copies of its argument's children into the node's own field was
+  taken to store into its argument; `copied-node` in the checker written in Cufet is that shape.
 
-- A field of an object is "something the object holds", not the series that sits in that field.
-  A function that writes an object out and then inserts into its field what may be its own
-  argument is taken to store into the argument. `copied-node` in the checker written in Cufet was
-  this shape and was rewritten to gather the children under a name of their own first. The code
-  that would tell the two apart is half there and not switched on.
-- An object made from an argument, then a method that grows the object's own field (from O4).
+Known to be coarser than it need be, and refusing a program that is safe: an object made from an
+argument (not written out), then a method that grows the object's own field (from O4).
 
 It is not in the model and not proved.
 

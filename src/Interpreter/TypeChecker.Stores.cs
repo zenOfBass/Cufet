@@ -878,7 +878,17 @@ public sealed partial class TypeChecker
         // given reaches that one too.
         var back = DepthTarget(value) is { Key: { } from } reached
             ? TargetsOf(from, reached.Exact, fieldsReplaced: false) : [];
+        // An object written out straight into a name: each field that can hold a container is a
+        // name of its own, `key.field`, starting from what it was written with.
         List<(string, DepthTerm, DepthTerm)>? fields = null;
+        if (defining && value is ObjectLiteral made)
+        {
+            _objectDefs.TryGetValue(made.TypeName, out var madeType);
+            fields = [];
+            foreach (var (name, fieldValue) in made.NamedValues)
+                if (CarriedField(madeType, name) is var (carries, fieldType) && carries)
+                    fields.Add((name, OwnTerm(fieldValue, fieldType), FloorTerm(fieldValue, fieldType)));
+        }
         return new GivenDepths(own, floor, back, fields);
     }
 

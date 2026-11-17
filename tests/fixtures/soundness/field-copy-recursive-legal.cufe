@@ -1,0 +1,29 @@
+/*  EXPECTED: COMPILES and runs; compiled output must match the interpreter.
+
+    A function copies a tree: it writes a node out and inserts the copies of its children into that
+    node's own field. Cast inside a rabbit on a tree from outside it.
+
+    A field of an object written out in a body is a series of its own, not something the object
+    might hold, so the copies go into the new node and not into the tree it was given (docs/SOUNDNESS.md, obligation O2). */
+
+Define object tree-node with (the number label, the series of tree-node children).
+Bind tree-node to copied, given (the tree-node original):
+    Define copy as a new tree-node { the label original's label, the children a series of tree-node }.
+    For each child in original's children, repeat:
+        Insert cast copied on (child) into copy's children.
+    Done.
+    Return copy.
+Done.
+Define root as a new tree-node { the label 1, the children a series of tree-node }.
+Pull a rabbit.
+    Define twin as cast copied on (root).
+    State twin's label.
+Done.
+
+/*  Make and drop enough values that freed memory is handed out again. */
+Define churn as a series of text.
+Define tick as 0.
+While tick is less than 400, repeat:
+    Insert ("zzzzzzzz" joined to "yyyyyyyy") into churn.
+    tick becomes tick + 1.
+Done.

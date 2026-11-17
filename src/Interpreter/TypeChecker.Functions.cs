@@ -85,7 +85,7 @@ public sealed partial class TypeChecker
             if (DepthTargetOf(node) is { } target) localDepths.TryAdd(target.Name, []);
 
         // The store rule's: a field of an object the body writes out is a name of its own, `L.f`.
-        var split = storing == null ? null : new Dictionary<string, List<(string Field, List<IExpression> Values)>>(StringComparer.Ordinal);
+        var split = storing == null ? null : WrittenObjects(nodes);
         if (split != null)
             foreach (var (name, fields) in split)
                 foreach (var (field, _) in fields) localDepths.TryAdd($"{name}.{field}", []);
@@ -107,6 +107,35 @@ public sealed partial class TypeChecker
                 changed |= GrowHolds(storing, nodes, localDepths, holds, paramIdx, refParamIdxs, captured!, split!);
         }
         return localDepths;
+    }
+
+    /// <summary>Each name a body gives only objects written out, with the values each named field
+    /// was written with: the store rule treats each such field as a name of its own.</summary>
+    /// <remarks>An object is a struct held by value, so `copy's children` IS the series written into
+    /// that field, not something the object might hold. A name given anything else by a `Define`, a
+    /// `For each` or a `Judge` is not split; a later `becomes` is followed by the walk itself.</remarks>
+    private static Dictionary<string, List<(string Field, List<IExpression> Values)>> WrittenObjects(List<object> nodes)
+    {
+        var split = new Dictionary<string, List<(string Field, List<IExpression> Values)>>(StringComparer.Ordinal);
+        var otherwise = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var node in nodes)
+        {
+            if (node is BecomesStatement || DepthTargetOf(node) is not { } given) continue;
+            if (node is not DefineStatement { Value: ObjectLiteral literal })
+            {
+                otherwise.Add(given.Name);
+                continue;
+            }
+            if (!split.TryGetValue(given.Name, out var fields)) split[given.Name] = fields = [];
+            foreach (var (field, value) in literal.NamedValues)
+            {
+                int at = fields.FindIndex(known => known.Field == field);
+                if (at < 0) fields.Add((field, [value]));
+                else fields[at].Values.Add(value);
+            }
+        }
+        foreach (var name in otherwise) split.Remove(name);
+        return split;
     }
 
     /// <summary>The name a statement gives a value to, and the value — or null when it gives none.</summary>
