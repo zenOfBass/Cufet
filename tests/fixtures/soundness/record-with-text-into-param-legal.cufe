@@ -1,0 +1,20 @@
+/*  EXPECTED: COMPILES and runs; compiled output must match the interpreter.
+
+    Written to attack the copy of a text stored where a body cannot see how long the target
+    lives (2026-11-17 review): record with text into param (docs/SOUNDNESS.md, obligation O4). */
+
+Bind void to add-pair, given (the series of record like (the text label, the number size) bag):
+    Insert (a record with (the label ("a" joined to "b"), the size 2)) into bag.
+Done.
+Define pairs as a series of record like (the text label, the number size).
+Pull a rabbit.
+    Cast add-pair on (pairs).
+Done.
+
+Define churn as a series of text.
+Define tick as 0.
+While tick is less than 400, repeat:
+    Insert ("zzzzzzzz" joined to "yyyyyyyy") into churn.
+    tick becomes tick + 1.
+Done.
+State the label of item 1 of pairs.

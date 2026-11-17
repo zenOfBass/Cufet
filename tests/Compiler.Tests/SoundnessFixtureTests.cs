@@ -44,8 +44,8 @@ public class SoundnessFixtureTests
     public void FixtureCorpus_IsPresent()
     {
         Assert.True(Directory.Exists(FixtureDir), $"soundness fixtures missing from {FixtureDir}");
-        Assert.Equal(32, EscapeProbes().Count());
-        Assert.Equal(31, LegalProbes().Count());
+        Assert.Equal(41, EscapeProbes().Count());
+        Assert.Equal(42, LegalProbes().Count());
     }
 
     [Theory]

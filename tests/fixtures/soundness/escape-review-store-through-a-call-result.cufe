@@ -1,0 +1,22 @@
+/*  EXPECTED: REJECTED at type-check, identically by both backends.
+
+    Written to attack the store rules (2026-11-17 review): store through a call result. A rabbit's series reaches
+    something that outlives the rabbit (docs/SOUNDNESS.md, obligation O2). */
+
+Bind series of series of number to first-row, given (the series of series of series of number table):
+    Return item 1 of table.
+Done.
+Define table as a series of series of series of number.
+Insert (a series of series of number) into table.
+Pull a rabbit.
+    Define inner as a series of number with (1, 2, 3).
+    Insert inner into cast first-row on (table).
+Done.
+
+Define churn as a series of text.
+Define tick as 0.
+While tick is less than 400, repeat:
+    Insert ("zzzzzzzz" joined to "yyyyyyyy") into churn.
+    tick becomes tick + 1.
+Done.
+State table.

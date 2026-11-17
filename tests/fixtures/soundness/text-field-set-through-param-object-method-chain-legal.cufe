@@ -1,0 +1,25 @@
+/*  EXPECTED: COMPILES and runs; compiled output must match the interpreter.
+
+    Written to attack the copy of a text stored where a body cannot see how long the target
+    lives (2026-11-17 review): text field set through param object method chain (docs/SOUNDNESS.md, obligation O4). */
+
+Define object box with (the text tag).
+Define object shelf with (the series of box boxes).
+Bind void to retag-first unto shelf, given (the text t):
+    Define first as item 1 of one's boxes.
+    first's tag becomes t joined to "!".
+    Item 1 of one's boxes becomes first.
+Done.
+Define wall as a new shelf { the boxes (a series of box) }.
+Insert (a new box { the tag "outer" }) into wall's boxes.
+Pull a rabbit.
+    Cast wall's retag-first on ("in" joined to "ner").
+Done.
+
+Define churn as a series of text.
+Define tick as 0.
+While tick is less than 400, repeat:
+    Insert ("zzzzzzzz" joined to "yyyyyyyy") into churn.
+    tick becomes tick + 1.
+Done.
+State (item 1 of wall's boxes)'s tag.

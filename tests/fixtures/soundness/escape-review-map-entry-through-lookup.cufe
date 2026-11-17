@@ -1,0 +1,20 @@
+/*  EXPECTED: REJECTED at type-check, identically by both backends.
+
+    Written to attack the store rules (2026-11-17 review): map entry through lookup. A rabbit's series reaches
+    something that outlives the rabbit (docs/SOUNDNESS.md, obligation O2). */
+
+Define shelves as a map from text to series of series of number.
+In shelves, the entry for "a" becomes a series of series of number.
+Pull a rabbit.
+    Define inner as a series of number with (1, 2, 3).
+    Define shelf as (the entry for "a" in shelves) but void is (a series of series of number).
+    Insert inner into shelf.
+Done.
+
+Define churn as a series of text.
+Define tick as 0.
+While tick is less than 400, repeat:
+    Insert ("zzzzzzzz" joined to "yyyyyyyy") into churn.
+    tick becomes tick + 1.
+Done.
+State (the entry for "a" in shelves) but void is (a series of series of number).

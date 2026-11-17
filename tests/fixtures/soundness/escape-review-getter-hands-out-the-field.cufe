@@ -1,0 +1,21 @@
+/*  EXPECTED: REJECTED at type-check, identically by both backends.
+
+    Written to attack the store rules (2026-11-17 review): getter hands out the field. A rabbit's series reaches
+    something that outlives the rabbit (docs/SOUNDNESS.md, obligation O2). */
+
+Define object bag with (the series of series of number items):
+    Bind series of series of number to rows, one's items.
+Done.
+Define b as a new bag { the items (a series of series of number) }.
+Pull a rabbit.
+    Define inner as a series of number with (1, 2, 3).
+    Insert inner into cast b's rows on ().
+Done.
+
+Define churn as a series of text.
+Define tick as 0.
+While tick is less than 400, repeat:
+    Insert ("zzzzzzzz" joined to "yyyyyyyy") into churn.
+    tick becomes tick + 1.
+Done.
+State b's items.

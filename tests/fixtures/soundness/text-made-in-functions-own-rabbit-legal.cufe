@@ -1,0 +1,20 @@
+/*  EXPECTED: COMPILES and runs; compiled output must match the interpreter.
+
+    Written to attack the copy of a text stored where a body cannot see how long the target
+    lives (2026-11-17 review): text made in functions own rabbit (docs/SOUNDNESS.md, obligation O4). */
+
+Bind void to label-it, given (the series of text bag):
+    Pull a rabbit.
+        Insert ("a" joined to "b") into bag.
+    Done.
+Done.
+Define names as a series of text.
+Cast label-it on (names).
+
+Define churn as a series of text.
+Define tick as 0.
+While tick is less than 400, repeat:
+    Insert ("zzzzzzzz" joined to "yyyyyyyy") into churn.
+    tick becomes tick + 1.
+Done.
+State names.
