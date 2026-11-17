@@ -45,8 +45,8 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   states what the compiled program needs, shows nineteen programs that pass `check` and read freed memory when compiled, traces them to four
   gaps in the rules, and proves a repaired set of rules sound for a core of the language. The programs
   are in `docs/soundness/probes/`, and a model that checks the proof by search is in
-  `docs/soundness/model/`. All four gaps are closed (see Fixed), one of them for everything but
-  text. Two more programs were found on the way; of the twenty-one, two still read freed memory.
+  `docs/soundness/model/`. All four gaps are closed (see Fixed). Three more programs were found
+  on the way, and none of the twenty-two reads freed memory now on either compiler.
 
 ### Changed
 
@@ -103,10 +103,21 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   - A function that stores, put into a series or a field or handed back with `Return`, is refused:
     nothing follows it there.
   - Only a series, a map, or an object holding one counts. Numbers, and objects of numbers, are
-    stored anywhere. Text is neither refused nor yet copied (`param-3`, `param-5` in the doc).
+    stored anywhere. A text is never refused; see the next entry.
 
   Nothing is refused where a function is written, and a program with no rabbit in it is not
   affected. Both checkers (`docs/SOUNDNESS.md`, obligation O4).
+- **A text a function stored into what it was given was read after it had been freed.** A text is
+  copied when it is stored somewhere that outlives it, but only where the checker could see the
+  target's depth, and inside a function a parameter, the object a method is cast on and a captured
+  name have none it can see. `Insert ("a" joined to "b") into bag` in a helper, cast inside a
+  rabbit on an outer `bag`, printed whatever reused that memory. Such a store now copies the text,
+  when the program runs, into the region the target itself lives in: a series' or a map's own,
+  or, for a field of an object, the program's. Both checkers and both compilers
+  (`docs/SOUNDNESS.md`, obligation O4).
+- **Setting an item of a series copied nothing.** `Item 1 of names becomes "in" joined to "ner"`
+  inside a rabbit, with `names` outside it, left `names` holding a text the rabbit's `Done.` freed,
+  on the compiler written in C#. It copies as inserting does now.
 - **A rabbit's series could be stored into something longer-lived through a second name, a field,
   or an element.** A store was judged against where the NAME of its target was defined, or, for
   `b's items` and `item 1 of table`, against the region open at the store. Neither is where the

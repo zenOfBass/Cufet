@@ -1,0 +1,23 @@
+/*  EXPECTED: COMPILES and runs; compiled output must match the interpreter.
+
+    A helper inserts a text into a series of its own: nothing to copy.
+
+    A text is never refused; one stored where a body cannot see how long the target lives is
+    copied, when the program runs, into the region the target itself lives in (docs/SOUNDNESS.md,
+    obligation O4). */
+
+Bind number to count-labels:
+    Define own as a series of text.
+    Insert ("a" joined to "b") into own.
+    Return the number of own.
+Done.
+Pull a rabbit.
+    State cast count-labels on ().
+Done.
+
+Define churn as a series of text.
+Define tick as 0.
+While tick is less than 400, repeat:
+    Insert ("zzzzzzzz" joined to "yyyyyyyy") into churn.
+    tick becomes tick + 1.
+Done.

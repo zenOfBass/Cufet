@@ -1076,6 +1076,7 @@ Pull a book on collections.
         Cast one's note-store on (value, given-type, target, at-row, "").
         Cast one's note-floor-store on (value, given-type, target, "", at-row, "add a region-scoped value to a series in a longer-lived region").
         Cast one's note-escape on (statement, ":EscapeToDepth", value, given-type, cast one's container-depth on (target)).
+        Cast one's note-home-copy on (statement, ":EscapeToDepth", given-type, target).
     Done.
 
     Bind void or failure to check-series-set unto checker, given (the node statement):
@@ -1102,6 +1103,9 @@ Pull a book on collections.
             Cast one's note-store on (cast field-of on (statement, 3), given-type, target, at-row, "").
             Cast one's note-floor-store on (cast field-of on (statement, 3), given-type, target, "", at-row,
                 "set an item in a series to a region-scoped value from a shorter-lived region").
+            // ⚠ Setting an item copies an escaping value as inserting one does (`text-1`).
+            Cast one's note-escape on (statement, ":EscapeToDepth", cast field-of on (statement, 3), given-type, cast one's container-depth on (target)).
+            Cast one's note-home-copy on (statement, ":EscapeToDepth", given-type, target).
             Return.
         Done.
         If container's kind is "ObjectType":

@@ -1091,6 +1091,7 @@ Pull a book on collections.
         Define value as cast field-of on (statement, 3).
         Define value-type as cast one's infer on (value) or pass the failure off.
         Cast one's note-escape on (statement, ":EscapeToDepth", value, value-type, cast one's container-depth on (target)).
+        Cast one's note-home-copy on (statement, ":EscapeToDepth", value-type, target).
         Cast one's note-store on (value, value-type, target, cast number-of on (cast field-of on (statement, 4)), field-name).
         Cast one's note-floor-store on (value, value-type, target, field-name, cast number-of on (cast field-of on (statement, 4)), action).
     Done.

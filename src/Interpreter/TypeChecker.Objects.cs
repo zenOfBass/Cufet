@@ -45,6 +45,7 @@ public sealed partial class TypeChecker
             CheckRegionStore(stmt.Value, InferType(stmt.Value), stmt.Target, stmt.Line, stmt.Column,
                 $"set '{stmt.Member}' to a value from a shorter-lived region than the object", stmt.Member);
             stmt.EscapeToDepth = EscapeDepthFor(stmt.Value, InferType(stmt.Value), ContainerDepthOf(stmt.Target));
+            NoteHomeCopy(stmt.Target, InferType(stmt.Value), depth => stmt.EscapeToDepth = depth);
             return;
         }
 
@@ -55,6 +56,7 @@ public sealed partial class TypeChecker
         CheckRegionStore(stmt.Value, valType, stmt.Target, stmt.Line, stmt.Column,
             $"set '{stmt.Member}' to a value from a shorter-lived region than the object", stmt.Member);
         stmt.EscapeToDepth = EscapeDepthFor(stmt.Value, valType, ContainerDepthOf(stmt.Target));
+        NoteHomeCopy(stmt.Target, valType, depth => stmt.EscapeToDepth = depth);
     }
 
     /// <summary>The defaults declared for a type, following the embed chain as construction does.</summary>

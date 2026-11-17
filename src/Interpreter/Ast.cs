@@ -114,7 +114,12 @@ public sealed record SeriesSetStatement(
     IExpression Value,
     int Line,
     int Column
-) : IStatement;
+) : IStatement
+{
+    /// <summary>Where the value has to be copied to, as on every other store. See EscapeDepthFor
+    /// and TypeChecker.HomeEscape.</summary>
+    public int? EscapeToDepth { get; set; }
+}
 
 // Record literal: a record with (positional, ..., the name value, ...)
 // PositionalFields come first, NamedFields come after (enforced by parser).

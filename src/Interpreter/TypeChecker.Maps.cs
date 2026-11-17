@@ -154,6 +154,8 @@ public sealed partial class TypeChecker
         // while the map still holds it). Annotate only — no CheckRegionStore for keys, so this
         // rejects nothing the interpreter accepts; the compiler copies the key outward instead.
         mapSet.KeyEscapeToDepth = EscapeDepthFor(mapSet.Key, keyType, ContainerDepthOf(mapSet.Map));
+        NoteHomeCopy(mapSet.Map, valType, depth => mapSet.EscapeToDepth = depth);
+        NoteHomeCopy(mapSet.Map, keyType, depth => mapSet.KeyEscapeToDepth = depth);
     }
 
     // a set of T [with (…)] — the element type is declared, never inferred.

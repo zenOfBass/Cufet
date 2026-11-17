@@ -363,13 +363,25 @@ static int cufet_str_code_point(const char* s) {
         // what carried a container's GROWTH there too. A series and a map find their own arena now, so
         // that half no longer depends on the checker having flagged the store.)
         runtime.AppendLine("static _Thread_local int cufet_alloc_override = -1;");
+        // A second override, naming an ARENA rather than a depth: a copy into the region a series,
+        // a map or the program itself lives in, which no depth can name from inside a function
+        // (TypeChecker.HomeEscape). Followed to wherever a merge moved that arena's blocks.
+        runtime.AppendLine("static _Thread_local CufetArena* cufet_alloc_home = NULL;");
         runtime.AppendLine("static void* cufet_arena_alloc(size_t size) {");
+        runtime.AppendLine("    if (cufet_alloc_home) {");
+        runtime.AppendLine("        CufetArena* h = cufet_alloc_home;");
+        runtime.AppendLine("        while (h->fwd) h = h->fwd;");
+        runtime.AppendLine("        void* p = malloc(size);");
+        runtime.AppendLine("        cufet_arena_track(h, p);");
+        runtime.AppendLine("        return p;");
+        runtime.AppendLine("    }");
         runtime.AppendLine("    return cufet_arena_alloc_at(cufet_alloc_override >= 0 ? cufet_alloc_override : cufet_arena_top, size);");
         runtime.AppendLine("}");
         runtime.AppendLine();
         // The arena an allocation made right now would land in — what a new series or map header
         // records as its own.
         runtime.AppendLine("static CufetArena* cufet_arena_here(void) {");
+        runtime.AppendLine("    if (cufet_alloc_home) { CufetArena* h = cufet_alloc_home; while (h->fwd) h = h->fwd; return h; }");
         runtime.AppendLine("    return cufet_arenas[cufet_alloc_override >= 0 ? cufet_alloc_override : cufet_arena_top];");
         runtime.AppendLine("}");
         runtime.AppendLine();

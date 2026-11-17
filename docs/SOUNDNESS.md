@@ -6,14 +6,13 @@ day after the first repair.*
 This document answers one question: **can a program that passes `cufet check` read memory after
 the `Done.` that freed it?**
 
-**Where it stands.** Yes, still, but less often than at 0.29.0. Nineteen small programs were found
-that pass `cufet check`, run correctly interpreted, and read freed memory when compiled. They come
-from four places where the rules assume something that is not true (section 4). All four have
-been closed, one of them for everything but text. One was closed in the runtime, and six of the
-nineteen programs are right on both backends because of it. Three were closed in the checker, and
-eleven more are refused by `check`, with two further programs found while closing the last
-(`holds-1`, `holds-2`), which are refused too. Two of the twenty-one still read freed memory: they
-need the compiler to copy a text it does not copy yet.
+**Where it stands.** Nineteen small programs were found that passed `cufet check` at 0.29.0, ran
+correctly interpreted, and read freed memory when compiled. They came from four places where the
+rules assumed something that is not true (section 4), and three more turned up while those were
+being closed (`holds-1`, `holds-2`, `text-1`). All four have been closed, and none of the
+twenty-two reads freed memory now on either compiler: thirteen are refused by `check`, and nine
+run right on both backends. What the closing is checked by, and what it is not proved for, is in
+sections 7 to 9.
 
 The rest of the document is in three parts.
 
@@ -101,7 +100,7 @@ new buffer must go. A number that is right as an upper bound is not right as a l
 of what follows is that one confusion.
 
 Any set of rules that is going to be sound has to meet four obligations. At 0.29.0 none was met
-completely. O1, O2 and O3 are met now, and O4 for everything but text.
+completely. All four are met now.
 
 ### O1. What is read must not be deeper than the checker thinks
 
@@ -171,9 +170,10 @@ programs written by hand.
 
 ### O4. What a function stores into its parameters is its caller's business
 
-*Met, in both checkers, for a series, a map, or an object holding one: what a function stores into
-what it is given is recorded as its body is checked and judged at each cast (section 9). Not met
-for text (`param-3`, `param-5`). What follows is how it was.*
+*Met, in both checkers and both compilers. A series, a map, or an object holding one: what a
+function stores into what it is given is recorded as its body is checked and judged at each cast.
+A text: copied, when the program runs, into the region the target lives in (section 9). What
+follows is how it was.*
 
 Inside a function every parameter has depth 0 and so does every series the function makes. By F2
 the second is really the caller's current arena and the first can be anything outside it. A
@@ -214,9 +214,10 @@ built under AddressSanitizer on Linux (`result-1`, `param-1`, `alias-2`), and ea
 | `holds-1-field-holds-an-outer-series` | O2 | (found later) crashes | **refused** |
 | `holds-2-element-of-a-local-table` | O2 | (found later) crashes | **refused** |
 | `param-2-helper-stores-what-it-made` | O4 | crashes | **refused** |
-| `param-3-helper-stores-text-it-made` | O4 | crashes | wrong output |
+| `param-3-helper-stores-text-it-made` | O4 | crashes | **right** |
 | `param-4-method-stores-its-argument` | O4 | crashes | **refused** |
-| `param-5-method-stores-text` | O4 | wrong output | wrong output |
+| `param-5-method-stores-text` | O4 | wrong output | **right** |
+| `text-1-set-an-item-to-a-rabbit-text` | O4 | (found later) wrong output | **right** |
 | `param-6-lambda-stores-its-argument` | O4 | crashes | **refused** |
 | `param-7-nested-function-stores-its-argument` | O4 | crashes | **refused** |
 | `result-1-fresh-series-from-a-call` | O1 | crashes | **refused** |
@@ -496,9 +497,8 @@ The theorem is about the core. For each thing left out, this is what a proof wou
 None of it has been done.
 
 - **Text.** Immutable, so it cannot be stored *into*. What applies is O1 and the copy: a text is as
-  deep as where it was made, and a text stored outward has to be copied. `param-3` and `param-5`
-  show the copy missing where a function stores a text into its parameter. (`grow-2` was a series
-  of text growing in the wrong place, and is fixed.)
+  deep as where it was made, and a text stored outward has to be copied. Section 9 says how a
+  copy finds where to go when the depth of the target is not known; that is tested, not proved.
 - **Records and objects.** They are C structs copied by value, so a field that is a series behaves
   as a second name for it. A store into a field is a store into a target that is not a plain name
   (O2), and a method's receiver is a parameter (O4).
@@ -649,14 +649,24 @@ argument (not written out), then a method that grows the object's own field (fro
 
 It is not in the model and not proved.
 
-### What is left
+Then text, O4's second half. A text, or anything else held in a region that holds no container,
+is never refused: one stored where it would outlive its region is copied to where it is stored.
+That needs the depth of the target, and inside a body a parameter, the object a method is cast on
+and a captured name have none the body can know.
 
-Text (`param-3`, `param-5`), below. Appending a number is refused nowhere.
+- **The checkers** mark such a store `-1` (`HomeEscape` in C#) where the walk of O4 finds that its
+  target may be something from outside the body, or something that outlives every region. Both
+  checkers decide it at the end of the check, as they decide the stores of a series.
+- **The compilers**, for a store marked `-1`, copy the value into the region the target lives in,
+  found when the program runs: a series' or a map's own arena, which its header has recorded since
+  O3, or the program's own arena for a field of an object, which records none. A field's copy is
+  therefore kept until the program ends.
+- **Setting an item** (`Item 1 of names becomes …`) copied nothing at all, even outside any
+  function, where every other store copied; `text-1` is that program, and it read freed memory on
+  the compiler written in C#. It copies as inserting does now.
 
-Text is outside the core and needs its own line here. It is never refused, only copied, and it is
-copied only where the checker sees it escape. A text made inside a function and stored into a
-parameter is not seen to (`param-3`, `param-5`), so O4 has a second half for text: the copy has to
-happen at such a store as well.
+What is left is what no test can show: sections 6 and 8 prove the core, and O2, O4 and the arena
+that forwards are checked by the model, the probes and the suite, not by proof.
 
 These rules refuse programs that are accepted today, so they are a change to the language. The
 one question that was open in them is settled: a function called inside a rabbit that returns a
@@ -667,7 +677,7 @@ the interpreter would not show.
 ## 10. Running it again
 
 ```text
-pwsh -File docs/soundness/probes/run.ps1             the nineteen probes, on the installed cufet
+pwsh -File docs/soundness/probes/run.ps1             the probes, on the installed cufet
 pwsh -File docs/soundness/probes/run.ps1 -Cufet <path>     the same, on a build of your choosing
 python docs/soundness/model/search.py 400000 7       both checkers over 400,000 programs, seed 7
 python docs/soundness/model/search.py mutants 400000 5
@@ -676,7 +686,7 @@ python docs/soundness/model/witnesses.py             the directed programs, and 
 ```
 
 A probe is fixed when `check` refuses it or the compiled program agrees with the interpreted one.
-The nineteen that are fixed are also in `tests/fixtures/soundness/`, as they are or as a program
-of the same shape: `*-legal.cufe` for one that runs right, `escape-*.cufe` for one that is refused.
-The two that are not stay out of it: that folder's tests require every `escape-*` file to be
-refused, and these are not refused yet.
+Every probe is also in `tests/fixtures/soundness/`, as it is or as a program of the same shape:
+`*-legal.cufe` for one that runs right, `escape-*.cufe` for one that is refused. The probes here
+keep the churn that makes a read of freed memory show on Windows; the fixtures are what the suite
+holds both backends to.

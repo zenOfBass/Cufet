@@ -48,17 +48,21 @@ public sealed partial class CodeGenerator
 
     private void EmitStoreWithEscape(StringBuilder sb, string indent, int? escapeToDepth, string stmt)
     {
-        if (escapeToDepth is not { } d) { sb.AppendLine($"{indent}{stmt}"); return; }
+        if (escapeToDepth is not { } d || d == TypeChecker.HomeEscape) { sb.AppendLine($"{indent}{stmt}"); return; }
         int id = _freshId++;
         sb.AppendLine($"{indent}{{ int cf_ov{id} = cufet_alloc_override; cufet_alloc_override = {EscapeArenaDepth(d)};");
         sb.AppendLine($"{indent}  {stmt}");
         sb.AppendLine($"{indent}  cufet_alloc_override = cf_ov{id}; }}");
     }
 
-    private string EmitEscapeCopy(string valueExpr, CufetType? valueType, int? escapeToDepth)
+    /// <remarks><paramref name="home"/> is the C expression of the arena the target lives in, for a
+    /// store the checker marked <see cref="TypeChecker.HomeEscape"/>: a series' or a map's own, or
+    /// the program's (`cufet_arenas[0]`) for a field, which records none.</remarks>
+    private string EmitEscapeCopy(string valueExpr, CufetType? valueType, int? escapeToDepth, string? home = null)
     {
         if (escapeToDepth is not { } d || valueType == null) return valueExpr;
         if (!TypeChecker.IsRegionBearing(valueType)) return valueExpr;
+        if (d == TypeChecker.HomeEscape && home == null) return valueExpr;
         // A CLOSURE value escaping through a store is the indirect case: its env is an opaque void*,
         // so it can't be deep-copied here — its captures had to be copied at CREATION (ESC.4, when
         // the env struct type is known). A closure that escapes must therefore be created directly in
@@ -72,7 +76,9 @@ public sealed partial class CodeGenerator
         try { idx = RegisterChanElem(valueType, isTop: false); }
         catch (CompilerException) { return valueExpr; }   // not copy-expressible yet
         _escapeElems.Add(TypeSig(valueType));
-        return $"cchan_{idx}_escapecopy({valueExpr}, {EscapeArenaDepth(d)})";
+        return d == TypeChecker.HomeEscape
+            ? $"cchan_{idx}_homecopy({valueExpr}, {home})"
+            : $"cchan_{idx}_escapecopy({valueExpr}, {EscapeArenaDepth(d)})";
     }
 
     private (int Depth, string? Base, string? ArenaBase, int Rabbit) EnterFrame(StringBuilder sb, string indent)
@@ -883,7 +889,9 @@ public sealed partial class CodeGenerator
                 var insOperands = new List<IExpression> { sa.Series, sa.Value };
                 var insEmitted = new List<string> { EmitExpr(sa.Series) };
                 FlushPreEmits(sb, indent);
-                insEmitted.Add(EmitEscapeCopy(EmitAsType(sa.Value, saElem), saElem, sa.EscapeToDepth));   // ESC.2
+                bool insHome = sa.EscapeToDepth == TypeChecker.HomeEscape;
+                insEmitted.Add(insHome ? EmitAsType(sa.Value, saElem)
+                                       : EmitEscapeCopy(EmitAsType(sa.Value, saElem), saElem, sa.EscapeToDepth));   // ESC.2
                 FlushPreEmits(sb, indent);
                 if (!sa.ToStart && sa.AfterIndex != null)
                 {
@@ -892,9 +900,12 @@ public sealed partial class CodeGenerator
                     FlushPreEmits(sb, indent);
                 }
                 string inserted = InOrder(insOperands, insEmitted, p =>
-                    sa.ToStart ? $"{ser}_prepend({p[0]}, {p[1]})"
-                  : sa.AfterIndex == null ? $"{ser}_append({p[0]}, {p[1]})"
-                  : $"{ser}_insert({p[0]}, cufet_to_int({p[2]}), {p[1]})");
+                {
+                    string value = insHome ? EmitEscapeCopy(p[1], saElem, sa.EscapeToDepth, $"({p[0]})->home") : p[1];
+                    return sa.ToStart ? $"{ser}_prepend({p[0]}, {value})"
+                         : sa.AfterIndex == null ? $"{ser}_append({p[0]}, {value})"
+                         : $"{ser}_insert({p[0]}, cufet_to_int({p[2]}), {value})";
+                }, pastedTwice: insHome);
                 EmitStoreWithEscape(sb, indent, sa.EscapeToDepth, $"{inserted};");
                 break;
             }
@@ -1025,7 +1036,9 @@ public sealed partial class CodeGenerator
                     string where = ss.Index == null
                         ? $"cufet_last_check(({p[0]})->len, \"{setNm}\", {ss.Line})"
                         : $"cufet_idx_check(cufet_to_int({p[1]}), ({p[0]})->len, \"{setNm}\", {ss.Line})";
-                    return $"({p[0]})->data[{where} - 1] = {p[^1]}";
+                    var setElem = (TypeOf(ss.Series) as SeriesType)?.ElementType;
+                    string value = EmitEscapeCopy(p[^1], setElem, ss.EscapeToDepth, $"({p[0]})->home");
+                    return $"({p[0]})->data[{where} - 1] = {value}";
                 }, pastedTwice: true);
                 sb.AppendLine($"{indent}{stored};");
                 break;
@@ -1049,12 +1062,19 @@ public sealed partial class CodeGenerator
                 var    valType = ((MapType)TypeOf(mss.Map)).ValueType;
                 string mapExpr = EmitExpr(mss.Map);
                 var    keyType = ((MapType)TypeOf(mss.Map)).KeyType;
-                string keyExpr = EmitEscapeCopy(EmitAsType(mss.Key, keyType), keyType, mss.KeyEscapeToDepth);   // ESC.3
-                string valExpr = EmitEscapeCopy(EmitAsType(mss.Value, valType), valType, mss.EscapeToDepth);   // ESC.2
+                bool keyHome = mss.KeyEscapeToDepth == TypeChecker.HomeEscape;
+                bool valHome = mss.EscapeToDepth == TypeChecker.HomeEscape;
+                string keyExpr = keyHome ? EmitAsType(mss.Key, keyType)
+                                         : EmitEscapeCopy(EmitAsType(mss.Key, keyType), keyType, mss.KeyEscapeToDepth);   // ESC.3
+                string valExpr = valHome ? EmitAsType(mss.Value, valType)
+                                         : EmitEscapeCopy(EmitAsType(mss.Value, valType), valType, mss.EscapeToDepth);   // ESC.2
                 FlushPreEmits(sb, indent);
                 // The map, then the key, then the value — the interpreter's order.
                 string put = InOrder(new[] { mss.Map, mss.Key, mss.Value }, new[] { mapExpr, keyExpr, valExpr },
-                    all => $"{name}_put({all[0]}, {all[1]}, {all[2]})");
+                    all => $"{name}_put({all[0]}, "
+                         + $"{(keyHome ? EmitEscapeCopy(all[1], keyType, mss.KeyEscapeToDepth, $"({all[0]})->home") : all[1])}, "
+                         + $"{(valHome ? EmitEscapeCopy(all[2], valType, mss.EscapeToDepth, $"({all[0]})->home") : all[2])})",
+                    pastedTwice: keyHome || valHome);
                 EmitStoreWithEscape(sb, indent, mss.EscapeToDepth, $"{put};");
                 break;
             }
@@ -2756,7 +2776,7 @@ public sealed partial class CodeGenerator
         // Widen first (a plain T into a voidable/union slot — the one implicit coercion),
         // then escape-copy the value that is actually stored.
         string val      = EmitEscapeCopy(EmitAsType(value, MemberSetSlotType(TypeOf(target), member, isRecv)),
-                                         TypeOf(value), escapeToDepth);                   // ESC.2
+                                         TypeOf(value), escapeToDepth, "cufet_arenas[0]");   // ESC.2
         FlushPreEmits(sb, indent);
         string stmt = TypeOf(target) is ObjectType ot
             ? EmitObjectMemberSet(baseExpr, ot.Name, member, val, isRecv)

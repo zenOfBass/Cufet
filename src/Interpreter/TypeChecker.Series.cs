@@ -255,6 +255,7 @@ public sealed partial class TypeChecker
         CheckRegionStore(add.Value, valueType, add.Series, add.Line, add.Column,
             $"add a region-scoped value to a series in a longer-lived region");
         add.EscapeToDepth = EscapeDepthFor(add.Value, valueType, ContainerDepthOf(add.Series));
+        NoteHomeCopy(add.Series, valueType, depth => add.EscapeToDepth = depth);
     }
 
     /// <summary>
@@ -389,6 +390,11 @@ public sealed partial class TypeChecker
                     $"Change the new value to a {FormatType(seriesType.ElementType)}.");
             CheckRegionStore(seriesSet.Value, valueType, seriesSet.Series, seriesSet.Line, seriesSet.Column,
                 $"set an item in a series to a region-scoped value from a shorter-lived region");
+            // ⚠ Setting an item copies an escaping value as inserting one does. It did not: a text
+            // made in a rabbit and set into an outer series was read after `Done.` had freed it
+            // (docs/SOUNDNESS.md, `text-1`).
+            seriesSet.EscapeToDepth = EscapeDepthFor(seriesSet.Value, valueType, ContainerDepthOf(seriesSet.Series));
+            NoteHomeCopy(seriesSet.Series, valueType, depth => seriesSet.EscapeToDepth = depth);
             return;
         }
 

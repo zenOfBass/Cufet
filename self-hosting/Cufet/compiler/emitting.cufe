@@ -200,6 +200,7 @@ Pull books on collections, and the c-language.
     /// The kind of value an expression gives: "number", "text", "fact", or "series of" one of them.
     Bind text or failure to kind-of unto emitter, given (the node expression):
         Define kind as expression's kind.
+        If kind is "HomeCopiedValue", return cast one's kind-of on (cast field-of on (expression, 1)) or pass the failure off.
         Judge kind, where it is:
             "NumberLiteral", return "number".
             "StringLiteral" or "TextJoin" or "TextConvert", return "text".
@@ -344,6 +345,7 @@ Pull books on collections, and the c-language.
     /// An expression as C.
     Bind c-language axiom or failure to c-of unto emitter, given (the node expression):
         Define kind as expression's kind.
+        If kind is "HomeCopiedValue", return cast one's c-home-copied on (cast field-of on (expression, 1)) or pass the failure off.
         Judge kind, where it is:
             "NumberLiteral", return cast number-literal on ((cast field-of on (expression, 1))'s word) or pass the failure off.
             "StringLiteral", return text-literal on (cast unquoted on (cast field-of on (expression, 1))).
@@ -841,6 +843,11 @@ Pull books on collections, and the c-language.
     Done.
 
     Bind void or failure to emit-statement unto emitter, given (the node statement):
+        // A store whose target's region only the running program knows — see regions.cufe.
+        If cast one's is-home-store on (statement):
+            Cast one's emit-home-store on (statement) or pass the failure off.
+            Return.
+        Done.
         // A store into something older than the rabbit it stands in — see regions.cufe.
         Define escaping as cast one's escapes-to on (statement).
         If escaping is not less than 0:

@@ -1,0 +1,23 @@
+/*  EXPECTED: COMPILES and runs; compiled output must match the interpreter.
+
+    A helper puts a text key and a text value it makes into the map it is given.
+
+    A text is never refused; one stored where a body cannot see how long the target lives is
+    copied, when the program runs, into the region the target itself lives in (docs/SOUNDNESS.md,
+    obligation O4). */
+
+Bind void to note-it, given (the map from text to text notes):
+    In notes, the entry for ("k" joined to "1") becomes "v" joined to "1".
+Done.
+Define notes as a map from text to text.
+Pull a rabbit.
+    Cast note-it on (notes).
+Done.
+
+Define churn as a series of text.
+Define tick as 0.
+While tick is less than 400, repeat:
+    Insert ("zzzzzzzz" joined to "yyyyyyyy") into churn.
+    tick becomes tick + 1.
+Done.
+State the entry for "k1" in notes but void is "none".

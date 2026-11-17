@@ -111,6 +111,7 @@ public sealed partial class TypeChecker
         public required Dictionary<string, int> Captured;
         public required StoreFrame? Parent;
         public List<StoreNote> Stores = [];
+        public List<HomeCopy> HomeCopies = [];
         public List<CallNote> Calls = [];
         public bool Traced;
         /// <summary>What each name looked up while it was first traced was, there — the names it
@@ -209,7 +210,7 @@ public sealed partial class TypeChecker
     {
         if (frame.Traced) return;
         frame.Traced = true;
-        if (frame.Stores.Count == 0 && frame.Calls.Count == 0) return;
+        if (frame.Stores.Count == 0 && frame.Calls.Count == 0 && frame.HomeCopies.Count == 0) return;
         var outerLookups = _traceLookups;
         _traceLookups = frame.Lookups ??= new Dictionary<string, TypeInfo?>(StringComparer.Ordinal);
         try
@@ -233,8 +234,53 @@ public sealed partial class TypeChecker
                 call.ArgSources      = [.. call.Args.Select(Of)];
                 call.ReceiverSources = call.Receiver is null ? null : Of(call.Receiver);
             }
+            foreach (var copy in frame.HomeCopies) copy.Targets = Of(copy.Target);
         }
         finally { _traceLookups = outerLookups; }
+    }
+
+    // ── A text stored where the body cannot see how long it lives (the text half of O4) ─────────
+    //
+    // A text, or anything else that lives in a region and holds no container, is never refused: an
+    // escaping one is COPIED to where it is stored (`EscapeDepthFor`). That needs the depth of the
+    // target, and inside a body a parameter, the object a method is cast on and a captured name
+    // all have no depth the body can know. So a store into anything reached from one of them is
+    // annotated `HomeEscape`, and the compiler copies the value, when the program runs, into the
+    // region the target itself lives in. Decided once every body has been checked, by the same walk
+    // that finds what a body stores into its parameters.
+
+    /// <summary>The escape annotation meaning: copy into the region the target itself lives in,
+    /// found when the program runs.</summary>
+    public const int HomeEscape = -1;
+
+    private sealed class HomeCopy(IExpression target, Action<int?> set)
+    {
+        public IExpression Target { get; } = target;
+        public Action<int?> Set { get; } = set;
+        public HashSet<int> Targets = [];
+    }
+
+    /// <summary>A store of something held in a region that holds no container, met inside a body.</summary>
+    private void NoteHomeCopy(IExpression target, CufetType? valueType, Action<int?> set)
+    {
+        if (_storeFrame is { } frame && IsRegionBearing(valueType) && !HoldsContainer(valueType, null)
+            && valueType is not (FunctionType or StashType))
+            frame.HomeCopies.Add(new HomeCopy(target, set));
+    }
+
+    /// <summary>Every such store whose target may be something from outside the body, or something
+    /// that outlives every region (a top-level constant), copies into the target's own region.</summary>
+    private void MarkHomeCopies()
+    {
+        foreach (var frame in _storeFrames)
+        {
+            if (frame.HomeCopies.Count == 0) continue;
+            frame.Traced = false;
+            Trace(frame);
+            foreach (var copy in frame.HomeCopies)
+                if (copy.Targets.Count == 0 || copy.Targets.Any(place => place != FreshDepthIndex))
+                    copy.Set(HomeEscape);
+        }
     }
 
     /// <summary>Overload every store site uses: the container itself, so the store can be noted.</summary>
@@ -520,6 +566,7 @@ public sealed partial class TypeChecker
                                     changed |= summary.Pairs.Add((source, target));
                 }
             }
+            MarkHomeCopies();
 
             foreach (var frame in _storeFrames)
                 foreach (var store in StoresOf(frame).ToList())

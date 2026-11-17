@@ -35,7 +35,10 @@ Pull a book on collections.
     Define object store-frame with (the text summary, the fact setter, the node body,
         the map from text to number positions, the series of number referenced,
         the map from text to number captured, the number parent,
-        the series of store-note stores, the series of number calls).
+        the series of store-note stores, the series of number calls, the series of home-note copies).
+    /// A store of a text, or of anything else held in a region that holds no container, met inside a
+    /// body: the statement, which of its marks says where to copy, and the target.
+    Define object home-note with (the node statement, the text mark, the node target, the series of number targets).
     Define object function-value with (the text stored-as, the text name, the number line, the number column).
     Define object parameter-value with (the text owner, the number slot, the number line, the number column).
     /// The least of a depth and some names' numbers, each "own K" or "floor K" (O2).
@@ -273,7 +276,7 @@ Pull a book on collections.
         Done.
         Insert (a new store-frame { the summary summary, the setter setter, the body body, the positions positions,
             the referenced referenced, the captured captured, the parent around,
-            the stores a series of store-note, the calls a series of number }) into one's stores's frames.
+            the stores a series of store-note, the calls a series of number, the copies a series of home-note }) into one's stores's frames.
         The one's store-now becomes the number of one's stores's frames.
         Return around.
     Done.
@@ -296,7 +299,7 @@ Pull a book on collections.
         If (the entry for index in one's stores's traced) is not void, return.
         In one's stores's traced, the entry for index becomes true.
         Define frame as item index of one's stores's frames.
-        If the number of frame's stores is 0 and the number of frame's calls is 0, return.
+        If the number of frame's stores is 0 and the number of frame's calls is 0 and the number of frame's copies is 0, return.
         // Traced again at the end, once what the functions it casts store is known (O2) — by then
         // the names a body written inside another reached are out of scope, so what they were is
         // kept the first time.
@@ -371,6 +374,11 @@ Pull a book on collections.
                     For each place in cast one's reach-of on (noted's receiver, frame's positions, frame's referenced, locals, frame's captured, holds), repeat:
                         Insert place into noted's receiver-sources.
                     Done.
+                Done.
+            Done.
+            For each copy in frame's copies, repeat:
+                For each place in cast one's reach-of on (copy's target, frame's positions, frame's referenced, locals, frame's captured, holds), repeat:
+                    Insert place into copy's targets.
                 Done.
             Done.
         Done.
@@ -971,6 +979,47 @@ Pull a book on collections.
         Return false.
     Done.
 
+    // ── A text stored where the body cannot see how long it lives (the text half of O4) ─────
+    //
+    // A text, or anything else held in a region that holds no container, is never refused: an
+    // escaping one is COPIED to where it is stored (`escape-depth-for`). Inside a body a parameter,
+    // the object a method is cast on and a captured name have no depth the body can know, so a
+    // store into anything reached from one of them is marked -1 (C#'s `HomeEscape`), and the
+    // compiler copies the value, when the program runs, into the region the target lives in.
+
+    /// A store of something held in a region that holds no container, met inside a body.
+    Bind void to note-home-copy unto checker, given (the node statement, the text mark, the node value-type, the node target):
+        If one's store-now is 0, return.
+        If cast one's is-region-bearing on (value-type) is false or cast one's holds-container on (value-type), return.
+        If value-type's kind is "FunctionType" or value-type's kind is "StashType", return.
+        Define frame as item (one's store-now) of one's stores's frames.
+        Insert (a new home-note { the statement statement, the mark mark, the target target, the targets a series of number }) into frame's copies.
+    Done.
+
+    /// Every such store whose target may be something from outside the body, or something that
+    /// outlives every region (a top-level constant), copies into the target's own region.
+    Bind void to mark-home-copies unto checker:
+        For each frame-index in one's stores's closed, repeat:
+            Define frame as item frame-index of one's stores's frames.
+            If the number of frame's copies is greater than 0:
+                For each copy in frame's copies, repeat:
+                    While the number of copy's targets is greater than 0, repeat:
+                        Remove item (the number of copy's targets) from copy's targets.
+                    Done.
+                Done.
+                If (the entry for frame-index in one's stores's traced) is not void, remove frame-index from one's stores's traced.
+                Cast one's trace-frame on (frame-index).
+                For each copy in frame's copies, repeat:
+                    Define outside as the number of copy's targets is 0.
+                    For each place in copy's targets, repeat:
+                        If place is not -2, the outside becomes true.
+                    Done.
+                    If outside, cast note on (copy's statement, copy's mark, cast numeral on (-1)).
+                Done.
+            Done.
+        Done.
+    Done.
+
     /// `CheckStoresAtCalls`: every body has been checked, so what each function stores is known
     /// whatever order they were written in.
     Bind void or failure to judge-stores unto checker:
@@ -1031,6 +1080,7 @@ Pull a book on collections.
                 Done.
             Done.
         Done.
+        Cast one's mark-home-copies.
 
         For each frame-index in one's stores's closed, repeat:
             Define frame as item frame-index of one's stores's frames.

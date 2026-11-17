@@ -1,0 +1,20 @@
+/*  EXPECTED: COMPILES and runs; compiled output must match the interpreter.
+
+    A rabbit's text set into an outer series by setting an item, not by inserting (the probe `text-1`).
+
+    A text is never refused; one stored where a body cannot see how long the target lives is
+    copied, when the program runs, into the region the target itself lives in (docs/SOUNDNESS.md,
+    obligation O4). */
+
+Define names as a series of text with ("outer").
+Pull a rabbit.
+    Item 1 of names becomes "in" joined to "ner".
+Done.
+
+Define churn as a series of text.
+Define tick as 0.
+While tick is less than 400, repeat:
+    Insert ("zzzzzzzz" joined to "yyyyyyyy") into churn.
+    tick becomes tick + 1.
+Done.
+State names.

@@ -113,6 +113,88 @@ Pull books on collections, and the c-language.
         Return -1.
     Done.
 
+    // ── A store whose target's region only the running program knows (docs/SOUNDNESS.md, O4) ──
+    //
+    // Inside a function the checker cannot tell how long a parameter, the object a method is cast
+    // on or a captured name lives, so a text — or anything else held in a region that holds no
+    // container — stored into one of them is marked -1 (C#'s `HomeEscape`). Such a store runs with
+    // allocation sent to the arena the target lives in, and with its value copied there: a series'
+    // or a map's own arena, which its header records, or the program's for a field, which records
+    // none. Rabbits kept alive could not do it: the rabbit to keep is the caller's.
+
+    /// Whether the checker marked this statement's value, or its key, to be copied where the target lives.
+    Bind fact to is-home-store unto emitter, given (the node statement):
+        If (the entry for "%storing" in one's kinds but void is "") is "yes", return false.
+        Return cast is-home-marked on (statement, ":EscapeToDepth") or cast is-home-marked on (statement, ":KeyEscapeToDepth").
+    Done.
+
+    Bind fact to is-home-marked, given (the node statement, the text mark):
+        Define marked as cast keyed-field on (statement, mark).
+        If marked is void, return false.
+        Return marked's word is "-1".
+    Done.
+
+    /// Whether working an expression out twice does nothing twice: names, literals and what is
+    /// reached through them.
+    Bind fact to reads-only, given (the node expression):
+        Define kind as expression's kind.
+        If kind is "CastExpression", return false.
+        For each part in expression's children, repeat:
+            If part's kind is not "atom" and cast reads-only on (part) is false, return false.
+        Done.
+        Return true.
+    Done.
+
+    /// The arena a marked store's target lives in.
+    Bind c-language axiom or failure to home-arena unto emitter, given (the node statement):
+        Define kind as statement's kind.
+        Define target as cast stored-into on (statement).
+        If (kind is "SeriesInsertStatement" or kind is "SeriesSetStatement" or kind is "MapSetStatement") and cast reads-only on (target):
+            Define c-language home-of, given (the c-language axiom container), as [(the container)->home].
+            Return home-of on (cast one's c-of on (target) or pass the failure off).
+        Done.
+        Return [cufet_arenas[0]].
+    Done.
+
+    /// The value — and, for a map, the key — wrapped to be copied where allocation is sent. A
+    /// literal is left alone: it is in no arena.
+    Bind node to home-wrapped, given (the node statement, the text mark, the number place):
+        If cast is-home-marked on (statement, mark) is false, return statement.
+        Define value as cast field-of on (statement, place).
+        If value's kind is "StringLiteral", return statement.
+        Return cast checker's with-field on (statement, place, cast made on ("HomeCopiedValue", a series with (value))).
+    Done.
+
+    Bind void or failure to emit-home-store unto emitter, given (the node statement):
+        Define arena as cast one's home-arena on (statement) or pass the failure off.
+        Define c-language home-held, given (the c-language axiom arena), as [{ CufetArena* cf_hm = cufet_alloc_home; cufet_alloc_home = the arena;].
+        Cast one's put on (home-held on (arena)).
+        Define value-place as 3.
+        If statement's kind is "SeriesInsertStatement", the value-place becomes 1.
+        Define rewritten as cast home-wrapped on (statement, ":EscapeToDepth", value-place).
+        If statement's kind is "MapSetStatement", the rewritten becomes cast home-wrapped on (rewritten, ":KeyEscapeToDepth", 2).
+        In one's kinds, the entry for "%storing" becomes "yes".
+        Cast one's emit-statement on (rewritten) or pass the failure off.
+        In one's kinds, the entry for "%storing" becomes "".
+        Cast one's put on ([cufet_alloc_home = cf_hm; }]).
+    Done.
+
+    /// A value copied by its kind's family, into wherever allocation is sent now. A kind no family
+    /// can copy is left as it is: the store still allocates where the target lives.
+    Bind c-language axiom or failure to c-home-copied unto emitter, given (the node value):
+        Define value-c as cast one's c-of on (value) or pass the failure off.
+        Define value-kind as cast one's kind-of on (value) or pass the failure off.
+        If cast is-plain-copy on (value-kind), return value-c.
+        Try to:
+            Cast one's register-copy on (value-kind).
+        Done.
+        In case of failure:
+            Return value-c.
+        Done.
+        Define c-language home-copy-form, given (the term copier, the c-language axiom value-c), as [the copier(the value-c, cufet_arena_alloc)].
+        Return home-copy-form on ("{cast copy-family on (value-kind)}_copy", value-c).
+    Done.
+
     /// Keeps every open rabbit deeper than `depth`: something of theirs now lives on outside them.
     Bind void to keep-rabbits-below unto emitter, given (the number depth):
         Define place as 0.

@@ -1,0 +1,16 @@
+/*  A rabbit's text is put into an outer series by setting an item, not by inserting.
+    Obligation broken: O4's text half: a stored text has to be copied to where it is stored. See docs/SOUNDNESS.md.  */
+
+Define names as a series of text with ("outer").
+Pull a rabbit.
+    Item 1 of names becomes "in" joined to "ner".
+Done.
+
+/*  Make and drop enough values that freed memory is handed out again. */
+Define churn as a series of text.
+Define tick as 0.
+While tick is less than 400, repeat:
+    Insert ("zzzzzzzz" joined to "yyyyyyyy") into churn.
+    tick becomes tick + 1.
+Done.
+State names.

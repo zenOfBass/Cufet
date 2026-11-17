@@ -737,6 +737,7 @@ public sealed partial class CodeGenerator
             if (!_escapeElems.Contains(TypeSig(t))) continue;
             string tc = EmitCType(t);
             sb.AppendLine($"static {tc} cchan_{idx}_escapecopy({tc} v, int d) {{ int s = cufet_alloc_override; cufet_alloc_override = d; {tc} r = cchan_{idx}_copy(v, cufet_arena_alloc); cufet_alloc_override = s; return r; }}");
+            sb.AppendLine($"static {tc} cchan_{idx}_homecopy({tc} v, CufetArena* h) {{ CufetArena* s = cufet_alloc_home; cufet_alloc_home = h; {tc} r = cchan_{idx}_copy(v, cufet_arena_alloc); cufet_alloc_home = s; return r; }}");
         }
         sb.AppendLine();
     }
