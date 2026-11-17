@@ -144,6 +144,12 @@ function checkDocument(document) {
         (error, stdout, stderr) => {
             cleanup();
 
+            // ⚠ A check can outlive its document. Switching a file's language closes and reopens
+            // it, and the close handler deletes its diagnostics — so a check still running then
+            // would publish them back onto a file that is no longer Cufet, where nothing ever
+            // takes them away again (seen on a Markdown file; only a window reload cleared it).
+            if (document.isClosed || document.languageId !== LANGUAGE) return;
+
             if (error && error.code === 'ENOENT') { reportMissingExecutable(command); return; }
 
             // `check` exits 1 whenever it finds a problem, so a non-zero exit is the ordinary

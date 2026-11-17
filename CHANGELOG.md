@@ -65,6 +65,10 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **The VS Code extension could leave Cufet errors on a file that was no longer Cufet.** Switching a
+  file's language while a check was still running let that check's results land after they had been
+  cleared, on a file nothing would check again; only reloading the window removed them. A check now
+  drops its results if its file has closed or changed language in the meantime.
 - **A compiled series or map grown inside a rabbit could lose its contents at `Done.`** Growing one
   gave it a new buffer in whatever region was open, so a series made outside a rabbit and added to
   inside it kept a buffer that the rabbit then freed. It happened when what was inserted also came
