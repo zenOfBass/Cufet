@@ -255,6 +255,8 @@ Hop 2!
 > **Hopper:** The garden? That's where the people are!
 >
 > **Grace:** Good little rabbits never go in the garden, Maria.
+>
+> **Hopper:** Not if they wanna keep their ears...
 
 *Maria closes her eyes, and says nothing.*
 
