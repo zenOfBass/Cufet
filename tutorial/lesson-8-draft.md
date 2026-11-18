@@ -237,6 +237,10 @@ Keep going!
 > **Grace:** Then it gives back nothing. And Cufet has a word for nothing.
 >
 > **Hopper:** My favourite kind of word.
+>
+> **Grace:** If we're going to learn nothing properly, we should ask Maria. Nobody knows more about nothing.
+>
+> **Hopper:** To the pond!
 
 *End of lesson 8.*
 

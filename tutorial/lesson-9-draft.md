@@ -9,8 +9,8 @@ What's new in this lesson, one idea per beat:
 5. A blank page: a function with a loop inside that gives nothing back. The whole trunk in one.
 
 It opens where lesson 8 ended: Hopper wants a function that says hello and gives nothing back,
-Grace has said "Then it gives back nothing. And Cufet has a word for nothing", and Hopper has said
-"My favourite kind of word."
+Cufet has a word for nothing, and Grace has said they should ask Maria, since "Nobody knows more
+about nothing."
 
 This is the last lesson of the trunk, and the first with Maria.
 
@@ -20,8 +20,6 @@ This is the last lesson of the trunk, and the first with Maria.
 
 *Grace and Hopper hop to a pond outside the garden wall. An old frog sits on a stone, very still.*
 
-> **Grace:** Maria knows more about nothing than anyone.
->
 > **Hopper:** Maria! We came to ask about nothing.
 >
 > **Maria:** All this way, for nothing?
@@ -261,11 +259,3 @@ Hop 2!
 *Maria closes her eyes, and says nothing.*
 
 *End of lesson 9, and of the trunk.*
-
----
-
-## Still open
-
-**How they get to the pond.** Lesson 8 still ends with Hopper's "My favourite kind of word", and
-this lesson opens with them arriving. Grace's "Maria knows more about nothing than anyone" is a
-placeholder for whoever suggests going; that's yours.
