@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Learn Cufet</title>
+  <meta name="description" content="Learn to program with Grace and Hopper, in Cufet, in your browser.">
+  <link rel="icon" href="./rabbit.svg" type="image/svg+xml">
+  <!-- Monaco's own styles, emitted by the bundler beside learn.js. The bundle is NOT called
+       tutorial.js because esbuild names that stylesheet after it, and it would land on tutorial.css. -->
+  <link rel="stylesheet" href="./learn.css">
+  <!-- The palette, generated from the same theme the editor uses; tutorial.css consumes it. -->
+  <link rel="stylesheet" href="./theme-chrome.css">
+  <link rel="stylesheet" href="./tutorial.css">
+</head>
+<body>
+  <header class="bar">
+    <img class="mark" src="./rabbit.svg" alt="" width="20" height="20">
+    <h1>Learn Cufet</h1>
+    <span id="lesson-title" class="lesson-title"></span>
+    <a class="to-playground" href="./index.html">Playground</a>
+  </header>
+
+  <main>
+    <!-- The editor on top, the output box below: tutorial/DESIGN.md, "What it is". -->
+    <section class="pane" id="editor-pane">
+      <div class="pane-head">
+        <h2>Program</h2>
+        <div class="actions">
+          <button id="hint" type="button" hidden>Hint</button>
+          <button id="run" type="button" disabled>Run</button>
+        </div>
+      </div>
+      <div id="editor"></div>
+      <!-- A Parsons problem puts the lines in the editor's place, as tiles to drag into order. -->
+      <ol id="tiles" class="tiles" hidden></ol>
+    </section>
+
+    <section class="pane" id="output-pane">
+      <div class="pane-head"><h2>Output</h2></div>
+      <div id="output" class="output" aria-live="polite"></div>
+    </section>
+  </main>
+
+  <!-- Grace and Hopper, around the edge, with their bubbles. -->
+  <div id="stage" class="stage">
+    <figure class="rabbit" id="hopper" data-who="hopper" hidden>
+      <div class="bubble" role="status" hidden></div>
+      <img src="./rabbit.svg" alt="">
+      <figcaption>Hopper</figcaption>
+    </figure>
+    <figure class="rabbit" id="grace" data-who="grace" hidden>
+      <div class="bubble" role="status" hidden></div>
+      <img src="./rabbit.svg" alt="">
+      <figcaption>Grace</figcaption>
+    </figure>
+  </div>
+
+  <div id="ending" class="ending" hidden></div>
+
+  <script type="module" src="./learn.js"></script>
+</body>
+</html>

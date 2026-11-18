@@ -89,6 +89,15 @@ await esbuild.build({
     outfile: join(out, 'playground.js'),
 });
 
+// The tutorial, a second page over the same worker and the same editor setup. Emitted as learn.js
+// for the reason above: its Monaco stylesheet comes out as learn.css, clear of the page's own
+// tutorial.css.
+await esbuild.build({
+    ...shared,
+    entryPoints: [join(here, 'web', 'tutorial.ts')],
+    outfile: join(out, 'learn.js'),
+});
+
 // The editor's own worker. editor.api pulls in no languages, so this is the only worker the page
 // needs — app.js points MonacoEnvironment.getWorkerUrl at it.
 //
@@ -158,7 +167,7 @@ for (const file of FONT_FILES) {
 
 // --- 4. the page -------------------------------------------------------------------------------
 
-for (const file of ['index.html', 'app.css'])
+for (const file of ['index.html', 'app.css', 'tutorial.html', 'tutorial.css'])
     await cp(join(here, 'web', file), join(out, file));
 
 // The rabbit, as artwork rather than as the character U+1F407. A character is drawn by whatever

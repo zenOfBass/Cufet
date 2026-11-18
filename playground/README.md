@@ -18,6 +18,14 @@ web/app.ts                the editor, and the wiring between it and the worker
 web/protocol.ts           the page-to-worker wire format, shared by both ends
 web/ambient.d.ts          the edges no package describes (Monaco internals, MonacoEnvironment)
 web/app.css               the page's own styling (Monaco brings its own)
+web/cufet-language.ts     the language as Monaco sees it: registration, editing rules, highlighting;
+                          shared by both pages
+web/tutorial.html         the tutorial: Grace and Hopper teach lesson by lesson (tutorial/DESIGN.md)
+web/tutorial.ts           plays a lesson's steps; bundled as learn.js, not tutorial.js, so Monaco's
+                          stylesheet lands on learn.css and not on the page's tutorial.css
+web/tutorial.css          the tutorial page's own styling
+web/tutorial/             the lessons as data (lesson-N.ts, words from tutorial/lesson-N-draft.md),
+                          how an attempt is judged, and the runtime client with its time limit
 _framework/dotnet.d.ts    a declaration ONLY — see the file; no code lives in that directory
 tsconfig.json             strict type checking; the build runs it and fails on an error
 build.mjs                 type-checks, then assembles everything into site/
@@ -26,6 +34,7 @@ site/examples-manifest.json  built: the browsable corpus, grouped, for the picke
 test/examples.test.mjs    seeded files and multi-file pulls, against the BUILT wasm
 test/sweep.test.mjs       all 38 examples: no leaked host vocabulary, no unexpected death
 test/runtime-death.test.mjs  what the runtime throws when a program kills it
+test/tutorial.test.mjs   every lesson reaction against its sample program, and every prediction
 serve.mjs                 a local static server for looking at site/
 ```
 
