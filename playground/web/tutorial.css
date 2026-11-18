@@ -49,7 +49,8 @@
 
     --bubble:      #f4f1e8;
     --bubble-text: #1d1f23;
-    --stage-height: 190px;
+    /* The strip the rabbits live in. Shorter on a short window, so the output box keeps room. */
+    --stage-height: clamp(128px, 22vh, 170px);
 }
 
 * { box-sizing: border-box; }
@@ -84,7 +85,7 @@ main {
     flex: 1;
     min-height: 0;
     display: grid;
-    grid-template-rows: 3fr 2fr;
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
     gap: 1px;
     background: var(--line);
     padding-bottom: var(--stage-height);
@@ -253,9 +254,11 @@ button:disabled { opacity: 0.4; cursor: default; }
 
 .bubble {
     position: absolute;
-    bottom: 96px;
-    width: min(460px, calc(100vw - 150px));
-    padding: 10px 14px 26px;
+    bottom: 10px;
+    width: min(620px, calc(100vw - 240px));
+    max-height: calc(var(--stage-height) - 20px);
+    overflow: auto;
+    padding: 10px 14px 22px;
     border-radius: 14px;
     background: var(--bubble);
     color: var(--bubble-text);
@@ -265,8 +268,9 @@ button:disabled { opacity: 0.4; cursor: default; }
     box-shadow: 0 4px 18px rgb(0 0 0 / 35%);
 }
 
-#hopper .bubble { left: 40px; border-bottom-left-radius: 2px; }
-#grace .bubble  { right: 40px; border-bottom-right-radius: 2px; }
+/* Beside each rabbit, inside the strip, so a bubble never covers the output. */
+#hopper .bubble { left: 96px; border-bottom-left-radius: 2px; }
+#grace .bubble  { right: 96px; border-bottom-right-radius: 2px; }
 
 .bubble code {
     font-family: var(--mono);
@@ -314,10 +318,17 @@ button:disabled { opacity: 0.4; cursor: default; }
 
 [hidden] { display: none !important; }
 
+/* Code in a choice wears the editor's colours, on the editor's background. */
+.choices code.coloured {
+    background: var(--bg-sunken);
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
 @media (max-width: 640px) {
-    :root { --stage-height: 220px; }
-    main { grid-template-rows: 1fr 1fr; }
-    .bubble { width: calc(100vw - 32px); }
+    /* No room beside the rabbits on a phone: the bubble goes above them, still inside the strip. */
+    :root { --stage-height: 230px; }
+    .bubble { bottom: 104px; width: calc(100vw - 32px); max-height: 116px; }
     #hopper .bubble { left: 0; }
     #grace .bubble { right: 0; }
 }

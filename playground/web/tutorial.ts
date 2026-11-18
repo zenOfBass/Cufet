@@ -59,6 +59,10 @@ const editor = monaco.editor.create(element('editor'), {
     parameterHints: { enabled: false },
     hover: { enabled: 'off' },
 });
+// ⚠⚠ ONE LINE ENDING. A model takes the OS's by default, which on Windows is \r\n: a rabbit's typed
+// "\n" then became two characters, every offset after it was one place out, and Grace's second line
+// landed in the middle of her first. Measured in Chrome on Windows, on lesson 1's Beat 5.
+editor.getModel()?.setEOL(monaco.editor.EndOfLineSequence.LF);
 document.fonts.ready.then(() => monaco.editor.remeasureFonts());
 startHighlighting(editor, (kind, source) => runtime.ask(kind, source))
     .catch(e => console.error('syntax highlighting failed to start:', e));
@@ -177,6 +181,24 @@ function busy(who: Who, on: boolean): void {
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+/**
+ * Colour the code in `host` the way the editor colours it. Only spans that ARE code: an option
+ * that shows output (`Hello, rabbits!`) stays plain, the way the output box shows it, and one that
+ * shows a program (`State "Hello, rabbits!".`) wears the editor's colours. A span is code when it
+ * starts the way a Cufet statement does.
+ */
+const STATEMENT = /^(State|Define|The|If|Otherwise|While|Repeat|For|Bind|Cast|Return)\b/;
+
+function colourCode(host: HTMLElement): void {
+    for (const span of host.querySelectorAll('code')) {
+        const text = span.textContent ?? '';
+        if (!STATEMENT.test(text)) continue;
+        monaco.editor.colorize(text, LANGUAGE_ID, {})
+            .then(html => { span.innerHTML = html; span.classList.add('coloured'); })
+            .catch(() => { /* plain is fine */ });
+    }
+}
+
 // ── The output box ───────────────────────────────────────────────────────────────────────────
 
 function showAttempt(attempt: Attempt, guess?: string): void {
@@ -216,29 +238,66 @@ function lightRun(on: boolean): void {
 
 // ── The steps ────────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Where a rabbit's edit goes: the stretch of `old` to replace, by character offset.
+ *
+ * ★ Lines first, then characters. Lines kept whole at the top and bottom are left alone, so a line
+ * added ABOVE another is typed as a new line above it, the way the drafts describe it ("She adds a
+ * line above it"), rather than spliced into the middle of the line below. Only when a single line
+ * changed into a single line is the change narrowed to the characters that differ, so changing one
+ * word retypes one word.
+ */
+function changedStretch(old: string, code: string): { from: number; to: number; text: string } {
+    const was = old.split('\n'), now = code.split('\n');
+    let top = 0;
+    while (top < was.length && top < now.length && was[top] === now[top]) top++;
+    let bottom = 0;
+    while (bottom < Math.min(was.length, now.length) - top
+        && was[was.length - 1 - bottom] === now[now.length - 1 - bottom]) bottom++;
+
+    const head = was.slice(0, top).reduce((n, line) => n + line.length + 1, 0);
+    const tail = bottom === 0 ? 0 : was.slice(was.length - bottom).join('\n').length;
+    let from = Math.min(head, old.length), to = old.length - tail;
+    let text = code.slice(from, code.length - tail);
+    if (to < from) to = from;
+
+    const gone = old.slice(from, to);
+    if (!gone.includes('\n') && !text.includes('\n')) {
+        let same = 0;
+        while (same < gone.length && same < text.length && gone[same] === text[same]) same++;
+        let end = 0;
+        while (end < gone.length - same && end < text.length - same
+            && gone[gone.length - 1 - end] === text[text.length - 1 - end]) end++;
+        from += same;
+        to -= end;
+        text = text.slice(same, text.length - end);
+    }
+    return { from, to, text };
+}
+
+/** How long a rabbit takes over one key: unhurried, a little uneven, slower after a word. */
+function keystroke(typed: string): number {
+    const pause = typed === '\n' ? 350 : /[ ,.!?]/.test(typed) ? 120 : 0;
+    return 70 + Math.random() * 70 + pause;
+}
+
 /** A rabbit types `code` into the editor, retyping only the part that differs. */
 async function write(who: Who, code: string): Promise<void> {
     const model = editor.getModel();
     if (!model) return;
+    outputBox.replaceChildren();       // what the box said was about the program being replaced
     busy(who, true);
-    const old = model.getValue();
-    let prefix = 0;
-    while (prefix < old.length && prefix < code.length && old[prefix] === code[prefix]) prefix++;
-    let suffix = 0;
-    while (suffix < old.length - prefix && suffix < code.length - prefix
-        && old[old.length - 1 - suffix] === code[code.length - 1 - suffix]) suffix++;
+    const { from, to, text } = changedStretch(model.getValue(), code);
 
-    const end = old.length - suffix;
-    for (let at = end; at > prefix; at--) {          // delete the old middle, from its end
-        const from = model.getPositionAt(at - 1), to = model.getPositionAt(at);
-        model.applyEdits([{ range: monaco.Range.fromPositions(from, to), text: '' }]);
-        await sleep(25);
+    for (let at = to; at > from; at--) {            // delete the old stretch, from its end
+        const start = model.getPositionAt(at - 1), end = model.getPositionAt(at);
+        model.applyEdits([{ range: monaco.Range.fromPositions(start, end), text: '' }]);
+        await sleep(55);
     }
-    const middle = code.slice(prefix, code.length - suffix);
-    for (let i = 0; i < middle.length; i++) {        // and type the new one
-        const at = model.getPositionAt(prefix + i);
-        model.applyEdits([{ range: monaco.Range.fromPositions(at, at), text: middle[i]! }]);
-        await sleep(middle[i] === '\n' ? 120 : 45);
+    for (let i = 0; i < text.length; i++) {         // and type the new one
+        const at = model.getPositionAt(from + i);
+        model.applyEdits([{ range: monaco.Range.fromPositions(at, at), text: text[i]! }]);
+        await sleep(keystroke(text[i]!));
     }
     busy(who, false);
 }
@@ -264,6 +323,7 @@ async function predict(step: Extract<Step, { kind: 'predict' }>): Promise<void> 
         const button = document.createElement('button');
         button.type = 'button';
         button.innerHTML = inline(option);
+        colourCode(button);
         choices.append(button);
         return button;
     });
@@ -407,6 +467,7 @@ async function parsons(step: Extract<Step, { kind: 'parsons' }>): Promise<void> 
         paint();
     };
 
+    outputBox.replaceChildren();
     editorHost.hidden = true;
     tilesList.hidden = false;
     paint();
