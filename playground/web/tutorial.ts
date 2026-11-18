@@ -181,22 +181,11 @@ function busy(who: Who, on: boolean): void {
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-/**
- * Colour the code in `host` the way the editor colours it. Only spans that ARE code: an option
- * that shows output (`Hello, rabbits!`) stays plain, the way the output box shows it, and one that
- * shows a program (`State "Hello, rabbits!".`) wears the editor's colours. A span is code when it
- * starts the way a Cufet statement does.
- */
-const STATEMENT = /^(State|Define|The|If|Otherwise|While|Repeat|For|Bind|Cast|Return)\b/;
-
-function colourCode(host: HTMLElement): void {
-    for (const span of host.querySelectorAll('code')) {
-        const text = span.textContent ?? '';
-        if (!STATEMENT.test(text)) continue;
-        monaco.editor.colorize(text, LANGUAGE_ID, {})
-            .then(html => { span.innerHTML = html; span.classList.add('coloured'); })
-            .catch(() => { /* plain is fine */ });
-    }
+/** Colour `element`'s text as Cufet, the way the editor colours it. Plain if that fails. */
+function colourAsCode(element: HTMLElement): void {
+    monaco.editor.colorize(element.textContent ?? '', LANGUAGE_ID, {})
+        .then(html => { element.innerHTML = html; })
+        .catch(() => { /* plain is fine */ });
 }
 
 // ── The output box ───────────────────────────────────────────────────────────────────────────
@@ -322,8 +311,11 @@ async function predict(step: Extract<Step, { kind: 'predict' }>): Promise<void> 
     const buttons = step.options.map(option => {
         const button = document.createElement('button');
         button.type = 'button';
+        // ★ Plain, every one, even an option that is code. The question is what will appear in
+        // the OUTPUT BOX, which shows plain text, so every choice is shown the way it would land
+        // there. Colouring only the code one would mark it as code, which is the very thing Beat 3's
+        // third option asks the player to notice ("Close. That's the code.").
         button.innerHTML = inline(option);
-        colourCode(button);
         choices.append(button);
         return button;
     });
@@ -441,6 +433,7 @@ async function parsons(step: Extract<Step, { kind: 'parsons' }>): Promise<void> 
             tile.draggable = true;
             const code = document.createElement('code');
             code.textContent = text;
+            colourAsCode(code);
             const up = document.createElement('button');
             up.type = 'button'; up.textContent = '▲'; up.disabled = i === 0;
             up.setAttribute('aria-label', 'Move up');
@@ -470,12 +463,14 @@ async function parsons(step: Extract<Step, { kind: 'parsons' }>): Promise<void> 
     outputBox.replaceChildren();
     editorHost.hidden = true;
     tilesList.hidden = false;
+    document.body.classList.add('sorting');
     paint();
     await say(step.intro);
     await untilDone(() => order.join('\n'), step, () => { });
     editor.setValue(order.join('\n'));
     tilesList.hidden = true;
     editorHost.hidden = false;
+    document.body.classList.remove('sorting');
     await say(step.success);
 }
 

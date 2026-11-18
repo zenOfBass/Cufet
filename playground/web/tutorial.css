@@ -161,12 +161,15 @@ button:disabled { opacity: 0.4; cursor: default; }
     overflow: auto;
 }
 
+/* Tiles need the room; their output is a few short lines. */
+body.sorting main { grid-template-rows: minmax(0, 2fr) minmax(0, 1fr); }
+
 .tile {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-bottom: 8px;
-    padding: 8px 10px;
+    margin-bottom: 6px;
+    padding: 5px 10px;
     border: 1px solid var(--faint);
     border-radius: 6px;
     background: var(--bg-raised);
@@ -317,13 +320,6 @@ button:disabled { opacity: 0.4; cursor: default; }
 }
 
 [hidden] { display: none !important; }
-
-/* Code in a choice wears the editor's colours, on the editor's background. */
-.choices code.coloured {
-    background: var(--bg-sunken);
-    padding: 2px 6px;
-    border-radius: 4px;
-}
 
 @media (max-width: 640px) {
     /* No room beside the rabbits on a phone: the bubble goes above them, still inside the strip. */
