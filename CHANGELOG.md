@@ -46,7 +46,9 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   gaps in the rules, and proves a repaired set of rules sound for a core of the language. The programs
   are in `docs/soundness/probes/`, and a model that checks the proof by search is in
   `docs/soundness/model/`. All four gaps are closed (see Fixed). Three more programs were found
-  on the way, and none of the twenty-two reads freed memory now on either compiler.
+  on the way, and none of the twenty-two reads freed memory now on either compiler. A
+  twenty-third, found by running the model's programs against the real tools, is open
+  (`result-5`: a function that makes its parameter's name a new series and returns it).
 
 ### Changed
 

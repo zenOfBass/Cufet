@@ -711,6 +711,7 @@ def show_body(body, ind):
         elif k == 'if':
             out.append(pad + 'If chance:')
             out += show_body(s[2], ind + 1)
+            out.append(pad + 'Done.')
             out.append(pad + 'Otherwise:')
             out += show_body(s[3], ind + 1)
             out.append(pad + 'Done.')

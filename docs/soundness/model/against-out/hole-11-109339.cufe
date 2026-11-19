@@ -1,0 +1,36 @@
+/*  hole-11-109339.cufe: the model says some run reaches freed memory; `check` accepts it.
+    chance true: CRASH 0xc0000005; chance false: same  */
+
+Define chance as true permanently.
+Bind series of number to f0, given (the series of number p0, the series of number p1):
+    If chance:
+        p0 becomes a series of number.
+    Done.
+    Otherwise:
+        p0 becomes p1.
+    Done.
+    p0 becomes p0.
+    Return p0.
+Done.
+Bind void to f1, given (the series of number p0):
+    Pull a rabbit.
+        Define v1 as p0.
+    Done.
+Done.
+Define v2 as a series of number.
+State v2.
+Pull a rabbit.
+    v2 becomes cast f0 on (v2, v2).
+    v2 becomes cast f0 on (v2, v2).
+    Pull a rabbit.
+        v2 becomes v2.
+    Done.
+Done.
+
+Define churn as a series of text.
+Define tick as 0.
+While tick is less than 400, repeat:
+    Insert ("zzzzzzzz" joined to "yyyyyyyy") into churn.
+    tick becomes tick + 1.
+Done.
+State v2.

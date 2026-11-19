@@ -1,0 +1,45 @@
+/*  candidate-11-26319.cufe: the model says some run reaches freed memory; `check` accepts it.
+    chance true: same; chance false: same  */
+
+Define chance as true permanently.
+Bind series of number to f0, given (the series of number p0):
+    Define v1 as p0.
+    Pull a rabbit.
+        Pull a rabbit.
+            Define v2 as a series of series of number.
+        Done.
+    Done.
+    p0 becomes a series of number.
+    Return p0.
+Done.
+Pull a rabbit.
+    Define v3 as a series of number.
+    Pull a rabbit.
+        v3 becomes cast f0 on (v3).
+    Done.
+Done.
+If chance:
+    Pull a rabbit.
+        Pull a rabbit.
+            Define v4 as a series of number.
+        Done.
+    Done.
+Done.
+Otherwise:
+    Pull a rabbit.
+        If chance:
+            Define v5 as a series of number.
+        Done.
+        Otherwise:
+            Define v6 as a series of number.
+        Done.
+    Done.
+Done.
+
+Define churn as a series of text.
+Define tick as 0.
+While tick is less than 400, repeat:
+    Insert ("zzzzzzzz" joined to "yyyyyyyy") into churn.
+    tick becomes tick + 1.
+Done.
+

@@ -1,0 +1,22 @@
+/*  candidate-11-176598.cufe: the model says some run reaches freed memory; `check` accepts it.
+    chance true: same; chance false: same  */
+
+Define chance as true permanently.
+Define v1 as a series of number.
+Pull a rabbit.
+    Define v2 as a series of series of number.
+    Insert a series of number into v2.
+    Pull a rabbit.
+        Insert 5 into v1.
+    Done.
+    Item 1 of v2 becomes a series of number.
+    v1 becomes item 1 of v2.
+Done.
+
+Define churn as a series of text.
+Define tick as 0.
+While tick is less than 400, repeat:
+    Insert ("zzzzzzzz" joined to "yyyyyyyy") into churn.
+    tick becomes tick + 1.
+Done.
+State v1.

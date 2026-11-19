@@ -14,6 +14,11 @@ twenty-two reads freed memory now on either compiler: thirteen are refused by `c
 run right on both backends. What the closing is checked by, and what it is not proved for, is in
 sections 7 to 9.
 
+**Open.** A twenty-third, `result-5`, is accepted by `check` and crashes when compiled. A function
+makes its parameter's name a new series and returns it, and the result is judged as long-lived as
+the argument. The model's programs run against the real tools found it on 2026-11-19: all 26
+programs that search turned up have this shape.
+
 The rest of the document is in three parts.
 
 1. **What is wrong.** Section 4 sets out the four obligations, with the programs that break each
@@ -225,6 +230,7 @@ built under AddressSanitizer on Linux (`result-1`, `param-1`, `alias-2`), and ea
 | `result-3-parameter-wrapped-in-a-series` | O1 | crashes, or wrong output | **refused** |
 | `result-4-parameter-wrapped-in-an-object` | O1 | crashes | **refused** |
 | `binder-1-it-in-a-judge` | O1 | crashes | **refused** |
+| `result-5-parameter-replaced-then-returned` | O1 | (found later) crashes | **open: accepted, crashes** |
 | `control-nothing-escapes` | nothing | same on both | same on both |
 
 "Wrong output" is the worse result: the program exits 0. Which of the two a failing row shows is
@@ -562,9 +568,41 @@ The second row. Both compilers give a series and a map header its arena and grow
 `cufet_arena_merge_down` leaves a forwarding stub. That is "F4 now" in section 2, and it is why six
 probes are right. Nothing was refused that was accepted before.
 
-It is checked by the model's search and by the test suite, **not proved**. W1 holds by
-construction on this runtime and the rest of section 6 should go through unchanged, but that has
-not been written out.
+It is checked by the model's search and by the test suite, and the argument is short enough to
+give here.
+
+**Claim.** For every series or map a program can still reach, following its header's `home`
+through the `fwd` of each stub ends at the arena that holds its header. Growing it, or copying a
+value into it (`cufet_arena_alloc_in`, `cufet_alloc_home`), allocates in that arena; so a buffer is
+always in the arena of its own header, which is W1 of section 6.
+
+The proof is by induction over what the runtime does to arenas, read from the code generator.
+
+- **Made.** `_new` allocates the header with `cufet_arena_alloc` and records `cufet_arena_here()`.
+  The two choose the same arena by the same rule (an arena named by `cufet_alloc_home`, followed
+  through its stubs; else the override's depth; else the top). The chain is one step long.
+- **Pushed.** A new arena moves nothing.
+- **Merged** (`cufet_arena_merge_down`, F3). Every block of the top arena `a`, headers and buffers
+  alike, moves to the arena below, `p`; `a` stays behind as a stub with `fwd = p`, and the stub is
+  itself made one of `p`'s blocks. A chain that ended at `a` now ends at `p`, which holds the
+  header now. A chain that ended anywhere else is untouched.
+- **Popped** (`Done.`, F1). The top arena `t` and every block it holds are freed, stubs included.
+  A header in `t` is unreachable by Lemma 1, so its chain no longer matters. For a header that
+  survives, in some arena `x`, every stub on its chain was made one of the blocks of the arena it
+  forwards to, and was carried along by every later merge, so every stub on the chain is now a
+  block of `x`. None of them is in `t`, so none is freed. A stub lives exactly as long as the arena
+  its blocks went to, which is why no chain a program can still follow ever reaches a freed one,
+  and why a freed arena's address being handed out again for a new arena cannot be mistaken for it.
+- **Grown, or copied into.** The allocation follows the chain first, so it lands in the arena the
+  claim names.
+
+A value that crosses to another thread is deep-copied into the receiving thread's arena, and the
+copy records that arena (`CopyHome`), so the claim holds there from its making. A header built on
+the heap for the crossing records no arena and is never grown, only copied out again.
+
+This is the runtime half. W2 to W5 are about what the checker allows, and section 6's argument for
+them uses W1 only as a fact about where buffers are. It needs no change for this runtime, which
+asks less of the checker than the one it was written for.
 
 Then O1, in both checkers, which is rule B9 fitted to the checker as it is. The checker keeps its
 one number per name; a function's return-depth signature gained a third kind of entry beside "this
@@ -665,8 +703,10 @@ and a captured name have none the body can know.
   function, where every other store copied; `text-1` is that program, and it read freed memory on
   the compiler written in C#. It copies as inserting does now.
 
-What is left is what no test can show: sections 6 and 8 prove the core, and O2, O4 and the arena
-that forwards are checked by the model, the probes and the suite, not by proof.
+What is left is what no test can show: sections 6 and 8 prove the core, the arena that forwards
+is argued above, and O2 and O4 as built are checked by the probes, the suite and the model's
+random programs run against the real tools (`docs/soundness/model/against_cufet.py`), not by
+proof. That search's first run, on 2026-11-19, found `result-5`, which is open.
 
 These rules refuse programs that are accepted today, so they are a change to the language. The
 one question that was open in them is settled: a function called inside a rabbit that returns a
@@ -683,6 +723,7 @@ python docs/soundness/model/search.py 400000 7       both checkers over 400,000 
 python docs/soundness/model/search.py mutants 400000 5
 python docs/soundness/model/search.py 60000 21 forward   the same, on a runtime where a series grows at home
 python docs/soundness/model/witnesses.py             the directed programs, and the probes in the core
+python docs/soundness/model/against_cufet.py 200000 11   the model's programs, held to the real check and build
 ```
 
 A probe is fixed when `check` refuses it or the compiled program agrees with the interpreted one.

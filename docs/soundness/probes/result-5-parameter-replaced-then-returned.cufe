@@ -1,0 +1,21 @@
+/*  A function makes its parameter name a new series, then returns it.
+    Obligation broken: O1, what is read must not be deeper than the checker thinks. See docs/SOUNDNESS.md.
+    Found 2026-11-19 by docs/soundness/model/against_cufet.py (seed 11): all 26 programs it found share this shape.  */
+
+Bind series of number to fresh, given (the series of number s):
+    s becomes a series of number with (1, 2, 3).
+    Return s.
+Done.
+Define outer as a series of number.
+Pull a rabbit.
+    outer becomes cast fresh on (outer).
+Done.
+
+/*  Make and drop enough values that freed memory is handed out again. */
+Define churn as a series of text.
+Define tick as 0.
+While tick is less than 400, repeat:
+    Insert ("zzzzzzzz" joined to "yyyyyyyy") into churn.
+    tick becomes tick + 1.
+Done.
+State outer.
