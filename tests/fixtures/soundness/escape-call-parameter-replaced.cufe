@@ -1,0 +1,17 @@
+/*  EXPECTED: REJECTED at type-check, identically by both backends.
+    A function makes its parameter's name a new series, then returns it.
+
+    The parameter was taken to be the argument wherever it was read, so the result was judged
+    as long-lived as the series passed in, not as deep as the call. This was accepted, and the
+    compiled program read the value after the rabbit's Done. had freed it (docs/SOUNDNESS.md,
+    obligation O1, probe result-5). */
+
+Bind series of number to fresh, given (the series of number s):
+    s becomes a series of number with (1, 2, 3).
+    Return s.
+Done.
+Define outer as a series of number.
+Pull a rabbit.
+    outer becomes cast fresh on (outer).
+Done.
+State outer.

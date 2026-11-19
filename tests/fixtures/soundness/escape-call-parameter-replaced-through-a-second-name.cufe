@@ -1,0 +1,17 @@
+/*  EXPECTED: REJECTED at type-check, identically by both backends.
+    A function makes its parameter's name a new series, and returns it through another name.
+
+    The same hole as escape-call-parameter-replaced.cufe, reached through a second name
+    (docs/SOUNDNESS.md, obligation O1, probe result-5). */
+
+Bind series of number to fresh, given (the series of number s):
+    s becomes a series of number.
+    Define kept as s.
+    Insert 5 into kept.
+    Return kept.
+Done.
+Define outer as a series of number.
+Pull a rabbit.
+    outer becomes cast fresh on (outer).
+Done.
+State outer.

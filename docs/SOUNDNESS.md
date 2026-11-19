@@ -14,10 +14,11 @@ twenty-two reads freed memory now on either compiler: thirteen are refused by `c
 run right on both backends. What the closing is checked by, and what it is not proved for, is in
 sections 7 to 9.
 
-**Open.** A twenty-third, `result-5`, is accepted by `check` and crashes when compiled. A function
-makes its parameter's name a new series and returns it, and the result is judged as long-lived as
-the argument. The model's programs run against the real tools found it on 2026-11-19: all 26
-programs that search turned up have this shape.
+A twenty-third, `result-5`, was found on 2026-11-19 by the model's programs run against the real
+tools, and is refused now. A function made its parameter's name a new series and returned it, and
+the result was judged as long-lived as the argument. Twenty-five of the twenty-six programs that
+search turned up had this shape. The last kept an item of a rabbit's series in a name outside it,
+which the compiler copies out, and ran right; the model does not know that copy.
 
 The rest of the document is in three parts.
 
@@ -230,7 +231,7 @@ built under AddressSanitizer on Linux (`result-1`, `param-1`, `alias-2`), and ea
 | `result-3-parameter-wrapped-in-a-series` | O1 | crashes, or wrong output | **refused** |
 | `result-4-parameter-wrapped-in-an-object` | O1 | crashes | **refused** |
 | `binder-1-it-in-a-judge` | O1 | crashes | **refused** |
-| `result-5-parameter-replaced-then-returned` | O1 | (found later) crashes | **open: accepted, crashes** |
+| `result-5-parameter-replaced-then-returned` | O1 | (found later) crashes | **refused** |
 | `control-nothing-escapes` | nothing | same on both | same on both |
 
 "Wrong output" is the worse result: the program exits 0. Which of the two a failing row shows is
@@ -706,7 +707,7 @@ and a captured name have none the body can know.
 What is left is what no test can show: sections 6 and 8 prove the core, the arena that forwards
 is argued above, and O2 and O4 as built are checked by the probes, the suite and the model's
 random programs run against the real tools (`docs/soundness/model/against_cufet.py`), not by
-proof. That search's first run, on 2026-11-19, found `result-5`, which is open.
+proof. That search's first run, on 2026-11-19, found `result-5`.
 
 These rules refuse programs that are accepted today, so they are a change to the language. The
 one question that was open in them is settled: a function called inside a rabbit that returns a

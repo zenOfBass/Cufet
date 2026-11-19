@@ -197,7 +197,14 @@ public sealed partial class TypeChecker
         {
             case VariableReference vr:
                 if (paramIdx.TryGetValue(vr.Name, out var pi))
-                    return refParamIdxs.Contains(pi) ? [pi] : [];
+                {
+                    // A parameter is the argument only until the body gives its name a new value:
+                    // `p becomes a series of number` then `Return p` returns something made HERE
+                    // (`result-5`, found by docs/soundness/model/against_cufet.py).
+                    var argument = refParamIdxs.Contains(pi) ? new HashSet<int> { pi } : [];
+                    if (localDepths.TryGetValue(vr.Name, out var reassigned)) argument.UnionWith(reassigned);
+                    return argument;
+                }
                 if (captured != null && captured.TryGetValue(vr.Name, out var capturedAs))
                 {
                     var outer = new HashSet<int> { capturedAs };

@@ -46,9 +46,8 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   gaps in the rules, and proves a repaired set of rules sound for a core of the language. The programs
   are in `docs/soundness/probes/`, and a model that checks the proof by search is in
   `docs/soundness/model/`. All four gaps are closed (see Fixed). Three more programs were found
-  on the way, and none of the twenty-two reads freed memory now on either compiler. A
-  twenty-third, found by running the model's programs against the real tools, is open
-  (`result-5`: a function that makes its parameter's name a new series and returns it).
+  on the way, and a twenty-third by running the model's programs against the real tools. None of
+  them reads freed memory now on either compiler.
 
 ### Changed
 
@@ -86,8 +85,9 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   as deep as the call, unless all of it comes from the function's parameters, and then it is as
   deep as those arguments. A result whose function is not known where it is called (a function
   held in a name, a call to itself) counts as made. The same check now sees a `Return` inside a
-  `Judge` arm, a parameter put into the series or object being returned, and `it` in a `Judge`,
-  which lives where its subject does. Both checkers (`docs/SOUNDNESS.md`, obligation O1).
+  `Judge` arm, a parameter put into the series or object being returned, `it` in a `Judge`,
+  which lives where its subject does, and a parameter whose name the function gives a new value
+  before returning it. Both checkers (`docs/SOUNDNESS.md`, obligation O1).
 - **A function could store a rabbit's series into something that outlives the rabbit.** Inside a
   function every parameter looks equally long-lived, and so does everything the function makes, so
   `Insert fresh into bag` checked clean in the body however `bag` was passed. Cast inside a rabbit

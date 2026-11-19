@@ -1,0 +1,19 @@
+/*  EXPECTED: COMPILES and runs; compiled output must match the interpreter.
+
+    A function makes its parameter's name a new series and returns it, kept in a name as deep as
+    the call. Nothing outlives its region (docs/SOUNDNESS.md, obligation O1, probe result-5). */
+
+Bind series of number to fresh, given (the series of number s):
+    s becomes a series of number with (1, 2, 3).
+    Return s.
+Done.
+Define outer as a series of number.
+State cast fresh on (outer).
+Pull a rabbit.
+    Define inner as a series of number.
+    inner becomes cast fresh on (inner).
+    State inner.
+    inner becomes cast fresh on (outer).
+    State inner.
+Done.
+State outer.

@@ -205,8 +205,13 @@ Pull a book on collections.
             Define name as cast unquoted on (cast field-of on (said, 1)).
             Define spot as the entry for name in positions.
             If spot is not void:
-                If cast holds-number on (referenced, spot), return a series with (spot).
-                Return a series of number.
+                // A parameter is the argument only until the body gives its name a new value
+                // (`result-5`, found by docs/soundness/model/against_cufet.py).
+                Define argument as a series of number.
+                If cast holds-number on (referenced, spot), insert spot into argument.
+                Define reassigned as the entry for name in locals.
+                If reassigned is not void, cast union-into on (reassigned, argument).
+                Return argument.
             Done.
             Define captured-as as the entry for name in captured.
             If captured-as is not void:
