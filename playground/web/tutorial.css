@@ -213,6 +213,30 @@ body.sorting main { grid-template-rows: minmax(0, 2fr) minmax(0, 1fr); }
 
 .guess { margin-bottom: 12px; }
 
+/* A guess per line, typed; the real line appears beside each once it has run. */
+.slots {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 6px 16px;
+    align-items: center;
+}
+
+.slots input {
+    width: 12ch;
+    padding: 4px 8px;
+    font-family: var(--mono);
+    font-size: 14px;
+    color: var(--text);
+    background: var(--bg-sunken);
+    border: 1px solid var(--faint);
+    border-radius: 4px;
+}
+
+.slots input:focus { outline: none; border-color: var(--accent); }
+.slots input:disabled { opacity: 0.8; }
+.slots .real { white-space: pre; }
+.slots .real.wrong { color: var(--error); }
+
 /* ── Grace and Hopper ────────────────────────────────────────────────────────────────────── */
 
 .stage {
@@ -315,9 +339,14 @@ body.sorting main { grid-template-rows: minmax(0, 2fr) minmax(0, 1fr); }
     display: grid;
     place-items: center;
     background: rgb(0 0 0 / 55%);
+    align-content: center;
+    gap: 16px;
     font-size: 22px;
     font-style: italic;
 }
+
+.ending p { margin: 0; }
+.ending button { font-style: normal; font-size: 16px; }
 
 [hidden] { display: none !important; }
 

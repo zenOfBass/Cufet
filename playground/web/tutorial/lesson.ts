@@ -41,9 +41,20 @@ export type Step =
     | { kind: 'write'; who: Who; code: string }
     /** A rabbit presses Run itself. DESIGN.md: they do this exactly once, in lesson 1. */
     | { kind: 'rabbit-run'; who: Who }
-    /** The output box asks what will appear; the player picks, then presses Run. */
+    /** The player presses Run on what is in the editor. Nothing is judged; the output is shown. */
+    | {
+        kind: 'player-run';
+        /** Said while Run waits to be pressed. */
+        nudge?: Line[];
+    }
+    /** The output box asks a question; the player picks, then presses Run. */
     | {
         kind: 'predict';
+        /**
+         * What is asked. `output` (the default): "What will appear here?", and the options are
+         * output. `runs`: "Will it run?", and the options are exactly `Runs` and `Refused`.
+         */
+        asks?: 'output' | 'runs';
         options: string[];
         /** Which option is what the program really prints. The page does not need it; the test
          *  checks it against the real build, so a draft and its program cannot drift apart. */
@@ -54,6 +65,24 @@ export type Step =
         reactions: Line[][];
         /** Said whichever option was chosen. */
         after: Line[];
+    }
+    /**
+     * The output box shows one empty slot per line the program will print; the player types a
+     * guess in each, then presses Run, and the real lines appear beside the guesses. Judged on
+     * words only, line by line.
+     */
+    | {
+        kind: 'predict-lines';
+        slots: number;
+        /** Said when every guess was right. */
+        right: Line[];
+        /**
+         * Said for a wrong guess, by slot. Two slots may share one array: it is then said once,
+         * however many of them were wrong.
+         */
+        wrong: Line[][];
+        /** Said whatever the guesses were. */
+        after?: Line[];
     }
     /** The player writes; Run judges it. */
     | {
@@ -80,6 +109,7 @@ export type Step =
         reactions: Reaction[];
         success: Line[];
     }
+    /** The lesson's last step. The page offers the next lesson, when there is one. */
     | { kind: 'end'; text: string };
 
 export interface Lesson {

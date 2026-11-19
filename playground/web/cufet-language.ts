@@ -120,7 +120,7 @@ monaco.languages.setLanguageConfiguration(LANGUAGE_ID, {
  * version in package.json rather than a range — the bet is only ever re-taken deliberately. If a
  * future version moves it, this says so in the console instead of quietly going back to waiting.
  */
-function tokenizeEverythingNow(model: monaco.editor.ITextModel): void {
+export function tokenizeEverythingNow(model: monaco.editor.ITextModel): void {
     const reachable = model as unknown as
         { tokenization?: { forceTokenization?(lineNumber: number): void } };
 

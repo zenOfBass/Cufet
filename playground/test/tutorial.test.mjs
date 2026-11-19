@@ -39,7 +39,7 @@ before(async () => {
     // The lessons are TypeScript and import no browser code, so they bundle for node as they are.
     const out = join(mkdtempSync(join(tmpdir(), 'cufet-tutorial-')), 'lessons.mjs');
     await esbuild.build({
-        stdin: { contents: "export { lesson1 } from './lesson-1'; export { respond } from './judge';", resolveDir: join(playground, 'web', 'tutorial'), loader: 'ts' },
+        stdin: { contents: "export { lesson1 } from './lesson-1'; export { lesson2 } from './lesson-2'; export { respond } from './judge';", resolveDir: join(playground, 'web', 'tutorial'), loader: 'ts' },
         bundle: true, format: 'esm', platform: 'node', outfile: out, logLevel: 'silent',
     });
     lessons = await import(pathToFileURL(out).href);
@@ -64,7 +64,13 @@ const SAMPLES = {
     'both quote marks gone': 'State Hello, Grace!.',
     'the first word is not State': 'Stat "Hello, Grace!".',
     'everything deleted': '',
-    'the joke in the wrong order': 'State "Lettuce!".\nState "Knock, knock!".\nState "Who\'s there?".\nState "Lettuce who?".\nState "Lettuce in, it\'s cold out here!".',
+    'the sum in quote marks': 'State "What is 12 * 12?".\nState "12 * 12".',
+    'worked it out by hand': 'State "What is 12 * 12?".\nState 144.',
+    '"times" as a word': 'State "What is 12 * 12?".\nState 12 times 12.',
+    'an x for times': 'State "What is 12 * 12?".\nState 12 x 12.',
+    '= 144 on the end': 'State "What is 12 * 12?".\nState 12 * 12 = 144.',
+    'both on one line': 'State "What is 12 times 12?" 12 * 12.',
+    'the joke in the wrong order':'State "Lettuce!".\nState "Knock, knock!".\nState "Who\'s there?".\nState "Lettuce who?".\nState "Lettuce in, it\'s cold out here!".',
 };
 
 // What finishes each exercise and Parsons problem, in the order they come in the lesson.
@@ -74,11 +80,14 @@ const DONE = {
         ['State "Hello, Hopper!".'],
         ['State "Knock, knock!".\nState "Who\'s there?".\nState "Lettuce!".\nState "Lettuce who?".\nState "Lettuce in, it\'s cold out here!".'],
     ],
+    lesson2: [
+        ['State "What is 12 * 12?".\nState 12 * 12.', 'State "What is 12 * 12?".\nState 12*12.'],
+    ],
 };
 
 const backticked = text => [...text.matchAll(/`([^`]+)`/g)].map(m => m[1]);
 
-for (const name of ['lesson1']) {
+for (const name of ['lesson1', 'lesson2']) {
     test(`${name}: every reaction is what its sample gets`, () => {
         for (const step of lessons[name].steps) {
             if (step.kind !== 'exercise' && step.kind !== 'parsons') continue;
@@ -107,14 +116,31 @@ for (const name of ['lesson1']) {
         });
     });
 
-    test(`${name}: each prediction's right option is what the program prints`, () => {
+    test(`${name}: each prediction's right answer is what the program does`, () => {
         let code = '';
+        let checked = 0;
         for (const step of lessons[name].steps) {
             if (step.kind === 'write') code = step.code;
-            if (step.kind !== 'predict') continue;
-            const printed = attempt(code).output.split('\n').filter(line => line.trim() !== '');
-            assert.deepEqual(printed, backticked(step.options[step.correct]),
-                `the program before this prediction prints something else:\n${code}`);
+            if (step.kind === 'exercise' && step.start !== undefined) code = step.start;
+            if (step.kind !== 'predict' && step.kind !== 'predict-lines') continue;
+            checked++;
+            const tried = attempt(code);
+            const printed = tried.output.split('\n').filter(line => line.trim() !== '');
+            if (step.kind === 'predict' && step.asks === 'runs') {
+                assert.deepEqual(step.options, ['Runs', 'Refused']);
+                assert.equal(step.options[step.correct], tried.outcome === 'refused' ? 'Refused' : 'Runs',
+                    `"Will it run?" has the wrong answer for:\n${code}\n  it ${tried.outcome}`);
+            } else if (step.kind === 'predict') {
+                assert.deepEqual(printed, backticked(step.options[step.correct]),
+                    `the program before this prediction prints something else:\n${code}`);
+            } else {
+                assert.equal(tried.outcome, 'ran', `the program to guess at does not run:\n${code}`);
+                assert.equal(printed.length, step.slots,
+                    `${step.slots} slots, but the program prints ${printed.length} lines:\n${code}`);
+                assert.equal(step.wrong.length, step.slots, 'a reaction to a wrong guess is needed for every slot');
+            }
         }
+        // A test that can vanish is not a test: every lesson so far has questions to check.
+        assert.ok(checked > 0, 'no predictions were found to check');
     });
 }

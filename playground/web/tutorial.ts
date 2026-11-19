@@ -7,10 +7,11 @@
 // least it can, and says so where it does it: see FALLBACK below.
 
 import * as monaco from 'monaco-editor/editor/editor.api';
-import { LANGUAGE_ID, semanticsChanged, startHighlighting } from './cufet-language';
+import { LANGUAGE_ID, semanticsChanged, startHighlighting, tokenizeEverythingNow } from './cufet-language';
 import { RuntimeClient, TIME_LIMIT_MS } from './tutorial/runtime-client';
 import { lesson1 } from './tutorial/lesson-1';
-import { respond } from './tutorial/judge';
+import { lesson2 } from './tutorial/lesson-2';
+import { outputLines, respond, words } from './tutorial/judge';
 import type { Attempt } from './tutorial/judge';
 import type { Lesson, Line, Reaction, Step, Who } from './tutorial/lesson';
 
@@ -120,6 +121,8 @@ document.addEventListener('keydown', event => {
     // Enter in the editor is a new line, not "next".
     if (editor.hasTextFocus()) return;
     if (document.activeElement instanceof HTMLButtonElement) return;
+    // Nor in a guess's slot, where it moves to the next slot.
+    if (document.activeElement instanceof HTMLInputElement) return;
     event.preventDefault();
     advance();
 });
@@ -276,12 +279,24 @@ async function write(who: Who, code: string): Promise<void> {
     if (!model) return;
     outputBox.replaceChildren();       // what the box said was about the program being replaced
     busy(who, true);
-    const { from, to, text } = changedStretch(model.getValue(), code);
+    const old = model.getValue();
+    const { from, to, text } = changedStretch(old, code);
 
-    for (let at = to; at > from; at--) {            // delete the old stretch, from its end
-        const start = model.getPositionAt(at - 1), end = model.getPositionAt(at);
-        model.applyEdits([{ range: monaco.Range.fromPositions(start, end), text: '' }]);
-        await sleep(55);
+    if (old.slice(from, to).includes('\n')) {
+        // More than a line goes: selected, then deleted at once, the way a person clears a page.
+        // Backspacing a whole joke a key at a time took ten seconds of watching.
+        const range = monaco.Range.fromPositions(model.getPositionAt(from), model.getPositionAt(to));
+        editor.setSelection(range);
+        await sleep(500);
+        model.applyEdits([{ range, text: '' }]);
+        editor.setPosition(model.getPositionAt(from));
+        await sleep(250);
+    } else {
+        for (let at = to; at > from; at--) {        // delete the old stretch, from its end
+            const start = model.getPositionAt(at - 1), end = model.getPositionAt(at);
+            model.applyEdits([{ range: monaco.Range.fromPositions(start, end), text: '' }]);
+            await sleep(55);
+        }
     }
     for (let i = 0; i < text.length; i++) {         // and type the new one
         const at = model.getPositionAt(from + i);
@@ -301,11 +316,27 @@ async function rabbitRun(who: Who): Promise<void> {
     showAttempt(await runtime.attempt(editor.getValue()));
 }
 
-async function predict(step: Extract<Step, { kind: 'predict' }>): Promise<void> {
-    outputBox.replaceChildren();
+async function playerRun(step: Extract<Step, { kind: 'player-run' }>): Promise<void> {
+    lightRun(true);
+    const pressed = runPressed();
+    if (step.nudge) void say(step.nudge);
+    await pressed;
+    lightRun(false);
+    chain++;
+    hideBubbles();
+    showAttempt(await runtime.attempt(editor.getValue()));
+}
+
+function questionLine(text: string): HTMLElement {
     const question = document.createElement('p');
     question.className = 'question';
-    question.textContent = 'What will appear here?';
+    question.textContent = text;
+    return question;
+}
+
+async function predict(step: Extract<Step, { kind: 'predict' }>): Promise<void> {
+    outputBox.replaceChildren();
+    const question = questionLine(step.asks === 'runs' ? 'Will it run?' : 'What will appear here?');
     const choices = document.createElement('div');
     choices.className = 'choices';
     const buttons = step.options.map(option => {
@@ -336,6 +367,62 @@ async function predict(step: Extract<Step, { kind: 'predict' }>): Promise<void> 
 
     showAttempt(await runtime.attempt(editor.getValue()), step.options[chosen]);
     await say([...(step.reactions[chosen] ?? []), ...step.after]);
+}
+
+/** One slot per line of output: the player types a guess in each, then Run shows the real ones. */
+async function predictLines(step: Extract<Step, { kind: 'predict-lines' }>): Promise<void> {
+    outputBox.replaceChildren();
+    const grid = document.createElement('div');
+    grid.className = 'slots';
+    const slots = Array.from({ length: step.slots }, (_, i) => {
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.autocomplete = 'off';
+        input.spellcheck = false;
+        input.setAttribute('aria-label', `Line ${i + 1}`);
+        const real = document.createElement('span');
+        real.className = 'real';
+        grid.append(input, real);
+        return { input, real };
+    });
+    outputBox.append(questionLine('What will appear here?'), grid);
+
+    const filled = () => slots.every(slot => slot.input.value.trim() !== '');
+    slots.forEach(({ input }, i) => {
+        input.addEventListener('input', () => lightRun(filled()));
+        // Enter moves to the next slot, and on the last one presses Run.
+        input.addEventListener('keydown', event => {
+            if (event.key !== 'Enter') return;
+            event.preventDefault();
+            const next = slots[i + 1];
+            if (next) next.input.focus();
+            else if (filled()) runButton.click();
+        });
+    });
+    lightRun(false);
+    slots[0]?.input.focus();
+    await runPressed();
+    lightRun(false);
+    chain++;
+    hideBubbles();
+    for (const { input } of slots) input.disabled = true;
+
+    const attempt = await runtime.attempt(editor.getValue());
+    if (attempt.outcome !== 'ran') {         // the lesson's own program; only a broken runtime gets here
+        showAttempt(attempt);
+        return;
+    }
+    const printed = outputLines(attempt.output);
+    const said: Line[][] = [];
+    slots.forEach(({ input, real }, i) => {
+        const line = printed[i] ?? '';
+        const right = words(input.value) === words(line);
+        real.textContent = `${right ? '✓' : '✗'}  ${line}`;
+        real.classList.add(right ? 'right' : 'wrong');
+        const reaction = step.wrong[i];
+        if (!right && reaction && !said.includes(reaction)) said.push(reaction);
+    });
+    await say([...(said.length === 0 ? step.right : said.flat()), ...(step.after ?? [])]);
 }
 
 /**
@@ -467,15 +554,22 @@ async function parsons(step: Extract<Step, { kind: 'parsons' }>): Promise<void> 
     paint();
     await say(step.intro);
     await untilDone(() => order.join('\n'), step, () => { });
-    editor.setValue(order.join('\n'));
     tilesList.hidden = true;
     editorHost.hidden = false;
     document.body.classList.remove('sorting');
+    // ⚠ Shown FIRST, then filled, then coloured all at once. Filled while hidden, Monaco coloured
+    // only the lines it had been shown and left the rest to an idle pass that never came: the
+    // joke came back with two lines coloured and three plain. The playground's own trap, met again.
+    editor.setValue(order.join('\n'));
+    const model = editor.getModel();
+    if (model) tokenizeEverythingNow(model);
     await say(step.success);
 }
 
+/** A rabbit arrives. One already here stays put: a lesson that follows on finds them waiting. */
 async function enter(who: Who): Promise<void> {
     const rabbit = rabbits[who];
+    if (!rabbit.hidden) return;
     rabbit.hidden = false;
     rabbit.classList.add('arriving');
     await sleep(600);
@@ -490,17 +584,48 @@ async function play(lesson: Lesson): Promise<void> {
             case 'say': await say(step.lines); break;
             case 'write': await write(step.who, step.code); break;
             case 'rabbit-run': await rabbitRun(step.who); break;
+            case 'player-run': await playerRun(step); break;
             case 'predict': await predict(step); break;
+            case 'predict-lines': await predictLines(step); break;
             case 'exercise': await exercise(step); break;
             case 'parsons': await parsons(step); break;
-            case 'end': {
-                const ending = element('ending');
-                ending.textContent = step.text;
-                ending.hidden = false;
-                break;
-            }
+            case 'end': await ending(step.text, LESSONS[LESSONS.indexOf(lesson) + 1]); break;
         }
     }
 }
 
-play(lesson1).catch(e => console.error('the lesson stopped:', e));
+const LESSONS: Lesson[] = [lesson1, lesson2];
+
+/**
+ * The end of a lesson. With a lesson after it, a button goes on to it, and this resolves when it is
+ * pressed; after the last lesson it never does.
+ */
+function ending(text: string, next: Lesson | undefined): Promise<void> {
+    const box = element('ending');
+    const line = document.createElement('p');
+    line.textContent = text;
+    box.replaceChildren(line);
+    box.hidden = false;
+    if (!next) return new Promise(() => { });
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = `On to lesson ${next.number}`;
+    box.append(button);
+    button.focus();
+    return new Promise(resolve => button.addEventListener('click', () => { box.hidden = true; resolve(); }, { once: true }));
+}
+
+/** Plays from the lesson the address names (`?lesson=2`), or the first, to the end. */
+async function playFrom(number: number): Promise<void> {
+    const first = Math.max(0, LESSONS.findIndex(lesson => lesson.number === number));
+    for (const lesson of LESSONS.slice(first)) {
+        // So a reload comes back to the lesson the player is on.
+        const address = new URL(location.href);
+        address.searchParams.set('lesson', String(lesson.number));
+        history.replaceState(null, '', address);
+        await play(lesson);
+    }
+}
+
+playFrom(Number(new URLSearchParams(location.search).get('lesson') ?? 1))
+    .catch(e => console.error('the lesson stopped:', e));
