@@ -62,3 +62,7 @@ publish/
 # Bytecode Python writes beside a script each time it runs. Rebuilt from the .py, and specific
 # to the Python version that wrote it.
 __pycache__/
+
+# What docs/soundness/model/against_cufet.py writes on each run: the programs it found. A real
+# hole found there is kept as a probe in docs/soundness/probes/.
+docs/soundness/model/against-out/
