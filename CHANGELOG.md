@@ -74,6 +74,11 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   lambda defined at the top level of a program and reading `held's payload`, `the entry for "q" in
   shelves` or `item 1 of jobs` from a name defined before it stopped `cufet build` with "can't be
   read from a number" or "not yet supported by the compiler". The interpreter ran it.
+- **A task that handed on a function's result was refused as changing the function.** Inside a
+  task, `cast f0 on (cast f1 on (…))` counted `f1` as handed to `f0`, and when `f1` changed its
+  own parameter the task was refused with "this task changes 'f1'". Handing on a call's result is
+  not handing on the function; a captured value handed on, directly or through a call, is still
+  refused. Both checkers.
 - **Setting an item that is not there ran the value first, compiled.** `Item 1 of names becomes
   cast said on (…)` on an empty `names` called `said`, and printed whatever it printed, before
   stopping; the interpreter stops without calling it. Both compilers now check the place before

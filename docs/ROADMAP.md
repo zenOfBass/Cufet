@@ -13,7 +13,11 @@ Where Cufet is going.
 | How to build, test and contribute | [CONTRIBUTING.md](../CONTRIBUTING.md) |
 
 Cufet is pre-1.0 and may still change. Versioning is semantic: feature arcs bump the minor
-version, and 1.0.0 will mark the point at which the language is considered stable.
+version, and 1.0.0 will mark the point at which the language is considered stable — a program
+that works on 1.0 keeps working on every 1.x (DESIGN, *What 1.0 promises*). What stands between:
+programs the interpreter runs and the compiler refuses — about fifteen "not yet supported by the
+compiler" paths, an open catalogue, a stash carried out of the rabbit that buried it, and a task
+reading a function value it captured — each passed by `check` and refused only by the compiler.
 
 ## Cufet in Cufet
 
@@ -35,17 +39,11 @@ The compiler written in Cufet is done: it builds every program in `examples/` an
     block holds, and a block that says what it gives back is lowered to an ordinary function. What is
     NOT built is the expander this entry means: syntax parameters, and generating AST from them.
 
-    ★★ **DECIDED 2026-09-26 — the grammar stays STRICT, and becomes OPEN.** Books will provide
-    DSLs rather than the language growing them (no built-in LINQ; a book on queries). The errors come
-    from strictness — the parser always knows which shape it expected — not from the grammar being
-    closed. So a book DECLARES phrase shapes: fixed words and typed holes, e.g.
-    `from each <name> in <series> where <fact>` (what Agda calls mixfix), and each shape is live only
-    inside a pull of that book. It reuses three mechanisms the language already has: contextual words
-    (shape words cost no names), words reserved only inside a pull (as `chase` is), and refusal on
-    collision (two pulled books declaring clashing shapes are refused, never ranked). Bracketed DSLs,
-    as `regex` does now, remain the nearer route; parse-time code that a book RUNS is declined, since
-    a parser running arbitrary code cannot say what it expected. Hygienic substitution shipped as
-    [holes in cufet source](DESIGN.md#holes-in-cufet-source--built-2026-11-05); full macros later, if ever.
+    Books provide DSLs inside brackets, as `regex` does; a book does not add phrases to the grammar
+    (declined 2026-11-19 — DESIGN, *Foreign interoperability*). Parse-time code that a book RUNS is
+    declined too, since a parser running arbitrary code cannot say what it expected. Hygienic
+    substitution shipped as [holes in cufet source](DESIGN.md#holes-in-cufet-source--built-2026-11-05);
+    full macros later, if ever.
 
     ⚠ **Its blocker was the compiler written in Cufet, and that is done.** An expander generates Cufet AST, and both front ends now read Cufet — the C# one and the one written in Cufet — so an expander is built in each and held to the same answers. Macro errors are the worst part of every language that has them, and clear errors are this language's distinguishing feature — that tax is still paid deliberately, not early.
 

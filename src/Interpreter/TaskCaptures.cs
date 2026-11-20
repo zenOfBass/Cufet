@@ -208,6 +208,34 @@ public static class TaskCaptures
             return refs.Contains(name);
         }
 
+        // Whether an argument's value may BE the name's value, or part of it: the name itself, what is
+        // read out of it, or what a call made from it hands back. Only a call's NAME is passed over —
+        // `cast f1 on (…)` as an argument hands on f1's result, not f1, and counting it refused a
+        // task that only called f1 (2026-11-19, found by docs/soundness/model/fuzz_cufet.py). A
+        // lambda stays judged by everything it mentions: what it captures goes with it.
+        bool HandsOver(object? val)
+        {
+            switch (val)
+            {
+                case null or string or CufetType: return false;
+                case VariableReference v: return v.Name == name;
+                case LambdaLiteral lambda: return Touches(lambda);
+                case CastExpression call:
+                    return call.Args.Any(HandsOver) || (call.Function is not VariableReference && HandsOver(call.Function));
+                case System.Runtime.CompilerServices.ITuple tup:
+                    for (int i = 0; i < tup.Length; i++) if (HandsOver(tup[i])) return true;
+                    return false;
+                case System.Collections.IEnumerable items:
+                    foreach (var item in items) if (HandsOver(item)) return true;
+                    return false;
+                default:
+                    if (val.GetType().Namespace != typeof(IStatement).Namespace) return false;
+                    foreach (var prop in val.GetType().GetProperties())
+                        if (prop.GetIndexParameters().Length == 0 && HandsOver(prop.GetValue(val))) return true;
+                    return false;
+            }
+        }
+
         switch (node)
         {
             case null: return false;
@@ -222,8 +250,8 @@ public static class TaskCaptures
             case PossessiveSetStatement s      when Touches(s.Target):  return true;
             case MapSetStatement s             when Touches(s.Map):     return true;
             // Handing the value to a function — the callee may mutate through its parameter.
-            case CastExpression ce when ce.Args.Any(a => Touches(a)):   return true;
-            case CastStatement cs when cs.Args.Any(a => Touches(a)):    return true;
+            case CastExpression ce when ce.Args.Any(a => HandsOver(a)): return true;
+            case CastStatement cs when cs.Args.Any(a => HandsOver(a)):  return true;
         }
 
         // Otherwise descend into every child statement/expression (same reflection walk as

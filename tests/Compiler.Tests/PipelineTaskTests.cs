@@ -981,4 +981,38 @@ public class PipelineTaskTests : PipelineTestBase
         Assert.Equal("before 2", Interpret(src));
         Assert.Equal(Interpret(src), Compile(src));
     }
+
+    // A task handing on a function's RESULT does not hand on the function: `cast f1 on (…)` as an
+    // argument was counted as changing f1, and the task was refused (2026-11-19, fuzz_cufet.py).
+    [Fact]
+    public void Task_HandingOnACallsResult_IsNotChangingTheFunction()
+    {
+        const string src = """
+            Bind series of number or failure to f0, given (the series of number p0, the series of number p1):
+                Return p0.
+            Done.
+            Bind series of number or failure to f1, given (the series of text p0):
+                Define v3 as (a series of number).
+                Try to:
+                    Insert "x" into p0.
+                Done.
+                In case of failure:
+                    State p0.
+                Done.
+                Return (cast f0 on (v3, (a series of number)) but on failure (a series of number)).
+            Done.
+            Pull a rabbit.
+                Define ch27 as a channel of series of number.
+                Have rabbit start a task:
+                    Send (cast f0 on ((cast f1 on ((a series of text)) but on failure (a series of number)), (a series of number with (1, 2))) but on failure (a series of number)) through ch27.
+                    Close ch27.
+                Done.
+                State (the delivery from ch27) but void is (a series of number).
+            Done.
+            Pull a rabbit.
+                Define v28 as (cast f1 on ((a series of text)) but on failure (a series of number)).
+            Done.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
 }

@@ -3978,9 +3978,10 @@ entry-remove on the iterated map. Both are caught at runtime with a named error:
 or use a While loop if you need to change it while looping.
 ```
 
-**Element-value assignment** (`the first of items becomes 99`) is not caught — the
-loop still visits all original elements, but you observe the changed values mid-iteration.
-If you need predictable per-element values, snapshot the series first.
+**Setting an item is allowed, and intended** (`the last of items becomes 99`). No position
+moves, so the loop still visits every item, and an item set ahead of the loop is seen with its new
+value when the loop reaches it — the same on both backends. If you want the values as they were
+when the loop began, copy the series first.
 
 If you need to add, remove, or filter during a loop, collect into a new series or
 use `While` with an index.

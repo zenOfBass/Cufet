@@ -62,21 +62,34 @@ Done.
 class Ctx:
     """What a body can see: its names and their types, and the functions it may call."""
 
-    def __init__(self, scope, funcs, ret=None, nest=0, in_func=False):
+    def __init__(self, scope, funcs, ret=None, nest=0, in_func=False, rabbit=0,
+                 readonly=frozenset(), in_task=False, in_try=False):
+        self.in_try = in_try
         self.scope = dict(scope)
-        self.funcs = funcs          # [(name, [(param, T)], ret)]
+        self.funcs = funcs          # [(name, [(param, T)], ret)]; ret 'SF' is `series of number or failure`
         self.ret = ret
         self.nest = nest
         self.in_func = in_func
+        self.rabbit = rabbit        # how many rabbits are open around here: a task needs one
+        self.readonly = readonly    # names a task captured, which it may read and not change
+        self.in_task = in_task
+
+    def copy(self):
+        return Ctx(self.scope, self.funcs, self.ret, self.nest, self.in_func, self.rabbit,
+                   self.readonly, self.in_task, self.in_try)
 
     def inner(self, **change):
-        c = Ctx(self.scope, self.funcs, self.ret, self.nest + 1, self.in_func)
+        c = self.copy()
+        c.nest += 1
         for k, v in change.items():
             setattr(c, k, v)
         return c
 
     def of(self, T):
         return [x for x, t in self.scope.items() if t == T]
+
+    def writable(self, T):
+        return [x for x in self.of(T) if x not in self.readonly]
 
 
 class Gen:
@@ -134,6 +147,13 @@ class Gen:
                 opts.append(lambda x=x: '(item 1 of %s)' % x)
         elif T == 'FF':
             opts.append(lambda: '(a series of void function given (the series of number))')
+        if deep and T == 'S' and not c.in_try:      # in a Try body, a failure goes to its handler
+            for f, params, ret in c.funcs:
+                if ret == 'SF':
+                    args = self.args(params, c, depth + 1)
+                    if args is not None:
+                        opts += [lambda f=f, a=args: '(cast %s on (%s) but on failure (a series of number))'
+                                 % (f, a)] * 2
         if deep:
             for f, params, ret in c.funcs:
                 if ret == T:
@@ -158,7 +178,7 @@ class Gen:
     def body(self, n, c, pad):
         """About n statements at indent `pad`; returns (lines, ctx at the end)."""
         r = self.rng
-        c = Ctx(c.scope, c.funcs, c.ret, c.nest, c.in_func)
+        c = c.copy()
         out = []
         tries = 0
         while n > 0 and tries < 60:
@@ -166,7 +186,11 @@ class Gen:
             kinds = ['def'] * 4 + ['set'] * 3 + ['ins'] * 5 + ['seti'] * 2 + ['mapset', 'mapget',
                      'field', 'field', 'callf', 'callf', 'callm', 'calls', 'use', 'lambda', 'lambda', 'foreach']
             if c.nest < 3:
-                kinds += ['rabbit'] * 4 + ['if'] * 2
+                kinds += ['rabbit'] * 4 + ['if'] * 2 + ['try'] * 2
+            if c.rabbit and not c.in_task and c.nest < 3:
+                kinds += ['task'] * 3
+            if c.in_task:
+                kinds = [k for k in kinds if k not in ('calls', 'callf', 'callm', 'nested')]
             if c.in_func and c.nest < 2:
                 kinds.append('nested')
             if c.ret and c.nest > 0:
@@ -194,7 +218,8 @@ class Gen:
             c.scope[x] = T
             return ['%sDefine %s as %s.' % (p, x, e)], 1
         if k == 'set':
-            xs = [x for x, t in c.scope.items() if t in WORDS and not x.startswith('row')]
+            xs = [x for x, t in c.scope.items() if t in WORDS and not x.startswith('row')
+                  and x not in c.readonly]
             if not xs:
                 return None
             x = r.choice(xs)
@@ -205,11 +230,11 @@ class Gen:
         if k == 'ins':
             targets = []
             for x, t in c.scope.items():
-                if t in ('S', 'SS', 'ST', 'FF'):
+                if t in ('S', 'SS', 'ST', 'FF') and x not in c.readonly:
                     targets.append((x, t))
-            for x in c.of('SS'):
+            for x in c.writable('SS'):
                 targets.append(('item 1 of %s' % x, 'S'))
-            for x in c.of('B'):
+            for x in c.writable('B'):
                 targets.append(("%s's items" % x, 'S'))
             if not targets:
                 return None
@@ -221,7 +246,7 @@ class Gen:
                 return None
             return ['%sInsert %s into %s.' % (p, elem, target)], 1
         if k == 'seti':
-            xs = [(x, t) for x, t in c.scope.items() if t in ('SS', 'ST', 'FF')]
+            xs = [(x, t) for x, t in c.scope.items() if t in ('SS', 'ST', 'FF') and x not in c.readonly]
             if not xs:
                 return None
             x, t = r.choice(xs)
@@ -230,7 +255,7 @@ class Gen:
                 return None
             return ['%sItem 1 of %s becomes %s.' % (p, x, e)], 1
         if k == 'mapset':
-            ms = c.of('M')
+            ms = c.writable('M')
             if not ms:
                 return None
             e = self.expr('S', c)
@@ -244,7 +269,7 @@ class Gen:
             return ['%sDefine %s as (the entry for "%s" in %s) but void is (a series of number).'
                     % (p, x, r.choice('kq'), r.choice(ms))], 1
         if k == 'field':
-            bs = c.of('B')
+            bs = c.writable('B')
             if not bs:
                 return None
             b = r.choice(bs)
@@ -279,14 +304,14 @@ class Gen:
             # A function value, defined or given anew; its body sees everything here (a closure).
             row = self.name('row')
             returns = r.random() < 0.35
-            inner = c.inner(ret='S' if returns else None, in_func=True)
+            inner = c.inner(ret='S' if returns else None, in_func=True, rabbit=0)
             inner.scope[row] = 'S'
             m = r.randint(1, 3)
             lines, after = self.body(m, inner, pad + 1)
             if returns:
                 lines.append('%s    Return %s.' % (p, self.expr('S', after)))
             T = 'G' if returns else 'F'
-            olds = c.of(T)
+            olds = c.writable(T)
             if olds and r.random() < 0.4:
                 head = '%s%s becomes a function given (the series of number %s):' % (p, r.choice(olds), row)
             else:
@@ -298,7 +323,7 @@ class Gen:
             # A function in a function: it captures the enclosing names.
             f = self.name('g')
             q = self.name('q')
-            inner = c.inner(ret=None)
+            inner = c.inner(ret=None, rabbit=0)
             inner.scope[q] = 'S'
             m = r.randint(1, 3)
             lines, _ = self.body(m, inner, pad + 1)
@@ -317,8 +342,53 @@ class Gen:
             return ['%sFor each %s in %s, repeat:' % (p, row, r.choice(xs))] + lines + [p + 'Done.'], 1 + m
         if k == 'rabbit':
             m = r.randint(1, max(1, n - 1))
-            lines, _ = self.body(m, c.inner(), pad + 1)
+            lines, _ = self.body(m, c.inner(rabbit=c.rabbit + 1), pad + 1)
             return [p + 'Pull a rabbit.'] + lines + [p + 'Done.'], 1 + m
+        if k == 'task':
+            # A task reads what it captured and may not change it; it may make and change its own.
+            # Named, it hands a series back to be awaited; or it sends one through a channel.
+            inner = c.inner(in_task=True, ret=None, readonly=frozenset(c.scope) | c.readonly)
+            # ⚠ A function value cannot be handed to a task's thread compiled ("a channel of
+            # 'function' is not supported"), though `check` passes it — a known gap, not searched.
+            inner.scope = {x: t for x, t in inner.scope.items() if t not in ('F', 'FF', 'G')}
+            m = r.randint(1, 3)
+            lines, after = self.body(m, inner, pad + 1)
+            shape = r.choice(['plain', 'named', 'named', 'channel', 'channel'])
+            if shape == 'plain':
+                return [p + 'Have rabbit start a task:'] + lines + [p + 'Done.'], 1 + m
+            got = self.name()
+            if shape == 'named':
+                t = self.name('t')
+                out = ([p + 'Have rabbit start a task as %s:' % t] + lines
+                       + ['%s    Return %s.' % (p, self.expr('S', after)), p + 'Done.',
+                          '%sDefine %s as the awaited result of %s.' % (p, got, t)])
+            else:
+                ch = self.name('ch')
+                out = (['%sDefine %s as a channel of series of number.' % (p, ch),
+                        p + 'Have rabbit start a task:'] + lines
+                       + ['%s    Send %s through %s.' % (p, self.expr('S', after), ch),
+                          '%s    Close %s.' % (p, ch), p + 'Done.',
+                          '%sDefine %s as (the delivery from %s) but void is (a series of number).'
+                          % (p, got, ch)])
+            c.scope[got] = 'S'
+            return out, 2 + m
+        if k == 'try':
+            # A failure caught, or an exception (an item that is not there) suppressed.
+            m = r.randint(1, max(1, (n - 1) // 2))
+            tried = c.inner(in_try=True)
+            fallible = [f for f in c.funcs if f[2] == 'SF' and self.args(f[1], tried, 1) is not None]
+            first = []
+            if fallible and r.random() < 0.7:
+                f, params, _ = r.choice(fallible)
+                first = ['%s    Define %s as cast %s on (%s).' % (p, self.name(), f, self.args(params, tried, 1))]
+                handler = 'In case of failure:'
+            else:
+                handler = 'In case of exception:'
+            a, _ = self.body(m, c.inner(in_try=True), pad + 1)
+            b, _ = self.body(m, c.inner(), pad + 1)
+            if handler == 'In case of exception:':
+                b.append('%s    Suppress the exception.' % p)
+            return ([p + 'Try to:'] + first + a + [p + 'Done.', p + handler] + b + [p + 'Done.']), 1 + 2 * m
         if k == 'if':
             m = r.randint(1, max(1, (n - 1) // 2))
             a, _ = self.body(m, c.inner(), pad + 1)
@@ -340,17 +410,21 @@ class Gen:
         for i in range(r.randint(0, 2)):
             f = 'f%d' % i
             params = [('p%d' % j, r.choice(PARAM_TYPES)) for j in range(r.randint(1, 3))]
-            ret = r.choice([None, None, 'S', 'SS', 'T'])
-            c = Ctx(dict(params), list(funcs), ret, 0, True)
+            ret = r.choice([None, None, 'S', 'SS', 'T', 'SF', 'SF'])
+            gives = 'S' if ret == 'SF' else ret        # a fallible one returns a series when it does not fail
+            c = Ctx(dict(params), list(funcs), gives, 0, True)
             body, after = self.body(r.randint(2, 6), c, 1)
             if ret:
-                e = self.expr(ret, after)
+                e = self.expr(gives, after)
                 if e is None:
                     continue
                 body.append('    Return %s.' % e)
+            if ret == 'SF':
+                body.insert(0, '    If chance, return a failure "no".')
             shown = ', '.join('the void function %s given (the series of number)' % x if t == 'F'
                               else 'the %s %s' % (WORDS[t], x) for x, t in params)
-            lines.append('Bind %s to %s, given (%s):' % (WORDS[ret] if ret else 'void', f, shown))
+            returned = 'series of number or failure' if ret == 'SF' else WORDS[ret] if ret else 'void'
+            lines.append('Bind %s to %s, given (%s):' % (returned, f, shown))
             lines += body if body else ['    State "".']
             lines.append('Done.')
             funcs.append((f, params, ret))

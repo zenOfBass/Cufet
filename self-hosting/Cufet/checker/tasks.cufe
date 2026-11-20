@@ -415,6 +415,28 @@ Pull a book on collections.
         Return (the entry for name in refs) is not void.
     Done.
 
+    /// `HandsOver`: whether an argument's value may BE the name's value, or part of it. Only a
+    /// call's NAME is passed over — `cast f1 on (…)` hands on f1's result, not f1 (2026-11-19). A
+    /// lambda stays judged by everything it mentions.
+    Bind fact to hands-over, given (the node said, the text name):
+        Define kind as said's kind.
+        If kind is "atom", return false.
+        If kind is "VariableReference", return cast unquoted on (cast field-of on (said, 1)) is name.
+        If kind is "LambdaLiteral", return cast mentions-name on (said, name).
+        If kind is "CastExpression":
+            For each argument in (cast field-of on (said, 2))'s children, repeat:
+                If cast hands-over on (argument, name), return true.
+            Done.
+            Define callee as cast field-of on (said, 1).
+            If callee's kind is "VariableReference", return false.
+            Return cast hands-over on (callee, name).
+        Done.
+        For each child in said's children, repeat:
+            If cast hands-over on (child, name), return true.
+        Done.
+        Return false.
+    Done.
+
     /// `MayMutate`: the tree rebinds the name, writes into it, or hands it to a function. It
     /// over-approximates on purpose — a missed write ships a divergence, an extra one only a refusal.
     Bind fact to may-mutate, given (the node tree, the text name):
@@ -431,7 +453,7 @@ Pull a book on collections.
         Done.
         If kind is "CastExpression" or kind is "CastStatement":
             For each argument in (cast field-of on (tree, 2))'s children, repeat:
-                If cast mentions-name on (argument, name), return true.
+                If cast hands-over on (argument, name), return true.
             Done.
         Done.
         For each child in tree's children, repeat:

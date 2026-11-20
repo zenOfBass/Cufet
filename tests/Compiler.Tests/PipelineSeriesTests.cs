@@ -541,6 +541,24 @@ public class PipelineSeriesTests : PipelineTestBase
         Assert.Contains("There's no item 1 — 'names' is empty", e.Message);
     }
 
+    // ★ Setting an item inside a `For each` over the same series is allowed and intended (GRAMMAR,
+    // *The for-each body cannot add or remove elements*): an item set ahead of the loop is seen
+    // with its new value. Pinned so the two backends cannot drift apart on it (2026-11-19).
+    [Fact]
+    public void ForEach_SettingAnItemAhead_IsSeenWhenTheLoopReachesIt()
+    {
+        const string src = """
+            Define xs as a series of number with (1, 2, 3).
+            For each x in xs, repeat:
+                State x.
+                The last of xs becomes 99.
+            Done.
+            State xs.
+            """;
+        Assert.Equal("1\n2\n99\n(1, 2, 99)", InterpretRaw(src).Trim().Replace("\r\n", "\n"));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
     [Fact]
     public void ChaseSet_OnAPlaceThatIsNotThere_StopsBeforeWorkingOutTheValue()
     {

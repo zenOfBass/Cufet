@@ -904,6 +904,21 @@ What the toolchain is, and what it declines to become.
 
 ---
 
+## What 1.0 promises
+
+Agreed 2026-11-19. **A program that checks and runs on 1.0 checks, runs and prints the same thing
+on every 1.x.** New things may arrive; nothing that works stops working, and breaking that takes
+2.0. So 1.0 is ready when nothing still planned would rename, reserve, refuse or change the meaning
+of something a program can say today; when REFERENCE and GRAMMAR describe what `check` accepts;
+and when both backends agree on every program either accepts.
+
+- **The wording of a message is not part of it.** A refusal stays a refusal, but what it says may
+  get better.
+- **For a concurrent program it covers results, not scheduling.** What the language makes certain
+  is promised — a refusal, the join at `Done.`, a channel's order, an awaited result, and output
+  that does not depend on which task ran first. Which task ran first, and which worker took which
+  item, is not: compiled, tasks are threads, and the interpreter runs them one at a time.
+
 ## Memory and concurrency
 
 The two arcs where soundness was the whole problem.
@@ -1201,6 +1216,13 @@ How anything that is not Cufet gets reached from inside Cufet — C libraries, a
 written in other languages. Designed 2026-08-21; **the first slice — an axiom returned as a
 number — runs on both backends, and everything else here is still design.** The
 ordered work lives in [ROADMAP.md](ROADMAP.md); this is the *why*.
+
+### A book does not add phrases to the grammar — declined 2026-11-19
+
+A book declaring phrase shapes (`from each <name> in <series> where <fact>`, live inside a pull of
+it) was on the roadmap and is declined. Such a shape could make a statement that is valid today
+read differently inside the pull, which breaks the promise 1.0 makes: a program that works keeps
+working. A DSL lives inside brackets instead, as `regex` does, where nothing outside them changes.
 
 ### The rabbit block is the unsafe marker
 

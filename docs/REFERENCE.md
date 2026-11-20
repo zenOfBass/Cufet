@@ -4277,6 +4277,11 @@ though the interpreter would forgive breaking it.
 rabbit, and **the rabbit's `Done.` waits for every task it started**. A task therefore
 cannot outlive the region that launched it.
 
+⚠ **Which task runs first is not promised**, and neither is which worker takes which item.
+Compiled, each task is a thread; interpreted, tasks take turns. What is promised is everything
+the language makes certain: the join at `Done.`, a channel's order, an awaited result. Output that
+depends on the order tasks ran in may differ between runs and between the two backends.
+
 **You can name the rabbit you are giving work to** — `Have hopper start a task: … Done.` —
 which is what a rabbit's name is for: a rabbit is an agent you summon and hand a job.
 The bare `rabbit` keyword still means the enclosing one, and the two forms mix freely.
