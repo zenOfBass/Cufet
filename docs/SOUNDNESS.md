@@ -712,11 +712,13 @@ proof. That search's first run, on 2026-11-19, found `result-5`.
 The model knows only the core, so the rules of the full language are searched a second way
 (`docs/soundness/model/fuzz_cufet.py`): random programs written straight in Cufet, with text, maps,
 an object with fields, a method and a getter, functions as values, closures, a series of functions
-and functions nested in functions. Each one `check` accepts is built under AddressSanitizer and
-run both ways, which reports any read of freed memory on the first run, with no model to be wrong.
-Its runs on 2026-11-19 found no read of freed memory. They found two compiler bugs that were not
-about regions, both fixed (CHANGELOG); the run after the fixes, of 4,000 programs, had 2,917
-accepted and run clean, 1,056 refused by the region rules, and 27 refused for other reasons.
+and functions nested in functions, tasks (awaited, and sending through a channel), fallible
+functions and `Try`. Each one `check` accepts is built under AddressSanitizer and run both ways,
+which reports any read of freed memory on the first run, with no model to be wrong. Its runs on
+2026-11-19 found no read of freed memory. They found bugs that were not about regions — in the
+compilers, in a task's capture check, and in a task that fails before it sends — all fixed
+(CHANGELOG). After the first fixes, 4,000 programs had 2,917 accepted and run clean and 1,056
+refused by the region rules; with tasks and `Try` added, 1,000 more had 755 accepted and run clean.
 
 These rules refuse programs that are accepted today, so they are a change to the language. The
 one question that was open in them is settled: a function called inside a rabbit that returns a
