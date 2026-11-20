@@ -29,21 +29,23 @@ public sealed partial class CodeGenerator
     // the CONTAINER'S OWN growth (`_ensure`'s realloc) lands in the destination's arena too — not
     // just the value. Without this the backing array itself is freed by the inner rabbit's Done.
     /// <summary>
-    /// What `Item <n> of <series> becomes <value>` works out, in the interpreter's order: the series,
-    /// then the place (none for `the last`), then the value — each one's hoisted lines flushed in turn.
+    /// Opens a block that has worked out the series and the checked 1-based place of an item set, in
+    /// the interpreter's order: the series, its length, the place, the check. The value comes after,
+    /// emitted by the caller inside the block, which the caller closes.
     /// </summary>
-    private (List<IExpression> Operands, List<string> Emitted) PlacedOperands(StringBuilder sb, string indent, SeriesSetStatement ss)
+    private ((string Series, string Index), string Block) CheckedPlace(StringBuilder sb, string indent, SeriesSetStatement ss)
     {
-        var operands = new List<IExpression> { ss.Series };
-        if (ss.Index != null) operands.Add(ss.Index);
-        operands.Add(ss.Value);
-        var emitted = new List<string>();
-        foreach (var operand in operands)
-        {
-            emitted.Add(EmitExpr(operand));
-            FlushPreEmits(sb, indent);
-        }
-        return (operands, emitted);
+        string name = SeriesDisplayName(ss.Series);
+        int id = _freshId++;
+        string series = EmitExpr(ss.Series);
+        FlushPreEmits(sb, indent);
+        string? index = ss.Index == null ? null : EmitExpr(ss.Index);
+        FlushPreEmits(sb, indent);
+        string check = index == null
+            ? $"cufet_last_check(cf_n{id}, \"{name}\", {ss.Line})"
+            : $"cufet_idx_check(cufet_to_int({index}), cf_n{id}, \"{name}\", {ss.Line})";
+        sb.AppendLine($"{indent}{{ __auto_type cf_ss{id} = {series}; int cf_n{id} = (cf_ss{id})->len; long long cf_at{id} = {check};");
+        return (($"cf_ss{id}", $"cf_at{id}"), indent + "  ");
     }
 
     private void EmitStoreWithEscape(StringBuilder sb, string indent, int? escapeToDepth, string stmt)
@@ -1011,36 +1013,28 @@ public sealed partial class CodeGenerator
                 break;
             }
 
+            // ★ The place is CHECKED before the value is worked out, as the interpreter does: on an
+            // item that is not there, a value that prints or calls must not have run. Binding all three
+            // and checking at the store let `Item 1 of empty becomes cast said on (…)` run `said`
+            // compiled and not interpreted (2026-11-19, found by docs/soundness/model/fuzz_cufet.py).
             case SeriesSetStatement ss when TypeOf(ss.Series) is ChaseType:
             {
                 _usesChase = true;
-                string chNm = SeriesDisplayName(ss.Series);
-                var (chOperands, chEmitted) = PlacedOperands(sb, indent, ss);
-                string chSet = InOrder(chOperands, chEmitted, p =>
-                {
-                    string where = ss.Index == null
-                        ? $"cufet_last_check(({p[0]})->len, \"{chNm}\", {ss.Line})"
-                        : $"cufet_idx_check(cufet_to_int({p[1]}), ({p[0]})->len, \"{chNm}\", {ss.Line})";
-                    return $"cufet_chase_set({p[0]}, (int){where}, {p[^1]}, {ss.Line})";
-                }, pastedTwice: true);
-                sb.AppendLine($"{indent}{chSet};");
+                var (at, block) = CheckedPlace(sb, indent, ss);
+                string chValue = EmitExpr(ss.Value);
+                FlushPreEmits(sb, block);
+                sb.AppendLine($"{block}cufet_chase_set({at.Series}, (int){at.Index}, {chValue}, {ss.Line}); }}");
                 break;
             }
 
             case SeriesSetStatement ss:
             {
-                string setNm = SeriesDisplayName(ss.Series);
-                var (setOperands, setEmitted) = PlacedOperands(sb, indent, ss);
-                string stored = InOrder(setOperands, setEmitted, p =>
-                {
-                    string where = ss.Index == null
-                        ? $"cufet_last_check(({p[0]})->len, \"{setNm}\", {ss.Line})"
-                        : $"cufet_idx_check(cufet_to_int({p[1]}), ({p[0]})->len, \"{setNm}\", {ss.Line})";
-                    var setElem = (TypeOf(ss.Series) as SeriesType)?.ElementType;
-                    string value = EmitEscapeCopy(p[^1], setElem, ss.EscapeToDepth, $"({p[0]})->home");
-                    return $"({p[0]})->data[{where} - 1] = {value}";
-                }, pastedTwice: true);
-                sb.AppendLine($"{indent}{stored};");
+                var (at, block) = CheckedPlace(sb, indent, ss);
+                string setValue = EmitExpr(ss.Value);
+                FlushPreEmits(sb, block);
+                var setElem = (TypeOf(ss.Series) as SeriesType)?.ElementType;
+                string value = EmitEscapeCopy(setValue, setElem, ss.EscapeToDepth, $"({at.Series})->home");
+                sb.AppendLine($"{block}({at.Series})->data[{at.Index} - 1] = {value}; }}");
                 break;
             }
 

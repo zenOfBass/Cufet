@@ -1543,6 +1543,12 @@ static int cufet_str_code_point(const char* s) {
             // nothing else in the program mentions. Same reasoning as the object arm above: a field
             // the program never reads is declared in the struct and registered nowhere.
             case AxiomType ax: RegisterFuncStruct(AsFunctionType(ax)); break;
+            // ★ A function nested in a series (or a field, or a map). Same reasoning again: a
+            // `series of void function given (…)` whose functions the program never makes registered
+            // only the series, and the series runtime then asked for `cfn_0` after the closure
+            // structs were written — and registered the function's own `series of number` while
+            // that list was being walked, which threw. Found by docs/soundness/model/fuzz_cufet.py.
+            case FunctionType fn: RegisterFuncStruct(fn); break;
         }
     }
 

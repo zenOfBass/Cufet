@@ -611,6 +611,8 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
         "Pull a book on the c-language.\n    Bind c-language axiom to c-but-void, given (the text type-name, the c-language axiom value, the c-language axiom fallback):\n        Define c-language or-default, given (the term type-c, the c-language axiom value, the c-language axiom fallback),\n            as [({ the type-c cf_v = the value; cf_v.has ? cf_v.value : (the fallback); })].\n        Return or-default on (type-name, value, fallback).\n    Done.\n    Bind c-language axiom to c-pair, given (the c-language axiom left, the c-language axiom right):\n        Define c-language or-default, given (the c-language axiom left, the c-language axiom right), as [pair(the left, the right)].\n        Return or-default on (left, right).\n    Done.\n    State cast c-but-void on (\"cvo_number\", [held], cast c-pair on ([a], [b])).\nDone.",
         // A name holding filled source is an ordinary value, and may be replaced (2026-11-03)
         "Pull a book on the c-language.\n    Define c-language word, given (the term name), as [the name].\n    Define head as word on (\"void\").\n    If true, the head becomes word on (\"int\").\n    State head.\nDone.",
+        // A series of functions, and no function made anywhere (2026-11-19, docs/soundness/model/fuzz_cufet.py)
+        "Define kept as a series of void function given (the series of number).\nState the number of kept.\nDefine lambda-made as a function given (the series of number row):\n    Bind void to inner, given (the series of number q):\n        Define spare as a series of void function given (the series of number).\n        State the number of spare.\n    Done.\n    Cast inner on (row).\nDone.\nCast lambda-made on (a series of number).\n",
     ];
 
     [Fact]
@@ -878,6 +880,11 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
         // The code point of a text that is not one character.
         ("State \"before\".\nState the code point of \"ab\".",
          "'the code point of' needs exactly one character (line 2)."),
+        // An item set on a place that is not there stops BEFORE the value is worked out (2026-11-19).
+        ("Bind text to said, given (the series of number seen):\n    State \"working it out\".\n    Return \"x\".\nDone.\nDefine names as a series of text.\nPull a rabbit.\n    Item 1 of names becomes cast said on (a series of number).\nDone.",
+         "There's no item 1 — 'names' is empty"),
+        ("Bind text to said, given (the series of number seen):\n    State \"working it out\".\n    Return \"x\".\nDone.\nPull a book on collections.\n    Define out as a chase.\n    Item 1 of out becomes cast said on (a series of number).\nDone.",
+         "There's no item 1"),
     ];
 
     [Fact]

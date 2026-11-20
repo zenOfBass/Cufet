@@ -460,14 +460,17 @@ size_t the length = strlen(the pieces[the index]); memcpy(the cursor, the pieces
         Define element as cast one's changed-element on (target) or pass the failure off.
         Define series-c as cast one's c-of on (target) or pass the failure off.
         Define value as cast one's c-of-as on (cast field-of on (statement, 3), element) or pass the failure off.
-        // The series, then the place, then the value — C leaves an assignment's two sides unordered.
+        // The series, then the place, CHECKED, then the value, as the interpreter does: on an item
+        // that is not there, a value that prints or calls must not have run (2026-11-19, found by
+        // docs/soundness/model/fuzz_cufet.py). C leaves an assignment's two sides unordered, so the
+        // place is a declaration of its own, before the one statement the value is in.
         Define index as cast field-of on (statement, 2).
-        Define operands as a series of node with (target, cast field-of on (statement, 3)).
-        Define sides as a series of c-language axiom with (series-c, value).
+        Define operands as a series of node with (target).
+        Define sides as a series of c-language axiom with (series-c).
         If cast is-nothing on (index) is false:
             Define index-c as cast one's c-of on (index) or pass the failure off.
-            The operands becomes a series of node with (target, index, cast field-of on (statement, 3)).
-            The sides becomes a series of c-language axiom with (series-c, index-c, value).
+            The operands becomes a series of node with (target, index).
+            The sides becomes a series of c-language axiom with (series-c, index-c).
         Done.
         Define prefix as cast order-prefix on (operands, sides).
         Define place as cast c-place-at on (cast no-c, [cf_at], target, cast line-number on (cast field-of on (statement, 4))).
@@ -475,8 +478,8 @@ size_t the length = strlen(the pieces[the index]); memcpy(the cursor, the pieces
             The place becomes cast c-place-at on (item 2 of sides, [cf_at], target, cast line-number on (cast field-of on (statement, 4))).
         Done.
         Define c-language item-set, given (the c-language axiom prefix, the term series-type, the c-language axiom held-series, the c-language axiom place, the c-language axiom value),
-            as [{ the prefix the series-type* cf_at = the held-series; cf_at->data[the place] = the value; }].
-        Cast one's put on (item-set on (prefix, cast series-c-name on (element), item 1 of sides, place, item (the number of sides) of sides)).
+            as [{ the prefix the series-type* cf_at = the held-series; long long cf_place = the place; cf_at->data[cf_place] = the value; }].
+        Cast one's put on (item-set on (prefix, cast series-c-name on (element), item 1 of sides, place, value)).
     Done.
 
     /// `For each <name> in <series>, repeat:` — over the items there when it began, as in C#. The

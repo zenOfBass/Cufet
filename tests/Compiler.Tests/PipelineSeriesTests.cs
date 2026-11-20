@@ -520,6 +520,43 @@ public class PipelineSeriesTests : PipelineTestBase
     // ⚠⚠ `AssertFaultOracle` compares STDOUT ONLY, not the message — so the lines around the
     // failing one are what make it an assertion at all. "before" must print on both and "after" on
     // neither; without them this would compare "" to "" and pass however either backend behaved.
+    // ★ The place is checked BEFORE the value is worked out, as the interpreter does: compiled, the
+    // value's call ran first and printed, then the set stopped (2026-11-19, found by
+    // docs/soundness/model/fuzz_cufet.py). And the interpreter's message quoted the name twice.
+    [Fact]
+    public void ItemSet_OnAPlaceThatIsNotThere_StopsBeforeWorkingOutTheValue()
+    {
+        const string src = """
+            Bind text to said, given (the series of number seen):
+                State "working it out".
+                Return "x".
+            Done.
+            Define names as a series of text.
+            Pull a rabbit.
+                Item 1 of names becomes cast said on (a series of number).
+            Done.
+            """;
+        AssertFaultOracle(src);
+        var e = Assert.Throws<RuntimeException>(() => InterpretRaw(src));
+        Assert.Contains("There's no item 1 — 'names' is empty", e.Message);
+    }
+
+    [Fact]
+    public void ChaseSet_OnAPlaceThatIsNotThere_StopsBeforeWorkingOutTheValue()
+    {
+        const string src = """
+            Bind text to said, given (the series of number seen):
+                State "working it out".
+                Return "x".
+            Done.
+            Pull a book on collections.
+                Define out as a chase.
+                Item 1 of out becomes cast said on (a series of number).
+            Done.
+            """;
+        AssertFaultOracle(src);
+    }
+
     [Fact]
     public void Chase_AComputedBadCodePoint_RaisesLikeTheInterpreter()
     {

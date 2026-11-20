@@ -14,6 +14,19 @@ public class PipelineClosureTests : PipelineTestBase
 {
 
     [Fact]
+    public void Closure_SeriesOfFunctions_NoneEverMade()
+    {
+        // A series of functions, and no function made anywhere: the function type was registered only
+        // when the series runtime first asked for it, after the closure structs were written, and the
+        // compiler threw (2026-11-19, found by docs/soundness/model/fuzz_cufet.py).
+        const string src = """
+            Define kept as a series of void function given (the series of number).
+            State the number of kept.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
     public void Closure_PassNamedFunction_HigherOrder()
     {
         // A named function passed as an argument to a higher-order function that calls it twice.

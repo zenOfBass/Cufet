@@ -1200,7 +1200,7 @@ public sealed partial class Interpreter
                     else
                         chaseTarget.InsertRange(
                             ResolveIndex(sa.AfterIndex, chaseTarget.Count,
-                                         SeriesDisplayName(sa.Series), sa.Line) + 1,
+                                         SeriesPlainName(sa.Series), sa.Line) + 1,
                             incoming);
                     break;
                 }
@@ -1221,7 +1221,7 @@ public sealed partial class Interpreter
                 else if (sa.AfterIndex == null)
                     list.Add(value);
                 else
-                    list.Insert(ResolveIndex(sa.AfterIndex, list, SeriesDisplayName(sa.Series), sa.Line) + 1, value);
+                    list.Insert(ResolveIndex(sa.AfterIndex, list, SeriesPlainName(sa.Series), sa.Line) + 1, value);
                 break;
             }
 
@@ -1231,12 +1231,12 @@ public sealed partial class Interpreter
                 if (sraTarget is CufetChase sraChase)
                 {
                     sraChase.RemoveAt(ResolveIndex(sra.Index, sraChase.Count,
-                                                   SeriesDisplayName(sra.Series), sra.Line));
+                                                   SeriesPlainName(sra.Series), sra.Line));
                     break;
                 }
                 if (sraTarget is not List<object> list)
                     throw new RuntimeException($"Expected a series for 'Remove' on line {sra.Line}.");
-                list.RemoveAt(ResolveIndex(sra.Index, list, SeriesDisplayName(sra.Series), sra.Line));
+                list.RemoveAt(ResolveIndex(sra.Index, list, SeriesPlainName(sra.Series), sra.Line));
                 break;
             }
 
@@ -1337,7 +1337,7 @@ public sealed partial class Interpreter
                 }
                 if (ssTarget is not List<object> list)
                     throw new RuntimeException($"Expected a series for item assignment on line {ss.Line}.");
-                list[ResolveIndex(ss.Index, list, SeriesDisplayName(ss.Series), ss.Line)] = BindCopy(Evaluate(ss.Value));
+                list[ResolveIndex(ss.Index, list, SeriesPlainName(ss.Series), ss.Line)] = BindCopy(Evaluate(ss.Value));
                 break;
             }
 
@@ -1643,6 +1643,16 @@ public sealed partial class Interpreter
     {
         VariableReference vr => $"'{vr.Name}'",
         PossessiveAccess  pa => $"{SeriesDisplayName(pa.Target)}'s {pa.Member}",
+        _                    => "the series",
+    };
+
+    // The same without the quotes, for ResolveIndex, which puts its own round the name: handed the
+    // quoted one, it printed `''names''` for a set, an insert after and a remove, where a read and
+    // the compiled program print `'names'`.
+    private static string SeriesPlainName(IExpression expr) => expr switch
+    {
+        VariableReference vr => vr.Name,
+        PossessiveAccess  pa => $"{SeriesPlainName(pa.Target)}'s {pa.Member}",
         _                    => "the series",
     };
 

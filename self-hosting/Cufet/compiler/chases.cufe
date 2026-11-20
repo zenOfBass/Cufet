@@ -333,24 +333,25 @@ Pull books on collections, and the c-language.
         Define label as cast chase-label on (target).
         Define at-line as cast line-number on (cast field-of on (statement, 4)).
         Define value as cast one's c-of on (cast field-of on (statement, 3)) or pass the failure off.
-        // The chase, then the place, then the character, as the interpreter works them out.
+        // The chase, then the place, CHECKED, then the character, as the interpreter works them out:
+        // on a place that is not there, the character must not have been worked out (2026-11-19).
         Define index as cast field-of on (statement, 2).
-        Define operands as a series of node with (target, cast field-of on (statement, 3)).
-        Define sides as a series of c-language axiom with (chase-c, value).
+        Define operands as a series of node with (target).
+        Define sides as a series of c-language axiom with (chase-c).
         If cast is-nothing on (index) is false:
             Define index-c as cast one's c-of on (index) or pass the failure off.
-            The operands becomes a series of node with (target, index, cast field-of on (statement, 3)).
-            The sides becomes a series of c-language axiom with (chase-c, index-c, value).
+            The operands becomes a series of node with (target, index).
+            The sides becomes a series of c-language axiom with (chase-c, index-c).
         Done.
         Define prefix as cast order-prefix on (operands, sides).
         Define c-language last-placed, given (the text label, the number at-line), as [cufet_last_check(cf_ch->len, the label, the at-line)].
         Define c-language index-placed, given (the c-language axiom place, the text label, the number at-line),
             as [cufet_idx_check(cufet_to_int(the place), cf_ch->len, the label, the at-line)].
         Define placed-at as last-placed on (label, at-line).
-        If the number of sides is 3, the placed-at becomes index-placed on (item 2 of sides, label, at-line).
+        If the number of sides is 2, the placed-at becomes index-placed on (item 2 of sides, label, at-line).
         Define c-language character-set, given (the c-language axiom prefix, the c-language axiom held, the c-language axiom placed-at, the c-language axiom value, the number at-line),
-            as [{ the prefix CufetChase* cf_ch = the held; cufet_chase_set(cf_ch, (int)the placed-at, the value, the at-line); }].
-        Cast one's put on (character-set on (prefix, item 1 of sides, placed-at, item (the number of sides) of sides, at-line)).
+            as [{ the prefix CufetChase* cf_ch = the held; int cf_placed = (int)the placed-at; cufet_chase_set(cf_ch, cf_placed, the value, the at-line); }].
+        Cast one's put on (character-set on (prefix, item 1 of sides, placed-at, value, at-line)).
     Done.
 
     /// `For each <name> in <chase>` — each character, as a text. Changing the chase while it runs is

@@ -709,6 +709,15 @@ is argued above, and O2 and O4 as built are checked by the probes, the suite and
 random programs run against the real tools (`docs/soundness/model/against_cufet.py`), not by
 proof. That search's first run, on 2026-11-19, found `result-5`.
 
+The model knows only the core, so the rules of the full language are searched a second way
+(`docs/soundness/model/fuzz_cufet.py`): random programs written straight in Cufet, with text, maps,
+an object with fields, a method and a getter, functions as values, closures, a series of functions
+and functions nested in functions. Each one `check` accepts is built under AddressSanitizer and
+run both ways, which reports any read of freed memory on the first run, with no model to be wrong.
+Its runs on 2026-11-19 found no read of freed memory. They found two compiler bugs that were not
+about regions, both fixed (CHANGELOG); the run after the fixes, of 4,000 programs, had 2,917
+accepted and run clean, 1,056 refused by the region rules, and 27 refused for other reasons.
+
 These rules refuse programs that are accepted today, so they are a change to the language. The
 one question that was open in them is settled: a function called inside a rabbit that returns a
 series it made, kept in a name outside, is refused and not copied out. Copying would keep the
@@ -725,6 +734,7 @@ python docs/soundness/model/search.py mutants 400000 5
 python docs/soundness/model/search.py 60000 21 forward   the same, on a runtime where a series grows at home
 python docs/soundness/model/witnesses.py             the directed programs, and the probes in the core
 python docs/soundness/model/against_cufet.py 200000 11   the model's programs, held to the real check and build
+python docs/soundness/model/fuzz_cufet.py 1000 3 6        the whole language, built under ASan in WSL, 6 at once
 ```
 
 A probe is fixed when `check` refuses it or the compiled program agrees with the interpreted one.

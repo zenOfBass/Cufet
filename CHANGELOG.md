@@ -66,6 +66,15 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **A series of functions that no function was ever put into did not build.** `Define kept as a
+  series of void function given (the series of number).` with no function made anywhere in the
+  program made `cufet build` throw, and the same series inside a lambda produced C that gcc
+  refused. The function's type is now known as soon as the series is.
+- **Setting an item that is not there ran the value first, compiled.** `Item 1 of names becomes
+  cast said on (…)` on an empty `names` called `said`, and printed whatever it printed, before
+  stopping; the interpreter stops without calling it. Both compilers now check the place before
+  working out the value, for a series and a chase. The interpreter's message for this, for an
+  insert after an item and for a remove, also quoted the name twice (`''names''`).
 - **The VS Code extension could leave Cufet errors on a file that was no longer Cufet.** Switching a
   file's language while a check was still running let that check's results land after they had been
   cleared, on a file nothing would check again; only reloading the window removed them. A check now

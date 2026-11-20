@@ -108,20 +108,6 @@ they are large, not because they are waiting — the order among them means noth
 
 A periodic error-message audit for internal vocabulary.
 
-**The region model's newer rules are tested, not proved.** `docs/SOUNDNESS.md` proves its
-repaired rules for a core language and checks them with a model in `docs/soundness/model/`. The
-rules that close the holes in the full language are not in that model: what a function stores
-into its parameters, a field of an object written out as a name of its own, the depths of captured
-names, a function handed to another, and the copy of a text into the region its target lives in.
-Every round of that work found holes nothing had shown before, so they are where the next one
-would be. The model's random programs are now run against the real checker and compilers
-(`docs/soundness/model/against_cufet.py`), and its first run found a hole (`result-5`). Its
-generator knows only the core: teach it
-functions as values, captures, fields, maps and text, so that those rules are searched too.
-
-A full proof for the whole language is not the next step: the search is cheaper, and the record
-says it finds what reasoning does.
-
 **An axiom's output bypasses the interpreter's writer.** The interpreter loads an axiom with
 `NativeLibrary.Load` and calls it IN-PROCESS, so a `fputs(text, stdout)` inside one writes to the
 process's real stdout rather than to the `TextWriter` the interpreter was given. Under `cufet`
