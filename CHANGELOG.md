@@ -41,7 +41,7 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   the three words is reserved. In the interpreter, the C# compiler, and the parser, checker and compiler written in
   Cufet (REFERENCE *Composition modes*, DESIGN *Composition modes for rabbits*). Example:
   `examples/concurrency/dispatcher.cufe`, also on the playground's menu.
-- **The region model's soundness is written down, and it does not hold yet.** `docs/SOUNDNESS.md`
+- **The region model's soundness is written down, and every gap it found is closed.** `docs/SOUNDNESS.md`
   states what the compiled program needs, shows nineteen programs that pass `check` and read freed memory when compiled, traces them to four
   gaps in the rules, and proves a repaired set of rules sound for a core of the language. The programs
   are in `docs/soundness/probes/`, and a model that checks the proof by search is in
