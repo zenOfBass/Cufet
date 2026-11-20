@@ -188,6 +188,19 @@ public sealed partial class Interpreter
             }
             // Anonymous task with return: result silently dropped.
         }
+        catch
+        {
+            // ★ A task that fails closes every channel it captured, as if it had written `Close`.
+            // Whoever waits on one then gets void, as from any closed channel, and reaches the
+            // rabbit's `Done.`, where this fault is reported. Left open, the wait could never end:
+            // the scheduler gave up with a .NET "channel deadlock" and the task's own message was
+            // lost, and compiled the program hung (2026-11-19, found by fuzz_cufet.py; DESIGN,
+            // *What 1.0 promises*).
+            if (captured != null)
+                foreach (var value in captured.Values)
+                    if (value is ChannelValue channel) channel.Close(++_channelStamp);
+            throw;
+        }
         finally
         {
             _taskBodyDepth--;

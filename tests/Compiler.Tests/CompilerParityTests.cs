@@ -611,6 +611,8 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
         "Pull a book on the c-language.\n    Bind c-language axiom to c-but-void, given (the text type-name, the c-language axiom value, the c-language axiom fallback):\n        Define c-language or-default, given (the term type-c, the c-language axiom value, the c-language axiom fallback),\n            as [({ the type-c cf_v = the value; cf_v.has ? cf_v.value : (the fallback); })].\n        Return or-default on (type-name, value, fallback).\n    Done.\n    Bind c-language axiom to c-pair, given (the c-language axiom left, the c-language axiom right):\n        Define c-language or-default, given (the c-language axiom left, the c-language axiom right), as [pair(the left, the right)].\n        Return or-default on (left, right).\n    Done.\n    State cast c-but-void on (\"cvo_number\", [held], cast c-pair on ([a], [b])).\nDone.",
         // A name holding filled source is an ordinary value, and may be replaced (2026-11-03)
         "Pull a book on the c-language.\n    Define c-language word, given (the term name), as [the name].\n    Define head as word on (\"void\").\n    If true, the head becomes word on (\"int\").\n    State head.\nDone.",
+        // Stating a delivery while the task prints before it sends (2026-11-19)
+        "Pull a rabbit.\n    Define results as a channel of number.\n    Have rabbit start a task:\n        State \"working\".\n        Send 1 through results.\n        Close results.\n    Done.\n    State (the delivery from results) but void is 0.\nDone.\n",
         // A top-level lambda that reads an object, a map and a series of functions defined before it (2026-11-19)
         "Define object bag with (the series of number items):\n    Get payload as series of number:\n        Return one's items.\n    Done.\nDone.\nDefine held as a new bag { the items (a series of number with (1)) }.\nDefine shelves as a map from text to series of number.\nDefine jobs as a series of void function given (the series of number).\nDefine peek as a function given (the series of number row):\n    Define first-job as jobs.\n    Define shelf as (the entry for \"q\" in shelves) but void is (a series of number with (7)).\n    State shelf.\n    State the number of first-job.\n    Return held's payload.\nDone.\nState cast peek on (a series of number).\n",
         // A series of functions, and no function made anywhere (2026-11-19, docs/soundness/model/fuzz_cufet.py)
@@ -882,6 +884,9 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
         // The code point of a text that is not one character.
         ("State \"before\".\nState the code point of \"ab\".",
          "'the code point of' needs exactly one character (line 2)."),
+        // A task that fails before it sends closes its channels; the fault is reported at Done. (2026-11-19)
+        ("Pull a rabbit.\n    Define results as a channel of number.\n    Have rabbit start a task:\n        Define empty as a series of number.\n        State item 1 of empty.\n        Send 1 through results.\n        Close results.\n    Done.\n    State (the delivery from results) but void is 0.\nDone.",
+         "There's no item 1"),
         // An item set on a place that is not there stops BEFORE the value is worked out (2026-11-19).
         ("Bind text to said, given (the series of number seen):\n    State \"working it out\".\n    Return \"x\".\nDone.\nDefine names as a series of text.\nPull a rabbit.\n    Item 1 of names becomes cast said on (a series of number).\nDone.",
          "There's no item 1 — 'names' is empty"),

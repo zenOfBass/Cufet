@@ -4546,7 +4546,9 @@ second
 ```
 
 Every task still runs when one fails, and the faults are reported together at `Done.`, as a
-parallel rabbit's are.
+parallel rabbit's are. A task that fails closes every channel it captured, as if it had written
+`Close`: whoever waits on one gets void, as from any closed channel, and goes on to `Done.`, where
+the fault is reported.
 
 #### What crosses a boundary, and what a task may touch
 

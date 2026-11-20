@@ -1789,6 +1789,14 @@ public sealed partial class CodeGenerator
         // documents: publishing releases the awaiter, so doing it first lets that thread run
         // concurrently with this one's unmakers, which are user code that can print.
         fn.AppendLine($"    {UnmakerRunStmt("0")}cufet_close_files_from(0);");
+        // ★ A task that failed closes every channel it captured, as if it had written `Close`, so a
+        // wait on one ends with void and the program reaches the rabbit's `Done.`, where the fault is
+        // reported. Left open, that wait never ended: the program hung (2026-11-19, found by
+        // fuzz_cufet.py). The interpreter's RunTaskBody does the same. Read from the arg struct,
+        // which the landing pad's jump leaves untouched.
+        var capturedChannels = caps.Where(c => _varTypes[c] is ChannelType).ToList();
+        if (capturedChannels.Count > 0)
+            fn.AppendLine($"    if (*cf_a->cf_faultslot) {{ {string.Concat(capturedChannels.Select(c => $"cufet_chan_close(cf_a->{MangleName(c)}); "))}}}");
         // ★ Publish nothing, but publish it. A task reaching here either fell off the end or was
         // abandoned at its landing pad by an interrupt, and in both cases it never published a
         // result — so any awaiter would wait forever. An empty publish wakes them with NULL, which

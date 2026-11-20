@@ -288,9 +288,12 @@ the freeing        fflush(stdout); return 130;
             as [the filled cf_a->the member = the copier(the captured);].
         Define filled as cast no-c.
         Define unpacked as "".
+        // The channels it captured, closed if it fails (below).
+        Define closes as "".
         For each name in captured, repeat:
             Define held as the entry for name in one's kinds but void is "".
             Define member as cast c-name on (name).
+            If cast is-channel on (held), the closes becomes "{closes}cufet_chan_close(cf_a->{member}); ".
             Define captured-c as cast one's redirected-c on (name) but void is c-word on (member).
             If cast crosses-as-itself on (held):
                 The fields becomes "{fields} {cast c-type on (held)} {member};".
@@ -331,8 +334,12 @@ the freeing        fflush(stdout); return 130;
             Insert writer's body converted to text into thread.
             // Reached when the body falls off its end, or is abandoned at its landing pad by an
             // interrupt or a fault: nothing to hand back, but the box is published, so no awaiter
-            // waits for ever — with the fault beside it, when there was one.
-            Insert "    {cast c-close}\n    cufet_close_files_from(0);\n    cufet_rbox_set_fault(cf_a->cf_selfbox, *cf_a->cf_faultslot);\n    cufet_rbox_publish(cf_a->cf_selfbox, NULL);\n    cufet_arena_pop();\n    free(cf_a);\n    return NULL;\n{cast c-close}\n\n" into thread.
+            // waits for ever — with the fault beside it, when there was one. ★ A task that failed
+            // closes every channel it captured, as if it had written `Close`, so a wait on one ends
+            // with void and the program reaches the rabbit's `Done.` (2026-11-19, as the C# one).
+            Define on-fault as "".
+            If closes is not "", the on-fault becomes "    if (*cf_a->cf_faultslot) {cast c-open} {closes}{cast c-close}\n".
+            Insert "    {cast c-close}\n    cufet_close_files_from(0);\n{on-fault}    cufet_rbox_set_fault(cf_a->cf_selfbox, *cf_a->cf_faultslot);\n    cufet_rbox_publish(cf_a->cf_selfbox, NULL);\n    cufet_arena_pop();\n    free(cf_a);\n    return NULL;\n{cast c-close}\n\n" into thread.
             Insert thread converted to text into one's lambda-code.
         Done.
 

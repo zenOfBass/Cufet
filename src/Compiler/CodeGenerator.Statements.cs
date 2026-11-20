@@ -250,10 +250,21 @@ public sealed partial class CodeGenerator
                 // to print a `function` and an `axiom` and this switch did not, so `State` on either
                 // refused to compile while the interpreter printed `<function>` / `<axiom>`. Two
                 // backends, two answers, and the fix was deleting a switch rather than adding arms.
-                string printStmt = $"{WriteCall(valExpr, t)}; cufet_nl()";
                 // Locked for the whole statement: a State is several writes, and a concurrent State
                 // on another thread used to splice itself between them. See cufet_out_lock.
-                sb.AppendLine($"{indent}cufet_out_lock(); {printStmt}; cufet_out_unlock();");
+                // ★ The value is worked out BEFORE the lock is taken. Inside it, `State (the delivery
+                // from results)` held the lock while it waited, and a task that printed before it
+                // sent waited for the lock: the program hung, every run, where the interpreter printed
+                // both lines (2026-11-19, found by fuzz_cufet.py). Only the writing needs the lock.
+                // ⚠ Only when the writing READS the value: some print a fixed text (`<exception>`)
+                // and never touch it, and a bound exception has no C variable to read.
+                int sv = _freshId++;
+                string held = $"cf_sv{sv}";
+                string write = WriteCall(held, t);
+                if (write.Contains(held))
+                    sb.AppendLine($"{indent}{{ __auto_type {held} = {valExpr}; cufet_out_lock(); {write}; cufet_nl(); cufet_out_unlock(); }}");
+                else
+                    sb.AppendLine($"{indent}cufet_out_lock(); {WriteCall(valExpr, t)}; cufet_nl(); cufet_out_unlock();");
                 break;
             }
 

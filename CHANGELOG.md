@@ -74,6 +74,15 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   lambda defined at the top level of a program and reading `held's payload`, `the entry for "q" in
   shelves` or `item 1 of jobs` from a name defined before it stopped `cufet build` with "can't be
   read from a number" or "not yet supported by the compiler". The interpreter ran it.
+- **Stating a delivery hung, compiled, when the task printed before it sent.** `State (the
+  delivery from results) but void is 0.` worked out its value while holding the lock that keeps two
+  threads' output apart, so a task that printed before its `Send` waited for that lock while the
+  main thread waited for the send. It hung on every run; the interpreter printed both lines. The
+  value is now worked out first. The compiler written in Cufet already did.
+- **A task that failed before it sent left a wait on its channel that never ended.** Compiled, the
+  program hung; interpreted, it stopped with a .NET "channel deadlock" and the task's own message
+  was lost. A task that fails now closes every channel it captured, so the wait ends with void and
+  the fault is reported at the rabbit's `Done.`. Interpreter and both compilers.
 - **A task that handed on a function's result was refused as changing the function.** Inside a
   task, `cast f0 on (cast f1 on (…))` counted `f1` as handed to `f0`, and when `f1` changed its
   own parameter the task was refused with "this task changes 'f1'". Handing on a call's result is

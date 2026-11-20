@@ -1015,4 +1015,48 @@ public class PipelineTaskTests : PipelineTestBase
             """;
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
+
+    // ★ `State (the delivery from …)` worked out its value INSIDE the output lock, so a task that
+    // printed before it sent waited for the lock while the main thread waited for the send: compiled,
+    // it hung on every run (2026-11-19, found by docs/soundness/model/fuzz_cufet.py).
+    [Fact]
+    public void StatingADelivery_WhileTheTaskPrints_DoesNotHang()
+    {
+        const string src = """
+            Pull a rabbit.
+                Define results as a channel of number.
+                Have rabbit start a task:
+                    State "working".
+                    Send 1 through results.
+                    Close results.
+                Done.
+                State (the delivery from results) but void is 0.
+            Done.
+            """;
+        Assert.Equal("working|1", string.Join("|", InterpretRaw(src).Split('\n', StringSplitOptions.RemoveEmptyEntries).Select(l => l.TrimEnd('\r'))));
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    // ★ A task that fails closes every channel it captured, so a wait on one ends with void and the
+    // program reaches `Done.`, where the fault is reported. Interpreted it crashed with a .NET
+    // "channel deadlock" and lost the message; compiled it hung (2026-11-19, fuzz_cufet.py).
+    [Fact]
+    public void ATaskThatFailsBeforeItSends_ClosesItsChannels()
+    {
+        const string src = """
+            Pull a rabbit.
+                Define results as a channel of number.
+                Have rabbit start a task:
+                    Define empty as a series of number.
+                    State item 1 of empty.
+                    Send 1 through results.
+                    Close results.
+                Done.
+                State (the delivery from results) but void is 0.
+            Done.
+            """;
+        var e = Assert.Throws<RuntimeException>(() => InterpretRaw(src));
+        Assert.Contains("There's no item 1", e.Message);
+        AssertFaultOracle(src);
+    }
 }
