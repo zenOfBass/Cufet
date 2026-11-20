@@ -27,6 +27,33 @@ public class PipelineClosureTests : PipelineTestBase
     }
 
     [Fact]
+    public void Closure_TopLevelLambda_ReadsAnObjectAMapAndASeriesOfFunctions()
+    {
+        // A top-level lambda is classified before main is emitted, by working out its body; a name
+        // before it that was not a function or a constant was typed as a number there, and the build
+        // stopped (2026-11-19, found by docs/soundness/model/fuzz_cufet.py).
+        const string src = """
+            Define object bag with (the series of number items):
+                Get payload as series of number:
+                    Return one's items.
+                Done.
+            Done.
+            Define held as a new bag { the items (a series of number with (1)) }.
+            Define shelves as a map from text to series of number.
+            Define jobs as a series of void function given (the series of number).
+            Define peek as a function given (the series of number row):
+                Define first-job as jobs.
+                Define shelf as (the entry for "q" in shelves) but void is (a series of number with (7)).
+                State shelf.
+                State the number of first-job.
+                Return held's payload.
+            Done.
+            State cast peek on (a series of number).
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+    }
+
+    [Fact]
     public void Closure_PassNamedFunction_HigherOrder()
     {
         // A named function passed as an argument to a higher-order function that calls it twice.

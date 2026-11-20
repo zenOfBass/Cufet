@@ -70,6 +70,10 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   series of void function given (the series of number).` with no function made anywhere in the
   program made `cufet build` throw, and the same series inside a lambda produced C that gcc
   refused. The function's type is now known as soon as the series is.
+- **A top-level lambda that read an object, a map or a series of functions did not build.** A
+  lambda defined at the top level of a program and reading `held's payload`, `the entry for "q" in
+  shelves` or `item 1 of jobs` from a name defined before it stopped `cufet build` with "can't be
+  read from a number" or "not yet supported by the compiler". The interpreter ran it.
 - **Setting an item that is not there ran the value first, compiled.** `Item 1 of names becomes
   cast said on (…)` on an empty `names` called `said`, and printed whatever it printed, before
   stopping; the interpreter stops without calling it. Both compilers now check the place before

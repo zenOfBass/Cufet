@@ -575,6 +575,12 @@ static int cufet_str_code_point(const char* s) {
         // hoisted for a different reason (the note above), and whether one inside a pull scope
         // should follow is a question nothing has asked yet — so this changes nothing about it.
         var topLevelStatements = program.Statements.ToHashSet();
+        // ★ What each top-level name before a lambda holds, for this pass only: a lambda that READS
+        // one (`b's payload`, `item 1 of fs`, `the entry for "q" in m`) is classified by working out
+        // its body, and a name this pass did not keep was typed as a number, so the build stopped
+        // with "can't be read from a number" (2026-11-19, found by docs/soundness/model/fuzz_cufet.py).
+        // Dropped after the loop: they stay locals of main, as before.
+        var typedForThisPass = new List<string>();
         foreach (var topLevelConst in TypeChecker.FlattenHoistable(program.Statements)
                                                  .OfType<DefineStatement>())
         {
@@ -593,12 +599,18 @@ static int cufet_str_code_point(const char* s) {
                 try { constType = topLevelConst.DeclaredType ?? TypeOf(topLevelConst.Value); }
                 catch { continue; }
 
-            if (!topLevelConst.Permanent && constType is not FunctionType) continue;
+            if (!topLevelConst.Permanent && constType is not FunctionType)
+            {
+                if (topLevelStatements.Contains(topLevelConst) && _varTypes.TryAdd(topLevelConst.Name, constType))
+                    typedForThisPass.Add(topLevelConst.Name);
+                continue;
+            }
 
             _sharedConstants.Add(topLevelConst);
             _sharedConstTypes[topLevelConst.Name] = constType;
             _varTypes[topLevelConst.Name]         = constType;
         }
+        foreach (var name in typedForThisPass) _varTypes.Remove(name);
 
         // The whole body emission, as a reusable pass: the CAT.2 discovery pre-pass runs it into a
         // throwaway buffer first so the OPEN-union case set is complete before the real pass emits

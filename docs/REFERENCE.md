@@ -4558,13 +4558,13 @@ Define data as a series of number with (1, 2, 3).
 Define tally as 0.
 Pull a rabbit.
     Have rabbit start a task:
-        Insert 99 into data.        ← REJECTED when compiled
+        Insert 99 into data.        ← REJECTED when checked
         The tally becomes tally + 1.   ← REJECTED too, for the same reason
     Done.
 Done.
 ```
 
-The compiler refuses this and points you at channels. The reason is worth knowing: the
+Both backends refuse this when the program is checked. The reason is worth knowing: the
 task holds its own copy, so the change could never be seen outside — and two tasks doing
 it at once is a straightforward data race. Send the result back through a channel, or
 `return` it from a named task and await it.

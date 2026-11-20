@@ -1422,8 +1422,8 @@ Done.
 **Not defined — clear static errors:**
 - `matrix / matrix` — matrix division is not a single operation (would need matrix inversion,
   which is deferred). Produces a type error: "arithmetic requires numbers on both sides."
-- `matrix * number` (scalar multiply) — mixed-type binary is not supported. Produces the same
-  arithmetic type error. Scalar scaling is deferred.
+- `matrix / number` and `matrix + number` — the same type error. Scaling is the one mixed form:
+  `matrix * number` and `number * matrix` multiply every element.
 - Element-wise multiply (Hadamard product) — deferred; if ever added, it will be a named
   collections function (`Cast collections's element-wise-multiply on (a, b)`), NOT an operator
   (`*` is reserved for matrix product — one canonical way).
@@ -1818,12 +1818,11 @@ Done.   ← all tasks spawned in this rabbit JOIN here
   their rabbit. The existing region depth machinery (`CheckRegionStore`) handles escapes:
   a task-local reference-type value cannot be stored into a longer-lived container.
 
-**Sharp edge — captured-state mutation (native-era concern, deferred enforcement):**
-Task bodies may read variables from the enclosing rabbit scope. They should not **mutate**
-captured reference-typed variables from that scope. Under the cooperative scheduler this is
-safe (one task runs at a time — no actual races). The native era will introduce true
-parallelism, at which point unsynchronized mutation becomes a data race. Slice 2 names this
-constraint but does not enforce it; native-era tooling will.
+**A task may read what it captured, and may not change it.** Changing a captured name, of any
+type, is refused when the program is checked, by both backends: *"this task changes 'totals',
+which it captured from outside the task."* The task holds its own copy, so the change could never
+be seen outside, and two tasks making it at once would race. See REFERENCE, *What crosses a
+boundary, and what a task may touch*.
 
 **Example:**
 ```cufet
@@ -3783,10 +3782,11 @@ left side's type can't be determined (e.g., map lookup where the map variable is
 unknown to the type checker), the whole `Define` will fail with "type can't be
 determined". Use a local alias to give the type checker a named, typed binding.
 
-### Operator overloads: same type only, arithmetic operators only
+### Operator overloads: an ordered pair of types, arithmetic operators only
 
-Both operands must be the same object type. The overloadable operators are
-`+`, `-`, `*`, `/` only. Comparisons and logical operators cannot be overloaded.
+The operand types are an ordered pair, at least one of them an object type: `number * vec` and
+`vec * number` are two overloads. The overloadable operators are `+`, `-`, `*`, `/` only.
+Comparisons and logical operators cannot be overloaded. See REFERENCE, *Operator overloading*.
 
 Parameter names cannot be `a`, `an`, or `the` (noise tokens) — use `lhs`/`rhs`
 or other identifiers.
