@@ -39,7 +39,7 @@ before(async () => {
     // The lessons are TypeScript and import no browser code, so they bundle for node as they are.
     const out = join(mkdtempSync(join(tmpdir(), 'cufet-tutorial-')), 'lessons.mjs');
     await esbuild.build({
-        stdin: { contents: "export { lesson1 } from './lesson-1'; export { lesson2 } from './lesson-2'; export { lesson3 } from './lesson-3'; export { lesson4 } from './lesson-4'; export { lesson5 } from './lesson-5'; export { respond, guessIsRight } from './judge';", resolveDir: join(playground, 'web', 'tutorial'), loader: 'ts' },
+        stdin: { contents: "export { lesson1 } from './lesson-1'; export { lesson2 } from './lesson-2'; export { lesson3 } from './lesson-3'; export { lesson4 } from './lesson-4'; export { lesson5 } from './lesson-5'; export { lesson6 } from './lesson-6'; export { respond, guessIsRight } from './judge';", resolveDir: join(playground, 'web', 'tutorial'), loader: 'ts' },
         bundle: true, format: 'esm', platform: 'node', outfile: out, logLevel: 'silent',
     });
     lessons = await import(pathToFileURL(out).href);
@@ -100,6 +100,16 @@ const SAMPLES = {
     'a second If': 'Define hops as 2.\nState "Hop {hops}!".\nIf hops is 3, state "Rest!".\nIf hops is 2, state "Keep going!".',
     'the > sign': 'Define hops as 5.\nIf hops > 3, state "Rest!".\nOtherwise, state "Keep going!".',
     'Rest! with no If': 'State "Rest!".',
+    'the start changed instead': 'Define hops as 5.\nWhile hops is less than 3, repeat:\n    The hops becomes hops + 1.\n    State "Hop {hops}!".\nDone.',
+    'ten copies, no While': Array.from({ length: 10 }, (_, i) => `State "Hop ${i + 1}!".`).join('\n'),
+    'the < sign': 'Define hops as 0.\nWhile hops < 6, repeat:\n    The hops becomes hops + 1.\n    State "Hop {hops}!".\n    If hops is 3, state "Halfway!".\nDone.',
+    'the If after Done': 'Define hops as 0.\nWhile hops is less than 6, repeat:\n    The hops becomes hops + 1.\n    State "Hop {hops}!".\nDone.\nIf hops is 3, state "Halfway!".',
+    'said before counted': 'Define hops as 0.\nWhile hops is less than 6, repeat:\n    State "Hop {hops}!".\n    The hops becomes hops + 1.\n    If hops is 3, state "Halfway!".\nDone.',
+    'no repeat': 'Define hops as 0.\nWhile hops is less than 6:\n    The hops becomes hops + 1.\n    State "Hop {hops}!".\n    If hops is 3, state "Halfway!".\nDone.',
+    'no comma before repeat': 'Define hops as 0.\nWhile hops is less than 6 repeat:\n    The hops becomes hops + 1.\n    State "Hop {hops}!".\n    If hops is 3, state "Halfway!".\nDone.',
+    '"is" left out': 'Define hops as 0.\nWhile hops less than 6, repeat:\n    The hops becomes hops + 1.\n    State "Hop {hops}!".\n    If hops is 3, state "Halfway!".\nDone.',
+    'no Done at the end': 'Define hops as 0.\nWhile hops is less than 6, repeat:\n    The hops becomes hops + 1.\n    State "Hop {hops}!".\n    If hops is 3, state "Halfway!".',
+    'six hops by hand': 'State "Hop 1!".\nState "Hop 2!".\nState "Hop 3!".\nState "Halfway!".\nState "Hop 4!".\nState "Hop 5!".\nState "Hop 6!".',
     '"than" left out':'Define hops as 5.\nIf hops is greater 3, state "Rest!".\nOtherwise, state "Keep going!".',
     'five in quote marks': 'Define hops as 5.\nIf hops is "5", state "Rest!".\nOtherwise, state "Keep going!".',
     'no comma after the question': 'Define hops as 5.\nIf hops is greater than 3 state "Rest!".\nOtherwise, state "Keep going!".',
@@ -138,6 +148,13 @@ const DONE = {
         ],
         ['Define hops as 2.\nIf hops is greater than 3, state "Rest!".\nOtherwise, state "Keep going!".'],
     ],
+    lesson6: [
+        ['Define hops as 0.\nWhile hops is less than 10, repeat:\n    The hops becomes hops + 1.\n    State "Hop {hops}!".\nDone.'],
+        [
+            'Define hops as 0.\nWhile hops is less than 6, repeat:\n    The hops becomes hops + 1.\n    State "Hop {hops}!".\n    If hops is 3, state "Halfway!".\nDone.',
+            'Define hops as 0.\nRepeat:\n    The hops becomes hops + 1.\n    State "Hop {hops}!".\n    If hops is 3, state "Halfway!".\nuntil hops is 6.',
+        ],
+    ],
 };
 
 const backticked = text => [...text.matchAll(/`([^`]+)`/g)].map(m => m[1]);
@@ -153,7 +170,7 @@ test('a typed guess: the whole line, or its one number alone', () => {
     assert.ok(!guessIsRight('12', 'What is 12 * 12?'));
 });
 
-for (const name of ['lesson1', 'lesson2', 'lesson3', 'lesson4', 'lesson5']) {
+for (const name of ['lesson1', 'lesson2', 'lesson3', 'lesson4', 'lesson5', 'lesson6']) {
     test(`${name}: every reaction is what its sample gets`, () => {
         for (const step of lessons[name].steps) {
             if (step.kind !== 'exercise' && step.kind !== 'parsons') continue;
