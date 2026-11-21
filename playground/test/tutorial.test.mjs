@@ -39,7 +39,7 @@ before(async () => {
     // The lessons are TypeScript and import no browser code, so they bundle for node as they are.
     const out = join(mkdtempSync(join(tmpdir(), 'cufet-tutorial-')), 'lessons.mjs');
     await esbuild.build({
-        stdin: { contents: "export { lesson1 } from './lesson-1'; export { lesson2 } from './lesson-2'; export { lesson3 } from './lesson-3'; export { respond } from './judge';", resolveDir: join(playground, 'web', 'tutorial'), loader: 'ts' },
+        stdin: { contents: "export { lesson1 } from './lesson-1'; export { lesson2 } from './lesson-2'; export { lesson3 } from './lesson-3'; export { lesson4 } from './lesson-4'; export { respond } from './judge';", resolveDir: join(playground, 'web', 'tutorial'), loader: 'ts' },
         bundle: true, format: 'esm', platform: 'node', outfile: out, logLevel: 'silent',
     });
     lessons = await import(pathToFileURL(out).href);
@@ -83,6 +83,16 @@ const SAMPLES = {
     'a space in the name': 'Define my answer as 7 * 7.\nState "The answer is {answer}.".',
     'the Define line last': 'State "The answer is {answer}.".\nDefine answer as 7 * 7.',
     'a typo in the hole': 'Define answer as 7 * 7.\nState "The answer is {answr}.".',
+    'the Define not first': 'State count.\nDefine count as 3.\nThe count becomes count - 1.\nState count.\nThe count becomes count - 1.\nState count.\nState "Go!".',
+    'the same number twice': 'Define count as 3.\nState count.\nState count.\nThe count becomes count - 1.\nThe count becomes count - 1.\nState count.\nState "Go!".',
+    '"Go!" too early': 'Define count as 3.\nState "Go!".\nState count.\nThe count becomes count - 1.\nState count.\nThe count becomes count - 1.\nState count.',
+    'said before made bigger': 'Define hops as 0.\nState "Hop {hops}!".\nThe hops becomes hops + 1.\nState "Hop {hops}!".\nThe hops becomes hops + 1.\nState "Hop {hops}!".\nThe hops becomes hops + 1.',
+    'started at one': 'Define hops as 1.\nThe hops becomes hops + 1.\nState "Hop {hops}!".\nThe hops becomes hops + 1.\nState "Hop {hops}!".\nThe hops becomes hops + 1.\nState "Hop {hops}!".',
+    'the name without a hole': 'Define hops as 0.\nThe hops becomes hops + 1.\nState "Hop hops!".',
+    '"is" instead of becomes': 'Define hops as 0.\nThe hops is hops + 1.\nState "Hop {hops}!".',
+    '= instead of becomes': 'Define hops as 0.\nThe hops = hops + 1.\nState "Hop {hops}!".',
+    'Define a second time': 'Define hops as 0.\nDefine hops as hops + 1.\nState "Hop {hops}!".',
+    'a typo in the name': 'Define hops as 0.\nThe hosp becomes hops + 1.\nState "Hop {hops}!".',
     'the joke in the wrong order':'State "Lettuce!".\nState "Knock, knock!".\nState "Who\'s there?".\nState "Lettuce who?".\nState "Lettuce in, it\'s cold out here!".',
 };
 
@@ -104,11 +114,15 @@ const DONE = {
             'Define answer as 7*7.\nState "the answer is {answer}".',
         ],
     ],
+    lesson4: [
+        ['Define count as 3.\nState count.\nThe count becomes count - 1.\nState count.\nThe count becomes count - 1.\nState count.\nState "Go!".'],
+        ['Define hops as 0.\nThe hops becomes hops + 1.\nState "Hop {hops}!".\nThe hops becomes hops + 1.\nState "Hop {hops}!".\nThe hops becomes hops + 1.\nState "Hop {hops}!".'],
+    ],
 };
 
 const backticked = text => [...text.matchAll(/`([^`]+)`/g)].map(m => m[1]);
 
-for (const name of ['lesson1', 'lesson2', 'lesson3']) {
+for (const name of ['lesson1', 'lesson2', 'lesson3', 'lesson4']) {
     test(`${name}: every reaction is what its sample gets`, () => {
         for (const step of lessons[name].steps) {
             if (step.kind !== 'exercise' && step.kind !== 'parsons') continue;
