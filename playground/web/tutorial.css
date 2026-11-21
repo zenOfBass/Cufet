@@ -236,7 +236,8 @@ body.sorting main { grid-template-rows: minmax(0, 2fr) minmax(0, 1fr); }
 }
 
 .slots input {
-    width: 12ch;
+    /* Room for a whole sentence of output: a guess may be the line, not only its number. */
+    width: min(32ch, 60vw);
     padding: 4px 8px;
     font-family: var(--mono);
     font-size: 14px;

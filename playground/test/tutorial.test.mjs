@@ -39,7 +39,7 @@ before(async () => {
     // The lessons are TypeScript and import no browser code, so they bundle for node as they are.
     const out = join(mkdtempSync(join(tmpdir(), 'cufet-tutorial-')), 'lessons.mjs');
     await esbuild.build({
-        stdin: { contents: "export { lesson1 } from './lesson-1'; export { lesson2 } from './lesson-2'; export { lesson3 } from './lesson-3'; export { lesson4 } from './lesson-4'; export { respond } from './judge';", resolveDir: join(playground, 'web', 'tutorial'), loader: 'ts' },
+        stdin: { contents: "export { lesson1 } from './lesson-1'; export { lesson2 } from './lesson-2'; export { lesson3 } from './lesson-3'; export { lesson4 } from './lesson-4'; export { respond, guessIsRight } from './judge';", resolveDir: join(playground, 'web', 'tutorial'), loader: 'ts' },
         bundle: true, format: 'esm', platform: 'node', outfile: out, logLevel: 'silent',
     });
     lessons = await import(pathToFileURL(out).href);
@@ -122,6 +122,17 @@ const DONE = {
 };
 
 const backticked = text => [...text.matchAll(/`([^`]+)`/g)].map(m => m[1]);
+
+test('a typed guess: the whole line, or its one number alone', () => {
+    const { guessIsRight } = lessons;
+    for (const guess of ['50', 'The answer is 50.', 'the answer is 50'])
+        assert.ok(guessIsRight(guess, 'The answer is 50.'), `${guess} should be right`);
+    for (const guess of ['49', 'The answer is 49.', '', '5'])
+        assert.ok(!guessIsRight(guess, 'The answer is 50.'), `${guess} should be wrong`);
+    assert.ok(guessIsRight('156', '156'));
+    // Two numbers in the line: neither alone is the answer.
+    assert.ok(!guessIsRight('12', 'What is 12 * 12?'));
+});
 
 for (const name of ['lesson1', 'lesson2', 'lesson3', 'lesson4']) {
     test(`${name}: every reaction is what its sample gets`, () => {

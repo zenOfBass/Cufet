@@ -38,6 +38,21 @@ export function outputLines(output: string): string[] {
     return output.split('\n').map(line => line.trimEnd()).filter(line => line.trim() !== '');
 }
 
+/**
+ * Whether a typed guess at one line of output is right. Words only, like everything else here, and
+ * one allowance: when the line holds exactly one number, that number alone is a right guess.
+ *
+ * ★ Play-tested: lesson 4 asks what `State "The answer is {answer}."` will say, a player typed
+ * `50`, and it was marked wrong against `The answer is 50.`. The number IS the answer to "what
+ * will it say?"; the words around it are what the player wrote nothing about.
+ */
+export function guessIsRight(guess: string, line: string): boolean {
+    const typed = words(guess), said = words(line);
+    if (typed === said) return true;
+    const numbers = said.split(' ').filter(word => /^\d+$/.test(word));
+    return numbers.length === 1 && typed === numbers[0];
+}
+
 /** True when the program ran and printed `goal`, line for line, judged on words only. */
 export function sameWords(attempt: Attempt, goal: readonly string[]): boolean {
     if (attempt.outcome !== 'ran') return false;
