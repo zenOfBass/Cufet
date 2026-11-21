@@ -126,6 +126,7 @@ export const lesson3: Lesson = {
         },
 
         // ── Beat 5: a blank page ────────────────────────────────────────────────────────────
+        { kind: 'write', who: 'grace', code: '' },
         { kind: 'say', lines: [grace('Your turn, friend. The page is empty. Have Cufet work out seven times seven, keep it as `answer`, and say it in a sentence.')] },
         {
             kind: 'exercise',

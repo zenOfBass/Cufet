@@ -160,6 +160,8 @@ If you meant to join text, use 'joined to': "hello" joined to " world".
 
 ## Beat 4: a blank page (Make)
 
+*Grace clears the editor.*
+
 > **Hopper:** Pop quiz, friend! What's twelve times twelve? No fair working it out in your head.
 >
 > **Grace:** The page is empty. Make the output box say what it's showing you: Hopper's question, then Cufet's answer.

@@ -200,6 +200,8 @@ Keep going!
 
 ## Beat 5: a blank page (Make)
 
+*Grace clears the editor.*
+
 > **Hopper:** Your turn, friend! I've hopped five times. Write me a program that says "Rest!" when I've hopped more than three times, and "Keep going!" when I haven't.
 >
 > **Grace:** The page is empty. Start with `Define hops as 5.`

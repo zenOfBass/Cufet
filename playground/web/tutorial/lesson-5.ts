@@ -140,6 +140,7 @@ export const lesson5: Lesson = {
         },
 
         // ── Beat 5: a blank page, run both ways ─────────────────────────────────────────────
+        { kind: 'write', who: 'grace', code: '' },
         {
             kind: 'say', lines: [
                 hopper('Your turn, friend! I\'ve hopped five times. Write me a program that says "Rest!" when I\'ve hopped more than three times, and "Keep going!" when I haven\'t.'),

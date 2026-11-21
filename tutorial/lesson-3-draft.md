@@ -163,6 +163,8 @@ run it again." The player changes the first line and presses Run. Done when the 
 
 ## Beat 5: a blank page (Make)
 
+*Grace clears the editor.*
+
 > **Grace:** Your turn, friend. The page is empty. Have Cufet work out seven times seven, keep it as `answer`, and say it in a sentence.
 
 *The editor is empty. Done when the output is this, judged on the words and numbers only:*

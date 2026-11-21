@@ -178,6 +178,8 @@ Go!
 
 ## Beat 5: a blank page (Make)
 
+*Grace clears the editor.*
+
 > **Hopper:** Your turn, friend! Six hops. And when I'm halfway, after hop three, say "Halfway!"
 >
 > **Grace:** The page is empty. You'll want a loop, with an `If` inside it.

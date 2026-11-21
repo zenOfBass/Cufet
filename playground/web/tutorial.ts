@@ -279,26 +279,42 @@ function faint(text: string): HTMLElement {
     return label;
 }
 
-function showGoal(): void {
+/**
+ * The task and the goal, and with `result`, what the program said BESIDE the goal.
+ *
+ * ★ Side by side, not stacked: ten hops of goal above ten hops of output did not fit the box and
+ * had to scroll (play-tested, lesson 6). Beside each other they take half the height, and each line
+ * sits next to the one it should match. A narrow screen stacks them again (tutorial.css).
+ */
+function showGoal(result?: HTMLElement): void {
     if (task) {
         const sentence = document.createElement('p');
         sentence.className = 'task';
         sentence.innerHTML = inline(task);
         outputBox.append(faint('Your task:'), sentence);
     }
-    if (!goal) return;
+    if (!goal) {
+        if (result) outputBox.append(faint('It said:'), result);
+        return;
+    }
     const lines = document.createElement('pre');
     lines.className = 'goal';
     lines.textContent = goal.join('\n');
-    outputBox.append(faint('Make it say:'), lines);
+    const wanted = document.createElement('div');
+    wanted.append(faint('Make it say:'), lines);
+    const side = document.createElement('div');
+    side.className = 'side-by-side';
+    side.append(wanted);
+    if (result) {
+        const got = document.createElement('div');
+        got.append(faint('It said:'), result);
+        side.append(got);
+    }
+    outputBox.append(side);
 }
 
 function showAttempt(attempt: Attempt, guess?: string): void {
     outputBox.replaceChildren();
-    if (goal || task) {
-        showGoal();
-        outputBox.append(faint('It said:'));
-    }
     if (guess !== undefined) {
         const label = document.createElement('p');
         label.className = 'faint';
@@ -319,7 +335,8 @@ function showAttempt(attempt: Attempt, guess?: string): void {
         case 'timeout': pre.textContent = `Stopped: still running after ${TIME_LIMIT_MS / 1000} seconds.`; pre.className = 'refused'; break;
         case 'died': pre.textContent = attempt.output; pre.className = 'refused'; break;
     }
-    outputBox.append(pre);
+    if (goal || task) showGoal(pre);
+    else outputBox.append(pre);
 }
 
 /**

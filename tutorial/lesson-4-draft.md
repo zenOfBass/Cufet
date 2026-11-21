@@ -142,6 +142,8 @@ Go!
 
 *Hopper comes back in from the edge of the screen.*
 
+*Grace clears the editor.*
+
 > **Hopper:** I'm back! Now count my hops! Hop one, hop two, hop three!
 >
 > **Grace:** The page is empty, friend. Start a name at zero, and make it one bigger before each hop.

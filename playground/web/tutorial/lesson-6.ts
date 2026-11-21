@@ -126,6 +126,7 @@ export const lesson6: Lesson = {
         },
 
         // ── Beat 5: a blank page ────────────────────────────────────────────────────────────
+        { kind: 'write', who: 'grace', code: '' },
         {
             kind: 'say', lines: [
                 hopper('Your turn, friend! Six hops. And when I\'m halfway, after hop three, say "Halfway!"'),

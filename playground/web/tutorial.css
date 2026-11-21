@@ -215,6 +215,9 @@ body.sorting main { grid-template-rows: minmax(0, 2fr) minmax(0, 1fr); }
 @keyframes spin { to { transform: rotate(360deg); } }
 /* What the program should print: faint, so it never reads as what it DID print. */
 .output pre.goal { color: var(--muted); margin-bottom: 14px; }
+/* What it should say, and beside it what it said. */
+.side-by-side { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+.side-by-side pre { overflow-x: auto; }
 .output .task { margin: 0 0 14px; font-family: var(--sans); font-size: 15px; color: var(--text); }
 .output .task code { font-family: var(--mono); font-size: 13px; background: var(--bg-sunken); padding: 0 4px; border-radius: 3px; }
 .output .faint { color: var(--muted); font-family: var(--sans); font-size: 13px; margin: 0 0 6px; }
@@ -375,6 +378,7 @@ body.sorting main { grid-template-rows: minmax(0, 2fr) minmax(0, 1fr); }
 [hidden] { display: none !important; }
 
 @media (max-width: 640px) {
+    .side-by-side { grid-template-columns: minmax(0, 1fr); gap: 0; }
     /* No room beside the rabbits on a phone: the bubble goes above them, still inside the strip. */
     :root { --stage-height: 230px; }
     .bubble { bottom: 104px; width: calc(100vw - 32px); max-height: 116px; }

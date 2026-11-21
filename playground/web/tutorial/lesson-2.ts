@@ -112,6 +112,8 @@ export const lesson2: Lesson = {
         },
 
         // ── Beat 4: a blank page ────────────────────────────────────────────────────────────
+        // Grace empties the page before she says it is empty (play-tested: it emptied only after).
+        { kind: 'write', who: 'grace', code: '' },
         {
             kind: 'say', lines: [
                 hopper("Pop quiz, friend! What's twelve times twelve? No fair working it out in your head."),

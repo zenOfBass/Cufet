@@ -118,6 +118,7 @@ export const lesson4: Lesson = {
         { kind: 'enter', who: 'hopper' },
 
         // ── Beat 4: a blank page ────────────────────────────────────────────────────────────
+        { kind: 'write', who: 'grace', code: '' },
         {
             kind: 'say', lines: [
                 hopper("I'm back! Now count my hops! Hop one, hop two, hop three!"),
