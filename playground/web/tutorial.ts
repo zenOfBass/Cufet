@@ -27,12 +27,13 @@ function element<T extends HTMLElement>(id: string): T {
 
 // ★ FALLBACK. What the rabbits say when an attempt matches none of the step's prepared reactions.
 // The drafts do not script these: they are the page's placeholders, kept short and plain until the
-// drafts say otherwise.
+// drafts say otherwise. `timeout` is the exception, agreed for lesson 6 ("A loop that never ends"):
+// only a loop runs long enough to be stopped, so it is said wherever one is.
 const FALLBACK: Record<Attempt['outcome'], Line[]> = {
     ran: [{ who: 'hopper', text: 'Not quite! Look at what it said, and try again.' }],
     refused: [{ who: 'grace', text: "Cufet didn't run that one. Its message is in the output box." }],
     empty: [{ who: 'hopper', text: 'There is nothing to run yet!' }],
-    timeout: [{ who: 'grace', text: `That was still going after ${TIME_LIMIT_MS / 1000} seconds, so I stopped it.` }],
+    timeout: [{ who: 'hopper', text: "I've been hopping forever! Is the question ever going to be false? Something inside the loop has to change it." }],
     died: [{ who: 'grace', text: 'Something went wrong inside the computer itself. Press Run again.' }],
 };
 

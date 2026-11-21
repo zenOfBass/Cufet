@@ -237,8 +237,13 @@ Hop 6!
 
 ---
 
-## Still open
+## A loop that never ends
 
-**A loop that never ends.** The interpreter has no time limit, so a player's `While` whose question
-never turns false would freeze the game. The game needs its own limit, and a rabbit reaction for
-it. This draft never shows such a loop.
+The interpreter has no time limit of its own, so the game keeps one: a run still going after 5
+seconds is stopped, and the output box says "Stopped: still running after 5 seconds." Then, in any
+lesson:
+
+> **Hopper:** I've been hopping forever! Is the question ever going to be false? Something inside the loop has to change it.
+
+This draft never shows such a loop; it is the player's to write, most likely by leaving out
+`The hops becomes hops + 1.`
