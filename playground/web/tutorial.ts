@@ -127,6 +127,23 @@ document.addEventListener('keydown', event => {
     advance();
 });
 
+/**
+ * What each rabbit said the last time it spoke: all its lines from that one go. Clicking a rabbit
+ * says them again, for a player who read too fast (play-tested: the answer Grace gave at the end of
+ * lesson 2 was gone once its bubble was clicked away, and clicking Grace was the first thing tried).
+ */
+const lastSaid: Record<Who, Line[]> = { hopper: [], grace: [] };
+
+for (const who of ['hopper', 'grace'] as const) {
+    for (const part of rabbits[who].querySelectorAll('img, figcaption')) {
+        part.addEventListener('click', () => {
+            // Not while a bubble waits to be read: that bubble is the one to read.
+            if (advance || lastSaid[who].length === 0) return;
+            void say([...lastSaid[who]]);
+        });
+    }
+}
+
 interface SayOptions {
     /** Shown in the last bubble: a button that does something. */
     offer?: { label: string; act: () => void };
@@ -138,9 +155,12 @@ interface SayOptions {
  */
 async function say(lines: Line[], options: SayOptions = {}): Promise<void> {
     const mine = ++chain;
+    const spoke = new Set<Who>();
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i]!;
         if (mine !== chain) return;
+        if (!spoke.has(line.who)) { spoke.add(line.who); lastSaid[line.who] = []; }
+        lastSaid[line.who].push(line);
         hideBubbles();
         const bubble = bubbleOf(line.who);
         rabbits[line.who].hidden = false;
@@ -352,15 +372,21 @@ async function predict(step: Extract<Step, { kind: 'predict' }>): Promise<void> 
     });
     outputBox.append(question, choices);
 
-    const chosen = await new Promise<number>(resolve =>
-        buttons.forEach((button, i) => button.addEventListener('click', () => resolve(i), { once: true })));
-    buttons.forEach((button, i) => { button.disabled = true; button.classList.toggle('chosen', i === chosen); });
+    // ★ A choice can be changed until Run is pressed. Locked on the first click, a slip of the
+    // mouse was a wrong answer (play-tested: "that doesn't feel fair").
+    let chosen = 0;
+    await new Promise<void>(resolve => buttons.forEach((button, i) => button.addEventListener('click', () => {
+        chosen = i;
+        buttons.forEach((other, j) => other.classList.toggle('chosen', j === i));
+        resolve();
+    })));
 
     // DESIGN.md: once they have answered, the Run button lights up and a rabbit nudges them to it.
     lightRun(true);
     const pressed = runPressed();
     if (step.nudge) void say(step.nudge);
     await pressed;
+    buttons.forEach(button => { button.disabled = true; });
     lightRun(false);
     chain++;
     hideBubbles();
@@ -441,9 +467,17 @@ class HintLadder {
 
     attempted(): void { this.attemptsSinceHint++; this.paint(); }
 
+    /** A new rung is ready: one is left, and the player has tried since the last. */
+    private get ready(): boolean { return this.used < this.hints.length && this.attemptsSinceHint > 0; }
+
     private take(): void {
-        const rung = this.hints[this.used];
-        if (!rung || this.attemptsSinceHint === 0) return;
+        if (!this.ready) {
+            // ★ No new rung yet: the last one again, so a hint read too fast is not lost.
+            const last = this.hints[this.used - 1];
+            if (last) void say(last);
+            return;
+        }
+        const rung = this.hints[this.used]!;
         this.used++;
         this.attemptsSinceHint = 0;
         this.paint();
@@ -451,9 +485,10 @@ class HintLadder {
     }
 
     private paint(): void {
-        hintButton.disabled = this.attemptsSinceHint === 0 || this.used >= this.hints.length;
-        hintButton.title = this.used >= this.hints.length ? 'No more hints'
-            : this.attemptsSinceHint === 0 ? 'Press Run first' : '';
+        hintButton.disabled = !this.ready && this.used === 0;
+        hintButton.title = this.ready ? ''
+            : this.used === 0 ? 'Press Run first'
+            : 'Hear the last hint again';
     }
 
     close(): void { hintButton.hidden = true; hintButton.onclick = null; }

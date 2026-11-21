@@ -261,7 +261,8 @@ body.sorting main { grid-template-rows: minmax(0, 2fr) minmax(0, 1fr); }
     pointer-events: auto;
 }
 
-.rabbit img { width: 72px; height: 72px; }
+/* Clicking a rabbit says its last words again. */
+.rabbit img { width: 72px; height: 72px; cursor: pointer; }
 .rabbit figcaption { font-size: 12px; color: var(--muted); }
 
 /* Placeholder art: one rabbit drawing, worn two ways. Hopper faces in from the left; Grace is a
