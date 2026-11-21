@@ -187,6 +187,7 @@ The answer is 49.
 | They type | What Cufet does | The rabbits say |
 | --- | --- | --- |
 | No name: `State "The answer is 49.".` | Runs, prints the right sentence, but isn't done | **Grace:** Right sentence, but you worked it out yourself. Keep `7 * 7` as `answer`, and let Cufet do it. |
+| Another name: `Define result as 7 * 7.` | Runs, prints the right sentence, but isn't done (Beat 6 needs the name `answer`) | **Grace:** That works! But I asked you to keep it as `answer`. Use that name, so Hopper can find it. |
 | `State "The answer is 7 * 7.".` | Runs, prints `The answer is 7 * 7.` | **Hopper:** The sum is inside the quote marks, so Cufet just says it! Keep the sum with `Define`, and put a hole in the sentence. |
 | Only `State answer.` for the second line | Runs, prints `49` | **Grace:** The right number, but Hopper wanted a sentence. Try `"The answer is {answer}."` |
 | `State "The answer is " answer.` | `Line 2, column 24: expected '.', got Identifier "answer".` | **Grace:** The name has to go inside the sentence, in a hole: `{answer}`. |

@@ -37,8 +37,11 @@ export type Step =
     | { kind: 'enter'; who: Who }
     /** Speech bubbles, one after another; each waits to be read. */
     | { kind: 'say'; lines: Line[] }
-    /** A rabbit types into the editor. Only what differs from what is there gets retyped. */
-    | { kind: 'write'; who: Who; code: string }
+    /**
+     * A rabbit types into the editor. Only what differs from what is there gets retyped. With
+     * `append`, `code` goes on the end of whatever is there, the player's own program included.
+     */
+    | { kind: 'write'; who: Who; code: string; append?: boolean }
     /** A rabbit presses Run itself. DESIGN.md: they do this exactly once, in lesson 1. */
     | { kind: 'rabbit-run'; who: Who }
     /** The player presses Run on what is in the editor. Nothing is judged; the output is shown. */

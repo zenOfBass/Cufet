@@ -11,6 +11,7 @@ import { LANGUAGE_ID, semanticsChanged, startHighlighting, tokenizeEverythingNow
 import { RuntimeClient, TIME_LIMIT_MS } from './tutorial/runtime-client';
 import { lesson1 } from './tutorial/lesson-1';
 import { lesson2 } from './tutorial/lesson-2';
+import { lesson3 } from './tutorial/lesson-3';
 import { outputLines, respond, words } from './tutorial/judge';
 import type { Attempt } from './tutorial/judge';
 import type { Lesson, Line, Reaction, Step, Who } from './tutorial/lesson';
@@ -649,7 +650,9 @@ async function play(lesson: Lesson): Promise<void> {
         switch (step.kind) {
             case 'enter': await enter(step.who); break;
             case 'say': await say(step.lines); break;
-            case 'write': await write(step.who, step.code); break;
+            case 'write': await write(step.who, step.append
+                ? `${editor.getValue().trimEnd()}\n${step.code}`
+                : step.code); break;
             case 'rabbit-run': await rabbitRun(step.who); break;
             case 'player-run': await playerRun(step); break;
             case 'predict': await predict(step); break;
@@ -661,7 +664,7 @@ async function play(lesson: Lesson): Promise<void> {
     }
 }
 
-const LESSONS: Lesson[] = [lesson1, lesson2];
+const LESSONS: Lesson[] = [lesson1, lesson2, lesson3];
 
 /**
  * The end of a lesson. With a lesson after it, a button goes on to it, and this resolves when it is
