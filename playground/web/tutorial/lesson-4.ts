@@ -135,7 +135,7 @@ export const lesson4: Lesson = {
             kind: 'exercise',
             start: '',
             goal: HOPS,
-            done: a => sameWords(a, HOPS),
+            done: a => sameWords(a, HOPS) && /\bbecomes\b/.test(a.code),
             hints: [
                 [grace('Start with `Define hops as 0.` Then, for each hop, make it one bigger and say it.')],
                 [hopper('Making it bigger is `The hops becomes hops + 1.` Saying it needs a hole: `{hops}`!')],
@@ -143,6 +143,11 @@ export const lesson4: Lesson = {
                     'Define hops as 0.\nThe hops becomes hops + 1.\nState "Hop {hops}!".\nThe hops becomes hops + 1.\nState "Hop {hops}!".\nThe hops becomes hops + 1.\nState "Hop {hops}!".')],
             ],
             reactions: [
+                {
+                    case: 'counted by hand',
+                    when: a => sameWords(a, HOPS) && !/\bbecomes\b/.test(a.code),
+                    lines: [grace('Those are the right hops, but you counted them yourself. Make a name, and let `becomes` do the counting.')],
+                },
                 {
                     case: 'said before made bigger',
                     when: a => words(lines(a)[0] ?? '') === 'hop 0',

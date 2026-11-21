@@ -172,6 +172,7 @@ Hop 3!
 
 | They type | What Cufet does | The rabbits say |
 | --- | --- | --- |
+| No name: three `State "Hop 1!".` lines | Runs, prints the right hops, but isn't done | **Grace:** Those are the right hops, but you counted them yourself. Make a name, and let `becomes` do the counting. |
 | `State` before `becomes` each time | Runs, prints `Hop 0!` first | **Hopper:** Hop zero? I haven't hopped yet! Make it one bigger *before* you say it. |
 | Starts at `Define hops as 1.` | Runs, the first line is `Hop 2!` | **Grace:** It's made one bigger before the first hop, so start one lower, at zero. |
 | `State "Hop hops!".` | Runs, prints `Hop hops!` | **Hopper:** "Hop hops"! The name needs a hole, in curly brackets. |
