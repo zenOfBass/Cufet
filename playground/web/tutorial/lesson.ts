@@ -6,7 +6,8 @@
 
 import type { Attempt } from './judge';
 
-export type Who = 'grace' | 'hopper';
+/** Who speaks. Maria arrives in lesson 9, and only speaks: she never writes or presses Run. */
+export type Who = 'grace' | 'hopper' | 'maria';
 
 /**
  * One speech bubble. `text` takes a little markdown: `code`, **bold** and *italics*.

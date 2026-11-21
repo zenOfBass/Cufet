@@ -39,7 +39,7 @@ before(async () => {
     // The lessons are TypeScript and import no browser code, so they bundle for node as they are.
     const out = join(mkdtempSync(join(tmpdir(), 'cufet-tutorial-')), 'lessons.mjs');
     await esbuild.build({
-        stdin: { contents: "export { lesson1 } from './lesson-1'; export { lesson2 } from './lesson-2'; export { lesson3 } from './lesson-3'; export { lesson4 } from './lesson-4'; export { lesson5 } from './lesson-5'; export { lesson6 } from './lesson-6'; export { lesson7 } from './lesson-7'; export { lesson8 } from './lesson-8'; export { respond, guessIsRight } from './judge';", resolveDir: join(playground, 'web', 'tutorial'), loader: 'ts' },
+        stdin: { contents: "export { lesson1 } from './lesson-1'; export { lesson2 } from './lesson-2'; export { lesson3 } from './lesson-3'; export { lesson4 } from './lesson-4'; export { lesson5 } from './lesson-5'; export { lesson6 } from './lesson-6'; export { lesson7 } from './lesson-7'; export { lesson8 } from './lesson-8'; export { lesson9 } from './lesson-9'; export { respond, guessIsRight } from './judge';", resolveDir: join(playground, 'web', 'tutorial'), loader: 'ts' },
         bundle: true, format: 'esm', platform: 'node', outfile: out, logLevel: 'silent',
     });
     lessons = await import(pathToFileURL(out).href);
@@ -128,6 +128,15 @@ const SAMPLES = {
     'no return before the words': 'Bind text to cheer, given (the number hops):\n    If hops is greater than 3, "Rest!".\n    Otherwise, return "Keep going!".\nDone.\nState cast cheer on (5).\nState cast cheer on (2).',
     'no Done for the Bind': 'Bind text to cheer, given (the number hops):\n    If hops is greater than 3, return "Rest!".\n    Otherwise, return "Keep going!".\nState cast cheer on (5).\nState cast cheer on (2).',
     'no function at all': 'Define hops as 5.\nIf hops is greater than 3, state "Rest!".\nOtherwise, state "Keep going!".\nThe hops becomes 2.\nIf hops is greater than 3, state "Rest!".\nOtherwise, state "Keep going!".',
+    '"is" left out of but void is': 'Bind voidable text to cheer, given (the number hops):\n    If hops is greater than 3, return "Rest!".\n    Return void.\nDone.\nState cast cheer on (5).\nState cast cheer on (2) but void "Keep going!".',
+    'or instead of but void is': 'Bind voidable text to cheer, given (the number hops):\n    If hops is greater than 3, return "Rest!".\n    Return void.\nDone.\nState cast cheer on (5).\nState cast cheer on (2) or "Keep going!".',
+    'a number for the nothing': 'Bind voidable text to cheer, given (the number hops):\n    If hops is greater than 3, return "Rest!".\n    Return void.\nDone.\nState cast cheer on (5).\nState cast cheer on (2) but void is 0.',
+    'cheer changed instead': 'Bind voidable text to cheer, given (the number hops):\n    If hops is greater than 3, return "Rest!".\n    Return "Keep going!".\nDone.\nState cast cheer on (5).\nState cast cheer on (2).',
+    'Bind number to hop': 'Bind number to hop, given (the number times):\n    Define hops as 0.\n    While hops is less than times, repeat:\n        The hops becomes hops + 1.\n        State "Hop {hops}!".\n    Done.\nDone.\nCast hop on (3).\nCast hop on (2).',
+    'State in front of the cast': 'Bind void to hop, given (the number times):\n    Define hops as 0.\n    While hops is less than times, repeat:\n        The hops becomes hops + 1.\n        State "Hop {hops}!".\n    Done.\nDone.\nState cast hop on (3).\nCast hop on (2).',
+    'always three hops': 'Bind void to hop, given (the number times):\n    Define hops as 0.\n    While hops is less than 3, repeat:\n        The hops becomes hops + 1.\n        State "Hop {hops}!".\n    Done.\nDone.\nCast hop on (3).\nCast hop on (2).',
+    'only one Done': 'Bind void to hop, given (the number times):\n    Define hops as 0.\n    While hops is less than times, repeat:\n        The hops becomes hops + 1.\n        State "Hop {hops}!".\n    Done.\nCast hop on (3).\nCast hop on (2).',
+    'the hops by hand': 'State "Hop 1!".\nState "Hop 2!".\nState "Hop 3!".\nState "Hop 1!".\nState "Hop 2!".',
     'six hops by hand':'State "Hop 1!".\nState "Hop 2!".\nState "Hop 3!".\nState "Halfway!".\nState "Hop 4!".\nState "Hop 5!".\nState "Hop 6!".',
     '"than" left out':'Define hops as 5.\nIf hops is greater 3, state "Rest!".\nOtherwise, state "Keep going!".',
     'five in quote marks': 'Define hops as 5.\nIf hops is "5", state "Rest!".\nOtherwise, state "Keep going!".',
@@ -188,6 +197,13 @@ const DONE = {
             'Bind text to cheer, given (the number hops):\n    If hops > 3:\n        Return "Rest!".\n    Done.\n    Return "Keep going!".\nDone.\nState cast cheer on (5).\nState cast cheer on (2).',
         ],
     ],
+    lesson9: [
+        ['Bind voidable text to cheer, given (the number hops):\n    If hops is greater than 3, return "Rest!".\n    Return void.\nDone.\nState cast cheer on (5).\nState cast cheer on (2) but void is "Keep going!".'],
+        [
+            'Bind void to hop, given (the number times):\n    Define hops as 0.\n    While hops is less than times, repeat:\n        The hops becomes hops + 1.\n        State "Hop {hops}!".\n    Done.\nDone.\nCast hop on (3).\nCast hop on (2).',
+            'Bind void to hop, given (the number times):\n    Define hops as 0.\n    Repeat:\n        The hops becomes hops + 1.\n        State "Hop {hops}!".\n    until hops is times.\nDone.\nCast hop on (3).\nCast hop on (2).',
+        ],
+    ],
 };
 
 const backticked = text => [...text.matchAll(/`([^`]+)`/g)].map(m => m[1]);
@@ -203,7 +219,7 @@ test('a typed guess: the whole line, or its one number alone', () => {
     assert.ok(!guessIsRight('12', 'What is 12 * 12?'));
 });
 
-for (const name of ['lesson1', 'lesson2', 'lesson3', 'lesson4', 'lesson5', 'lesson6', 'lesson7', 'lesson8']) {
+for (const name of ['lesson1', 'lesson2', 'lesson3', 'lesson4', 'lesson5', 'lesson6', 'lesson7', 'lesson8', 'lesson9']) {
     test(`${name}: every reaction is what its sample gets`, () => {
         for (const step of lessons[name].steps) {
             if (step.kind !== 'exercise' && step.kind !== 'parsons') continue;

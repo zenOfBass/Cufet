@@ -17,6 +17,7 @@ import { lesson5 } from './tutorial/lesson-5';
 import { lesson6 } from './tutorial/lesson-6';
 import { lesson7 } from './tutorial/lesson-7';
 import { lesson8 } from './tutorial/lesson-8';
+import { lesson9 } from './tutorial/lesson-9';
 import { guessIsRight, outputLines, respond } from './tutorial/judge';
 import type { Attempt } from './tutorial/judge';
 import type { Lesson, Line, Reaction, Step, Who } from './tutorial/lesson';
@@ -150,11 +151,18 @@ function inline(text: string): string {
 
 // ── Grace and Hopper ─────────────────────────────────────────────────────────────────────────
 
-const rabbits: Record<Who, HTMLElement> = { hopper: element('hopper'), grace: element('grace') };
+/** Everyone on the stage: the two rabbits, and from lesson 9, Maria. */
+const rabbits: Record<Who, HTMLElement> = { hopper: element('hopper'), grace: element('grace'), maria: element('maria') };
+const SPEAKERS = Object.keys(rabbits) as Who[];
 const bubbleOf = (who: Who) => rabbits[who].querySelector<HTMLElement>('.bubble')!;
 
 function hideBubbles(): void {
-    for (const who of ['hopper', 'grace'] as const) bubbleOf(who).hidden = true;
+    for (const who of SPEAKERS) bubbleOf(who).hidden = true;
+}
+
+/** With Maria on stage, three bubbles share the strip: each narrows so none covers another speaker. */
+function stageFits(): void {
+    element('stage').classList.toggle('with-maria', !rabbits.maria.hidden);
 }
 
 /**
@@ -183,10 +191,10 @@ document.addEventListener('keydown', event => {
  * says them again, for a player who read too fast (play-tested: the answer Grace gave at the end of
  * lesson 2 was gone once its bubble was clicked away, and clicking Grace was the first thing tried).
  */
-const lastSaid: Record<Who, Line[]> = { hopper: [], grace: [] };
+const lastSaid: Record<Who, Line[]> = { hopper: [], grace: [], maria: [] };
 
-for (const who of ['hopper', 'grace'] as const) {
-    for (const part of rabbits[who].querySelectorAll('img, figcaption')) {
+for (const who of SPEAKERS) {
+    for (const part of rabbits[who].querySelectorAll('img, .face, figcaption')) {
         part.addEventListener('click', () => {
             // Not while a bubble waits to be read: that bubble is the one to read.
             if (advance || lastSaid[who].length === 0) return;
@@ -215,6 +223,7 @@ async function say(lines: Line[], options: SayOptions = {}): Promise<void> {
         hideBubbles();
         const bubble = bubbleOf(line.who);
         rabbits[line.who].hidden = false;
+        stageFits();
         bubble.innerHTML = inline(line.text)
             + (line.answer ? `<span class="answer">${escapeHtml(line.answer)}</span>` : '')
             + '<span class="next" aria-hidden="true">▸</span>';
@@ -750,6 +759,7 @@ async function enter(who: Who): Promise<void> {
     const rabbit = rabbits[who];
     if (!rabbit.hidden) return;
     rabbit.hidden = false;
+    stageFits();
     rabbit.classList.add('arriving');
     await sleep(600);
     rabbit.classList.remove('arriving');
@@ -764,6 +774,7 @@ async function leave(who: Who): Promise<void> {
     await sleep(450);
     rabbit.classList.remove('leaving');
     rabbit.hidden = true;
+    stageFits();
 }
 
 async function play(lesson: Lesson): Promise<void> {
@@ -787,7 +798,7 @@ async function play(lesson: Lesson): Promise<void> {
     }
 }
 
-const LESSONS: Lesson[] = [lesson1, lesson2, lesson3, lesson4, lesson5, lesson6, lesson7, lesson8];
+const LESSONS: Lesson[] = [lesson1, lesson2, lesson3, lesson4, lesson5, lesson6, lesson7, lesson8, lesson9];
 
 /**
  * The end of a lesson. With a lesson after it, a button goes on to it, and this resolves when it is
