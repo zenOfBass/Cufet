@@ -146,7 +146,9 @@ Go!
 >
 > **Grace:** The page is empty, friend. Start a name at zero, and make it one bigger before each hop.
 
-*The editor is empty. Done when the output is this, judged on the words and numbers only:*
+*The editor is empty. The output box keeps the task under **Your task:**, "Start a name at zero,
+and make it one bigger before each hop." Done when the output is this, judged on the words and
+numbers only:*
 
 ```output
 Hop 1!

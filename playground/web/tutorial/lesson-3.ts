@@ -106,6 +106,7 @@ export const lesson3: Lesson = {
         },
         {
             kind: 'exercise',
+            task: 'Change just the first line to `13 * 13`, and run it again.',
             goal: FOLLOWED,
             done: a => sameWords(a, FOLLOWED) && holeForAnswer(a.code),
             hints: [],

@@ -205,7 +205,7 @@ Keep going!
 > **Grace:** The page is empty. Start with `Define hops as 5.`
 
 *The editor is empty. The output box keeps the task under **Your task:**, "Say "Rest!" when hops is
-more than 3, and "Keep going!" when it isn't. Start with `Define hops as 5.`", and the goal under
+greater than 3, and "Keep going!" when it isn't. Start with `Define hops as 5.`", and the goal under
 **Make it say:**. Done when the output is, on the words only:*
 
 ```output

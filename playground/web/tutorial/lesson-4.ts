@@ -127,6 +127,7 @@ export const lesson4: Lesson = {
         {
             kind: 'exercise',
             start: '',
+            task: 'Start a name at zero, and make it one bigger before each hop.',
             goal: HOPS,
             done: a => sameWords(a, HOPS) && /\bbecomes\b/.test(a.code),
             hints: [

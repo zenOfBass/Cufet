@@ -148,7 +148,9 @@ The answer is 144.
 >
 > **Grace:** Now change the first line to `13 * 13`, and run it again. Just the first line.
 
-*The player changes the first line and presses Run. Done when the output says `The answer is 169.`*
+*The output box keeps the task under **Your task:**, "Change just the first line to `13 * 13`, and
+run it again." The player changes the first line and presses Run. Done when the output says
+`The answer is 169.`*
 
 > **Grace:** The sentence followed along. The hole always says whatever the name is keeping.
 
