@@ -70,14 +70,9 @@ jobs:
 
       - uses: actions/configure-pages@v5
 
-      # ⚠ PINNED, not '10.0.x'. Every run from 13 Nov 2026 failed at "Assemble the site": publish
-      # succeeded but stopped after its first pass, and the wasm workload's nested pass, the one
-      # that writes the AppBundle ("Generated app bundle at …"), never ran. SDK 10.0.404 came out
-      # on 10 Nov, and '10.0.x' picks up the newest. 10.0.403 is the one before it. Unpin once
-      # it's known what 10.0.404 changed.
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '10.0.403'
+          dotnet-version: '10.0.x'
 
       # Required for the browser-wasm runtime identifier. Without it, publish fails with a
       # message about a missing workload rather than anything about WebAssembly.
