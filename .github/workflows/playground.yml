@@ -63,12 +63,7 @@ jobs:
   build:
     name: Build the site
     needs: test
-    # ⚠ PINNED, not ubuntu-latest. From 13 Nov 2026 ubuntu-latest meant Ubuntu 26.04, and there
-    # every publish stopped after its first pass: no native link, no "Generated app bundle at …",
-    # so "Assemble the site" found no AppBundle. The same SDK (10.0.404) and wasm workload
-    # (10.0.15) built the AppBundle fine elsewhere, so it is the image, not .NET. Before unpinning,
-    # check the "Install the wasm workload" output on 26.04 for where the workload went.
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
