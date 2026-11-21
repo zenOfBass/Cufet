@@ -39,7 +39,7 @@ before(async () => {
     // The lessons are TypeScript and import no browser code, so they bundle for node as they are.
     const out = join(mkdtempSync(join(tmpdir(), 'cufet-tutorial-')), 'lessons.mjs');
     await esbuild.build({
-        stdin: { contents: "export { lesson1 } from './lesson-1'; export { lesson2 } from './lesson-2'; export { lesson3 } from './lesson-3'; export { lesson4 } from './lesson-4'; export { lesson5 } from './lesson-5'; export { lesson6 } from './lesson-6'; export { respond, guessIsRight } from './judge';", resolveDir: join(playground, 'web', 'tutorial'), loader: 'ts' },
+        stdin: { contents: "export { lesson1 } from './lesson-1'; export { lesson2 } from './lesson-2'; export { lesson3 } from './lesson-3'; export { lesson4 } from './lesson-4'; export { lesson5 } from './lesson-5'; export { lesson6 } from './lesson-6'; export { lesson7 } from './lesson-7'; export { respond, guessIsRight } from './judge';", resolveDir: join(playground, 'web', 'tutorial'), loader: 'ts' },
         bundle: true, format: 'esm', platform: 'node', outfile: out, logLevel: 'silent',
     });
     lessons = await import(pathToFileURL(out).href);
@@ -109,7 +109,17 @@ const SAMPLES = {
     'no comma before repeat': 'Define hops as 0.\nWhile hops is less than 6 repeat:\n    The hops becomes hops + 1.\n    State "Hop {hops}!".\n    If hops is 3, state "Halfway!".\nDone.',
     '"is" left out': 'Define hops as 0.\nWhile hops less than 6, repeat:\n    The hops becomes hops + 1.\n    State "Hop {hops}!".\n    If hops is 3, state "Halfway!".\nDone.',
     'no Done at the end': 'Define hops as 0.\nWhile hops is less than 6, repeat:\n    The hops becomes hops + 1.\n    State "Hop {hops}!".\n    If hops is 3, state "Halfway!".',
-    'six hops by hand': 'State "Hop 1!".\nState "Hop 2!".\nState "Hop 3!".\nState "Halfway!".\nState "Hop 4!".\nState "Hop 5!".\nState "Hop 6!".',
+    'Lettuce without quote marks': 'Define friends as a series with ("Grace", "Hopper", "friend", Lettuce).\nFor each name in friends, repeat:\n    State "Hello, {name}!".\nDone.',
+    'no comma before Lettuce': 'Define friends as a series with ("Grace", "Hopper", "friend" "Lettuce").\nFor each name in friends, repeat:\n    State "Hello, {name}!".\nDone.',
+    'a second Define friends': 'Define friends as a series with ("Grace", "Hopper", "friend").\nDefine friends as a series with ("Lettuce").\nFor each name in friends, repeat:\n    State "Hello, {name}!".\nDone.',
+    'Lettuce greeted by hand': 'Define friends as a series with ("Grace", "Hopper", "friend").\nFor each name in friends, repeat:\n    State "Hello, {name}!".\nDone.\nState "Hello, Lettuce!".',
+    'the State inside the loop': 'Define hops as a series with (3, 5, 2).\nDefine total as 0.\nFor each count in hops, repeat:\n    The total becomes total + count.\n    State "I hopped {total} times!".\nDone.',
+    'the total never started': 'Define hops as a series with (3, 5, 2).\nFor each count in hops, repeat:\n    The total becomes total + count.\nDone.\nState "I hopped {total} times!".',
+    'the total started inside the loop': 'Define hops as a series with (3, 5, 2).\nFor each count in hops, repeat:\n    Define total as 0.\n    The total becomes total + count.\nDone.\nState "I hopped {total} times!".',
+    'the whole series added': 'Define hops as a series with (3, 5, 2).\nDefine total as 0.\nFor each count in hops, repeat:\n    The total becomes total + hops.\nDone.\nState "I hopped {total} times!".',
+    '"of" instead of "in"': 'Define hops as a series with (3, 5, 2).\nDefine total as 0.\nFor each count of hops, repeat:\n    The total becomes total + count.\nDone.\nState "I hopped {total} times!".',
+    'ten worked out by hand': 'Define hops as a series with (3, 5, 2).\nState "I hopped 10 times!".',
+    'six hops by hand':'State "Hop 1!".\nState "Hop 2!".\nState "Hop 3!".\nState "Halfway!".\nState "Hop 4!".\nState "Hop 5!".\nState "Hop 6!".',
     '"than" left out':'Define hops as 5.\nIf hops is greater 3, state "Rest!".\nOtherwise, state "Keep going!".',
     'five in quote marks': 'Define hops as 5.\nIf hops is "5", state "Rest!".\nOtherwise, state "Keep going!".',
     'no comma after the question': 'Define hops as 5.\nIf hops is greater than 3 state "Rest!".\nOtherwise, state "Keep going!".',
@@ -155,6 +165,13 @@ const DONE = {
             'Define hops as 0.\nRepeat:\n    The hops becomes hops + 1.\n    State "Hop {hops}!".\n    If hops is 3, state "Halfway!".\nuntil hops is 6.',
         ],
     ],
+    lesson7: [
+        ['Define friends as a series with ("Grace", "Hopper", "friend", "Lettuce").\nFor each name in friends, repeat:\n    State "Hello, {name}!".\nDone.'],
+        [
+            'Define hops as a series with (3, 5, 2).\nDefine total as 0.\nFor each count in hops, repeat:\n    The total becomes total + count.\nDone.\nState "I hopped {total} times!".',
+            'Define hops as a series with (3, 5, 2).\nDefine total as 0.\nFor each day in hops, repeat:\n    The total becomes total + day.\nDone.\nState "I hopped {total} times!".',
+        ],
+    ],
 };
 
 const backticked = text => [...text.matchAll(/`([^`]+)`/g)].map(m => m[1]);
@@ -170,7 +187,7 @@ test('a typed guess: the whole line, or its one number alone', () => {
     assert.ok(!guessIsRight('12', 'What is 12 * 12?'));
 });
 
-for (const name of ['lesson1', 'lesson2', 'lesson3', 'lesson4', 'lesson5', 'lesson6']) {
+for (const name of ['lesson1', 'lesson2', 'lesson3', 'lesson4', 'lesson5', 'lesson6', 'lesson7']) {
     test(`${name}: every reaction is what its sample gets`, () => {
         for (const step of lessons[name].steps) {
             if (step.kind !== 'exercise' && step.kind !== 'parsons') continue;
@@ -225,6 +242,9 @@ for (const name of ['lesson1', 'lesson2', 'lesson3', 'lesson4', 'lesson5', 'less
                     assert.deepEqual(step.options, ['Runs', 'Refused']);
                     assert.equal(step.options[step.correct], tried.outcome === 'refused' ? 'Refused' : 'Runs',
                         `"Will it run?" has the wrong answer for:\n${code}\n  it ${tried.outcome}`);
+                } else if (step.kind === 'predict' && step.shows !== undefined) {
+                    assert.ok(tried.output.includes(step.shows),
+                        `the program before this prediction does not show "${step.shows}":\n${code}\n  it said: ${tried.output.trim()}`);
                 } else if (step.kind === 'predict') {
                     assert.deepEqual(printed, backticked(step.options[step.correct]),
                         `the program before this prediction prints something else:\n${code}`);

@@ -61,6 +61,11 @@ export type Step =
          */
         asks?: 'output' | 'runs';
         options: string[];
+        /**
+         * For a right option that is not output in backticks ("Cufet stops and explains"): words the
+         * real output must contain, which the test checks in place of the backticked lines.
+         */
+        shows?: string;
         /** Which option is what the program really prints. The page does not need it; the test
          *  checks it against the real build, so a draft and its program cannot drift apart. */
         correct: number;

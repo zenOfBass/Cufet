@@ -15,6 +15,7 @@ import { lesson3 } from './tutorial/lesson-3';
 import { lesson4 } from './tutorial/lesson-4';
 import { lesson5 } from './tutorial/lesson-5';
 import { lesson6 } from './tutorial/lesson-6';
+import { lesson7 } from './tutorial/lesson-7';
 import { guessIsRight, outputLines, respond } from './tutorial/judge';
 import type { Attempt } from './tutorial/judge';
 import type { Lesson, Line, Reaction, Step, Who } from './tutorial/lesson';
@@ -785,7 +786,7 @@ async function play(lesson: Lesson): Promise<void> {
     }
 }
 
-const LESSONS: Lesson[] = [lesson1, lesson2, lesson3, lesson4, lesson5, lesson6];
+const LESSONS: Lesson[] = [lesson1, lesson2, lesson3, lesson4, lesson5, lesson6, lesson7];
 
 /**
  * The end of a lesson. With a lesson after it, a button goes on to it, and this resolves when it is

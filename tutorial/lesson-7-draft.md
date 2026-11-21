@@ -184,6 +184,8 @@ Hello, friend!
 
 ## Beat 5: a blank page (Make)
 
+*Grace clears the editor and writes one line, `Define hops as a series with (3, 5, 2).`*
+
 > **Hopper:** Your turn, friend! I hopped three times on Monday, five on Tuesday and two on Wednesday. How many is that altogether?
 >
 > **Grace:** No working it out in your head. I've started the series for you.
