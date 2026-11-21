@@ -70,6 +70,11 @@ jobs:
 
       - uses: actions/configure-pages@v5
 
+      # ⚠ The SDK that runs is chosen by global.json at the repo root, not by this step. The
+      # runner images carry a NEWER SDK preinstalled (.NET 11 from Nov 2026), and without
+      # global.json `dotnet` picks the newest: the workload step then installed .NET 11's wasm
+      # tools, publish never did the native pass for this net10.0 project, and no AppBundle was
+      # written. Every run from 13 Nov 2026 failed at "Assemble the site" that way.
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
