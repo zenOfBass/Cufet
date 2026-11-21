@@ -115,7 +115,7 @@ export const lesson2: Lesson = {
         {
             kind: 'say', lines: [
                 hopper("Pop quiz, friend! What's twelve times twelve? No fair working it out in your head."),
-                grace('The page is empty. Write a program that asks the question, then lets Cufet work out the answer.'),
+                grace("The page is empty. Make the output box say what it's showing you: Hopper's question, then Cufet's answer."),
             ],
         },
         {
