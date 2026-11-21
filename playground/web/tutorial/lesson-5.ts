@@ -165,6 +165,11 @@ export const lesson5: Lesson = {
                     done: true,
                 },
                 {
+                    case: 'Rest! with no If',
+                    when: a => sameWords(a, TIRED) && !/^\s*If\b/m.test(a.code),
+                    lines: [hopper('That says "Rest!", but it always will! Ask Cufet whether I\'ve hopped more than three times, with `If`, and let it decide.')],
+                },
+                {
                     case: '"than" left out',
                     when: a => refusedSaying(a, 'expected Than'),
                     lines: [grace('It\'s `is greater than`, with "than" on the end.')],
