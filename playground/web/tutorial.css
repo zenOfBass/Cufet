@@ -249,6 +249,7 @@ body.sorting main { grid-template-rows: minmax(0, 2fr) minmax(0, 1fr); }
 
 .slots input:focus { outline: none; border-color: var(--accent); }
 .slots input:disabled { opacity: 0.8; }
+.slots { margin-bottom: 12px; }
 .slots .real { white-space: pre; }
 .slots .real.wrong { color: var(--error); }
 

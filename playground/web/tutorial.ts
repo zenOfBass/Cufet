@@ -507,7 +507,8 @@ async function predictLines(step: Extract<Step, { kind: 'predict-lines' }>): Pro
         grid.append(input, real);
         return { input, real };
     });
-    outputBox.append(questionLine('What will appear here?'), grid);
+    const question = questionLine('What will appear here?');
+    outputBox.append(question, grid);
 
     const filled = () => slots.every(slot => slot.input.value.trim() !== '');
     slots.forEach(({ input }, i) => {
@@ -537,13 +538,21 @@ async function predictLines(step: Extract<Step, { kind: 'predict-lines' }>): Pro
     const printed = outputLines(attempt.output);
     const said: Line[][] = [];
     slots.forEach(({ input, real }, i) => {
-        const line = printed[i] ?? '';
-        const right = guessIsRight(input.value, line);
-        real.textContent = `${right ? '✓' : '✗'}  ${line}`;
+        const right = guessIsRight(input.value, printed[i] ?? '');
+        real.textContent = right ? '✓' : '✗';
         real.classList.add(right ? 'right' : 'wrong');
         const reaction = step.wrong[i];
         if (!right && reaction && !said.includes(reaction)) said.push(reaction);
     });
+    // ★ Then the run itself, as the box shows any run: the question was what would appear HERE,
+    // so what appeared is shown here, whole, under the guesses. Laid out as the multiple-choice
+    // questions are ("You guessed:" / "It said:"). Play-tested: with each real line tucked beside
+    // its guess, the box never showed the program's own output.
+    question.className = 'faint';
+    question.textContent = 'You guessed:';
+    const ran = document.createElement('pre');
+    ran.textContent = attempt.output || '(nothing)';
+    outputBox.append(faint('It said:'), ran);
     await say([...(said.length === 0 ? step.right : said.flat()), ...(step.after ?? [])]);
 }
 
