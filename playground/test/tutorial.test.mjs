@@ -39,7 +39,7 @@ before(async () => {
     // The lessons are TypeScript and import no browser code, so they bundle for node as they are.
     const out = join(mkdtempSync(join(tmpdir(), 'cufet-tutorial-')), 'lessons.mjs');
     await esbuild.build({
-        stdin: { contents: "export { lesson1 } from './lesson-1'; export { lesson2 } from './lesson-2'; export { lesson3 } from './lesson-3'; export { lesson4 } from './lesson-4'; export { respond, guessIsRight } from './judge';", resolveDir: join(playground, 'web', 'tutorial'), loader: 'ts' },
+        stdin: { contents: "export { lesson1 } from './lesson-1'; export { lesson2 } from './lesson-2'; export { lesson3 } from './lesson-3'; export { lesson4 } from './lesson-4'; export { lesson5 } from './lesson-5'; export { respond, guessIsRight } from './judge';", resolveDir: join(playground, 'web', 'tutorial'), loader: 'ts' },
         bundle: true, format: 'esm', platform: 'node', outfile: out, logLevel: 'silent',
     });
     lessons = await import(pathToFileURL(out).href);
@@ -94,6 +94,16 @@ const SAMPLES = {
     '= instead of becomes': 'Define hops as 0.\nThe hops = hops + 1.\nState "Hop {hops}!".',
     'Define a second time': 'Define hops as 0.\nDefine hops as hops + 1.\nState "Hop {hops}!".',
     'a typo in the name': 'Define hops as 0.\nThe hosp becomes hops + 1.\nState "Hop {hops}!".',
+    'no comma after Otherwise': 'Define hops as 2.\nState "Hop {hops}!".\nIf hops is 3, state "Rest!".\nOtherwise state "Keep going!".',
+    'Else for Otherwise': 'Define hops as 2.\nState "Hop {hops}!".\nIf hops is 3, state "Rest!".\nElse, state "Keep going!".',
+    'Otherwise above the If': 'Define hops as 2.\nState "Hop {hops}!".\nOtherwise, state "Keep going!".\nIf hops is 3, state "Rest!".',
+    'a second If': 'Define hops as 2.\nState "Hop {hops}!".\nIf hops is 3, state "Rest!".\nIf hops is 2, state "Keep going!".',
+    'the > sign': 'Define hops as 5.\nIf hops > 3, state "Rest!".\nOtherwise, state "Keep going!".',
+    '"than" left out': 'Define hops as 5.\nIf hops is greater 3, state "Rest!".\nOtherwise, state "Keep going!".',
+    'five in quote marks': 'Define hops as 5.\nIf hops is "5", state "Rest!".\nOtherwise, state "Keep going!".',
+    'no comma after the question': 'Define hops as 5.\nIf hops is greater than 3 state "Rest!".\nOtherwise, state "Keep going!".',
+    'asks whether hops is five': 'Define hops as 5.\nIf hops is 5, state "Rest!".\nOtherwise, state "Keep going!".',
+    'no period on the end': 'Define hops as 5.\nIf hops is greater than 3, state "Rest!".\nOtherwise, state "Keep going!"',
     'the joke in the wrong order':'State "Lettuce!".\nState "Knock, knock!".\nState "Who\'s there?".\nState "Lettuce who?".\nState "Lettuce in, it\'s cold out here!".',
 };
 
@@ -119,6 +129,14 @@ const DONE = {
         ['Define count as 3.\nState count.\nThe count becomes count - 1.\nState count.\nThe count becomes count - 1.\nState count.\nState "Go!".'],
         ['Define hops as 0.\nThe hops becomes hops + 1.\nState "Hop {hops}!".\nThe hops becomes hops + 1.\nState "Hop {hops}!".\nThe hops becomes hops + 1.\nState "Hop {hops}!".'],
     ],
+    lesson5: [
+        ['Define hops as 2.\nState "Hop {hops}!".\nIf hops is 3, state "Rest!".\nOtherwise, state "Keep going!".'],
+        [
+            'Define hops as 5.\nIf hops is greater than 3, state "Rest!".\nOtherwise, state "Keep going!".',
+            'Define hops as 5.\nIf hops is greater than 3:\n    State "Rest!".\nDone.\nOtherwise:\n    State "Keep going!".\nDone.',
+        ],
+        ['Define hops as 2.\nIf hops is greater than 3, state "Rest!".\nOtherwise, state "Keep going!".'],
+    ],
 };
 
 const backticked = text => [...text.matchAll(/`([^`]+)`/g)].map(m => m[1]);
@@ -134,7 +152,7 @@ test('a typed guess: the whole line, or its one number alone', () => {
     assert.ok(!guessIsRight('12', 'What is 12 * 12?'));
 });
 
-for (const name of ['lesson1', 'lesson2', 'lesson3', 'lesson4']) {
+for (const name of ['lesson1', 'lesson2', 'lesson3', 'lesson4', 'lesson5']) {
     test(`${name}: every reaction is what its sample gets`, () => {
         for (const step of lessons[name].steps) {
             if (step.kind !== 'exercise' && step.kind !== 'parsons') continue;
