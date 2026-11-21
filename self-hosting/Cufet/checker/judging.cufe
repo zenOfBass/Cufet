@@ -173,6 +173,25 @@ Pull a book on collections.
         Return void.
     Done.
 
+    /// The name in scope nearest `name`, within two edits, or "". Innermost scope first, and the first
+    /// found wins a tie. C#'s `NearestNameInScope`.
+    Bind text to nearest-name-in-scope unto checker, given (the text name):
+        Define best as "".
+        Define best-distance as 3.
+        Define depth as the number of one's scopes.
+        While depth is greater than 0, repeat:
+            For each pair in item depth of one's scopes, repeat:
+                Define distance as cast edit-distance on (the key of pair, name).
+                If distance is less than best-distance:
+                    The best becomes the key of pair.
+                    The best-distance becomes distance.
+                Done.
+            Done.
+            Decrement depth by 1.
+        Done.
+        Return best.
+    Done.
+
     /// The same, skipping the innermost scope.
     Bind voidable binding to look-up-outer unto checker, given (the text name):
         Define depth as the number of one's scopes - 1.
@@ -1321,7 +1340,15 @@ Pull a book on collections.
         // Reassigning ends whatever a test had narrowed the name to.
         Cast one's forget-narrowing on (name).
         Define existing as cast one's look-up on (name).
-        If existing is void, return.
+        // Refused, as a read of an unknown name is. It used to return here, as C#'s did.
+        If existing is void:
+            Define nearest as cast one's nearest-name-in-scope on (name).
+            Define fix as "Give it first: 'Define {name} as <value>.' — or check the spelling.".
+            If nearest is not "", the fix becomes "Did you mean '{nearest}'?".
+            Return a failure (cast refusal-of on ("'{name}' isn't defined",
+                "'becomes' changes a name that already exists, and nothing has given this one yet",
+                at-row, "change '{name}' here", fix)).
+        Done.
 
         If existing's permanent:
             Return a failure (cast refusal-of on ("'{name}' is permanent",

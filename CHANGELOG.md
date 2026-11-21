@@ -6,6 +6,16 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ---
 
+## [Unreleased]
+
+### Fixed
+
+- **`becomes` on a name nothing has given is refused before the program starts.** `The hosp
+  becomes hops + 1.` with no `hosp` used to check clean; the program ran every line above it and
+  stopped there. Reading an unknown name has been refused for a long time, and changing one now is
+  too, in both checkers, with the nearest name suggested ("Did you mean 'hops'?"). Found while
+  writing the tutorial's lesson on `becomes`.
+
 ## [0.30.0] — 2026-11-20
 
 ### Added

@@ -975,6 +975,24 @@ public sealed partial class TypeChecker
         return false;
     }
 
+    /// <summary>
+    /// The name in scope nearest `name`, within two edits, or null. Innermost scope first, and the
+    /// first found wins a tie, so the Cufet-written checker (`nearest-name-in-scope`) can match it
+    /// word for word.
+    /// </summary>
+    private string? NearestNameInScope(string name)
+    {
+        string? best = null;
+        var bestDistance = 3;
+        for (int i = _scopes.Count - 1; i >= 0; i--)
+            foreach (var key in _scopes[i].Keys)
+            {
+                var distance = Levenshtein(key, name);
+                if (distance < bestDistance) { bestDistance = distance; best = key; }
+            }
+        return best;
+    }
+
     // Walk from second-innermost to outermost only (skips the current scope).
     private bool TryLookupOuter(string name, [System.Diagnostics.CodeAnalysis.MaybeNullWhen(false)] out TypeInfo ti)
     {
@@ -3533,8 +3551,24 @@ public sealed partial class TypeChecker
         // Reassignment invalidates any active narrowing on this variable.
         _narrowedVars.Remove(becomes.Name);
 
+        // ★ Refused, as a READ of an unknown name already is (`NoteUnresolvedName`). This used to
+        // `return` — the checker's original leniency, which reads lost and `becomes` kept by
+        // oversight: the program started, ran every line above, and stopped at this one. Nothing
+        // depended on it (measured 2026-11-21: refusing it, both suites objected only where they
+        // pinned the old behaviour). Found by the tutorial's lesson on `becomes`, whose lesson
+        // two promises "if one line doesn't make sense, it won't start at all".
         if (!TryLookup(becomes.Name, out var existing))
-            return;
+        {
+            var nearest = NearestNameInScope(becomes.Name);
+            throw TypeError(
+                $"'{becomes.Name}' isn't defined",
+                "'becomes' changes a name that already exists, and nothing has given this one yet",
+                becomes.Line, becomes.Column,
+                $"change '{becomes.Name}' here",
+                nearest is not null
+                    ? $"Did you mean '{nearest}'?"
+                    : $"Give it first: 'Define {becomes.Name} as <value>.' — or check the spelling.");
+        }
 
         if (existing.Permanent)
             throw TypeError(

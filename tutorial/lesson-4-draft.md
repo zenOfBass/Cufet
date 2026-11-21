@@ -133,7 +133,7 @@ Go!
 | They build | What Cufet does | The rabbits say |
 | --- | --- | --- |
 | Two `State count.` tiles in a row | Runs, prints the same number twice | **Hopper:** It said the same number twice! Something has to change it in between. |
-| `Define count as 3.` not first | `That doesn't work: 'count' isn't defined.` and three more lines, or `'count' isn't defined on line 1 — use Define to create it first, then becomes to change it.` | **Grace:** The name has to be given before anything uses it. Put the `Define` on top. |
+| `Define count as 3.` not first | `That doesn't work: 'count' isn't defined.` and three more lines | **Grace:** The name has to be given before anything uses it. Put the `Define` on top. |
 | `State "Go!".` not last | Runs, prints "Go!" too early | **Hopper:** Hey, I went too early! "Go!" comes after one. |
 
 ## Beat 4: a blank page (Make)
@@ -179,7 +179,7 @@ Hop 3!
 | `The hops is hops + 1.` | `Line 2, column 10: expected Becomes, got Is "is".` | **Grace:** Changing a name uses `becomes`, not `is`. |
 | `The hops = hops + 1.` | `'=' is comparison, not assignment. Did you mean 'hops becomes ...' (update) or 'Define hops as ...' (introduce)?` | **Grace:** Cufet says it well itself: changing a name uses `becomes`. |
 | `Define hops as hops + 1.` | `That doesn't work: 'hops' is already defined in this scope.` and more | **Hopper:** That's the one Cufet refused before! `Define` is only for the first time. After that, it's `becomes`. |
-| A typo: `The hosp becomes hops + 1.` | `'hosp' isn't defined on line 2 — use Define to create it first, then becomes to change it. Did you mean 'hops'?` | **Hopper:** Cufet even guessed what you meant! |
+| A typo: `The hosp becomes hops + 1.` | `That doesn't work: 'hosp' isn't defined.` and more, ending `Did you mean 'hops'?` | **Hopper:** Cufet even guessed what you meant! |
 
 ## Before the lesson ends
 

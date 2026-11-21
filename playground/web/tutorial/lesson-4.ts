@@ -11,14 +11,6 @@ const hopper = (text: string, answer?: string): Line => ({ who: 'hopper', text, 
 const refusedSaying = (a: Attempt, fragment: string) =>
     a.outcome === 'refused' && a.output.includes(fragment);
 
-/**
- * ⚠ Measured: a `becomes` on a name not yet given is NOT refused. The program starts and stops
- * at that line with its message ("'count' isn't defined on line 1 — use Define…"), so the outcome
- * is `ran`. These reactions match the message whichever way it arrived.
- */
-const saying = (a: Attempt, fragment: string) =>
-    (a.outcome === 'ran' || a.outcome === 'refused') && a.output.includes(fragment);
-
 const lines = (a: Attempt) => a.outcome === 'ran' ? outputLines(a.output) : [];
 
 const COUNTDOWN = ['3', '2', '1', 'Go!'];
@@ -104,7 +96,7 @@ export const lesson4: Lesson = {
             reactions: [
                 {
                     case: 'the Define not first',
-                    when: a => saying(a, "'count' isn't defined"),
+                    when: a => refusedSaying(a, "'count' isn't defined"),
                     lines: [grace('The name has to be given before anything uses it. Put the `Define` on top.')],
                 },
                 {
@@ -180,7 +172,7 @@ export const lesson4: Lesson = {
                 },
                 {
                     case: 'a typo in the name',
-                    when: a => saying(a, 'Did you mean'),
+                    when: a => refusedSaying(a, 'Did you mean'),
                     lines: [hopper('Cufet even guessed what you meant!')],
                 },
             ],

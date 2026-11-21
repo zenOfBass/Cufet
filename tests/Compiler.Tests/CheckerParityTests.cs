@@ -176,6 +176,11 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
         "If true:\n    Define y as 1.\nDone.\nState y.",
         "While false, repeat:\n    State z.\nDone.",
         "The q becomes 3.",
+        // `becomes` on an unknown name, with and without a near one to suggest, in a block and a body.
+        "Define hops as 0.\nThe hosp becomes hops + 1.",
+        "Define hops as 0.\nIf true:\n    Define hips as 1.\n    The hups becomes 2.\nDone.",
+        "Bind void to bump:\n    The tally becomes 1.\nDone.",
+        "The count becomes count - 1.\nDefine count as 3.",
         // Defining twice, shadowing, and the two names every program is given.
         "Define x as 1.\nDefine x as 2.",
         "Define y as 1.\nIf true:\n    Define y as 2.\nDone.",

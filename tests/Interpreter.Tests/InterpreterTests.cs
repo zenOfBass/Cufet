@@ -452,7 +452,17 @@ public class InterpreterTests
     [Fact]
     public void BecomesUndefinedThrows()
     {
-        Assert.Throws<RuntimeException>(() => Run("x becomes 5."));
+        // ★ A TYPE error now, as `ReferenceUndefinedThrows` below became: changing a name nothing
+        // has given is a mistake the checker can see, so the program never starts.
+        Assert.Throws<TypeException>(() => Run("x becomes 5."));
+    }
+
+    [Fact]
+    public void BecomesUndefined_IsRefusedBeforeAnyLineRuns()
+    {
+        // The line above it would have printed before the run stopped, which is the whole point.
+        var ex = Assert.Throws<TypeException>(() => Run("Define hops as 0.\nState hops.\nThe hosp becomes hops + 1."));
+        Assert.Contains("Did you mean 'hops'?", ex.Message);
     }
 
     [Fact]
