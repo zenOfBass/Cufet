@@ -86,9 +86,37 @@ document.fonts.ready.then(() => monaco.editor.remeasureFonts());
 startHighlighting(editor, (kind, source) => runtime.ask(kind, source))
     .catch(e => console.error('syntax highlighting failed to start:', e));
 
-/** True while the player is meant to be typing. Pasting is refused then: DESIGN.md, "no pasting". */
+/**
+ * True while the player is meant to be typing. Pasting is refused then (DESIGN.md: "The answer
+ * must be typed in by hand; no pasting"), EXCEPT text copied or cut from this editor.
+ *
+ * ★ The rule is about the hint's answer, and refusing every paste went wider than that: a
+ * play-tester copied their own `The hops becomes hops + 1.` to write it three times, and could
+ * not. Their own lines are theirs to repeat. What comes from anywhere else is still undone.
+ */
 let typing = false;
-editor.onDidPaste(() => { if (typing) editor.trigger('tutorial', 'undo', null); });
+let copiedHere = '';
+
+/** What a copy or cut takes from the editor: the selections, or with none, the whole lines. */
+function selectedText(): string {
+    const model = editor.getModel();
+    const selections = editor.getSelections() ?? [];
+    if (!model || selections.length === 0) return '';
+    if (selections.every(s => s.isEmpty()))     // Monaco copies the whole line then
+        return selections.map(s => `${model.getLineContent(s.startLineNumber)}\n`).join('');
+    return selections.filter(s => !s.isEmpty())
+        .map(s => model.getValueInRange(s, monaco.editor.EndOfLinePreference.LF)).join('\n');
+}
+
+for (const event of ['copy', 'cut'] as const)
+    element('editor').addEventListener(event, () => { copiedHere = selectedText(); }, true);
+
+editor.onDidPaste(({ range }) => {
+    if (!typing) return;
+    const pasted = editor.getModel()?.getValueInRange(range, monaco.editor.EndOfLinePreference.LF) ?? '';
+    if (copiedHere !== '' && pasted.trimEnd() === copiedHere.trimEnd()) return;
+    editor.trigger('tutorial', 'undo', null);
+});
 
 function setTyping(on: boolean): void {
     typing = on;
@@ -685,11 +713,23 @@ async function enter(who: Who): Promise<void> {
     rabbit.classList.remove('arriving');
 }
 
+/** A rabbit dashes off the edge of the screen; `enter` brings it back. */
+async function leave(who: Who): Promise<void> {
+    const rabbit = rabbits[who];
+    if (rabbit.hidden) return;
+    bubbleOf(who).hidden = true;
+    rabbit.classList.add('leaving');
+    await sleep(450);
+    rabbit.classList.remove('leaving');
+    rabbit.hidden = true;
+}
+
 async function play(lesson: Lesson): Promise<void> {
     element('lesson-title').textContent = `Lesson ${lesson.number}: ${lesson.title}`;
     for (const step of lesson.steps) {
         switch (step.kind) {
             case 'enter': await enter(step.who); break;
+            case 'leave': await leave(step.who); break;
             case 'say': await say(step.lines); break;
             case 'write': await write(step.who, step.append
                 ? `${codeNow().trimEnd()}\n${step.code}`

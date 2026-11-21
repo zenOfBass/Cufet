@@ -28,7 +28,8 @@ possibly a child.
 - **The hint ladder:**
   - Each hint is earned by an attempt since the last one.
   - The last rung is the answer.
-  - The answer must be typed in by hand; no pasting.
+  - The answer must be typed in by hand; no pasting. A player's own lines, copied or cut from the
+    editor, may be pasted back: the rule is about the answer, not about repeating yourself.
   - A close variation may follow, with no answer offered, but only where it adds something.
 
 ## The story

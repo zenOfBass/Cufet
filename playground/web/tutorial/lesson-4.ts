@@ -110,11 +110,12 @@ export const lesson4: Lesson = {
                     lines: [hopper('Hey, I went too early! "Go!" comes after one.')],
                 },
             ],
-            success: [
-                hopper('Go! Go go go!'),
-                grace("He'll be back. Well done, friend."),
-            ],
+            success: [hopper('Go! Go go go!')],
         },
+        // And off he goes, so Grace's line is true on screen.
+        { kind: 'leave', who: 'hopper' },
+        { kind: 'say', lines: [grace("He'll be back. Well done, friend.")] },
+        { kind: 'enter', who: 'hopper' },
 
         // ── Beat 4: a blank page ────────────────────────────────────────────────────────────
         {

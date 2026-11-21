@@ -35,6 +35,8 @@ export interface Reaction {
 export type Step =
     /** A rabbit arrives at the edge of the screen. */
     | { kind: 'enter'; who: Who }
+    /** A rabbit dashes off the edge of the screen. An `enter` brings it back. */
+    | { kind: 'leave'; who: Who }
     /** Speech bubbles, one after another; each waits to be read. */
     | { kind: 'say'; lines: Line[] }
     /**

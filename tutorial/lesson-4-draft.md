@@ -116,7 +116,9 @@ Go!
 ```
 
 > **Hopper:** Go! Go go go!
->
+
+*Hopper dashes off the edge of the screen.*
+
 > **Grace:** He'll be back. Well done, friend.
 
 ### The hint ladder
@@ -137,6 +139,8 @@ Go!
 | `State "Go!".` not last | Runs, prints "Go!" too early | **Hopper:** Hey, I went too early! "Go!" comes after one. |
 
 ## Beat 4: a blank page (Make)
+
+*Hopper comes back in from the edge of the screen.*
 
 > **Hopper:** I'm back! Now count my hops! Hop one, hop two, hop three!
 >

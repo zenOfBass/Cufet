@@ -289,11 +289,16 @@ body.sorting main { grid-template-rows: minmax(0, 2fr) minmax(0, 1fr); }
 
 .rabbit.arriving { animation: arrive 0.6s ease-out; }
 #grace.arriving { animation-name: arrive-right; }
+/* Leaving the way it arrived, only faster. Hopper's side is the left, Grace's the right. */
+.rabbit.leaving { animation: leave 0.45s ease-in forwards; }
+#grace.leaving { animation-name: leave-right; }
 .rabbit.busy img { animation: hop 0.35s ease-in-out infinite alternate; }
 
 @keyframes arrive       { from { transform: translateX(-140px); } to { transform: none; } }
 @keyframes arrive-right { from { transform: translateX(140px); }  to { transform: none; } }
-@keyframes hop          { from { translate: 0 0; } to { translate: 0 -8px; } }
+@keyframes leave        { to { transform: translateX(-140px); opacity: 0; } }
+@keyframes leave-right  { to { transform: translateX(140px); opacity: 0; } }
+@keyframes hop         { from { translate: 0 0; } to { translate: 0 -8px; } }
 
 .bubble {
     position: absolute;
