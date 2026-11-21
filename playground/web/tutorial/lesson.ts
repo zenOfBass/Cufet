@@ -100,6 +100,12 @@ export type Step =
          * prints exactly this.
          */
         goal?: string[];
+        /**
+         * The task in a sentence, kept in the output box above the goal, for an exercise whose goal
+         * alone is not the whole task. Lesson 5's "Make it say: Rest!" was true and misleading: the
+         * task was to say it WHEN hops is more than three, and that was only in a bubble. Play-tested.
+         */
+        task?: string;
         /** Done when the program ran and this holds, and no reaction said otherwise. */
         done: (attempt: Attempt) => boolean;
         /** The hint ladder. Empty for a variation with no answer offered. */

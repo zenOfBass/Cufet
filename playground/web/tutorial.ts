@@ -267,6 +267,9 @@ function colourAsCode(element: HTMLElement): void {
  */
 let goal: string[] | null = null;
 
+/** The exercise's task in a sentence, while one is up: shown above the goal, kept just as long. */
+let task: string | null = null;
+
 function faint(text: string): HTMLElement {
     const label = document.createElement('p');
     label.className = 'faint';
@@ -275,6 +278,12 @@ function faint(text: string): HTMLElement {
 }
 
 function showGoal(): void {
+    if (task) {
+        const sentence = document.createElement('p');
+        sentence.className = 'task';
+        sentence.innerHTML = inline(task);
+        outputBox.append(faint('Your task:'), sentence);
+    }
     if (!goal) return;
     const lines = document.createElement('pre');
     lines.className = 'goal';
@@ -284,7 +293,7 @@ function showGoal(): void {
 
 function showAttempt(attempt: Attempt, guess?: string): void {
     outputBox.replaceChildren();
-    if (goal) {
+    if (goal || task) {
         showGoal();
         outputBox.append(faint('It said:'));
     }
@@ -643,13 +652,15 @@ async function untilDone(
 async function exercise(step: Extract<Step, { kind: 'exercise' }>): Promise<void> {
     if (step.start !== undefined) setCode(step.start);
     goal = step.goal ?? null;
-    if (goal) { outputBox.replaceChildren(); showGoal(); }
+    task = step.task ?? null;
+    if (goal || task) { outputBox.replaceChildren(); showGoal(); }
     setTyping(true);
     try {
         await untilDone(codeNow, step,
             code => { setCode(code); editor.focus(); });
     } finally {
         goal = null;
+        task = null;
     }
     setTyping(false);
     await say(step.success);

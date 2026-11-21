@@ -21,7 +21,8 @@ possibly a child.
 - **A Make exercise shows its goal.** The rabbits say what to make, and the output box keeps what
   the program should print, under "Make it say:", until it's done. What fades is help with the
   code, never the task: a bubble read too fast is gone, and a blank page with no goal on it left a
-  play-tester with nothing to do.
+  play-tester with nothing to do. When the output alone isn't the whole task (say it *when* something
+  is true), the box also keeps the task in a sentence, under "Your task:".
 - **Parsons problems:** put given lines in order.
 - **How an exercise is judged follows its step:** the guess, the output, or whether the checker
   refuses it.

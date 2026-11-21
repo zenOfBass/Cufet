@@ -215,6 +215,8 @@ body.sorting main { grid-template-rows: minmax(0, 2fr) minmax(0, 1fr); }
 @keyframes spin { to { transform: rotate(360deg); } }
 /* What the program should print: faint, so it never reads as what it DID print. */
 .output pre.goal { color: var(--muted); margin-bottom: 14px; }
+.output .task { margin: 0 0 14px; font-family: var(--sans); font-size: 15px; color: var(--text); }
+.output .task code { font-family: var(--mono); font-size: 13px; background: var(--bg-sunken); padding: 0 4px; border-radius: 3px; }
 .output .faint { color: var(--muted); font-family: var(--sans); font-size: 13px; margin: 0 0 6px; }
 
 .question { font-family: var(--sans); font-weight: 600; margin: 0 0 10px; }

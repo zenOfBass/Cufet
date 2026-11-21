@@ -149,6 +149,7 @@ export const lesson5: Lesson = {
         {
             kind: 'exercise',
             start: '',
+            task: 'Say "Rest!" when hops is more than 3, and "Keep going!" when it isn\'t. Start with `Define hops as 5.`',
             goal: TIRED,
             done: a => sameWords(a, TIRED) && decides(a.code) && !asksForFive(a.code),
             hints: [
@@ -199,6 +200,7 @@ export const lesson5: Lesson = {
         },
         {
             kind: 'exercise',
+            task: 'Change just the first line to `Define hops as 2.`, and run it again.',
             goal: NOT_TIRED,
             done: a => sameWords(a, NOT_TIRED) && decides(a.code) && /^\s*Define\s+hops\s+as\s+2\s*\./m.test(a.code),
             hints: [],

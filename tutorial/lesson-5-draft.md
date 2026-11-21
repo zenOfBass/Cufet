@@ -204,7 +204,9 @@ Keep going!
 >
 > **Grace:** The page is empty. Start with `Define hops as 5.`
 
-*The editor is empty. Done when the output is, on the words only:*
+*The editor is empty. The output box keeps the task under **Your task:**, "Say "Rest!" when hops is
+more than 3, and "Keep going!" when it isn't. Start with `Define hops as 5.`", and the goal under
+**Make it say:**. Done when the output is, on the words only:*
 
 ```output
 Rest!
@@ -212,7 +214,8 @@ Rest!
 
 > **Hopper:** Rest! Now the real test. Say I've only hopped twice. Change just the first line to 2, and run it again.
 
-*Done when the output is:*
+*The task becomes "Change just the first line to `Define hops as 2.`, and run it again." Done when
+the output is:*
 
 ```output
 Keep going!
