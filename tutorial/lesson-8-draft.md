@@ -153,7 +153,7 @@ State cast add-up on (a series with (3, 5, 2)).
 
 > **Grace:** `Return` gives the answer back and leaves the function, right there. So it goes where the answer is ready.
 
-*Hopper takes the extra `Return` out again.*
+*Hopper takes the extra `Return` out again, and puts Grace's week back.*
 
 ## Beat 4: Lettuce's week (Modify)
 
@@ -190,7 +190,7 @@ new line uses `cast add-up`.*
 >
 > **Grace:** I've written the last two lines for you. Write `cheer` above them.
 
-*The editor holds two lines:*
+*Grace clears the editor and writes two lines, before she says she has:*
 
 ```cufet
 State cast cheer on (5).
