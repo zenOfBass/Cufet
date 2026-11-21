@@ -121,6 +121,7 @@ export const lesson2: Lesson = {
         {
             kind: 'exercise',
             start: '',
+            goal: QUIZ,
             done: a => sameWords(a, QUIZ) && cufetDidTheSum(a.code),
             hints: [
                 [grace('Two lines in the output box means two instructions. The question, then the answer.')],

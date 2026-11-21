@@ -89,6 +89,12 @@ export type Step =
         kind: 'exercise';
         /** Replaces the editor's text first, when given. Otherwise the player works on what is there. */
         start?: string;
+        /**
+         * What the program should print, shown in the output box for as long as the exercise
+         * lasts (DESIGN.md, "A Make exercise shows its goal"). The test checks a right answer
+         * prints exactly this.
+         */
+        goal?: string[];
         /** Done when the program ran and this holds, and no reaction said otherwise. */
         done: (attempt: Attempt) => boolean;
         /** The hint ladder. Empty for a variation with no answer offered. */

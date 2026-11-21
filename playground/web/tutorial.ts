@@ -213,8 +213,34 @@ function colourAsCode(element: HTMLElement): void {
 
 // ── The output box ───────────────────────────────────────────────────────────────────────────
 
+/**
+ * The exercise's goal, while one is up: what the program should print. Kept at the top of the
+ * output box through every attempt, so the task is never lost with the bubble that set it
+ * (play-tested: at lesson 2's blank page, nothing on screen said what to make).
+ */
+let goal: string[] | null = null;
+
+function faint(text: string): HTMLElement {
+    const label = document.createElement('p');
+    label.className = 'faint';
+    label.textContent = text;
+    return label;
+}
+
+function showGoal(): void {
+    if (!goal) return;
+    const lines = document.createElement('pre');
+    lines.className = 'goal';
+    lines.textContent = goal.join('\n');
+    outputBox.append(faint('Make it say:'), lines);
+}
+
 function showAttempt(attempt: Attempt, guess?: string): void {
     outputBox.replaceChildren();
+    if (goal) {
+        showGoal();
+        outputBox.append(faint('It said:'));
+    }
     if (guess !== undefined) {
         const label = document.createElement('p');
         label.className = 'faint';
@@ -536,9 +562,15 @@ async function untilDone(
 
 async function exercise(step: Extract<Step, { kind: 'exercise' }>): Promise<void> {
     if (step.start !== undefined) editor.setValue(step.start);
+    goal = step.goal ?? null;
+    if (goal) { outputBox.replaceChildren(); showGoal(); }
     setTyping(true);
-    await untilDone(() => editor.getValue(), step,
-        code => { editor.setValue(code); editor.focus(); });
+    try {
+        await untilDone(() => editor.getValue(), step,
+            code => { editor.setValue(code); editor.focus(); });
+    } finally {
+        goal = null;
+    }
     setTyping(false);
     await say(step.success);
 }

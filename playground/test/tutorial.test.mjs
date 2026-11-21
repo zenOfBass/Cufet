@@ -107,6 +107,11 @@ for (const name of ['lesson1', 'lesson2']) {
         const steps = lessons[name].steps.filter(s => s.kind === 'exercise' || s.kind === 'parsons');
         assert.equal(steps.length, DONE[name].length, 'DONE lists a different number of exercises than the lesson has');
         steps.forEach((step, i) => {
+            // The goal on screen is what the first right answer prints, exactly.
+            if (step.goal) {
+                const printed = attempt(DONE[name][i][0]).output.split('\n').filter(line => line.trim() !== '');
+                assert.deepEqual(printed, step.goal, 'the goal shown is not what the right answer prints');
+            }
             for (const code of DONE[name][i]) {
                 const tried = attempt(code);
                 const got = lessons.respond(step, tried);

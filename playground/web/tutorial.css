@@ -201,6 +201,8 @@ body.sorting main { grid-template-rows: minmax(0, 2fr) minmax(0, 1fr); }
 }
 
 .output pre.refused { color: var(--error); }
+/* What the program should print: faint, so it never reads as what it DID print. */
+.output pre.goal { color: var(--muted); margin-bottom: 14px; }
 .output .faint { color: var(--muted); font-family: var(--sans); font-size: 13px; margin: 0 0 6px; }
 
 .question { font-family: var(--sans); font-weight: 600; margin: 0 0 10px; }

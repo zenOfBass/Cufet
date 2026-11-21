@@ -162,9 +162,10 @@ If you meant to join text, use 'joined to': "hello" joined to " world".
 
 > **Hopper:** Pop quiz, friend! What's twelve times twelve? No fair working it out in your head.
 >
-> **Grace:** The page is empty. Write a program that asks the question, then lets Cufet work out the answer.
+> **Grace:** The page is empty. Make the output box ask Hopper's question, then let Cufet answer it.
 
-*The editor is empty. Done when the output is this, judged on the words and numbers only:*
+*The editor is empty. The output box shows the goal under **Make it say:**, and keeps it until it's
+done. Done when the output is this, judged on the words and numbers only:*
 
 ```output
 What is 12 * 12?

@@ -117,6 +117,7 @@ export const lesson1: Lesson = {
         },
         {
             kind: 'exercise',
+            goal: ['Hello, Grace!'],
             done: a => sameWords(a, ['Hello, Grace!']),
             hints: [
                 [hopper('Only the part between the quote marks gets said. Change that part.')],
@@ -149,6 +150,7 @@ export const lesson1: Lesson = {
         { kind: 'say', lines: [hopper('Now me! Now me! Make it say hello to *me!*')] },
         {
             kind: 'exercise',
+            goal: ['Hello, Hopper!'],
             done: a => sameWords(a, ['Hello, Hopper!']),
             hints: [],
             reactions: brokenLine,
