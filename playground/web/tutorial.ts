@@ -65,6 +65,22 @@ const editor = monaco.editor.create(element('editor'), {
 // "\n" then became two characters, every offset after it was one place out, and Grace's second line
 // landed in the middle of her first. Measured in Chrome on Windows, on lesson 1's Beat 5.
 editor.getModel()?.setEOL(monaco.editor.EndOfLineSequence.LF);
+
+/**
+ * Replace the editor's text. ⚠⚠ Always through here, never `editor.setValue`: replacing the text
+ * picks the line ending AGAIN, from the new text, and text with no line break in it (the blank
+ * page, `''`) gets the OS's, \r\n. Every Enter the player then typed was two characters, and
+ * Hopper's lines added in lesson 3's Beat 6 landed on the end of the line above. Play-tested.
+ */
+function setCode(text: string): void {
+    editor.setValue(text);
+    editor.getModel()?.setEOL(monaco.editor.EndOfLineSequence.LF);
+}
+
+/** The player's program, with \n line endings whatever the model holds. */
+function codeNow(): string {
+    return editor.getModel()?.getValue(monaco.editor.EndOfLinePreference.LF) ?? '';
+}
 document.fonts.ready.then(() => monaco.editor.remeasureFonts());
 startHighlighting(editor, (kind, source) => runtime.ask(kind, source))
     .catch(e => console.error('syntax highlighting failed to start:', e));
@@ -265,6 +281,30 @@ function showAttempt(attempt: Attempt, guess?: string): void {
     outputBox.append(pre);
 }
 
+/**
+ * Run `code`, showing that work is going on if it takes a moment. Play-tested: a run took about two
+ * seconds with nothing on screen to say so. A quick run shows nothing, so the box does not flicker.
+ */
+async function attemptShowingWork(code: string, keepBox = false): Promise<Attempt> {
+    const running = document.createElement('p');
+    running.className = 'running';
+    running.innerHTML = '<span class="spinner" aria-hidden="true"></span>Running…';
+    const timer = setTimeout(() => {
+        // `keepBox`: the box holds something still needed (the guess slots), so add below it.
+        if (!keepBox) {
+            outputBox.replaceChildren();
+            showGoal();
+        }
+        outputBox.append(running);
+    }, 200);
+    try {
+        return await runtime.attempt(code);
+    } finally {
+        clearTimeout(timer);
+        running.remove();
+    }
+}
+
 /** Resolves on the next press of Run. */
 function runPressed(): Promise<void> {
     return new Promise(resolve => runButton.addEventListener('click', () => resolve(), { once: true }));
@@ -326,7 +366,7 @@ async function write(who: Who, code: string): Promise<void> {
     if (!model) return;
     outputBox.replaceChildren();       // what the box said was about the program being replaced
     busy(who, true);
-    const old = model.getValue();
+    const old = model.getValue(monaco.editor.EndOfLinePreference.LF);
     const { from, to, text } = changedStretch(old, code);
 
     if (old.slice(from, to).includes('\n')) {
@@ -360,7 +400,7 @@ async function rabbitRun(who: Who): Promise<void> {
     await sleep(180);
     runButton.classList.remove('pressed');
     busy(who, false);
-    showAttempt(await runtime.attempt(editor.getValue()));
+    showAttempt(await attemptShowingWork(codeNow()));
 }
 
 async function playerRun(step: Extract<Step, { kind: 'player-run' }>): Promise<void> {
@@ -371,7 +411,7 @@ async function playerRun(step: Extract<Step, { kind: 'player-run' }>): Promise<v
     lightRun(false);
     chain++;
     hideBubbles();
-    showAttempt(await runtime.attempt(editor.getValue()));
+    showAttempt(await attemptShowingWork(codeNow()));
 }
 
 function questionLine(text: string): HTMLElement {
@@ -418,7 +458,7 @@ async function predict(step: Extract<Step, { kind: 'predict' }>): Promise<void> 
     chain++;
     hideBubbles();
 
-    showAttempt(await runtime.attempt(editor.getValue()), step.options[chosen]);
+    showAttempt(await attemptShowingWork(codeNow()), step.options[chosen]);
     await say([...(step.reactions[chosen] ?? []), ...step.after]);
 }
 
@@ -460,7 +500,7 @@ async function predictLines(step: Extract<Step, { kind: 'predict-lines' }>): Pro
     hideBubbles();
     for (const { input } of slots) input.disabled = true;
 
-    const attempt = await runtime.attempt(editor.getValue());
+    const attempt = await attemptShowingWork(codeNow(), true);
     if (attempt.outcome !== 'ran') {         // the lesson's own program; only a broken runtime gets here
         showAttempt(attempt);
         return;
@@ -539,7 +579,7 @@ async function untilDone(
             chain++;
             hideBubbles();
             runButton.disabled = true;
-            const attempt = await runtime.attempt(codeNow());
+            const attempt = await attemptShowingWork(codeNow());
             runButton.disabled = false;
             showAttempt(attempt);
             ladder.attempted();
@@ -562,13 +602,13 @@ async function untilDone(
 }
 
 async function exercise(step: Extract<Step, { kind: 'exercise' }>): Promise<void> {
-    if (step.start !== undefined) editor.setValue(step.start);
+    if (step.start !== undefined) setCode(step.start);
     goal = step.goal ?? null;
     if (goal) { outputBox.replaceChildren(); showGoal(); }
     setTyping(true);
     try {
-        await untilDone(() => editor.getValue(), step,
-            code => { editor.setValue(code); editor.focus(); });
+        await untilDone(codeNow, step,
+            code => { setCode(code); editor.focus(); });
     } finally {
         goal = null;
     }
@@ -628,7 +668,7 @@ async function parsons(step: Extract<Step, { kind: 'parsons' }>): Promise<void> 
     // ⚠ Shown FIRST, then filled, then coloured all at once. Filled while hidden, Monaco coloured
     // only the lines it had been shown and left the rest to an idle pass that never came: the
     // joke came back with two lines coloured and three plain. The playground's own trap, met again.
-    editor.setValue(order.join('\n'));
+    setCode(order.join('\n'));
     const model = editor.getModel();
     if (model) tokenizeEverythingNow(model);
     await say(step.success);
@@ -651,7 +691,7 @@ async function play(lesson: Lesson): Promise<void> {
             case 'enter': await enter(step.who); break;
             case 'say': await say(step.lines); break;
             case 'write': await write(step.who, step.append
-                ? `${editor.getValue().trimEnd()}\n${step.code}`
+                ? `${codeNow().trimEnd()}\n${step.code}`
                 : step.code); break;
             case 'rabbit-run': await rabbitRun(step.who); break;
             case 'player-run': await playerRun(step); break;

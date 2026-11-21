@@ -201,6 +201,18 @@ body.sorting main { grid-template-rows: minmax(0, 2fr) minmax(0, 1fr); }
 }
 
 .output pre.refused { color: var(--error); }
+
+/* While a run takes a moment. */
+.output .running { display: flex; align-items: center; gap: 10px; margin: 0; color: var(--muted); font-family: var(--sans); }
+.spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--faint);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
 /* What the program should print: faint, so it never reads as what it DID print. */
 .output pre.goal { color: var(--muted); margin-bottom: 14px; }
 .output .faint { color: var(--muted); font-family: var(--sans); font-size: 13px; margin: 0 0 6px; }
