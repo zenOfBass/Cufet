@@ -193,7 +193,7 @@ export const lesson5: Lesson = {
                 },
                 {
                     case: 'no period on the end',
-                    when: a => refusedSaying(a, "expected '.', got Eof"),
+                    when: a => refusedSaying(a, 'The file ended before one came'),
                     lines: [grace('Every instruction ends with a period, even an `If`.')],
                 },
             ],

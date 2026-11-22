@@ -94,9 +94,10 @@ export function respond(
 // the attempt (tutorial/DESIGN.md, "Common slips"). Play-tested: a missing period came up five
 // times in two runs, and each time the page could only say "look at what it said".
 //
-// Matched on Cufet's own messages, measured 2026-11-22:
-//   Define hops as 2 / State hops.   Line 2, column 1: expected '.', got State "State".
-//   State "Hi"                       Line 1, column 11: expected '.', got Eof "".
+// Matched on Cufet's own messages, measured 2026-11-22 (the first two since Cufet reports a line
+// without its period AT that line, not on the next one):
+//   Define hops as 2 / State hops.   Line 1, column 16: this line needs a period at the end. Cufet read on into line 2 looking for it.
+//   State "Hi"                       Line 1, column 7: this line needs a period at the end. The file ended before one came.
 //   State 2 3.                       Line 1, column 9: expected '.', got Number "3".
 //   State Keep going!.               Line 1, column 7: identifier 'Keep' must start with a lowercase letter.
 //   Defne x as 1.                    Line 1, column 1: identifier 'Defne' must start with a lowercase letter.
@@ -117,25 +118,25 @@ function atLineStart(attempt: Attempt): boolean {
 }
 
 const refused = (a: Attempt, fragment: string) => a.outcome === 'refused' && a.output.includes(fragment);
-const missingPeriod = (a: Attempt) => refused(a, "expected '.'");
+const lineWithoutPeriod = (a: Attempt) => refused(a, 'this line needs a period at the end');
 const capitalName = (a: Attempt) => refused(a, 'must start with a lowercase letter');
 
 export const COMMON_SLIPS: Reaction[] = [
     {
         case: 'no period on the last line',
-        when: a => missingPeriod(a) && a.output.includes('got Eof'),
+        when: a => lineWithoutPeriod(a) && a.output.includes('The file ended before one came'),
         lines: [{ who: 'grace', text: 'Every line ends with a period, the last one too.' }],
     },
     {
-        // ★ Cufet notices a missing period only when the NEXT line starts, so the line it names
-        // is one below the slip (play-tested twice: "the error points at the wrong line").
-        case: 'no period, noticed on the next line',
-        when: a => missingPeriod(a) && atLineStart(a),
-        lines: [{ who: 'grace', text: 'Every line ends with a period. Cufet only noticed when the next line started, so look at the end of the line before the one it named.' }],
+        // ★ Cufet names the line missing it (it used to name the line after: play-tested twice,
+        // "the error points at the wrong line"), so no more needs saying about where.
+        case: 'no period at the end of a line',
+        when: lineWithoutPeriod,
+        lines: [{ who: 'grace', text: 'Every line ends with a period.' }],
     },
     {
         case: 'more on a line than Cufet expected',
-        when: missingPeriod,
+        when: a => refused(a, "expected '.'"),
         lines: [{ who: 'grace', text: 'Cufet expected that line to end where it says, with a period. Is a word too many, or a mark missing?' }],
     },
     {

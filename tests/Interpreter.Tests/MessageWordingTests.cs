@@ -55,8 +55,10 @@ public class MessageWordingTests
     {
         // ⚠ These crashed with an index error: the word after `'s` was taken with a bare Advance,
         // which walked off the end of the tokens. Found cutting corpus files short.
+        // ★ `State alice's` ends where a period could, so it now gets the line-without-its-period
+        // message, which also says the file ended.
         var message = ParseFails(source);
-        Assert.Contains("got Eof", message);
+        Assert.Matches("got Eof|The file ended before one came", message);
     }
 
     [Fact]

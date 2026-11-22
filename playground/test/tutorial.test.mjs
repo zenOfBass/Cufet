@@ -224,7 +224,7 @@ test('a typed guess: the whole line, or its one number alone', () => {
 // samples are the programs the messages were measured with (judge.ts, "The common slips").
 const COMMON_SAMPLES = {
     'no period on the last line': 'State "Hi"',
-    'no period, noticed on the next line': 'Define hops as 2\nState hops.',
+    'no period at the end of a line': 'Define hops as 2\nState hops.',
     'more on a line than Cufet expected': 'State 2 3.',
     'a misspelled first word': 'Defne x as 1.\nState x.',
     'words without quote marks': 'State Keep going!.',

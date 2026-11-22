@@ -18,7 +18,7 @@ const refusedSaying = (a: Attempt, fragment: string) =>
 const brokenLine: Reaction[] = [
     {
         case: 'no period at the end',
-        when: a => refusedSaying(a, "expected '.', got Eof"),
+        when: a => refusedSaying(a, 'The file ended before one came'),
         lines: [grace('Good little rabbits always end with a period. Every instruction does, like a sentence. Add one at the very end.')],
     },
     {

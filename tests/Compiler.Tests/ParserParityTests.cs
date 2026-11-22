@@ -245,6 +245,12 @@ public class ParserParityTests(ITestOutputHelper output, CompiledCufetParser com
         "Define command as \"cd\".\nJudge command, where it is:\n    \"cd\" or other, state \"same\".\n    Otherwise, state \"else\".\nDone.",
         // An interface in the order it was declared in before 2026-10-31.
         "Define greeter as an interface for the text function greet, given (the text name).",
+        // A line without its period, reported at that line: past blank lines, at a `Done`, at the
+        // end of the file, and the same-line extra word that keeps the plain wording (2026-11-22).
+        "State \"Hi\"\n\n\nState \"There\".",
+        "If 2 is 2:\n    State \"a\".\nDone\nState \"b\".",
+        "State \"Hi\"",
+        "State 2 3.",
     ];
 
     [Fact]

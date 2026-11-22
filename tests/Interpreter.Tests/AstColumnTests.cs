@@ -56,11 +56,14 @@ public class AstColumnTests
     [Fact]
     public void ParseError_CarriesLineAndColumn()
     {
+        // ⚠ Was `State 5` at the end of the file, at the Eof's column 8 — until a line without its
+        // period got its own message, placed at the start of the line's last word. A word too
+        // many on one line still reports at the word, which is what this pins.
         //                                                       1234567890
-        var ex = Assert.Throws<ParseException>(() => Parse("Define x as 1.\nState 5"));
+        var ex = Assert.Throws<ParseException>(() => Parse("Define x as 1.\nState 5 6."));
         Assert.Equal(2, ex.Line);
-        Assert.Equal(8, ex.Column); // the Eof sitting where the '.' should be
-        Assert.Contains("column 8", ex.Message);
+        Assert.Equal(9, ex.Column); // the 6 sitting where the '.' should be
+        Assert.Contains("column 9", ex.Message);
     }
 
     [Fact]

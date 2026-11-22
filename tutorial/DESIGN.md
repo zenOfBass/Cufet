@@ -38,9 +38,8 @@ possibly a child.
   exercise has no reaction of its own for the attempt. Each is matched on Cufet's own message
   (`playground/web/tutorial/judge.ts`, `COMMON_SLIPS`). The words are first drafts:
   - No period on the last line. **Grace:** "Every line ends with a period, the last one too."
-  - No period, noticed on the next line (Cufet names the line *after* the slip). **Grace:** "Every
-    line ends with a period. Cufet only noticed when the next line started, so look at the end of
-    the line before the one it named."
+  - No period at the end of another line (Cufet names that line). **Grace:** "Every line ends
+    with a period."
   - More on a line than Cufet expected. **Grace:** "Cufet expected that line to end where it says,
     with a period. Is a word too many, or a mark missing?"
   - A misspelled first word. **Grace:** "Cufet doesn't know that first word. Check its spelling,
@@ -141,6 +140,6 @@ with the evidence for every edge, is in [`tools/curriculum-net/`](../tools/curri
 - Whether Grace and Hopper speak the hints and reactions, or only the story moments.
 - How Reading input works in a browser: input written before Run, or typing while the program runs.
   The playground today gives every program empty input.
-- Parse errors are terse (`expected '.', got Eof ""`), and two would mislead a newcomer:
+- Parse errors are terse (`unterminated string literal`), and two would mislead a newcomer:
   `print("hi")` mentions `Becomes`, and `Say "hi".` talks about lowercase letters. The tutorial
   can supply its own reactions; whether to improve the messages is a question for the language.

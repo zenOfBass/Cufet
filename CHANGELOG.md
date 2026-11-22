@@ -15,6 +15,13 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   stopped there. Reading an unknown name has been refused for a long time, and changing one now is
   too, in both checkers, with the nearest name suggested ("Did you mean 'hops'?"). Found while
   writing the tutorial's lesson on `becomes`.
+- **A line without its period is reported at that line.** Cufet used to name the line where it
+  noticed, which is the next line with anything on it: `State "Hi"` followed by two blank lines
+  was refused at line 4, with `expected '.', got State "State"`. Now it is `Line 1, column 7: this
+  line needs a period at the end. Cufet read on into line 4 looking for it.`, and at the end of a
+  file, `… The file ended before one came.` The place is where the line's last word starts. A
+  word too many on one line (`State 2 3.`) keeps the old message, since there the extra word is
+  the mistake. Both parsers. Found by the tutorial's play-tests, where it was the commonest slip.
 
 ## [0.30.0] — 2026-11-20
 

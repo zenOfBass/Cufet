@@ -78,7 +78,9 @@ public class DocBlockTests
     private static readonly Regex Annotation = new(@"\s*[←→].*$", RegexOptions.Multiline);
 
     // A parse failure caused by the sample simply STOPPING. See the fragment rule above.
-    private static readonly Regex RanOutOfInput = new(@"got Eof|the file ended before");
+    // ⚠ A sample cut off before a period no longer says `got Eof`: it says "The file ended before
+    // one came." (a line without its period, reported at that line). Capital T, so matched apart.
+    private static readonly Regex RanOutOfInput = new(@"got Eof|the file ended before|The file ended before one came");
 
     // ★ A fragment may also fail because of what is NOT around it. `Return the total.` is refused
     // outside a function and `In case of failure:` outside a `Try`, and both are perfectly good

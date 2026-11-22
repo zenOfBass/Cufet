@@ -198,6 +198,19 @@ Pull a book on collections.
         Return "".
     Done.
 
+    /// LineEndedWithoutPeriod — reported at the line missing it, not where Cufet noticed.
+    Bind text to line-ended-without-period unto parser, given (the token got):
+        If one's at is 1, return "".
+        Define last as cast one's token-at on (one's at - 1).
+        If got's kind is "Eof":
+            Return cast one's refused on (last, "this line needs a period at the end. The file ended before one came.").
+        Done.
+        If got's row is greater than last's row:
+            Return cast one's refused on (last, "this line needs a period at the end. Cufet read on into line {got's row} looking for it.").
+        Done.
+        Return "".
+    Done.
+
     Bind token or failure to consume unto parser, given (the text kind):
         Define current as cast one's peek.
         // A word a pull has taken is reserved where that pull is, and nowhere else.
@@ -214,6 +227,8 @@ Pull a book on collections.
             If kind is "Dot":
                 Define shape as cast one's call-or-field-shape on (current).
                 If shape is not "", return a failure (cast one's refused on (current, shape)).
+                Define ended as cast one's line-ended-without-period on (current).
+                If ended is not "", return a failure (ended).
             Done.
             Return a failure (cast one's expecting on (current, cast described on (kind))).
         Done.

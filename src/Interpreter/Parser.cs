@@ -6031,6 +6031,9 @@ public sealed class Parser
             if (expected == TokenType.Dot && CallOrFieldShape(tok) is { } shape)
                 throw new ParseException(tok.Line, tok.Column, shape);
 
+            if (expected == TokenType.Dot && LineEndedWithoutPeriod(tok) is { } ended)
+                throw ended;
+
             throw new ParseException(tok, Describe(expected));
         }
         return Advance();
@@ -6078,6 +6081,33 @@ public sealed class Parser
                  + $"A function of your own is called with 'cast': 'cast {name} on (…)'.";
         if (after == TokenType.Identifier)
             return $"reading a field needs 'the' in front: 'the {name} of …'.";
+        return null;
+    }
+
+    /// <summary>
+    /// A line that ended without its period, reported AT THAT LINE, or null when the period is
+    /// missing for some other reason (`State 2 3.`, where the extra word is the mistake).
+    /// </summary>
+    /// <remarks>
+    /// ⚠⚠ The mechanical message named the line where Cufet NOTICED, which is the next line with
+    /// anything on it — `State "Hi"` followed by two blank lines was reported at line 4.
+    /// Play-tested in the tutorial: the commonest slip there is, and "the error points at the
+    /// wrong line" twice. When what came next is on a later line than the last word read, or the
+    /// file ended, the line that word is on is the one missing its period.
+    ///
+    /// ⚠ The place is where that last word STARTS. A token records only its start, and a string's
+    /// lexeme has lost its quote marks, so the end of the line cannot be worked out from here.
+    /// </remarks>
+    private ParseException? LineEndedWithoutPeriod(Token tok)
+    {
+        if (_pos == 0) return null;
+        var last = _tokens[_pos - 1];
+        if (tok.Type == TokenType.Eof)
+            return new(last.Line, last.Column,
+                "this line needs a period at the end. The file ended before one came.");
+        if (tok.Line > last.Line)
+            return new(last.Line, last.Column,
+                $"this line needs a period at the end. Cufet read on into line {SourceMap.Display(tok.Line)} looking for it.");
         return null;
     }
 

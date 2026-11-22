@@ -21,16 +21,61 @@ public class ParseWordingTests
     private static ParseException ParseFails(string source) =>
         Assert.Throws<ParseException>(() => new Parser(new CufetLexer(source).Tokenize()).Parse());
 
+    /// <remarks>
+    /// ⚠ THE PROGRAM CHANGED, THE SUBJECT DID NOT. This was `State "hello"` with `State "world".`
+    /// on the next line, until a line ending without its period got a message of its own
+    /// (below). Two words on ONE line still reach the plain `Consume(TokenType.Dot)` wording.
+    /// </remarks>
     [Fact]
     public void AMissingFullStop_AsksForTheCharacter_NotForADot()
     {
-        var ex = ParseFails("""
-            State "hello"
-            State "world".
-            """);
+        var ex = ParseFails("""State "hello" "world".""");
 
         Assert.Contains("expected '.'", ex.Message);
         Assert.DoesNotContain("expected Dot", ex.Message);
+    }
+
+    // —— A line that ended without its period ————————————————————————————————
+    //
+    // ⚠⚠ Reported where Cufet NOTICED, which is the next line with anything on it: `State "Hi"`
+    // followed by two blank lines was refused at line 4. The commonest slip in the tutorial's
+    // play-tests, and "the error points at the wrong line" twice. Now reported at the line
+    // missing it, at the start of its last word (a token records only where it starts).
+
+    [Fact]
+    public void ALineWithoutItsPeriod_IsReportedAtThatLine_PastBlankLines()
+    {
+        var ex = ParseFails("State \"Hi\"\n\n\nState \"There\".");
+
+        Assert.StartsWith("Line 1, column 7: this line needs a period at the end.", ex.Message);
+        Assert.Contains("Cufet read on into line 4 looking for it.", ex.Message);
+        Assert.Equal(1, ex.Line);
+    }
+
+    [Fact]
+    public void ALineWithoutItsPeriod_PastAComment_IsReportedAtThatLine()
+    {
+        var ex = ParseFails("State \"Hi\" // a note\nState \"There\".");
+
+        Assert.StartsWith("Line 1, column 7: this line needs a period at the end.", ex.Message);
+    }
+
+    [Fact]
+    public void ADoneWithoutItsPeriod_IsReportedAtTheDone()
+    {
+        var ex = ParseFails("If 2 is 2:\n    State \"a\".\nDone\nState \"b\".");
+
+        Assert.StartsWith("Line 3, column 1: this line needs a period at the end.", ex.Message);
+    }
+
+    [Theory]
+    [InlineData("State \"Hi\"")]
+    [InlineData("State \"Hi\"\n")]
+    public void TheLastLineWithoutItsPeriod_SaysTheFileEnded(string source)
+    {
+        var ex = ParseFails(source);
+
+        Assert.Equal("Line 1, column 7: this line needs a period at the end. The file ended before one came.", ex.Message);
     }
 
     private static Cufet.Interpreter.Program Parses(string source) =>

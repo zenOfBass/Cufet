@@ -253,7 +253,7 @@ Keep going!
 | `If hops is "5", ...` | `That doesn't work: equality comparison requires matching types.` and more | **Grace:** `"5"` in quote marks is text, and a number can never be text. Take off the quote marks. |
 | `If hops is greater than 3 state "Rest!".` | `Line 2, column 27: expected ':', got State "state".` | **Grace:** A comma goes after the question, before `state`. |
 | `If hops is 5, ...` | Prints the right thing for 5 and 2, but isn't done | **Hopper:** It works for five and two. But if I hop six times, it says "Keep going!" when I'm tired! Ask whether it's *greater than* three. |
-| No period on the end | `expected '.', got Eof ""` | **Grace:** Every instruction ends with a period, even an `If`. |
+| No period on the end | `this line needs a period at the end. The file ended before one came.` | **Grace:** Every instruction ends with a period, even an `If`. |
 
 ## Before the lesson ends
 
