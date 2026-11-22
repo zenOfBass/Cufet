@@ -271,6 +271,9 @@ body.sorting main { grid-template-rows: minmax(0, 2fr) minmax(0, 1fr); }
     background: linear-gradient(to bottom, var(--bg), var(--bg-sunken));
 }
 
+/* While a bubble waits to be read, a click anywhere on the strip reads on. */
+.stage.waiting { pointer-events: auto; cursor: pointer; }
+
 .rabbit {
     position: absolute;
     bottom: 8px;
@@ -363,9 +366,16 @@ body.sorting main { grid-template-rows: minmax(0, 2fr) minmax(0, 1fr); }
 .bubble .next {
     position: absolute;
     right: 12px;
-    bottom: 6px;
-    font-size: 12px;
-    color: rgb(0 0 0 / 45%);
+    bottom: 4px;
+    font-size: 16px;
+    color: rgb(0 0 0 / 55%);
+    animation: nudge 1.2s ease-in-out infinite;
+}
+
+/* The ▸ leans forward now and then: there's more to read. */
+@keyframes nudge {
+    0%, 100% { transform: translateX(0); }
+    50%      { transform: translateX(3px); }
 }
 
 .bubble .offer { margin-top: 8px; font-size: 13px; padding: 4px 12px; }

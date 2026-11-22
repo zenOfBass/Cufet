@@ -50,7 +50,7 @@ export const lesson8: Lesson = {
             ],
             after: [
                 grace('`Bind` makes a **function**: lines with a name of their own. `number` says it gives back a number. `given` says what it needs: a series of numbers, called `days`.'),
-                hopper('`Return` hands the answer back. And `cast` is how you run it. `cast add-up on`, and then what to add up, in brackets.'),
+                hopper('`Return` hands the answer back. And `cast` is how you run it. `cast add-up on`, and then what to add up, in round brackets.'),
                 grace('And good little rabbits always give back what they promise. This one promised a `number`.'),
             ],
         },
@@ -137,7 +137,7 @@ export const lesson8: Lesson = {
         {
             kind: 'say', lines: [
                 hopper('Your turn, friend! Remember "Rest!" and "Keep going!"? Make it a function called `cheer`. Give it a number of hops, and it gives back the right one.'),
-                grace("I've written the last two lines for you. Write `cheer` above them."),
+                grace("It gives back text this time, so it's `Bind text`, not `Bind number`. I've written the last two lines for you. Write `cheer` above them."),
             ],
         },
         {

@@ -158,6 +158,14 @@ const rabbits: Record<Who, HTMLElement> = { hopper: element('hopper'), grace: el
 const SPEAKERS = Object.keys(rabbits) as Who[];
 const bubbleOf = (who: Who) => rabbits[who].querySelector<HTMLElement>('.bubble')!;
 
+/**
+ * While a bubble waits, a click anywhere on the stage strip reads on, not only a click on the
+ * bubble itself (play-tested: the bubble moves with its speaker, and clicking where the last one
+ * was did nothing, so the lesson looked stuck).
+ */
+const stage = element('stage');
+stage.addEventListener('click', () => { if (advance) advance(); });
+
 function hideBubbles(): void {
     for (const who of SPEAKERS) bubbleOf(who).hidden = true;
 }
@@ -248,12 +256,13 @@ async function say(lines: Line[], options: SayOptions = {}): Promise<void> {
                 clearInterval(watch);
                 bubble.removeEventListener('click', finish);
                 // ⚠ Only our own: a newer chain may already have put its bubble's waker here.
-                if (advance === finish) advance = null;
+                if (advance === finish) { advance = null; stage.classList.remove('waiting'); }
                 resolve();
             };
             // A newer chain wakes this one so it can see it has been replaced.
             const watch = setInterval(() => { if (mine !== chain) finish(); }, 100);
             advance = finish;
+            stage.classList.add('waiting');
             bubble.addEventListener('click', finish);
         });
     }

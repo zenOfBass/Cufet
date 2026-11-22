@@ -41,7 +41,7 @@ State "Hello, world!".
 
 > **Grace:** That's one instruction. `State` means "say this".
 >
-> **Hopper:** But it hasn't said anything yet! Look at the box at the bottom. Empty.
+> **Hopper:** But it hasn't said anything yet! Look at the box under the code. Empty.
 >
 > **Grace:** After you write something, you still have to run the code to make everything happen. Here, we have a **run button** to press.
 >
@@ -53,7 +53,7 @@ State "Hello, world!".
 Hello, world!
 ```
 
-> **Hopper:** There! The box at the bottom is the **output box**. That's where a program talks
+> **Hopper:** There! The box under the code is the **output box**. That's where a program talks
 > back.
 >
 > **Grace:** Up top, we write. Down there, it answers. That simple.

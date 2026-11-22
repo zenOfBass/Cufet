@@ -43,7 +43,7 @@ export const lesson7: Lesson = {
                 [grace('`friends` is the name for the whole series, so Cufet says all of it.')],
                 [hopper('No quote marks on `friends`, remember? Cufet says what the name holds.')],
             ],
-            after: [grace('A series keeps a list of things, in order, under one name. The brackets hold the things, with a comma between each.')],
+            after: [grace('A series keeps a list of things, in order, under one name. The round brackets hold the things, with a comma between each.')],
         },
 
         // ── Beat 2: one from the series ─────────────────────────────────────────────────────
@@ -111,7 +111,7 @@ export const lesson7: Lesson = {
             goal: FOUR_HELLOS,
             done: a => sameWords(a, FOUR_HELLOS) && lettuceInTheSeries(a.code) && usesForEach(a.code),
             hints: [
-                [grace('The friends are all in the first line. Add one more inside the brackets.')],
+                [grace('The friends are all in the first line. Add one more inside the round brackets.')],
                 [hopper('A comma after `"friend"`, then `"Lettuce"` in quote marks!')],
                 [grace('Here it is. Type it yourself:', 'Define friends as a series with ("Grace", "Hopper", "friend", "Lettuce").')],
             ],

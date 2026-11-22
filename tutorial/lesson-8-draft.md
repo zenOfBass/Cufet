@@ -60,7 +60,7 @@ State cast add-up on (a series with (3, 5, 2)).
 
 > **Grace:** `Bind` makes a **function**: lines with a name of their own. `number` says it gives back a number. `given` says what it needs: a series of numbers, called `days`.
 >
-> **Hopper:** `Return` hands the answer back. And `cast` is how you run it. `cast add-up on`, and then what to add up, in brackets.
+> **Hopper:** `Return` hands the answer back. And `cast` is how you run it. `cast add-up on`, and then what to add up, in round brackets.
 >
 > **Grace:** And good little rabbits always give back what they promise. This one promised a `number`.
 
@@ -188,7 +188,7 @@ new line uses `cast add-up`.*
 
 > **Hopper:** Your turn, friend! Remember "Rest!" and "Keep going!"? Make it a function called `cheer`. Give it a number of hops, and it gives back the right one.
 >
-> **Grace:** I've written the last two lines for you. Write `cheer` above them.
+> **Grace:** It gives back text this time, so it's `Bind text`, not `Bind number`. I've written the last two lines for you. Write `cheer` above them.
 
 *Grace clears the editor and writes two lines, before she says she has:*
 

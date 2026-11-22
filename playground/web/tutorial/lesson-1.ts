@@ -70,7 +70,7 @@ export const lesson1: Lesson = {
         {
             kind: 'say', lines: [
                 grace('That\'s one instruction. `State` means "say this".'),
-                hopper("But it hasn't said anything yet! Look at the box at the bottom. Empty."),
+                hopper("But it hasn't said anything yet! Look at the box under the code. Empty."),
                 grace('After you write something, you still have to run the code to make everything happen. Here, we have a **run button** to press.'),
                 hopper('Me first! I wanna press it!'),
             ],
@@ -78,7 +78,7 @@ export const lesson1: Lesson = {
         { kind: 'rabbit-run', who: 'hopper' },
         {
             kind: 'say', lines: [
-                hopper("There! The box at the bottom is the **output box**. That's where a program talks back."),
+                hopper("There! The box under the code is the **output box**. That's where a program talks back."),
                 grace('Up top, we write. Down there, it answers. That simple.'),
             ],
         },

@@ -52,7 +52,7 @@ State friends.
 
 *Whichever they chose, Grace sums it up:*
 
-> **Grace:** A series keeps a list of things, in order, under one name. The brackets hold the things, with a comma between each.
+> **Grace:** A series keeps a list of things, in order, under one name. The round brackets hold the things, with a comma between each.
 
 ## Beat 2: one from the series (Predict, twice)
 
@@ -167,7 +167,7 @@ Hello, friend!
 
 ### The hint ladder
 
-1. > **Grace:** The friends are all in the first line. Add one more inside the brackets.
+1. > **Grace:** The friends are all in the first line. Add one more inside the round brackets.
 2. > **Hopper:** A comma after `"friend"`, then `"Lettuce"` in quote marks!
 3. > **Grace:** Here it is. Type it yourself:
    >
