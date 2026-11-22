@@ -61,6 +61,8 @@ const editor = monaco.editor.create(element('editor'), {
     glyphMargin: false,
     folding: false,
     readOnly: true,
+    // Typing before it is the player's turn used to vanish without a word (play-tested).
+    readOnlyMessage: { value: "Not yet: click the speech bubble to go on. You'll be told when it's your turn to type." },
     // A beginner's editor: no pop-ups offering words they have not met.
     quickSuggestions: false,
     suggestOnTriggerCharacters: false,
@@ -436,7 +438,8 @@ async function write(who: Who, code: string): Promise<void> {
     outputBox.replaceChildren();       // what the box said was about the program being replaced
     busy(who, true);
     const old = model.getValue(monaco.editor.EndOfLinePreference.LF);
-    const { from, to, text } = changedStretch(old, code);
+    const { from, to } = changedStretch(old, code);
+    let { text } = changedStretch(old, code);
 
     if (old.slice(from, to).includes('\n')) {
         // More than a line goes: selected, then deleted at once, the way a person clears a page.
@@ -453,6 +456,14 @@ async function write(who: Who, code: string): Promise<void> {
             model.applyEdits([{ range: monaco.Range.fromPositions(start, end), text: '' }]);
             await sleep(55);
         }
+    }
+    if (from === to && text.endsWith('\n') && (from === 0 || old[from - 1] === '\n')) {
+        // A whole new line above an old one: open the line first, then type into it. Typed
+        // straight in, the new words ran into the old line until the last key (play-tested).
+        const at = model.getPositionAt(from);
+        model.applyEdits([{ range: monaco.Range.fromPositions(at, at), text: '\n' }]);
+        text = text.slice(0, -1);
+        await sleep(keystroke('\n'));
     }
     for (let i = 0; i < text.length; i++) {         // and type the new one
         const at = model.getPositionAt(from + i);
@@ -547,7 +558,10 @@ async function predictLines(step: Extract<Step, { kind: 'predict-lines' }>): Pro
         grid.append(input, real);
         return { input, real };
     });
-    const question = questionLine('What will appear here?');
+    // Run stays dark until every slot has a guess; say so (play-tested: nothing said why).
+    const question = questionLine(step.slots > 1
+        ? 'What will appear here? Fill in every line, then press Run.'
+        : 'What will appear here? Fill it in, then press Run.');
     outputBox.append(question, grid);
 
     const filled = () => slots.every(slot => slot.input.value.trim() !== '');
@@ -779,6 +793,9 @@ async function leave(who: Who): Promise<void> {
 
 async function play(lesson: Lesson): Promise<void> {
     element('lesson-title').textContent = `Lesson ${lesson.number}: ${lesson.title}`;
+    // A new lesson starts on a clean page, not on the last lesson's program (play-tested).
+    setCode('');
+    outputBox.replaceChildren();
     for (const step of lesson.steps) {
         switch (step.kind) {
             case 'enter': await enter(step.who); break;
