@@ -29,11 +29,11 @@ export const lesson9: Lesson = {
     number: 9,
     title: 'Void',
     steps: [
-        { kind: 'enter', who: 'hopper' },
-        { kind: 'enter', who: 'grace' },
-
         // ── The pond ────────────────────────────────────────────────────────────────────────
-        // Grace and Hopper hop to a pond outside the garden wall: off one edge, and back.
+        // Grace and Hopper hop to a pond outside the garden wall: off one edge, and back. Coming
+        // on from lesson 8 they are on screen, so they hop off and on; a player starting here
+        // sees them arrive once (`leave` passes over a rabbit not on screen). Play-tested: an
+        // `enter` before these made them arrive, leave and arrive again.
         { kind: 'leave', who: 'hopper' },
         { kind: 'leave', who: 'grace' },
         { kind: 'enter', who: 'hopper' },
