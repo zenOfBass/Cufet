@@ -85,7 +85,7 @@ main {
     flex: 1;
     min-height: 0;
     display: grid;
-    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 3fr) minmax(0, 2fr);
     gap: 1px;
     background: var(--line);
     padding-bottom: var(--stage-height);
