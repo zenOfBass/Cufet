@@ -140,7 +140,7 @@ export const lesson6: Lesson = {
             goal: SIX_WITH_HALFWAY,
             done: a => sameWords(a, SIX_WITH_HALFWAY) && loops(a.code),
             hints: [
-                [grace('Start like Beat 1, but going to 6 instead of 3.')],
+                [grace('Start like the first hop counter, but going to 6 instead of 3.')],
                 [hopper('Inside the loop, after saying the hop, ask: is hops 3? If so, say "Halfway!"')],
                 [grace('Here it is. Type it yourself:', loop(6, `${COUNT_THEN_SAY}\n    If hops is 3, state "Halfway!".`))],
             ],

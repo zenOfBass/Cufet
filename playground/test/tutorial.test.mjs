@@ -39,7 +39,7 @@ before(async () => {
     // The lessons are TypeScript and import no browser code, so they bundle for node as they are.
     const out = join(mkdtempSync(join(tmpdir(), 'cufet-tutorial-')), 'lessons.mjs');
     await esbuild.build({
-        stdin: { contents: "export { lesson1 } from './lesson-1'; export { lesson2 } from './lesson-2'; export { lesson3 } from './lesson-3'; export { lesson4 } from './lesson-4'; export { lesson5 } from './lesson-5'; export { lesson6 } from './lesson-6'; export { lesson7 } from './lesson-7'; export { lesson8 } from './lesson-8'; export { lesson9 } from './lesson-9'; export { respond, guessIsRight } from './judge';", resolveDir: join(playground, 'web', 'tutorial'), loader: 'ts' },
+        stdin: { contents: "export { lesson1 } from './lesson-1'; export { lesson2 } from './lesson-2'; export { lesson3 } from './lesson-3'; export { lesson4 } from './lesson-4'; export { lesson5 } from './lesson-5'; export { lesson6 } from './lesson-6'; export { lesson7 } from './lesson-7'; export { lesson8 } from './lesson-8'; export { lesson9 } from './lesson-9'; export { respond, guessIsRight, COMMON_SLIPS } from './judge';", resolveDir: join(playground, 'web', 'tutorial'), loader: 'ts' },
         bundle: true, format: 'esm', platform: 'node', outfile: out, logLevel: 'silent',
     });
     lessons = await import(pathToFileURL(out).href);
@@ -112,6 +112,7 @@ const SAMPLES = {
     'Lettuce without quote marks': 'Define friends as a series with ("Grace", "Hopper", "friend", Lettuce).\nFor each name in friends, repeat:\n    State "Hello, {name}!".\nDone.',
     'no comma before Lettuce': 'Define friends as a series with ("Grace", "Hopper", "friend" "Lettuce").\nFor each name in friends, repeat:\n    State "Hello, {name}!".\nDone.',
     'a second Define friends': 'Define friends as a series with ("Grace", "Hopper", "friend").\nDefine friends as a series with ("Lettuce").\nFor each name in friends, repeat:\n    State "Hello, {name}!".\nDone.',
+    'lettuce without a capital': 'Define friends as a series with ("Grace", "Hopper", "friend", "lettuce").\nFor each name in friends, repeat:\n    State "Hello, {name}!".\nDone.',
     'Lettuce greeted by hand': 'Define friends as a series with ("Grace", "Hopper", "friend").\nFor each name in friends, repeat:\n    State "Hello, {name}!".\nDone.\nState "Hello, Lettuce!".',
     'the State inside the loop': 'Define hops as a series with (3, 5, 2).\nDefine total as 0.\nFor each count in hops, repeat:\n    The total becomes total + count.\n    State "I hopped {total} times!".\nDone.',
     'the total never started': 'Define hops as a series with (3, 5, 2).\nFor each count in hops, repeat:\n    The total becomes total + count.\nDone.\nState "I hopped {total} times!".',
@@ -217,6 +218,30 @@ test('a typed guess: the whole line, or its one number alone', () => {
     assert.ok(guessIsRight('156', '156'));
     // Two numbers in the line: neither alone is the answer.
     assert.ok(!guessIsRight('12', 'What is 12 * 12?'));
+});
+
+// The slips any exercise can meet, said where the exercise has no reaction of its own. Their
+// samples are the programs the messages were measured with (judge.ts, "The common slips").
+const COMMON_SAMPLES = {
+    'no period on the last line': 'State "Hi"',
+    'no period, noticed on the next line': 'Define hops as 2\nState hops.',
+    'more on a line than Cufet expected': 'State 2 3.',
+    'a misspelled first word': 'Defne x as 1.\nState x.',
+    'words without quote marks': 'State Keep going!.',
+    'a block without its Done': 'If 2 is 2:\n    State "a".',
+};
+
+test('the common slips: each is what its sample gets, where an exercise has nothing of its own', () => {
+    const bare = { done: () => false, reactions: [] };
+    assert.equal(lessons.COMMON_SLIPS.length, Object.keys(COMMON_SAMPLES).length, 'a common slip without a sample');
+    for (const slip of lessons.COMMON_SLIPS) {
+        assert.ok(slip.case in COMMON_SAMPLES, `no sample for the common slip "${slip.case}"`);
+        const tried = attempt(COMMON_SAMPLES[slip.case]);
+        const got = lessons.respond(bare, tried);
+        assert.equal(got.reaction?.case, slip.case,
+            `"${slip.case}": its sample got ${got.reaction ? `"${got.reaction.case}"` : 'no reaction'}
+  it ${tried.outcome} with: ${tried.output.trim()}`);
+    }
 });
 
 for (const name of ['lesson1', 'lesson2', 'lesson3', 'lesson4', 'lesson5', 'lesson6', 'lesson7', 'lesson8', 'lesson9']) {

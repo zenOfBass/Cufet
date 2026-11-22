@@ -181,6 +181,7 @@ Hello, friend!
 | `Lettuce` without quote marks | `Line 1, column 63: identifier 'Lettuce' must start with a lowercase letter.` | **Grace:** Without quote marks, Cufet thinks `Lettuce` is a name. Each friend in the series is text, in quote marks. |
 | No comma before `"Lettuce"` | `Line 1, column 62: expected ')', got String "Lettuce".` | **Hopper:** Every friend needs a comma between them and the next! |
 | A second `Define friends` line | `That doesn't work: 'friends' is already defined in this scope.` and more | **Grace:** One `Define` per name. Add Lettuce to the line that's already there. |
+| `"lettuce"`, with a small l | Prints `Hello, lettuce!`, but isn't done | **Hopper:** Lettuce has a big L! Cufet says exactly what's in the quote marks. |
 | A fourth `State "Hello, Lettuce!".` after `Done.` | Prints the right lines, but isn't done | **Hopper:** That works, but the loop should do it! Put Lettuce in the series. |
 
 ## Beat 5: adding up (Predict)

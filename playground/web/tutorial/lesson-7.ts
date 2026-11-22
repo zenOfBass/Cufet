@@ -132,6 +132,12 @@ export const lesson7: Lesson = {
                     lines: [grace("One `Define` per name. Add Lettuce to the line that's already there.")],
                 },
                 {
+                    // Judging is on words, so "Hello, lettuce!" matches; the series check is not.
+                    case: 'lettuce without a capital',
+                    when: a => sameWords(a, FOUR_HELLOS) && /series\s+with\s*\([^)]*"lettuce"/.test(a.code),
+                    lines: [hopper("Lettuce has a big L! Cufet says exactly what's in the quote marks.")],
+                },
+                {
                     case: 'Lettuce greeted by hand',
                     when: a => sameWords(a, FOUR_HELLOS) && !lettuceInTheSeries(a.code),
                     lines: [hopper('That works, but the loop should do it! Put Lettuce in the series.')],

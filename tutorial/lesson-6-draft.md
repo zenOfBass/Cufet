@@ -203,7 +203,7 @@ Hop 6!
 
 ### The hint ladder
 
-1. > **Grace:** Start like Beat 1, but going to 6 instead of 3.
+1. > **Grace:** Start like the first hop counter, but going to 6 instead of 3.
 2. > **Hopper:** Inside the loop, after saying the hop, ask: is hops 3? If so, say "Halfway!"
 3. > **Grace:** Here it is. Type it yourself:
    >
