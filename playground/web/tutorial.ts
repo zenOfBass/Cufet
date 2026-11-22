@@ -7,7 +7,7 @@
 // least it can, and says so where it does it: see FALLBACK below.
 
 import * as monaco from 'monaco-editor/editor/editor.api';
-import { LANGUAGE_ID, semanticsChanged, startHighlighting, tokenizeEverythingNow } from './cufet-language';
+import { LANGUAGE_ID, closeBlocksAsTyped, semanticsChanged, startHighlighting, tokenizeEverythingNow } from './cufet-language';
 import { RuntimeClient, TIME_LIMIT_MS } from './tutorial/runtime-client';
 import { lesson1 } from './tutorial/lesson-1';
 import { lesson2 } from './tutorial/lesson-2';
@@ -70,6 +70,7 @@ const editor = monaco.editor.create(element('editor'), {
     parameterHints: { enabled: false },
     hover: { enabled: 'off' },
 });
+closeBlocksAsTyped(editor);
 // ⚠⚠ ONE LINE ENDING. A model takes the OS's by default, which on Windows is \r\n: a rabbit's typed
 // "\n" then became two characters, every offset after it was one place out, and Grace's second line
 // landed in the middle of her first. Measured in Chrome on Windows, on lesson 1's Beat 5.

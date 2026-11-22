@@ -11,7 +11,7 @@
 // The specifier looks short because monaco-editor's exports map rewrites "./*" to "./esm/vs/*.js"
 // — spelling out the esm/vs prefix here resolves to esm/vs/esm/vs/... and fails.
 import * as monaco from 'monaco-editor/editor/editor.api';
-import { LANGUAGE_ID, semanticsChanged, startHighlighting } from './cufet-language';
+import { LANGUAGE_ID, closeBlocksAsTyped, semanticsChanged, startHighlighting } from './cufet-language';
 import { isReady } from './protocol';
 import type { RequestKind, RuntimeAnswer } from './protocol';
 
@@ -74,6 +74,7 @@ const editor = monaco.editor.create(element('editor'), {
     lineDecorationsWidth: 6,
     glyphMargin: false,
 });
+closeBlocksAsTyped(editor);
 
 // ★ Narrower still where every column counts. Folding earns its keep on `huffmancoding.cufe` at
 // 200-odd lines and costs a gutter it has not earned on a phone, so it is a width question rather

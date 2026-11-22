@@ -86,6 +86,64 @@ monaco.languages.setLanguageConfiguration(LANGUAGE_ID, {
     ],
 });
 
+/**
+ * Moves a block's closing line out to its block's indent as it is typed. The `decreaseIndentPattern`
+ * above does NOT do this in standalone Monaco: measured in Chrome, `Done.` stayed at the indent the
+ * line above handed it, on typing and on Enter alike, and the line after it copied the wrong indent
+ * too (play-tested: closing a nested block meant fixing every line by hand).
+ *
+ * - `Done.` and `Until …` close the block the line above is in: one level out from that line, or
+ *   level with it when it is the opener itself (an empty block).
+ * - `Otherwise` lines up with the nearest `If`/`Otherwise` above at or left of it, which also
+ *   serves the one-line `If x, return y.` that has no block at all.
+ *
+ * Only ever moves a line LEFT, and only when it is further right than that: a line the writer
+ * placed by hand stays where it is.
+ */
+export function closeBlocksAsTyped(editor: monaco.editor.IStandaloneCodeEditor): void {
+    const indentOf = (text: string) => text.length - text.trimStart().length;
+    const unit = () => editor.getModel()?.getOptions().indentSize ?? 4;
+
+    function target(model: monaco.editor.ITextModel, lineNumber: number, closer: string): number | null {
+        const indent = indentOf(model.getLineContent(lineNumber));
+        for (let above = lineNumber - 1; above >= 1; above--) {
+            const text = model.getLineContent(above);
+            if (text.trim() === '') continue;
+            if (closer === 'otherwise') {
+                if (indentOf(text) <= indent && /^\s*(if|otherwise)\b/i.test(text)) return indentOf(text);
+                continue;
+            }
+            return /:\s*$/.test(text) ? indentOf(text) : Math.max(0, indentOf(text) - unit());
+        }
+        return null;
+    }
+
+    editor.onDidChangeModelContent(event => {
+        if (event.isUndoing || event.isRedoing || event.isFlush || event.changes.length !== 1) return;
+        const model = editor.getModel();
+        if (!model) return;
+        // The line the edit ended on: not the cursor's, which a rabbit typing by script never moves.
+        const change = event.changes[0]!;
+        const position = { lineNumber: change.range.startLineNumber + change.text.split('\n').length - 1 };
+        const text = model.getLineContent(position.lineNumber);
+        const closer = /^\s*(done\.|until\s|otherwise[\s,:])/i.exec(text)?.[1]?.replace(/[\s,.:]+$/, '').toLowerCase();
+        if (!closer) return;
+        const want = target(model, position.lineNumber, closer);
+        const have = indentOf(text);
+        if (want === null || want >= have) return;
+        // Not inside the change event itself: Monaco is still applying the edit that raised it.
+        queueMicrotask(() => {
+            if (model.getLineContent(position.lineNumber) !== text) return;
+            // Its own undo step, so Ctrl+Z puts the line back where it was typed, not the whole word.
+            editor.pushUndoStop();
+            editor.executeEdits('close-block', [{
+                range: new monaco.Range(position.lineNumber, want + 1, position.lineNumber, have + 1),
+                text: '',
+            }]);
+        });
+    });
+}
+
 // ── Highlighting ─────────────────────────────────────────────────────────────────────────────
 //
 // Monaco's own tokenizer format is Monarch, and porting the grammar to it was rejected: there

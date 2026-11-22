@@ -85,7 +85,10 @@ main {
     flex: 1;
     min-height: 0;
     display: grid;
-    grid-template-rows: minmax(0, 3fr) minmax(0, 2fr);
+    /* The editor is as tall as the trunk's longest program needs (12 lines: lesson 9's `hop` and
+       its two casts), never more than 60% on a short window; the output box gets everything else.
+       Fractions either scrolled the editor (play-tested at 1:1) or cramped the output (at 3:2). */
+    grid-template-rows: minmax(0, min(350px, 60%)) minmax(0, 1fr);
     gap: 1px;
     background: var(--line);
     padding-bottom: var(--stage-height);
