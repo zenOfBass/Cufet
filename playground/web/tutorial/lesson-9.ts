@@ -119,7 +119,7 @@ export const lesson9: Lesson = {
         },
         {
             kind: 'exercise',
-            task: 'Make the last line say "Keep going!" with `but void is`. Don\'t touch `cheer`.',
+            task: 'Make the second line say "Keep going!" with `but void is`. Don\'t touch `cheer`.',
             goal: CHEERED,
             done: a => sameWords(a, CHEERED) && cheerUntouched(a.code) && /\bbut\s+void\s+is\b/.test(a.code),
             hints: [

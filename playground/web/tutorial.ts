@@ -165,7 +165,13 @@ const bubbleOf = (who: Who) => rabbits[who].querySelector<HTMLElement>('.bubble'
  * was did nothing, so the lesson looked stuck).
  */
 const stage = element('stage');
-stage.addEventListener('click', () => { if (advance) advance(); });
+// ⚠ Not a click on a bubble: the bubble's own handler has already read on, and by the time the
+// click reaches the stage the NEXT bubble is up and waiting, so it would be skipped unread
+// (play-tested: every click on a bubble lost the line after it).
+stage.addEventListener('click', event => {
+    if (event.target instanceof Element && event.target.closest('.bubble')) return;
+    if (advance) advance();
+});
 
 function hideBubbles(): void {
     for (const who of SPEAKERS) bubbleOf(who).hidden = true;
