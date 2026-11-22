@@ -144,6 +144,15 @@ button:disabled { opacity: 0.4; cursor: default; }
 /* The Run button lights up when it is the player's turn to press it. */
 #run.lit { animation: glow 1.4s ease-in-out infinite; }
 
+/* A rabbit's press: it looks switched on, though the player still can't press it. */
+#run.by-rabbit {
+    opacity: 1;
+    background: var(--accent);
+    color: var(--accent-text);
+    border-color: var(--accent);
+    font-weight: 600;
+}
+
 /* And dips when a rabbit presses it. */
 #run.pressed { transform: translateY(2px) scale(0.96); }
 

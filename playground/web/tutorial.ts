@@ -491,12 +491,16 @@ async function write(who: Who, code: string): Promise<void> {
 
 async function rabbitRun(who: Who): Promise<void> {
     busy(who, true);
+    // Lit while the rabbit uses it, though still not the player's to press (play-tested: Hopper
+    // pressed a button that looked switched off).
+    runButton.classList.add('by-rabbit');
     await sleep(400);
     runButton.classList.add('pressed');
     await sleep(180);
     runButton.classList.remove('pressed');
     busy(who, false);
     showAttempt(await attemptShowingWork(codeNow()));
+    runButton.classList.remove('by-rabbit');
 }
 
 async function playerRun(step: Extract<Step, { kind: 'player-run' }>): Promise<void> {
