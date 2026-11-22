@@ -6,7 +6,8 @@ What's new in this lesson, one idea per beat:
 2. `the second of`, `the last of` pick one thing out, counting from one.
 3. `For each` does the same lines once for every thing in a series.
 4. Adding to the series is enough: the loop doesn't change.
-5. A blank page: adding up a series with `For each` and `becomes`.
+5. Adding up: a total that starts at zero, and every thing added to it.
+6. A blank page: adding up a series with `For each` and `becomes`.
 
 It opens where lesson 6 ended: Hopper has said "Then we need a way to hold a list. And Cufet has
 one!"
@@ -182,7 +183,50 @@ Hello, friend!
 | A second `Define friends` line | `That doesn't work: 'friends' is already defined in this scope.` and more | **Grace:** One `Define` per name. Add Lettuce to the line that's already there. |
 | A fourth `State "Hello, Lettuce!".` after `Done.` | Prints the right lines, but isn't done | **Hopper:** That works, but the loop should do it! Put Lettuce in the series. |
 
-## Beat 5: a blank page (Make)
+## Beat 5: adding up (Predict)
+
+> **Hopper:** Lunch count! I've got a puzzle for you, friend.
+
+*Hopper writes:*
+
+```cufet
+Define carrots as a series with (2, 4, 1).
+Define total as 0.
+For each count in carrots, repeat:
+    The total becomes total + count.
+Done.
+State "We ate {total} carrots!".
+```
+
+*The output box asks: **What will appear here?** Three buttons:*
+
+- **A.** `We ate 7 carrots!`
+- **B.** `We ate 1 carrots!`
+- **C.** `We ate 2 carrots!`, `We ate 6 carrots!`, then `We ate 7 carrots!`
+
+*The player picks one and presses Run.*
+
+```output
+We ate 7 carrots!
+```
+
+**If they chose A:**
+
+> **Hopper:** Seven! Two, then four more, then one more.
+
+**If they chose B:**
+
+> **Grace:** `becomes` doesn't throw the old total away. It's `total + count`, so each count is *added* to what's there.
+
+**If they chose C:**
+
+> **Grace:** The `State` is after `Done.`, outside the loop. So it only speaks once, at the end.
+
+*Whichever they chose:*
+
+> **Grace:** Start a total at zero, then add each one to it. That's how you add up a whole series.
+
+## Beat 6: a blank page (Make)
 
 *Grace clears the editor and writes one line, `Define hops as a series with (3, 5, 2).`*
 

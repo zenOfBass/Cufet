@@ -143,7 +143,25 @@ export const lesson7: Lesson = {
             ],
         },
 
-        // ── Beat 5: a blank page, with the series started ───────────────────────────────────
+        // ── Beat 5: adding up ───────────────────────────────────────────────────────────────
+        { kind: 'say', lines: [hopper("Lunch count! I've got a puzzle for you, friend.")] },
+        {
+            kind: 'write', who: 'hopper',
+            code: 'Define carrots as a series with (2, 4, 1).\nDefine total as 0.\nFor each count in carrots, repeat:\n    The total becomes total + count.\nDone.\nState "We ate {total} carrots!".',
+        },
+        {
+            kind: 'predict',
+            options: ['`We ate 7 carrots!`', '`We ate 1 carrots!`', '`We ate 2 carrots!`, `We ate 6 carrots!`, then `We ate 7 carrots!`'],
+            correct: 0,
+            reactions: [
+                [hopper('Seven! Two, then four more, then one more.')],
+                [grace("`becomes` doesn't throw the old total away. It's `total + count`, so each count is *added* to what's there.")],
+                [grace('The `State` is after `Done.`, outside the loop. So it only speaks once, at the end.')],
+            ],
+            after: [grace("Start a total at zero, then add each one to it. That's how you add up a whole series.")],
+        },
+
+        // ── Beat 6: a blank page, with the series started ───────────────────────────────────
         // Grace writes the first line before she says she has (as the blank pages are emptied first).
         { kind: 'write', who: 'grace', code: HOPS },
         {
