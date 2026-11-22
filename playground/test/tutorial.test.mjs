@@ -285,6 +285,12 @@ for (const name of ['lesson1', 'lesson2', 'lesson3', 'lesson4', 'lesson5', 'less
                     assert.equal(printed.length, step.slots,
                         `${step.slots} slots, but the program prints ${printed.length} lines:\n${code}`);
                     assert.equal(step.wrong.length, step.slots, 'a reaction to a wrong guess is needed for every slot');
+                    // A known slip must be a WRONG guess, or its remark would scold a right one.
+                    for (const slip of step.slips ?? []) {
+                        assert.ok(slip.slot < step.slots, `a slip for slot ${slip.slot}, of ${step.slots}`);
+                        assert.ok(!lessons.guessIsRight(slip.guess, printed[slip.slot]),
+                            `the slip "${slip.guess}" is the right answer: the program prints "${printed[slip.slot]}"`);
+                    }
                 }
             }
         }

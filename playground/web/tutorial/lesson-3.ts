@@ -65,9 +65,10 @@ export const lesson3: Lesson = {
         {
             kind: 'predict-lines',
             slots: 1,
-            // The draft has one remark whatever the guess: a wrong guess is never a fail here.
+            // A wrong guess is never a fail here. Only the likeliest slip gets a remark of its own.
             right: [],
             wrong: [[]],
+            slips: [{ slot: 0, guess: '144', lines: [hopper("That's `answer` on its own! The line says `answer + 12`, so it's twelve more.")] }],
             after: [
                 hopper("We didn't have to work out a hundred and forty-four all over again!"),
                 grace('Cufet kept it for us. A hundred and forty-four, plus twelve.'),

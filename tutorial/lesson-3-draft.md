@@ -74,6 +74,12 @@ State answer + 12.
 156
 ```
 
+**If they guessed 144:**
+
+> **Hopper:** That's `answer` on its own! The line says `answer + 12`, so it's twelve more.
+
+*Whatever they guessed:*
+
 > **Hopper:** We didn't have to work out a hundred and forty-four all over again!
 >
 > **Grace:** Cufet kept it for us. A hundred and forty-four, plus twelve.

@@ -92,6 +92,11 @@ export type Step =
          * however many of them were wrong.
          */
         wrong: Line[][];
+        /**
+         * A wrong guess worth its own remark (lesson 3: 144 for `answer + 12`, the old answer
+         * without the add). Said instead of that slot's `wrong` lines.
+         */
+        slips?: { slot: number; guess: string; lines: Line[] }[];
         /** Said whatever the guesses were. */
         after?: Line[];
     }

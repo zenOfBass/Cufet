@@ -611,7 +611,9 @@ async function predictLines(step: Extract<Step, { kind: 'predict-lines' }>): Pro
         const right = guessIsRight(input.value, printed[i] ?? '');
         real.textContent = right ? '✓' : '✗';
         real.classList.add(right ? 'right' : 'wrong');
-        const reaction = step.wrong[i];
+        // A known slip has its own remark, in place of the slot's general one.
+        const slip = step.slips?.find(s => s.slot === i && guessIsRight(input.value, s.guess));
+        const reaction = slip?.lines ?? step.wrong[i];
         if (!right && reaction && !said.includes(reaction)) said.push(reaction);
     });
     // ★ Then the run itself, as the box shows any run: the question was what would appear HERE,
@@ -646,6 +648,13 @@ class HintLadder {
     private get ready(): boolean { return this.used < this.hints.length && this.attemptsSinceHint > 0; }
 
     private take(): void {
+        if (this.used === 0 && !this.ready) {
+            // Nothing tried yet. Said, not a dark button (play-tested: a tester pressed Hint before
+            // Run in five lessons, saw nothing happen, and reported the hints as broken).
+            // Hopper, unless he has hopped off (lesson 4 sends him away for a while).
+            void say([{ who: rabbits.hopper.hidden ? 'grace' : 'hopper', text: "Try it first! Press Run, and if it goes wrong, I'll help." }]);
+            return;
+        }
         if (!this.ready) {
             // ★ No new rung yet: the last one again, so a hint read too fast is not lost.
             const last = this.hints[this.used - 1];
@@ -660,10 +669,8 @@ class HintLadder {
     }
 
     private paint(): void {
-        hintButton.disabled = !this.ready && this.used === 0;
-        hintButton.title = this.ready ? ''
-            : this.used === 0 ? 'Press Run first'
-            : 'Hear the last hint again';
+        hintButton.disabled = false;
+        hintButton.title = this.ready || this.used === 0 ? '' : 'Hear the last hint again';
     }
 
     close(): void { hintButton.hidden = true; hintButton.onclick = null; }
@@ -812,11 +819,18 @@ async function play(lesson: Lesson): Promise<void> {
     // A new lesson starts on a clean page, not on the last lesson's program (play-tested).
     setCode('');
     outputBox.replaceChildren();
-    for (const step of lesson.steps) {
+    for (const [i, step] of lesson.steps.entries()) {
         switch (step.kind) {
             case 'enter': await enter(step.who); break;
             case 'leave': await leave(step.who); break;
-            case 'say': await say(step.lines); break;
+            case 'say':
+                // ★ The bubbles that set a task do not hold it up: the editor opens while they are
+                // still showing, clicking through them is optional, and Run clears what is left.
+                // The task panel keeps the instruction (play-tested by every player, three times:
+                // "Your turn!" said to type, and the editor stayed shut for two more bubbles).
+                if (['exercise', 'parsons'].includes(lesson.steps[i + 1]?.kind ?? '')) void say(step.lines);
+                else await say(step.lines);
+                break;
             case 'write': await write(step.who, step.append
                 ? `${codeNow().trimEnd()}\n${step.code}`
                 : step.code); break;
