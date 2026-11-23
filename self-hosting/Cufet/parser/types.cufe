@@ -216,7 +216,7 @@ Pull a book on collections.
         Done.
 
         Return a failure (cast one's expecting on (tok,
-            "type name (number, text, fact, series of ..., or a defined type name)")).
+            "a type, like 'number', 'text', 'fact', 'series of …', or one you defined")).
     Done.
 
     /// The axiom arm of ParseTypeAnnotationCore. Nothing, with the position put back, when what
@@ -433,9 +433,8 @@ Pull a book on collections.
                 Cast one's advance.
                 Cast one's skip-noise.
                 If cast one's is-word on ("default") is false:
-                    Return a failure (cast one's expecting on (cast one's peek,
-                        "field '{name-tok's lexeme}' — 'with' here introduces a default, so write "
-                        joined to "'the ... {name-tok's lexeme} with default <value>'")).
+                    Return a failure (cast one's refused on (cast one's peek,
+                        "'with' here gives a field its default: write 'the … {name-tok's lexeme} with default <value>'.")).
                 Done.
                 Cast one's advance.
                 Cast one's skip-noise.
@@ -448,8 +447,9 @@ Pull a book on collections.
             Return.
         Done.
         If the number of named's children is greater than 0:
-            Return a failure (cast one's expecting on (cast one's peek,
-                "type — positional fields must come before named fields in a record shape")).
+            If cast one's peek-kind is "Eof", return a failure (cast one's expecting on (cast one's peek, "a type, like 'number', 'text', 'fact', 'series of …', or one you defined")).
+            Return a failure (cast one's refused on (cast one's peek,
+                "in a record's shape, the fields without names come first and the named ones ('the number age') after them; move this one before them.")).
         Done.
         Define field-type as cast one's type-annotation or pass the failure off.
         Cast positional's add on (field-type).

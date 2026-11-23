@@ -97,7 +97,7 @@ public class AxiomTextTests
     public void Axiom_Unterminated_Refuses()
     {
         var e = Assert.Throws<LexerException>(() => Lex("[getpid()"));
-        Assert.Contains("unterminated foreign source", e.Message);
+        Assert.Contains("this '[' never closes: a ']' is missing", e.Message);
     }
 
     [Fact]

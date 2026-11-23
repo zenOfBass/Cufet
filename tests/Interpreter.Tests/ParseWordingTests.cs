@@ -59,6 +59,24 @@ public class ParseWordingTests
     public void TheTutorialsList_IsToldWhatToWrite(string source, string message) =>
         Assert.Equal(message, ParseFails(source).Message);
 
+    // —— The messages the old template garbled (2026-11-23) ————————————————————————————————
+
+    [Theory]
+    [InlineData("Define p as a record with (the name \"a\", 3).",
+                "Line 1, column 42: in a record, the fields without names come first and the named ones ('the name value') after them; move this one before them.")]
+    [InlineData("Define object box with (the number size, text).",
+                "Line 1, column 42: in a record's shape, the fields without names come first and the named ones ('the number age') after them; move this one before them.")]
+    [InlineData("If true:\nDone.", "Line 2, column 1: expected at least one instruction inside this block, but found the word 'Done'.")]
+    [InlineData("Repeat:\nUntil true.", "Line 2, column 1: expected at least one instruction inside this block, but found the word 'Until'.")]
+    [InlineData("Define object box with (the number size):\n    State 1.\nDone.",
+                "Line 2, column 5: an object's body holds only 'Bind …', 'Get …' and 'Set …' definitions, but found the word 'State'.")]
+    [InlineData("Define object box with (the number size with 3).",
+                "Line 1, column 46: 'with' here gives a field its default: write 'the … size with default <value>'.")]
+    [InlineData("Define r as run \"x\" with 3.",
+                "Line 1, column 26: expected 'arguments', 'input' or 'the terminal' after 'with' in 'run …'.")]
+    public void AHandWrittenSentence_IsNotSewnIntoTheTemplate(string source, string message) =>
+        Assert.Equal(message, ParseFails(source).Message);
+
     /// <remarks>★ The guards: a name used as a variable and a working `Repeat` still parse.</remarks>
     [Fact]
     public void TheGuards_StillParse()

@@ -125,6 +125,15 @@ public class LexerTests
         Assert.Contains("'Total' isn't a word Cufet knows to start a line with", ex.Message);
     }
 
+    [Theory]
+    [InlineData("State alice'x.", "Line 1, column 12: Cufet doesn't know the character \"'\" here.")]
+    [InlineData("State 1 # 2.", "Line 1, column 9: Cufet doesn't know the character \"#\" here.")]
+    public void ACharacterCufetDoesNotKnow_IsNamedAfterItsPlace(string source, string message)
+    {
+        var ex = Assert.Throws<LexerException>(() => Lex(source));
+        Assert.Equal(message, ex.Message);
+    }
+
     // —— Quoted text whose closing quote is missing ————————————————————————————————————
     //
     // ⚠⚠ Quoted text may run across lines, so a closing quote left off pairs the text with the
@@ -987,7 +996,7 @@ public class LexerTests
     public void ATrailingBackslash_StillReportsUnterminated()
     {
         var ex = Assert.Throws<LexerException>(() => LexTokens(@"[abc\"));
-        Assert.Contains("unterminated foreign source", ex.Message);
+        Assert.Contains("this '[' never closes: a ']' is missing", ex.Message);
     }
 
     [Fact]

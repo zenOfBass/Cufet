@@ -33,7 +33,7 @@ public class MessageWordingTests
         var message = ParseFails(source);
         Assert.Contains(sentence, message);
         Assert.DoesNotContain("expected expected", message);
-        Assert.DoesNotContain(", got ", message);
+        Assert.DoesNotContain(", but found", message);
     }
 
     [Theory]

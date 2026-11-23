@@ -260,7 +260,7 @@ the line the **outermost** comment opened on — the one you have to go find:
 ```
 /* forgot to close
 ```
-→ `Line N: unterminated comment — expected '*/' to close it.`
+→ `Line N, column N: this '/*' never closes: a '*/' is missing.`
 
 ---
 

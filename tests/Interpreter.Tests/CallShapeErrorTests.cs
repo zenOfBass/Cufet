@@ -28,7 +28,7 @@ public class CallShapeErrorTests
         var ex = ParseFails(Area + "State area(4, 5).");
         Assert.Contains("'area(' looks like a call", ex.Message);
         Assert.Contains("'cast area on (…)'", ex.Message);
-        Assert.DoesNotContain("LParen", ex.Message);
+        Assert.DoesNotContain("found the mark '('", ex.Message);
     }
 
     [Fact]

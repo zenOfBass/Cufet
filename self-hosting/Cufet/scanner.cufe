@@ -171,7 +171,7 @@ Pull a book on collections.
         While depth is greater than 0, repeat:
             If cast one's at-end:
                 Return a failure (cast refusal on (opened-row, opened-column,
-                    "unterminated comment — expected '*/' to close it")).
+                    "this '/*' never closes: a '*/' is missing")).
             Done.
             Define ch as cast one's peek.
             Define next-ch as cast one's ahead.
@@ -229,7 +229,7 @@ Pull a book on collections.
         Done.
         Otherwise:
             Return a failure (cast refusal on (one's row, cast one's column-at on (one's cursor),
-                "unexpected character '{ch}'")).
+                "Cufet doesn't know the character \"{ch}\" here")).
         Done.
     Done.
 
@@ -475,7 +475,7 @@ Pull a book on collections.
             Cast one's emit on ("Possessive", "'s", one's row, column).
             Return.
         Done.
-        Return a failure (cast refusal on (one's row, column, "unexpected character '''")).
+        Return a failure (cast refusal on (one's row, column, "Cufet doesn't know the character \"'\" here")).
     Done.
 
     // ── Text ──────────────────────────────────────────────────────────────
@@ -636,7 +636,7 @@ Pull a book on collections.
         While depth is greater than 0, repeat:
             If cast one's at-end:
                 Return a failure (cast refusal on (opened-row, opened-column,
-                    "unterminated verbatim text — expected '>>' to close it")).
+                    "this '<<' never closes: a '>>' is missing")).
             Done.
             Define ch as cast one's peek.
             Define next-ch as cast one's ahead.
@@ -674,7 +674,7 @@ Pull a book on collections.
         While depth is greater than 0, repeat:
             If cast one's at-end:
                 Return a failure (cast refusal on (opened-row, opened-column,
-                    "unterminated foreign source — expected ']' to close it")).
+                    "this '[' never closes: a ']' is missing")).
             Done.
             Define ch as cast one's peek.
             If ch is "\\" and cast one's ahead is not "":

@@ -104,7 +104,7 @@ public class RawTextTests
     {
         // An inner '<<' raises the depth, so the outer text is no longer closed by its '>>'.
         var ex = Assert.Throws<LexerException>(() => Lex("<<a <<b>>"));
-        Assert.Contains("unterminated verbatim text", ex.Message);
+        Assert.Contains("this '<<' never closes: a '>>' is missing", ex.Message);
     }
 
     // ── Closing is at the FIRST '>>', which is the documented corner ─────
@@ -182,7 +182,7 @@ public class RawTextTests
     public void RawText_Unterminated_ThrowsNamingTheOpeningPosition()
     {
         var ex = Assert.Throws<LexerException>(() => Lex("foo\n<<never closed"));
-        Assert.Contains("unterminated verbatim text", ex.Message);
+        Assert.Contains("this '<<' never closes: a '>>' is missing", ex.Message);
         Assert.Equal(2, ex.Line);
         Assert.Equal(1, ex.Column);
     }

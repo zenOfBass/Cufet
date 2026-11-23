@@ -15,13 +15,17 @@ public sealed class LexerException : Exception
     public string Detail { get; }
 
     public LexerException(int line, int column, char character)
-        : base($"Unexpected character '{character}' on line {line}, column {column}.")
+        : base($"Line {line}, column {column}: {Unknown(character)}.")
     {
         Line = line;
         Column = column;
         Character = character;
-        Detail = $"unexpected character '{character}'";
+        Detail = Unknown(character);
     }
+
+    /// <remarks>⚠ In double quotes, because the commonest one is a stray quote mark, which
+    /// printed as three of them; and after `Line N, column N:` like every other refusal, which it was the one to lack.</remarks>
+    private static string Unknown(char character) => $"Cufet doesn't know the character \"{character}\" here";
 
     public LexerException(int line, int column, string message)
         : base($"Line {line}, column {column}: {Sentence(message)}")

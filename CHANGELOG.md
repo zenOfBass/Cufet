@@ -83,10 +83,19 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   expression, got Eof ""`, `expected RBrace`. Now `expected 'as', but found the word 'number'.`,
   `expected a value, but the file ended.`, `expected '}'`, and so on: what was found is the file
   ending, a name, a number, a text, a word or a mark; what was wanted is a keyword as written, in
-  quotes. Measured first by breaking the example programs 1,072 ways: 699 of the 1,040 refusals
-  came through this one template, 366 of them the file simply ending, which in an editor that
-  checks as you type is every half-written line. Both parsers. The broken-programs parity test now
+  quotes. Measured first by breaking the example programs 1,072 ways, half of them by cutting the
+  file short: 699 of the 1,040 refusals came through this one template. Both parsers. The
+  broken-programs parity test now
   fails if a refusal names a token kind again, so the roadmap's periodic audit runs on every build.
+- **Nine hand-written refusals that the general one garbled, or that named the machinery.** A type
+  wanted: `expected a type, like 'number', 'text', 'fact', 'series of …', or one you defined`. An
+  unnamed field after named ones (it was told to move the wrong ones): `… move this one before
+  them.` An empty block, which was called a loop body even in an `If`: `expected at least one
+  instruction inside this block`. A stray character, the one refusal with no `Line N, column N:` in
+  front: `Cufet doesn't know the character "#" here.` A `[`, `<<` or `/*` left open: `this '['
+  never closes: a ']' is missing.` Something that isn't a definition in an object's body, a `with`
+  that isn't a default, `run … with` something else, and a call given too many or too few values
+  (`'step' takes 0 values, but was given 1`). Both lexers, parsers and checkers.
 - **The rest of the tutorial's list of terse refusals says what to write.** Each was found
   writing or play-testing the tutorial; all are in both parsers, the first in both checkers:
   - A function of the program's own called without `cast` (`State double on (3).`) was told

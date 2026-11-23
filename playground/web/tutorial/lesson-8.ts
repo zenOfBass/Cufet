@@ -114,7 +114,7 @@ export const lesson8: Lesson = {
             reactions: [
                 {
                     case: 'the zeros without a series',
-                    when: a => refusedSaying(a, "'add-up' expects 1 argument(s), but you passed 3"),
+                    when: a => refusedSaying(a, "'add-up' takes 1 value, but was given 3"),
                     lines: [grace('`add-up` needs one thing: a series. Put `a series with` in front of the zeros.')],
                 },
                 {

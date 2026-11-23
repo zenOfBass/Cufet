@@ -13,6 +13,12 @@
 */
 
 Pull a book on collections.
+    /// `1 value`, `3 values` — how many a call takes or was given. TypeChecker.Values.
+    Bind text to values-said, given (the number amount):
+        If amount is 1, return "1 value".
+        Return "{amount} values".
+    Done.
+
     /// The C# checker's refusal, as a failure message. An empty `established` says nothing there.
     Bind text to refusal-of, given (the text context, the text established, the number at-row,
             the text action, the text fix):

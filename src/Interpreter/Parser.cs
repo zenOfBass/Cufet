@@ -624,13 +624,13 @@ public sealed class Parser
                     _inObjectDef = wasInObject;
                 }
                 else if (Peek().Type == TokenType.Define)
-                    throw new ParseException(Peek(),
-                        $"Bind, Get, or Set — only a module may declare a type inside its body, and " +
+                    throw new ParseException(Peek().Line, Peek().Column,
+                        $"only a module may declare a type inside its body, and " +
                         $"'{name}' is not one. Add 'and module' to its declaration, or move the type " +
-                        $"outside this body");
+                        $"outside this body.");
                 else
-                    throw new ParseException(Peek(),
-                        "Bind, Get, or Set — only method, getter, and setter definitions are allowed inside an object body");
+                    throw new ParseException(Peek().Line, Peek().Column,
+                        $"an object's body holds only 'Bind …', 'Get …' and 'Set …' definitions, but {ParseException.Found(Peek())}.");
             }
             _nestDepth--;
             _inObjectDef = false;
@@ -1131,7 +1131,7 @@ public sealed class Parser
             }
             return new ObjectType(tok.Lexeme, [], [], [], typeArguments: typeArguments);
         }
-        throw new ParseException(tok, "type name (number, text, fact, series of ..., or a defined type name)");
+        throw new ParseException(tok, "a type, like 'number', 'text', 'fact', 'series of …', or one you defined");
     }
 
     // Parses: with (<positional-types>, the <type> <field-name>, ...)
@@ -1244,9 +1244,8 @@ public sealed class Parser
             {
                 Advance(); SkipNoise();
                 if (!Peek().Lexeme.Equals("default", StringComparison.OrdinalIgnoreCase))
-                    throw new ParseException(Peek(),
-                        $"field '{fieldName}' — 'with' here introduces a default, so write "
-                      + $"'the ... {fieldName} with default <value>'");
+                    throw new ParseException(Peek().Line, Peek().Column,
+                        $"'with' here gives a field its default: write 'the … {fieldName} with default <value>'.");
                 Advance(); SkipNoise();
                 fieldDefaults.Add((fieldName, ParseExpression()));
             }
@@ -1254,8 +1253,8 @@ public sealed class Parser
         else
         {
             if (seenNamed)
-                throw new ParseException(Peek(),
-                    "type — positional fields must come before named fields in a record shape");
+                throw Peek().Type == TokenType.Eof ? new ParseException(Peek(), "a type, like 'number', 'text', 'fact', 'series of …', or one you defined") : new ParseException(Peek().Line, Peek().Column,
+                    "in a record's shape, the fields without names come first and the named ones ('the number age') after them; move this one before them.");
             var fieldType = ParseTypeAnnotation();
             positionalTypes.Add(fieldType);
         }
@@ -1859,7 +1858,7 @@ public sealed class Parser
             stmts.Add(ParseStatement());
         }
         if (stmts.Count == 0)
-            throw new ParseException(Peek(), "at least one statement in loop body");
+            throw new ParseException(Peek(), "at least one instruction inside this block");
         if (Peek().Type == TokenType.Eof && opener != null)
             throw Unclosed(opener, inlineExample, construct);
         Consume(TokenType.Done);
@@ -1901,7 +1900,7 @@ public sealed class Parser
             stmts.Add(ParseStatement());
         }
         if (stmts.Count == 0)
-            throw new ParseException(Peek(), "at least one statement in repeat-until body");
+            throw new ParseException(Peek(), "at least one instruction inside this block");
         return stmts;
     }
 
@@ -4509,7 +4508,7 @@ public sealed class Parser
                     }
                     if (Peek().Type != TokenType.Arguments)
                         throw new ParseException(Peek().Line, Peek().Column,
-                            "expected 'arguments', 'input' or 'the terminal' after 'with' in a run expression");
+                            "expected 'arguments', 'input' or 'the terminal' after 'with' in 'run …'.");
                     if (saidArguments)
                         throw new ParseException(Peek().Line, Peek().Column,
                             "this run already says 'with arguments'");
@@ -4845,8 +4844,8 @@ public sealed class Parser
         else
         {
             if (namedStarted)
-                throw new ParseException(Peek(),
-                    "positional fields must come before named fields — move all 'the name value' fields to the end");
+                throw Peek().Type == TokenType.Eof ? new ParseException(Peek(), "expression") : new ParseException(Peek().Line, Peek().Column,
+                    "in a record, the fields without names come first and the named ones ('the name value') after them; move this one before them.");
             positionals.Add(ParseExpression());
         }
     }
@@ -6292,7 +6291,7 @@ public sealed class Parser
     /// `TaskKw`. `Done` keeps its capital and its period, because that is the only way it is written.
     /// </para>
     /// <para>
-    /// ★ The `got` half was reworded with this one, 2026-11-22 (ParseException.Found), and so were
+    /// ★ The `got` half was reworded with this one, 2026-11-23 (ParseException.Found), and so were
     /// the two tests that read the old format — `DocBlockTests.RanOutOfInput` and
     /// `PipelineInlineFormTests`, which now look for "the file ended" rather than `got Eof`.
     /// </para>

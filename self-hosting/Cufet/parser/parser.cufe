@@ -21,16 +21,12 @@
 Pull a book on collections.
     /// The whole program's statements as printed lines — or the one line saying why not.
     /// A lexer refusal — line, column and reason, tab-separated — in the words LexerException uses.
-    /// ★ Two shapes, as there: an unexpected character names itself, and anything else is a sentence
-    /// after the position, ending in a full stop.
+    /// A sentence after the position, ending in a full stop.
     Bind text to lexer-refusal, given (the text raw):
         Define parts as raw split by "\t".
         Define at-row as item 1 of parts.
         Define at-column as item 2 of parts.
         Define reason as the characters from (the length of at-row + the length of at-column + 3) to the end of raw.
-        If reason starts with "unexpected character '":
-            Return "error\tUnexpected character {the characters from 22 to the end of reason} on line {at-row}, column {at-column}.".
-        Done.
         // ★ No second full stop after a question: `Did you mean 'State'?`.
         If reason ends with "?" or reason ends with ".", return "error\tLine {at-row}, column {at-column}: {reason}".
         Return "error\tLine {at-row}, column {at-column}: {reason}.".

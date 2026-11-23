@@ -10,9 +10,9 @@ public sealed class ParseException : Exception
     /// <remarks>
     /// ⚠⚠ This template was `expected X, got Kind "lexeme"`, and both halves were the parser's own
     /// vocabulary: `got Eof ""`, `got NumberKw "number"`, `expected expression`, `expected RBrace`.
-    /// MEASURED 2026-11-22 by breaking the example programs 1,072 ways: 699 of 1,040 refusals came
-    /// through here, 366 of them the file simply ending — which, in an editor that checks as you
-    /// type, is every half-written line. Both halves now say what a reader would.
+    /// MEASURED 2026-11-23 by breaking the example programs 1,072 ways, half of them by cutting the
+    /// file short: 699 of 1,040 refusals came through here. ⚠ 366 were the file ending, and that
+    /// share is the sample's doing. Both halves now say what a reader would.
     /// </remarks>
     public ParseException(Token got, string expected)
         : base($"Line {SourceMap.Display(got.Line)}, column {got.Column}: expected {Wanted(expected)}, but {Found(got)}.")

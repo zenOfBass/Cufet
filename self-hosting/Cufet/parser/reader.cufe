@@ -144,7 +144,7 @@ Pull a book on collections.
     Done.
 
     /// ParseException(token, expected) — "expected X, but Y." Both halves in a reader's words since
-    /// 2026-11-22; they were the parser's own (`got Eof ""`, `expected expression`).
+    /// 2026-11-23; they were the parser's own (`got Eof ""`, `expected expression`).
     Bind text to expecting unto parser, given (the token got, the text expected):
         Return "error\tLine {got's row}, column {got's column}: expected {cast wanted-said on (expected)}, but {cast one's found-said on (got)}.".
     Done.

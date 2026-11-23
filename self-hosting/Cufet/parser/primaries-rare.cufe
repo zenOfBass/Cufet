@@ -339,7 +339,7 @@ Pull a book on collections.
                 Otherwise:
                     If cast one's peek-kind is not "Arguments":
                         Return a failure (cast one's refused on (cast one's peek,
-                            "expected 'arguments', 'input' or 'the terminal' after 'with' in a run expression")).
+                            "expected 'arguments', 'input' or 'the terminal' after 'with' in 'run …'.")).
                     Done.
                     If said-arguments:
                         Return a failure (cast one's refused on (cast one's peek, "this run already says 'with arguments'")).

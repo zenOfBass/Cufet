@@ -179,7 +179,7 @@ public class PipelineCufetHoleTests : PipelineTestBase
     public void AnUncitedBlockCallingAHoleWrongly_IsRefused()
     {
         var e = Refused(Walker + Rung.Replace("cast one's next or", "cast one's next on (1) or") + "Done.\nState 1.\n");
-        Assert.Contains("expects 0 argument", e.Message);
+        Assert.Contains("takes 0 values", e.Message);
     }
 
     [Fact]

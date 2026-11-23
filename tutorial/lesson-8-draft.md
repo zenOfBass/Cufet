@@ -180,7 +180,7 @@ new line uses `cast add-up`.*
 
 | They type | What Cufet does | The rabbits say |
 | --- | --- | --- |
-| `State cast add-up on (0, 0, 0).` | `That doesn't work: 'add-up' expects 1 argument(s), but you passed 3.` and more | **Grace:** `add-up` needs one thing: a series. Put `a series with` in front of the zeros. |
+| `State cast add-up on (0, 0, 0).` | `That doesn't work: 'add-up' takes 1 value, but was given 3.` and more | **Grace:** `add-up` needs one thing: a series. Put `a series with` in front of the zeros. |
 | `Cast add-up on (a series with (0, 0, 0)).`, no `State` | Runs, but prints only `10` and `11` | **Hopper:** It added them up, but nobody said the answer! Put `State` in front. |
 | `State 0.` | Prints the right lines, but isn't done | **Grace:** Right, but you worked it out yourself. Let `add-up` do it. |
 

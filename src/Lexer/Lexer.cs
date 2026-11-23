@@ -852,7 +852,7 @@ public sealed class Lexer
         {
             if (AtEnd())
                 throw new LexerException(startLine, startCol,
-                    "unterminated verbatim text — expected '>>' to close it");
+                    "this '<<' never closes: a '>>' is missing");
             char c = Peek();
 
             if (c == '<' && Next() == '<')
@@ -918,7 +918,7 @@ public sealed class Lexer
         {
             if (AtEnd())
                 throw new LexerException(startLine, startCol,
-                    "unterminated foreign source — expected ']' to close it");
+                    "this '[' never closes: a ']' is missing");
             char c = Peek();
 
             // Counting only: both characters are appended exactly as written.
@@ -1048,7 +1048,7 @@ public sealed class Lexer
         while (true)
         {
             if (AtEnd())
-                throw new LexerException(startLine, startCol, "unterminated comment — expected '*/' to close it");
+                throw new LexerException(startLine, startCol, "this '/*' never closes: a '*/' is missing");
             char c = Peek();
             if (c == '\n') { _line++; _lineStart = _pos + 1; Advance(); }
             else if (c == '/' && Next() == '*')

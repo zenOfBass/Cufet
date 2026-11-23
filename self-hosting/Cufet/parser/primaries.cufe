@@ -528,8 +528,9 @@ Pull a book on collections.
             Return.
         Done.
         If the number of named's children is greater than 0:
-            Return a failure (cast one's expecting on (cast one's peek,
-                "positional fields must come before named fields — move all 'the name value' fields to the end")).
+            If cast one's peek-kind is "Eof", return a failure (cast one's expecting on (cast one's peek, "expression")).
+            Return a failure (cast one's refused on (cast one's peek,
+                "in a record, the fields without names come first and the named ones ('the name value') after them; move this one before them.")).
         Done.
         Define value as cast one's expression or pass the failure off.
         Cast positional's add on (value).

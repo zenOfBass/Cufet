@@ -780,9 +780,9 @@ Pull a book on collections.
             If place is greater than receivers:
                 Define slot as place - receivers.
                 If slot is greater than the number of names:
-                    Return a failure (cast refusal-of on ("{display} takes {the number of names} argument(s), but you passed more", "",
-                        at-row, "pass {the number of positional's children - receivers + the number of named's children} argument(s)",
-                        "Remove the extra argument(s).")).
+                    Return a failure (cast refusal-of on ("{display} takes {cast values-said on (the number of names)}, but was given more", "",
+                        at-row, "pass {cast values-said on (the number of positional's children - receivers + the number of named's children)}",
+                        "Remove the extra values.")).
                 Done.
                 In slots, the entry for slot becomes passed.
                 In filled, the entry for slot becomes "position".
@@ -845,12 +845,12 @@ Pull a book on collections.
         Done.
         Define display as reached's display.
         If the number of supplied is not the number of formals:
-            Define advice as "Remove the extra argument(s).".
-            If the number of supplied is less than the number of formals, the advice becomes "Add the missing argument(s).".
+            Define advice as "Remove the extra values.".
+            If the number of supplied is less than the number of formals, the advice becomes "Add what is missing.".
             Return a failure (cast refusal-of on (
-                "{display} expects {the number of formals} argument(s), but you passed {the number of supplied}",
-                "You declared it on line {reached's declared-on} with {the number of formals} parameter(s)",
-                at-row, "call it with {the number of supplied} argument(s)", advice)).
+                "{display} takes {cast values-said on (the number of formals)}, but was given {the number of supplied}",
+                "You declared it on line {reached's declared-on} to take {cast values-said on (the number of formals)}",
+                at-row, "call it with {cast values-said on (the number of supplied)}", advice)).
         Done.
         Define place as 0.
         For each argument in supplied, repeat:

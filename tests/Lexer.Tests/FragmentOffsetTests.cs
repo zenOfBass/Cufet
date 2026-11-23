@@ -72,8 +72,8 @@ public class FragmentOffsetTests
 
         Assert.Equal(11, error.Line);
         Assert.Equal(7, error.Column);                    // second line: no column offset
-        Assert.Contains("'@'", error.Message);
-        Assert.Contains("line 11, column 7", error.Message);   // the MESSAGE, not just the fields
+        Assert.Contains("\"@\"", error.Message);
+        Assert.Contains("Line 11, column 7:", error.Message);   // the MESSAGE, not just the fields
     }
 
     [Fact]

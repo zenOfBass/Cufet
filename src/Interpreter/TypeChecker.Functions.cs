@@ -646,10 +646,10 @@ public sealed partial class TypeChecker
             int slot = i - receiverArgs;
             if (slot >= slots.Length)
                 throw TypeError(
-                    $"{display} takes {names.Count} argument(s), but you passed more",
+                    $"{display} takes {Values(names.Count)}, but was given more",
                     null, line, col,
-                    $"pass {positional.Count - receiverArgs + named.Count} argument(s)",
-                    "Remove the extra argument(s).");
+                    $"pass {Values(positional.Count - receiverArgs + named.Count)}",
+                    "Remove the extra values.");
             slots[slot]  = positional[i];
             filled[slot] = "position";
         }
@@ -748,6 +748,9 @@ public sealed partial class TypeChecker
         return (null, 0);
     }
 
+    /// <summary>`1 value`, `3 values` — how many a call takes or was given, in a message.</summary>
+    private static string Values(int count) => count == 1 ? "1 value" : $"{count} values";
+
     // Validates arg count and types against a resolved FunctionType.
     private void ValidateCastArgs(
         FunctionType funcType, string displayName, int declLine,
@@ -755,13 +758,13 @@ public sealed partial class TypeChecker
     {
         if (args.Count != funcType.ParameterTypes.Count)
             throw TypeError(
-                $"{displayName} expects {funcType.ParameterTypes.Count} argument(s), but you passed {args.Count}",
-                $"You declared it on line {declLine} with {funcType.ParameterTypes.Count} parameter(s)",
+                $"{displayName} takes {Values(funcType.ParameterTypes.Count)}, but was given {args.Count}",
+                $"You declared it on line {declLine} to take {Values(funcType.ParameterTypes.Count)}",
                 callLine, callCol,
-                $"call it with {args.Count} argument(s)",
+                $"call it with {Values(args.Count)}",
                 args.Count < funcType.ParameterTypes.Count
-                    ? "Add the missing argument(s)."
-                    : "Remove the extra argument(s).");
+                    ? "Add what is missing."
+                    : "Remove the extra values.");
 
         for (int i = 0; i < args.Count; i++)
         {

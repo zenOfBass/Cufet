@@ -182,7 +182,7 @@ public class ParserParityTests(ITestOutputHelper output, CompiledCufetParser com
         int refused = mutants.Count(m => ParserTreePrinter.Expected(m.Item2)[0].StartsWith("error\t"));
         Assert.True(refused >= mutants.Count / 2, $"only {refused} of {mutants.Count} mutants are refused");
 
-        // ★ The error-message audit, made continuous (ROADMAP, "Ongoing"). MEASURED 2026-11-22:
+        // ★ The error-message audit, made continuous (ROADMAP, "Ongoing"). MEASURED 2026-11-23:
         // 699 of 1,040 refusals of broken examples named the parser's token kinds — `got Eof ""`,
         // `got NumberKw "number"`, `expected RBrace` — before the template was reworded. A refusal
         // a reader sees must not name one again; the parity check below holds the Cufet parser to
@@ -297,6 +297,18 @@ public class ParserParityTests(ITestOutputHelper output, CompiledCufetParser com
         // An `Otherwise` no `If` took (2026-11-22).
         "Otherwise, state \"Go\".",
         "Define hops as 5.\nIf hops is 5, state \"a\".\nState \"between\".\nOtherwise, state \"b\".",
+        // The messages the old template garbled (2026-11-23).
+        "Define p as a record with (the name \"a\", 3).",
+        "Define p as a record with (the name \"a\",",
+        "Define object box with (the number size, text).",
+        "Define object box with (the number size,",
+        "If true:\nDone.",
+        "Repeat:\nUntil true.",
+        "Define object box with (the number size):\n    State 1.\nDone.",
+        "Define object box with (the number size):\n    Define object lid with (the number size).\nDone.",
+        "Define object box with (the number size with 3).",
+        "Define r as run \"x\" with 3.",
+        "Define x as a series of.",
         // The rest of the tutorial's list (2026-11-22).
         "Define hops as 5.\nIf hops is greater 3, state \"a\".",
         "Define hops as 5.\nIf hops greater than 3, state \"a\".",

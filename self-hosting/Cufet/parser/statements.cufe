@@ -454,14 +454,14 @@ Pull a book on collections.
                     One's in-object-def becomes was-in-object.
                 Done.
                 Otherwise if kind is "Define":
-                    Return a failure (cast one's expecting on (cast one's peek,
-                        "Bind, Get, or Set — only a module may declare a type inside its body, and "
+                    Return a failure (cast one's refused on (cast one's peek,
+                        "only a module may declare a type inside its body, and "
                         joined to "'{name-tok's lexeme}' is not one. Add 'and module' to its declaration, or move the type "
-                        joined to "outside this body")).
+                        joined to "outside this body.")).
                 Done.
                 Otherwise:
-                    Return a failure (cast one's expecting on (cast one's peek,
-                        "Bind, Get, or Set — only method, getter, and setter definitions are allowed inside an object body")).
+                    Return a failure (cast one's refused on (cast one's peek,
+                        "an object's body holds only 'Bind …', 'Get …' and 'Set …' definitions, but {cast one's found-said on (cast one's peek)}.")).
                 Done.
             Done.
             Decrement one's nest-depth by 1.
@@ -947,7 +947,7 @@ Pull a book on collections.
             Cast body's add on (inner).
         Done.
         If the number of body's children is 0:
-            Return a failure (cast one's expecting on (cast one's peek, "at least one statement in loop body")).
+            Return a failure (cast one's expecting on (cast one's peek, "at least one instruction inside this block")).
         Done.
         If cast one's peek-kind is "Eof":
             Return a failure (cast unclosed on (opener, example, construct)).
@@ -1010,7 +1010,7 @@ Pull a book on collections.
             Cast body's add on (inner).
         Done.
         If the number of body's children is 0:
-            Return a failure (cast one's expecting on (cast one's peek, "at least one statement in repeat-until body")).
+            Return a failure (cast one's expecting on (cast one's peek, "at least one instruction inside this block")).
         Done.
         Decrement one's nest-depth by 1.
         Decrement one's loop-depth by 1.

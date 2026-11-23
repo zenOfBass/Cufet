@@ -292,7 +292,7 @@ public class UnclosedBlockTests
         Assert.Contains("'Otherwise' arrived on line 3", ex.Message);
         // ★ It points at the `If`, not at the token it tripped over.
         Assert.Equal(1, ex.Line);
-        Assert.DoesNotContain("expected statement keyword", ex.Message);
+        Assert.DoesNotContain("expected an instruction", ex.Message);
     }
 
     /// <remarks>★ Both spellings are named, because the reader's next question is which one they

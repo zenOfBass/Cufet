@@ -451,7 +451,7 @@ public class CufetAxiomTests
 
         Assert.Equal(5, error.Line);
         Assert.Equal(32, error.Column);
-        Assert.Contains("'@'", error.Message);
+        Assert.Contains("\"@\"", error.Message);
     }
     // -- A block that holds VALUES ---------------------------------------------
     //

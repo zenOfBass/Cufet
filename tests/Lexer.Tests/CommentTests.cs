@@ -239,7 +239,7 @@ public class CommentTests
         // An inner '/*' that never closes leaves the outer open too — and the error names the
         // OUTERMOST opening line, which is the one the author has to go find.
         var ex = Assert.Throws<LexerException>(() => Lex("/* outer /* inner */"));
-        Assert.Contains("unterminated comment", ex.Message);
+        Assert.Contains("this '/*' never closes: a '*/' is missing", ex.Message);
     }
 
     // ── A line comment inside a block comment is just text ───────────────
@@ -270,7 +270,7 @@ public class CommentTests
     public void BlockComment_Unterminated_ThrowsLexerException()
     {
         var ex = Assert.Throws<LexerException>(() => Lex("/* no closing marker"));
-        Assert.Contains("unterminated comment", ex.Message);
+        Assert.Contains("this '/*' never closes: a '*/' is missing", ex.Message);
     }
 
     [Fact]
