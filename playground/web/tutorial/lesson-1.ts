@@ -23,7 +23,7 @@ const brokenLine: Reaction[] = [
     },
     {
         case: 'a quote mark missing',
-        when: a => refusedSaying(a, 'unterminated string literal'),
+        when: a => refusedSaying(a, 'Is its closing quote mark missing?'),
         lines: [hopper('A quote mark went missing! They come in pairs: one before the words, one after.')],
     },
     {

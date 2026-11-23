@@ -273,6 +273,12 @@ public class LexerParityTests
         "Bind number to Double, given (the number n):\n    Return n * 2.\nDone.",
         "State Hello.",
         "State \"Hi\", Grace.",
+        // A missing closing quote, reported at the text that ran on (2026-11-22) — and a later
+        // mistake left alone when the text ran across lines on purpose.
+        "State \"Hello.\nState \"Bye\".",
+        "State \"a.\nState \"b\".\nState \"c\".\nState \"d\".",
+        "If 2 is 2:\n    State \"a.\nDone.\nState \"b\".",
+        "Define note as \"first\nsecond\".\nState note.\nState Hello.",
     ];
 
     [Fact]

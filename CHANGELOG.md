@@ -36,6 +36,16 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
     words to say, put them in quote marks. If it's a name, write 'hello'.`
 
   Both lexers. A lexer message ending in a question no longer gets a full stop after it.
+- **A missing closing quote is reported where the quote went missing.** Quoted text may run
+  across lines, so text left open pairs with the next line's opening quote and every quote after
+  is out of step. `State "Hello.` followed by `State "Bye".` was refused at line 2 for `'Bye'`
+  needing quote marks, which it has; with four lines, at the end of the file, as `unterminated
+  string literal`. Now a text that never closes is reported at the first quoted text that ran
+  past the end of its line (`this text runs on past the end of its line. Is its closing quote
+  mark missing?`), or at its own opening quote (`this text never ends. …`). Any other lexer
+  refusal on the line where run-on text ended is reported the same way; a text run across lines
+  on purpose leaves a mistake on a later line alone. Measured first: 2 of about 11,500 quoted
+  texts in the repository run across a line on purpose. Both lexers.
 
 ## [0.30.0] — 2026-11-20
 

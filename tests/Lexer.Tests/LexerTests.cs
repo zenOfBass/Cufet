@@ -125,6 +125,50 @@ public class LexerTests
         Assert.Contains("'Total' isn't a word Cufet knows to start a line with", ex.Message);
     }
 
+    // —— Quoted text whose closing quote is missing ————————————————————————————————————
+    //
+    // ⚠⚠ Quoted text may run across lines, so a closing quote left off pairs the text with the
+    // next line's opening quote and puts every quote after out of step. It was refused at the END
+    // OF THE FILE (`unterminated string literal`), or at a later word "needing" quote marks it
+    // had. MEASURED: 2 of about 11,500 quoted texts in the repository run across a line on purpose.
+
+    [Theory]
+    [InlineData("State \"Hello, Grace!.")]
+    [InlineData("State \"a\\")]
+    public void TextThatNeverEnds_OnItsOwnLine_IsReportedAtItsOpeningQuote(string source)
+    {
+        var ex = Assert.Throws<LexerException>(() => Lex(source));
+        Assert.Equal("Line 1, column 7: this text never ends. Is its closing quote mark missing?", ex.Message);
+    }
+
+    [Theory]
+    [InlineData("State \"Hello.\nState \"Bye\".", 1, 7)]                                   // a capital word after
+    [InlineData("State \"a.\nState \"b\".\nState \"c\".\nState \"d\".", 1, 7)]              // the end of the file
+    [InlineData("If 2 is 2:\n    State \"a.\nDone.\nState \"b\".", 2, 11)]
+    [InlineData("Define name as \"Grace.\nState \"Hi, {name}!\".", 1, 16)]
+    public void AMissingClosingQuote_IsReportedAtTheTextThatRanOn(string source, int line, int column)
+    {
+        var ex = Assert.Throws<LexerException>(() => Lex(source));
+        Assert.Equal($"Line {line}, column {column}: this text runs on past the end of its line. "
+                   + "Is its closing quote mark missing?", ex.Message);
+    }
+
+    /// <remarks>★ The guard: text run across lines ON PURPOSE leaves a mistake on a later line
+    /// alone. Only a refusal on the line where the run-on text ended is put down to it.</remarks>
+    [Fact]
+    public void TextRunAcrossLinesOnPurpose_LeavesALaterMistakeAlone()
+    {
+        var ex = Assert.Throws<LexerException>(() => Lex("Define note as \"first\nsecond\".\nState note.\nState Hello."));
+        Assert.StartsWith("Line 4, column 7: 'Hello' starts with a capital letter", ex.Message);
+    }
+
+    [Fact]
+    public void TextRunAcrossLinesOnPurpose_StillLexes()
+    {
+        var tokens = LexTokens("Define note as \"first\nsecond\".");
+        Assert.Contains(tokens, t => t.Type == TokenType.String && t.Lexeme == "first\nsecond");
+    }
+
     // —— A word with a capital that is no keyword, told by where it stands ———————————————
     //
     // ⚠⚠ All three used to get `identifier 'X' must start with a lowercase letter`. Play-tested in

@@ -20,6 +20,16 @@ public sealed class Lexer
     // point. It sits here between being read and being handed to whatever comes next.
     private readonly List<Comment> _pending = [];
 
+    // Quoted text that ran past the end of the line it began on: where it began, and the line its
+    // closing quote was on.
+    //
+    // ⚠⚠ Allowed (GRAMMAR: "Both may run across lines"), and almost never meant: MEASURED
+    // 2026-11-22, 2 of about 11,500 quoted texts in the repository's Cufet do it. A closing quote
+    // left off pairs the text with the NEXT line's opening quote, and every quote after is out of
+    // step — `State "Hello.` then `State "Bye".` was refused at line 2 for 'Bye' needing quote
+    // marks, which it has. So a refusal next to run-on text points at the run-on text.
+    private readonly List<(int Line, int Column, int EndLine)> _runOn = [];
+
     /// <summary>Hands over the comments read since the last token, and empties the buffer.</summary>
     private IReadOnlyList<Comment> TakePending()
     {
@@ -75,13 +85,24 @@ public sealed class Lexer
         var tokens = new List<Token>();
         try
         {
-            while (!AtEnd())
+            try
             {
-                SkipWhitespace();
-                if (AtEnd()) break;
-                int before = tokens.Count;
-                ReadOneToken(tokens);
-                AttachPending(tokens, before);
+                while (!AtEnd())
+                {
+                    SkipWhitespace();
+                    if (AtEnd()) break;
+                    int before = tokens.Count;
+                    ReadOneToken(tokens);
+                    AttachPending(tokens, before);
+                }
+            }
+            // ★ A refusal on the line where run-on text ended is that text's doing: the word Cufet
+            // stopped at sits just outside a quote that was meant to open, not close. ⚠ Only on
+            // THAT line, so a text run across lines on purpose leaves a mistake further down alone.
+            catch (LexerException ex) when (!ex.Detail.StartsWith(RunOnLead)
+                                           && _runOn.FirstOrDefault(r => r.EndLine == ex.Line) is { Line: > 0 } runOn)
+            {
+                throw new LexerException(runOn.Line, runOn.Column, RunOnMessage);
             }
             // ⚠ Comments after the last token still have a token to lead: this one. Nothing a
             // reader wrote is dropped for being at the end of the file.
@@ -115,6 +136,24 @@ public sealed class Lexer
     }
 
     private bool IsFragment => _lineOffset != 0 || _columnOffset != 0;
+
+    private const string RunOnLead = "this text ";
+    private const string RunOnMessage = "this text runs on past the end of its line. Is its closing quote mark missing?";
+
+    /// <summary>
+    /// Text that never closes, reported where the quote went missing: at the first text that ran
+    /// past the end of its line, or, when none did, at this text's own opening quote.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ It used to be reported at the END OF THE FILE, as `unterminated string literal`: with the
+    /// quotes out of step, `State "a.` followed by three good lines was refused at line 4.
+    /// </remarks>
+    private LexerException NeverCloses(int startLine, int startCol)
+    {
+        if (_runOn.Count > 0) return new LexerException(_runOn[0].Line, _runOn[0].Column, RunOnMessage);
+        if (_line > startLine) return new LexerException(startLine, startCol, RunOnMessage);
+        return new LexerException(startLine, startCol, "this text never ends. Is its closing quote mark missing?");
+    }
 
     // 1-based column of the character at `offset`, which must sit on the current line.
     private int ColumnAt(int offset) => offset - _lineStart + 1;
@@ -645,12 +684,13 @@ public sealed class Lexer
         while (true)
         {
             if (AtEnd())
-                throw new LexerException(_line, ColumnAt(_pos), "unterminated string literal");
+                throw NeverCloses(startLine, startCol);
             char c = Peek();
 
             // ── Closing quote ───────────────────────────────────────────────
             if (c == '"')
             {
+                if (_line > startLine) _runOn.Add((startLine, startCol, _line));
                 Advance();
                 break;
             }
@@ -660,7 +700,7 @@ public sealed class Lexer
             {
                 Advance();
                 if (AtEnd())
-                    throw new LexerException(_line, ColumnAt(_pos), "unterminated string literal");
+                    throw NeverCloses(startLine, startCol);
                 char esc = Peek();
                 Advance();
                 // \{ and \} produce a literal brace — they are NOT interpolation markers.

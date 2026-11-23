@@ -141,11 +141,10 @@ around it. Nobody has asked for one.
   checked and invalidate on mutation, which is unsound against mutable maps unless done very
   carefully. "Name your lookups" covers the need meanwhile.
 
-- **The first errors a newcomer meets are the parser's, and they are terse.** A missing closing
-  quote gives `unterminated string literal`, which has a clear why and a clear fix, so by "warmth
-  scales with teachable content" it has earned a warm message, and it shows internal vocabulary. Found while
-  drafting the tutorial's first lesson (`tutorial/lesson-1-draft.md`). The Cufet parser matches
-  these refusals, so each changes in both parsers. Later lessons found more of the same: a name
+- **The first errors a newcomer meets are the parser's, and they are terse.** Each below has a
+  clear why and a clear fix, so by "warmth scales with teachable content" it has earned a warm
+  message. Found while writing the tutorial's lessons; the Cufet parser matches these refusals,
+  so each changes in both parsers. A name
   with a space (`Define my answer as …`) gets `'my' is not a defined type`; `Define my number as 7.`
   gets `expected As, got NumberKw "number"`; `The hops is hops + 1.` gets
   `expected Becomes, got Is "is"`; a missing comma after an `If` question asks for a colon;

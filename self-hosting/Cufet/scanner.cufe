@@ -16,6 +16,9 @@ Pull a book on collections.
     /// One token: its type (the C# enum's name, spelled exactly), what was written, and where.
     Define object token with (the text kind, the text lexeme, the number row, the number column).
 
+    /// Quoted text that ran past the end of its line: where it began, and the row it closed on.
+    Define object stretch with (the number row, the number column, the number end-row).
+
     Define object scanner with (
         the chase source,
         the number size,
@@ -24,7 +27,8 @@ Pull a book on collections.
         the number row-start,
         the series of token out,
         the map from text to text marks,
-        the map from text to text words).
+        the map from text to text words,
+        the series of stretch stretches).
 
     // ── Where the scan stands ─────────────────────────────────────────────
 
@@ -469,6 +473,23 @@ Pull a book on collections.
     /// it is InterpolOpen, then pieces and holes, then InterpolClose — and ⚠ a piece, a hole's
     /// braces and the closer each report where the scan STANDS when it is emitted, not where it
     /// began, because that is what Lexer.cs does.
+    /// Lexer.RunOnMessage.
+    Bind text to run-on-message:
+        Return "this text runs on past the end of its line. Is its closing quote mark missing?".
+    Done.
+
+    /// NeverCloses — at the first text that ran past its line, or at this text's opening quote.
+    Bind text to never-closes unto scanner, given (the number opened-row, the number opened-column):
+        If the number of one's stretches is greater than 0:
+            Define first-stretch as item 1 of one's stretches.
+            Return cast refusal on (first-stretch's row, first-stretch's column, cast run-on-message).
+        Done.
+        If one's row is greater than opened-row:
+            Return cast refusal on (opened-row, opened-column, cast run-on-message).
+        Done.
+        Return cast refusal on (opened-row, opened-column, "this text never ends. Is its closing quote mark missing?").
+    Done.
+
     Bind void or failure to read-string unto scanner:
         Define opened-row as one's row.
         Define opened-column as cast one's column-at on (one's cursor).
@@ -481,12 +502,15 @@ Pull a book on collections.
         Define scanning as true.
         While scanning, repeat:
             If cast one's at-end:
-                Return a failure (cast refusal on (one's row, cast one's column-at on (one's cursor),
-                    "unterminated string literal")).
+                Return a failure (cast one's never-closes on (opened-row, opened-column)).
             Done.
             Define ch as cast one's peek.
 
             If ch is "\"":
+                If one's row is greater than opened-row:
+                    Insert a new stretch { the row opened-row, the column opened-column, the end-row one's row }
+                        into one's stretches.
+                Done.
                 Cast one's advance.
                 The scanning becomes false.
                 Skip.
@@ -495,8 +519,7 @@ Pull a book on collections.
             If ch is "\\":
                 Cast one's advance.
                 If cast one's at-end:
-                    Return a failure (cast refusal on (one's row, cast one's column-at on (one's cursor),
-                        "unterminated string literal")).
+                    Return a failure (cast one's never-closes on (opened-row, opened-column)).
                 Done.
                 Define escape as cast one's peek.
                 Cast one's advance.
@@ -678,12 +701,30 @@ Pull a book on collections.
     // ── A whole file ──────────────────────────────────────────────────────
 
     Bind void or failure to tokenize unto scanner:
+        Try to:
+            Cast one's scan-all.
+        Done.
+        // A refusal on the row where run-on text ended is that text's doing — only on THAT row.
+        In case of failure:
+            Define raw as the message of the failure.
+            Define parts as raw split by "\t".
+            If item 3 of parts starts with "this text ", return a failure (raw).
+            For each one-stretch in one's stretches, repeat:
+                If "{one-stretch's end-row}" is item 1 of parts:
+                    Return a failure (cast refusal on (one-stretch's row, one-stretch's column, cast run-on-message)).
+                Done.
+            Done.
+            Return a failure (raw).
+        Done.
+        Cast one's emit on ("Eof", "", one's row, cast one's column-at on (one's cursor)).
+    Done.
+
+    Bind void or failure to scan-all unto scanner:
         While cast one's at-end is false, repeat:
             Cast one's skip-space or pass the failure off.
             If cast one's at-end, stop.
             Cast one's read-one or pass the failure off.
         Done.
-        Cast one's emit on ("Eof", "", one's row, cast one's column-at on (one's cursor)).
     Done.
 
     // ── The tables ────────────────────────────────────────────────────────
@@ -704,7 +745,7 @@ Pull a book on collections.
         Define scan as a new scanner {
             the source buffer, the size the number of buffer, the cursor 1,
             the row 1, the row-start 1, the out a series of token,
-            the marks cast mark-table, the words cast keyword-table }.
+            the marks cast mark-table, the words cast keyword-table, the stretches a series of stretch }.
         Cast scan's tokenize or pass the failure off.
         Return scan's out.
     Done.

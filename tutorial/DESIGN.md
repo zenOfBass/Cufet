@@ -140,6 +140,5 @@ with the evidence for every edge, is in [`tools/curriculum-net/`](../tools/curri
 - Whether Grace and Hopper speak the hints and reactions, or only the story moments.
 - How Reading input works in a browser: input written before Run, or typing while the program runs.
   The playground today gives every program empty input.
-- Parse errors are terse (`unterminated string literal`), and one would mislead a newcomer:
-  `print("hi")` mentions `Becomes`. The tutorial
+- One parse error would mislead a newcomer: `print("hi")` mentions `Becomes`. The tutorial
   can supply its own reactions; whether to improve the messages is a question for the language.
