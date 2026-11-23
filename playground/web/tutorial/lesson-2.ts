@@ -143,12 +143,12 @@ export const lesson2: Lesson = {
                 },
                 {
                     case: '"times" as a word',
-                    when: a => refusedSaying(a, 'got Identifier "times"'),
+                    when: a => refusedSaying(a, "found the name 'times'"),
                     lines: [hopper('Cufet doesn\'t know "times" as a word. Use the star: `*`.')],
                 },
                 {
                     case: 'an x for times',
-                    when: a => refusedSaying(a, 'got Identifier "x"'),
+                    when: a => refusedSaying(a, "found the name 'x'"),
                     lines: [grace('In Cufet, "times" is written with a star, `*`, not an x.')],
                 },
                 {
@@ -158,7 +158,7 @@ export const lesson2: Lesson = {
                 },
                 {
                     case: 'both on one line',
-                    when: a => refusedSaying(a, "expected '.', got Number"),
+                    when: a => refusedSaying(a, "expected '.', but found the number"),
                     lines: [grace('One `State` says one thing. Give the sum a `State` of its own, on the next line.')],
                 },
             ],

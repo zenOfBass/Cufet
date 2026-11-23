@@ -193,10 +193,10 @@ What is 12 * 12?
 | --- | --- | --- |
 | Last line `State "12 * 12".` | Runs, prints `12 * 12` | **Hopper:** That's just the question again! Take the quote marks off, so Cufet works it out. |
 | Last line `State 144.` | Runs, prints `144`, but isn't done | **Grace:** That's the right number, but you worked it out yourself. Write `12 * 12` and let Cufet do the work. |
-| Last line `State 12 times 12.` | `Line 2, column 10: expected '.', got Identifier "times".` | **Hopper:** Cufet doesn't know "times" as a word. Use the star: `*`. |
-| Last line `State 12 x 12.` | `Line 2, column 10: expected '.', got Identifier "x".` | **Grace:** In Cufet, "times" is written with a star, `*`, not an x. |
+| Last line `State 12 times 12.` | `Line 2, column 10: expected '.', but found the name 'times'.` | **Hopper:** Cufet doesn't know "times" as a word. Use the star: `*`. |
+| Last line `State 12 x 12.` | `Line 2, column 10: expected '.', but found the name 'x'.` | **Grace:** In Cufet, "times" is written with a star, `*`, not an x. |
 | Last line `State 12 * 12 = 144.` | Runs, prints `true` | **Grace:** You've asked Cufet whether twelve twelves make 144, and it says that's true! Leave off the `= 144` and it will give you the number. |
-| `State "What is 12 times 12?" 12 * 12.` | `Line 1, column 30: expected '.', got Number "12".` | **Grace:** One `State` says one thing. Give the sum a `State` of its own, on the next line. |
+| `State "What is 12 times 12?" 12 * 12.` | `Line 1, column 30: expected '.', but found the number 12.` | **Grace:** One `State` says one thing. Give the sum a `State` of its own, on the next line. |
 | No spaces: `State 12*12.` | Runs, prints `144` | **Done.** Spaces around the sign are only there to make it easy to read. |
 
 ### Before the lesson ends

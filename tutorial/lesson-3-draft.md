@@ -200,8 +200,8 @@ The answer is 49.
 | Another name: `Define result as 7 * 7.` | Runs, prints the right sentence, but isn't done (Beat 6 needs the name `answer`) | **Grace:** That works! But I asked you to keep it as `answer`. Use that name, so Hopper can find it. |
 | `State "The answer is 7 * 7.".` | Runs, prints `The answer is 7 * 7.` | **Hopper:** The sum is inside the quote marks, so Cufet just says it! Keep the sum with `Define`, and put a hole in the sentence. |
 | Only `State answer.` for the second line | Runs, prints `49` | **Grace:** The right number, but Hopper wanted a sentence. Try `"The answer is {answer}."` |
-| `State "The answer is " answer.` | `Line 2, column 24: expected '.', got Identifier "answer".` | **Grace:** The name has to go inside the sentence, in a hole: `{answer}`. |
-| `Define answer 7 * 7.` | `Line 1, column 15: expected As, got Number "7".` | **Grace:** A name and its value are joined by `as`: `Define answer as 7 * 7.` |
+| `State "The answer is " answer.` | `Line 2, column 24: expected '.', but found the name 'answer'.` | **Grace:** The name has to go inside the sentence, in a hole: `{answer}`. |
+| `Define answer 7 * 7.` | `Line 1, column 15: expected 'as', but found the number 7.` | **Grace:** A name and its value are joined by `as`: `Define answer as 7 * 7.` |
 | `Define answer = 7 * 7.` | `'=' is comparison, not assignment. A 'Define' introduces a name with 'as': 'Define answer as ...'.` (and more) | **Grace:** Cufet says it well itself: a `Define` uses `as`, not `=`. |
 | `Define Answer as 7 * 7.` | `Line 1, column 8: names start with a lowercase letter: write 'answer'.` | **Hopper:** Names start with a small letter! `answer`, not `Answer`. |
 | `Define my answer as 7 * 7.` | `That doesn't work: there's no type called 'my'. … A name can't have a space in it, so Cufet read 'my' as a type. …` | **Grace:** A name can't have a space in it. Use one word, like `answer`. |

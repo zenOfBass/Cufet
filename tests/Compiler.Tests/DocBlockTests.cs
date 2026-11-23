@@ -1,4 +1,4 @@
-﻿using System.Text.RegularExpressions;
+using System.Text.RegularExpressions;
 using Cufet.Interpreter;
 using Xunit;
 using CufetLexer = Cufet.Lexer.Lexer;
@@ -80,7 +80,7 @@ public class DocBlockTests
     // A parse failure caused by the sample simply STOPPING. See the fragment rule above.
     // ⚠ A sample cut off before a period no longer says `got Eof`: it says "The file ended before
     // one came." (a line without its period, reported at that line). Capital T, so matched apart.
-    private static readonly Regex RanOutOfInput = new(@"got Eof|the file ended before|The file ended before one came");
+    private static readonly Regex RanOutOfInput = new(@"but the file ended|the file ended before|The file ended before one came");
 
     // ★ A fragment may also fail because of what is NOT around it. `Return the total.` is refused
     // outside a function and `In case of failure:` outside a `Try`, and both are perfectly good
@@ -89,7 +89,7 @@ public class DocBlockTests
     // it is narrow on purpose: only refusals that name the MISSING SURROUNDINGS, never a refusal
     // about the statement itself.
     private static readonly Regex NeedsSurroundings = new(
-        @"used outside a function|requires an active rabbit|got Case ""case""|got Close ""close""");
+        @"used outside a function|requires an active rabbit|found the word 'case'|found the word 'close'");
 
     // ── Extraction ────────────────────────────────────────────────────────
 

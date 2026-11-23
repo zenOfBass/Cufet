@@ -185,7 +185,7 @@ void
 
 | They type | What Cufet does | The rabbits say |
 | --- | --- | --- |
-| `but void "Keep going!"`, no `is` | `Line 6, column 34: expected Is, got String "Keep going!".` | **Grace:** It's `but void is`, with "is". |
+| `but void "Keep going!"`, no `is` | `Line 6, column 34: expected 'is', but found the text "Keep going!".` | **Grace:** It's `but void is`, with "is". |
 | `or "Keep going!"` | `That doesn't work: 'or' needs both sides to be the same kind of thing.` and more | **Grace:** `or` is for questions. For nothing, it's `but void is`. |
 | `but void is 0` | `That doesn't work: the default value is a number, but the voidable holds text.` and more | **Hopper:** `cheer` gives back text, so what you use instead has to be text too! |
 | Changes `Return void.` to `Return "Keep going!".` | Prints the right lines, but isn't done | **Grace:** That works, but `cheer` was meant to stay as it is. Say what to use at the last line instead. |

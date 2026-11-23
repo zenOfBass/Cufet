@@ -47,7 +47,7 @@ public class UnclosedBlockTests
 
         Assert.Contains("this 'If' opens a block", ex.Message);
         Assert.Equal(1, ex.Line);
-        Assert.DoesNotContain("expected Done", ex.Message);
+        Assert.DoesNotContain("expected 'Done.'", ex.Message);
     }
 
     /// <remarks>
@@ -171,7 +171,7 @@ public class UnclosedBlockTests
 
         Assert.Contains("this 'Bind' opens a block", ex.Message);
         Assert.Equal(1, ex.Line);
-        Assert.DoesNotContain("expected Done", ex.Message);
+        Assert.DoesNotContain("expected 'Done.'", ex.Message);
         // ★ The inline form it offers is the VALUE one, because this body gives something back.
         // ⚠ Since 2026-11-22 it names the function being written, not a stock `double`, so it is
         // a shape (`…`, `<the value>`) rather than a runnable line.

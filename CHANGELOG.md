@@ -78,6 +78,15 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   in the block form), with nothing in between. Is something between them, or is the 'If'
   missing?` It does not name an `If`: telling which one was meant would take tracking them through
   nested blocks, and a wrong line is worse than none. Both parsers.
+- **The parser's general refusal speaks in a reader's words, not its own.** `expected X, got Kind
+  "lexeme"` named token kinds on both sides: `expected As, got NumberKw "number"`, `expected
+  expression, got Eof ""`, `expected RBrace`. Now `expected 'as', but found the word 'number'.`,
+  `expected a value, but the file ended.`, `expected '}'`, and so on: what was found is the file
+  ending, a name, a number, a text, a word or a mark; what was wanted is a keyword as written, in
+  quotes. Measured first by breaking the example programs 1,072 ways: 699 of the 1,040 refusals
+  came through this one template, 366 of them the file simply ending, which in an editor that
+  checks as you type is every half-written line. Both parsers. The broken-programs parity test now
+  fails if a refusal names a token kind again, so the roadmap's periodic audit runs on every build.
 - **The rest of the tutorial's list of terse refusals says what to write.** Each was found
   writing or play-testing the tutorial; all are in both parsers, the first in both checkers:
   - A function of the program's own called without `cast` (`State double on (3).`) was told

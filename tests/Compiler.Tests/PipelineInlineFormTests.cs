@@ -281,7 +281,7 @@ public class PipelineInlineFormTests : PipelineTestBase
             """;
         var ex = Assert.ThrowsAny<Exception>(() => Interpret(src));
         Assert.Contains("STATEMENT, not an", ex.Message);
-        Assert.DoesNotContain("expected Becomes", ex.Message);
+        Assert.DoesNotContain("expected 'becomes'", ex.Message);
     }
 
     [Fact]
@@ -294,7 +294,7 @@ public class PipelineInlineFormTests : PipelineTestBase
         var ex = Assert.ThrowsAny<Exception>(() => Interpret(src));
         // Line 2 is the loop. The old message reported line 3, column 1 — the end of the file.
         Assert.Contains("Line 2", ex.Message);
-        Assert.DoesNotContain("got Eof", ex.Message);
+        Assert.DoesNotContain("but the file ended", ex.Message);
     }
 
     // ── The two constructs the first sweep missed ──

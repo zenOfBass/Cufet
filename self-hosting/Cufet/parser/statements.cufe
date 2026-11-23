@@ -1423,7 +1423,7 @@ Pull a book on collections.
             In case of failure:
                 // An EXPRESSION where a statement belongs — "expected Becomes" points at the wrong idea.
                 // ⚠ The `is`/`as`-for-`becomes` refusals are the same reach in other words.
-                If the message of the failure contains "expected Becomes" or the message of the failure contains "write 'becomes' instead of '":
+                If the message of the failure contains "expected 'becomes'" or the message of the failure contains "write 'becomes' instead of '":
                     Return a failure (cast one's refused on (first-tok,
                         "this body gives nothing back, so its inline form is a STATEMENT, not an "
                         joined to "expression — something like 'State ...' or 'one's field becomes ...'. "

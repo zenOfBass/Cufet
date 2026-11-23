@@ -130,7 +130,7 @@ export const lesson9: Lesson = {
             reactions: [
                 {
                     case: '"is" left out of but void is',
-                    when: a => refusedSaying(a, 'expected Is, got String'),
+                    when: a => refusedSaying(a, "expected 'is', but found the text"),
                     lines: [grace('It\'s `but void is`, with "is".')],
                 },
                 {

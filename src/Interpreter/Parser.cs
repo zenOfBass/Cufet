@@ -1558,7 +1558,8 @@ public sealed class Parser
             }
             // ⚠ The `is`/`as`-for-`becomes` refusals are the same reach in other words, and an
             // expression like `hops is 5` in an inline void body is this mistake as often as that one.
-            catch (ParseException ex) when (ex.Message.Contains("expected Becomes")
+            // ⚠ Keyed on the WORDS of Consume's refusal; reword `Describe` and this goes with it.
+            catch (ParseException ex) when (ex.Message.Contains("expected 'becomes'")
                                             || ex.Message.Contains("write 'becomes' instead of '"))
             {
                 // ★ An EXPRESSION where a statement belongs. Left alone this reported "expected
@@ -6131,7 +6132,7 @@ public sealed class Parser
             // ★ `is greater 3` — the comparison's `than` left out.
             if (expected == TokenType.Than && _pos > 0 && _tokens[_pos - 1] is { Type: TokenType.Greater or TokenType.Less } side)
                 throw new ParseException(tok.Line, tok.Column,
-                    $"'{side.Lexeme}' needs 'than' after it: 'is {side.Lexeme} than {tok.Lexeme}'.");
+                    $"'{side.Lexeme}' needs 'than' after it: 'is {side.Lexeme} than {(tok.Lexeme == "" ? "…" : tok.Lexeme)}'.");
 
             // ★ A block's colon left off the end of its line: named at that line, as a period is.
             if (expected == TokenType.Colon && _pos > 0 && (tok.Type == TokenType.Eof || tok.Line > _tokens[_pos - 1].Line))
@@ -6287,18 +6288,13 @@ public sealed class Parser
     /// `expected Eof`. Nobody outside this repo knows what a `Dot` is, and it is the first
     /// vocabulary a beginner meets, because punctuation is what they get wrong first.
     /// <para>
-    /// ★ Only the tokens that are JARGON need an entry. A keyword's enum name is the keyword —
-    /// `expected Done`, `expected As` — so those already read correctly and fall through.
+    /// ★ A keyword is the word as it is written, in quotes: `'as'`, not the enum's `As`, and not
+    /// `TaskKw`. `Done` keeps its capital and its period, because that is the only way it is written.
     /// </para>
     /// <para>
-    /// ⚠⚠ THE `got` HALF IS DELIBERATELY STILL AN ENUM NAME — `got Equal "="`, `got Eof ""` —
-    /// and that is a decision rather than an oversight. The win would be small, because the LEX—E
-    /// is already quoted right beside it; and TWO TESTS read the format, so moving the wording
-    /// would quietly weaken them rather than fail: `DocBlockTests.RanOutOfInput` matches
-    /// `got Eof`, and `PipelineInlineFormTests` asserts `DoesNotContain("got Eof")` — an
-    /// assertion that becomes VACUOUS the moment the string can no longer appear.
-    ///
-    /// ★ Reword it only together with those two, never on its own.
+    /// ★ The `got` half was reworded with this one, 2026-11-22 (ParseException.Found), and so were
+    /// the two tests that read the old format — `DocBlockTests.RanOutOfInput` and
+    /// `PipelineInlineFormTests`, which now look for "the file ended" rather than `got Eof`.
     /// </para>
     /// </remarks>
     private static string Describe(TokenType expected) => expected switch
@@ -6308,10 +6304,30 @@ public sealed class Parser
         TokenType.Comma      => "','",
         TokenType.LParen     => "'('",
         TokenType.RParen     => "')'",
+        TokenType.LBrace     => "'{'",
+        TokenType.RBrace     => "'}'",
+        TokenType.Plus       => "'+'",
+        TokenType.Minus      => "'-'",
+        TokenType.Star       => "'*'",
+        TokenType.Slash      => "'/'",
+        TokenType.Equal      => "'='",
+        TokenType.Pipe       => "'|'",
+        TokenType.Possessive => "''s'",
         TokenType.Identifier => "a name",
+        TokenType.Number     => "a number",
+        TokenType.String     => "a text in quote marks",
         TokenType.Eof        => "the end of the file",
-        _                    => expected.ToString(),
+        TokenType.Done       => "'Done.'",
+        _                    => $"'{KeywordWord(expected)}'",
     };
+
+    /// <summary>A keyword's token type, as the word a reader writes: `TaskKw` → `task`.</summary>
+    private static string KeywordWord(TokenType type)
+    {
+        var name = type.ToString();
+        if (name.EndsWith("Kw", StringComparison.Ordinal)) name = name[..^2];
+        return name.ToLowerInvariant();
+    }
 
     // Parses an interpolated string starting just after InterpolOpen was consumed.
     // Collects StringPiece tokens and InterpolHoleOpen…InterpolHoleClose expression

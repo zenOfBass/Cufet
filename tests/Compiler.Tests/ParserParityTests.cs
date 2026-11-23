@@ -182,8 +182,29 @@ public class ParserParityTests(ITestOutputHelper output, CompiledCufetParser com
         int refused = mutants.Count(m => ParserTreePrinter.Expected(m.Item2)[0].StartsWith("error\t"));
         Assert.True(refused >= mutants.Count / 2, $"only {refused} of {mutants.Count} mutants are refused");
 
+        // ★ The error-message audit, made continuous (ROADMAP, "Ongoing"). MEASURED 2026-11-22:
+        // 699 of 1,040 refusals of broken examples named the parser's token kinds — `got Eof ""`,
+        // `got NumberKw "number"`, `expected RBrace` — before the template was reworded. A refusal
+        // a reader sees must not name one again; the parity check below holds the Cufet parser to
+        // the same words, so this one guard covers both.
+        var leaking = mutants
+            .Select(m => (m.Item1, Said: ParserTreePrinter.Expected(m.Item2)[0]))
+            // ⚠ Quoted text is the PROGRAM's, not the message's: the self-hosted parser's own
+            // source quotes back `"FunctionKw"` and `'Identifier'`, and those are its words.
+            .Where(m => m.Said.StartsWith("error\t")
+                     && TokenKindNamed.IsMatch(System.Text.RegularExpressions.Regex.Replace(m.Said, @"'[^']*'|""[^""]*""", "_")))
+            .Select(m => $"{m.Item1}: {m.Said}")
+            .ToList();
+        Assert.True(leaking.Count == 0,
+            "these refusals name the parser's token kinds:\n  " + string.Join("\n  ", leaking.Take(20)));
+
         Check(RunOnSources(mutants, "mutants"), mutants, mutants.Count, "on broken programs");
     }
+
+    /// <summary>A token kind's name where a reader would see it: `got Eof`, `NumberKw`, `RBrace`.</summary>
+    private static readonly System.Text.RegularExpressions.Regex TokenKindNamed = new(
+        @"\bgot [A-Z]\w*\b|\b\w+Kw\b|\b(Eof|Identifier|InterpolOpen|StringPiece|LParen|RParen|LBrace|RBrace|Possessive)\b"
+      + @"|expected (expression|statement keyword)\b");
 
     /// <summary>Refusals no cut or deletion of the corpus reaches.</summary>
     private static readonly string[] Refused =

@@ -126,7 +126,7 @@ public class EqualSignStatementErrorTests
     {
         var ex = ParseFails("Define x = 3.");
         Assert.Contains("comparison, not assignment", ex.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("expected As", ex.Message);
+        Assert.DoesNotContain("expected 'as'", ex.Message);
     }
 
     /// <remarks>

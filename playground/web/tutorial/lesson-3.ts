@@ -162,12 +162,12 @@ export const lesson3: Lesson = {
                 },
                 {
                     case: 'the name outside the sentence',
-                    when: a => refusedSaying(a, 'got Identifier "answer"'),
+                    when: a => refusedSaying(a, "found the name 'answer'"),
                     lines: [grace('The name has to go inside the sentence, in a hole: `{answer}`.')],
                 },
                 {
                     case: 'no "as"',
-                    when: a => refusedSaying(a, 'expected As'),
+                    when: a => refusedSaying(a, "expected 'as'"),
                     lines: [grace('A name and its value are joined by `as`: `Define answer as 7 * 7.`')],
                 },
                 {

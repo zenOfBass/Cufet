@@ -1,4 +1,4 @@
-﻿using Cufet.Interpreter;
+using Cufet.Interpreter;
 using Xunit;
 using CufetLexer = Cufet.Lexer.Lexer;
 
@@ -248,7 +248,7 @@ public class ParseWordingTests
     public void AKeywordsOwnNameIsLeftAlone()
     {
         var ex = ParseFails("Define carrots to 3.");
-        Assert.Contains("expected As", ex.Message);
+        Assert.Contains("expected 'as'", ex.Message);
     }
 
     /// <summary>A reserved word used as a name says so, rather than naming token types.</summary>
@@ -282,7 +282,7 @@ public class ParseWordingTests
 
         Assert.Contains($"'{word}' is a word Cufet has taken", ex.Message);
         Assert.Contains("neither a variable nor a field", ex.Message);
-        Assert.DoesNotContain("expected Identifier", ex.Message);
+        Assert.DoesNotContain("expected a name", ex.Message);
     }
 
     /// <remarks>
@@ -321,7 +321,7 @@ public class ParseWordingTests
         var ex = ParseFails($"Define xs as a series of number with (1, 2). For each {word} in xs, state {word}.");
 
         Assert.Contains($"'{word}' is a word Cufet has taken", ex.Message);
-        Assert.DoesNotContain("expected In", ex.Message);
+        Assert.DoesNotContain("expected 'in'", ex.Message);
     }
 
     /// <remarks>

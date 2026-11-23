@@ -98,7 +98,7 @@ export function respond(
 // without its period AT that line, not on the next one):
 //   Define hops as 2 / State hops.   Line 1, column 16: this line needs a period at the end. Cufet read on into line 2 looking for it.
 //   State "Hi"                       Line 1, column 7: this line needs a period at the end. The file ended before one came.
-//   State 2 3.                       Line 1, column 9: expected '.', got Number "3".
+//   State 2 3.                       Line 1, column 9: expected '.', but found the number 3.
 //   State Keep going!.               Line 1, column 7: 'Keep' starts with a capital letter, so it can't be a name. …
 //   Defne x as 1.                    Line 1, column 1: 'Defne' isn't a word Cufet knows to start a line with. Did you mean 'Define'?
 //   If 2 is 2: / State "a".          … this 'If' opens a block, and the file ended before its 'Done.'. …

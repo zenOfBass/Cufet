@@ -220,9 +220,9 @@ Hop 6!
 | --- | --- | --- |
 | The `If` after `Done.` | Runs, prints six hops and no "Halfway!" | **Hopper:** By the time the loop's done, I've hopped six times, so I'm never at three! The `If` goes inside the loop. |
 | `State` before `becomes` | Runs, prints `Hop 0!` first, and "Halfway!" after hop 2 | **Hopper:** Hop zero again! Count the hop before you say it. |
-| No `repeat`: `While hops is less than 6:` | `Line 2, column 26: expected ',', got Colon ":".` | **Grace:** A `While` line ends with `, repeat:`. |
+| No `repeat`: `While hops is less than 6:` | `Line 2, column 26: expected ',', but found the mark ':'.` | **Grace:** A `While` line ends with `, repeat:`. |
 | No comma: `While hops is less than 6 repeat:` | `Line 2, column 27: Cufet needs a comma before 'repeat': ', repeat:'.` | **Grace:** A comma goes before `repeat`. |
-| `While hops less than 6, repeat:` | `Line 2, column 12: expected ',', got Less "less".` | **Grace:** It's `is less than`, with "is" in front. |
+| `While hops less than 6, repeat:` | `Line 2, column 12: expected ',', but found the word 'less'.` | **Grace:** It's `is less than`, with "is" in front. |
 | No `Done.` at the end | `this 'repeat' opens a block, and the file ended before its 'Done.'.` (and more) | **Hopper:** Every colon needs a `Done.` to close it! |
 | `While hops < 6, repeat:` | Runs, prints the right thing | **Done.** **Hopper:** `<` means "is less than". Cufet knows both! |
 | Six hops written out by hand, without a loop | Prints the right lines, but isn't done | **Grace:** Right lines, but that's the long way. Let a loop do the repeating. |

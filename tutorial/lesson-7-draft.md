@@ -179,7 +179,7 @@ Hello, friend!
 | They type | What Cufet does | The rabbits say |
 | --- | --- | --- |
 | `Lettuce` without quote marks | `Line 1, column 63: 'Lettuce' starts with a capital letter, so it can't be a name. …` | **Grace:** Without quote marks, Cufet thinks `Lettuce` is a name. Each friend in the series is text, in quote marks. |
-| No comma before `"Lettuce"` | `Line 1, column 62: expected ')', got String "Lettuce".` | **Hopper:** Every friend needs a comma between them and the next! |
+| No comma before `"Lettuce"` | `Line 1, column 62: expected ')', but found the text "Lettuce".` | **Hopper:** Every friend needs a comma between them and the next! |
 | A second `Define friends` line | `That doesn't work: 'friends' is already defined in this scope.` and more | **Grace:** One `Define` per name. Add Lettuce to the line that's already there. |
 | `"lettuce"`, with a small l | Prints `Hello, lettuce!`, but isn't done | **Hopper:** Lettuce has a big L! Cufet says exactly what's in the quote marks. |
 | A fourth `State "Hello, Lettuce!".` after `Done.` | Prints the right lines, but isn't done | **Hopper:** That works, but the loop should do it! Put Lettuce in the series. |
@@ -267,7 +267,7 @@ I hopped 10 times!
 | No `Define total as 0.` | `That doesn't work: 'total' isn't defined.` and more | **Grace:** The total has to start somewhere. Begin it at zero, before the loop. |
 | `Define total as 0.` inside the loop | `That doesn't work: 'total' was defined on line 3, inside a block that has ended.` and more | **Grace:** Cufet explains it: a name made inside the loop is gone after `Done.` Define it before the loop starts. |
 | `The total becomes total + hops.` | `That doesn't work: arithmetic requires numbers on both sides.` and more | **Hopper:** `hops` is the whole series! Add the one whose turn it is, the name after `For each`. |
-| `For each count of hops, repeat:` | `Line 3, column 16: expected In, got Of "of".` | **Grace:** It's `For each count in hops`, with "in". |
+| `For each count of hops, repeat:` | `Line 3, column 16: expected 'in', but found the word 'of'.` | **Grace:** It's `For each count in hops`, with "in". |
 | `State 10.` or `State "I hopped 10 times!".` | Prints the right thing, but isn't done | **Grace:** Right number, but you worked it out yourself. Let `For each` do the adding. |
 
 ## Before the lesson ends

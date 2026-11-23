@@ -37,7 +37,7 @@ public class CallShapeErrorTests
         var ex = ParseFails(Area + "State area of (4, 5).");
         Assert.Contains("is how a BOOK's member is called", ex.Message);
         Assert.Contains("'cast area on (…)'", ex.Message);
-        Assert.DoesNotContain("got Of", ex.Message);
+        Assert.DoesNotContain("found the word 'of'", ex.Message);
     }
 
     [Fact]

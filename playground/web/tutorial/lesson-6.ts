@@ -163,7 +163,7 @@ export const lesson6: Lesson = {
                 },
                 {
                     case: 'no repeat',
-                    when: a => refusedSaying(a, "expected ',', got Colon"),
+                    when: a => refusedSaying(a, "expected ',', but found the mark ':'"),
                     lines: [grace('A `While` line ends with `, repeat:`.')],
                 },
                 {
@@ -173,7 +173,7 @@ export const lesson6: Lesson = {
                 },
                 {
                     case: '"is" left out',
-                    when: a => refusedSaying(a, "expected ',', got Less"),
+                    when: a => refusedSaying(a, "expected ',', but found the word 'less'"),
                     lines: [grace('It\'s `is less than`, with "is" in front.')],
                 },
                 {

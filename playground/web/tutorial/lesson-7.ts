@@ -123,7 +123,7 @@ export const lesson7: Lesson = {
                 },
                 {
                     case: 'no comma before Lettuce',
-                    when: a => refusedSaying(a, "expected ')', got String"),
+                    when: a => refusedSaying(a, "expected ')', but found the text"),
                     lines: [hopper('Every friend needs a comma between them and the next!')],
                 },
                 {
@@ -210,7 +210,7 @@ export const lesson7: Lesson = {
                 },
                 {
                     case: '"of" instead of "in"',
-                    when: a => refusedSaying(a, 'expected In, got Of'),
+                    when: a => refusedSaying(a, "expected 'in', but found the word 'of'"),
                     lines: [grace('It\'s `For each count in hops`, with "in".')],
                 },
                 {

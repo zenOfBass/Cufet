@@ -120,7 +120,7 @@ Pull a book on collections.
     //
     // ★ The two shapes a C# ParseException takes, word for word, because the parity test compares
     // refusals as well as trees:
-    //   ParseException(token, expected)     → "Line L, column C: expected X, got Kind \"lexeme\"."
+    //   ParseException(token, expected)     → "Line L, column C: expected X, but found Y."
     //   ParseException(line, column, words) → "Line L, column C: words"
     // Each failure message starts `error` and a tab; the program prints it as it stands.
 
@@ -143,21 +143,59 @@ Pull a book on collections.
         Return "error\tLine {at-row}, column {at-column}: {reason}".
     Done.
 
-    /// ParseException(token, expected) — "expected X, got Kind \"lexeme\"."
+    /// ParseException(token, expected) — "expected X, but Y." Both halves in a reader's words since
+    /// 2026-11-22; they were the parser's own (`got Eof ""`, `expected expression`).
     Bind text to expecting unto parser, given (the token got, the text expected):
-        Return "error\tLine {got's row}, column {got's column}: expected {expected}, got {got's kind} \"{got's lexeme}\".".
+        Return "error\tLine {got's row}, column {got's column}: expected {cast wanted-said on (expected)}, but {cast one's found-said on (got)}.".
     Done.
 
-    /// Describe — what to CALL a token kind in a message meant for a person.
+    /// ParseException.Wanted — the two expectations callers spell in the parser's terms.
+    Bind text to wanted-said, given (the text expected):
+        If expected is "expression", return "a value".
+        If expected is "statement keyword", return "an instruction (like 'State …' or 'Define …')".
+        Return expected.
+    Done.
+
+    /// ParseException.Found — what was found, said as a reader would say it.
+    Bind text to found-said unto parser, given (the token got):
+        Define kind as got's kind.
+        If kind is "Eof", return "the file ended".
+        If kind is "Identifier", return "found the name '{got's lexeme}'".
+        If kind is "Number", return "found the number {got's lexeme}".
+        If kind is "String" or kind is "StringPiece", return "found the text \"{got's lexeme}\"".
+        If kind is "InterpolOpen", return "found a text".
+        If kind is "Axiom", return "found a block in square brackets".
+        If kind is "Possessive", return "found the {got's lexeme}".
+        If cast one's looks-like-a-word on (got), return "found the word '{got's lexeme}'".
+        If got's lexeme is not "", return "found the mark '{got's lexeme}'".
+        Return "found something else".
+    Done.
+
+    /// Describe — what to CALL a token kind in a message meant for a person. A keyword is the word
+    /// as written, in quotes; `Done` keeps its capital and its period.
     Bind text to described, given (the text kind):
         If kind is "Dot", return "'.'".
         If kind is "Colon", return "':'".
         If kind is "Comma", return "','".
         If kind is "LParen", return "'('".
         If kind is "RParen", return "')'".
+        If kind is "LBrace", return "'\{'".
+        If kind is "RBrace", return "'\}'".
+        If kind is "Plus", return "'+'".
+        If kind is "Minus", return "'-'".
+        If kind is "Star", return "'*'".
+        If kind is "Slash", return "'/'".
+        If kind is "Equal", return "'='".
+        If kind is "Pipe", return "'|'".
+        If kind is "Possessive", return "''s'".
         If kind is "Identifier", return "a name".
+        If kind is "Number", return "a number".
+        If kind is "String", return "a text in quote marks".
         If kind is "Eof", return "the end of the file".
-        Return kind.
+        If kind is "Done", return "'Done.'".
+        Define word as kind.
+        If word ends with "Kw", the word becomes the characters from 1 to (the length of word - 2) of word.
+        Return "'{word in lowercase}'".
     Done.
 
     /// LooksLikeAWord — the lexeme starts with a letter.
@@ -280,7 +318,9 @@ Pull a book on collections.
             If kind is "Than" and one's at is greater than 1:
                 Define side as cast one's token-at on (one's at - 1).
                 If side's kind is "Greater" or side's kind is "Less":
-                    Return a failure (cast one's refused on (current, "'{side's lexeme}' needs 'than' after it: 'is {side's lexeme} than {current's lexeme}'.")).
+                    Define compared as current's lexeme.
+                    If compared is "", the compared becomes "…".
+                    Return a failure (cast one's refused on (current, "'{side's lexeme}' needs 'than' after it: 'is {side's lexeme} than {compared}'.")).
                 Done.
             Done.
             // A block's colon left off the end of its line: named at that line, as a period is.

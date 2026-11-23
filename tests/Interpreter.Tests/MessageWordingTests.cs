@@ -58,7 +58,7 @@ public class MessageWordingTests
         // ★ `State alice's` ends where a period could, so it now gets the line-without-its-period
         // message, which also says the file ended.
         var message = ParseFails(source);
-        Assert.Matches("got Eof|The file ended before one came", message);
+        Assert.Matches("but the file ended|The file ended before one came", message);
     }
 
     [Fact]
