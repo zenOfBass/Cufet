@@ -24,13 +24,18 @@ public sealed class LexerException : Exception
     }
 
     public LexerException(int line, int column, string message)
-        : base($"Line {line}, column {column}: {message}.")
+        : base($"Line {line}, column {column}: {Sentence(message)}")
     {
         Line = line;
         Column = column;
         Character = '\0';
         Detail = message;
     }
+
+    /// <summary>The message as a sentence: a full stop added, unless it already ends in one or
+    /// in a question (`Did you mean 'State'?`), which would otherwise print `?.`.</summary>
+    private static string Sentence(string message) =>
+        message.EndsWith('.') || message.EndsWith('?') ? message : message + ".";
 
     /// <summary>The same trouble, reported where the text it came from actually sits.</summary>
     /// <remarks>

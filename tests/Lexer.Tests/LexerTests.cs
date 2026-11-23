@@ -122,7 +122,58 @@ public class LexerTests
     {
         // The exemption is one word, not a relaxation of the rule.
         var ex = Assert.Throws<LexerException>(() => Lex("Total"));
-        Assert.Contains("must start with a lowercase letter", ex.Message);
+        Assert.Contains("'Total' isn't a word Cufet knows to start a line with", ex.Message);
+    }
+
+    // —— A word with a capital that is no keyword, told by where it stands ———————————————
+    //
+    // ⚠⚠ All three used to get `identifier 'X' must start with a lowercase letter`. Play-tested in
+    // the tutorial: `Stat "Hello".` and `State Hello.` got it, and neither reader had written an
+    // identifier. The token before the word is what tells them apart.
+
+    [Theory]
+    [InlineData("Stat \"Hello\".", "Line 1, column 1: 'Stat' isn't a word Cufet knows to start a line with. Did you mean 'State'?")]
+    [InlineData("Defin x as 1.", "Line 1, column 1: 'Defin' isn't a word Cufet knows to start a line with. Did you mean 'Define'?")]
+    [InlineData("State \"a\".\nStat \"b\".", "Line 2, column 1: 'Stat' isn't a word Cufet knows to start a line with. Did you mean 'State'?")]
+    [InlineData("If true:\n    Stat \"a\".\nDone.", "Line 2, column 5: 'Stat' isn't a word Cufet knows to start a line with. Did you mean 'State'?")]
+    public void ALinesFirstWord_IsAnUnknownWord_WithTheNearOne(string source, string message)
+    {
+        var ex = Assert.Throws<LexerException>(() => Lex(source));
+        Assert.Equal(message, ex.Message);
+    }
+
+    /// <remarks>★ The guard on the suggestion: two letters off would answer `Say` with 'Set', and
+    /// a three-letter word one off does it too (`Let` → 'Set') — a real keyword, and wrong.</remarks>
+    [Theory]
+    [InlineData("Say \"Hello\".", "Say")]
+    [InlineData("Let x be 3.", "Let")]
+    [InlineData("Print \"Hello\".", "Print")]
+    [InlineData("Else, state \"a\".", "Else")]
+    public void ALinesFirstWord_FarFromAnyStatement_GetsNoSuggestion(string source, string word)
+    {
+        var ex = Assert.Throws<LexerException>(() => Lex(source));
+        Assert.Equal($"Line 1, column 1: '{word}' isn't a word Cufet knows to start a line with.", ex.Message);
+    }
+
+    [Theory]
+    [InlineData("Define Total as 1.", "total")]
+    [InlineData("Define hops as 2.\nThe Hops becomes 3.", "hops")]
+    [InlineData("Bind number to Double, given (the number n):\n    Return n * 2.\nDone.", "double")]
+    public void AWordWhereANameBelongs_IsToldNamesStartLowercase(string source, string lowered)
+    {
+        var ex = Assert.Throws<LexerException>(() => Lex(source));
+        Assert.EndsWith($": names start with a lowercase letter: write '{lowered}'.", ex.Message);
+    }
+
+    [Theory]
+    [InlineData("State Hello.", "Hello", "hello")]
+    [InlineData("State \"Hi\", Grace.", "Grace", "grace")]
+    [InlineData("Define total as 1.\nState Total.", "Total", "total")]
+    public void AWordAnywhereElse_IsOfferedQuoteMarksOrALowercaseName(string source, string word, string lowered)
+    {
+        var ex = Assert.Throws<LexerException>(() => Lex(source));
+        Assert.EndsWith($": '{word}' starts with a capital letter, so it can't be a name. If these are words to say, "
+                      + $"put them in quote marks. If it's a name, write '{lowered}'.", ex.Message);
     }
 
     [Fact]

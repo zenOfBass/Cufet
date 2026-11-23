@@ -98,7 +98,7 @@ export const lesson5: Lesson = {
                 },
                 {
                     case: 'Else for Otherwise',
-                    when: a => refusedSaying(a, "identifier 'Else' must start with a lowercase letter"),
+                    when: a => refusedSaying(a, "'Else' isn't a word Cufet knows to start a line with"),
                     lines: [hopper('Some languages say "else". Cufet says `Otherwise`.')],
                 },
                 {

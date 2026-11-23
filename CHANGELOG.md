@@ -22,6 +22,20 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   file, `… The file ended before one came.` The place is where the line's last word starts. A
   word too many on one line (`State 2 3.`) keeps the old message, since there the extra word is
   the mistake. Both parsers. Found by the tutorial's play-tests, where it was the commonest slip.
+- **A word with a capital is told what it probably is.** Every such word that is no keyword got
+  `identifier 'X' must start with a lowercase letter`, whether it was a misspelled first word
+  (`Stat "Hello".`), words left out of quote marks (`State Hello.`), or a name with a capital
+  (`Define Total as 1.`); neither of the first two writers had written an identifier. The word
+  before it now decides:
+  - A line's first word: `'Stat' isn't a word Cufet knows to start a line with. Did you mean
+    'State'?` The suggestion comes only when the word has four letters or more and is one letter
+    off a statement's word; two letters off would answer `Say` with 'Set'.
+  - Where a name belongs (after `Define`, `the`, or `to`): `names start with a lowercase letter:
+    write 'total'.`
+  - Anywhere else: `'Hello' starts with a capital letter, so it can't be a name. If these are
+    words to say, put them in quote marks. If it's a name, write 'hello'.`
+
+  Both lexers. A lexer message ending in a question no longer gets a full stop after it.
 
 ## [0.30.0] — 2026-11-20
 

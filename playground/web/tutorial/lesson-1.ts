@@ -28,12 +28,12 @@ const brokenLine: Reaction[] = [
     },
     {
         case: 'both quote marks gone',
-        when: a => refusedSaying(a, 'must start with a lowercase letter') && /^\s*State\s+[^"\s]/.test(a.code),
+        when: a => refusedSaying(a, "starts with a capital letter, so it can't be a name") && /^\s*State\s+[^"\s]/.test(a.code),
         lines: [hopper("Both quote marks are gone! Without them the computer doesn't know those are words to say.")],
     },
     {
         case: 'the first word is not State',
-        when: a => refusedSaying(a, 'must start with a lowercase letter') && !/^\s*State\b/.test(a.code),
+        when: a => refusedSaying(a, "isn't a word Cufet knows to start a line with"),
         lines: [grace("The first word has to be exactly `State`. One letter off and the computer doesn't know it.")],
     },
     {

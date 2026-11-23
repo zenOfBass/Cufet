@@ -142,7 +142,7 @@ Keep going!
 | They type | What Cufet does | The rabbits say |
 | --- | --- | --- |
 | `Otherwise state "Keep going!".` | `Line 4, column 11: expected ':', got State "state".` | **Grace:** `Otherwise` needs a comma after it, the same as the `If` line. |
-| `Else, state "Keep going!".` | `Line 4, column 1: identifier 'Else' must start with a lowercase letter.` | **Hopper:** Some languages say "else". Cufet says `Otherwise`. |
+| `Else, state "Keep going!".` | `Line 4, column 1: 'Else' isn't a word Cufet knows to start a line with.` | **Hopper:** Some languages say "else". Cufet says `Otherwise`. |
 | The `Otherwise` line above the `If` | `Line 3, column 1: expected statement keyword, got Otherwise "Otherwise".` | **Grace:** `Otherwise` only makes sense after an `If`. Move it below. |
 | A second `If`: `If hops is 2, state "Keep going!".` | Runs, prints the right lines, but isn't done | **Grace:** That works for two. But `Otherwise` catches every other number too, not just two. Try it with `Otherwise`. |
 

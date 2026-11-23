@@ -262,6 +262,17 @@ public class LexerParityTests
         "State \"ok\".\r\nState \"line two {\r\n  ",
         "Define x as 79228162514264337593543950336.",
         "Define x as 1e29.",
+        // A word with a capital, told by where it stands (2026-11-22): a line's first word, with
+        // and without a suggestion, a name's place, and anywhere else.
+        "Stat \"Hello\".",
+        "State \"a\".\nDefin x as 1.",
+        "If true:\n    Stat \"a\".\nDone.",
+        "Say \"Hello\".",
+        "Let x be 3.",
+        "Define hops as 2.\nThe Hops becomes 3.",
+        "Bind number to Double, given (the number n):\n    Return n * 2.\nDone.",
+        "State Hello.",
+        "State \"Hi\", Grace.",
     ];
 
     [Fact]

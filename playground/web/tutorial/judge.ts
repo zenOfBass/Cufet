@@ -99,27 +99,16 @@ export function respond(
 //   Define hops as 2 / State hops.   Line 1, column 16: this line needs a period at the end. Cufet read on into line 2 looking for it.
 //   State "Hi"                       Line 1, column 7: this line needs a period at the end. The file ended before one came.
 //   State 2 3.                       Line 1, column 9: expected '.', got Number "3".
-//   State Keep going!.               Line 1, column 7: identifier 'Keep' must start with a lowercase letter.
-//   Defne x as 1.                    Line 1, column 1: identifier 'Defne' must start with a lowercase letter.
+//   State Keep going!.               Line 1, column 7: 'Keep' starts with a capital letter, so it can't be a name. …
+//   Defne x as 1.                    Line 1, column 1: 'Defne' isn't a word Cufet knows to start a line with. Did you mean 'Define'?
 //   If 2 is 2: / State "a".          … this 'If' opens a block, and the file ended before its 'Done.'. …
 
-/** Where Cufet's message points, when it names a place. */
-function placeOf(attempt: Attempt): { line: string; column: number } | null {
-    const found = /Line (\d+), column (\d+):/.exec(attempt.output);
-    if (!found) return null;
-    const line = attempt.code.split('\n')[Number(found[1]) - 1];
-    return line === undefined ? null : { line, column: Number(found[2]) };
-}
-
-/** Cufet's place is the first word of its line: what it noticed was the line's start. */
-function atLineStart(attempt: Attempt): boolean {
-    const place = placeOf(attempt);
-    return place !== null && place.column === place.line.length - place.line.trimStart().length + 1;
-}
-
+// ★ Each of these is told apart by Cufet's own words now. The page used to work out from the
+// column whether Cufet had stopped at a line's first word; Cufet says so itself since 2026-11-22.
 const refused = (a: Attempt, fragment: string) => a.outcome === 'refused' && a.output.includes(fragment);
 const lineWithoutPeriod = (a: Attempt) => refused(a, 'this line needs a period at the end');
-const capitalName = (a: Attempt) => refused(a, 'must start with a lowercase letter');
+const unknownFirstWord = (a: Attempt) => refused(a, "isn't a word Cufet knows to start a line with");
+const capitalWord = (a: Attempt) => refused(a, "starts with a capital letter, so it can't be a name");
 
 export const COMMON_SLIPS: Reaction[] = [
     {
@@ -141,12 +130,12 @@ export const COMMON_SLIPS: Reaction[] = [
     },
     {
         case: 'a misspelled first word',
-        when: a => capitalName(a) && atLineStart(a),
+        when: unknownFirstWord,
         lines: [{ who: 'grace', text: "Cufet doesn't know that first word. Check its spelling, capital letter and all." }],
     },
     {
         case: 'words without quote marks',
-        when: capitalName,
+        when: capitalWord,
         lines: [{ who: 'hopper', text: "Words to say go in quote marks! Without them, Cufet thinks they're a name." }],
     },
     {

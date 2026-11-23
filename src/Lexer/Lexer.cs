@@ -142,7 +142,7 @@ public sealed class Lexer
     {
         char c = Peek();
         if (char.IsLetter(c))
-            tokens.Add(ReadWord());
+            tokens.Add(ReadWord(tokens.Count > 0 ? tokens[^1] : null));
         else if (char.IsDigit(c))
             tokens.Add(ReadNumber());
         else if (c == '"')
@@ -169,7 +169,70 @@ public sealed class Lexer
             throw new LexerException(_line, ColumnAt(_pos), c);
     }
 
-    private Token ReadWord()
+    // The words a statement can open with, for "Did you mean …?" when a line starts with a word
+    // Cufet does not know. ⚠ A copy of what `Parser.ParseStatement` dispatches on, plus the words
+    // that open a line inside a block; a word missing here only loses its suggestion.
+    private static readonly string[] StatementWords =
+    [
+        "State", "Define", "Output", "Make", "Seed", "Run", "One", "If", "Otherwise", "Done", "Until",
+        "Judge", "While", "Repeat", "Exit", "Stop", "Skip", "Item", "Insert", "Increment",
+        "Decrement", "Remove", "For", "Bind", "Cast", "Return", "Bury", "Try", "Suppress", "In",
+        "Write", "Append", "With", "Pull", "Cite", "Have", "Send", "Close", "Acknowledge", "Yield",
+        "Get", "Set",
+    ];
+
+    /// <summary>
+    /// What to say about a word with a capital that is no keyword, by where it stands.
+    /// </summary>
+    /// <remarks>
+    /// ⚠⚠ The one message used to be `identifier 'X' must start with a lowercase letter`, for
+    /// three different mistakes. Play-tested in the tutorial: `Stat "Hello".` (a misspelled first
+    /// word) and `State Hello.` (words without quote marks) both got it, and neither reader had
+    /// written an identifier. The token before the word is all the lexer knows, and it is enough
+    /// to tell a line's first word, a name's place, and the rest apart.
+    /// </remarks>
+    private static string CapitalWordMessage(string lexeme, Token? before)
+    {
+        if (before is null || before.Type is TokenType.Dot or TokenType.Colon)
+        {
+            // ★ One letter off and at least four letters long, or no suggestion at all. Two letters
+            // off would answer `Say` with 'Set', and three-letter words one off do the same
+            // (`Let` → 'Set') — a real keyword, and the wrong advice.
+            string? near = lexeme.Length < 4 ? null
+                : StatementWords.FirstOrDefault(w => OneLetterOff(lexeme.ToLowerInvariant(), w.ToLowerInvariant()));
+            // ⚠ No full stop at the end: LexerException adds it (and leaves a `?` alone).
+            return $"'{lexeme}' isn't a word Cufet knows to start a line with"
+                 + (near is null ? "" : $". Did you mean '{near}'?");
+        }
+
+        string lowered = char.ToLowerInvariant(lexeme[0]) + lexeme[1..];
+        if (before.Type is TokenType.Define or TokenType.Article or TokenType.To)
+            return $"names start with a lowercase letter: write '{lowered}'";
+
+        return $"'{lexeme}' starts with a capital letter, so it can't be a name. If these are words "
+             + $"to say, put them in quote marks. If it's a name, write '{lowered}'";
+    }
+
+    /// <summary>
+    /// Whether one insertion, deletion or change of a character turns `typed` into `word`. Both
+    /// sides take the same character out at some place and compare what is left.
+    /// </summary>
+    private static bool OneLetterOff(string typed, string word)
+    {
+        if (typed == word) return false;
+        static string Without(string text, int place) =>
+            text[..Math.Min(place, text.Length)] + (place + 1 < text.Length ? text[(place + 1)..] : "");
+        int longest = Math.Max(typed.Length, word.Length);
+        for (int place = 0; place < longest; place++)
+        {
+            if (typed.Length == word.Length && Without(typed, place) == Without(word, place)) return true;
+            if (typed.Length + 1 == word.Length && Without(word, place) == typed) return true;
+            if (typed.Length == word.Length + 1 && Without(typed, place) == word) return true;
+        }
+        return false;
+    }
+
+    private Token ReadWord(Token? before)
     {
         int start = _pos;
 
@@ -391,7 +454,7 @@ public sealed class Lexer
         if (type == TokenType.Identifier && RenamedStatementWords.TryGetValue(lexeme, out var renamed))
             throw new LexerException(_line, ColumnAt(start), renamed);
         if (type == TokenType.Identifier && !char.IsLower(lexeme[0]))
-            throw new LexerException(_line, ColumnAt(start), $"identifier '{lexeme}' must start with a lowercase letter");
+            throw new LexerException(_line, ColumnAt(start), CapitalWordMessage(lexeme, before));
 
         return new Token(type, lexeme, _line, ColumnAt(start));
     }

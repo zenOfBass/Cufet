@@ -177,7 +177,7 @@ export const lesson3: Lesson = {
                 },
                 {
                     case: 'a capital letter',
-                    when: a => refusedSaying(a, 'must start with a lowercase letter') && /^\s*Define\s+[A-Z]/m.test(a.code),
+                    when: a => refusedSaying(a, 'names start with a lowercase letter') && /^\s*Define\s+[A-Z]/m.test(a.code),
                     lines: [hopper('Names start with a small letter! `answer`, not `Answer`.')],
                 },
                 {

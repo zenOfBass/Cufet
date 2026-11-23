@@ -31,6 +31,8 @@ Pull a book on collections.
         If reason starts with "unexpected character '":
             Return "error\tUnexpected character {the characters from 22 to the end of reason} on line {at-row}, column {at-column}.".
         Done.
+        // ★ No second full stop after a question: `Did you mean 'State'?`.
+        If reason ends with "?" or reason ends with ".", return "error\tLine {at-row}, column {at-column}: {reason}".
         Return "error\tLine {at-row}, column {at-column}: {reason}.".
     Done.
 

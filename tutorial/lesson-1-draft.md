@@ -144,8 +144,8 @@ Each hint needs an attempt since the last one.
 | `State "Hello, Hopper!".` | Runs, prints `Hello, Hopper!` | **Hopper:** Hello! ...Oh, wait. Grace asked first. Do her, then me! |
 | `State "Hello, Grace!"` | `Line 1, column 7: this line needs a period at the end. The file ended before one came.` | **Grace:** Good little rabbits always end with a period. Every instruction does, like a sentence. Add one at the very end. |
 | `State "Hello, Grace!.` | `Line 1, column 22: unterminated string literal.` | **Hopper:** A quote mark went missing! They come in pairs: one before the words, one after. |
-| `State Hello, Grace!.` | `Line 1, column 7: identifier 'Hello' must start with a lowercase letter.` | **Hopper:** Both quote marks are gone! Without them the computer doesn't know those are words to say. |
-| `Stat "Hello, Grace!".` | `Line 1, column 1: identifier 'Stat' must start with a lowercase letter.` | **Grace:** The first word has to be exactly `State`. One letter off and the computer doesn't know it. |
+| `State Hello, Grace!.` | `Line 1, column 7: 'Hello' starts with a capital letter, so it can't be a name. If these are words to say, put them in quote marks. If it's a name, write 'hello'.` | **Hopper:** Both quote marks are gone! Without them the computer doesn't know those are words to say. |
+| `Stat "Hello, Grace!".` | `Line 1, column 1: 'Stat' isn't a word Cufet knows to start a line with. Did you mean 'State'?` | **Grace:** The first word has to be exactly `State`. One letter off and the computer doesn't know it. |
 | *(everything deleted)* | A four-line message about libraries | **Hopper:** It's all gone! Nothing to run. Want me to put the last one back? |
 
 ### One more, no answer offered
@@ -260,8 +260,7 @@ Lettuce in, it's cold out here!
 
 ## Still open
 
-**Three of Cufet's messages here would baffle a child**, so the rabbits talk over them:
-`unterminated string literal`, and the two
-`must start with a lowercase letter` ones. The emptied-editor message talks about libraries and
+**One of Cufet's messages here would baffle a child**, so the rabbits talk over it:
+`unterminated string literal`. The emptied-editor message talks about libraries and
 declarations. Should the output box show the real message at all in lesson 1, or only the
 rabbits' version?

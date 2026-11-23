@@ -265,11 +265,69 @@ Pull a book on collections.
                     "'Add' is not a statement any more — it became 'Insert … into'. "
                     joined to "Write 'Insert 4 into scores.' where you would have written 'Add 4 to scores.' before")).
             Done.
-            Return a failure (cast refusal on (one's row, column,
-                "identifier '{lexeme}' must start with a lowercase letter")).
+            Return a failure (cast refusal on (one's row, column, cast one's capital-word-message on (lexeme))).
         Done.
 
         Cast one's emit on (kind, lexeme, one's row, column).
+    Done.
+
+    /// CapitalWordMessage — a word with a capital that is no keyword, told by where it stands:
+    /// a line's first word, a name's place, or anywhere else. No full stop at the end; the
+    /// refusal's reader adds it, and leaves a question alone.
+    Bind text to capital-word-message unto scanner, given (the text lexeme):
+        Define before as "".
+        If the number of one's out is greater than 0:
+            Define latest as the last of one's out.
+            The before becomes latest's kind.
+        Done.
+        If before is "" or before is "Dot" or before is "Colon":
+            Define opening as "'{lexeme}' isn't a word Cufet knows to start a line with".
+            If the length of lexeme is less than 4, return opening.
+            Define typed as lexeme in lowercase.
+            For each word in cast statement-words, repeat:
+                If cast one-letter-off on (typed, word in lowercase):
+                    Return "{opening}. Did you mean '{word}'?".
+                Done.
+            Done.
+            Return opening.
+        Done.
+        Define lowered as ((the first 1 characters of lexeme) in lowercase) joined to (the characters from 2 to the end of lexeme).
+        If before is "Define" or before is "Article" or before is "To":
+            Return "names start with a lowercase letter: write '{lowered}'".
+        Done.
+        Return "'{lexeme}' starts with a capital letter, so it can't be a name. If these are words "
+            joined to "to say, put them in quote marks. If it's a name, write '{lowered}'".
+    Done.
+
+    /// The words a statement can open with — Lexer.StatementWords, in the same order.
+    Bind series of text to statement-words:
+        Return a series of text with ("State", "Define", "Output", "Make", "Seed", "Run", "One", "If",
+            "Otherwise", "Done", "Until", "Judge", "While", "Repeat", "Exit", "Stop", "Skip", "Item",
+            "Insert", "Increment", "Decrement", "Remove", "For", "Bind", "Cast", "Return", "Bury",
+            "Try", "Suppress", "In", "Write", "Append", "With", "Pull", "Cite", "Have", "Send",
+            "Close", "Acknowledge", "Yield", "Get", "Set").
+    Done.
+
+    /// OneLetterOff — one insertion, deletion or change turns `typed` into `word`.
+    Bind fact to one-letter-off, given (the text typed, the text word):
+        If typed is word, return false.
+        Define longest as the length of typed.
+        If the length of word is greater than longest, the longest becomes the length of word.
+        Define place as 1.
+        While place is less than longest + 1, repeat:
+            Define typed-without as cast without-character on (typed, place).
+            Define word-without as cast without-character on (word, place).
+            If the length of typed is the length of word and typed-without is word-without, return true.
+            If the length of typed + 1 is the length of word and word-without is typed, return true.
+            If the length of typed is the length of word + 1 and typed-without is word, return true.
+            Increment place by 1.
+        Done.
+        Return false.
+    Done.
+
+    /// `piece` with the character at `place` (1-based) taken out; past the end, unchanged.
+    Bind text to without-character, given (the text piece, the number place):
+        Return (the first (place - 1) characters of piece) joined to (the characters from (place + 1) to the end of piece).
     Done.
 
     Bind void or failure to read-number unto scanner:

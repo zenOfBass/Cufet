@@ -142,17 +142,14 @@ around it. Nobody has asked for one.
   carefully. "Name your lookups" covers the need meanwhile.
 
 - **The first errors a newcomer meets are the parser's, and they are terse.** A missing closing
-  quote gives `unterminated string literal`;
-  a mistyped or unknown first word (`Stat`, `Say`) and words written without quotes
-  (`State Hello.`) both give `identifier '…' must start with a lowercase letter`, which
-  misleads. Each has a clear why and a clear fix, so by "warmth scales with teachable content"
-  they have earned a warm message, and two of them show internal vocabulary. Found while
+  quote gives `unterminated string literal`, which has a clear why and a clear fix, so by "warmth
+  scales with teachable content" it has earned a warm message, and it shows internal vocabulary. Found while
   drafting the tutorial's first lesson (`tutorial/lesson-1-draft.md`). The Cufet parser matches
   these refusals, so each changes in both parsers. Later lessons found more of the same: a name
   with a space (`Define my answer as …`) gets `'my' is not a defined type`; `Define my number as 7.`
   gets `expected As, got NumberKw "number"`; `The hops is hops + 1.` gets
   `expected Becomes, got Is "is"`; a missing comma after an `If` question asks for a colon;
-  `Else` gets the lowercase-letter message; `Otherwise` with no `If` gets
+  `Else` is told only that Cufet doesn't know the word, not that it is `Otherwise`; `Otherwise` with no `If` gets
   `expected statement keyword`; and `is greater 3` gets `expected Than, got Number "3"`. A `While`
   missing its `Done.` suggests the inline form of `For each`, and a `Repeat` missing its `until` gets
   `expected statement keyword, got Done`. A function call without `cast` (`State double on (3).`)

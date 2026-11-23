@@ -118,7 +118,7 @@ export const lesson7: Lesson = {
             reactions: [
                 {
                     case: 'Lettuce without quote marks',
-                    when: a => refusedSaying(a, "identifier 'Lettuce' must start with a lowercase letter"),
+                    when: a => refusedSaying(a, "'Lettuce' starts with a capital letter, so it can't be a name"),
                     lines: [grace('Without quote marks, Cufet thinks `Lettuce` is a name. Each friend in the series is text, in quote marks.')],
                 },
                 {

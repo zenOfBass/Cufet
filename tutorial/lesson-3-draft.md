@@ -203,7 +203,7 @@ The answer is 49.
 | `State "The answer is " answer.` | `Line 2, column 24: expected '.', got Identifier "answer".` | **Grace:** The name has to go inside the sentence, in a hole: `{answer}`. |
 | `Define answer 7 * 7.` | `Line 1, column 15: expected As, got Number "7".` | **Grace:** A name and its value are joined by `as`: `Define answer as 7 * 7.` |
 | `Define answer = 7 * 7.` | `'=' is comparison, not assignment. A 'Define' introduces a name with 'as': 'Define answer as ...'.` (and more) | **Grace:** Cufet says it well itself: a `Define` uses `as`, not `=`. |
-| `Define Answer as 7 * 7.` | `Line 1, column 8: identifier 'Answer' must start with a lowercase letter.` | **Hopper:** Names start with a small letter! `answer`, not `Answer`. |
+| `Define Answer as 7 * 7.` | `Line 1, column 8: names start with a lowercase letter: write 'answer'.` | **Hopper:** Names start with a small letter! `answer`, not `Answer`. |
 | `Define my answer as 7 * 7.` | `That doesn't work: 'my' is not a defined type.` | **Grace:** A name can't have a space in it. Use one word, like `answer`. |
 | The `Define` line last | `That doesn't work: 'answer' isn't defined.` and three more lines | **Grace:** The computer reads from the top down, remember? Keep the answer before you use it. |
 | A typo in the hole: `{answr}` | `That doesn't work: 'answr' isn't defined.` and three more lines | **Hopper:** Cufet doesn't know `answr`! Check the spelling in the curly brackets. |

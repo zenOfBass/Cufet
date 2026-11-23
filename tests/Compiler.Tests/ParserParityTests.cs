@@ -251,6 +251,8 @@ public class ParserParityTests(ITestOutputHelper output, CompiledCufetParser com
         "If 2 is 2:\n    State \"a\".\nDone\nState \"b\".",
         "State \"Hi\"",
         "State 2 3.",
+        // A lexer refusal ending in a question takes no full stop after it (2026-11-22).
+        "Stat \"Hello\".",
     ];
 
     [Fact]
