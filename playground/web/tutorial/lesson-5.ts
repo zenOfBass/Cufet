@@ -103,7 +103,7 @@ export const lesson5: Lesson = {
                 },
                 {
                     case: 'Otherwise above the If',
-                    when: a => refusedSaying(a, 'got Otherwise "Otherwise"'),
+                    when: a => refusedSaying(a, "'Otherwise' has to come straight after an 'If'"),
                     lines: [grace('`Otherwise` only makes sense after an `If`. Move it below.')],
                 },
                 {

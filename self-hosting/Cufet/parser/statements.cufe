@@ -206,6 +206,12 @@ Pull a book on collections.
         Done.
         If kind is "GetKw", return cast one's getter-declaration or pass the failure off.
         If kind is "SetKw", return cast one's setter-declaration or pass the failure off.
+        // An `Otherwise` no `If` took: something between them, or no `If` — not guessed which.
+        If kind is "Otherwise":
+            Return a failure (cast one's refused on (tok,
+                "'Otherwise' has to come straight after an 'If' (after its 'Done.', in the block form), "
+                joined to "with nothing in between. Is something between them, or is the 'If' missing?")).
+        Done.
         Return a failure (cast one's expecting on (tok, "statement keyword")).
     Done.
 

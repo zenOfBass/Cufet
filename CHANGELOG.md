@@ -73,6 +73,11 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   didn't know the word; now `… Cufet says 'Otherwise'.`, and `Elif`, `Elsif` and `ElseIf` are told
   `'Otherwise if'`. A lowercase `else` is an ordinary name, so the parser says the same only once
   the line is refused anyway; `else becomes 3.` still works. Both lexers, both parsers.
+- **An `Otherwise` no `If` took says what it needs.** It got `expected statement keyword, got
+  Otherwise "Otherwise"`; now `'Otherwise' has to come straight after an 'If' (after its 'Done.',
+  in the block form), with nothing in between. Is something between them, or is the 'If'
+  missing?` It does not name an `If`: telling which one was meant would take tracking them through
+  nested blocks, and a wrong line is worse than none. Both parsers.
 
 ## [0.30.0] — 2026-11-20
 

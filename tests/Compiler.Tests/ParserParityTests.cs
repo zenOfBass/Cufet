@@ -273,6 +273,9 @@ public class ParserParityTests(ITestOutputHelper output, CompiledCufetParser com
         // A lowercase `else`, a name to the lexer, told Cufet's word only once refused (2026-11-22).
         "If true, state \"a\".\nelse, state \"b\".",
         "If true, state \"a\".\nelsif true, state \"b\".",
+        // An `Otherwise` no `If` took (2026-11-22).
+        "Otherwise, state \"Go\".",
+        "Define hops as 5.\nIf hops is 5, state \"a\".\nState \"between\".\nOtherwise, state \"b\".",
     ];
 
     [Fact]

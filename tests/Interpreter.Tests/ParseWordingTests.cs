@@ -35,6 +35,19 @@ public class ParseWordingTests
         Assert.DoesNotContain("expected Dot", ex.Message);
     }
 
+    // —— An `Otherwise` no `If` took ————————————————————————————————————————————————————
+
+    [Theory]
+    [InlineData("Otherwise, state \"Go\".", 1)]
+    [InlineData("Define hops as 5.\nIf hops is 5, state \"a\".\nState \"between\".\nOtherwise, state \"b\".", 4)]
+    [InlineData("Define hops as 5.\nIf hops is 5:\n    State \"a\".\nDone.\nState \"between\".\nOtherwise:\n    State \"b\".\nDone.", 6)]
+    public void AStrayOtherwise_SaysItBelongsStraightAfterAnIf(string source, int line)
+    {
+        var ex = ParseFails(source);
+        Assert.Equal($"Line {line}, column 1: 'Otherwise' has to come straight after an 'If' (after its 'Done.', in the "
+                   + "block form), with nothing in between. Is something between them, or is the 'If' missing?", ex.Message);
+    }
+
     // —— A lowercase `else`, which the lexer lets through as a name ————————————————————————
 
     [Theory]

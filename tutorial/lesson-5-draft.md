@@ -143,7 +143,7 @@ Keep going!
 | --- | --- | --- |
 | `Otherwise state "Keep going!".` | `Line 4, column 11: Cufet needs a comma or a colon before 'state': …` | **Grace:** `Otherwise` needs a comma after it, the same as the `If` line. |
 | `Else, state "Keep going!".` | `Line 4, column 1: 'Else' isn't a word Cufet knows to start a line with. Cufet says 'Otherwise'.` | **Hopper:** Some languages say "else". Cufet says `Otherwise`. |
-| The `Otherwise` line above the `If` | `Line 3, column 1: expected statement keyword, got Otherwise "Otherwise".` | **Grace:** `Otherwise` only makes sense after an `If`. Move it below. |
+| The `Otherwise` line above the `If` | `Line 3, column 1: 'Otherwise' has to come straight after an 'If' (after its 'Done.', in the block form), with nothing in between. Is something between them, or is the 'If' missing?` | **Grace:** `Otherwise` only makes sense after an `If`. Move it below. |
 | A second `If`: `If hops is 2, state "Keep going!".` | Runs, prints the right lines, but isn't done | **Grace:** That works for two. But `Otherwise` catches every other number too, not just two. Try it with `Otherwise`. |
 
 ## Beat 4: more than one line (Predict)

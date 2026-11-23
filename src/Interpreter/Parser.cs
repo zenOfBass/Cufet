@@ -145,6 +145,12 @@ public sealed class Parser
             TokenType.YieldKw       => ParseYieldStatement(),
             TokenType.GetKw => ParseGetterUntoDeclaration(),
             TokenType.SetKw => ParseSetterUntoDeclaration(),
+            // ★ An `Otherwise` reaches here only when no `If` took it: something stands between
+            // them, or there is no `If`. This place cannot tell which without tracking `If`s through
+            // nested blocks, and naming the wrong one would be worse than naming none.
+            TokenType.Otherwise => throw new ParseException(tok.Line, tok.Column,
+                "'Otherwise' has to come straight after an 'If' (after its 'Done.', in the block form), "
+              + "with nothing in between. Is something between them, or is the 'If' missing?"),
             _ => throw new ParseException(tok, "statement keyword"),
         };
     }
