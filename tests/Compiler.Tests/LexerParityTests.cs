@@ -279,6 +279,13 @@ public class LexerParityTests
         "State \"a.\nState \"b\".\nState \"c\".\nState \"d\".",
         "If 2 is 2:\n    State \"a.\nDone.\nState \"b\".",
         "Define note as \"first\nsecond\".\nState note.\nState Hello.",
+        // A hole left open, reported at its brace — and one that closed, not blamed (2026-11-23).
+        "State \"Hi {name.",
+        "State \"Hi {name\".",
+        "State \"Hi {name and {name}\".",
+        "State \"Hi {name\".\nState \"Bye\".",
+        "State \"Hi {name\".\nState \"bye {name}\".",
+        "State \"a {name} b.\nState \"Bye\".",
         // Another language's `else`, told Cufet's word (2026-11-22).
         "If true, state \"a\".\nElse, state \"b\".",
         "If true, state \"a\".\nElif true, state \"b\".",

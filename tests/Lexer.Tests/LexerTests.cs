@@ -162,6 +162,35 @@ public class LexerTests
                    + "Is its closing quote mark missing?", ex.Message);
     }
 
+    /// <remarks>
+    /// ⚠ `"Hi {name".` was told its closing quote was missing, which it is not: the `}` is. The hole
+    /// is still open, so that quote reads as the start of a text inside it.
+    /// </remarks>
+    [Theory]
+    [InlineData("State \"Hi {name.")]
+    [InlineData("State \"Hi {name\".")]
+    [InlineData("State \"Hi {name, hello\".")]
+    [InlineData("State \"Hi {name and {name}\".")]
+    [InlineData("State \"Hi {\".")]
+    [InlineData("State \"Hi {name\".\nState \"Bye\".")]
+    [InlineData("State \"Hi {name\".\nState \"bye {name}\".")]
+    [InlineData("State \"Hi {name\".\nState 5.")]
+    public void AHoleLeftOpen_IsReportedAtItsBrace(string source)
+    {
+        var ex = Assert.Throws<LexerException>(() => Lex(source));
+        Assert.Equal("Line 1, column 11: this '{' never closes: a '}' is missing.", ex.Message);
+    }
+
+    /// <remarks>★ The guards: a missing quote before a good hole is still the quote's, and a hole
+    /// holding a text of its own still lexes.</remarks>
+    [Fact]
+    public void AClosedHole_IsNotBlamed()
+    {
+        var ex = Assert.Throws<LexerException>(() => Lex("State \"a {name} b.\nState \"Bye\"."));
+        Assert.StartsWith("Line 1, column 7: this text runs on past the end of its line.", ex.Message);
+        LexTokens("State \"Hi {cast f on (\"x {name}\")}\".");
+    }
+
     /// <remarks>★ The guard: text run across lines ON PURPOSE leaves a mistake on a later line
     /// alone. Only a refusal on the line where the run-on text ended is put down to it.</remarks>
     [Fact]

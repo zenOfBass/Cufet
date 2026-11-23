@@ -28,7 +28,13 @@ public sealed class Lexer
     // left off pairs the text with the NEXT line's opening quote, and every quote after is out of
     // step — `State "Hello.` then `State "Bye".` was refused at line 2 for 'Bye' needing quote
     // marks, which it has. So a refusal next to run-on text points at the run-on text.
-    private readonly List<(int Line, int Column, int EndLine)> _runOn = [];
+    private readonly List<(int Line, int Column, int EndLine, string Message)> _runOn = [];
+
+    // How many holes are open, and where the OUTERMOST one opened. `"Hi {name".` leaves the hole
+    // open, so the closing quote reads as the start of a text inside it, which then never closes or
+    // runs on. What is missing is the `}`, so whatever goes wrong with that text is the hole's doing.
+    private int _holeDepth;
+    private (int Line, int Column) _hole;
 
     /// <summary>Hands over the comments read since the last token, and empties the buffer.</summary>
     private IReadOnlyList<Comment> TakePending()
@@ -99,10 +105,10 @@ public sealed class Lexer
             // ★ A refusal on the line where run-on text ended is that text's doing: the word Cufet
             // stopped at sits just outside a quote that was meant to open, not close. ⚠ Only on
             // THAT line, so a text run across lines on purpose leaves a mistake further down alone.
-            catch (LexerException ex) when (!ex.Detail.StartsWith(RunOnLead)
+            catch (LexerException ex) when (!ex.Detail.StartsWith(RunOnLead) && ex.Detail != HoleMessage
                                            && _runOn.FirstOrDefault(r => r.EndLine == ex.Line) is { Line: > 0 } runOn)
             {
-                throw new LexerException(runOn.Line, runOn.Column, RunOnMessage);
+                throw new LexerException(runOn.Line, runOn.Column, runOn.Message);
             }
             // ⚠ Comments after the last token still have a token to lead: this one. Nothing a
             // reader wrote is dropped for being at the end of the file.
@@ -139,6 +145,7 @@ public sealed class Lexer
 
     private const string RunOnLead = "this text ";
     private const string RunOnMessage = "this text runs on past the end of its line. Is its closing quote mark missing?";
+    private const string HoleMessage  = "this '{' never closes: a '}' is missing";
 
     /// <summary>
     /// Text that never closes, reported where the quote went missing: at the first text that ran
@@ -150,7 +157,8 @@ public sealed class Lexer
     /// </remarks>
     private LexerException NeverCloses(int startLine, int startCol)
     {
-        if (_runOn.Count > 0) return new LexerException(_runOn[0].Line, _runOn[0].Column, RunOnMessage);
+        if (_runOn.Count > 0) return new LexerException(_runOn[0].Line, _runOn[0].Column, _runOn[0].Message);
+        if (_holeDepth > 0) return new LexerException(_hole.Line, _hole.Column, HoleMessage);
         if (_line > startLine) return new LexerException(startLine, startCol, RunOnMessage);
         return new LexerException(startLine, startCol, "this text never ends. Is its closing quote mark missing?");
     }
@@ -707,7 +715,9 @@ public sealed class Lexer
             // ── Closing quote ───────────────────────────────────────────────
             if (c == '"')
             {
-                if (_line > startLine) _runOn.Add((startLine, startCol, _line));
+                if (_line > startLine)
+                    _runOn.Add(_holeDepth > 0 ? (_hole.Line, _hole.Column, _line, HoleMessage)
+                                              : (startLine, startCol, _line, RunOnMessage));
                 Advance();
                 break;
             }
@@ -744,6 +754,8 @@ public sealed class Lexer
                     pieces.Add(new Token(TokenType.StringPiece, sb.ToString(), _line, ColumnAt(_pos)));
                     sb.Clear();
                 }
+                if (_holeDepth == 0) _hole = (_line, ColumnAt(_pos));
+                _holeDepth++;
                 Advance(); // consume '{'
                 pieces.Add(new Token(TokenType.InterpolHoleOpen, "{", _line, ColumnAt(_pos - 1)));
 
@@ -757,10 +769,10 @@ public sealed class Lexer
                 while (depth > 0)
                 {
                     if (AtEnd())
-                        throw new LexerException(_line, ColumnAt(_pos), "unterminated interpolation");
+                        throw NeverCloses(startLine, startCol);
                     SkipWhitespace();
                     if (AtEnd())
-                        throw new LexerException(_line, ColumnAt(_pos), "unterminated interpolation");
+                        throw NeverCloses(startLine, startCol);
                     char ec = Peek();
 
                     if (ec == '{')
@@ -790,6 +802,7 @@ public sealed class Lexer
                         ReadOneToken(pieces);
                     }
                 }
+                _holeDepth--;
                 continue;
             }
 

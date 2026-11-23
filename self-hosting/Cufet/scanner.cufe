@@ -17,7 +17,8 @@ Pull a book on collections.
     Define object token with (the text kind, the text lexeme, the number row, the number column).
 
     /// Quoted text that ran past the end of its line: where it began, and the row it closed on.
-    Define object stretch with (the number row, the number column, the number end-row).
+    /// Begun inside a hole, it is the hole's `\{` that is kept, and `blame` says so.
+    Define object stretch with (the number row, the number column, the number end-row, the text blame).
 
     Define object scanner with (
         the chase source,
@@ -28,7 +29,11 @@ Pull a book on collections.
         the series of token out,
         the map from text to text marks,
         the map from text to text words,
-        the series of stretch stretches).
+        the series of stretch stretches,
+        // How many holes are open, and where the outermost one opened.
+        the number hole-depth,
+        the number hole-row,
+        the number hole-column).
 
     // ── Where the scan stands ─────────────────────────────────────────────
 
@@ -480,20 +485,24 @@ Pull a book on collections.
 
     // ── Text ──────────────────────────────────────────────────────────────
 
-    /// A quoted literal. Plain, it is one String token at the opening quote. With a hole in it,
-    /// it is InterpolOpen, then pieces and holes, then InterpolClose — and ⚠ a piece, a hole's
-    /// braces and the closer each report where the scan STANDS when it is emitted, not where it
-    /// began, because that is what Lexer.cs does.
     /// Lexer.RunOnMessage.
     Bind text to run-on-message:
         Return "this text runs on past the end of its line. Is its closing quote mark missing?".
+    Done.
+
+    /// Lexer.HoleMessage.
+    Bind text to hole-message:
+        Return "this '\{' never closes: a '\}' is missing".
     Done.
 
     /// NeverCloses — at the first text that ran past its line, or at this text's opening quote.
     Bind text to never-closes unto scanner, given (the number opened-row, the number opened-column):
         If the number of one's stretches is greater than 0:
             Define first-stretch as item 1 of one's stretches.
-            Return cast refusal on (first-stretch's row, first-stretch's column, cast run-on-message).
+            Return cast refusal on (first-stretch's row, first-stretch's column, first-stretch's blame).
+        Done.
+        If one's hole-depth is greater than 0:
+            Return cast refusal on (one's hole-row, one's hole-column, cast hole-message).
         Done.
         If one's row is greater than opened-row:
             Return cast refusal on (opened-row, opened-column, cast run-on-message).
@@ -501,6 +510,10 @@ Pull a book on collections.
         Return cast refusal on (opened-row, opened-column, "this text never ends. Is its closing quote mark missing?").
     Done.
 
+    /// A quoted literal. Plain, it is one String token at the opening quote. With a hole in it,
+    /// it is InterpolOpen, then pieces and holes, then InterpolClose — and ⚠ a piece, a hole's
+    /// braces and the closer each report where the scan STANDS when it is emitted, not where it
+    /// began, because that is what Lexer.cs does.
     Bind void or failure to read-string unto scanner:
         Define opened-row as one's row.
         Define opened-column as cast one's column-at on (one's cursor).
@@ -519,8 +532,14 @@ Pull a book on collections.
 
             If ch is "\"":
                 If one's row is greater than opened-row:
-                    Insert a new stretch { the row opened-row, the column opened-column, the end-row one's row }
-                        into one's stretches.
+                    If one's hole-depth is greater than 0:
+                        Insert a new stretch { the row one's hole-row, the column one's hole-column, the end-row one's row, the blame cast hole-message }
+                            into one's stretches.
+                    Done.
+                    Otherwise:
+                        Insert a new stretch { the row opened-row, the column opened-column, the end-row one's row, the blame cast run-on-message }
+                            into one's stretches.
+                    Done.
                 Done.
                 Cast one's advance.
                 The scanning becomes false.
@@ -560,6 +579,11 @@ Pull a book on collections.
                         cast one's column-at on (one's cursor)).
                     The piece becomes a chase.
                 Done.
+                If one's hole-depth is 0:
+                    One's hole-row becomes one's row.
+                    One's hole-column becomes cast one's column-at on (one's cursor).
+                Done.
+                Increment one's hole-depth by 1.
                 Cast one's advance.
                 Cast one's emit on ("InterpolHoleOpen", "\{", one's row, cast one's column-at on (one's cursor - 1)).
 
@@ -573,13 +597,11 @@ Pull a book on collections.
                 Define depth as 1.
                 While depth is greater than 0, repeat:
                     If cast one's at-end:
-                        Return a failure (cast refusal on (one's row, cast one's column-at on (one's cursor),
-                            "unterminated interpolation")).
+                        Return a failure (cast one's never-closes on (opened-row, opened-column)).
                     Done.
                     Cast one's skip-space or pass the failure off.
                     If cast one's at-end:
-                        Return a failure (cast refusal on (one's row, cast one's column-at on (one's cursor),
-                            "unterminated interpolation")).
+                        Return a failure (cast one's never-closes on (opened-row, opened-column)).
                     Done.
                     Define inner as cast one's peek.
                     If inner is "\{":
@@ -598,6 +620,7 @@ Pull a book on collections.
                         Cast one's read-one or pass the failure off.
                     Done.
                 Done.
+                Decrement one's hole-depth by 1.
                 Skip.
             Done.
 
@@ -719,10 +742,10 @@ Pull a book on collections.
         In case of failure:
             Define raw as the message of the failure.
             Define parts as raw split by "\t".
-            If item 3 of parts starts with "this text ", return a failure (raw).
+            If item 3 of parts starts with "this text " or item 3 of parts is cast hole-message, return a failure (raw).
             For each one-stretch in one's stretches, repeat:
                 If "{one-stretch's end-row}" is item 1 of parts:
-                    Return a failure (cast refusal on (one-stretch's row, one-stretch's column, cast run-on-message)).
+                    Return a failure (cast refusal on (one-stretch's row, one-stretch's column, one-stretch's blame)).
                 Done.
             Done.
             Return a failure (raw).
@@ -756,7 +779,8 @@ Pull a book on collections.
         Define scan as a new scanner {
             the source buffer, the size the number of buffer, the cursor 1,
             the row 1, the row-start 1, the out a series of token,
-            the marks cast mark-table, the words cast keyword-table, the stretches a series of stretch }.
+            the marks cast mark-table, the words cast keyword-table, the stretches a series of stretch,
+            the hole-depth 0, the hole-row 0, the hole-column 0 }.
         Cast scan's tokenize or pass the failure off.
         Return scan's out.
     Done.

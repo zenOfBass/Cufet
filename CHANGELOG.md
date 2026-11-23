@@ -96,6 +96,10 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   never closes: a ']' is missing.` Something that isn't a definition in an object's body, a `with`
   that isn't a default, `run … with` something else, and a call given too many or too few values
   (`'step' takes 0 values, but was given 1`). Both lexers, parsers and checkers.
+- **A hole left open is reported at its `{`.** `State "Hi {name".` got `unterminated interpolation`
+  at the end of the file, or was told its closing quote was missing, which it is not: the hole is
+  still open, so that quote reads as the start of a text inside it. Now `this '{' never closes: a
+  '}' is missing.` Both lexers.
 - **The rest of the tutorial's list of terse refusals says what to write.** Each was found
   writing or play-testing the tutorial; all are in both parsers, the first in both checkers:
   - A function of the program's own called without `cast` (`State double on (3).`) was told
