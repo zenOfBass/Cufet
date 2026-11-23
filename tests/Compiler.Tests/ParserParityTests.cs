@@ -276,6 +276,19 @@ public class ParserParityTests(ITestOutputHelper output, CompiledCufetParser com
         // An `Otherwise` no `If` took (2026-11-22).
         "Otherwise, state \"Go\".",
         "Define hops as 5.\nIf hops is 5, state \"a\".\nState \"between\".\nOtherwise, state \"b\".",
+        // The rest of the tutorial's list (2026-11-22).
+        "Define hops as 5.\nIf hops is greater 3, state \"a\".",
+        "Define hops as 5.\nIf hops greater than 3, state \"a\".",
+        "Define hops as 0.\nWhile hops is less than 3, repeat:\n    The hops becomes hops + 1.",
+        "Define hops as 0.\nRepeat:\n    The hops becomes hops + 1.\nDone.",
+        "Bind void to greet:\n    State \"hi\".\nDone.\ngreet.",
+        "Bind text to cheer, given (the number x):\n    If x is greater than 3, \"Rest!\".\n    Return \"Go\".\nDone.",
+        "If true, 3.",
+        "Bind number to triple, given (the number n):\n    Return n * 3.",
+        "Define hops as 5.\nIf hops is 5, then state \"a\".",
+        "Try to\n    State \"hi\".\nDone.",
+        "Define xs as a series of number with (1).\nFor each n in xs, repeat\n    State n.\nDone.",
+        "Define hops as 0.\nWhile hops is less than 3 repeat:\n    The hops becomes hops + 1.\nDone.",
     ];
 
     [Fact]

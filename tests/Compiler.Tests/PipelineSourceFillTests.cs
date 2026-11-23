@@ -151,7 +151,8 @@ public class PipelineSourceFillTests : PipelineTestBase
     [Theory]
     [InlineData("State cast eq-function on (\"x\", [1]).", "source, and source is filled rather than run")]
     [InlineData("State seven on ().", "'seven' is not source with holes")]
-    [InlineData("State twice on (3).", "'twice' is not source with holes")]
+    // ★ An ordinary function is told to use `cast`, not about source (2026-11-22); an axiom still is.
+    [InlineData("State twice on (3).", "'twice' is a function, and a function runs with 'cast'")]
     [InlineData("State eq-function on (\"x\", \"1\") converted to text.", "'test' takes a c-language axiom, but a text was given")]
     [InlineData("State eq-function converted to text.", "has to be filled before it is a value")]
     [InlineData("State eq-function on (the type-c \"x\", the test [1]) converted to text.", "filled by position, not by name")]

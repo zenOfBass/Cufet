@@ -226,7 +226,7 @@ Keep going!
 | `state` instead of `return` inside | `That doesn't work: 'cheer' is declared to give back a text, but it can reach its end without returning one.` and more | **Hopper:** That says it, but `cheer` has to *give it back*. Use `return`, and the `State` lines at the bottom do the saying. |
 | No `Otherwise` line | The same message | **Grace:** When hops isn't more than three, `cheer` has nothing to give back. Add the `Otherwise`. |
 | `Bind number to cheer, …` | `That doesn't work: this function is declared to give back a number.` and more | **Grace:** "Rest!" is text, so it's `Bind text to cheer`. |
-| `If hops is greater than 3, "Rest!".`, with no `return` | `Line 2, column 32: expected statement keyword, got String "Rest!".` | **Grace:** Cufet needs to know what to do with "Rest!". Put `return` in front of it. |
+| `If hops is greater than 3, "Rest!".`, with no `return` | `Line 2, column 32: "Rest!" on its own doesn't do anything: to give it back, write 'return "Rest!"'; to show it, 'state "Rest!"'.` | **Grace:** Cufet needs to know what to do with "Rest!". Put `return` in front of it. |
 | No `Done.` | `this 'Bind' opens a block, and the file ended before its 'Done.'.` and more | **Hopper:** Every colon needs a `Done.`! |
 | `If` and `Otherwise` with no function, and the two `State cast` lines deleted | Prints the right lines, but isn't done | **Grace:** Right lines, but the task was a function called `cheer`. Put them inside a `Bind`. |
 

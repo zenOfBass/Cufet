@@ -173,7 +173,9 @@ public class UnclosedBlockTests
         Assert.Equal(1, ex.Line);
         Assert.DoesNotContain("expected Done", ex.Message);
         // ★ The inline form it offers is the VALUE one, because this body gives something back.
-        Assert.Contains("Bind number to double, given (the number n), n * 2.", ex.Message);
+        // ⚠ Since 2026-11-22 it names the function being written, not a stock `double`, so it is
+        // a shape (`…`, `<the value>`) rather than a runnable line.
+        Assert.Contains("Bind … to double …, <the value>.", ex.Message);
     }
 
     /// <remarks>⚠ A void body's inline form is a STAT—ENT, not an expression, so the two Bind
@@ -188,7 +190,20 @@ public class UnclosedBlockTests
             """);
 
         Assert.Contains("this 'Bind' opens a block", ex.Message);
-        Assert.Contains("Bind void to greet, State", ex.Message);
+        Assert.Contains("Bind … to greet …, <one instruction>.", ex.Message);
+    }
+
+    /// <remarks>⚠ Play-tested: the example was a stock `double` whatever was being written, and an
+    /// unclosed `While` was shown `For each`'s one-line form.</remarks>
+    [Fact]
+    public void TheExample_NamesTheFunctionAndTheLoopBeingWritten()
+    {
+        var bind = ParseFails("Bind number to triple, given (the number n):\n    Return n * 3.");
+        Assert.Contains("'Bind … to triple …, <the value>.'", bind.Message);
+
+        var loop = ParseFails("Define hops as 0.\nWhile hops is less than 3, repeat:\n    The hops becomes hops + 1.");
+        Assert.Contains("'While …, <one instruction>.'", loop.Message);
+        Assert.DoesNotContain("For each", loop.Message);
     }
 
     [Fact]

@@ -256,6 +256,47 @@ Pull a book on collections.
                     Done.
                 Done.
             Done.
+            // `If hops is 5, then state "a".` — `then` after the comma, read as a name.
+            If kind is "Becomes" and one's at is greater than 2:
+                Define then-word as cast one's token-at on (one's at - 1).
+                Define before-then as cast one's token-at on (one's at - 2).
+                If then-word's kind is "Identifier" and (then-word's lexeme in lowercase) is "then" and before-then's kind is "Comma":
+                    Return a failure (cast one's refused on (then-word, "Cufet doesn't use '{then-word's lexeme}': the comma before it is enough.")).
+                Done.
+            Done.
+            // `greet.` — a name standing alone as a whole instruction.
+            If kind is "Becomes" and current's kind is "Dot" and one's at is greater than 1:
+                Define alone as cast one's token-at on (one's at - 1).
+                If alone's kind is "Identifier":
+                    Define starts-line as one's at is 2.
+                    If one's at is greater than 2:
+                        Define ahead-of as (cast one's token-at on (one's at - 2))'s kind.
+                        If ahead-of is "Dot" or ahead-of is "Colon" or ahead-of is "Comma", the starts-line becomes true.
+                    Done.
+                    If starts-line, return a failure (cast one's refused on (alone, "To run '{alone's lexeme}', write 'Cast {alone's lexeme}.'")).
+                Done.
+            Done.
+            // `is greater 3` — the comparison's `than` left out.
+            If kind is "Than" and one's at is greater than 1:
+                Define side as cast one's token-at on (one's at - 1).
+                If side's kind is "Greater" or side's kind is "Less":
+                    Return a failure (cast one's refused on (current, "'{side's lexeme}' needs 'than' after it: 'is {side's lexeme} than {current's lexeme}'.")).
+                Done.
+            Done.
+            // A block's colon left off the end of its line: named at that line, as a period is.
+            If kind is "Colon" and one's at is greater than 1:
+                Define line-end as cast one's token-at on (one's at - 1).
+                If current's kind is "Eof":
+                    Return a failure (cast one's refused on (line-end, "this line needs a colon at the end, to start its block. The file ended before one came.")).
+                Done.
+                If current's row is greater than line-end's row:
+                    Return a failure (cast one's refused on (line-end, "this line needs a colon at the end, to start its block. Cufet read on into line {current's row} looking for it.")).
+                Done.
+            Done.
+            // `While hops is less than 3 repeat:` — the loop's comma left out.
+            If kind is "Comma" and current's kind is "Repeat":
+                Return a failure (cast one's refused on (current, "Cufet needs a comma before 'repeat': ', repeat:'.")).
+            Done.
             // `The hops is hops + 1.` — the word that asks, or that defines, where `becomes` belonged.
             If kind is "Becomes" and current's kind is "Is":
                 Return a failure (cast one's refused on (current,

@@ -168,7 +168,7 @@ export const lesson6: Lesson = {
                 },
                 {
                     case: 'no comma before repeat',
-                    when: a => refusedSaying(a, "expected ',', got Repeat"),
+                    when: a => refusedSaying(a, "Cufet needs a comma before 'repeat'"),
                     lines: [grace('A comma goes before `repeat`.')],
                 },
                 {

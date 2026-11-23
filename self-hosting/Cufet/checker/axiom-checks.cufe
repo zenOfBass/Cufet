@@ -593,6 +593,11 @@ Pull a book on collections.
             The fillable becomes cast is-nothing on (cast field-of on (tagged, 2))
                 and cast is-fillable-language on (cast unquoted on (cast field-of on (tagged, 1))).
         Done.
+        // A function of the program's own, called without `cast`: only an axiom is told about filling.
+        If cast is-none on (literal):
+            Return a failure (cast refusal-of on ("'{shown}' is a function, and a function runs with 'cast'", "",
+                at-row, "run '{shown}' without 'cast'", "To run '{shown}', write 'cast {shown} on (…)'.")).
+        Done.
         If fillable is false:
             Return a failure (cast refusal-of on ("'{shown}' is not source with holes, so it cannot be filled without running it",
                 "Writing 'on (…)' without 'cast' fills C source and keeps it; everything else is run with 'cast'",

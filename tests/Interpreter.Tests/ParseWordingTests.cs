@@ -35,6 +35,38 @@ public class ParseWordingTests
         Assert.DoesNotContain("expected Dot", ex.Message);
     }
 
+    // —— The rest of the tutorial's list (2026-11-22) ——————————————————————————————————————
+
+    [Theory]
+    [InlineData("Define hops as 5.\nIf hops is greater 3, state \"a\".",
+                "Line 2, column 20: 'greater' needs 'than' after it: 'is greater than 3'.")]
+    [InlineData("Define hops as 5.\nIf hops is less 3, state \"a\".",
+                "Line 2, column 17: 'less' needs 'than' after it: 'is less than 3'.")]
+    [InlineData("Define hops as 5.\nIf hops greater than 3, state \"a\".",
+                "Line 2, column 9: 'is' is missing before 'greater': 'hops is greater than …'.")]
+    [InlineData("Define hops as 0.\nRepeat:\n    The hops becomes hops + 1.\nDone.",
+                "Line 4, column 1: a 'Repeat' block ends with 'Until' and a question, not 'Done.': 'Until <question>.'")]
+    [InlineData("Bind void to greet:\n    State \"hi\".\nDone.\ngreet.",
+                "Line 4, column 1: To run 'greet', write 'Cast greet.'")]
+    [InlineData("Bind text to cheer, given (the number x):\n    If x is greater than 3, \"Rest!\".\n    Return \"Go\".\nDone.",
+                "Line 2, column 29: \"Rest!\" on its own doesn't do anything: to give it back, write 'return \"Rest!\"'; to show it, 'state \"Rest!\"'.")]
+    [InlineData("Define hops as 5.\nIf hops is 5, then state \"a\".",
+                "Line 2, column 15: Cufet doesn't use 'then': the comma before it is enough.")]
+    [InlineData("Try to\n    State \"hi\".\nDone.",
+                "Line 1, column 5: this line needs a colon at the end, to start its block. Cufet read on into line 2 looking for it.")]
+    [InlineData("Define hops as 0.\nWhile hops is less than 3 repeat:\n    The hops becomes hops + 1.\nDone.",
+                "Line 2, column 27: Cufet needs a comma before 'repeat': ', repeat:'.")]
+    public void TheTutorialsList_IsToldWhatToWrite(string source, string message) =>
+        Assert.Equal(message, ParseFails(source).Message);
+
+    /// <remarks>★ The guards: a name used as a variable and a working `Repeat` still parse.</remarks>
+    [Fact]
+    public void TheGuards_StillParse()
+    {
+        Parses("Define hops as 0.\nRepeat:\n    The hops becomes hops + 1.\nUntil hops is 3.");
+        Parses("Bind void to greet:\n    State \"hi\".\nDone.\nCast greet.");
+    }
+
     // —— An `Otherwise` no `If` took ————————————————————————————————————————————————————
 
     [Theory]
@@ -187,13 +219,13 @@ public class ParseWordingTests
         new Parser(new CufetLexer(source).Tokenize()).Parse();
 
     /// <remarks>⚠ THE PROGRAM CHANGED, THE SUBJECT DID NOT. This was an `If` with no colon until an
-    /// arm's question got a message of its own (below); `Try to` is still a plain `Consume`.</remarks>
+    /// arm's question got a message of its own, then a colon left off a line's END got one too;
+    /// a word too many on the same line is still a plain `Consume`.</remarks>
     [Fact]
     public void AMissingColon_AsksForTheCharacter()
     {
         var ex = ParseFails("""
-            Try to
-                State "hi".
+            Try to State "hi".
             Done.
             """);
 

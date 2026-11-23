@@ -141,16 +141,6 @@ around it. Nobody has asked for one.
   checked and invalidate on mutation, which is unsound against mutable maps unless done very
   carefully. "Name your lookups" covers the need meanwhile.
 
-- **The first errors a newcomer meets are the parser's, and they are terse.** Each below has a
-  clear why and a clear fix, so by "warmth scales with teachable content" it has earned a warm
-  message. Found while writing the tutorial's lessons; the Cufet parser matches these refusals,
-  so each changes in both parsers. `is greater 3` gets `expected Than, got Number "3"`. A `While`
-  missing its `Done.` suggests the inline form of `For each`, and a `Repeat` missing its `until` gets
-  `expected statement keyword, got Done`. A function call without `cast` (`State double on (3).`)
-  is told about "source with holes" and C; `If x, "Rest!".` gets `expected statement keyword, got
-  String`; and a `Bind` missing its `Done.` suggests a stock inline example (`double` for a number
-  function, `greet` for a void one) instead of the function being written.
-
 ### Types and object
 
 - **Reference-semantics opt-in.** Objects and map values are value-typed. An explicit way to

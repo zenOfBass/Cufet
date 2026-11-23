@@ -293,6 +293,16 @@ public sealed partial class TypeChecker
             ? AxiomBehind(fill.Function)
             : null;
         string shown = fill.Function is VariableReference named ? named.Name : "this";
+        // ★ A function of the program's own, called the way every other language calls one but
+        // without `cast`. Play-tested in the tutorial: "source with holes" and C, said to someone
+        // who had never heard of either. Only an axiom is told about filling.
+        if (axiom is null)
+            throw TypeError(
+                $"'{shown}' is a function, and a function runs with 'cast'",
+                null,
+                fill.Line, fill.Column,
+                $"run '{shown}' without 'cast'",
+                $"To run '{shown}', write 'cast {shown} on (…)'.");
         if (axiom?.Language is not { } language || axiom.ReturnType is not null
             || !IsFillableLanguage(language))
             throw TypeError(

@@ -81,6 +81,10 @@ public sealed class Parser
     private readonly List<(int Line, int Column, bool KeywordLed)> _statementStarts = [];
     public IReadOnlyList<(int Line, int Column, bool KeywordLed)> StatementStarts => _statementStarts;
 
+    /// <summary>A literal as it was written: text back in its quote marks.</summary>
+    private static string Shown(Token literal) =>
+        literal.Type == TokenType.String ? $"\"{literal.Lexeme}\"" : literal.Lexeme;
+
     private IStatement ParseStatement()
     {
         var tok = Peek();
@@ -151,6 +155,11 @@ public sealed class Parser
             TokenType.Otherwise => throw new ParseException(tok.Line, tok.Column,
                 "'Otherwise' has to come straight after an 'If' (after its 'Done.', in the block form), "
               + "with nothing in between. Is something between them, or is the 'If' missing?"),
+            // ★ `If x, "Rest!".` — a value where an instruction belongs. ⚠ It said
+            // `expected statement keyword, got String`.
+            TokenType.String or TokenType.Number => throw new ParseException(tok.Line, tok.Column,
+                $"{Shown(tok)} on its own doesn't do anything: to give it back, write 'return {Shown(tok)}'; "
+              + $"to show it, 'state {Shown(tok)}'."),
             _ => throw new ParseException(tok, "statement keyword"),
         };
     }
@@ -1451,6 +1460,11 @@ public sealed class Parser
         if (next.Line > last.Line)
             return new(last.Line, last.Column,
                 $"this line needs a colon at the end, to start its block. Cufet read on into line {SourceMap.Display(next.Line)} looking for it.");
+        // ★ `If hops greater than 3, …` — the question's `is` left out, so the question ended at
+        // the name.
+        if (next.Type is TokenType.Greater or TokenType.Less)
+            return new(next.Line, next.Column,
+                $"'is' is missing before '{next.Lexeme}': '{last.Lexeme} is {next.Lexeme} than …'.");
         if (next.Type == TokenType.Identifier && next.Lexeme.Equals("then", StringComparison.OrdinalIgnoreCase))
             return new(next.Line, next.Column, $"Cufet doesn't use '{next.Lexeme}': write a comma where it is.");
         return new(next.Line, next.Column,
@@ -1573,7 +1587,9 @@ public sealed class Parser
     // separates the two forms rather than the comma — one token, and no ambiguity:
     //     For each n in items, repeat: State n. Done.
     //     For each n in items, State n.
-    private IReadOnlyList<IStatement> ParseLoopBodyOrInline()
+    /// <param name="inlineExample">The one-line form of THIS loop, for the unclosed-block message.
+    /// ⚠ It was always `For each`'s, so a `While` left open was shown a different loop.</param>
+    private IReadOnlyList<IStatement> ParseLoopBodyOrInline(string inlineExample)
     {
         SkipNoise();
         _loopDepth++;
@@ -1589,7 +1605,7 @@ public sealed class Parser
                 // "expected Done, got Eof" pointed at the last line of the program, which is never
                 // where the mistake is — and the fix is usually to DROP `repeat:` rather than to
                 // add `Done.`, which the old message could not suggest.
-                return ParseLoopBody(repeatTok, "For each n in items, State n.");
+                return ParseLoopBody(repeatTok, inlineExample);
             }
             return new[] { ParseStatement() };
         }
@@ -1761,7 +1777,7 @@ public sealed class Parser
         var condition = ParseCondition();
         SkipNoise();
         Consume(TokenType.Comma);
-        var body = ParseLoopBodyOrInline();
+        var body = ParseLoopBodyOrInline("While …, <one instruction>.");
         return new WhileStatement(condition, body, conditionTok.Line, conditionTok.Column);
     }
 
@@ -1876,6 +1892,11 @@ public sealed class Parser
         {
             SkipNoise();
             if (Peek().Type is TokenType.Until or TokenType.Eof) break;
+            // ★ A `Done.` reaching here is the Repeat's own: a block inside the body takes its
+            // own. ⚠ It said `expected statement keyword, got Done`.
+            if (Peek() is { Type: TokenType.Done } done)
+                throw new ParseException(done.Line, done.Column,
+                    "a 'Repeat' block ends with 'Until' and a question, not 'Done.': 'Until <question>.'");
             stmts.Add(ParseStatement());
         }
         if (stmts.Count == 0)
@@ -1993,7 +2014,7 @@ public sealed class Parser
         var seriesExpr = ParseExpression();
         SkipNoise();
         Consume(TokenType.Comma);
-        var body = ParseLoopBodyOrInline();
+        var body = ParseLoopBodyOrInline("For each n in items, State n.");
         return new ForEachStatement(iterName, seriesExpr, body, forTok.Line, forTok.Column);
     }
 
@@ -5215,8 +5236,10 @@ public sealed class Parser
         // reached by the same comma — the difference is what one thing means for that body.
         _functionDepth++;
         var body = returnType == null || FailureType.IsVoidOrFailure(returnType)
-            ? ParseVoidBodyOrBlock(bindTok, "Bind void to greet, State \"hi\".")
-            : ParseValueBodyOrBlock(bindTok, "Bind number to double, given (the number n), n * 2.");
+            // ★ The example names the function being written. ⚠ It was a stock `greet` or `double`,
+            // so a player writing `triple` was shown somebody else's function.
+            ? ParseVoidBodyOrBlock(bindTok, $"Bind … to {name} …, <one instruction>.")
+            : ParseValueBodyOrBlock(bindTok, $"Bind … to {name} …, <the value>.");
         _functionDepth--;
         _inObjectDef    = savedInObjectDef;
         _inFreeFunction = savedInFreeFunction;
@@ -6089,6 +6112,40 @@ public sealed class Parser
                 && Cufet.Lexer.Lexer.CufetSays(named.Lexeme) is { } own)
                 throw new ParseException(named.Line, named.Column,
                     $"'{named.Lexeme}' isn't a word Cufet knows to start a line with. Cufet says '{own}'.");
+
+            // ★ `If hops is 5, then state "a".` — `then` after the comma, read as a name.
+            if (expected == TokenType.Becomes && _pos > 1 && _tokens[_pos - 1] is { Type: TokenType.Identifier } thenWord
+                && thenWord.Lexeme.Equals("then", StringComparison.OrdinalIgnoreCase)
+                && _tokens[_pos - 2].Type == TokenType.Comma)
+                throw new ParseException(thenWord.Line, thenWord.Column,
+                    $"Cufet doesn't use '{thenWord.Lexeme}': the comma before it is enough.");
+
+            // ★ `greet.` — a name standing alone as a whole instruction, the way other languages
+            // run a function. Only when the name IS the instruction: nothing before it on its line.
+            if (expected == TokenType.Becomes && tok.Type == TokenType.Dot && _pos > 0
+                && _tokens[_pos - 1] is { Type: TokenType.Identifier } alone
+                && (_pos == 1 || _tokens[_pos - 2].Type is TokenType.Dot or TokenType.Colon or TokenType.Comma))
+                throw new ParseException(alone.Line, alone.Column,
+                    $"To run '{alone.Lexeme}', write 'Cast {alone.Lexeme}.'");
+
+            // ★ `is greater 3` — the comparison's `than` left out.
+            if (expected == TokenType.Than && _pos > 0 && _tokens[_pos - 1] is { Type: TokenType.Greater or TokenType.Less } side)
+                throw new ParseException(tok.Line, tok.Column,
+                    $"'{side.Lexeme}' needs 'than' after it: 'is {side.Lexeme} than {tok.Lexeme}'.");
+
+            // ★ A block's colon left off the end of its line: named at that line, as a period is.
+            if (expected == TokenType.Colon && _pos > 0 && (tok.Type == TokenType.Eof || tok.Line > _tokens[_pos - 1].Line))
+            {
+                var lineEnd = _tokens[_pos - 1];
+                throw new ParseException(lineEnd.Line, lineEnd.Column, tok.Type == TokenType.Eof
+                    ? "this line needs a colon at the end, to start its block. The file ended before one came."
+                    : $"this line needs a colon at the end, to start its block. Cufet read on into line {SourceMap.Display(tok.Line)} looking for it.");
+            }
+
+            // ★ `While hops is less than 3 repeat:` — the loop's comma left out.
+            if (expected == TokenType.Comma && tok.Type == TokenType.Repeat)
+                throw new ParseException(tok.Line, tok.Column,
+                    "Cufet needs a comma before 'repeat': ', repeat:'.");
 
             if (expected == TokenType.Becomes && tok.Type == TokenType.Is)
                 throw new ParseException(tok.Line, tok.Column,

@@ -78,6 +78,25 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   in the block form), with nothing in between. Is something between them, or is the 'If'
   missing?` It does not name an `If`: telling which one was meant would take tracking them through
   nested blocks, and a wrong line is worse than none. Both parsers.
+- **The rest of the tutorial's list of terse refusals says what to write.** Each was found
+  writing or play-testing the tutorial; all are in both parsers, the first in both checkers:
+  - A function of the program's own called without `cast` (`State double on (3).`) was told
+    about "source with holes" and C; now `'double' is a function, and a function runs with
+    'cast'`, with `To run 'double', write 'cast double on (…)'.` An axiom is still told about
+    filling. A bare `greet.` is told `To run 'greet', write 'Cast greet.'`
+  - `is greater 3`: `'greater' needs 'than' after it: 'is greater than 3'.` (`less` too); and
+    `If hops greater than 3`: `'is' is missing before 'greater'`.
+  - A `Repeat` closed with `Done.`: `a 'Repeat' block ends with 'Until' and a question, not
+    'Done.'`.
+  - `If x, "Rest!".`: `"Rest!" on its own doesn't do anything: to give it back, write 'return
+    "Rest!"'; to show it, 'state "Rest!"'.` (a number too).
+  - `If hops is 5, then state …`: `Cufet doesn't use 'then': the comma before it is enough.`
+  - A colon left off the end of a block's line (`Try to`, `For each … repeat`, a `Bind`) names
+    that line, as a period does; `While … repeat:` with no comma is told `Cufet needs a comma
+    before 'repeat'`.
+  - A `While` or a `Bind` left open was shown a stock example — `For each`'s one-line form, or
+    a `double` or `greet` — whatever was being written. It now names the loop or the function:
+    `'While …, <one instruction>.'`, `'Bind … to triple …, <the value>.'`.
 
 ## [0.30.0] — 2026-11-20
 

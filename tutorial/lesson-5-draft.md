@@ -248,7 +248,7 @@ Keep going!
 | They type | What Cufet does | The rabbits say |
 | --- | --- | --- |
 | No `If`: just `State "Rest!".` | Runs, prints `Rest!`, but isn't done | **Hopper:** That says "Rest!", but it always will! Ask Cufet whether I've hopped more than three times, with `If`, and let it decide. |
-| `If hops is greater 3, ...` | `Line 2, column 20: expected Than, got Number "3".` | **Grace:** It's `is greater than`, with "than" on the end. |
+| `If hops is greater 3, ...` | `Line 2, column 20: 'greater' needs 'than' after it: 'is greater than 3'.` | **Grace:** It's `is greater than`, with "than" on the end. |
 | `If hops > 3, ...` | Runs, prints the right thing | **Done.** **Hopper:** `>` means "is greater than". Cufet knows both! |
 | `If hops is "5", ...` | `That doesn't work: equality comparison requires matching types.` and more | **Grace:** `"5"` in quote marks is text, and a number can never be text. Take off the quote marks. |
 | `If hops is greater than 3 state "Rest!".` | `Line 2, column 27: Cufet needs a comma or a colon before 'state': a comma for one instruction on this line, or a colon to start a block that ends with 'Done.'.` | **Grace:** A comma goes after the question, before `state`. |

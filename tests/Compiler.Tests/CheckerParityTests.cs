@@ -1418,6 +1418,8 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
         "Define my answer as 7.\n",
         "Bind void to f:\n    Define my answer as 7.\n    State answer.\nDone.\nCast f.\n",
         "Define hops as 1.\nDefine total hops as 2.\n",
+        // A function of the program's own called without `cast` (2026-11-22).
+        "Bind number to double, given (the number n), n * 2.\nState double on (3).\n",
     ];
 
     /// <remarks>

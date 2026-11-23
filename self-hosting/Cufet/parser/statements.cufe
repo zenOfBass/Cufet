@@ -212,6 +212,13 @@ Pull a book on collections.
                 "'Otherwise' has to come straight after an 'If' (after its 'Done.', in the block form), "
                 joined to "with nothing in between. Is something between them, or is the 'If' missing?")).
         Done.
+        // `If x, "Rest!".` — a value where an instruction belongs.
+        If kind is "String" or kind is "Number":
+            Define shown as tok's lexeme.
+            If kind is "String", the shown becomes "\"{tok's lexeme}\"".
+            Return a failure (cast one's refused on (tok,
+                "{shown} on its own doesn't do anything: to give it back, write 'return {shown}'; to show it, 'state {shown}'.")).
+        Done.
         Return a failure (cast one's expecting on (tok, "statement keyword")).
     Done.
 
@@ -888,6 +895,10 @@ Pull a book on collections.
         If next-word's row is greater than last-word's row:
             Return cast one's refused on (last-word, "this line needs a colon at the end, to start its block. Cufet read on into line {next-word's row} looking for it.").
         Done.
+        // `If hops greater than 3, …` — the question's `is` left out.
+        If next-word's kind is "Greater" or next-word's kind is "Less":
+            Return cast one's refused on (next-word, "'is' is missing before '{next-word's lexeme}': '{last-word's lexeme} is {next-word's lexeme} than …'.").
+        Done.
         If next-word's kind is "Identifier" and (next-word's lexeme in lowercase) is "then":
             Return cast one's refused on (next-word, "Cufet doesn't use '{next-word's lexeme}': write a comma where it is.").
         Done.
@@ -947,7 +958,8 @@ Pull a book on collections.
     Done.
 
     /// A loop's body: `repeat:` and a block, or one statement.
-    Bind node or failure to loop-body-or-inline unto parser:
+    /// `inline-example` is THIS loop's one-line form — it was always `For each`'s.
+    Bind node or failure to loop-body-or-inline unto parser, given (the text inline-example):
         Cast one's skip-noise.
         Increment one's loop-depth by 1.
         Increment one's nest-depth by 1.
@@ -956,7 +968,7 @@ Pull a book on collections.
             Define repeat-tok as cast one's advance.
             Cast one's skip-noise.
             Cast one's consume on ("Colon") or pass the failure off.
-            The body becomes cast one's loop-body on (repeat-tok, "For each n in items, State n.", "", "") or pass the failure off.
+            The body becomes cast one's loop-body on (repeat-tok, inline-example, "", "") or pass the failure off.
         Done.
         Otherwise:
             Define single as cast one's statement or pass the failure off.
@@ -974,7 +986,7 @@ Pull a book on collections.
         Define condition as cast one's condition or pass the failure off.
         Cast one's skip-noise.
         Cast one's consume on ("Comma") or pass the failure off.
-        Define body as cast one's loop-body-or-inline or pass the failure off.
+        Define body as cast one's loop-body-or-inline on ("While …, <one instruction>.") or pass the failure off.
         Return cast placed on ("WhileStatement", a series with (condition, body), condition-tok).
     Done.
 
@@ -989,6 +1001,11 @@ Pull a book on collections.
         While scanning, repeat:
             Cast one's skip-noise.
             If cast one's peek-kind is "Until" or cast one's peek-kind is "Eof", stop.
+            // A `Done.` reaching here is the Repeat's own: a block inside the body takes its own.
+            If cast one's peek-kind is "Done":
+                Return a failure (cast one's refused on (cast one's peek,
+                    "a 'Repeat' block ends with 'Until' and a question, not 'Done.': 'Until <question>.'")).
+            Done.
             Define inner as cast one's statement or pass the failure off.
             Cast body's add on (inner).
         Done.
@@ -1056,7 +1073,7 @@ Pull a book on collections.
         Define over as cast one's expression or pass the failure off.
         Cast one's skip-noise.
         Cast one's consume on ("Comma") or pass the failure off.
-        Define body as cast one's loop-body-or-inline or pass the failure off.
+        Define body as cast one's loop-body-or-inline on ("For each n in items, State n.") or pass the failure off.
         Return cast placed on ("ForEachStatement", a series with (iterator, over, body), for-tok).
     Done.
 
@@ -1185,10 +1202,11 @@ Pull a book on collections.
         Increment one's function-depth by 1.
         Define body as cast listed.
         If returned's word is "_" or cast is-void-or-failure on (returned):
-            The body becomes cast one's void-body on (bind-tok, "Bind void to greet, State \"hi\".", "") or pass the failure off.
+            // The example names the function being written, not a stock `greet` or `double`.
+            The body becomes cast one's void-body on (bind-tok, "Bind … to {name-tok's lexeme} …, <one instruction>.", "") or pass the failure off.
         Done.
         Otherwise:
-            The body becomes cast one's value-body on (bind-tok, "Bind number to double, given (the number n), n * 2.", "") or pass the failure off.
+            The body becomes cast one's value-body on (bind-tok, "Bind … to {name-tok's lexeme} …, <the value>.", "") or pass the failure off.
         Done.
         Decrement one's function-depth by 1.
         One's in-object-def becomes saved-object-def.

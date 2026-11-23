@@ -173,7 +173,7 @@ export const lesson5: Lesson = {
                 },
                 {
                     case: '"than" left out',
-                    when: a => refusedSaying(a, 'expected Than'),
+                    when: a => refusedSaying(a, "needs 'than' after it"),
                     lines: [grace('It\'s `is greater than`, with "than" on the end.')],
                 },
                 {

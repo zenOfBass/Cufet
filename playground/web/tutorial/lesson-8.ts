@@ -169,7 +169,7 @@ export const lesson8: Lesson = {
                 },
                 {
                     case: 'no return before the words',
-                    when: a => refusedSaying(a, 'expected statement keyword, got String'),
+                    when: a => refusedSaying(a, "on its own doesn't do anything"),
                     lines: [grace('Cufet needs to know what to do with "Rest!". Put `return` in front of it.')],
                 },
                 {
