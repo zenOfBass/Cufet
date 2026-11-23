@@ -1398,7 +1398,10 @@ public sealed class Parser
     /// </param>
     private IReadOnlyList<IStatement> ParseIfBody(Token? opener = null)
     {
+        int afterQuestion = _pos;
         SkipNoise();
+        if (Peek().Type is not (TokenType.Comma or TokenType.Colon) && NeitherCommaNorColon(afterQuestion) is { } missing)
+            throw missing;
         if (Peek().Type == TokenType.Comma)
         {
             Advance(); // consume ','
@@ -1414,6 +1417,39 @@ public sealed class Parser
                                    armContinuation: TokenType.Otherwise);
         _nestDepth--;
         return result;
+    }
+
+    /// <summary>
+    /// An arm's question (or its `Otherwise`) followed by neither a comma nor a colon: which one
+    /// it needed, said where the reader can act on it.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ It said only `expected ':', got State "state"` — one of the two choices, the one a
+    /// player writing `If hops is greater than 3 state "Rest!".` did not want — and, with the
+    /// block's first line below, named THAT line, as the missing period did. `then` is the habit
+    /// other languages teach.
+    /// </remarks>
+    /// <param name="afterQuestion">Where the first token after the question sits, before noise is
+    /// skipped — the word the reader actually wrote next.</param>
+    private ParseException? NeitherCommaNorColon(int afterQuestion)
+    {
+        if (afterQuestion == 0 || afterQuestion >= _tokens.Count) return null;
+        // ⚠ The question's own parse may already have skipped a `the` — `If x is 3 the hops …` —
+        // and the reader wrote that word next, not `hops`.
+        while (afterQuestion > 1 && _tokens[afterQuestion - 1].IsNoise) afterQuestion--;
+        var last = _tokens[afterQuestion - 1];
+        var next = _tokens[afterQuestion];
+        if (next.Type == TokenType.Eof)
+            return new(last.Line, last.Column,
+                "this line needs a colon at the end, to start its block. The file ended before one came.");
+        if (next.Line > last.Line)
+            return new(last.Line, last.Column,
+                $"this line needs a colon at the end, to start its block. Cufet read on into line {SourceMap.Display(next.Line)} looking for it.");
+        if (next.Type == TokenType.Identifier && next.Lexeme.Equals("then", StringComparison.OrdinalIgnoreCase))
+            return new(next.Line, next.Column, $"Cufet doesn't use '{next.Lexeme}': write a comma where it is.");
+        return new(next.Line, next.Column,
+            $"Cufet needs a comma or a colon before '{next.Lexeme}': a comma for one instruction on this "
+          + "line, or a colon to start a block that ends with 'Done.'.");
     }
 
     // ── The inline-body rule, in one place ────────────────────────────────
@@ -6041,6 +6077,13 @@ public sealed class Parser
             // word that changes belonged. Every way of changing a value (a name, a field, `the …
             // of …`, an item) waits for `becomes` here, so one check covers them all; it names the
             // word to swap rather than the line, which this place does not know how was written.
+            // ★ `else, state "Go".` — lowercase, so the lexer let it through as a name, and only a
+            // missing `becomes` shows it was not one. `else becomes 3.` still works.
+            if (expected == TokenType.Becomes && _pos > 0 && _tokens[_pos - 1] is { Type: TokenType.Identifier } named
+                && Cufet.Lexer.Lexer.CufetSays(named.Lexeme) is { } own)
+                throw new ParseException(named.Line, named.Column,
+                    $"'{named.Lexeme}' isn't a word Cufet knows to start a line with. Cufet says '{own}'.");
+
             if (expected == TokenType.Becomes && tok.Type == TokenType.Is)
                 throw new ParseException(tok.Line, tok.Column,
                     "'is' asks a question, it doesn't change anything. To give this a new value, "

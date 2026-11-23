@@ -35,6 +35,62 @@ public class ParseWordingTests
         Assert.DoesNotContain("expected Dot", ex.Message);
     }
 
+    // —— A lowercase `else`, which the lexer lets through as a name ————————————————————————
+
+    [Theory]
+    [InlineData("If true, state \"a\".\nelse, state \"b\".", "else", "Otherwise")]
+    [InlineData("If true, state \"a\".\nelse if true, state \"b\".", "else", "Otherwise")]
+    [InlineData("If true, state \"a\".\nelif true, state \"b\".", "elif", "Otherwise if")]
+    public void ALowercaseElse_IsToldCufetsWord(string source, string word, string own)
+    {
+        var ex = ParseFails(source);
+        Assert.Equal($"Line 2, column 1: '{word}' isn't a word Cufet knows to start a line with. Cufet says '{own}'.", ex.Message);
+    }
+
+    /// <remarks>★ The guard: `else` is an ordinary name, and only a refusal is reworded.</remarks>
+    [Fact]
+    public void ElseAsAName_StillParses() => Parses("Define else as 1.\nelse becomes 3.\nState else.");
+
+    // —— An arm's question with neither a comma nor a colon ————————————————————————————
+    //
+    // ⚠ `If hops is greater than 3 state "Rest!".` got `expected ':', got State "state"` — one of
+    // the two choices, and the one that player did not want; with the block below, it named the
+    // block's first line, as the missing period did.
+
+    [Theory]
+    [InlineData("Define hops as 5.\nIf hops is greater than 3 state \"Rest!\".", 2, 27, "state")]
+    [InlineData("Define hops as 5.\nIf hops is greater than 3, state \"Rest!\".\nOtherwise state \"Go\".", 3, 11, "state")]
+    [InlineData("Define hops as 5.\nIf hops is greater than 3 the hops becomes 1.", 2, 27, "the")]
+    public void SomethingOnTheLine_IsToldBothChoices(string source, int line, int column, string word)
+    {
+        var ex = ParseFails(source);
+        Assert.Equal($"Line {line}, column {column}: Cufet needs a comma or a colon before '{word}': a comma for one "
+                   + "instruction on this line, or a colon to start a block that ends with 'Done.'.", ex.Message);
+    }
+
+    [Fact]
+    public void NothingMoreOnTheLine_IsToldToEndItWithAColon()
+    {
+        var ex = ParseFails("Define hops as 5.\nIf hops is greater than 3\n    State \"Rest!\".\nDone.");
+        Assert.Equal("Line 2, column 25: this line needs a colon at the end, to start its block. "
+                   + "Cufet read on into line 3 looking for it.", ex.Message);
+    }
+
+    [Fact]
+    public void TheFileEndingAfterTheQuestion_SaysSo()
+    {
+        var ex = ParseFails("Define hops as 5.\nIf hops is greater than 3");
+        Assert.Equal("Line 2, column 25: this line needs a colon at the end, to start its block. "
+                   + "The file ended before one came.", ex.Message);
+    }
+
+    [Fact]
+    public void Then_IsToldToBeAComma()
+    {
+        var ex = ParseFails("Define hops as 5.\nIf hops is greater than 3 then state \"Rest!\".");
+        Assert.Equal("Line 2, column 27: Cufet doesn't use 'then': write a comma where it is.", ex.Message);
+    }
+
     // —— `is` or `as` where `becomes` belonged ——————————————————————————————————
     //
     // ⚠ `The hops is hops + 1.` got `expected Becomes, got Is "is"`. Every way of changing a value
@@ -117,11 +173,13 @@ public class ParseWordingTests
     private static Cufet.Interpreter.Program Parses(string source) =>
         new Parser(new CufetLexer(source).Tokenize()).Parse();
 
+    /// <remarks>⚠ THE PROGRAM CHANGED, THE SUBJECT DID NOT. This was an `If` with no colon until an
+    /// arm's question got a message of its own (below); `Try to` is still a plain `Consume`.</remarks>
     [Fact]
     public void AMissingColon_AsksForTheCharacter()
     {
         var ex = ParseFails("""
-            If 1 is 1
+            Try to
                 State "hi".
             Done.
             """);

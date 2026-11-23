@@ -192,11 +192,24 @@ public class LexerTests
     [InlineData("Say \"Hello\".", "Say")]
     [InlineData("Let x be 3.", "Let")]
     [InlineData("Print \"Hello\".", "Print")]
-    [InlineData("Else, state \"a\".", "Else")]
     public void ALinesFirstWord_FarFromAnyStatement_GetsNoSuggestion(string source, string word)
     {
         var ex = Assert.Throws<LexerException>(() => Lex(source));
         Assert.Equal($"Line 1, column 1: '{word}' isn't a word Cufet knows to start a line with.", ex.Message);
+    }
+
+    /// <remarks>⚠ Play-tested: `Else` in the lesson on choosing was told only that Cufet did not
+    /// know it. The `else` family names Cufet's own word.</remarks>
+    [Theory]
+    [InlineData("Else, state \"a\".", "Else", "Otherwise")]
+    [InlineData("Else if true, state \"a\".", "Else", "Otherwise")]
+    [InlineData("Elif true, state \"a\".", "Elif", "Otherwise if")]
+    [InlineData("Elsif true, state \"a\".", "Elsif", "Otherwise if")]
+    [InlineData("ElseIf true, state \"a\".", "ElseIf", "Otherwise if")]
+    public void AnotherLanguagesElse_IsToldCufetsWord(string source, string word, string own)
+    {
+        var ex = Assert.Throws<LexerException>(() => Lex(source));
+        Assert.Equal($"Line 1, column 1: '{word}' isn't a word Cufet knows to start a line with. Cufet says '{own}'.", ex.Message);
     }
 
     [Theory]

@@ -141,8 +141,8 @@ Keep going!
 
 | They type | What Cufet does | The rabbits say |
 | --- | --- | --- |
-| `Otherwise state "Keep going!".` | `Line 4, column 11: expected ':', got State "state".` | **Grace:** `Otherwise` needs a comma after it, the same as the `If` line. |
-| `Else, state "Keep going!".` | `Line 4, column 1: 'Else' isn't a word Cufet knows to start a line with.` | **Hopper:** Some languages say "else". Cufet says `Otherwise`. |
+| `Otherwise state "Keep going!".` | `Line 4, column 11: Cufet needs a comma or a colon before 'state': …` | **Grace:** `Otherwise` needs a comma after it, the same as the `If` line. |
+| `Else, state "Keep going!".` | `Line 4, column 1: 'Else' isn't a word Cufet knows to start a line with. Cufet says 'Otherwise'.` | **Hopper:** Some languages say "else". Cufet says `Otherwise`. |
 | The `Otherwise` line above the `If` | `Line 3, column 1: expected statement keyword, got Otherwise "Otherwise".` | **Grace:** `Otherwise` only makes sense after an `If`. Move it below. |
 | A second `If`: `If hops is 2, state "Keep going!".` | Runs, prints the right lines, but isn't done | **Grace:** That works for two. But `Otherwise` catches every other number too, not just two. Try it with `Otherwise`. |
 
@@ -251,7 +251,7 @@ Keep going!
 | `If hops is greater 3, ...` | `Line 2, column 20: expected Than, got Number "3".` | **Grace:** It's `is greater than`, with "than" on the end. |
 | `If hops > 3, ...` | Runs, prints the right thing | **Done.** **Hopper:** `>` means "is greater than". Cufet knows both! |
 | `If hops is "5", ...` | `That doesn't work: equality comparison requires matching types.` and more | **Grace:** `"5"` in quote marks is text, and a number can never be text. Take off the quote marks. |
-| `If hops is greater than 3 state "Rest!".` | `Line 2, column 27: expected ':', got State "state".` | **Grace:** A comma goes after the question, before `state`. |
+| `If hops is greater than 3 state "Rest!".` | `Line 2, column 27: Cufet needs a comma or a colon before 'state': a comma for one instruction on this line, or a colon to start a block that ends with 'Done.'.` | **Grace:** A comma goes after the question, before `state`. |
 | `If hops is 5, ...` | Prints the right thing for 5 and 2, but isn't done | **Hopper:** It works for five and two. But if I hop six times, it says "Keep going!" when I'm tired! Ask whether it's *greater than* three. |
 | No period on the end | `this line needs a period at the end. The file ended before one came.` | **Grace:** Every instruction ends with a period, even an `If`. |
 

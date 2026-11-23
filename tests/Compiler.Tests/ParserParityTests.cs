@@ -262,6 +262,17 @@ public class ParserParityTests(ITestOutputHelper output, CompiledCufetParser com
         "Define hops as 1.\nThe hops as 5.",
         "Define xs as a series of number with (1, 2).\nItem 1 of xs is 5.",
         "Define hops as 1.\nBind void to g, hops is 5.",
+        // An arm's question with neither a comma nor a colon: on the line, past it, at the end of
+        // the file, after a skipped `the`, and `then` (2026-11-22).
+        "Define hops as 5.\nIf hops is greater than 3 state \"Rest!\".",
+        "Define hops as 5.\nIf hops is greater than 3, state \"Rest!\".\nOtherwise state \"Go\".",
+        "Define hops as 5.\nIf hops is greater than 3\n    State \"Rest!\".\nDone.",
+        "Define hops as 5.\nIf hops is greater than 3",
+        "Define hops as 5.\nIf hops is greater than 3 the hops becomes 1.",
+        "Define hops as 5.\nIf hops is greater than 3 then state \"Rest!\".",
+        // A lowercase `else`, a name to the lexer, told Cufet's word only once refused (2026-11-22).
+        "If true, state \"a\".\nelse, state \"b\".",
+        "If true, state \"a\".\nelsif true, state \"b\".",
     ];
 
     [Fact]

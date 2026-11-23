@@ -285,6 +285,8 @@ Pull a book on collections.
             The before becomes latest's kind.
         Done.
         If before is "" or before is "Dot" or before is "Colon":
+            Define own as cast cufet-says on (lexeme).
+            If own is not "", return "'{lexeme}' isn't a word Cufet knows to start a line with. Cufet says '{own}'.".
             Define opening as "'{lexeme}' isn't a word Cufet knows to start a line with".
             If the length of lexeme is less than 4, return opening.
             Define typed as lexeme in lowercase.
@@ -301,6 +303,15 @@ Pull a book on collections.
         Done.
         Return "'{lexeme}' starts with a capital letter, so it can't be a name. If these are words "
             joined to "to say, put them in quote marks. If it's a name, write '{lowered}'".
+    Done.
+
+    /// Lexer.CufetSays — Cufet's own word for one other languages open a line with, or "".
+    /// Shared with the parser, which meets the lowercase spelling as a name.
+    Bind text to cufet-says, given (the text word):
+        Define lowered as word in lowercase.
+        If lowered is "else", return "Otherwise".
+        If lowered is "elif" or lowered is "elsif" or lowered is "elseif", return "Otherwise if".
+        Return "".
     Done.
 
     /// The words a statement can open with — Lexer.StatementWords, in the same order.

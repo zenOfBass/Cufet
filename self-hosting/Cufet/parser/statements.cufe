@@ -842,7 +842,12 @@ Pull a book on collections.
 
     /// A comma and ONE statement, or a colon and a block closed by `Done.`
     Bind node or failure to if-body unto parser, given (the token opener):
+        Define after-question as one's at.
         Cast one's skip-noise.
+        If cast one's peek-kind is not "Comma" and cast one's peek-kind is not "Colon":
+            Define missing as cast one's neither-comma-nor-colon on (after-question).
+            If missing is not "", return a failure (missing).
+        Done.
         If cast one's peek-kind is "Comma":
             Cast one's advance.
             Cast one's skip-noise.
@@ -858,6 +863,30 @@ Pull a book on collections.
         Define body as cast one's loop-body on (opener, "If x is 1, state \"one\".", "", "Otherwise") or pass the failure off.
         Decrement one's nest-depth by 1.
         Return body.
+    Done.
+
+    /// NeitherCommaNorColon — an arm's question followed by neither: which it needed, where the
+    /// reader can act on it. `after-question` is where the next word sits before noise is skipped.
+    Bind text to neither-comma-nor-colon unto parser, given (the number after-question):
+        If after-question is 1 or after-question is greater than the number of one's tokens, return "".
+        // The question's own parse may already have skipped a `the`, and the reader wrote that next.
+        Define place as after-question.
+        While place is greater than 2 and cast is-noise on (cast one's token-at on (place - 1)), repeat:
+            Decrement place by 1.
+        Done.
+        Define last-word as cast one's token-at on (place - 1).
+        Define next-word as cast one's token-at on (place).
+        If next-word's kind is "Eof":
+            Return cast one's refused on (last-word, "this line needs a colon at the end, to start its block. The file ended before one came.").
+        Done.
+        If next-word's row is greater than last-word's row:
+            Return cast one's refused on (last-word, "this line needs a colon at the end, to start its block. Cufet read on into line {next-word's row} looking for it.").
+        Done.
+        If next-word's kind is "Identifier" and (next-word's lexeme in lowercase) is "then":
+            Return cast one's refused on (next-word, "Cufet doesn't use '{next-word's lexeme}': write a comma where it is.").
+        Done.
+        Return cast one's refused on (next-word, "Cufet needs a comma or a colon before '{next-word's lexeme}': a comma for one instruction on this "
+            joined to "line, or a colon to start a block that ends with 'Done.'.").
     Done.
 
     /// Unclosed — a block the file ended inside, named at the word that opened it.

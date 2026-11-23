@@ -245,6 +245,17 @@ Pull a book on collections.
                 Define spaced as cast one's two-names-side-by-side on (current, kind).
                 If spaced is not "", return a failure (spaced).
             Done.
+            // `else, state "Go".` — lowercase, so a name to the lexer; `else becomes 3.` still works.
+            If kind is "Becomes" and one's at is greater than 1:
+                Define named as cast one's token-at on (one's at - 1).
+                If named's kind is "Identifier":
+                    Define own as cast cufet-says on (named's lexeme).
+                    If own is not "":
+                        Return a failure (cast one's refused on (named,
+                            "'{named's lexeme}' isn't a word Cufet knows to start a line with. Cufet says '{own}'.")).
+                    Done.
+                Done.
+            Done.
             // `The hops is hops + 1.` — the word that asks, or that defines, where `becomes` belonged.
             If kind is "Becomes" and current's kind is "Is":
                 Return a failure (cast one's refused on (current,

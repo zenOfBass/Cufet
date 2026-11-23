@@ -221,6 +221,21 @@ public sealed class Lexer
     ];
 
     /// <summary>
+    /// Cufet's own word for a word other languages open a line with, or null.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ Play-tested: `Else` came up in the tutorial's lesson on choosing, and was told only that
+    /// Cufet did not know it. Kept to the `else` family, which is what players met; ★ shared with
+    /// the parser, which meets the lowercase spelling as a name.
+    /// </remarks>
+    public static string? CufetSays(string word) => word.ToLowerInvariant() switch
+    {
+        "else"                       => "Otherwise",
+        "elif" or "elsif" or "elseif" => "Otherwise if",
+        _                            => null,
+    };
+
+    /// <summary>
     /// What to say about a word with a capital that is no keyword, by where it stands.
     /// </summary>
     /// <remarks>
@@ -234,6 +249,8 @@ public sealed class Lexer
     {
         if (before is null || before.Type is TokenType.Dot or TokenType.Colon)
         {
+            if (CufetSays(lexeme) is { } own)
+                return $"'{lexeme}' isn't a word Cufet knows to start a line with. Cufet says '{own}'.";
             // ★ One letter off and at least four letters long, or no suggestion at all. Two letters
             // off would answer `Say` with 'Set', and three-letter words one off do the same
             // (`Let` → 'Set') — a real keyword, and the wrong advice.

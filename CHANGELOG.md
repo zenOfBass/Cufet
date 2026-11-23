@@ -61,6 +61,18 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   belongs to 'Define', which makes a new name. …`. One check covers every way of changing a value
   (a name, a field, `the … of …`, an item). An inline void body holding such an expression keeps
   the message about inline bodies. Both parsers.
+- **An `If` question with neither a comma nor a colon is told both choices.** `If hops is greater
+  than 3 state "Rest!".` got `expected ':', got State "state"`, the one choice that player did
+  not want. Now `Cufet needs a comma or a colon before 'state': a comma for one instruction on
+  this line, or a colon to start a block that ends with 'Done.'.` With nothing more on the line,
+  it names that line, not the block's first line below: `this line needs a colon at the end, to
+  start its block. Cufet read on into line 3 looking for it.` `then` is told `Cufet doesn't use
+  'then': write a comma where it is.` The same for `Otherwise` and `Otherwise if`, and for a
+  `Judge` arm, which shares the rule. Both parsers.
+- **Another language's `else` is told Cufet's word.** `Else, state "Go".` was told only that Cufet
+  didn't know the word; now `… Cufet says 'Otherwise'.`, and `Elif`, `Elsif` and `ElseIf` are told
+  `'Otherwise if'`. A lowercase `else` is an ordinary name, so the parser says the same only once
+  the line is refused anyway; `else becomes 3.` still works. Both lexers, both parsers.
 
 ## [0.30.0] — 2026-11-20
 

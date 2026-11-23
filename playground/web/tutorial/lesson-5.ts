@@ -93,7 +93,7 @@ export const lesson5: Lesson = {
             reactions: [
                 {
                     case: 'no comma after Otherwise',
-                    when: a => refusedSaying(a, "expected ':', got State") && /^\s*Otherwise\s+state/m.test(a.code),
+                    when: a => refusedSaying(a, "Cufet needs a comma or a colon before 'state'") && /^\s*Otherwise\s+state/m.test(a.code),
                     lines: [grace('`Otherwise` needs a comma after it, the same as the `If` line.')],
                 },
                 {
@@ -183,7 +183,7 @@ export const lesson5: Lesson = {
                 },
                 {
                     case: 'no comma after the question',
-                    when: a => refusedSaying(a, "expected ':', got State"),
+                    when: a => refusedSaying(a, "Cufet needs a comma or a colon before 'state'"),
                     lines: [grace('A comma goes after the question, before `state`.')],
                 },
                 {
