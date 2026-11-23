@@ -144,9 +144,7 @@ around it. Nobody has asked for one.
 - **The first errors a newcomer meets are the parser's, and they are terse.** Each below has a
   clear why and a clear fix, so by "warmth scales with teachable content" it has earned a warm
   message. Found while writing the tutorial's lessons; the Cufet parser matches these refusals,
-  so each changes in both parsers. A name
-  with a space (`Define my answer as …`) gets `'my' is not a defined type`; `Define my number as 7.`
-  gets `expected As, got NumberKw "number"`; `The hops is hops + 1.` gets
+  so each changes in both parsers. `The hops is hops + 1.` gets
   `expected Becomes, got Is "is"`; a missing comma after an `If` question asks for a colon;
   `Else` is told only that Cufet doesn't know the word, not that it is `Otherwise`; `Otherwise` with no `If` gets
   `expected statement keyword`; and `is greater 3` gets `expected Than, got Number "3"`. A `While`

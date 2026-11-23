@@ -1242,7 +1242,26 @@ Pull a book on collections.
         // An axiom has no type until its declaration gives it one, so the tag is first.
         Define declared as cast one's tag-axiom-declaration on (statement) or pass the failure off.
         If cast is-nothing on (declared) is false and declared's kind is not "AxiomType":
-            Cast one's check-resolves on (declared) or pass the failure off.
+            Try to:
+                Cast one's check-resolves on (declared).
+            Done.
+            // `Define my answer as 7.` — the typed form with a type nobody defined, where a name
+            // with a space in it is the likelier mistake. Said with its line, as C# says it.
+            In case of failure:
+                Define raw as the message of the failure.
+                If declared's kind is "ObjectType" and cast is-filled-type on (declared) is false:
+                    Define type-name as cast unquoted on (cast field-of on (declared, 1)).
+                    If raw contains "'{type-name}' is not a defined type":
+                        Return a failure (cast refusal-of on ("there's no type called '{type-name}'", "", at-row,
+                            "define '{name}' as a '{type-name}'",
+                            "A name can't have a space in it, so Cufet read '{type-name}' as a type. If "
+                            joined to "'{type-name} {name}' is one name, write it with a dash: "
+                            joined to "'{type-name}-{name}'. If '{type-name}' is meant to be a type, check "
+                            joined to "its spelling, or define 'object {type-name}' first.")).
+                    Done.
+                Done.
+                Return a failure (raw).
+            Done.
             The declared becomes cast one's scope-resolved on (declared).
         Done.
         // `Define alias as answer.` — the one place an axiom's name is a value.

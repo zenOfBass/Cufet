@@ -46,6 +46,15 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   refusal on the line where run-on text ended is reported the same way; a text run across lines
   on purpose leaves a mistake on a later line alone. Measured first: 2 of about 11,500 quoted
   texts in the repository run across a line on purpose. Both lexers.
+- **A name written with a space in it says so.** In a `Define`, `Define my answer as 7.` is the
+  typed form (`Define number answer as 7.`) with a type nobody defined, and was refused with
+  `'my' is not a defined type`, with no line at all. It now says there's no type called 'my', on
+  which line, that a name can't have a space in it, and both ways out: `'my-answer'`, or check
+  the type's spelling. Anywhere else, `State big answer.` got `expected '.', got Identifier
+  "answer"` and `Define my number as 7.` got `expected As, got NumberKw "number"`; now both say
+  `'big answer' is two names side by side. A name can't have a space in it; if it's one name,
+  write it with a dash: 'big-answer'.` A keyword counts as the second word only when the wanted
+  word follows it, so `The hops is hops + 1.` keeps its own message. Both checkers, both parsers.
 
 ## [0.30.0] — 2026-11-20
 

@@ -198,6 +198,19 @@ Pull a book on collections.
         Return "".
     Done.
 
+    /// TwoNamesSideBySide — a name, then another word on its line where `.`, `becomes` or `as`
+    /// belonged. A keyword counts only when the wanted token follows it (`my number as`).
+    Bind text to two-names-side-by-side unto parser, given (the token got, the text wanted):
+        If one's at is 1, return "".
+        Define first as cast one's token-at on (one's at - 1).
+        If first's kind is not "Identifier", return "".
+        If got's row is not first's row, return "".
+        If cast one's looks-like-a-word on (got) is false, return "".
+        If got's kind is not "Identifier" and cast one's kind-after is not wanted, return "".
+        Return cast one's refused on (first, "'{first's lexeme} {got's lexeme}' is two names side by side. A name can't have a space in it; "
+            joined to "if it's one name, write it with a dash: '{first's lexeme}-{got's lexeme}'.").
+    Done.
+
     /// LineEndedWithoutPeriod — reported at the line missing it, not where Cufet noticed.
     Bind text to line-ended-without-period unto parser, given (the token got):
         If one's at is 1, return "".
@@ -227,6 +240,12 @@ Pull a book on collections.
             If kind is "Dot":
                 Define shape as cast one's call-or-field-shape on (current).
                 If shape is not "", return a failure (cast one's refused on (current, shape)).
+            Done.
+            If kind is "Dot" or kind is "Becomes" or kind is "As":
+                Define spaced as cast one's two-names-side-by-side on (current, kind).
+                If spaced is not "", return a failure (spaced).
+            Done.
+            If kind is "Dot":
                 Define ended as cast one's line-ended-without-period on (current).
                 If ended is not "", return a failure (ended).
             Done.

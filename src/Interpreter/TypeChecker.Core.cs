@@ -3419,7 +3419,29 @@ public sealed partial class TypeChecker
     {
         // ★ First, because an axiom has no type until the declaration gives it one. This also
         // resolves the shortened tag spelling, so `declared` below is an AxiomType either way.
-        var declaredType = ResolvedDeclaredType(TagAxiomDeclaration(define));
+        CufetType? declaredType;
+        try { declaredType = ResolvedDeclaredType(TagAxiomDeclaration(define)); }
+        // ★ `Define my answer as 7.` is the typed form `Define number answer as 7.` with a type
+        // nobody defined, and a name with a space in it is the likelier mistake. ⚠ The resolver
+        // has no position, so the refusal it throws named no line at all; this one does.
+        catch (TypeException ex) when (define.DeclaredType is ObjectType
+                                       {
+                                           PositionalTypes.Count: 0, NamedFields.Count: 0, Methods.Count: 0,
+                                           EmbeddedTypeName: null, ConformedInterfaces.Count: 0, TypeArguments.Count: 0,
+                                       } unknown
+                                       && ex.Message.Contains($"'{unknown.Name}' is not a defined type"))
+        {
+            throw TypeError(
+                $"there's no type called '{unknown.Name}'",
+                null,
+                define.Line,
+                define.Column,
+                $"define '{define.Name}' as a '{unknown.Name}'",
+                $"A name can't have a space in it, so Cufet read '{unknown.Name}' as a type. If "
+              + $"'{unknown.Name} {define.Name}' is one name, write it with a dash: "
+              + $"'{unknown.Name}-{define.Name}'. If '{unknown.Name}' is meant to be a type, check "
+              + $"its spelling, or define 'object {unknown.Name}' first.");
+        }
         // `Define the number fd as cast open-file on (path, flags).` — running an axiom, where the
         // type declared HERE is what comes back. Asked before the value's type is inferred, for the
         // same reason CheckReturn asks: a cast of an axiom has no type of its own to infer.

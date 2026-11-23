@@ -6031,6 +6031,9 @@ public sealed class Parser
             if (expected == TokenType.Dot && CallOrFieldShape(tok) is { } shape)
                 throw new ParseException(tok.Line, tok.Column, shape);
 
+            if (expected is TokenType.Dot or TokenType.Becomes or TokenType.As && TwoNamesSideBySide(tok, expected) is { } spaced)
+                throw spaced;
+
             if (expected == TokenType.Dot && LineEndedWithoutPeriod(tok) is { } ended)
                 throw ended;
 
@@ -6082,6 +6085,27 @@ public sealed class Parser
         if (after == TokenType.Identifier)
             return $"reading a field needs 'the' in front: 'the {name} of …'.";
         return null;
+    }
+
+    /// <summary>
+    /// A name, then another word on the same line where `.`, `becomes` or `as` belonged: a name
+    /// written with a space in it. Null for anything else.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ `State big answer.` was refused with `expected '.', got Identifier "answer"`, and
+    /// `Define my number as 7.` with `expected As, got NumberKw "number"`. Found writing the
+    /// tutorial's lesson on names. A keyword counts as the second word only when what follows it is
+    /// the token that was wanted — `my number as` — so `The hops is hops + 1.` (a different mistake,
+    /// `is` for `becomes`) is left to its own message.
+    /// </remarks>
+    private ParseException? TwoNamesSideBySide(Token tok, TokenType expected)
+    {
+        if (_pos == 0 || _tokens[_pos - 1] is not { Type: TokenType.Identifier } first) return null;
+        if (tok.Line != first.Line || !LooksLikeAWord(tok)) return null;
+        if (tok.Type != TokenType.Identifier && PeekAfterCurrent() != expected) return null;
+        return new(first.Line, first.Column,
+            $"'{first.Lexeme} {tok.Lexeme}' is two names side by side. A name can't have a space in it; "
+          + $"if it's one name, write it with a dash: '{first.Lexeme}-{tok.Lexeme}'.");
     }
 
     /// <summary>

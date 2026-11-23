@@ -253,6 +253,12 @@ public class ParserParityTests(ITestOutputHelper output, CompiledCufetParser com
         "State 2 3.",
         // A lexer refusal ending in a question takes no full stop after it (2026-11-22).
         "Stat \"Hello\".",
+        // A name with a space in it, where `.`, `becomes` or `as` belonged — and `is` for
+        // `becomes`, which is not taken for one (2026-11-22).
+        "Define big answer as 7.\nState big answer.",
+        "Define answer as 7.\nThe my answer becomes 8.",
+        "Define my number as 7.",
+        "Define hops as 1.\nThe hops is hops + 1.",
     ];
 
     [Fact]

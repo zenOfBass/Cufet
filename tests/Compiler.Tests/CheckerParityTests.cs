@@ -1413,6 +1413,11 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
         "Bind void to note-it, given (the map from text to text notes):\n    In notes, the entry for (\"k\" joined to \"1\") becomes \"v\" joined to \"1\".\nDone.\nDefine notes as a map from text to text.\nPull a rabbit.\n    Cast note-it on (notes).\nDone.\nState the entry for \"k1\" in notes but void is \"none\".\n",
         "Bind number to count-labels:\n    Define own as a series of text.\n    Insert (\"a\" joined to \"b\") into own.\n    Return the number of own.\nDone.\nPull a rabbit.\n    State cast count-labels on ().\nDone.\n",
         "Define names as a series of text.\nDefine add-name as a function given (the text given-name): Insert given-name joined to \"!\" into names. Done.\nPull a rabbit.\n    Cast add-name on (\"in\" joined to \"ner\").\nDone.\nState names.\n",
+        // A name with a space in a Define: the typed form with an unknown type, said with its
+        // line — at the top, inside a function, and a later line (2026-11-22).
+        "Define my answer as 7.\n",
+        "Bind void to f:\n    Define my answer as 7.\n    State answer.\nDone.\nCast f.\n",
+        "Define hops as 1.\nDefine total hops as 2.\n",
     ];
 
     /// <remarks>

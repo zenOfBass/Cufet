@@ -182,7 +182,7 @@ export const lesson3: Lesson = {
                 },
                 {
                     case: 'a space in the name',
-                    when: a => refusedSaying(a, 'is not a defined type'),
+                    when: a => refusedSaying(a, "A name can't have a space in it"),
                     lines: [grace("A name can't have a space in it. Use one word, like `answer`.")],
                 },
                 {
