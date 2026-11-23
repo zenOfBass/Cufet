@@ -35,6 +35,42 @@ public class ParseWordingTests
         Assert.DoesNotContain("expected Dot", ex.Message);
     }
 
+    // —— `is` or `as` where `becomes` belonged ——————————————————————————————————
+    //
+    // ⚠ `The hops is hops + 1.` got `expected Becomes, got Is "is"`. Every way of changing a value
+    // waits for `becomes` in one place, so the name, the field, `the … of …` and the item are
+    // all one check.
+
+    [Theory]
+    [InlineData("Define hops as 1.\nThe hops is hops + 1.", 2, 10)]
+    [InlineData("Define hops as 1.\nhops is 5.", 2, 6)]
+    [InlineData("Define object rabbit with (the number age).\nDefine grace as a new rabbit { the age 3 }.\ngrace's age is 4.", 3, 13)]
+    [InlineData("Define object rabbit with (the number age).\nDefine grace as a new rabbit { the age 3 }.\nThe age of grace is 4.", 3, 18)]
+    [InlineData("Define xs as a series of number with (1, 2).\nItem 1 of xs is 5.", 2, 14)]
+    public void IsWhereBecomesBelonged_SaysToSwapTheWord(string source, int line, int column)
+    {
+        var ex = ParseFails(source);
+        Assert.Equal($"Line {line}, column {column}: 'is' asks a question, it doesn't change anything. "
+                   + "To give this a new value, write 'becomes' instead of 'is'.", ex.Message);
+    }
+
+    [Fact]
+    public void AsWhereBecomesBelonged_SaysToSwapTheWord()
+    {
+        var ex = ParseFails("Define hops as 1.\nThe hops as 5.");
+        Assert.Equal("Line 2, column 10: 'as' belongs to 'Define', which makes a new name. To give a name "
+                   + "that already exists a new value, write 'becomes' instead of 'as'.", ex.Message);
+    }
+
+    /// <remarks>★ The guard: an inline void body holding an expression keeps the message about
+    /// inline bodies, which used to catch this refusal by its old words.</remarks>
+    [Fact]
+    public void AnInlineVoidBodyHoldingIs_KeepsTheInlineBodyMessage()
+    {
+        var ex = ParseFails("Define hops as 1.\nBind void to g, hops is 5.");
+        Assert.Contains("this body gives nothing back, so its inline form is a STATEMENT", ex.Message);
+    }
+
     // —— A line that ended without its period ————————————————————————————————
     //
     // ⚠⚠ Reported where Cufet NOTICED, which is the next line with anything on it: `State "Hi"`

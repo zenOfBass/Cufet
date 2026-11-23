@@ -1500,7 +1500,10 @@ public sealed class Parser
             {
                 stmt = ParseStatement();
             }
-            catch (ParseException ex) when (ex.Message.Contains("expected Becomes"))
+            // ⚠ The `is`/`as`-for-`becomes` refusals are the same reach in other words, and an
+            // expression like `hops is 5` in an inline void body is this mistake as often as that one.
+            catch (ParseException ex) when (ex.Message.Contains("expected Becomes")
+                                            || ex.Message.Contains("write 'becomes' instead of '"))
             {
                 // ★ An EXPRESSION where a statement belongs. Left alone this reported "expected
                 // Becomes", having decided the first word was an assignment target — an error that
@@ -6033,6 +6036,19 @@ public sealed class Parser
 
             if (expected is TokenType.Dot or TokenType.Becomes or TokenType.As && TwoNamesSideBySide(tok, expected) is { } spaced)
                 throw spaced;
+
+            // ★ `The hops is hops + 1.` — the word that asks, or the word that defines, where the
+            // word that changes belonged. Every way of changing a value (a name, a field, `the …
+            // of …`, an item) waits for `becomes` here, so one check covers them all; it names the
+            // word to swap rather than the line, which this place does not know how was written.
+            if (expected == TokenType.Becomes && tok.Type == TokenType.Is)
+                throw new ParseException(tok.Line, tok.Column,
+                    "'is' asks a question, it doesn't change anything. To give this a new value, "
+                  + "write 'becomes' instead of 'is'.");
+            if (expected == TokenType.Becomes && tok.Type == TokenType.As)
+                throw new ParseException(tok.Line, tok.Column,
+                    "'as' belongs to 'Define', which makes a new name. To give a name that already "
+                  + "exists a new value, write 'becomes' instead of 'as'.");
 
             if (expected == TokenType.Dot && LineEndedWithoutPeriod(tok) is { } ended)
                 throw ended;

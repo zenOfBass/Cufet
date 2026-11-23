@@ -160,7 +160,7 @@ export const lesson4: Lesson = {
                 },
                 {
                     case: '"is" instead of becomes',
-                    when: a => refusedSaying(a, 'expected Becomes, got Is'),
+                    when: a => refusedSaying(a, "write 'becomes' instead of 'is'"),
                     lines: [grace('Changing a name uses `becomes`, not `is`.')],
                 },
                 {

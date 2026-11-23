@@ -55,6 +55,12 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   `'big answer' is two names side by side. A name can't have a space in it; if it's one name,
   write it with a dash: 'big-answer'.` A keyword counts as the second word only when the wanted
   word follows it, so `The hops is hops + 1.` keeps its own message. Both checkers, both parsers.
+- **`is` or `as` where `becomes` belonged says to swap the word.** `The hops is hops + 1.` got
+  `expected Becomes, got Is "is"`; now `'is' asks a question, it doesn't change anything. To give
+  this a new value, write 'becomes' instead of 'is'.`, at the `is`. `as` gets its own: `'as'
+  belongs to 'Define', which makes a new name. …`. One check covers every way of changing a value
+  (a name, a field, `the … of …`, an item). An inline void body holding such an expression keeps
+  the message about inline bodies. Both parsers.
 
 ## [0.30.0] — 2026-11-20
 

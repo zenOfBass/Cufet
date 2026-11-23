@@ -259,6 +259,9 @@ public class ParserParityTests(ITestOutputHelper output, CompiledCufetParser com
         "Define answer as 7.\nThe my answer becomes 8.",
         "Define my number as 7.",
         "Define hops as 1.\nThe hops is hops + 1.",
+        "Define hops as 1.\nThe hops as 5.",
+        "Define xs as a series of number with (1, 2).\nItem 1 of xs is 5.",
+        "Define hops as 1.\nBind void to g, hops is 5.",
     ];
 
     [Fact]

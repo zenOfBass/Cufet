@@ -245,6 +245,17 @@ Pull a book on collections.
                 Define spaced as cast one's two-names-side-by-side on (current, kind).
                 If spaced is not "", return a failure (spaced).
             Done.
+            // `The hops is hops + 1.` — the word that asks, or that defines, where `becomes` belonged.
+            If kind is "Becomes" and current's kind is "Is":
+                Return a failure (cast one's refused on (current,
+                    "'is' asks a question, it doesn't change anything. To give this a new value, "
+                    joined to "write 'becomes' instead of 'is'.")).
+            Done.
+            If kind is "Becomes" and current's kind is "As":
+                Return a failure (cast one's refused on (current,
+                    "'as' belongs to 'Define', which makes a new name. To give a name that already "
+                    joined to "exists a new value, write 'becomes' instead of 'as'.")).
+            Done.
             If kind is "Dot":
                 Define ended as cast one's line-ended-without-period on (current).
                 If ended is not "", return a failure (ended).

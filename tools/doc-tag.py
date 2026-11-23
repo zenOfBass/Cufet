@@ -42,7 +42,9 @@ ANNOTATION = re.compile(r"\s*[←→].*$")
 # block opener, and did not go on. That is what an illustration looks like, and it is the one
 # parse failure a fragment is allowed. Any other parse error means the sample no longer matches
 # the language, which is exactly what these tags exist to catch.
-RAN_OUT = re.compile(r"got Eof|the file ended before")
+# ⚠ Kept in step with DocBlockTests.RanOutOfInput: a line cut off before its period says "The file
+# ended before one came." since 2026-11-22.
+RAN_OUT = re.compile(r"got Eof|the file ended before|The file ended before one came")
 
 # What a counter-example says about itself, in the annotation the docs already write beside the
 # offending line. This is intent stated by a person, so it outranks anything inferred from the

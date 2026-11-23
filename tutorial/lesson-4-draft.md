@@ -184,7 +184,7 @@ Hop 3!
 | `State` before `becomes` each time | Runs, prints `Hop 0!` first | **Hopper:** Hop zero? I haven't hopped yet! Make it one bigger *before* you say it. |
 | Starts at `Define hops as 1.` | Runs, the first line is `Hop 2!` | **Grace:** It's made one bigger before the first hop, so start one lower, at zero. |
 | `State "Hop hops!".` | Runs, prints `Hop hops!` | **Hopper:** "Hop hops"! The name needs a hole, in curly brackets. |
-| `The hops is hops + 1.` | `Line 2, column 10: expected Becomes, got Is "is".` | **Grace:** Changing a name uses `becomes`, not `is`. |
+| `The hops is hops + 1.` | `Line 2, column 10: 'is' asks a question, it doesn't change anything. To give this a new value, write 'becomes' instead of 'is'.` | **Grace:** Changing a name uses `becomes`, not `is`. |
 | `The hops = hops + 1.` | `'=' is comparison, not assignment. Did you mean 'hops becomes ...' (update) or 'Define hops as ...' (introduce)?` | **Grace:** Cufet says it well itself: changing a name uses `becomes`. |
 | `Define hops as hops + 1.` | `That doesn't work: 'hops' is already defined in this scope.` and more | **Hopper:** That's the one Cufet refused before! `Define` is only for the first time. After that, it's `becomes`. |
 | A typo: `The hosp becomes hops + 1.` | `That doesn't work: 'hosp' isn't defined.` and more, ending `Did you mean 'hops'?` | **Hopper:** Cufet even guessed what you meant! |
