@@ -73,7 +73,7 @@ public sealed partial class TypeChecker
             var (badName, badType) = FirstUnkeyableField(rt);
             throw TypeError(
                 $"a key has to be a scalar or a record of scalars, and this record holds {FormatType(badType)}",
-                $"a {FormatType(badType)} can be changed after it is used as a key, and then the "
+                $"A {FormatType(badType)} can be changed after it is used as a key, and then the "
               + "entry it was stored under could never be found again",
                 line, col,
                 $"use '{typeName}' as a map key",
@@ -84,12 +84,12 @@ public sealed partial class TypeChecker
         var why = keyType switch
         {
             SeriesType or MapType or MatrixType =>
-                "it can be changed after it is used as a key, and then the entry it was stored "
+                "It can be changed after it is used as a key, and then the entry it was stored "
               + "under could never be found again",
             ObjectType =>
-                "an object's fields can be written after it is used as a key, and then the entry "
+                "An object's fields can be written after it is used as a key, and then the entry "
               + "it was stored under could never be found again",
-            _ => "only a scalar, or a record of scalars, can be compared as a key",
+            _ => "Only a scalar, or a record of scalars, can be compared as a key",
         };
         throw TypeError(
             $"'{typeName}' can't be a map key",

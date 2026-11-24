@@ -34,7 +34,7 @@ Pull a book on collections.
                     Return a failure (cast refusal-of on ("a maker can't also be an 'unto' method", "",
                         cast number-of on (cast field-of on (declaration, 7)),
                         "declare 'Bind making a {type-name} to {maker-name} unto ...'",
-                        "Constructors are free functions — they can't be attached to a type with 'unto'.")).
+                        "Makers are free functions — they can't be attached to a type with 'unto'.")).
                 Done.
                 Define group as the entry for type-name in makers.
                 If group is void:
@@ -61,7 +61,7 @@ Pull a book on collections.
                 If (the entry for maker-name in names) is not void:
                     Return a failure (cast refusal-of on ("'{type-name}' already has a maker named '{maker-name}'", "",
                         cast number-of on (cast field-of on (maker, 7)), "declare another maker named '{maker-name}' for '{type-name}'",
-                        "Constructor names must be unique per type. Rename one of them.")).
+                        "Maker names must be unique per type. Rename one of them.")).
                 Done.
                 In names, the entry for maker-name becomes true.
             Done.

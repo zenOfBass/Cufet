@@ -107,6 +107,15 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   fits a text, a map, a set or a matrix. One that might be void, or a union that could be a series,
   has to be checked first, as REFERENCE says; the compiler refused those already. Both checkers.
   Found auditing the checker's messages.
+- **The checker's messages, audited.** An undefined type gave no line, and now gives where its
+  statement or definition starts, to an editor too. `For each` over a number said it "holds
+  numbers"; inserting into one advised `Add ... to`, a form renamed long ago. A `when` that is not
+  a fact and two refusals about `run` in a pipe had neither a line nor the usual shape. A maker is
+  no longer called a constructor, nothing counts `field(s)`, and an unclosed hole before a character
+  Cufet does not know (`"Hi {name!".`) is blamed on the hole. Both checkers, both lexers.
+- **An item of an interface value is refused**, as a named field of one already was: one line could
+  give a number for one object and a text for the next, and an object with no positions died when it
+  ran and would not build. Narrow it first (`If x is a pair`). Both checkers.
 - **The rest of the tutorial's list of terse refusals says what to write.** Each was found
   writing or play-testing the tutorial; all are in both parsers, the first in both checkers:
   - A function of the program's own called without `cast` (`State double on (3).`) was told

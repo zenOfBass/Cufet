@@ -162,11 +162,13 @@ public sealed partial class TypeChecker
     {
         foreach (var stage in stages)
             if (stage is RunExpression { WithTerminal: true } piped)
-                throw new TypeException(
-                    "a run in a pipe cannot say 'with the terminal' — a pipe carries the program's "
-                    + "output to the next stage, and 'with the terminal' sends it to the screen "
-                    + "instead. Drop 'with the terminal' to pipe it, or run it on its own to watch it.",
-                    piped.Line, piped.Column);
+                throw TypeError(
+                    "a run in a pipe cannot say 'with the terminal'",
+                    "A pipe carries the program's output to the next stage, and 'with the terminal' "
+                    + "sends it to the screen instead",
+                    piped.Line, piped.Column,
+                    "send a piped run to the terminal",
+                    "Drop 'with the terminal' to pipe it, or run it on its own to watch it.");
 
         // ⚠ The same shape one step along: every stage after the first is ALREADY being fed, by the
         // stage before it. `with input` on one of those is two sources for one stdin. The first
@@ -174,10 +176,12 @@ public sealed partial class TypeChecker
         // written.
         for (int i = 1; i < stages.Count; i++)
             if (stages[i] is RunExpression { Input: not null } fed)
-                throw new TypeException(
-                    "only the first stage of a pipe can say 'with input' — every later stage is "
-                    + "already fed by the one before it, and a program has only one stdin.",
-                    fed.Line, fed.Column);
+                throw TypeError(
+                    "only the first stage of a pipe can say 'with input'",
+                    "Every later stage is already fed by the one before it, and a program has only one stdin",
+                    fed.Line, fed.Column,
+                    "feed a later stage of a pipe",
+                    "Drop 'with input', or move it to the first stage.");
     }
 
     private CufetType? InferSubprocessPipeExpr(PipeExpression pipe)

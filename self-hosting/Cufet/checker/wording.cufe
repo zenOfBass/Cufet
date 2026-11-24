@@ -15,8 +15,13 @@
 Pull a book on collections.
     /// `1 value`, `3 values` — how many a call takes or was given. TypeChecker.Values.
     Bind text to values-said, given (the number amount):
-        If amount is 1, return "1 value".
-        Return "{amount} values".
+        Return cast counted on (amount, "value").
+    Done.
+
+    /// `1 blank`, `2 blanks` — `Counted`.
+    Bind text to counted, given (the number amount, the text what):
+        If amount is 1, return "1 {what}".
+        Return "{amount} {what}s".
     Done.
 
     /// The C# checker's refusal, as a failure message. An empty `established` says nothing there.
@@ -25,6 +30,18 @@ Pull a book on collections.
         Define settled as "".
         If established is not "", the settled becomes "\n{established}.".
         Return "error\tThat doesn't work: {context}.{settled}\nHere on line {at-row}, you're trying to {action}.\n\n{fix}".
+    Done.
+
+    /// A refusal that says nothing of where, given where its statement or definition STARTS —
+    /// `Placed`. Anything that has a place already, or is no refusal, comes back as it was.
+    Bind text to placed-refusal, given (the text raw, the number at-row):
+        If at-row is 0, return raw.
+        If raw starts with "error\tThat doesn't work" is false, return raw.
+        If raw contains "\nHere on line " or raw contains "\nThis is in what starts on line ", return raw.
+        Define place as "\nThis is in what starts on line {at-row}.".
+        Define cut as the position of "\n\n" in raw.
+        If cut is void, return "{raw}{place}".
+        Return (the first (cut - 1) characters of raw) joined to place joined to (the characters from cut to the end of raw).
     Done.
 
     /// A voidable used where only a value that is there will do — C#'s `VoidableMisuse`, the one
@@ -53,6 +70,10 @@ Pull a book on collections.
         Define spoken as cast expression-words on (said).
         If spoken contains "<expression>", return instead.
         Return spoken.
+    Done.
+
+    Bind text to capital, given (the text words):
+        Return ((the first 1 characters of words) in uppercase) joined to (the characters from 2 to the end of words).
     Done.
 
     /// `a number`, `an address`; `bits` and `void` take no article — `OneOf`.

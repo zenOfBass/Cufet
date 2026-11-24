@@ -650,8 +650,8 @@ public sealed partial class TypeChecker
         {
             if (lit.Rows[i].Count != cols)
                 throw TypeError(
-                    $"matrix rows must be equal length; row {i + 1} has {lit.Rows[i].Count} element(s), expected {cols}",
-                    $"Row 1 has {cols} element(s)",
+                    $"matrix rows must be equal length; row {i + 1} has {Counted(lit.Rows[i].Count, "element")}, expected {cols}",
+                    $"Row 1 has {Counted(cols, "element")}",
                     lit.Line, lit.Column,
                     "create a matrix with unequal row lengths",
                     "Make all rows the same length to form a rectangle.");

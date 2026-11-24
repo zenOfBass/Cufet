@@ -423,7 +423,7 @@ public sealed partial class TypeChecker
     private TypeException AxiomSourceNotReachable(AxiomType axiom, int line, int column) =>
         TypeError(
             $"this {axiom.Language} axiom cannot be run from here — its source is not known at this point",
-            "an axiom is the foreign text itself, and running one pastes that text; a name bound "
+            "An axiom is the foreign text itself, and running one pastes that text; a name bound "
           + "to an axiom can be run, but one arriving through a parameter or handed back by a "
           + "function has no text to paste",
             line, column,
@@ -617,7 +617,7 @@ public sealed partial class TypeChecker
         if (axiom.ReturnType is not VoidableType { Inner: AddressType })
             throw TypeError(
                 $"'{name}' is named to free what this axiom gives back, but it does not give back an address",
-                "only an address needs freeing — a number, a fact and a text are copied across the "
+                "Only an address needs freeing — a number, a fact and a text are copied across the "
               + "boundary and belong to Cufet once they arrive",
                 line, column,
                 "say how to free something that is not an address",
@@ -626,7 +626,7 @@ public sealed partial class TypeChecker
         if (!TryLookup(name, out var info) || info!.EstablishingExpr is not AxiomLiteral release)
             throw TypeError(
                 $"'{name}' is named to free this axiom's result, but it is not an axiom",
-                "freeing happens in the other language, so the thing that does it has to be "
+                "Freeing happens in the other language, so the thing that does it has to be "
               + "foreign source too",
                 line, column,
                 $"free an address with something that is not foreign source",
@@ -677,7 +677,7 @@ public sealed partial class TypeChecker
         if (addressType is null)
             throw TypeError(
                 "'the text at' reads through a foreign address, and nothing here says what this is",
-                "only an address from foreign source can be read through, and this name does not "
+                "Only an address from foreign source can be read through, and this name does not "
               + "resolve to a value at all",
                 read.Line, read.Column,
                 "read text at something with no type",
@@ -687,7 +687,7 @@ public sealed partial class TypeChecker
         if (addressType is not AddressType && addressType is not VoidableType { Inner: AddressType })
             throw TypeError(
                 $"'the text at' reads through a foreign address, and this is a {FormatType(addressType)}",
-                "the only thing an address can be read through is this phrase, and the only thing "
+                "The only thing an address can be read through is this phrase, and the only thing "
               + "this phrase reads is an address",
                 read.Line, read.Column,
                 $"read text at a {FormatType(addressType)}",
@@ -717,7 +717,7 @@ public sealed partial class TypeChecker
             // ⚠ "the rabbit", not "the arena". An arena is how this is built and a reader has no
             // way to know the word; a rabbit is what they wrote. The sentence already says
             // "region" correctly two clauses earlier, which is what made the slip visible.
-            "a rabbit block is where region-scoped memory work happens, so it is also where a "
+            "A rabbit block is where region-scoped memory work happens, so it is also where a "
           + "pointer's lifetime is answered for — the rabbit that knows when the region dies is "
           + "what knows when the pointer dies",
             line, column,

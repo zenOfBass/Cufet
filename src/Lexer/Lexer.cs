@@ -213,7 +213,7 @@ public sealed class Lexer
             Advance();
         }
         else
-            throw new LexerException(_line, ColumnAt(_pos), c);
+            throw UnknownCharacter(ColumnAt(_pos), c);
     }
 
     // The words a statement can open with, for "Did you mean …?" when a line starts with a word
@@ -555,6 +555,20 @@ public sealed class Lexer
         }
     }
 
+    /// <summary>
+    /// A character no token starts with. Inside a hole whose text ends before any `}`, the hole was
+    /// left open — `"Hi {name!".` — and the character was meant to be text.
+    /// </summary>
+    private LexerException UnknownCharacter(int column, char c)
+    {
+        if (_holeDepth > 0)
+        {
+            int end = _source.IndexOfAny(['}', '"', '\n'], _pos);
+            if (end < 0 || _source[end] != '}') return new LexerException(_hole.Line, _hole.Column, HoleMessage);
+        }
+        return new LexerException(_line, column, c);
+    }
+
     private Token ReadPossessive()
     {
         int col = ColumnAt(_pos);
@@ -564,7 +578,7 @@ public sealed class Lexer
             Advance(); // consume 's'
             return new Token(TokenType.Possessive, "'s", _line, col);
         }
-        throw new LexerException(_line, col, '\'');
+        throw UnknownCharacter(col, '\'');
     }
 
     // Bit-pattern literals: 0x hex, 0b binary, 0o octal. There is deliberately no bare-0 octal
@@ -761,7 +775,7 @@ public sealed class Lexer
 
                 SkipWhitespace();
                 if (AtEnd() || Peek() == '}')
-                    throw new LexerException(_line, ColumnAt(_pos), "empty interpolation — write an expression between the braces");
+                    throw new LexerException(_line, ColumnAt(_pos), "there is nothing between the braces: write a value there");
 
                 // Lex expression tokens with brace-depth tracking.
                 // Nested '{' (object literals etc.) increase depth; matching '}' decreases.

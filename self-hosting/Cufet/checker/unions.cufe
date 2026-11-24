@@ -290,12 +290,7 @@ Pull a book on collections.
 
     /// The type both arms agree on, the wider of the two, or the union of them — `InferConditional`.
     Bind node or failure to infer-conditional unto checker, given (the node said):
-        Define condition-type as cast one's infer on (cast field-of on (said, 2)) or pass the failure off.
-        If cast is-none on (condition-type) is false and condition-type's kind is not "FactType":
-            If cast beyond-types on (condition-type), return a failure (cast not-judged on ("a 'when' condition of a {condition-type's kind}")).
-            // ⚠ Not in the usual four parts: C# throws this one bare.
-            Return a failure "error\tA 'when' condition must be true or false, but this one is {cast type-words on (condition-type)}.".
-        Done.
+        Cast one's check-condition on (cast field-of on (said, 2), cast number-of on (cast field-of on (said, 4))) or pass the failure off.
         Define value-type as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
         Define other-type as cast one's infer on (cast field-of on (said, 3)) or pass the failure off.
         If cast is-none on (value-type), return other-type.

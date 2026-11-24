@@ -33,7 +33,7 @@ Pull a book on collections.
                     Define low-words as cast plain-number on (written-lower).
                     Define high-words as cast plain-number on (written-upper).
                     Return a failure (cast refusal-of on ("'range {low-words} to {high-words}' is empty, because it ends below where it starts",
-                        "a range counts up; it does not turn around when the end is lower", at-row,
+                        "A range counts up; it does not turn around when the end is lower", at-row,
                         "count down by writing the ends the other way round",
                         "Write 'range {high-words} to {low-words} sorted in reverse' for the numbers in descending order.")).
                 Done.

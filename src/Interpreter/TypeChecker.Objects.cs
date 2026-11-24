@@ -934,10 +934,10 @@ public sealed partial class TypeChecker
         var allPositionals = GetAllPositionalTypes(objType);
         if (lit.PositionalValues.Count != allPositionals.Count)
             throw TypeError(
-                $"'{lit.TypeName}' expects {allPositionals.Count} positional field(s) (including promoted), but you provided {lit.PositionalValues.Count}",
+                $"'{lit.TypeName}' takes {Counted(allPositionals.Count, "field")} by position (including promoted), but was given {lit.PositionalValues.Count}",
                 null, lit.Line, lit.Column,
-                $"provide {lit.PositionalValues.Count} positional field(s)",
-                $"'{lit.TypeName}' requires exactly {allPositionals.Count} positional field(s).");
+                $"give it {Counted(lit.PositionalValues.Count, "field")} by position",
+                $"'{lit.TypeName}' takes exactly {Counted(allPositionals.Count, "field")} by position.");
 
         for (int i = 0; i < lit.PositionalValues.Count; i++)
         {
@@ -980,7 +980,7 @@ public sealed partial class TypeChecker
                 $"field '{requiredName}' of '{lit.TypeName}' is missing",
                 null, lit.Line, lit.Column,
                 $"create a {lit.TypeName} without field '{requiredName}'",
-                $"Add 'the {requiredName} <value>' to the object literal, or give the field a "
+                $"Add 'the {requiredName} <value>' where the {lit.TypeName} is made, or give the field a "
               + $"default where '{lit.TypeName}' is defined: 'the ... {requiredName} with default <value>'.");
         }
         if (filled is { Count: > 0 })

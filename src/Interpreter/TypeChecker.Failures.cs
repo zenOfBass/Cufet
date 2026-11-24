@@ -253,7 +253,7 @@ public sealed partial class TypeChecker
                 "a directory path must be text",
                 null, cd.Line, cd.Column,
                 $"use a {FormatType(pathType)} as a directory path",
-                "The path must be a text expression (a string literal or a text variable).");
+                "The path must be text (text in quote marks, or a name that holds text).");
     }
 
     // Make the directory <path>. / Remove the file <path>. / Remove the directory <path>.

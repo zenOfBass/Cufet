@@ -563,7 +563,7 @@ Pull a book on collections.
                 If cast is-none on (element-type) is false and cast assignable on (annotation, element-type) is false:
                     If cast beyond-types on (element-type), return a failure (cast not-judged on ("a catalogue item of a {element-type's kind}")).
                     Return a failure (cast refusal-of on ("this item doesn't fit in a {cast type-words on (annotation)} collection",
-                        "{cast type-words on (element-type)} is not one of the allowed types",
+                        "{cast capital on (cast one-of-type on (element-type))} is not one of the allowed types",
                         at-row, "add a {cast type-words on (element-type)} item",
                         "Only {cast type-words on (annotation)} values are allowed in this collection.")).
                 Done.
@@ -646,11 +646,13 @@ Pull a book on collections.
             Return cast one's object-item on (target, index-said, at-row, "access position") or pass the failure off.
         Done.
         If cast is-none on (target), return cast unknown-type.
-        // An interface stays a run-time question; `last` is refused of every object.
+        // A position is a field without a name, and a named one is refused through an interface.
         If target's kind is "InterfaceType":
-            If cast is-nothing on (index-said) is false, return cast unknown-type.
-            Return a failure (cast refusal-of on ("'last' doesn't work on objects", "", at-row, "use 'last' on an object",
-                "Use a position like 'the first of ...' or a field name like 'the city of ...'.")).
+            Define reached as cast field-of on (said, 1).
+            Define way as "Check what it is first: 'Judge …, where it is:' with an arm for 'A <type>'.".
+            If reached's kind is "VariableReference", the way becomes "Check what it is first: 'If {cast expression-words on (reached)} is a <type>:'.".
+            Return a failure (cast refusal-of on ("{cast said-or on (reached, "this")} is {cast one-of-type on (target)}, and an interface has no positions", "",
+                at-row, "take an item from it by position", way)).
         Done.
         If cast beyond-types on (target), return a failure (cast not-judged on ("an item of a {target's kind}")).
         Define holder as cast field-of on (said, 1).

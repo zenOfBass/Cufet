@@ -175,6 +175,8 @@ public class LexerTests
     [InlineData("State \"Hi {name\".\nState \"Bye\".")]
     [InlineData("State \"Hi {name\".\nState \"bye {name}\".")]
     [InlineData("State \"Hi {name\".\nState 5.")]
+    [InlineData("State \"Hi {name!\".")]
+    [InlineData("State \"Hi {name' there\".")]
     public void AHoleLeftOpen_IsReportedAtItsBrace(string source)
     {
         var ex = Assert.Throws<LexerException>(() => Lex(source));
@@ -188,6 +190,10 @@ public class LexerTests
     {
         var ex = Assert.Throws<LexerException>(() => Lex("State \"a {name} b.\nState \"Bye\"."));
         Assert.StartsWith("Line 1, column 7: this text runs on past the end of its line.", ex.Message);
+        ex = Assert.Throws<LexerException>(() => Lex("State \"Hi {name!}\"."));
+        Assert.Equal("Line 1, column 16: Cufet doesn't know the character \"!\" here.", ex.Message);
+        ex = Assert.Throws<LexerException>(() => Lex("State \"Hi {}\"."));
+        Assert.Equal("Line 1, column 12: there is nothing between the braces: write a value there.", ex.Message);
         LexTokens("State \"Hi {cast f on (\"x {name}\")}\".");
     }
 

@@ -138,7 +138,7 @@ Pull a book on collections.
         If whole is less than 1 or whole is greater than the number of positionals:
             Define shown as "this record".
             If target's kind is "VariableReference", the shown becomes "'{cast unquoted on (cast field-of on (target, 1))}'".
-            Define said as "{shown} has {the number of positionals} positional field(s) — there is no position {whole}".
+            Define said as "{shown} has {cast counted on (the number of positionals, "field")} by position — there is no position {whole}".
             Define fix as "Positions run 1 through {the number of positionals}.".
             If the number of positionals is 0:
                 The said becomes "{shown} has no positional fields".
@@ -164,7 +164,7 @@ Pull a book on collections.
         Define spot as cast number-of on (cast field-of on (index-said, 1)).
         Define whole as spot - (spot % 1).
         If whole is less than 1 or whole is greater than the number of positionals:
-            Define said as "{spoken} has {the number of positionals} positional field(s) — there is no position {whole}".
+            Define said as "{spoken} has {cast counted on (the number of positionals, "field")} by position — there is no position {whole}".
             Define fix as "Positions run 1 through {the number of positionals}.".
             If the number of positionals is 0:
                 The said becomes "{spoken} has no positional fields".

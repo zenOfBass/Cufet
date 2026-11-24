@@ -2249,21 +2249,31 @@ public sealed partial class TypeChecker
         foreach (var name in names)
         {
             var ot = _objectDefs[name];
-            var positionals = ot.PositionalTypes.Select(ResolveParamType).ToList();
-            var named       = ot.NamedFields.Select(f => (f.FieldName, ResolveParamType(f.FieldType))).ToList();
-            var methods     = ot.Methods.Select(m => (m.MethodName, (FunctionType)ResolveParamType(m.Signature))).ToList();
-            var getters     = ot.Getters.Select(g => (g.GetterName, ResolveParamType(g.ReturnType))).ToList();
-            var setters     = ot.Setters.Select(s => (s.SetterName, ResolveParamType(s.ParamType), s.ParamName)).ToList();
-            _objectDefs[name] = new ObjectType(
-                ot.Name, positionals, named, methods, getters, setters,
-                ot.EmbeddedTypeName, ot.ConformedInterfaces, ot.Constructors, ot.Unmaker,
-                ot.PermanentFields.ToList());   // ★ rebuilt here — dropping it loses the whole feature
+            try
+            {
+                var positionals = ot.PositionalTypes.Select(ResolveParamType).ToList();
+                var named       = ot.NamedFields.Select(f => (f.FieldName, ResolveParamType(f.FieldType))).ToList();
+                var methods     = ot.Methods.Select(m => (m.MethodName, (FunctionType)ResolveParamType(m.Signature))).ToList();
+                var getters     = ot.Getters.Select(g => (g.GetterName, ResolveParamType(g.ReturnType))).ToList();
+                var setters     = ot.Setters.Select(s => (s.SetterName, ResolveParamType(s.ParamType), s.ParamName)).ToList();
+                _objectDefs[name] = new ObjectType(
+                    ot.Name, positionals, named, methods, getters, setters,
+                    ot.EmbeddedTypeName, ot.ConformedInterfaces, ot.Constructors, ot.Unmaker,
+                    ot.PermanentFields.ToList());   // ★ rebuilt here — dropping it loses the whole feature
+            }
+            catch (TypeException ex) when (IsUnplaced(ex) && _winningDefinition.TryGetValue(name, out var written))
+            {
+                throw Placed(ex, written.Line, written.Column);
+            }
         }
         // Also resolve function signatures registered in global scope by Pass1Hoist so
         // InferType on function references returns fully-resolved FunctionTypes directly.
         foreach (var (key, ti) in Scope.ToList())
             if (ti.Type is FunctionType)
-                Scope[key] = ti with { Type = ResolveParamType(ti.Type) };
+            {
+                try { Scope[key] = ti with { Type = ResolveParamType(ti.Type) }; }
+                catch (TypeException ex) when (IsUnplaced(ex)) { throw Placed(ex, ti.EstablishingLine, 1); }
+            }
     }
 
     // Built-in stream binding — seeded into every scope (global and each fresh function scope)
@@ -2696,7 +2706,9 @@ public sealed partial class TypeChecker
             // and a correct `Return a new stack of number` was refused with "declared to give back
             // a stack". Object definitions are registered above this loop, so the resolution has
             // everything it needs. Blanks never reach here — a generic signature `continue`s.
-            var hoistedReturn = ResolvedDeclaredType(bind.ReturnType);
+            CufetType? hoistedReturn;
+            try { hoistedReturn = ResolvedDeclaredType(bind.ReturnType); }
+            catch (TypeException ex) when (IsUnplaced(ex)) { throw Placed(ex, bind.Line, bind.Column); }
             Scope[bind.Name] = new TypeInfo(
                 new FunctionType(paramTypes,
                     _buryingFunctions.Contains(bind.Name) && hoistedReturn != null
@@ -2723,7 +2735,7 @@ public sealed partial class TypeChecker
                     $"a maker can't also be an 'unto' method",
                     null, bind.Line, bind.Column,
                     $"declare 'Bind making a {bind.ConstructsTypeName} to {bind.Name} unto ...'",
-                    "Constructors are free functions — they can't be attached to a type with 'unto'.");
+                    "Makers are free functions — they can't be attached to a type with 'unto'.");
             if (!ctorsByType.TryGetValue(bind.ConstructsTypeName, out var cList))
                 ctorsByType[bind.ConstructsTypeName] = cList = [];
             cList.Add(bind);
@@ -2745,7 +2757,7 @@ public sealed partial class TypeChecker
                         $"'{typeName}' already has a maker named '{ctor.Name}'",
                         null, ctor.Line, ctor.Column,
                         $"declare another maker named '{ctor.Name}' for '{typeName}'",
-                        "Constructor names must be unique per type. Rename one of them.");
+                        "Maker names must be unique per type. Rename one of them.");
                 newCtorNames.Add(ctor.Name);
 
                 // Fix up scope entry: resolve the shell ObjectType to the canonical instance.
@@ -2796,6 +2808,40 @@ public sealed partial class TypeChecker
     }
 
     private void CheckStatement(IStatement stmt)
+    {
+        try { CheckStatementItself(stmt); }
+        catch (TypeException e) when (IsUnplaced(e) && PlaceOf(stmt) is { Line: > 0 } place)
+        {
+            throw Placed(e, place.Line, place.Column);
+        }
+    }
+
+    /// <summary>
+    /// A refusal that says nothing of where: thrown resolving a written TYPE, which carries no place.
+    /// </summary>
+    /// <remarks>
+    /// ⚠ Judged by its words, so the Cufet checker (`placed-refusal`), which has only the words, judges
+    /// alike. ★ The place given is where the statement or definition STARTS, and it says so: the type
+    /// may be lines further down, and a wrong line is worse than a broad one.
+    /// </remarks>
+    private static bool IsUnplaced(TypeException e) =>
+        e.Message.StartsWith("That doesn't work", StringComparison.Ordinal)
+        && !e.Message.Contains("\nHere on line ") && !e.Message.Contains("\nThis is in what starts on line ");
+
+    private static TypeException Placed(TypeException e, int line, int column)
+    {
+        if (line <= 0 || !IsUnplaced(e)) return e;
+        var where = $"\nThis is in what starts on line {SourceMap.Display(line)}.";
+        int cut = e.Message.IndexOf("\n\n", StringComparison.Ordinal);
+        return new TypeException(cut < 0 ? e.Message + where : e.Message.Insert(cut, where), line, column);
+    }
+
+    private static (int Line, int Column) PlaceOf(IStatement stmt) =>
+        stmt.GetType().GetProperty("Line")?.GetValue(stmt) is int line
+            ? (line, stmt.GetType().GetProperty("Column")?.GetValue(stmt) as int? ?? 1)
+            : (0, 0);
+
+    private void CheckStatementItself(IStatement stmt)
     {
         switch (stmt)
         {
@@ -4071,7 +4117,7 @@ public sealed partial class TypeChecker
                 "the environment variable name must be text",
                 null, env.Line, env.Column,
                 $"use a {FormatType(nameType)} as an environment variable name",
-                "The variable name must be a text expression (a string literal or a text variable).");
+                "The variable name must be text (text in quote marks, or a name that holds text).");
         return new VoidableType(CufetType.Text);
     }
 
@@ -4419,11 +4465,7 @@ public sealed partial class TypeChecker
     // mismatched arm an error at the definition rather than at the first use.
     private CufetType? InferConditional(ConditionalExpression ce)
     {
-        var condType = InferType(ce.Condition);
-        if (condType is not null and not FactType)
-            throw new TypeException(
-                $"A 'when' condition must be true or false, but this one is {FormatType(condType)}.",
-                ce.Line, ce.Column);
+        CheckCondition(ce.Condition, ce.Line, ce.Column);
 
         var valueType = InferType(ce.Value);
         var altType   = InferType(ce.Alternative);

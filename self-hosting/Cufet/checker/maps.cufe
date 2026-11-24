@@ -64,17 +64,17 @@ Pull a book on collections.
             Done.
             Define held as cast type-words on (bad-type).
             Return a failure (cast refusal-of on ("a key has to be a scalar or a record of scalars, and this record holds {held}",
-                "a {held} can be changed after it is used as a key, and then the entry it was stored under could never be found again",
+                "A {held} can be changed after it is used as a key, and then the entry it was stored under could never be found again",
                 at-row, "use '{spoken}' as a map key",
                 "Leave {bad-name} out of the key — a record of numbers, text, facts or bit patterns is fine, and those are what can be compared and cannot change underneath the map.")).
         Done.
         Define kind as key-type's kind.
-        Define why as "only a scalar, or a record of scalars, can be compared as a key".
+        Define why as "Only a scalar, or a record of scalars, can be compared as a key".
         If kind is "SeriesType" or kind is "MapType" or kind is "MatrixType":
-            The why becomes "it can be changed after it is used as a key, and then the entry it was stored under could never be found again".
+            The why becomes "It can be changed after it is used as a key, and then the entry it was stored under could never be found again".
         Done.
         If kind is "ObjectType":
-            The why becomes "an object's fields can be written after it is used as a key, and then the entry it was stored under could never be found again".
+            The why becomes "An object's fields can be written after it is used as a key, and then the entry it was stored under could never be found again".
         Done.
         Return a failure (cast refusal-of on ("'{spoken}' can't be a map key", why, at-row,
             "use a '{spoken}' as a map key",

@@ -292,7 +292,7 @@ Pull a book on collections.
         Done.
         If freeable is false:
             Return a failure (cast refusal-of on ("'{released}' is named to free what this axiom gives back, but it does not give back an address",
-                "only an address needs freeing — a number, a fact and a text are copied across the boundary and belong to Cufet once they arrive",
+                "Only an address needs freeing — a number, a fact and a text are copied across the boundary and belong to Cufet once they arrive",
                 at-row, "say how to free something that is not an address",
                 "Drop the clause, or declare this axiom 'voidable address'.")).
         Done.
@@ -303,7 +303,7 @@ Pull a book on collections.
         Done.
         If cast is-none on (release):
             Return a failure (cast refusal-of on ("'{released}' is named to free this axiom's result, but it is not an axiom",
-                "freeing happens in the other language, so the thing that does it has to be foreign source too",
+                "Freeing happens in the other language, so the thing that does it has to be foreign source too",
                 at-row, "free an address with something that is not foreign source",
                 "Declare it, as in 'Define {language} number {released}, given (the address held), as [ … ].'")).
         Done.
@@ -377,7 +377,7 @@ Pull a book on collections.
     Bind text to source-not-reachable, given (the node axiom, the number at-row):
         Define language as cast unquoted on (cast field-of on (axiom, 1)).
         Return cast refusal-of on ("this {language} axiom cannot be run from here — its source is not known at this point",
-            "an axiom is the foreign text itself, and running one pastes that text; a name bound to an axiom can be run, but one arriving through a parameter or handed back by a function has no text to paste",
+            "An axiom is the foreign text itself, and running one pastes that text; a name bound to an axiom can be run, but one arriving through a parameter or handed back by a function has no text to paste",
             at-row, "run an axiom whose source is decided at run time",
             "Run it where it is declared, or bind the axiom to a name and run that name.").
     Done.
@@ -629,7 +629,7 @@ Pull a book on collections.
         Define held as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
         If cast is-none on (held):
             Return a failure (cast refusal-of on ("'the text at' reads through a foreign address, and nothing here says what this is",
-                "only an address from foreign source can be read through, and this name does not resolve to a value at all",
+                "Only an address from foreign source can be read through, and this name does not resolve to a value at all",
                 at-row, "read text at something with no type",
                 "Give it an address from foreign source — the result of an axiom declared 'voidable address'.")).
         Done.
@@ -637,7 +637,7 @@ Pull a book on collections.
         If held's kind is "VoidableType", the readable becomes (cast field-of on (held, 1))'s kind is "AddressType".
         If readable is false:
             Return a failure (cast refusal-of on ("'the text at' reads through a foreign address, and this is a {cast type-words on (held)}",
-                "the only thing an address can be read through is this phrase, and the only thing this phrase reads is an address",
+                "The only thing an address can be read through is this phrase, and the only thing this phrase reads is an address",
                 at-row, "read text at a {cast type-words on (held)}", "Give it an address from foreign source.")).
         Done.
         Return cast wrapped on ("VoidableType", cast plain-type on ("TextType")).
@@ -650,7 +650,7 @@ Pull a book on collections.
         If shape's kind is "VoidableType", the holds becomes (cast field-of on (shape, 1))'s kind is "AddressType".
         If holds is false, return.
         Return a failure (cast refusal-of on ("'{name}' holds a foreign address, and one can only be held inside a rabbit",
-            "a rabbit block is where region-scoped memory work happens, so it is also where a pointer's lifetime is answered for — the rabbit that knows when the region dies is what knows when the pointer dies",
+            "A rabbit block is where region-scoped memory work happens, so it is also where a pointer's lifetime is answered for — the rabbit that knows when the region dies is what knows when the pointer dies",
             at-row, "hold a foreign address outside a rabbit", "Wrap the work in 'Pull a rabbit. ... Done.'")).
     Done.
 

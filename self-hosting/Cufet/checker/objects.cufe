@@ -474,29 +474,43 @@ Pull a book on collections.
         For each name in one's def-order, repeat:
             If (the entry for name in one's bundled) is not void, skip.
             Define definition as the entry for name in one's defs but void is cast listed.
-            Cast one's check-resolves on (cast field-of on (definition, 2)) or pass the failure off.
-            For each pair in (cast field-of on (definition, 3))'s children, repeat:
-                Cast one's check-resolves on (cast field-of on (pair, 2)) or pass the failure off.
+            Try to:
+                Cast one's resolve-definition on (definition).
             Done.
-            For each method in cast one's all-methods on (definition), repeat:
-                If cast one's is-nested-template on (method) is false:
-                    Cast one's check-resolves on (cast field-of on (method, 3)) or pass the failure off.
-                    Cast one's check-resolves on (cast field-of on (method, 2)) or pass the failure off.
-                Done.
-            Done.
-            For each getter in cast one's all-getters on (definition), repeat:
-                Cast one's check-resolves on (cast field-of on (getter, 2)) or pass the failure off.
-            Done.
-            For each setter in cast one's all-setters on (definition), repeat:
-                Cast one's check-resolves on (cast field-of on (setter, 2)) or pass the failure off.
+            In case of failure:
+                Return a failure (cast placed-refusal on (the message of the failure, cast number-of on (cast field-of on (definition, 9)))).
             Done.
         Done.
         For each pair in item 1 of one's scopes, repeat:
             Define held as the value of pair.
             If held's shape's kind is "FunctionType":
-                Cast one's check-resolves on (cast field-of on (held's shape, 1)) or pass the failure off.
-                Cast one's check-resolves on (cast field-of on (held's shape, 2)) or pass the failure off.
+                Try to:
+                    Cast one's check-resolves on (cast field-of on (held's shape, 1)).
+                    Cast one's check-resolves on (cast field-of on (held's shape, 2)).
+                Done.
+                In case of failure:
+                    Return a failure (cast placed-refusal on (the message of the failure, held's line)).
+                Done.
             Done.
+        Done.
+    Done.
+
+    Bind void or failure to resolve-definition unto checker, given (the node definition):
+        Cast one's check-resolves on (cast field-of on (definition, 2)) or pass the failure off.
+        For each pair in (cast field-of on (definition, 3))'s children, repeat:
+            Cast one's check-resolves on (cast field-of on (pair, 2)) or pass the failure off.
+        Done.
+        For each method in cast one's all-methods on (definition), repeat:
+            If cast one's is-nested-template on (method) is false:
+                Cast one's check-resolves on (cast field-of on (method, 3)) or pass the failure off.
+                Cast one's check-resolves on (cast field-of on (method, 2)) or pass the failure off.
+            Done.
+        Done.
+        For each getter in cast one's all-getters on (definition), repeat:
+            Cast one's check-resolves on (cast field-of on (getter, 2)) or pass the failure off.
+        Done.
+        For each setter in cast one's all-setters on (definition), repeat:
+            Cast one's check-resolves on (cast field-of on (setter, 2)) or pass the failure off.
         Done.
     Done.
 
@@ -750,9 +764,9 @@ Pull a book on collections.
         Cast one's gather-positionals on (looked-up, positionals).
         If the number of positional-values is not the number of positionals:
             Return a failure (cast refusal-of on (
-                "'{name}' expects {the number of positionals} positional field(s) (including promoted), but you provided {the number of positional-values}", "",
-                at-row, "provide {the number of positional-values} positional field(s)",
-                "'{name}' requires exactly {the number of positionals} positional field(s).")).
+                "'{name}' takes {cast counted on (the number of positionals, "field")} by position (including promoted), but was given {the number of positional-values}", "",
+                at-row, "give it {cast counted on (the number of positional-values, "field")} by position",
+                "'{name}' takes exactly {cast counted on (the number of positionals, "field")} by position.")).
         Done.
         Define place as 0.
         For each value in positional-values, repeat:
@@ -786,7 +800,7 @@ Pull a book on collections.
             If present is false:
                 Return a failure (cast refusal-of on ("field '{required}' of '{name}' is missing", "",
                     at-row, "create a {name} without field '{required}'",
-                    "Add 'the {required} <value>' to the object literal, or give the field a default where '{name}' is defined: 'the ... {required} with default <value>'.")).
+                    "Add 'the {required} <value>' where the {name} is made, or give the field a default where '{name}' is defined: 'the ... {required} with default <value>'.")).
             Done.
         Done.
         For each pair in filled, repeat:
@@ -1000,7 +1014,7 @@ Pull a book on collections.
         // C# truncates toward zero, as a cast to int does.
         Define whole as spot - (spot % 1).
         If whole is less than 1 or whole is greater than the number of positionals:
-            Define said as "'{owner}' has {the number of positionals} positional field(s) — there is no position {whole}".
+            Define said as "'{owner}' has {cast counted on (the number of positionals, "field")} by position — there is no position {whole}".
             Define fix as "Positions run 1 through {the number of positionals}.".
             If the number of positionals is 0:
                 The said becomes "'{owner}' has no positional fields".

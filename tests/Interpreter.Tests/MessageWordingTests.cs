@@ -47,6 +47,23 @@ public class MessageWordingTests
         Assert.DoesNotContain("expected", message);
     }
 
+    /// <remarks>
+    /// ⚠ The resolver that refuses a written type has no place, so this one gave no line at all. It
+    /// gives where the statement or definition STARTS, and says so: a type carries no line of its own.
+    /// </remarks>
+    [Theory]
+    [InlineData("Define x as 1.\nBind number to f, given (the nubmer n), 3.", 2)]
+    [InlineData("Define x as 1.\nBind nubmer to f, given (the number n), 3.", 2)]
+    [InlineData("Define x as 1.\nDefine object box with (the number size,\n    the nubmer width).", 2)]
+    [InlineData("If true:\n    Define xs as a series of nubmer.\nDone.", 2)]
+    public void ATypeNobodyDefined_SaysWhere(string source, int line)
+    {
+        var program = new Parser(new CufetLexer(source).Tokenize()).Parse();
+        var ex = Assert.Throws<TypeException>(() => new TypeChecker().Check(program));
+        Assert.StartsWith($"That doesn't work: 'nubmer' is not a defined type.\nThis is in what starts on line {line}.\n\n", ex.Message);
+        Assert.Equal(line, ex.Line);
+    }
+
     [Theory]
     [InlineData("Define object tank with (the number litres):\n    Set litres given (the number wanted):\n        One's")]
     [InlineData("Increment one's")]

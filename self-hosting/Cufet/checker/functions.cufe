@@ -145,7 +145,12 @@ Pull a book on collections.
                 Done.
                 Define hoisted-return as cast field-of on (statement, 2).
                 If cast is-nothing on (hoisted-return) is false:
-                    Cast one's check-resolves on (hoisted-return) or pass the failure off.
+                    Try to:
+                        Cast one's check-resolves on (hoisted-return).
+                    Done.
+                    In case of failure:
+                        Return a failure (cast placed-refusal on (the message of the failure, at-row)).
+                    Done.
                 Done.
                 Cast one's bind-name on (name, a new binding {
                     the shape cast function-type-of on (statement),

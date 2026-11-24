@@ -89,7 +89,7 @@ Pull a book on collections.
         Define path-type as cast one's infer on (cast field-of on (statement, 1)) or pass the failure off.
         Cast require-kind on (path-type, "TextType", "a directory path must be text", at-row,
             "use a {cast type-words on (path-type)} as a directory path",
-            "The path must be a text expression (a string literal or a text variable).") or pass the failure off.
+            "The path must be text (text in quote marks, or a name that holds text).") or pass the failure off.
     Done.
 
     /// `Write|Append <text> to the file <path>.`
@@ -278,18 +278,23 @@ Pull a book on collections.
     Done.
 
     /// A stage that hands its output to the terminal, or is fed while a stage before feeds it.
-    /// ⚠ Bare messages, not the four-part form — C# throws these as they are.
     Bind void or failure to refuse-terminal-in-pipe, given (the series of node stages):
         For each stage in stages, repeat:
             If stage's kind is "RunExpression" and cast truth-of on (cast field-of on (stage, 6)):
-                Return a failure "error\ta run in a pipe cannot say 'with the terminal' — a pipe carries the program's output to the next stage, and 'with the terminal' sends it to the screen instead. Drop 'with the terminal' to pipe it, or run it on its own to watch it.".
+                Return a failure (cast refusal-of on ("a run in a pipe cannot say 'with the terminal'",
+                    "A pipe carries the program's output to the next stage, and 'with the terminal' sends it to the screen instead",
+                    cast number-of on (cast field-of on (stage, 4)), "send a piped run to the terminal",
+                    "Drop 'with the terminal' to pipe it, or run it on its own to watch it.")).
             Done.
         Done.
         Define place as 0.
         For each stage in stages, repeat:
             Increment place by 1.
             If place is greater than 1 and stage's kind is "RunExpression" and cast is-nothing on (cast field-of on (stage, 7)) is false:
-                Return a failure "error\tonly the first stage of a pipe can say 'with input' — every later stage is already fed by the one before it, and a program has only one stdin.".
+                Return a failure (cast refusal-of on ("only the first stage of a pipe can say 'with input'",
+                    "Every later stage is already fed by the one before it, and a program has only one stdin",
+                    cast number-of on (cast field-of on (stage, 4)), "feed a later stage of a pipe",
+                    "Drop 'with input', or move it to the first stage.")).
             Done.
         Done.
     Done.
@@ -345,7 +350,7 @@ Pull a book on collections.
         Define name-type as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
         Cast require-kind on (name-type, "TextType", "the environment variable name must be text", at-row,
             "use a {cast type-words on (name-type)} as an environment variable name",
-            "The variable name must be a text expression (a string literal or a text variable).") or pass the failure off.
+            "The variable name must be text (text in quote marks, or a name that holds text).") or pass the failure off.
         Return cast wrapped on ("VoidableType", cast plain-type on ("TextType")).
     Done.
 Done.

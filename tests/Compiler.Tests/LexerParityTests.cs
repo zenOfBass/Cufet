@@ -286,6 +286,9 @@ public class LexerParityTests
         "State \"Hi {name\".\nState \"Bye\".",
         "State \"Hi {name\".\nState \"bye {name}\".",
         "State \"a {name} b.\nState \"Bye\".",
+        "State \"Hi {name!\".",
+        "State \"Hi {name!}\".",
+        "State \"Hi {name' there\".",
         // Another language's `else`, told Cufet's word (2026-11-22).
         "If true, state \"a\".\nElse, state \"b\".",
         "If true, state \"a\".\nElif true, state \"b\".",

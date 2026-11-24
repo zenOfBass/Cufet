@@ -749,7 +749,10 @@ public sealed partial class TypeChecker
     }
 
     /// <summary>`1 value`, `3 values` — how many a call takes or was given, in a message.</summary>
-    private static string Values(int count) => count == 1 ? "1 value" : $"{count} values";
+    private static string Values(int count) => Counted(count, "value");
+
+    /// <summary>`1 blank`, `2 blanks`.</summary>
+    private static string Counted(int count, string what) => count == 1 ? $"1 {what}" : $"{count} {what}s";
 
     // Validates arg count and types against a resolved FunctionType.
     private void ValidateCastArgs(
@@ -1413,7 +1416,7 @@ public sealed partial class TypeChecker
         var blanks = template.TypeParameters!;
         if (blanks.Count != arguments.Count)
             throw new TypeException(ShowWrittenNames(
-                $"That doesn't work: '{filled.Name}' leaves {blanks.Count} blank(s) to fill, " +
+                $"That doesn't work: '{filled.Name}' leaves {Counted(blanks.Count, "blank")} to fill, " +
                 $"and {arguments.Count} were given.\n\n" +
                 $"It is written 'object {filled.Name} {string.Join(" ", blanks.Select(b => "of " + b))}'."));
 
@@ -1444,7 +1447,7 @@ public sealed partial class TypeChecker
                     || concrete.Setters.Any(t => t.Name == member))
                     throw new TypeException(ShowWrittenNames(
                         $"That doesn't work: '{name}' already has a member '{member}'."
-                      + Environment.NewLine + Environment.NewLine
+                      + "\n\n"
                       + $"'{template.Name}' declares '{member}' for every filling, so "
                       + $"'{name}' has it already. Rename the one written unto '{name}'."));
             }

@@ -1141,7 +1141,7 @@ string, because it is always a mistake:
 
 ```
 State "literal braces: \{not a hole\}".     → literal braces: {not a hole}
-State "nothing here: {}".                   ← PARSE ERROR: empty interpolation
+State "nothing here: {}".                   ← PARSE ERROR: nothing between the braces
 ```
 
 Interpolation is part of the text literal, so it works **anywhere a text expression does** — not

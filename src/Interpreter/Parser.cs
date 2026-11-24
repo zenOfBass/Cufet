@@ -6414,7 +6414,7 @@ public sealed class Parser
                 int holeLine = holeLineTok.Line;
                 int holeCol = holeLineTok.Column;
                 if (Peek().Type == TokenType.InterpolHoleClose)
-                    throw new ParseException(holeLine, holeCol, "empty interpolation '{}' — write an expression between the braces");
+                    throw new ParseException(holeLine, holeCol, "there is nothing between the braces: write a value there.");
                 var expr = ParseExpression();
                 Consume(TokenType.InterpolHoleClose);
                 piece = new TextConvert(expr, holeLine, holeCol, IsHole: true);

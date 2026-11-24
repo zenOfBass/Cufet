@@ -380,7 +380,7 @@ Pull a book on collections.
             For each blank in blanks, repeat:
                 Insert " of {blank}" into written.
             Done.
-            Return a failure "error\tThat doesn't work: '{template-name}' leaves {the number of blanks} blank(s) to fill, and {the number of arguments-given} were given.\n\nIt is written 'object {template-name}{written converted to text}'.".
+            Return a failure "error\tThat doesn't work: '{template-name}' leaves {cast counted on (the number of blanks, "blank")} to fill, and {the number of arguments-given} were given.\n\nIt is written 'object {template-name}{written converted to text}'.".
         Done.
         Define found as a map from text to node.
         Define place as 0.

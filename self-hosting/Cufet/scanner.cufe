@@ -233,8 +233,7 @@ Pull a book on collections.
             Cast one's advance.
         Done.
         Otherwise:
-            Return a failure (cast refusal on (one's row, cast one's column-at on (one's cursor),
-                "Cufet doesn't know the character \"{ch}\" here")).
+            Return a failure (cast one's unknown-character on (cast one's column-at on (one's cursor), ch)).
         Done.
     Done.
 
@@ -472,6 +471,25 @@ Pull a book on collections.
         Cast one's emit on (kind, ch, one's row, column).
     Done.
 
+    /// UnknownCharacter — inside a hole whose text ends before any `\}`, the hole was left open.
+    Bind text to unknown-character unto scanner, given (the number column, the text ch):
+        If one's hole-depth is greater than 0 and cast one's hole-closes-ahead is false:
+            Return cast refusal on (one's hole-row, one's hole-column, cast hole-message).
+        Done.
+        Return cast refusal on (one's row, column, "Cufet doesn't know the character \"{ch}\" here").
+    Done.
+
+    Bind fact to hole-closes-ahead unto scanner:
+        Define spot as one's cursor.
+        While spot is less than one's size + 1, repeat:
+            Define ch as item spot of one's source.
+            If ch is "\}", return true.
+            If ch is "\"" or ch is "\n", return false.
+            Increment spot by 1.
+        Done.
+        Return false.
+    Done.
+
     Bind void or failure to read-possessive unto scanner:
         Define column as cast one's column-at on (one's cursor).
         Cast one's advance.
@@ -480,7 +498,7 @@ Pull a book on collections.
             Cast one's emit on ("Possessive", "'s", one's row, column).
             Return.
         Done.
-        Return a failure (cast refusal on (one's row, column, "Cufet doesn't know the character \"'\" here")).
+        Return a failure (cast one's unknown-character on (column, "'")).
     Done.
 
     // ── Text ──────────────────────────────────────────────────────────────
@@ -590,7 +608,7 @@ Pull a book on collections.
                 Cast one's skip-space or pass the failure off.
                 If cast one's at-end or cast one's peek is "\}":
                     Return a failure (cast refusal on (one's row, cast one's column-at on (one's cursor),
-                        "empty interpolation — write an expression between the braces")).
+                        "there is nothing between the braces: write a value there")).
                 Done.
 
                 // Brace depth, so an object literal inside a hole does not close it.

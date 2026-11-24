@@ -414,7 +414,7 @@ Pull a book on collections.
             Otherwise if cast one's peek-kind is "InterpolHoleOpen":
                 Define hole as cast one's advance.
                 If cast one's peek-kind is "InterpolHoleClose":
-                    Return a failure (cast one's refused on (hole, "empty interpolation '\{\}' — write an expression between the braces")).
+                    Return a failure (cast one's refused on (hole, "there is nothing between the braces: write a value there.")).
                 Done.
                 Define inside as cast one's expression or pass the failure off.
                 Cast one's consume on ("InterpolHoleClose") or pass the failure off.

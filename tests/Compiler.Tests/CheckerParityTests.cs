@@ -1438,8 +1438,30 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
         "State item 1 of (1 + 2).\n",
         "Define x as a record with (the a 1).\nDefine n as 1.\nState item n of x.\n",
         "Define object box with (the number size).\nDefine x as a new box { the size 1 }.\nDefine n as 1.\nState item n of x.\n",
-        // … and what goes on working: a narrowed one, a set counted, an interface with positions,
-        // a named index into something that has some.
+        // A type nobody defined, said with where its statement or definition starts (2026-11-23).
+        "Define x as 1.\nBind number to f, given (the nubmer n), 3.\n",
+        "Define x as 1.\nBind nubmer to f, given (the number n), 3.\n",
+        "Define x as 1.\nDefine object box with (the number size,\n    the nubmer width).\n",
+        "If true:\n    Define xs as a series of nubmer.\nDone.\n",
+        "Define object box with (the number size).\nDefine x as a new box of number { the size 1 }.\n",
+        "Define object stack of element with (the series of element items).\nDefine x as a new stack of number of text { the items a series of number }.\n",
+        "Pull a book on the c-language.\n    Bind number to job, given (the c-language axiom given (the text) code): Return 1. Done.\nDone.\n",
+        // The rest of the checker's list: not a series, a `when`, pipes, makers, counts (2026-11-23).
+        "Define n as 5.\nFor each x in n, state x.\n",
+        "Define n as 5.\nInsert 1 into n.\n",
+        "Define n as 5.\nRemove 1 from n.\n",
+        "Define n as 5.\nRemove item 1 from n.\n",
+        "Define n as 5.\nItem 1 of n becomes 2.\n",
+        "Define n as 5.\nInsert 1 into (n + 1).\n",
+        "Define n as 5.\nDefine x as 1 when n, otherwise 2.\n",
+        "Define m as a map with (\"a\" : true).\nDefine x as 1 when (the entry for \"a\" in m), otherwise 2.\n",
+        "Define object pair with (number, number).\nDefine x as a new pair { 1 }.\n",
+        "Define x as a record with (1).\nState item 2 of x.\n",
+        // An interface has no positions, as it has no named fields (2026-11-23).
+        "Define interface shower for the text function show.\nBind shower to g, given (the shower x), x.\nBind void to f, given (the shower x):\n    State item 1 of (cast g on (x)).\nDone.\n",
+        // … and what goes on working: a narrowed one, a set counted, an object behind an interface
+        // once it is narrowed, a named index into something that has some.
+        "Define interface shower for the text function show.\nDefine object pair with (number, number) and shower.\nBind text to show unto pair, \"b\".\nBind void to f, given (the shower x):\n    If x is a pair, state item 1 of x.\nDone.\nCast f on (a new pair { 7, 8 }).\n",
         "Define x as a record with (1, 2).\nDefine n as 1.\nState item n of x.\n",
         "Define object pair with (number, number).\nDefine x as a new pair { 1, 2 }.\nDefine n as 1.\nState item n of x.\n",
         "Bind void to f, given (the (number or series of number) x):\n    If x is a series of number, state item 1 of x.\nDone.\n",

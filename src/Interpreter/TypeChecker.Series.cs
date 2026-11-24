@@ -67,8 +67,8 @@ public sealed partial class TypeChecker
 
         if (inferred is not SeriesType seriesType)
             throw TypeError(
-                $"{FormatExpr(forEach.Series)} holds {FormatTypePlural(inferred)}",
-                $"It evaluates to {FormatTypePlural(inferred)}, not a series",
+                $"{SaidOr(forEach.Series, "this")} is {OneOf(inferred)}, not a series",
+                null,
                 forEach.Line, forEach.Column,
                 "loop over it as if it were a series",
                 // ⚠ A chase and a set can be looped over too, and this used to leave both out — so a
@@ -237,11 +237,11 @@ public sealed partial class TypeChecker
 
         if (containerType is not SeriesType seriesType)
             throw TypeError(
-                $"{FormatExpr(add.Series)} is not a series",
-                $"It evaluates to {FormatTypePlural(containerType)}, which can't be inserted into",
+                $"{SaidOr(add.Series, "this")} is {OneOf(containerType)}, not a series",
+                null,
                 add.Line, add.Column,
-                "insert into a non-series expression",
-                "Only a series (like 'my-list' or 'one's cards') can be the target of 'Add ... to'.");
+                "insert into it",
+                "Only a series, a chase or a set can be the target of 'Insert ... into'.");
 
         var valueType = InferType(add.Value);
         if (valueType != null && !IsAssignable(seriesType.ElementType, valueType))
@@ -275,7 +275,7 @@ public sealed partial class TypeChecker
         if (point != decimal.Truncate(point))
             throw TypeError(
                 $"'{point}' is not a code point, because it is not a whole number",
-                "a code point counts characters, so it has no fractional part",
+                "A code point counts characters, so it has no fractional part",
                 line, column,
                 "insert a fractional number as a character",
                 "Write a whole number, or '<value> converted to text' for the digits.");
@@ -288,7 +288,7 @@ public sealed partial class TypeChecker
         if (point < 0 || point > 0x10FFFF)
             throw TypeError(
                 $"'{point}' is outside the range of a code point",
-                "code points run from 0 to U+10FFFF",
+                "Code points run from 0 to U+10FFFF",
                 line, column,
                 "insert a number outside that range as a character",
                 "Write a code point in range, or '<value> converted to text' for the digits.");
@@ -296,7 +296,7 @@ public sealed partial class TypeChecker
         if (point >= 0xD800 && point <= 0xDFFF)
             throw TypeError(
                 $"'{point}' is half of a character, not one",
-                "the values from 55296 to 57343 are surrogates — they only mean anything in pairs",
+                "The values from 55296 to 57343 are surrogates — they only mean anything in pairs",
                 line, column,
                 "insert a surrogate as a character",
                 "Write the code point of the character itself; a character beyond U+FFFF has one.");
@@ -339,10 +339,10 @@ public sealed partial class TypeChecker
 
         if (containerType is not SeriesType seriesType)
             throw TypeError(
-                $"{FormatExpr(removeVal.Series)} is not a series, chase or map",
-                $"It evaluates to {FormatTypePlural(containerType)}, which can't have items removed",
+                $"{SaidOr(removeVal.Series, "this")} is {OneOf(containerType)}, not a series, chase or map",
+                null,
                 removeVal.Line, removeVal.Column,
-                "remove from a non-series expression",
+                "remove from it",
                 "Only a series, a chase or a map can be the target of 'Remove ... from'.");
 
         var valueType = InferType(removeVal.Value);
@@ -416,7 +416,7 @@ public sealed partial class TypeChecker
                     throw TypeError(
                         allPos.Count == 0
                             ? $"{display} has no positional fields"
-                            : $"{display} has {allPos.Count} positional field(s) — there is no position {idx}",
+                            : $"{display} has {Counted(allPos.Count, "field")} by position — there is no position {idx}",
                         null, seriesSet.Line, seriesSet.Column,
                         $"set position {idx}",
                         allPos.Count == 0
@@ -452,7 +452,7 @@ public sealed partial class TypeChecker
                     throw TypeError(
                         rt.PositionalTypes.Count == 0
                             ? $"{display} has no positional fields"
-                            : $"{display} has {rt.PositionalTypes.Count} positional field(s) — there is no position {idx}",
+                            : $"{display} has {Counted(rt.PositionalTypes.Count, "field")} by position — there is no position {idx}",
                         null, seriesSet.Line, seriesSet.Column,
                         $"set position {idx}",
                         rt.PositionalTypes.Count == 0
@@ -472,11 +472,11 @@ public sealed partial class TypeChecker
         }
 
         throw TypeError(
-            $"{FormatExpr(seriesSet.Series)} is not a series, object, or record",
-            $"It evaluates to {FormatTypePlural(containerType)}, which can't have items assigned by position",
+            $"{SaidOr(seriesSet.Series, "this")} is {OneOf(containerType)}, not a series, object, or record",
+            null,
             seriesSet.Line, seriesSet.Column,
-            "set an item in a non-series expression",
-            "Only a series, object, or record can be the target of 'item N of ... becomes'.");
+            "set an item in it",
+            "Only a series, chase, object, or record can be the target of 'item N of ... becomes'.");
     }
 
     private void CheckSeriesRemoveAt(SeriesRemoveAtStatement removeAt)
@@ -489,11 +489,11 @@ public sealed partial class TypeChecker
         if (containerType is ChaseType) return;
         if (containerType is not SeriesType)
             throw TypeError(
-                $"{FormatExpr(removeAt.Series)} is not a series",
-                $"It evaluates to {FormatTypePlural(containerType)}, which can't have items removed by position",
+                $"{SaidOr(removeAt.Series, "this")} is {OneOf(containerType)}, not a series",
+                null,
                 removeAt.Line, removeAt.Column,
-                "remove an item from a non-series expression",
-                "Only a series can be the target of 'Remove first/last/item N from'.");
+                "remove an item from it",
+                "Only a series or a chase can be the target of 'Remove first/last/item N from'.");
     }
 
     private CufetType InferSeriesLiteral(SeriesLiteral lit)
@@ -508,7 +508,7 @@ public sealed partial class TypeChecker
                 if (elemType != null && !IsAssignable(unionAnnotation, elemType))
                     throw TypeError(
                         $"this item doesn't fit in a {FormatType(unionAnnotation)} collection",
-                        $"{FormatType(elemType)} is not one of the allowed types",
+                        $"{Capital(OneOf(elemType))} is not one of the allowed types",
                         lit.Line, lit.Column,
                         $"add a {FormatType(elemType)} item",
                         $"Only {FormatType(unionAnnotation)} values are allowed in this collection.");
@@ -608,7 +608,7 @@ public sealed partial class TypeChecker
                     throw TypeError(
                         rt.PositionalTypes.Count == 0
                             ? $"{displayName} has no positional fields"
-                            : $"{displayName} has {rt.PositionalTypes.Count} positional field(s) — there is no position {idx}",
+                            : $"{displayName} has {Counted(rt.PositionalTypes.Count, "field")} by position — there is no position {idx}",
                         null, acc.Line, acc.Column,
                         $"access position {idx}",
                         rt.PositionalTypes.Count == 0
@@ -642,7 +642,7 @@ public sealed partial class TypeChecker
                     throw TypeError(
                         allPos.Count == 0
                             ? $"'{ot.Name}' has no positional fields"
-                            : $"'{ot.Name}' has {allPos.Count} positional field(s) — there is no position {idx}",
+                            : $"'{ot.Name}' has {Counted(allPos.Count, "field")} by position — there is no position {idx}",
                         null, acc.Line, acc.Column,
                         $"access position {idx}",
                         allPos.Count == 0
@@ -659,14 +659,16 @@ public sealed partial class TypeChecker
             return null;
         }
 
-        // ⚠ An interface stays a run-time question: what answers it is an object, and one with
-        // positions has them. `last` is refused of every object, so it is refused here too.
+        // ★ A position is a field without a name, and a named field is refused through an interface,
+        // whatever object is behind it. One line could hold a number for one caller and a text for
+        // the next, so it has no type to give; narrowing to the object says which.
         if (targetType is InterfaceType)
-            return acc.Index != null ? null : throw TypeError(
-                $"'last' doesn't work on objects",
-                null, acc.Line, acc.Column,
-                "use 'last' on an object",
-                "Use a position like 'the first of ...' or a field name like 'the city of ...'.");
+            throw TypeError(
+                $"{SaidOr(acc.Target, "this")} is {OneOf(targetType)}, and an interface has no positions",
+                null, acc.Line, acc.Column, "take an item from it by position",
+                acc.Target is VariableReference { Name: var held }
+                    ? $"Check what it is first: 'If {held} is a <type>:'."
+                    : "Check what it is first: 'Judge …, where it is:' with an arm for 'A <type>'.");
 
         // ⚠⚠ Everything else fell through to `null` — "type unknown" — so `item 1 of 5` CHECKED CLEAN
         // and died when it ran, with "Expected a series on line N" (found 2026-11-23, auditing the
@@ -702,6 +704,8 @@ public sealed partial class TypeChecker
     /// <summary>An expression quoted back, or `instead` for one not worth quoting.</summary>
     private static string SaidOr(IExpression expr, string instead) =>
         FormatExpr(expr) is var said && said.Contains("<expression>") ? instead : said;
+
+    private static string Capital(string words) => char.ToUpperInvariant(words[0]) + words[1..];
 
     /// <summary>`a number`, `an address`; `bits` and `void` take no article.</summary>
     private static string OneOf(CufetType type)
@@ -788,7 +792,7 @@ public sealed partial class TypeChecker
             && litEnd < litStart)
             throw TypeError(
                 $"'range {litStart:0.############} to {litEnd:0.############}' is empty, because it ends below where it starts",
-                "a range counts up; it does not turn around when the end is lower",
+                "A range counts up; it does not turn around when the end is lower",
                 re.Line, re.Column,
                 "count down by writing the ends the other way round",
                 $"Write 'range {litEnd:0.############} to {litStart:0.############} sorted in reverse' "

@@ -72,6 +72,23 @@ public class NotASeriesTests
     public void ANamedIndexIntoNoPositionsAtAll_IsRefused(string source, string fragment) =>
         Assert.Contains(fragment, Refused(source).Message);
 
+    /// <remarks>
+    /// ★ As a named field is. One line printed a number for one caller's object and a text for the
+    /// next, and an object with no positions died when it ran and would not build (2026-11-23).
+    /// </remarks>
+    [Theory]
+    [InlineData("item 1 of x")]
+    [InlineData("the last of x")]
+    [InlineData("item n of x")]
+    public void AnInterface_HasNoPositions(string read)
+    {
+        var ex = Refused("Define n as 1.\nDefine interface shower for the text function show.\n"
+                       + $"Bind void to f, given (the shower x):\n    State {read}.\nDone.");
+        Assert.Contains("x is a shower, and an interface has no positions", ex.Message);
+        Assert.Contains("'If x is a <type>:'", ex.Message);
+        Assert.Equal(4, ex.Line);
+    }
+
     /// <remarks>★ The guards: each of these works when it runs, and must go on checking.</remarks>
     [Theory]
     [InlineData("Define x as a series of number with (1, 2).\nState item 1 of x.\nState the number of x.")]
@@ -83,7 +100,7 @@ public class NotASeriesTests
     [InlineData("Define object pair with (number, number).\nDefine x as a new pair { 1, 2 }.\nDefine n as 1.\nState item n of x.")]
     [InlineData(Maybe + "If x is not void, state item 1 of x.")]
     [InlineData("Bind void to f, given (the (number or series of number) x):\n    If x is a series of number, state item 1 of x.\nDone.")]
-    [InlineData("Define interface shower for the text function show.\nDefine object pair with (number, number) and shower.\nBind text to show unto pair, \"b\".\nBind void to f, given (the shower x):\n    State item 1 of x.\nDone.\nCast f on (a new pair { 7, 8 }).")]
+    [InlineData("Define interface shower for the text function show.\nDefine object pair with (number, number) and shower.\nBind text to show unto pair, \"b\".\nBind void to f, given (the shower x):\n    If x is a pair, state item 1 of x.\nDone.\nCast f on (a new pair { 7, 8 }).")]
     [InlineData("Bind element to front, given (the series of element xs), item 1 of xs.\nState cast front on (a series of number with (7)).")]
     public void WhatWorks_StillChecks(string source) => Check(source);
 }

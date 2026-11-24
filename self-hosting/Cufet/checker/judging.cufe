@@ -603,6 +603,19 @@ Pull a book on collections.
     Done.
 
     Bind void or failure to check-statement unto checker, given (the node statement):
+        Try to:
+            Cast one's check-statement-itself on (statement).
+        Done.
+        In case of failure:
+            Define raw as the message of the failure.
+            Define kind as statement's kind.
+            Define line-place as the entry for kind in cast line-places.
+            If line-place is void, return a failure (raw).
+            Return a failure (cast placed-refusal on (raw, cast number-of on (cast field-of on (statement, line-place)))).
+        Done.
+    Done.
+
+    Bind void or failure to check-statement-itself unto checker, given (the node statement):
         Define kind as statement's kind.
         Judge kind, where it is:
             "DefineStatement":
@@ -1022,12 +1035,11 @@ Pull a book on collections.
                 If kind is not "SeriesType":
                     If cast beyond-types on (looped-type), return a failure (cast not-judged on ("looping over a {kind}")).
                     Define spoken as cast expression-words on (looped).
-                    Define plural as cast plural-words on (looped-type).
                     Define advice as "Define a series if that's what you need.".
                     If kind is "TextType":
                         The advice becomes "To go through a text one character at a time, put it in a chase — inside 'Pull a book on collections.': 'Define letters as a chase.', 'Insert {spoken} into letters.', then loop over letters.".
                     Done.
-                    Return a failure (cast refusal-of on ("{spoken} holds {plural}", "It evaluates to {plural}, not a series",
+                    Return a failure (cast refusal-of on ("{cast said-or on (looped, "this")} is {cast one-of-type on (looped-type)}, not a series", "",
                         at-row, "loop over it as if it were a series",
                         "Only series, maps, sets, chases and stashes can be looped over. {advice}")).
                 Done.
@@ -1075,10 +1087,8 @@ Pull a book on collections.
         Define spoken as cast expression-words on (target).
         If container's kind is not "SeriesType":
             If cast beyond-types on (container), return a failure (cast not-judged on ("inserting into a {container's kind}")).
-            Return a failure (cast refusal-of on ("{spoken} is not a series",
-                "It evaluates to {cast plural-words on (container)}, which can't be inserted into",
-                at-row, "insert into a non-series expression",
-                "Only a series (like 'my-list' or 'one's cards') can be the target of 'Add ... to'.")).
+            Return a failure (cast refusal-of on ("{cast said-or on (target, "this")} is {cast one-of-type on (container)}, not a series", "",
+                at-row, "insert into it", "Only a series, a chase or a set can be the target of 'Insert ... into'.")).
         Done.
         Define element as cast field-of on (container, 1).
         Define given-type as cast one's infer on (value) or pass the failure off.
@@ -1137,7 +1147,7 @@ Pull a book on collections.
             Define spot as cast number-of on (cast field-of on (index-said, 1)).
             Define whole as spot - (spot % 1).
             If whole is less than 1 or whole is greater than the number of positionals:
-                Define said as "{spoken} has {the number of positionals} positional field(s) — there is no position {whole}".
+                Define said as "{spoken} has {cast counted on (the number of positionals, "field")} by position — there is no position {whole}".
                 Define fix as "Positions run 1 through {the number of positionals}.".
                 If the number of positionals is 0:
                     The said becomes "{spoken} has no positional fields".
@@ -1168,10 +1178,9 @@ Pull a book on collections.
         If cast beyond-types on (container):
             Return a failure (cast not-judged on ("setting an item of a {container's kind}")).
         Done.
-        Return a failure (cast refusal-of on ("{spoken} is not a series, object, or record",
-            "It evaluates to {cast plural-words on (container)}, which can't have items assigned by position",
-            at-row, "set an item in a non-series expression",
-            "Only a series, object, or record can be the target of 'item N of ... becomes'.")).
+        Return a failure (cast refusal-of on ("{cast said-or on (target, "this")} is {cast one-of-type on (container)}, not a series, object, or record", "",
+            at-row, "set an item in it",
+            "Only a series, chase, object, or record can be the target of 'item N of ... becomes'.")).
     Done.
 
     Bind void or failure to check-remove-at unto checker, given (the node statement):
@@ -1182,10 +1191,9 @@ Pull a book on collections.
         Define container as cast one's infer on (target) or pass the failure off.
         If cast is-none on (container) or container's kind is "ChaseType" or container's kind is "SeriesType", return.
         If cast beyond-types on (container), return a failure (cast not-judged on ("removing from a {container's kind}")).
-        Return a failure (cast refusal-of on ("{cast expression-words on (target)} is not a series",
-            "It evaluates to {cast plural-words on (container)}, which can't have items removed by position",
-            at-row, "remove an item from a non-series expression",
-            "Only a series can be the target of 'Remove first/last/item N from'.")).
+        Return a failure (cast refusal-of on ("{cast said-or on (target, "this")} is {cast one-of-type on (container)}, not a series", "",
+            at-row, "remove an item from it",
+            "Only a series or a chase can be the target of 'Remove first/last/item N from'.")).
     Done.
 
     Bind void or failure to check-remove-value unto checker, given (the node statement):
@@ -1215,9 +1223,8 @@ Pull a book on collections.
         Done.
         If container's kind is not "SeriesType":
             If cast beyond-types on (container), return a failure (cast not-judged on ("removing from a {container's kind}")).
-            Return a failure (cast refusal-of on ("{spoken} is not a series, chase or map",
-                "It evaluates to {cast plural-words on (container)}, which can't have items removed",
-                at-row, "remove from a non-series expression",
+            Return a failure (cast refusal-of on ("{cast said-or on (target, "this")} is {cast one-of-type on (container)}, not a series, chase or map", "",
+                at-row, "remove from it",
                 "Only a series, a chase or a map can be the target of 'Remove ... from'.")).
         Done.
         Define element as cast field-of on (container, 1).
