@@ -29,28 +29,12 @@ The compiler written in Cufet is done: it builds every program in `examples/` an
     reaches only through c-language axioms. Programs are held to their output, so the swap changes
     no test.
 
-2. **Compile-time macros — the `cufet` tag's expander.** Not a third program. It is here
-    rather than in *Deferred* because nothing blocks it any more but the design below.
-
-    Hygienic, expanding to Cufet AST before the checker runs — *not* fexprs, which are first-class and runtime. It is one tag of the BLOCKS type rather than a feature of its own: quoted Cufet and
-    embedded foreign source live under one type name, and a macro is what consumes the `cufet` tag. See [DESIGN.md](DESIGN.md#foreign-interoperability) — including why hygiene and SQL injection turn out to be the same problem, which is what makes the unification real rather than cosmetic.
-
-    ★ **The type shipped in 0.17.0, and a deliberately small consumer with it.** `Cite` places what a
-    block holds, and a block that says what it gives back is lowered to an ordinary function. What is
-    NOT built is the expander this entry means: syntax parameters, and generating AST from them.
-
-    Books provide DSLs inside brackets, as `regex` does; a book does not add phrases to the grammar
-    (declined 2026-11-19 — DESIGN, *Foreign interoperability*). Parse-time code that a book RUNS is
-    declined too, since a parser running arbitrary code cannot say what it expected. Hygienic
-    substitution shipped as [holes in cufet source](DESIGN.md#holes-in-cufet-source--built-2026-11-05);
-    full macros later, if ever.
-
-    ⚠ **Its blocker was the compiler written in Cufet, and that is done.** An expander generates Cufet AST, and both front ends now read Cufet — the C# one and the one written in Cufet — so an expander is built in each and held to the same answers. Macro errors are the worst part of every language that has them, and clear errors are this language's distinguishing feature — that tax is still paid deliberately, not early.
-
-    ★ Fexprs stay out, but the recorded reason was the weaker one. Wand's result (no two expressions
-    ever equivalent, taking out `check` and monomorphization) is true; the **decisive** reason is that a compiled Cufet binary is standalone C, so running a Cufet block at run time needs a Cufet
-    interpreter *written in C* — a third implementation, or a divergence. Note also that an explicit
-    `eval` is not a fexpr and would cost neither `check` nor monomorphization; the C-interpreter bill is what rules it out.
+2. **Compile-time macros — the `cufet` tag's expander.** Hygienic, expanding to Cufet AST before the
+    checker runs. A macro is what consumes the `cufet` tag of the BLOCKS type, and `Cite` with holes is
+    the substitution half ([DESIGN.md](DESIGN.md#holes-in-cufet-source--built-2026-11-05)). Left:
+    syntax parameters, and generating AST from them, in both front ends and held to the same answers.
+    ⚠ Macro errors are the worst part of every language that has them, and clear errors are this
+    language's distinguishing feature — that tax is paid deliberately, not early.
 
 ## The design mountains
 
@@ -77,31 +61,12 @@ they are large, not because they are waiting — the order among them means noth
 breaks programs and reads what comes back. Nothing does that for the checker's, which need programs
 that parse and make no sense, so they are read over now and then.
 
-**An axiom's output bypasses the interpreter's writer.** The interpreter loads an axiom with
-`NativeLibrary.Load` and calls it IN-PROCESS, so a `fputs(text, stdout)` inside one writes to the
-process's real stdout rather than to the `TextWriter` the interpreter was given. Under `cufet`
-both land in the same stream and nothing is wrong; it matters only where the interpreter is handed
-a CAPTURING writer, which today is `App/Program.cs`'s blueprint run — a blueprint that printed
-through an axiom would have those lines escape the capture.
+**An axiom's output bypasses the interpreter's writer.** The interpreter calls an axiom in its own
+process, so one that prints writes to the real stdout and not to the writer the interpreter was
+given. Under `cufet` both are the same stream; it matters only where the writer captures, which is
+the blueprint run in `App/Program.cs` and the pipeline tests (`InterpretRaw`).
 
-✅ The oracle harness no longer depends on that: it runs the interpreted half as a SUBPROCESS,
-exactly like the compiled half, so both are captured by the OS. Fixed 2026-09-22. ⚠ `PipelineTestBase.InterpretRaw`
-still captures in-process, so the ~1000 pipeline tests remain blind to an axiom's output — which
-matters only for the few that would print through one, and those drive `cufet` themselves
-(`Axiom_WritingANewline_SendsTheSameBytesOnBothBackends`). Making every pipeline test pay for a
-process would cost far more than it buys.
-
-⚠ **What this hole had actually cost, measured rather than assumed: nothing yet.** An earlier
-version of this entry claimed `tools/shell.cufe` and `tools/repl.cufe` had been printing
-uncompared bytes for a week. They had not — with stdin closed, `shell.cufe` prints NOTHING and
-`repl.cufe` prints one line through `State`, which was always captured. The only program it ever
-caught was `tools/snake/snake.cufe`, on the day it was written.
-
-▶ The root is that the language cannot write without ending a line, which is the only reason
-`put` is an axiom at all. A newline-free output form would remove the hole rather than route
-around it. Nobody has asked for one.
-
----
+## Deferred
 
 ### Language
 
@@ -118,25 +83,20 @@ around it. Nobody has asked for one.
   ask for shared semantics has no syntax. *Blocker:* its own design session; it interacts with
   the region model, which is what currently makes value semantics free.
 
-- **Fallible setters.** A setter that can reject a value is deliberately not supported, because
-  the current rule keeps `becomes` infallible *everywhere*. *Blocker:* an effect-tracking arc —
-  a fallible setter would require effect annotations on every assignment expression. Not
-  designed, not near-term.
+- **Fallible setters.** A setter can clamp or ignore a value, and cannot refuse one out loud, so an
+  object has no way to protect itself from a bad assignment. *Blocker:* a design session, on what
+  `becomes` asks of the writer when a property's setter can fail.
 
 ### Tooling
 
 - **Separate compilation.** Compiling files independently and linking the results, rather than
-  resolving them and compiling together. *Blocker:* there is no build-speed problem to solve —
-  the whole example corpus is 2,815 lines, and a full build plus 2,782 tests runs in minutes.
+  resolving them and compiling together. *Blocker:* three things are sound only
+  because the whole program compiles at once, and it reopens all three: dispatch proves coverage by
+  seeing every version of a name, the open-union representation bounds its tag set whole-program, and
+  a generic is monomorphized from every filling the program contains.
 
-  ⚠ **This is the half that carries the collision**, and the loader above does not. Three things
-  are sound only because the whole program compiles at once: dispatch proves coverage by seeing
-  every version of a name, the open-union representation bounds its tag set whole-program, and a
-  generic is monomorphized from every filling the program contains. Separate compilation reopens
-  all three at once.
-
-  **The trigger:** builds getting slow enough to notice. Not before — buying incremental rebuilds
-  with three invariants is a bad trade at any corpus size that fits on one screen.
+  **The trigger:** builds getting slow enough to notice. A small program takes about 2 seconds, and
+  the compiler written in Cufet 53 (measured 2026-11-23).
 
 ### Memory and concurrency
 
@@ -162,25 +122,6 @@ around it. Nobody has asked for one.
 
 ### Books
 
-- **A logic-gates book** — circuit composition over `bits`: gates as components you wire together,
-  rather than the operators `bits` already shipped.
-
-  - **Its signal is four-valued, because hardware is.** Verilog uses `0`/`1`/`X`/`Z`; a two-valued
-    signal cannot model an uninitialised line, a tri-state bus, or two drivers contending. The
-    tetralemma maps onto it exactly — *both* is contention, *neither* is floating — which is why
-    four-valued logic is rejected in core (a rival spelling of "not exactly true") and right here
-    (the state of a wire). ⚠ **Truth tables come from Verilog, not the philosophy:** `0 & X` is `0`,
-    which naive four-valued logic gets wrong.
-  - ✅ **SETTLED 2026-09-23 — a circuit is a VALUE.** `examples/circuits/` is a working
-    four-valued simulator, and the thing that decides it is FEEDBACK. A latch is two gates wired
-    into each other's inputs, so there is no "one end" to push from; a pipeline cannot express a
-    cycle. What works is holding the whole state, recomputing every gate from it AT ONCE, and
-    repeating to a fixed point — cycles are then not a special case, just a circuit that takes
-    more rounds, or never settles, and never settling is a real behaviour (a ring oscillator) that
-    has to be reportable rather than a hang.
-  - ★ **The four-valued signal earned its place, and `z` earned it twice.** A tri-state bus needs a
-    driver able to say "not me"; with two values, two drivers on one wire are always contention and
-    the ordinary way to build a multiplexer is unwriteable.
-  - ⚠ **What the witness did NOT need: any of the book.** The simulator is ordinary Cufet — a closed
-    union of gate kinds, a map of wires, and a loop. So the book's remaining question is what it
-    would ADD over that, which is a different and smaller question than the one above.
+- **A logic-gates book.** Gates as components you wire together, over a four-valued signal.
+  `examples/circuits/` has the signal, the gates and the settling; there, a wire is a text name, and a
+  mistyped one is just another wire. *Blocker:* what a wire is, if not its name.

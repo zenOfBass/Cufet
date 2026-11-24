@@ -314,6 +314,10 @@ What an object owns, and what a property may do.
   everywhere it appears. Fallible setters (Option B) are deferred to a future
   effect-tracking arc.
 
+- **Four-valued logic is not in core.** A wire has four states (`0`, `1`, unknown, floating), and a
+  `fact` has two. In core, four values would be a rival spelling of "not exactly true"; in a circuit
+  they are the state of a wire, so they belong to the logic-gates book.
+
 ---
 
 ## The standard library, and what earns a place in the grammar
