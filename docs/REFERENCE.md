@@ -3145,6 +3145,26 @@ passing a map to a function lets that function change the caller's map, and
 `Define copy as original.` gives a second name rather than a second map. To get a
 private one, build it and copy the entries across — there is no copying form.
 
+**Taking an item out of a series** goes by the item's type. A record or an object comes out as a copy,
+so changing it leaves the series alone, and to change the series you put it back:
+
+```cufet
+Define deck as a series of records like (the text suit, the text rank) with (
+    a record with (the suit "Clubs",    the rank "Ace"),
+    a record with (the suit "Diamonds", the rank "2")
+).
+Define card as item 1 of deck.
+The suit of card becomes "Spades".
+State the suit of item 1 of deck.    ← Clubs: card is a copy
+Item 1 of deck becomes card.
+State the suit of item 1 of deck.    ← Spades: the item was replaced
+```
+
+A series inside a series comes out shared, so changing it changes the one inside.
+
+**A copied record still shares a series or a map it holds.** The fields are copied by the same rule, so
+a number or a text in the copy is its own, and a series in it is the same series.
+
 Type errors name the violation, the line, and the fix:
 
 ```

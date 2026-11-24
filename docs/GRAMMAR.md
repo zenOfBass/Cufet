@@ -1037,108 +1037,46 @@ This produces a `PossessiveSetStatement` and is valid in method bodies.
 
 ## 3. Value vs. reference semantics
 
-Every Cufet type falls into one of two categories that determine what `Define` and
-`becomes` do when they store a value.
+Storing a value copies it or shares it, and its type decides which.
 
-**Value types** — copied on every assignment:
-
-| Type | Notes |
+| Type | When stored |
 |---|---|
-| `number` | scalar |
-| `text` | scalar |
-| `fact` | scalar |
-| `record` | deep copy of all fields |
-| any object type | deep copy of all fields, including embedded object chain |
+| `number`, `text`, `fact`, `bits` | copied |
+| record, object (with what it embeds) | copied |
+| series, catalogue, map, atlas | shared |
+| `matrix`, `set`, `chase` | shared |
+| stash, channel | shared |
+| a voidable, a union | as the value it holds |
 
-**Reference types** — aliased (shared) on every assignment:
+A value is stored by `Define`, by `becomes` (to a name, a field, an item or an entry), by `Insert`,
+as an argument, in a literal's items, entries or fields, and in a function that captures it.
 
-| Type | Notes |
-|---|---|
-| `series of T` | all add/remove/set ops mutate the shared list |
-| `map from K to V` | all entry-set/remove ops mutate the shared map |
-| `matrix` | `the item at (r, c) of m becomes v` is reflected everywhere |
-
-### The mental model
-
-> **Value type?** `Define copy as original.` gives `copy` a fresh, independent one. Changes to
-> `copy` leave `original` untouched.
->
-> **Reference type?** `Define copy as original.` gives `copy` another name for the same collection.
-> Mutating through either name mutates both.
-
-```
-── Value type (objects, records) ────────────────────────────────────────────────
-Define alice as a new person { the name "Alice", the age 30 }.
-Define bob   as alice.
-the age of bob becomes 31.
-State the age of alice.    ← "30"  — bob is a deep copy; alice is unaffected
-
-── Reference type (series, maps) ────────────────────────────────────────────────
-Define xs as a series of number with (1, 2, 3).
-Define ys as xs.
-Insert 4 into ys.
-State the number of xs.    ← "4"   — ys aliases xs; Insert mutated the shared list
-```
-
-The same rule applies when passing arguments to functions and returning values.
-
-### The series-element gotcha
-
-Pulling an element from a series follows the same type rule:
-
-```
-Define elem as item N of my-series.
-```
-
-Whether `elem` is a copy or an alias depends on **the element's type**, not on the
-series itself.
-
-**Value-typed element (record, object, number, text, fact) — you get a copy:**
+- **A copy applies the same rule to each field.** A record inside a record is copied with it; a series
+  or a map inside a record is shared with the original.
+- **`becomes` on a shared name points that name elsewhere.** The other names keep what they had. This
+  includes a parameter: changing the series it names reaches the caller, and giving it another does
+  not.
+- **What is taken out goes by its own type.** `Define card as item 1 of deck.` copies a record and
+  shares a series. The same holds for a map's entry and for a field.
+- **A field reached through the container is changed in place**: `The suit of item 1 of deck
+  becomes "Spades".`
+- **`one` is the object the method was called on**, not a copy, wherever that object is held: a name,
+  a field, or an item of a series.
+- **Between tasks every value is copied**, whatever its type, by a channel and by a task that captures
+  it. A channel itself is shared.
 
 ```cufet
-Define deck as a series of records like (the text suit, the text rank) with (
-    a record with (the suit "Clubs",    the rank "Ace"),
-    a record with (the suit "Diamonds", the rank "2")
-).
-Define card as item 1 of deck.
-the suit of card becomes "Spades".
-State the suit of item 1 of deck.    ← "Clubs"  — card is a copy; deck is unchanged
+Define tray as a record with (the label "a", the cards a series of number with (1)).
+Define other as tray.
+The label of other becomes "b".
+Insert 2 into the cards of other.
+State the label of tray.
+State the number of the cards of tray.
 ```
-
-`card` received a full copy of the record at position 1. Mutating `card` does not
-touch the series. To actually replace the element, use `item N of series becomes`:
-
-```cufet-fragment
-Define updated as a record with (the suit "Spades", the rank "Ace").
-item 1 of deck becomes updated.
-State the suit of item 1 of deck.    ← "Spades"  — the series element was replaced
+```output
+a
+2
 ```
-
-**Reference-typed element (nested series, map) — you get an alias:**
-
-If the element stored in the series is itself a collection (e.g. a `series of series
-of number`), then pulling it gives you an alias to that inner collection. Mutating
-through the alias is reflected back in the outer series.
-
-### Why this is correct, not a bug
-
-The value/reference split is the **memory model**, and it is what makes the rest of
-Cufet work correctly:
-
-**`Insert x into one's cards.` mutates the object's actual field** — series are
-reference-typed, so evaluating `one's cards` returns the live list stored in the
-field. All series operations mutate that list in place; no write-back step is needed.
-This is why the series-ops-take-`IExpression` work (gap #3) operates on `one's
-field` directly.
-
-**`Define bob as alice.` gives `bob` an independent life** — objects and records are
-value-typed, so every assignment is a deep copy. Mutations to `bob`'s fields never
-affect `alice`.
-
-The question to ask: *what type is this?* — the type tells you whether you're looking
-at an independent copy or a shared alias. Cufet picks the option that matches the
-mental model of each kind: scalars and named composites (records, objects) copy;
-collections (series, maps, matrices) share.
 
 ---
 

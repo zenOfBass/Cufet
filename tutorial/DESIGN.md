@@ -44,6 +44,8 @@ possibly a child.
     with a period. Is a word too many, or a mark missing?"
   - A misspelled first word. **Grace:** "Cufet doesn't know that first word. Check its spelling,
     capital letter and all."
+  - A name with a capital. **Hopper:** "Names start with a small letter! Cufet shows you how to
+    write it."
   - Words without quote marks. **Hopper:** "Words to say go in quote marks! Without them, Cufet
     thinks they're a name."
   - A block without its `Done.` **Hopper:** "Every colon opens a block, and every block needs its

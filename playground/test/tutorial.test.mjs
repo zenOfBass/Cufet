@@ -227,6 +227,7 @@ const COMMON_SAMPLES = {
     'no period at the end of a line': 'Define hops as 2\nState hops.',
     'more on a line than Cufet expected': 'State 2 3.',
     'a misspelled first word': 'Defne x as 1.\nState x.',
+    'a name with a capital': 'Define hops as 2.\nHops becomes 3.',
     'words without quote marks': 'State Keep going!.',
     'a block without its Done': 'If 2 is 2:\n    State "a".',
 };
