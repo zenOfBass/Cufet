@@ -79,8 +79,8 @@ the blueprint run in `App/Program.cs` and the pipeline tests (`InterpretRaw`).
 
 ### Types and object
 
-- **Reference-semantics opt-in.** Objects and map values are value-typed. An explicit way to
-  ask for shared semantics has no syntax. *Blocker:* its own design session; it interacts with
+- **Reference-semantics opt-in.** Objects are value-typed, and stay so inside a map or a series. An
+  explicit way to ask for shared semantics has no syntax. *Blocker:* its own design session; it interacts with
   the region model, which is what currently makes value semantics free.
 
 - **Fallible setters.** A setter can clamp or ignore a value, and cannot refuse one out loud, so an

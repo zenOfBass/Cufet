@@ -18,11 +18,6 @@ exceptions are called out inline where they arise, and there are two kinds:
 threads — so no interleaving is specified), and a genuinely **platform-owned** result
 (filesystem enumeration order).
 
-⚠ A fractional `power` used to be named here as a second platform-owned result. It is not one
-any more: `math` is written in Cufet, `power` is built from that book's own `log` and `exp`, and
-both backends run the same algorithm on the same decimal. See BOOKS, *the whole book is written
-in Cufet*.
-
 **Maintenance:** every feature slice that adds a keyword, syntactic form, or
 constraint must update this document. The reserved-keyword list in §1 especially.
 A future improvement would generate that list from the lexer's keyword table
@@ -80,10 +75,7 @@ as identifiers, but that is fine — they read as natural articles.
 one. `x is the phrase` is an ordinary COMPARISON against the value named `phrase`,
 because a name may be written with its article — which is the house style.
 
-★ This is the only spelling where the article carries meaning rather than being
-skipped, and it earned a warning the hard way: `the` used to introduce a type test
-too, so `x is the phrase` asked *"is x of type phrase?"* and answered false for
-every value of every type, with `x is not the phrase` answering true.
+★ This is the only spelling where the article carries meaning rather than being skipped.
 
 | Word | Token |
 |---|---|
@@ -466,7 +458,7 @@ token, digit count included — see [Leading zeros are significant](#-leading-ze
 
 **None of it is reserved.** `random`, `randomly`, `shuffled`, `guess` and `seed` are all
 contextual — see [Contextual words](#contextual-words--not-reserved) below, and the
-[Chance book](#chance-and-randomness-1) for what each one does.
+[Chance book](#chance-book-operations) for what each one does.
 
 ### Boolean literals
 
@@ -505,15 +497,16 @@ These are matched by lexeme or shape in specific positions, not by token type.
 Outside those positions they parse as regular identifiers and can be used as variable
 names, parameter names, field names, and iterator names:
 
-`line`, `lines`, `all`, `input`, `reading`, `writing`, `exists`,
-`variable`, `requested`, `output`
+`line`, `lines`, `all`, `reading`, `writing`, `exists`, `variable`, `requested`
 
-⚠ `arguments` used to be listed here and is **reserved** — `the arguments` has no
-mandatory tail, so nothing tells it from a variable of that name.
+`input` and `output` are contextual too, and may be a parameter, a field or an iterator. They
+cannot be a variable: each is already a name everywhere, for the stream.
 
-**Given back 2026-09-23** — `characters`, `delivery`, `entry`, `key`, `interrupt`,
-`environment`, `read` and `channel`. Each has a MANDATORY token immediately after it,
-which is the whole test:
+⚠ `arguments` is **reserved** — `the arguments` has no mandatory tail, so nothing tells it
+from a variable of that name.
+
+`characters`, `delivery`, `entry`, `key`, `interrupt`, `environment`, `read` and `channel`
+are not reserved. Each has a MANDATORY token immediately after it, which is the whole test:
 
 | Word | The shape that wanted it | Mandatory token |
 |---|---|---|
@@ -526,12 +519,12 @@ which is the whole test:
 | `environment` | `the environment variable <n>` | `variable` |
 | `read` | `read a line from the input` | `line` / `all` |
 
-**Given back 2026-09-24** — `contents`, by a third route: the TARGET of a field access has to
+`contents` is not reserved either: the TARGET of a field access has to
 be an expression, and `the contents of the DIRECTORY <path>` puts a keyword there. `the directory
 <path>` is not an expression standing alone, so `contents` could never have been a field name in
 that shape — which is the mandatory-token rule again, reaching two tokens out instead of one.
 
-**Given back 2026-09-24** — `length` and `size`, by a different route. Their shape is
+`length` and `size` are not reserved, by a different route. Their shape is
 `the <word> of <x>`, which NAMED FIELD ACCESS claims before the expression switch runs, so a
 mandatory token cannot free them. Instead the TARGET'S TYPE decides, exactly as it already does
 for `the rows of <matrix>` and `the width of <bits>`: text has a length, a map has a size, and on
@@ -983,26 +976,6 @@ Done.
 
 Series operations take `one's field` directly — no local alias needed.
 
-### Local alias pattern (no longer needed for series)
-
-Series operations used to require extracting a field into a local variable first.
-That restriction is gone: **all** series operations now accept any expression that
-evaluates to a series, including `one's field`, `alice's cards`, etc.
-
-The old pattern:
-```cufet-fragment
-Define my-items as one's items.    ← was required; now unnecessary
-Insert val into my-items.
-```
-
-Is now simply:
-```
-Insert val into one's items.
-```
-
-Local aliases are still fine to write if you prefer them for clarity (e.g. when
-you reference the same field many times in one method), but they are not required.
-
 ### Map and series operations: `one's field` works everywhere
 
 Both map and series operations take `IExpression` for the container argument.
@@ -1275,10 +1248,6 @@ While keep-going is true, repeat: ... Done.
 Send true through ch.           ← channel of fact
 ```
 
-The old workaround (`1 = 1` for true, `1 = 0` for false) is no longer needed and
-is retired from documentation. It still *works* — `1 = 1` is a valid comparison
-that yields a `fact` — but `true`/`false` are the natural forms.
-
 ### Negating a fact in condition context
 
 `not (fact-expr)` negates a boolean expression:
@@ -1288,12 +1257,11 @@ While not (cast is-empty on pq), repeat:
 If not (visited has a key for neighbor):
 ```
 
-`is false` and `is true` also work as direct comparisons now that `false`/`true`
-are keywords:
+`is false` and `is true` also work as direct comparisons:
 
 ```cufet-fragment
-While (cast is-empty on pq) is false, repeat:   ← NOW CORRECT
-If result is true, State "ok".                   ← NOW CORRECT
+While (cast is-empty on pq) is false, repeat:
+If result is true, State "ok".
 ```
 
 ---
@@ -1564,9 +1532,7 @@ Pull rabbit.
 ```
 
 ⚠ **A BOOK IS NOT PULLED THIS WAY.** `Pull math.` is refused; write `Pull a book on math.` The
-plain form is for a module you hold one of. `Pull math.` used to work and was never a decision —
-the general branch swallowed the name on its way past, and a test pinned the accident. Reversed
-2026-08-21.
+plain form is for a module you hold one of.
 
 ```cufet-fragment
 Pull a book on math.                      ← something you consult
@@ -1585,16 +1551,14 @@ A **book** is a module that owns no LIFETIME — what another language would hav
 file. It is declared with `and book`, and every book is a module:
 
 ```cufet-fragment
-Define object shapes with () and module:      ← this one may own a region
-Define object trigonometry with () and book:  ← this one may not
+Define object shapes with () and module:      ← a module
+Define object trigonometry with () and book:  ← a book
 ```
 
-★★ **Lifetime is the whole of the difference, settled 2026-09-17.** A `rabbit` is the only thing
-in the language that owns a region today, and it is the only bundled thing that says `and module`;
-letting a writer declare one is a design mountain rather than a gap. ⚠ Every other candidate line
-was measured and collapsed by being already true of BOTH — statelessness is the floor for anything
-pullable, and *consult vs hold* is crossed by `collections` and `blueprints`, books that hand out
-types you make values of.
+★★ **Lifetime is the whole of the difference.** A module may own a region, which it says with
+`and region` (REFERENCE, *A region is a module that OWNS one*); `rabbit` is the bundled one. A book
+may not. Nothing else separates them: anything pullable is stateless, and both may hand out types
+you make values of, as `collections` and `blueprints` do.
 
 ⚠ **`and book and module` is refused**, in either order. A book is already a module, so the pair
 says nothing extra and reads as a claim to be both kinds at once. Say one or the other.
@@ -1619,11 +1583,10 @@ Pull a book on math.
 Done.
 ```
 
-★ **Either form reaches another file.** The loader used to run only for the book form, which made
-one word carry two things — what the thing IS, and where it happens to live. Splitting a module
-into its own file no longer means calling it something it is not.
+★ **Either form reaches another file.** Which word is written says what the thing IS, not where it
+lives.
 
-★ **No module's NAME is reserved, and neither is `book` or `books`** (both freed 2026-08-19).
+★ **No module's NAME is reserved, and neither is `book` or `books`.**
 `math`, `collections`, `chance`, `rabbit`, `book` and `books` are all ordinary identifiers, so
 `For each book in books, repeat:` reads, and a writer may even define a module named `book` and
 reach it with `Pull book.`
@@ -1639,16 +1602,9 @@ on math* is natural English and *a math* is not. Pulling is one mechanism — th
 asked at every pull site — but the surface says which KIND of thing is being pulled, because
 something you consult and something you have one of are not the same thing.
 
-⚠ A book used to be described as conforming by CONSTRUCTION, "its members are native, so there
-is no `Define object` to carry `and module`". **That stopped being true in 0.16.0**: `math` has
-no native part left at all and `collections`'s only native piece is the `matrix` type. Both are
-written in Cufet now, behind a Cufet layer. What makes something a book is that it says `and
-book`, not how it happens to be implemented — and nothing about the bundled ones is privileged.
-✅ That became true of `math`, `collections` and `chance` on 2026-09-17; until then they said `and
-module` and were books only because the checker held a list of names. ⚠ It is still not true of
-`blueprints`, `regex` and the language books, which have no Cufet layer to carry a marker — for
-those the list is what says so, and `blueprints` cannot grow a layer without hiding its native
-`checksum`.
+What makes something a book is that it says `and book`, not how it is implemented, and `math`,
+`collections` and `chance` say it like any other. ⚠ `blueprints`, `regex` and the language books
+have no `Define object` to carry the marker, so the checker's own list is what says they are books.
 
 `module` is a **marker interface**: it requires no methods, only the claim. An object that
 does not conform is refused at the pull site. Pulling **instantiates**, so a module with
@@ -1695,7 +1651,7 @@ Done.
 ```
 
 ⚠ Both programs print `12.566370614359172953850573533`. The difference is only which pull site has
-to know about `math`, and a module that resolves a name where it is written no longer makes its
+to know about `math`, and a module that resolves a name where it is written does not make its
 caller name it too.
 
 A name that is neither is refused **when the program is checked**, not when the line runs:
@@ -1705,11 +1661,6 @@ Bind number to sneaky:
     Return borrowed + 1.        ← `borrowed` is a local of the CALLER — refused
 Done.
 ```
-
-⚠ That refusal is newer than the rule (2026-08-21). Every unresolved name in a body used to defer,
-which is dynamic scoping, and nothing ever wanted it — it came along with the module rule because
-the rule was applied to *every* name rather than to module names. A plain typo was
-indistinguishable from a capability and waited until the line ran.
 
 ★ **"Module" means DECLARED — a bundled book, or an object marked `and module`. An alias is not
 one.** `Pull math as m.` makes `m` an ordinary name in that block, so a body written *inside* the
@@ -1722,21 +1673,18 @@ everything lexically around it, aliases and locals included.
 
 ⚠ Known gap: a module's needs are checked at its pull, but they are not transitively closed. A
 module that reaches `math` only through a free function it calls is not caught, and neither is a
-function reached through a variable rather than by name. Bounded to module names, where it used to
-be every name.
+function reached through a variable rather than by name. Only module names are affected.
 
 ★ **A bundled book's name is reserved for the book.** Defining an object named `math`,
-`collections` or `chance` is refused at the definition — it used to be legal and simply
-unpullable, silently shadowed by the book at the pull site. The same wall has no side doors:
+`collections`, `chance` or any other bundled name is refused at the definition. The same wall has no side doors:
 `a new collections { }` is refused (**`Pull` is the only constructor** — a book is a
 scope-thing, and its construction is the bracket), and `unto` may not target a bundled book
 (it would splice a writer's member straight onto the book). The prelude's own definitions of
-`collections` and `math` are the one exception: each is its book's **Cufet layer**, and a book
-and its layer resolve as ONE module. A member the layer defines is ordinary Cufet method (or
-getter) dispatch; whatever the layer does not define is still the native book's — all reached
-through the same pulled name. Today **both bundled books are written entirely in Cufet** — the
-native side of `collections` only introduces the `matrix` type, and `math` has no native part
-left at all. A book the program never pulls is dropped from it, so an unused one costs nothing.
+`math`, `collections` and `chance` are the one exception: each is its book's **Cufet layer**, and a
+book and its layer resolve as ONE module. A member the layer defines is ordinary Cufet method (or
+getter) dispatch; whatever the layer does not define is the native book's — all reached through the
+same pulled name. The native side of `collections` introduces only the `matrix` type, and `math` has
+no native part. A book the program never pulls is dropped from it, so an unused one costs nothing.
 
 **Rabbit (singular only):**
 ```
@@ -2003,17 +1951,15 @@ not see a repeat of the `the series of number board` n-queens mis-parse.
   of `from` after the keyword (which causes `IsNamedAccessPattern` to return false
   since it requires `of` immediately after the name)
 
-**The lookahead is no longer what decides.** Approach B shipped: the parser marks the positions
-where a TYPE is being read, and the `the <name> of …` guess is not consulted in any of them. The
-keyword exclusion above still stands as the rule for field NAMES, but it is no longer carrying the
-weight of telling a type from an expression — position does that, which is the one thing lookahead
-could never do. `the stack of number counts` and `the city of alice` are the same tokens; only
+**Position decides, not lookahead.** The parser marks the positions where a TYPE is being read,
+and the `the <name> of …` guess is not consulted in any of them. The keyword exclusion above is the
+rule for field NAMES; telling a type from an expression is position's job, which is the one thing
+lookahead cannot do. `the stack of number counts` and `the city of alice` are the same tokens; only
 where they sit differs.
 
-**What this fixed, which the exclusion could not:** a user-defined generic written as a type. A
-built-in leads with its own keyword (`series of number`), so the exclusion covered it — but
-`the stack of number counts` starts with an identifier, and no exclusion list can hold it without
-also taking away every field access. It was refused everywhere a type is written.
+That is what lets a user-defined generic be written as a type. A built-in leads with its own keyword
+(`series of number`), but `the stack of number counts` starts with an identifier, and no exclusion
+list can hold it without also taking away every field access.
 
 ### ★ What a burying body may contain
 
@@ -2961,7 +2907,7 @@ Done.
 ```
 
 The rule keeps data flow explicit and prevents hidden global mutation. A `permanently` binding
-cannot be mutated, so it is exempt — the restriction was previously broader than the reason for it.
+cannot be mutated, so it is exempt.
 
 ★★ **"Top level" here means anywhere hoisting is transparent to — a `Pull` block included.** A
 constant declared inside `Pull a rabbit.` or `Pull a book on …` is a shared constant exactly as one
@@ -2994,10 +2940,7 @@ Pull a rabbit.
 Done.
 ```
 
-The refusal is enforced by the **TypeChecker**, so both backends agree and `cufet check` catches
-it. It used to be raised only by the interpreter at run time, which meant `check` reported no
-problems, running the program refused, and compiling it emitted undeclared C and blamed the
-compiler.
+The refusal is enforced by the **TypeChecker**, so both backends agree and `cufet check` catches it.
 
 A name that was never defined at all is a different case: it is still reported when the program
 runs, not by `check`.
@@ -3023,7 +2966,7 @@ is refused, and the refusal is deliberately checked in front of the setter branc
 | a promoted field written through an embed | refused |
 | a `Set id given (…)` setter | refused — a setter cannot stand in for this |
 
-The setter case is the one worth stating out loud: setters are **infallible and transform-only**,
+The setter case is the one worth stating out loud: setters are **infallible**,
 so one guarding a permanent field could only ignore a bad write, never reject it. Letting the write
 route through a setter would leave `permanently` meaning nothing to anyone who declared one.
 
@@ -3191,10 +3134,6 @@ either. That is what makes a noun phrase with a connective in it writeable here:
 a record with (the entry for "a" in ages but void is 0)   ← the map lookup
 cast size-of on (the characters from 1 to 2 of "hello")   ← the substring
 ```
-
-⚠ Until 2026-09-24 the rule was applied to the symbol operators ONLY, so both lines
-above were refused — `the entry` was read as a named field and `for` as the start of
-its value. The rule had always been right; it was the list that was short.
 
 ### Functions and methods see other functions, but not top-level data
 
@@ -3381,7 +3320,7 @@ simply skipped.
 
 ★★ **A PULLED FILE IS A LIBRARY: its top level may DECLARE, but not ACT.** Pulling loads the
 file and runs it, so anything that does something would do it inside your pull, before your own
-first line — and it used to do exactly that, in silence. A file is therefore a program or a
+first line. A file is therefore a program or a
 library, and a file that acts at its top level is refused at the pull, with the fix: split it in
 two.
 
@@ -3419,11 +3358,7 @@ the program is refused rather than handed one of them. ★ Two pulls of one name
 the SAME file is an ordinary diamond and stays legal — that is a shared dependency, not a
 conflict.
 
-★ It used to be decided by ORDER, and said nothing: whichever name was written first claimed
-the file, so `Pull books on utils, and alpha.` and `Pull books on alpha, and utils.` ran the same
-libraries and printed different answers.
-
-⚠ A book's own pulls resolve beside **that book**, not beside the entry program. MEASURED
+⚠ A book's own pulls resolve beside **that book**, not beside the entry program. That is
 unobservable today, since a book is always found in one of the two search places and the shared
 folder is a fallback at every level — it becomes visible only once a book can live somewhere that
 is not itself a search place.
@@ -3439,12 +3374,11 @@ already charges.
 type existed, and reading from it is refused by the direction check that was already there.
 
 ⚠ The word carries two readings, decided by position: `output <v>` inside a pipe stage sends a
-value downstream, and `the output` is a stream. `input` has carried the same pair since pipes
-shipped — `for each s from input, … output s`.
+value downstream, and `the output` is a stream. `input` carries the same pair —
+`for each s from input, … output s`.
 
-⚠⚠ **This TOOK a name the language had deliberately kept free.** `output` was usable as an
-ordinary variable until 2026-09-22 and was pinned as such. The contextual rule survives and is
-still pinned: `output becomes …` parses as a reassignment, `output | …` as the left of a pipe, and
+⚠⚠ **So `output` cannot be a variable.** The parser still reads the contextual forms:
+`output becomes …` parses as a reassignment, `output | …` as the left of a pipe, and
 both are refused by the TYPE checker rather than the parser — which is the evidence the parser
 still reads them that way.
 

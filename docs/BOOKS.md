@@ -31,7 +31,6 @@ Books come in three kinds, and the difference is what you get out of one:
     - [What crosses the boundary](#what-crosses-the-boundary)
     - [What an axiom can reach for](#what-an-axiom-can-reach-for)
     - [What it costs](#what-it-costs)
-    - [How far an interrupt reaches](#how-far-an-interrupt-reaches)
   - [Cufet source (`cufet`)](#cufet-source-cufet)
   - [Patterns (`regex`)](#patterns-regex)
 - [Part III. The build description](#part-iii-the-build-description)
@@ -104,8 +103,7 @@ correctly rounded).
 root is Newton–Raphson on the decimal; `log` and `exp` reduce their argument and sum a series;
 `power` is exact for a whole-number exponent, which is also the only kind a negative base
 accepts. Because both backends run the same algorithm on the same arithmetic, they give the
-same answer everywhere — a fractional `power` used to differ in its last digit between
-platforms, since the library underneath *was* the platform's own, and that is now gone.
+same answer everywhere.
 
 ```cufet
 Pull a book on collections.
@@ -403,11 +401,8 @@ evaluated, with the same words.
 of Life drawing in place, which needs an ESC character and so could not be written at all until a
 number could name one.
 
-★★ **That first sentence is a promise, and it is tested rather than asserted.** It was wrong for
-six operations until 2026-09-12 — three refused, three silently ignoring the position — and nothing
-noticed, because a doc's code samples are run while the prose around them is not.
-`EverySeriesOperation_WorksOnAChase` walks the series surface against a chase so the claim has
-something holding it up.
+★★ **That first sentence is a promise, and it is tested rather than asserted:**
+`EverySeriesOperation_WorksOnAChase` walks the series surface against a chase.
 
 - **It follows COLLECTION conventions, not text ones.** `Insert`, `the number of`, and printing
   that looks like a collection. It deliberately grows no parallel copy of text’s API — no
@@ -1466,9 +1461,8 @@ yourself. The next install reads it back, and a name that now resolves somewhere
 naming both**.
 
 ★★ **That is not the usual lockfile argument, and it is sharper here.** Because a blueprint may
-COMPUTE its pins, the closure is not a function of the files at all. MEASURED: one blueprint,
-unchanged and at a single commit, pinned a different book depending on whether it happened to run
-inside a git repository. Nothing else anywhere records what a project actually got.
+COMPUTE its pins, the closure is not a function of the files at all: one blueprint, unchanged and at
+a single commit, can pin a different book depending on whether it runs inside a git repository. Nothing else anywhere records what a project actually got.
 
 ★ **It is the tool's file, not yours.** Writing the closure back into `blueprint.cufe` would be a
 tool editing the source you wrote; every ecosystem that keeps a lock splits the two for that reason.

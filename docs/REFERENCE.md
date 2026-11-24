@@ -4,8 +4,7 @@ The complete reference for Cufet `0.30.0`. For a quick introduction and taste of
 the language, see [README.md](../README.md). For the reasoning behind the
 design, see [DESIGN.md](DESIGN.md); for what comes next, see [ROADMAP.md](ROADMAP.md). For reserved words, sharp edges,
 and the constraints worth knowing before you hit them, see [GRAMMAR.md](GRAMMAR.md). The books
-Cufet ships with — `math`, `collections`, `chance`, and `the c-language` — have their own
-reference in [BOOKS.md](BOOKS.md).
+Cufet ships with have their own reference in [BOOKS.md](BOOKS.md).
 
 Cufet either runs interpreted or compiles to a native binary, and the two share a
 front end. **Everything here applies to both** unless it says otherwise; the few
@@ -101,7 +100,7 @@ deliberate differences are marked where they arise and summarised under
       - [Restrictions](#restrictions)
       - [How stage types are checked](#how-stage-types-are-checked)
     - [Signal handling](#signal-handling)
-  - [Part VIII. Modules and books](#part-viii-modules-and-books)
+  - [Part VIII. Modules](#part-viii-modules)
     - [Modules (`Pull`)](#modules-pull)
       - [What a module carries](#what-a-module-carries)
       - [Books and modules](#books-and-modules)
@@ -252,7 +251,6 @@ a `//` inside a block comment is just text. Comment markers inside a string lite
 `State "http://example.com".` prints the whole URL.
 
 **Division is unaffected.** `/` is a single-character token, so `6 / 2` and `6/2` both divide.
-Nothing that was previously a valid program has changed meaning.
 
 **Unterminated comment.** A `/*` with no matching `*/` before end of file is a lexer error naming
 the line the **outermost** comment opened on — the one you have to go find:
@@ -1412,8 +1410,8 @@ Define hundred as range 1 to 100.        ← also valid anywhere a series goes
 - It produces an ordinary `series of number` — all series operations apply.
 
 ⚠ **A range written with both ends as literals, ending below where it starts, is refused** rather
-than quietly being empty — because it can only be a mistake, and because this behaviour CHANGED:
-a range used to turn around. Where the fault is visible on the line, it is said out loud.
+than quietly being empty, because it can only be a mistake. Where the fault is visible on the line,
+it is said out loud.
 
 ```cufet-refused
 For each n in range 100 to 1, repeat:
@@ -2116,8 +2114,8 @@ The field is set when the object is made and never changes after. It is per-fiel
 fields on the same object stay writable, and it is the same `permanently` that fixes a binding —
 shallow in the same way, fixing the field rather than what it holds.
 
-A setter cannot be used to get around it, and that is deliberate: setters are infallible and
-transform-only, so one guarding an id could only ignore a bad write rather than reject it. The
+A setter cannot be used to get around it, and that is deliberate: setters are infallible, so one
+guarding an id could only ignore a bad write rather than refuse it out loud. The
 same refusal applies inside the object's own methods (`one's id becomes …`) and to a field
 inherited through an embed.
 
@@ -2420,8 +2418,9 @@ The display of sensor becomes 100.    ← fires the setter
 - `Set <name> given (the <type> <param>):` intercepts `obj's <name> becomes value` and
   `the <name> of obj becomes value`. `Set <name> unto <type> given (...):` is the
   outside-body form.
-- **Infallible and transform-only** — a setter may clamp, convert, or normalize,
-  but cannot reject. Validation-that-rejects belongs to the caller before the assignment.
+- **Infallible** — a setter may clamp, convert, normalize, or ignore a value by returning before it
+  writes one, but it cannot fail. A bad value that has to be refused out loud is refused by the caller,
+  before the assignment.
 - Inside the setter body, `one's <this-name> becomes X` writes directly to the underlying
   storage, bypassing the setter (no infinite recursion).
 
@@ -2520,7 +2519,7 @@ Rules:
 - **A task body is a block** — an object defined at the top of `Have <rabbit> start a
   task:` is unmade at that task's `Done.`, whether the task finishes or faults.
 - ⚠⚠ **A function or method BODY is NOT a block, and its own `Define`s are never unmade.**
-  Neither is the program's top level. MEASURED: the same object declared in an `If` or a loop fires
+  Neither is the program's top level. The same object declared in an `If` or a loop fires
   its unmaker, and declared directly in a function body fires nothing — in both backends. Only the
   task body above is the exception. So a function that opens a resource and lets it fall out of
   scope LEAKS it, which is the case this feature exists for.
@@ -3953,7 +3952,7 @@ Done.
 immediate end of input, the second leaves it reading from wherever this program reads. A child
 asked to count what it is given must see nothing rather than wait for a keyboard.
 
-Two things follow from it that were previously unwritable. **A redirect is a file read:**
+Two things follow from it. **A redirect is a file read:**
 
 ```cufet-fragment
 Define body as read all from the file "notes.txt" or pass the failure off.
@@ -4800,8 +4799,7 @@ Pull greeting-kit as kit.
 Done.
 ```
 
-This is not new syntax. `Pull a rabbit.` was always this form; what changed is that the
-name in it no longer has to be one the language shipped.
+`Pull a rabbit.` is this same form, with a name the language ships.
 
 **A module may live in another file.** A pull looks for a bundled book, then for a module defined
 here, then for `‹name›.cufe` **beside the file that pulls it**, and finally in the project's shared
@@ -5244,8 +5242,7 @@ beside it. Compile them together anywhere:
 gcc out.c cufet-runtime.c -o program -pthread -lm
 ```
 
-Keeping the runtime out of `out.c` is what makes that file readable: it used to be
-about 950 lines of runtime before your program started. `build` compiles the runtime
+Keeping the runtime out of `out.c` is what makes that file readable. `build` compiles the runtime
 once and caches the object under your user cache directory (`%LOCALAPPDATA%\cufet` on
 Windows, `$XDG_CACHE_HOME/cufet` or `~/.cache/cufet` elsewhere; `CUFET_CACHE_DIR`
 overrides it), so later builds only compile your program. **The cache is never

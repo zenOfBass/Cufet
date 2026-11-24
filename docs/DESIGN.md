@@ -308,11 +308,10 @@ What an object owns, and what a property may do.
   such entanglement: it is named at construction and nothing dispatches on how many were given.
   That interaction wants deciding before the syntax is copied across.
 
-- **Setters are infallible and transform-only (Option A — settled).** A setter may
-  clamp, convert, normalize, or derive — but it cannot reject. Validation-that-rejects
-  belongs to the caller, before the assignment. This keeps `becomes` infallible
-  everywhere it appears. Fallible setters (Option B) are deferred to a future
-  effect-tracking arc.
+- **Setters are infallible (Option A).** A setter may clamp, convert, normalize, derive, or
+  ignore a value — but it cannot fail. Validation that refuses out loud belongs to the caller,
+  before the assignment. This keeps `becomes` infallible everywhere it appears. Fallible setters
+  (Option B) are on the ROADMAP.
 
 - **Four-valued logic is not in core.** A wire has four states (`0`, `1`, unknown, floating), and a
   `fact` has two. In core, four values would be a rival spelling of "not exactly true"; in a circuit
