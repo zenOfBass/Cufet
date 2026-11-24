@@ -253,9 +253,17 @@ public sealed class Lexer
     /// written an identifier. The token before the word is all the lexer knows, and it is enough
     /// to tell a line's first word, a name's place, and the rest apart.
     /// </remarks>
-    private static string CapitalWordMessage(string lexeme, Token? before)
+    private string CapitalWordMessage(string lexeme, Token? before)
     {
-        if (before is null || before.Type is TokenType.Dot or TokenType.Colon)
+        string lowered = char.ToLowerInvariant(lexeme[0]) + lexeme[1..];
+        bool leads = before is null || before.Type is TokenType.Dot or TokenType.Colon;
+
+        // ★ `Hops becomes 2.` is a name being changed, wherever it stands; `Grace's size …` is one
+        // when it leads the line. ⚠ Not after `State`, where `Grace's here!` is words with no quotes.
+        if (BecomesAhead() || leads && !AtEnd() && Peek() == '\'' && Next() == 's')
+            return $"names start with a lowercase letter: write '{lowered}'";
+
+        if (leads)
         {
             if (CufetSays(lexeme) is { } own)
                 return $"'{lexeme}' isn't a word Cufet knows to start a line with. Cufet says '{own}'.";
@@ -269,12 +277,23 @@ public sealed class Lexer
                  + (near is null ? "" : $". Did you mean '{near}'?");
         }
 
-        string lowered = char.ToLowerInvariant(lexeme[0]) + lexeme[1..];
-        if (before.Type is TokenType.Define or TokenType.Article or TokenType.To)
+        if (before!.Type is TokenType.Define or TokenType.Article or TokenType.To)
             return $"names start with a lowercase letter: write '{lowered}'";
 
         return $"'{lexeme}' starts with a capital letter, so it can't be a name. If these are words "
              + $"to say, put them in quote marks. If it's a name, write '{lowered}'";
+    }
+
+    /// <summary>The next word is `becomes`, so what was just read is being changed.</summary>
+    private bool BecomesAhead()
+    {
+        int at = _pos;
+        while (at < _source.Length && char.IsWhiteSpace(_source[at])) at++;
+        const string word = "becomes";
+        return at > _pos
+            && string.Compare(_source, at, word, 0, word.Length, StringComparison.OrdinalIgnoreCase) == 0
+            && (at + word.Length == _source.Length
+                || !char.IsLetterOrDigit(_source[at + word.Length]) && _source[at + word.Length] != '-');
     }
 
     /// <summary>

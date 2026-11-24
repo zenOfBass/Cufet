@@ -259,6 +259,13 @@ public class LexerTests
     [Theory]
     [InlineData("Define Total as 1.", "total")]
     [InlineData("Define hops as 2.\nThe Hops becomes 3.", "hops")]
+    [InlineData("Hops becomes 3.", "hops")]
+    [InlineData("Define hops as 2.\nHops  becomes 3.", "hops")]
+    [InlineData("If true, Hops becomes 3.", "hops")]
+    [InlineData("If true:\n    Hops\n        becomes 3.\nDone.", "hops")]
+    [InlineData("Else becomes 3.", "else")]
+    [InlineData("Stat becomes 3.", "stat")]
+    [InlineData("Grace's size becomes 3.", "grace")]
     [InlineData("Bind number to Double, given (the number n):\n    Return n * 2.\nDone.", "double")]
     public void AWordWhereANameBelongs_IsToldNamesStartLowercase(string source, string lowered)
     {
@@ -268,6 +275,8 @@ public class LexerTests
 
     [Theory]
     [InlineData("State Hello.", "Hello", "hello")]
+    [InlineData("State Grace's here.", "Grace", "grace")]
+    [InlineData("State Hops becoming.", "Hops", "hops")]
     [InlineData("State \"Hi\", Grace.", "Grace", "grace")]
     [InlineData("Define total as 1.\nState Total.", "Total", "total")]
     public void AWordAnywhereElse_IsOfferedQuoteMarksOrALowercaseName(string source, string word, string lowered)

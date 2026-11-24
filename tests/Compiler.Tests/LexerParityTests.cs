@@ -273,6 +273,19 @@ public class LexerParityTests
         "Bind number to Double, given (the number n):\n    Return n * 2.\nDone.",
         "State Hello.",
         "State \"Hi\", Grace.",
+        // A name with a capital being changed, wherever it stands (2026-11-24).
+        "Hops becomes 3.",
+        "Hops\tBECOMES 3.",
+        "If true, Hops becomes 3.",
+        "Hops\n    becomes 3.",
+        "Hops becomes",
+        "Hops becomesx 3.",
+        "Hops becomes-x 3.",
+        "Hops",
+        "Grace's size becomes 3.",
+        "Grace'x",
+        "State Grace's here.",
+        "State Hops becoming.",
         // A missing closing quote, reported at the text that ran on (2026-11-22) — and a later
         // mistake left alone when the text ran across lines on purpose.
         "State \"Hello.\nState \"Bye\".",

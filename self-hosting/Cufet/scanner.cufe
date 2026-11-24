@@ -288,7 +288,13 @@ Pull a book on collections.
             Define latest as the last of one's out.
             The before becomes latest's kind.
         Done.
-        If before is "" or before is "Dot" or before is "Colon":
+        Define lowered as ((the first 1 characters of lexeme) in lowercase) joined to (the characters from 2 to the end of lexeme).
+        Define leads as before is "" or before is "Dot" or before is "Colon".
+        // `Hops becomes 2.` is a name being changed; `Grace's size …` is one when it leads the line.
+        If cast one's becomes-ahead or (leads and cast one's peek is "'" and cast one's ahead is "s"):
+            Return "names start with a lowercase letter: write '{lowered}'".
+        Done.
+        If leads:
             Define own as cast cufet-says on (lexeme).
             If own is not "", return "'{lexeme}' isn't a word Cufet knows to start a line with. Cufet says '{own}'.".
             Define opening as "'{lexeme}' isn't a word Cufet knows to start a line with".
@@ -301,12 +307,34 @@ Pull a book on collections.
             Done.
             Return opening.
         Done.
-        Define lowered as ((the first 1 characters of lexeme) in lowercase) joined to (the characters from 2 to the end of lexeme).
         If before is "Define" or before is "Article" or before is "To":
             Return "names start with a lowercase letter: write '{lowered}'".
         Done.
         Return "'{lexeme}' starts with a capital letter, so it can't be a name. If these are words "
             joined to "to say, put them in quote marks. If it's a name, write '{lowered}'".
+    Done.
+
+    /// BecomesAhead — the next word is `becomes`, so what was just read is being changed.
+    Bind fact to becomes-ahead unto scanner:
+        Define spot as one's cursor.
+        Define skipping as true.
+        While skipping and spot is less than one's size + 1, repeat:
+            Define ch as item spot of one's source.
+            If cast one's is-space on (ch), increment spot by 1.
+            Otherwise, the skipping becomes false.
+        Done.
+        If spot is one's cursor, return false.
+        Define place as 1.
+        While place is less than 8, repeat:
+            If spot is greater than one's size, return false.
+            Define ch as item spot of one's source.
+            If (ch in lowercase) is not (the characters from place to place of "becomes"), return false.
+            Increment place by 1.
+            Increment spot by 1.
+        Done.
+        If spot is greater than one's size, return true.
+        Define after-word as item spot of one's source.
+        Return cast one's is-word-part on (after-word) is false and after-word is not "-".
     Done.
 
     /// Lexer.CufetSays — Cufet's own word for one other languages open a line with, or "".

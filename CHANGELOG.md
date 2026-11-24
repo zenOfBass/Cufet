@@ -30,8 +30,8 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   - A line's first word: `'Stat' isn't a word Cufet knows to start a line with. Did you mean
     'State'?` The suggestion comes only when the word has four letters or more and is one letter
     off a statement's word; two letters off would answer `Say` with 'Set'.
-  - Where a name belongs (after `Define`, `the`, or `to`): `names start with a lowercase letter:
-    write 'total'.`
+  - Where a name belongs (after `Define`, `the`, or `to`; before `becomes`; or leading a line before
+    `'s`): `names start with a lowercase letter: write 'total'.`
   - Anywhere else: `'Hello' starts with a capital letter, so it can't be a name. If these are
     words to say, put them in quote marks. If it's a name, write 'hello'.`
 
