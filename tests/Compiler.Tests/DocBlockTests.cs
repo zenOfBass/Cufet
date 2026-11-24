@@ -30,7 +30,7 @@ namespace Cufet.Compiler.Tests;
 /// against a real run, for a <c>cufet</c> block and a <c>cufet-refused</c> one alike. ⚠⚠ It must
 /// open on the line IMMEDIATELY after the previous fence closes — one blank line between them and
 /// the pair is silently skipped, which is how a doc can claim to be verified while nothing checks
-/// it. MEASURED: `docs/TUTORIAL.md` was written with a blank line and passed every sabotage.</item>
+/// it. MEASURED: a whole doc was written with a blank line and passed every sabotage.</item>
 /// </list>
 /// <para>
 /// ⚠ This REPLACED a hash baseline — a recorded list of blocks that happened to pass on some past
@@ -53,7 +53,7 @@ public class DocBlockTests
     /// that a new doc is unchecked until it is named here, which is the trade being made knowingly.
     /// </remarks>
     private static readonly string[] DocFiles =
-        ["README.md", "docs/BOOKS.md", "docs/GRAMMAR.md", "docs/REFERENCE.md", "docs/TUTORIAL.md"];
+        ["README.md", "docs/BOOKS.md", "docs/GRAMMAR.md", "docs/REFERENCE.md"];
 
     private static string RepoRoot => FindRepoRoot();
 
@@ -98,7 +98,9 @@ public class DocBlockTests
         foreach (var file in DocFiles)
         {
             var path = Path.Combine(RepoRoot, file);
-            if (!File.Exists(path)) continue;
+            // ⚠ A missing file used to be skipped: docs/TUTORIAL.md was deleted on 2026-11-15 and its
+            // checks vanished with nothing red.
+            Assert.True(File.Exists(path), $"{file} is listed in DocFiles and is not there, so nothing in it is checked.");
             var lines = File.ReadAllText(path).Replace("\r\n", "\n").Split('\n');
 
             for (int i = 0; i < lines.Length; i++)
@@ -363,8 +365,7 @@ public class DocBlockTests
 
         // ★★ A FLOOR, added 2026-09-17 — and the note above explaining why there wasn't one is now
         // out of date rather than wrong. It said a floor "would either be 1, which guards nothing,
-        // or a number that fails today", and with a single pair that was true. MEASURED: there are six,
-        // five in REFERENCE.md and one in TUTORIAL.md.
+        // or a number that fails today", and with a single pair that was true. MEASURED: there are six.
         //
         // ⚠⚠ What it guards is a test that can VANISH. Every pair here is DERIVED from the docs, so
         // deleting a documented refusal does not fail this test — it removes one, silently, and the

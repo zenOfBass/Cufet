@@ -69,13 +69,45 @@ Pull a book on collections.
     Bind text to narrowing-fix, given (the node said, the node shape, the text wanted-kind):
         If shape's kind is not "UnionType" or cast is-open-union on (shape), return "".
         If cast could-be on (shape, wanted-kind) is false, return "".
+        Return cast narrowing-words on (said, shape, cast plain-type on (wanted-kind)).
+    Done.
+
+    /// The fix line itself, for a case the union is known to hold.
+    Bind text to narrowing-words, given (the node said, the node shape, the node wanted):
         Define union as cast union-words on (shape).
-        Define needed as cast type-words on (cast plain-type on (wanted-kind)).
+        Define needed as cast type-words on (wanted).
         If said's kind is "VariableReference":
             Define name as cast unquoted on (cast field-of on (said, 1)).
             Return "'{name}' could be any of {union}. Check which it is first: 'If {name} is a {needed}:'.".
         Done.
         Return "This value could be any of {union}. Check which it is first: 'Judge …, where it is:' with an arm for 'A {needed}'.".
+    Done.
+
+    Bind fact to listed-among, given (the text kind, the series of text kinds):
+        For each one-kind in kinds, repeat:
+            If one-kind is kind, return true.
+        Done.
+        Return false.
+    Done.
+
+    /// Something that is not a series where one is needed — `NotASeries`. `fitting` is the kinds
+    /// this place takes, for telling which void or which union would do.
+    Bind text to not-a-series, given (the node said, the node shape, the text action, the text fix,
+            the series of text fitting, the number at-row):
+        If shape's kind is "VoidableType":
+            Define inner as cast field-of on (shape, 1).
+            If cast listed-among on (inner's kind, fitting):
+                Return cast void-misuse on (said, "void has no items", action, "'({cast defaulted on (said, inner)})'", at-row, "").
+            Done.
+        Done.
+        For each one-case in cast union-cases on (shape), repeat:
+            If cast listed-among on (one-case's kind, fitting):
+                Return cast refusal-of on ("{cast said-or on (said, "this")} is {cast one-of-type on (shape)}, and which of those it holds is not known yet", "",
+                    at-row, action, cast narrowing-words on (said, shape, one-case)).
+            Done.
+        Done.
+        Return cast refusal-of on ("{cast said-or on (said, "this")} is {cast one-of-type on (shape)}, not a series", "",
+            at-row, action, fix).
     Done.
 
     /// The same for a pair, the left first — only when narrowing could make BOTH sides fit.

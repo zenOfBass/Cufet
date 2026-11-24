@@ -139,7 +139,8 @@ public class ChannelTests
                 Insert 99 into original.
                 Close ch.
                 Define delivered as the delivery from ch.
-                State the number of delivered.
+                // A delivery is voidable, so it is checked before it is counted (REFERENCE).
+                If delivered is not void, state the number of delivered.
             Done.
             """);
         // original was mutated to 4 elements, but delivered copy should still be 3

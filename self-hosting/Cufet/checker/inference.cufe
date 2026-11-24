@@ -622,14 +622,45 @@ Pull a book on collections.
         Define target as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
         If target's kind is "SeriesType", return cast field-of on (target, 1).
         If target's kind is "ChaseType", return cast plain-type on ("TextType").
+        // A name for the index cannot help where there are no positions at all.
+        Define named-index as cast is-nothing on (index-said) is false and index-said's kind is not "NumberLiteral".
+        If named-index and target's kind is "RecordType" and (the number of (cast field-of on (target, 1))'s children) is 0:
+            Define held as "this record".
+            If (cast field-of on (said, 1))'s kind is "VariableReference", the held becomes "'{cast expression-words on (cast field-of on (said, 1))}'".
+            Return a failure (cast refusal-of on ("{held} has no positional fields", "", at-row, "access an item by position",
+                "This record has no positional fields. Access fields by name instead.")).
+        Done.
+        If named-index and target's kind is "ObjectType":
+            Define owner as cast unquoted on (cast field-of on (target, 1)).
+            Define positionals as a series of node.
+            Cast one's gather-positionals on (owner, positionals).
+            If the number of positionals is 0:
+                Return a failure (cast refusal-of on ("'{owner}' has no positional fields", "", at-row, "access an item by position",
+                    "'{owner}' has no positional fields. Access fields by name instead.")).
+            Done.
+        Done.
         If target's kind is "RecordType":
             Return cast record-item on (target, cast field-of on (said, 1), index-said, at-row) or pass the failure off.
         Done.
         If target's kind is "ObjectType":
             Return cast one's object-item on (target, index-said, at-row, "access position") or pass the failure off.
         Done.
+        If cast is-none on (target), return cast unknown-type.
+        // An interface stays a run-time question; `last` is refused of every object.
+        If target's kind is "InterfaceType":
+            If cast is-nothing on (index-said) is false, return cast unknown-type.
+            Return a failure (cast refusal-of on ("'last' doesn't work on objects", "", at-row, "use 'last' on an object",
+                "Use a position like 'the first of ...' or a field name like 'the city of ...'.")).
+        Done.
         If cast beyond-types on (target), return a failure (cast not-judged on ("an item of a {target's kind}")).
-        Return cast unknown-type.
+        Define holder as cast field-of on (said, 1).
+        Define fix as "Only a series, a chase, a record or an object has items by position.".
+        If target's kind is "TextType", the fix becomes "For the characters of a text, use 'the characters from 1 to 1 of {cast said-or on (holder, "the text")}'.".
+        If target's kind is "MapType", the fix becomes "For a map, use 'the entry for <key> in {cast said-or on (holder, "the map")}'.".
+        If target's kind is "SetType", the fix becomes "A set has no first or last. Go through it with 'For each'.".
+        If target's kind is "MatrixType", the fix becomes "For a matrix, use 'the item at (<row>, <column>) of {cast said-or on (holder, "the matrix")}'.".
+        Return a failure (cast not-a-series on (holder, target, "take an item from it by position", fix,
+            a series of text with ("SeriesType", "ChaseType", "RecordType", "ObjectType"), at-row)).
     Done.
 
     Bind node or failure to infer-series-length unto checker, given (the node said):
@@ -650,6 +681,14 @@ Pull a book on collections.
             Return a failure (cast refusal-of on ("'the number of' works on series, not text", "", at-row,
                 "get the number of characters in {cast expression-words on (counted)} (a text)",
                 "For text, use 'the length of'. For maps, use 'the size of'.")).
+        Done.
+        Define counts as cast is-none on (container) or container's kind is "SeriesType"
+            or container's kind is "ChaseType" or container's kind is "SetType".
+        If counts is false:
+            If cast beyond-types on (container), return a failure (cast not-judged on ("the number of a {container's kind}")).
+            Return a failure (cast not-a-series on (counted, container, "count its items",
+                "Only a series, a chase or a set can be counted with 'the number of'.",
+                a series of text with ("SeriesType", "ChaseType", "SetType"), at-row)).
         Done.
         Return cast plain-type on ("NumberType").
     Done.

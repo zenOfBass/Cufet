@@ -100,6 +100,13 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   at the end of the file, or was told its closing quote was missing, which it is not: the hole is
   still open, so that quote reads as the start of a text inside it. Now `this '{' never closes: a
   '}' is missing.` Both lexers.
+- **A position or a count asked of something that is not a series is refused before the program
+  runs.** `item 1 of 5`, `the first of` a text, `the last of` a map, `the number of` a fact: all
+  checked clean and died when they ran, with `Expected a series on line N.`, and `the number of 5`
+  made `cufet build` write C that gcc rejects. Now `5 is a number, not a series`, with the form that
+  fits a text, a map, a set or a matrix. One that might be void, or a union that could be a series,
+  has to be checked first, as REFERENCE says; the compiler refused those already. Both checkers.
+  Found auditing the checker's messages.
 - **The rest of the tutorial's list of terse refusals says what to write.** Each was found
   writing or play-testing the tutorial; all are in both parsers, the first in both checkers:
   - A function of the program's own called without `cast` (`State double on (3).`) was told

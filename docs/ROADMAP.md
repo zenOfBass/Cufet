@@ -57,42 +57,11 @@ The compiler written in Cufet is done: it builds every program in `examples/` an
 All need a design session before they can be ordered against anything. They are here because
 they are large, not because they are waiting — the order among them means nothing yet.
 
-1. **Teaching the language: making the tutorial playable.** `docs/TUTORIAL.md` is written —
-   thirteen lessons, every program and message checked by the suite; why it is shaped the way it
-   is lives in DESIGN.md, *Teaching the language*. What is left is the SHELL: a tutorial whose
-   examples run, in the page, against the same front end that compiles them, is a playground with
-   prose around it — so nothing new has to be built to execute a lesson.
-
-   **One decision, still open — what the site IS.** Lessons loaded into the playground, generated
-   pages, or something else. ✅ Where it LIVES is answered: Pages publishes an uploaded artifact,
-   which is how the playground ships. ⚠ Lessons 11 and 12 span several files, so a shell has to
-   place a small project, not one program.
-
-   ▶ **DESIGNED 2026-09-14, not built — the story frame.** Deliberately left out of the first draft.
-   - **The Velveteen Rabbit meets Peter Rabbit.** Grace and Hopper are not real yet, and sneak into
-     the garden to find out how. The ending is already the language's: lesson 13 shows a rabbit is
-     one line a person writes, so they become real because the learner made them.
-   - **Dialogue, not narration.** Grace is careful, Hopper is not; the learner overhears, and
-     identifies with the one making the mistake. *"Good little rabbits always remember to …"* is
-     Grace's catchphrase; Hopper pushing back keeps it from preaching.
-   - **Four stages**, mapping onto the language's taxonomy: *it won't run* (a refusal) → *it runs
-     and is wrong* (a failure) → *fill in the hole* → *blank page*. The lessons so far are stage one.
-   - **Shape:** a branching tree was DECLINED (2^N paths, and it fights the prerequisite order); a
-     **navigable map with gates** survives — a locked door is a puzzle you cannot yet solve. ⚠ That is a small GAME, none of it Cufet work, and the spine must be decided before rooms are written.
-
-   ★ **A REPL page, the cheapest thing here.** `tools/repl.cufe` keeps state by REPLAY — it re-runs
+1. **A REPL page.** `tools/repl.cufe` keeps state by REPLAY — it re-runs
    the accumulated lines and shows only what the new run added — and that gets SIMPLER in the
    browser: `Runtime.Run(source)` already takes a whole program and returns its output, statelessly.
    ⚠ Replay repeats side effects, and a page invites longer sessions than a terminal; every line
    re-runs every earlier one. Accepted natively; write it down rather than rediscover it.
-
-   ★ **A follow-on lesson on concurrency** — tasks and channels, after lesson 9 — is the one piece of
-   content the curriculum deliberately left for later.
-
-   ⚠ **Authoring constraints, for any lesson added or changed:** a broken program is broken in exactly
-   ONE legible way, or the refusal points somewhere other than the mistake; the check compares OUTPUT,
-   never just "it ran"; and everything stays pinned by the doc fences — a lesson whose code stops
-   working is worse than no lesson.
 
 2. **The project tree — the rest of it.** The blueprint's drawing of the tree is BUILT in the C#
    front end (why it is shaped this way: DESIGN.md, *The tree the blueprint draws*). Left: the

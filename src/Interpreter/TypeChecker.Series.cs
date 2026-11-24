@@ -616,6 +616,12 @@ public sealed partial class TypeChecker
                             : $"Positions run 1 through {rt.PositionalTypes.Count}.");
                 return rt.PositionalTypes[idx - 1];
             }
+            if (rt.PositionalTypes.Count == 0)
+                throw TypeError(
+                    $"{(acc.Target is VariableReference held ? $"'{held.Name}'" : "this record")} has no positional fields",
+                    null, acc.Line, acc.Column,
+                    "access an item by position",
+                    "This record has no positional fields. Access fields by name instead.");
             // Dynamic index — can't check statically; runtime handles it.
             return null;
         }
@@ -644,10 +650,64 @@ public sealed partial class TypeChecker
                             : $"Positions run 1 through {allPos.Count}.");
                 return allPos[idx - 1];
             }
+            if (GetAllPositionalTypes(ot).Count == 0)
+                throw TypeError(
+                    $"'{ot.Name}' has no positional fields",
+                    null, acc.Line, acc.Column,
+                    "access an item by position",
+                    $"'{ot.Name}' has no positional fields. Access fields by name instead.");
             return null;
         }
 
-        return null;
+        // ⚠ An interface stays a run-time question: what answers it is an object, and one with
+        // positions has them. `last` is refused of every object, so it is refused here too.
+        if (targetType is InterfaceType)
+            return acc.Index != null ? null : throw TypeError(
+                $"'last' doesn't work on objects",
+                null, acc.Line, acc.Column,
+                "use 'last' on an object",
+                "Use a position like 'the first of ...' or a field name like 'the city of ...'.");
+
+        // ⚠⚠ Everything else fell through to `null` — "type unknown" — so `item 1 of 5` CHECKED CLEAN
+        // and died when it ran, with "Expected a series on line N" (found 2026-11-23, auditing the
+        // checker's messages; REFERENCE had promised this refusal all along).
+        throw NotASeries(acc.Target, targetType, "take an item from it by position",
+            targetType switch
+            {
+                TextType   => $"For the characters of a text, use 'the characters from 1 to 1 of {SaidOr(acc.Target, "the text")}'.",
+                MapType    => $"For a map, use 'the entry for <key> in {SaidOr(acc.Target, "the map")}'.",
+                SetType    => "A set has no first or last. Go through it with 'For each'.",
+                MatrixType => $"For a matrix, use 'the item at (<row>, <column>) of {SaidOr(acc.Target, "the matrix")}'.",
+                _          => "Only a series, a chase, a record or an object has items by position.",
+            },
+            t => t is SeriesType or ChaseType or RecordType or ObjectType, acc.Line, acc.Column);
+    }
+
+    /// <summary>
+    /// Something that is not a series where one is needed: its own refusal when it might be void or
+    /// is a union that could be one, else what it is.
+    /// </summary>
+    /// <param name="fits">The types this place takes, for telling which void or union would do.</param>
+    private static TypeException NotASeries(
+        IExpression expr, CufetType type, string action, string fix, Func<CufetType, bool> fits, int line, int col)
+    {
+        if (type is VoidableType { Inner: var inner } && fits(inner))
+            return VoidableMisuse(expr, "void has no items", action, $"'({Defaulted(expr, inner)})'", line, col);
+        if (type is UnionType { Cases: { } cases } && cases.FirstOrDefault(fits) is { } wanted)
+            return TypeError($"{SaidOr(expr, "this")} is {OneOf(type)}, and which of those it holds is not known yet",
+                null, line, col, action, UnionNarrowingFix(expr, type, wanted) ?? fix);
+        return TypeError($"{SaidOr(expr, "this")} is {OneOf(type)}, not a series", null, line, col, action, fix);
+    }
+
+    /// <summary>An expression quoted back, or `instead` for one not worth quoting.</summary>
+    private static string SaidOr(IExpression expr, string instead) =>
+        FormatExpr(expr) is var said && said.Contains("<expression>") ? instead : said;
+
+    /// <summary>`a number`, `an address`; `bits` and `void` take no article.</summary>
+    private static string OneOf(CufetType type)
+    {
+        var name = FormatType(type);
+        return type is BitsType or VoidType ? name : ("aeiou".Contains(name[0]) ? "an " : "a ") + name;
     }
 
     private CufetType InferSeriesLength(SeriesLength sl)
@@ -683,6 +743,13 @@ public sealed partial class TypeChecker
                 null, sl.Line, sl.Column,
                 $"get the number of characters in {FormatExpr(sl.Series)} (a text)",
                 "For text, use 'the length of'. For maps, use 'the size of'.");
+
+        // ⚠ The same fall-through as an item's (above): `the number of 5` checked clean, died when it
+        // ran, and made the compiler write C that gcc rejects.
+        if (containerType is not (null or SeriesType or ChaseType))
+            throw NotASeries(sl.Series, containerType, "count its items",
+                "Only a series, a chase or a set can be counted with 'the number of'.",
+                t => t is SeriesType or ChaseType or SetType, sl.Line, sl.Column);
 
         return CufetType.Number;
     }

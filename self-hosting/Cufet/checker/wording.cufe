@@ -48,6 +48,21 @@ Pull a book on collections.
         Return "{cast expression-words on (said)} but void is {fallback}".
     Done.
 
+    /// An expression quoted back, or `instead` for one not worth quoting — `SaidOr`.
+    Bind text to said-or, given (the node said, the text instead):
+        Define spoken as cast expression-words on (said).
+        If spoken contains "<expression>", return instead.
+        Return spoken.
+    Done.
+
+    /// `a number`, `an address`; `bits` and `void` take no article — `OneOf`.
+    Bind text to one-of-type, given (the node shape):
+        Define spoken as cast type-words on (shape).
+        If shape's kind is "BitsType" or shape's kind is "VoidType", return spoken.
+        If "aeiou" contains (the first 1 characters of spoken), return "an {spoken}".
+        Return "a {spoken}".
+    Done.
+
     /// What the checker cannot judge yet, as a failure message.
     Bind text to not-judged, given (the text what):
         Return "unsupported\t{what}".
