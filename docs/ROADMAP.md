@@ -73,7 +73,9 @@ they are large, not because they are waiting — the order among them means noth
 
 ## Ongoing, no fixed slot
 
-A periodic error-message audit for internal vocabulary.
+**Auditing the checker's messages.** The parser's refusals are kept to a reader's words by a test that
+breaks programs and reads what comes back. Nothing does that for the checker's, which need programs
+that parse and make no sense, so they are read over now and then.
 
 **An axiom's output bypasses the interpreter's writer.** The interpreter loads an axiom with
 `NativeLibrary.Load` and calls it IN-PROCESS, so a `fputs(text, stdout)` inside one writes to the
