@@ -591,6 +591,7 @@ public sealed partial class TypeChecker
                 "write a lambda that might not return a value",
                 "Make sure every path through the lambda ends with a return statement.");
 
+        lambda.Gives = inferredReturn ?? CufetType.Void;
         var paramTypes = lambda.Parameters.Select(p => (CufetType)ResolveParamType(p.Type)).ToList();
         // A function that stores may be held in a name, or handed to another function, and each
         // of those takes this note back off. Anywhere else it is being kept where nothing follows

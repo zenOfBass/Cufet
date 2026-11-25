@@ -1724,7 +1724,7 @@ public sealed partial class CodeGenerator
         bool sequential = _rabbitCtxMode.GetValueOrDefault(ctx) == "sequential";
 
         // Result type (named tasks only) — inferred from the body's returns, mirroring the checker.
-        CufetType? resultType = lts.Name != null ? InferTaskResultType(lts.Body) : null;
+        CufetType? resultType = lts.Name == null ? null : lts.Gives is { } gives ? CheckedReturn(gives) : InferTaskResultType(lts.Body);
         string? resultCType = null;
         if (lts.Name != null && resultType != null)
         {
@@ -1817,6 +1817,12 @@ public sealed partial class CodeGenerator
                 continue;
             }
             string t = EmitCType(_varTypes[c]);
+            // `one` is a pointer wherever it is read, so the task's own copy is given one.
+            if (c == "one")
+            {
+                fn.AppendLine($"    {t} cf_onev = {ChanArenaCopy(_varTypes[c])}(cf_a->{m}); {ChanFreeEnv(_varTypes[c])}(cf_a->{m}); {t}* {m} = &cf_onev; (void){m};");
+                continue;
+            }
             fn.AppendLine(Bridged(c)
                 ? $"    {t} {m} = {ChanArenaCopy(_varTypes[c])}(cf_a->{m}); {ChanFreeEnv(_varTypes[c])}(cf_a->{m}); (void){m};"
                 : $"    {t} {m} = cf_a->{m}; (void){m};");
@@ -1917,7 +1923,7 @@ public sealed partial class CodeGenerator
             if (NotGiven(c, lts.Line) is { } asked) sb.AppendLine($"{indent}{asked};");
         sb.AppendLine($"{indent}{{ struct cufet_targ{tid}* cf_a = (struct cufet_targ{tid}*)malloc(sizeof(struct cufet_targ{tid}));");
         foreach (var c in caps)
-            sb.AppendLine($"{indent}  cf_a->{MangleName(c)} = {(Bridged(c) ? $"{ChanHeapEnv(_varTypes[c])}({MangleName(c)})" : MangleName(c))};");
+            sb.AppendLine($"{indent}  cf_a->{MangleName(c)} = {(Bridged(c) ? $"{ChanHeapEnv(_varTypes[c])}({(c == "one" ? "(*cv_one)" : MangleName(c))})" : MangleName(c))};");
         // The task publishes into its own box, so it needs a pointer to it; the rabbit records the
         // same pointer per slot so the teardown can free it.
         if (lts.Name != null && resultType != null)

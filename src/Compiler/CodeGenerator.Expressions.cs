@@ -1029,7 +1029,7 @@ public sealed partial class CodeGenerator
     {
         var savedVT = new Dictionary<string, CufetType>(_varTypes);
         foreach (var (pt, pn) in lam.Parameters) _varTypes[pn] = pt;
-        var ret = InferBodyReturnType(lam.Body);
+        var ret = lam.Gives is { } gives ? CheckedReturn(gives) : InferBodyReturnType(lam.Body);
         _varTypes.Clear();
         foreach (var kv in savedVT) _varTypes[kv.Key] = kv.Value;
         return new FunctionType(lam.Parameters.Select(p => p.Type).ToList(), ret);
@@ -1040,14 +1040,21 @@ public sealed partial class CodeGenerator
     // an env struct `cenv_<id>` (in _closureEnvs) holds the free vars, arena-allocated + populated at the
     // site. Capture policy = value-struct field storage: value types copy in (snapshot), region types
     // store the shared pointer (share) — binding-is-binding, no extra machinery. env=NULL if no capture.
-    private string EmitLambda(LambdaLiteral lam) => EmitClosure(lam.Parameters, lam.Body, lam.Line, null);
+    private string EmitLambda(LambdaLiteral lam) =>
+        EmitClosure(lam.Parameters, lam.Body, lam.Line, null, lam.Gives);
+
+    /// <summary>What the checker said a body gives back, as this backend writes it: null for nothing.</summary>
+    /// <remarks>★ Asked first. Worked out here, from the body's returns, it has to know what every name in
+    /// them holds, and a loop's name, a judgement's `it` and a name defined in a `Try` or a rabbit were
+    /// typed as a number (2026-11-25, found by docs/soundness/model/fuzz_cufet.py).</remarks>
+    private static CufetType? CheckedReturn(CufetType gives) => gives is VoidType ? null : gives;
 
     // Shared by lambdas and nested Binds (a nested Bind is a named local closure). `selfName`, if set,
     // is the closure's own name — inside the body, a call to it resolves to a SELF-CALL of this closure
     // fn reusing the current env (recursion by-name; the recursive closure has the same captures), so
     // the name is NOT captured (no self-referential env). Matches the interpreter's in-scope-name recursion.
     private string EmitClosure(IReadOnlyList<(CufetType Type, string Name)> parameters,
-                            IReadOnlyList<IStatement> body, int line, string? selfName)
+                            IReadOnlyList<IStatement> body, int line, string? selfName, CufetType? gives)
     {
         int id = _closureCounter++;
         string clos = $"cv_clos{id}";
@@ -1068,7 +1075,7 @@ public sealed partial class CodeGenerator
         bool Escapes(string v) =>
             escTo is { } t && TypeChecker.IsRegionBearing(savedVT[v]) && CaptureDepth(v) > t;
 
-        var ret = InferBodyReturnTypeWithParams(parameters, body);
+        var ret = gives is null ? InferBodyReturnTypeWithParams(parameters, body) : CheckedReturn(gives);
         var ft = new FunctionType(parameters.Select(p => p.Type).ToList(), ret);
         string cfn = RegisterFuncStruct(ft);
         string retC = ret == null ? "void" : EmitCType(ret);

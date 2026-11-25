@@ -1046,6 +1046,22 @@ static int cufet_str_code_point(const char* s) {
                 def.Methods.Select(m => m.Name)
                    .Concat(def.Getters.Select(g => g.Name))
                    .Concat(def.Setters.Select(s => s.Name)))));
+        // Names the walk does not count as defined: a task's, a rabbit's, what a pull brings in, a
+        // file's, a caught exception's.
+        AstSearch.Visit(bind.Body, node =>
+        {
+            switch (node)
+            {
+                case LaunchTaskStatement task:
+                    if (task.Name   is { } named)  known.Add(named);
+                    if (task.Binder is { } binder) known.Add(binder);
+                    break;
+                case PullRabbitStatement { Name: { } rabbit }: known.Add(rabbit); break;
+                case PullStatement pull: foreach (var (_, local) in pull.Books) known.Add(local); break;
+                case WithOpenStatement file: known.Add(file.BindingName); break;
+                case TryStatement caught: known.Add(caught.ExceptionName); break;
+            }
+        });
         return refs.Where(r => !known.Contains(r) && r != "it" && r != "input" && r != "output" && r != "the failure").ToList();
     }
 

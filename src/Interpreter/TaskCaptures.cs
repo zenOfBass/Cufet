@@ -224,6 +224,8 @@ public static class TaskCaptures
                 case null or string or CufetType: return false;
                 case VariableReference v: return v.Name == name;
                 case LambdaLiteral lambda: return Touches(lambda);
+                // The question chooses between the two; only they are handed on.
+                case ConditionalExpression choice: return HandsOver(choice.Value) || HandsOver(choice.Alternative);
                 case CastExpression call:
                     return call.Args.Any(HandsOver) || (call.Function is not VariableReference && HandsOver(call.Function));
                 case System.Runtime.CompilerServices.ITuple tup:

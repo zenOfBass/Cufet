@@ -463,16 +463,17 @@ public sealed partial class CodeGenerator
                     // anything else — a number, a fact — reclaims them outright.
                     var retType = _currentReturnType ?? TypeOf(ret.Value);
                     bool mergeArenas = ReturnCarriesArenaData(retType);
-                    // The temp is needed exactly when regions will actually be unwound here — the
-                    // same test as before the unwind was folded into UnwindTo, asked of the same
-                    // string rather than of a bool that only says which KIND of unwinding it is.
-                    if (ArenaPopStmts(0, mergeArenas).Length > 0)
+                    // The temp is needed whenever anything is undone on the way out, not only a region: a
+                    // value worked out after its `Try` was closed raised past that Try's own handler
+                    // (2026-11-25, found by docs/soundness/model/fuzz_cufet.py).
+                    string unwind = UnwindTo(FrameExit, mergeArenas);
+                    if (unwind.Length > 0 && retType is not (null or VoidType))
                     {
                         int rvid = _freshId++;
                         sb.AppendLine($"{indent}{EmitCType(retType)} cf_rv{rvid} = {retExpr};");
                         retExpr = $"cf_rv{rvid}";
                     }
-                    sb.AppendLine($"{indent}{UnwindTo(FrameExit, mergeArenas)}return {retExpr};");
+                    sb.AppendLine($"{indent}{unwind}return {retExpr};");
                 }
                 break;
 
@@ -619,7 +620,7 @@ public sealed partial class CodeGenerator
                 // captured yet — EmitBlock writes them in once they are made.
                 bool grouped = _bindGroup is { } g && g.Members.Contains(nb.Name);
                 if (grouped) _bindGroup!.Value.Members.Remove(nb.Name);
-                string val = EmitClosure(nb.Parameters, nb.Body, nb.Line, nb.Name);
+                string val = EmitClosure(nb.Parameters, nb.Body, nb.Line, nb.Name, nb.ReturnType ?? CufetType.Void);
                 FlushPreEmits(sb, indent);
                 sb.AppendLine(grouped ? $"{indent}{MangleName(nb.Name)} = {val};"
                                       : $"{indent}{EmitCType(ft)} {MangleName(nb.Name)} = {val};");

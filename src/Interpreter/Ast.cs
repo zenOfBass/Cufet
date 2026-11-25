@@ -1045,7 +1045,11 @@ public sealed record LambdaLiteral(
     IReadOnlyList<IStatement> Body,
     int Line,
     int Column
-) : IExpression;
+) : IExpression
+{
+    /// <summary>What the checker worked out this gives back, so the compiler does not work it out again.</summary>
+    public CufetType? Gives { get; internal set; }
+}
 
 // ── I/O ───────────────────────────────────────────────────────────────────────
 
@@ -1258,7 +1262,11 @@ public sealed record LaunchTaskStatement(
     string? RabbitName = null,
     string? Binder = null,
     IExpression? Source = null
-) : IStatement;
+) : IStatement
+{
+    /// <summary>What the checker worked out a named task hands back, so the compiler does not work it out again.</summary>
+    public CufetType? Gives { get; internal set; }
+}
 
 // a matrix with ((r1e1, r1e2, ...), (r2e1, r2e2, ...), ...)
 // 2D numeric grid; dimensions inferred from literal; rectangularity enforced.

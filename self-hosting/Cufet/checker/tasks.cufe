@@ -423,6 +423,10 @@ Pull a book on collections.
         If kind is "atom", return false.
         If kind is "VariableReference", return cast unquoted on (cast field-of on (said, 1)) is name.
         If kind is "LambdaLiteral", return cast mentions-name on (said, name).
+        // The question chooses between the two; only they are handed on.
+        If kind is "ConditionalExpression":
+            Return cast hands-over on (cast field-of on (said, 1), name) or cast hands-over on (cast field-of on (said, 3), name).
+        Done.
         If kind is "CastExpression":
             For each argument in (cast field-of on (said, 2))'s children, repeat:
                 If cast hands-over on (argument, name), return true.

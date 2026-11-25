@@ -945,6 +945,86 @@ public class PipelineRecordObjectTests : PipelineTestBase
         Assert.Equal(InterpretRaw(source), CompileRaw(source));
     }
 
+    /// <summary>Programs the interpreter ran and the compiler refused, or ran otherwise (2026-11-25, docs/soundness/model/fuzz_cufet.py).</summary>
+    [Theory]
+    // pair in top lambda
+    [InlineData("Define m as a map from text to text.\nIn m, the entry for \"k\" becomes \"v\".\nDefine f as a function:\n    For each row in m, repeat:\n        Define q as the value of row.\n        State q.\n    Done.\n    Return 1.\nDone.\nState cast f.\n",
+        "v\n1")]
+    // pair key in top lambda
+    [InlineData("Define m as a map from text to text.\nIn m, the entry for \"k\" becomes \"v\".\nDefine f as a function:\n    For each row in m, repeat:\n        Define q as the key of row.\n        State q.\n    Done.\n    Return 1.\nDone.\nState cast f.\n",
+        "k\n1")]
+    // pair returned in lambda
+    [InlineData("Define m as a map from text to text.\nIn m, the entry for \"k\" becomes \"v\".\nDefine f as a function:\n    For each row in m, repeat:\n        Return the value of row.\n    Done.\n    Return \"x\".\nDone.\nState cast f.\n",
+        "v")]
+    // pair in lambda in fn
+    [InlineData("Bind void to g:\n    Define m as a map from text to text.\n    In m, the entry for \"k\" becomes \"v\".\n    Define f as a function:\n        For each row in m, repeat:\n            Return the value of row.\n        Done.\n        Return \"x\".\n    Done.\n    State cast f.\nDone.\nCast g.\n",
+        "v")]
+    // pair in task
+    [InlineData("Define m as a map from text to text.\nIn m, the entry for \"k\" becomes \"v\".\nPull a rabbit.\n    Have rabbit start a task as t:\n        For each row in m, repeat:\n            Return the value of row.\n        Done.\n        Return \"x\".\n    Done.\n    State the awaited result of t.\nDone.\n",
+        "v")]
+    // chase each returned in lambda
+    [InlineData("Pull a book on collections.\n    Define c as a chase.\n    Insert \"ab\" into c.\n    Define f as a function:\n        For each row in c, repeat:\n            Return row.\n        Done.\n        Return \"x\".\n    Done.\n    State cast f.\nDone.\n",
+        "a")]
+    // set each returned in lambda
+    [InlineData("Pull a book on collections.\n    Define c as a set of text with (\"ab\").\n    Define f as a function:\n        For each row in c, repeat:\n            Return row.\n        Done.\n        Return \"x\".\n    Done.\n    State cast f.\nDone.\n",
+        "ab")]
+    // series each returned in lambda
+    [InlineData("Define c as a series of text with (\"ab\").\nDefine f as a function:\n    For each row in c, repeat:\n        Return row.\n    Done.\n    Return \"x\".\nDone.\nState cast f.\n",
+        "ab")]
+    // judge it returned in lambda
+    [InlineData("Define the (series of number or text) c as \"ab\".\nDefine f as a function:\n    Judge c, where it is:\n        A text, return it.\n        A series of number, return \"n\".\n    Done.\nDone.\nState cast f.\n",
+        "ab")]
+    // defined in try returned in lambda
+    [InlineData("Define f as a function:\n    Try to:\n        Define w as \"abc\".\n        Return w.\n    Done.\n    In case of exception:\n        Return \"x\".\n    Done.\nDone.\nState cast f.\n",
+        "abc")]
+    // defined in rabbit returned in lambda
+    [InlineData("Define f as a function:\n    Pull a rabbit.\n        Define w as \"ab\" joined to \"c\".\n        Return w.\n    Done.\nDone.\nState cast f.\n",
+        "abc")]
+    // defined in book returned in lambda
+    [InlineData("Define f as a function:\n    Pull a book on math.\n        Define w as math's pi.\n        Return w.\n    Done.\nDone.\nState cast f.\n",
+        "3.1415926535897932384626433833")]
+    // book fn local task
+    [InlineData("Pull a book on collections.\n    Bind void to f0:\n        Pull a rabbit.\n            Have rabbit start a task as t6:\n                Return \"x\".\n            Done.\n            Define v as the awaited result of t6.\n            State v.\n        Done.\n    Done.\n    Cast f0.\nDone.\n",
+        "x")]
+    // one in a task
+    [InlineData("Define object box with (the text w).\nBind void to say unto box:\n    Pull a rabbit.\n        Have rabbit start a task:\n            State one's w.\n        Done.\n    Done.\nDone.\nDefine b as a new box { the w \"hi\" }.\nCast b's say.\n",
+        "hi")]
+    // one in a task, named
+    [InlineData("Define object box with (the text w).\nBind text to say unto box:\n    Pull a rabbit.\n        Have rabbit start a task as t:\n            Return one's w.\n        Done.\n        Return the awaited result of t.\n    Done.\nDone.\nDefine b as a new box { the w \"hi\" }.\nState cast b's say.\n",
+        "hi")]
+    // one in a lambda in a task
+    [InlineData("Define object box with (the text w).\nBind void to say unto box:\n    Pull a rabbit.\n        Have rabbit start a task:\n            Define f as a function: Return one's w. Done.\n            State cast f.\n        Done.\n    Done.\nDone.\nDefine b as a new box { the w \"hi\" }.\nCast b's say.\n",
+        "hi")]
+    // book fn: pull in it
+    [InlineData("Pull a book on collections.\n    Bind void to f0:\n        Pull a book on math.\n            State math's pi.\n        Done.\n    Done.\n    Cast f0.\nDone.\n",
+        "3.1415926535897932384626433833")]
+    // book fn: named rabbit
+    [InlineData("Pull a book on collections.\n    Bind void to f0:\n        Pull a rabbit as hopper.\n            State hopper.\n        Done.\n    Done.\n    Cast f0.\nDone.\n",
+        "rabbit()")]
+    // book fn: exception
+    [InlineData("Pull a book on collections.\n    Bind void to f0:\n        Define e as a series of number.\n        Try to:\n            State item 1 of e.\n        Done.\n        In case of exception (the trouble):\n            State the message of the trouble.\n            Suppress the exception.\n        Done.\n    Done.\n    Cast f0.\nDone.\n",
+        "There's no item 1 — 'e' is empty. This happened on line 5.")]
+    // lambda returns bare
+    [InlineData("Define f as a function given (the number n):\n    If n is 1, return.\n    State n.\nDone.\nCast f on (3).\nCast f on (1).\n",
+        "3")]
+    // a return that raises inside its Try
+    [InlineData("Bind number to f, given (the series of number e):\n    Try to:\n        Return item 1 of e.\n    Done.\n    In case of exception:\n        Suppress the exception.\n    Done.\n    Return 7.\nDone.\nState cast f on (a series of number).\nState cast f on (a series of number with (3)).",
+        "7\n3")]
+    // and inside a handler
+    [InlineData("Bind number to f, given (the series of number e):\n    Try to:\n        Try to:\n            Return item 1 of e.\n        Done.\n        In case of exception:\n            Return item 2 of e.\n        Done.\n    Done.\n    In case of exception:\n        Suppress the exception.\n    Done.\n    Return 7.\nDone.\nState cast f on (a series of number).",
+        "7")]
+    // a return worked out before what it leaves is unmade
+    [InlineData("Define object box with (the text w).\nBind unmaking a box to drop:\n    State \"gone\".\nDone.\nBind text to said, given (the box b):\n    State \"saying\".\n    Return b's w.\nDone.\nBind text to f:\n    If true:\n        Define b as a new box { the w \"hi\" }.\n        Return cast said on (b).\n    Done.\n    Return \"x\".\nDone.\nState cast f.",
+        "saying\ngone\nhi")]
+    // a task that asks a captured name which to pass
+    [InlineData("Define chance as true.\nBind number to f, given (the number n), n + 1.\nPull a rabbit.\n    Have rabbit start a task:\n        State cast f on (2 when chance, otherwise 3).\n    Done.\nDone.\nState chance.",
+        "3\ntrue")]
+    public void AProgramTheRandomSearchFound_AgreesOnBothBackends(string source, string printed)
+    {
+        Assert.Equal(printed, InterpretRaw(source).Replace("\r\n", "\n").TrimEnd('\n'));
+        Assert.Equal(InterpretRaw(source), CompileRaw(source));
+    }
+
     [Fact]
     public void Series_MutatedParam_Shares_MatchesInterpreter()
     {

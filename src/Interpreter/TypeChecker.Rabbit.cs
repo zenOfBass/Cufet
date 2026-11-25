@@ -180,6 +180,7 @@ public sealed partial class TypeChecker
                 "start a task that might not return a value",
                 "Make sure every path through the task ends with a return statement — or remove the returns to make it fire-and-forget.");
 
+        lts.Gives = inferredResultType ?? CufetType.Void;
         if (lts.Name != null)
             Scope[lts.Name] = new TypeInfo(
                 new TaskHandleType(inferredResultType),

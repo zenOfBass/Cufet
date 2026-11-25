@@ -36,6 +36,17 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   the rabbit holds (`Define k as xs permanently.`) cannot move, so it stays its block's own and a
   function reading it is refused. Present in every version back to 0.20.0 at least. Both checkers, both
   compilers, the interpreter.
+- **A `Return` whose value raises inside a `Try` reaches that `Try`'s handler, compiled.** The handler was
+  closed before the value was worked out, so `Return item 1 of empty.` in a `Try` ended the program, where
+  interpreted it was caught. A value is now worked out before anything it leaves is closed or unmade.
+- **A function given with `a function …` compiles whatever its `Return`s name.** The compiler worked out what
+  it gives back by itself, and typed as a number a loop's name, a judgement's `it`, and a name defined in
+  a `Try`, a rabbit or a `Pull`, so gcc refused it, or the compiler did (`'value' can't be read from a number`).
+  The checker's answer is used now. The same for a task.
+- **Three more shapes compile**: a task in a method that reads `one`; and, in a function inside a `Pull a book`
+  block, a named task, a named rabbit and a `Pull` of its own, each refused as a capture of the block.
+- **A task may ask a name it captured which value to pass on**: `cast f on (a when flag, otherwise b)` was
+  refused as a task changing `flag`. Both checkers.
 - **A chase and a set keep to the region rules a series keeps to.** Neither type was named in them, so
   nothing was refused and nothing was copied, and a compiled program read freed memory: a chase grown
   inside a rabbit (its buffer moved into the rabbit), a rabbit's chase or set given to an outer name or
