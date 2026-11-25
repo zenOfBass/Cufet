@@ -28,6 +28,7 @@ Pull a book on collections.
         the map from text to fact hidden,
         the map from text to node defs,
         the series of text def-order,
+        the series of text shorthand-names,
         the map from text to fact templates,
         the map from text to fact bundled,
         the series of map from text to node type-scopes,
@@ -188,6 +189,27 @@ Pull a book on collections.
                 Done.
             Done.
             Decrement depth by 1.
+        Done.
+        Return best.
+    Done.
+
+    /// The type nearest `name`, within two edits, or "": the language's own words, then the program's
+    /// objects, interfaces and shorthands in the order they are written. The first found wins a tie.
+    /// Only names a program can write as they stand. C#'s `NearestTypeName`.
+    Bind text to nearest-type-name unto checker, given (the text name):
+        Define known as a series of text with ("number", "text", "fact", "bits").
+        For each one-name in one's def-order, insert one-name into known.
+        For each pair in one's interfaces, insert the key of pair into known.
+        For each one-name in one's shorthand-names, insert one-name into known.
+        Define best as "".
+        Define best-distance as 3.
+        For each one-name in known, repeat:
+            If one-name contains " " or cast is-bundled-module on (one-name), skip.
+            Define distance as cast edit-distance on (one-name, name).
+            If distance is less than best-distance:
+                The best becomes one-name.
+                The best-distance becomes distance.
+            Done.
         Done.
         Return best.
     Done.
@@ -362,6 +384,9 @@ Pull a book on collections.
         Done.
         // A shorthand's type is put back wherever its name is written, before citing, dispatch and
         // the hoist, every one of which reads written types.
+        For each statement in cast every-statement-in on (program), repeat:
+            If statement's kind is "ShorthandDefinition", insert cast unquoted on (cast field-of on (statement, 1)) into one's shorthand-names.
+        Done.
         The program becomes cast expand-shorthands on (program) or pass the failure off.
         // Every `Cite` is replaced by what its block holds before anything is gathered.
         The program becomes cast one's expand-cites on (program) or pass the failure off.
@@ -1451,6 +1476,7 @@ Pull a book on collections.
             the hidden a map from text to fact,
             the defs a map from text to node,
             the def-order a series of text,
+            the shorthand-names a series of text,
             the templates a map from text to fact,
             the bundled a map from text to fact,
             the type-scopes a series with (a map from text to node),

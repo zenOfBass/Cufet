@@ -354,7 +354,10 @@ Pull a book on collections.
             If cast is-bundled-module on (name):
                 Return a failure (cast not-judged on ("a type named for a book")).
             Done.
-            Return a failure "error\tThat doesn't work: '{name}' is not a defined type.\n\nDefine 'object {name}' before using it as a type name, or check the spelling.".
+            Define advice as "Define 'object {name}' before using it as a type name, or check the spelling.".
+            Define nearest as cast one's nearest-type-name on (name).
+            If nearest is not "", the advice becomes "Did you mean '{nearest}'? If not, define 'object {name}' before using it as a type name.".
+            Return a failure "error\tThat doesn't work: '{name}' is not a defined type.\n\n{advice}".
         Done.
         For each inner in shape's children, repeat:
             Cast one's check-resolves on (inner) or pass the failure off.

@@ -126,7 +126,18 @@ Pull a book on collections.
         // The target's type as known HERE, narrowing and all — C#'s StaticTargetType.
         Define target-type as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
         Cast note on (said, ":StaticTargetType", target-type).
+        Cast one's check-tested-type on (cast field-of on (said, 2), cast number-of on (cast field-of on (said, 4))) or pass the failure off.
         Return cast plain-type on ("FactType").
+    Done.
+
+    /// A type a value is tested against names something: one nobody defined is never true.
+    Bind void or failure to check-tested-type unto checker, given (the node tested, the number at-row):
+        Try to:
+            Cast one's check-resolves on (tested).
+        Done.
+        In case of failure:
+            Return a failure (cast placed-refusal on (the message of the failure, at-row)).
+        Done.
     Done.
 
     /// The name `<name> is a <type>` tests, or "" — `TryGetTypeCheckNarrowing`.
@@ -251,6 +262,7 @@ Pull a book on collections.
             Otherwise:
                 Define cases as (cast field-of on (arm, 1))'s children.
                 For each one-case in cases, repeat:
+                    Cast one's check-tested-type on (one-case, arm-row) or pass the failure off.
                     // A voidable left over is its two cases again, or neither could be taken out of it.
                     If remaining's kind is "VoidableType":
                         The remaining becomes cast union-of on (a series with (cast field-of on (remaining, 1), cast plain-type on ("VoidType"))).

@@ -993,6 +993,36 @@ public sealed partial class TypeChecker
         return best;
     }
 
+    /// <summary>
+    /// The type nearest `name`, within two edits, or null: the language's own words, then the program's
+    /// objects, interfaces and shorthands in the order they are written. The first found wins a tie, so
+    /// the Cufet-written checker (`nearest-type-name`) can match it word for word.
+    /// </summary>
+    /// <remarks>⚠ Only names a program can write as they stand: a filling is `stack of number` and a
+    /// carried type `point in shapes`, and a bundled book's layer is an object nobody wrote.</remarks>
+    private string? NearestTypeName(string name)
+    {
+        string? best = null;
+        var bestDistance = 3;
+        foreach (var known in new[] { "number", "text", "fact", "bits" }
+                     .Concat(_winningDefinition.Keys)
+                     .Concat(_interfaceDefs.Where(i => i.Value.Line > 0).Select(i => i.Key))
+                     .Concat(_shorthandNames))
+        {
+            if (known.Contains(' ') || BuiltinBooks.ContainsKey(known)) continue;
+            var distance = Levenshtein(known, name);
+            if (distance < bestDistance) { bestDistance = distance; best = known; }
+        }
+        return best;
+    }
+
+    /// <summary>A type a value is tested against names something: one nobody defined is never true.</summary>
+    private void CheckTestedType(CufetType tested, int line, int column)
+    {
+        try { ResolveParamType(tested); }
+        catch (TypeException ex) when (IsUnplaced(ex)) { throw Placed(ex, line, column); }
+    }
+
     // Walk from second-innermost to outermost only (skips the current scope).
     private bool TryLookupOuter(string name, [System.Diagnostics.CodeAnalysis.MaybeNullWhen(false)] out TypeInfo ti)
     {
@@ -2934,6 +2964,7 @@ public sealed partial class TypeChecker
 
                     foreach (var oneCase in arm.Cases)
                     {
+                        CheckTestedType(oneCase, arm.Line, arm.Column);
                         // ★ A voidable left over is split back into its two cases first.
                         // RemoveFromUnion folds `(T or void)` into `voidable T`, so a three-case
                         // union with void in it became ONE opaque case after its first arm, and
@@ -4528,6 +4559,7 @@ public sealed partial class TypeChecker
         // ISA.2: record the target's static type (as known HERE, so flow-narrowing is reflected —
         // the same view the compiler's TypeOf has) so the interpreter can answer type-directed.
         tc.StaticTargetType = InferType(tc.Target);
+        CheckTestedType(tc.Type, tc.Line, tc.Column);
         return CufetType.Fact;
     }
 

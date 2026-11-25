@@ -1606,7 +1606,9 @@ public sealed partial class TypeChecker
                     EmbeddedTypeName: null, ConformedInterfaces.Count: 0 } ot
             => throw new TypeException(
                 $"That doesn't work: '{ot.Name}' is not a defined type.\n\n" +
-                $"Define 'object {ot.Name}' before using it as a type name, or check the spelling."),
+                (NearestTypeName(ot.Name) is { } nearest
+                    ? $"Did you mean '{nearest}'? If not, define 'object {ot.Name}' before using it as a type name."
+                    : $"Define 'object {ot.Name}' before using it as a type name, or check the spelling.")),
 
         // Already a concrete/fully-resolved type — nothing to do.
         _ => type

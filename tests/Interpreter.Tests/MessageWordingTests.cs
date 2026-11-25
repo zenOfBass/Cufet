@@ -47,6 +47,40 @@ public class MessageWordingTests
         Assert.DoesNotContain("expected", message);
     }
 
+    /// <summary>
+    /// A type nobody defined, tested for. It used to be accepted and simply never true, so a misspelled
+    /// type in an `If` or a `Judge` arm was a branch that could not run and nothing said so.
+    /// </summary>
+    [Theory]
+    [InlineData("Define the (number or text) x as 5.\nState x is a nonsense.", 2, "nonsense", null)]
+    [InlineData("Define the (number or text) x as 5.\nState x is not a nonsense.", 2, "nonsense", null)]
+    [InlineData("Define the (number or text) x as 5.\nIf x is a nubmer, state 1.", 2, "nubmer", "number")]
+    [InlineData("Define the (number or text) x as 5.\nIf x is a text:\n    State 1.\nDone.\nOtherwise if x is a nonsense:\n    State 2.\nDone.", 5, "nonsense", null)]
+    [InlineData("Define object box with (the number n).\nDefine the (number or text) x as 5.\nState x is a bxo.", 3, "bxo", "box")]
+    [InlineData("Define shorthand shape as (number or text).\nDefine the (number or text) x as 5.\nState x is a shpe.", 3, "shpe", "shape")]
+    [InlineData("Define interface greeter for the void function greet.\nDefine the (number or text) x as 5.\nState x is a greter.", 3, "greter", "greeter")]
+    [InlineData("Define the (number or text) x as 5.\nState x is a series of nonsense.", 2, "nonsense", null)]
+    [InlineData("Define the (number or text) x as 5.\nState x is a voidable nonsense.", 2, "nonsense", null)]
+    [InlineData("Define the (number or text) x as 5.\nState x is a (number or nonsense).", 2, "nonsense", null)]
+    [InlineData("Define the (number or text) x as 5.\nJudge x, where it is:\n    A number, state 1.\n    A nonsense, state 2.\n    Otherwise, state 3.\nDone.", 4, "nonsense", null)]
+    [InlineData("Define the (number or text) x as 5.\nJudge x, where it is:\n    A number or a nonsense, state 1.\n    Otherwise, state 3.\nDone.", 3, "nonsense", null)]
+    [InlineData("Define phrase as \"hi\".\nDefine the (number or text) x as 5.\nState x is a phrase.", 3, "phrase", null)]
+    public void AnUndefinedTypeTestedFor_IsRefused(string source, int line, string name, string? meant)
+    {
+        Assert.Equal($"That doesn't work: '{name}' is not a defined type.\nThis is in what starts on line {line}.\n\n"
+            + (meant is null
+                ? $"Define 'object {name}' before using it as a type name, or check the spelling."
+                : $"Did you mean '{meant}'? If not, define 'object {name}' before using it as a type name."), CheckFails(source));
+    }
+
+    [Theory]
+    [InlineData("Define the (number or text) x as 5.\nState x is a number.\nState x is not a text.")]
+    [InlineData("Bind fact to holds, given (the element e, the series of element s):\n    Define the (number or text) x as 5.\n    Return x is a element.\nDone.\nState cast holds on (1, a series of number with (1)).")]
+    [InlineData("Define object box with (the number n).\nDefine c as a catalogue with (a new box { the n 1 }, 2).\nState item 1 of c is a box.\nJudge item 1 of c, where it is:\n    A box, state \"box\".\n    Otherwise, state \"no\".\nDone.")]
+    [InlineData("Define shorthand shape as (number or text).\nDefine the (number or text) x as 5.\nState x is a shape.")]
+    public void ADefinedTypeTestedFor_IsAccepted(string source) =>
+        new TypeChecker().Check(new Parser(new CufetLexer(source).Tokenize()).Parse());
+
     /// <remarks>
     /// ⚠ The resolver that refuses a written type has no place, so this one gave no line at all. It
     /// gives where the statement or definition STARTS, and says so: a type carries no line of its own.

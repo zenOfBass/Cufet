@@ -17,6 +17,10 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   `becomes` (`The q of r becomes u.`), an argument to a method, the value handed to a setter, and
   either operand of an overload. Over a set or a map, changing the loop's variable also lost the entry it came from.
   A series or a map is shared in each of these, as before.
+- **A type nobody defined is refused where a value is tested for it.** `x is a nubmer` was accepted and
+  never true, and so was a `Judge` arm naming it, so the branch could not run and nothing said so. It is
+  refused like any other undefined type, with its line. Wherever a type is undefined, the nearest one
+  within two edits is suggested: `Did you mean 'number'?` Both checkers.
 - **A method called on the result of a call changes only that result, interpreted as well as compiled.**
   `Cast (cast h's inside)'s poke.` changed the object `h` still held when interpreted. The same for a
   getter's result, a `when`, a `but void is`, a field set in any of these, and a getter that changes
