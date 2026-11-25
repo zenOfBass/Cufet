@@ -10,6 +10,25 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **A record or an object is copied at every place it is stored, interpreted as well as compiled.**
+  In seven places the interpreter shared it, so a change through one name reached the other, while a
+  compiled program copied and left it alone: the variable of a `For each` (over a series, a
+  catalogue, a set, and a map's keys and values), a `Judge`'s `it`, a field or a position set with
+  `becomes` (`The q of r becomes u.`), an argument to a method, the value handed to a setter, and
+  either operand of an overload. Over a set or a map, changing the loop's variable also lost the entry it came from.
+  A series or a map is shared in each of these, as before.
+- **A method called on the result of a call changes only that result, interpreted as well as compiled.**
+  `Cast (cast h's inside)'s poke.` changed the object `h` still held when interpreted. The same for a
+  getter's result, a `when`, a `but void is`, a field set in any of these, and a getter that changes
+  its own object. A method called on `the value of pair` in a `For each` changes the pair's value; the
+  compiled program changed a copy of it.
+- **`the <field> of <call>` makes the call once.** The interpreter made it twice, so a function that
+  printed printed twice.
+- **Two shapes compile that gcc used to refuse**: a method called on, or a field set in, an item of a
+  series a call hands back; and a field set in a call's result.
+- **The compiler written in Cufet** sets a field reached through an item, a pair or a call, reaches the
+  object itself when a method is called on `the <field> of <object>`, and lets a getter change the
+  object it reads.
 - **`becomes` on a name nothing has given is refused before the program starts.** `The hosp
   becomes hops + 1.` with no `hosp` used to check clean; the program ran every line above it and
   stopped there. Reading an unknown name has been refused for a long time, and changing one now is

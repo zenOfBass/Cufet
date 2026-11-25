@@ -498,6 +498,117 @@ public class PipelineRecordObjectTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
+    /// <summary>
+    /// The rest of the places a value is stored, each of which copies a record or an object
+    /// (2026-11-24). The interpreter shared in every one of these and the compiled program copied,
+    /// so the two printed different answers. The answer is stated, so agreeing on a wrong one fails.
+    /// </summary>
+    [Theory]
+    // a loop over records
+    [InlineData("Define s as a series of records like (the number n) with (a record with (the n 1)).\nFor each r in s, repeat:\n    The n of r becomes 9.\n    State the n of r.\nDone.\nState the n of item 1 of s.",
+        "9\n1")]
+    // a loop over objects, changed by a method
+    [InlineData("Define object box with (the number n).\nBind void to poke unto box:\n    One's n becomes 9.\nDone.\nDefine s as a series of box with (a new box { the n 1 }).\nFor each r in s, repeat:\n    Cast r's poke.\n    State the n of r.\nDone.\nState the n of item 1 of s.",
+        "9\n1")]
+    // the other way: the item is set, the loop's own is not
+    [InlineData("Define s as a series of records like (the number n) with (a record with (the n 1)).\nFor each r in s, repeat:\n    The n of item 1 of s becomes 9.\n    State the n of r.\nDone.\nState the n of item 1 of s.",
+        "1\n9")]
+    // a loop inside a loop
+    [InlineData("Define s as a series of series of records like (the number n) with (a series of records like (the number n) with (a record with (the n 1))).\nFor each row in s, repeat:\n    For each r in row, repeat:\n        The n of r becomes 9.\n    Done.\nDone.\nState the n of item 1 of item 1 of s.",
+        "1")]
+    // a catalogue, narrowed
+    [InlineData("Define object box with (the number n).\nBind void to poke unto box:\n    One's n becomes 9.\nDone.\nDefine s as a catalogue with (a new box { the n 1 }).\nFor each r in s, repeat:\n    If r is a box:\n        The n of r becomes 9.\n    Done.\nDone.\nDefine got as item 1 of s.\nIf got is a box, state the n of got.",
+        "1")]
+    // a map's value
+    [InlineData("Define m as a map from text to record like (the number n).\nIn m, the entry for \"k\" becomes a record with (the n 1).\nFor each pair in m, repeat:\n    The n of the value of pair becomes 9.\n    State the n of the value of pair.\nDone.\nDefine got as the entry for \"k\" in m.\nIf got is not void, state the n of got.",
+        "9\n1")]
+    // a map's key, which the map would lose
+    [InlineData("Define m as a map from record like (the number n) to number.\nIn m, the entry for a record with (the n 1) becomes 5.\nFor each pair in m, repeat:\n    The n of the key of pair becomes 9.\nDone.\nState the entry for a record with (the n 1) in m.",
+        "5")]
+    // a set's element, which the set would lose
+    [InlineData("Pull a book on collections.\n    Define s as a set of record like (the number n).\n    Insert a record with (the n 1) into s.\n    For each r in s, repeat:\n        The n of r becomes 9.\n    Done.\n    State s has a record with (the n 1).\nDone.",
+        "true")]
+    // a series inside a series is still shared
+    [InlineData("Define s as a series of series of number with (a series of number with (1)).\nFor each row in s, repeat:\n    Insert 2 into row.\nDone.\nState the number of item 1 of s.",
+        "2")]
+    // and so is a series an object holds
+    [InlineData("Define object hold with (the series of number xs).\nDefine s as a series of hold with (a new hold { the xs a series of number with (1) }).\nFor each r in s, repeat:\n    Insert 2 into the xs of r.\nDone.\nState the number of the xs of item 1 of s.",
+        "2")]
+    // a record's field
+    [InlineData("Define u as a record with (the n 1).\nDefine r as a record with (the q a record with (the n 5)).\nThe q of r becomes u.\nThe n of u becomes 9.\nState the n of the q of r.",
+        "1")]
+    // a record's position
+    [InlineData("Define u as a record with (the n 1).\nDefine r as a record with (a record with (the n 5), 2).\nItem 1 of r becomes u.\nThe n of u becomes 9.\nState the n of item 1 of r.",
+        "1")]
+    // an object's field, by 'of'
+    [InlineData("Define object box with (the number n).\nBind void to poke unto box:\n    One's n becomes 9.\nDone.\nDefine object holder with (the box held).\nDefine u as a new box { the n 1 }.\nDefine h as a new holder { the held a new box { the n 5 } }.\nThe held of h becomes u.\nThe n of u becomes 9.\nState the n of the held of h.",
+        "1")]
+    // a method's argument
+    [InlineData("Define object box with (the number n).\nBind void to poke unto box:\n    One's n becomes 9.\nDone.\nBind void to push unto box, given (the box other):\n    The n of other becomes 9.\nDone.\nDefine u as a new box { the n 1 }.\nDefine v as a new box { the n 1 }.\nCast v's push on (u).\nState the n of u.",
+        "1")]
+    // a setter's value
+    [InlineData("Define object box with (the number n).\nBind void to poke unto box:\n    One's n becomes 9.\nDone.\nDefine object holder with (the box held).\nSet held unto holder given (the box wanted):\n    The n of wanted becomes 9.\n    One's held becomes wanted.\nDone.\nDefine u as a new box { the n 1 }.\nDefine h as a new holder { the held a new box { the n 5 } }.\nThe held of h becomes u.\nState the n of u.\nState the n of the held of h.",
+        "1\n9")]
+    // an overload's operands
+    [InlineData("Define object box with (the number n).\nBind void to poke unto box:\n    One's n becomes 9.\nDone.\nBind overloading +, given (the lhs is a box, the rhs is a box):\n    The n of lhs becomes 8.\n    The n of rhs becomes 9.\n    Return a new box { the n 3 }.\nDone.\nDefine u as a new box { the n 1 }.\nDefine v as a new box { the n 2 }.\nDefine w as u + v.\nState the n of u.\nState the n of v.",
+        "1\n2")]
+    // Judge's it, over a name
+    [InlineData("Define object box with (the number n).\nBind void to poke unto box:\n    One's n becomes 9.\nDone.\nDefine the (box or number) u as a new box { the n 1 }.\nJudge u, where it is:\n    A box:\n        The n of it becomes 9.\n        State the n of it.\n    Done.\n    A number, state \"no\".\nDone.\nIf u is a box, state the n of u.",
+        "9\n1")]
+    // Judge's it, by a method
+    [InlineData("Define object box with (the number n).\nBind void to poke unto box:\n    One's n becomes 9.\nDone.\nDefine the (box or number) u as a new box { the n 1 }.\nJudge u, where it is:\n    A box:\n        Cast it's poke.\n        State the n of it.\n    Done.\n    A number, state \"no\".\nDone.\nIf u is a box, state the n of u.",
+        "9\n1")]
+    // Judge's it, over a voidable
+    [InlineData("Define object box with (the number n).\nBind void to poke unto box:\n    One's n becomes 9.\nDone.\nDefine m as a map from text to box.\nIn m, the entry for \"k\" becomes a new box { the n 1 }.\nDefine u as the entry for \"k\" in m.\nJudge u, where it is:\n    A box:\n        The n of it becomes 9.\n    Done.\n    A void, state \"no\".\nDone.\nIf u is not void, state the n of u.",
+        "1")]
+    // If narrows the same name, which is changed
+    [InlineData("Define object box with (the number n).\nBind void to poke unto box:\n    One's n becomes 9.\nDone.\nDefine the (box or number) u as a new box { the n 1 }.\nIf u is a box:\n    Cast u's poke.\nDone.\nIf u is a box, state the n of u.",
+        "9")]
+    // a method on a call's result
+    [InlineData("Define object box with (the number n).\nBind void to poke unto box:\n    One's n becomes 9.\nDone.\nDefine object holder with (the box held):\n    Bind box to inside:\n        Return one's held.\n    Done.\n    Bind holder to me:\n        Return one.\n    Done.\n    Get inner as box:\n        Return one's held.\n    Done.\nDone.\nDefine h as a new holder { the held a new box { the n 1 } }.\nCast (cast h's inside)'s poke.\nCast poke on (cast h's inside).\nState the n of the held of h.",
+        "1")]
+    // a method on a field of a call's result
+    [InlineData("Define object box with (the number n).\nBind void to poke unto box:\n    One's n becomes 9.\nDone.\nDefine object holder with (the box held):\n    Bind box to inside:\n        Return one's held.\n    Done.\n    Bind holder to me:\n        Return one.\n    Done.\n    Get inner as box:\n        Return one's held.\n    Done.\nDone.\nDefine h as a new holder { the held a new box { the n 1 } }.\nCast ((cast h's me)'s held)'s poke.\nState the n of the held of h.",
+        "1")]
+    // a method on a getter's result
+    [InlineData("Define object box with (the number n).\nBind void to poke unto box:\n    One's n becomes 9.\nDone.\nDefine object holder with (the box held):\n    Bind box to inside:\n        Return one's held.\n    Done.\n    Bind holder to me:\n        Return one.\n    Done.\n    Get inner as box:\n        Return one's held.\n    Done.\nDone.\nDefine h as a new holder { the held a new box { the n 1 } }.\nCast (h's inner)'s poke.\nState the n of the held of h.",
+        "1")]
+    // a method on a default
+    [InlineData("Define object box with (the number n).\nBind void to poke unto box:\n    One's n becomes 9.\nDone.\nDefine m as a map from text to box.\nIn m, the entry for \"k\" becomes a new box { the n 1 }.\nDefine d as a new box { the n 3 }.\nCast ((the entry for \"k\" in m) but void is d)'s poke.\nCast ((the entry for \"z\" in m) but void is d)'s poke.\nState the n of ((the entry for \"k\" in m) but void is d).\nState the n of d.",
+        "1\n3")]
+    // a method on a when
+    [InlineData("Define object box with (the number n).\nBind void to poke unto box:\n    One's n becomes 9.\nDone.\nDefine u as a new box { the n 1 }.\nDefine v as a new box { the n 1 }.\nCast (u when true, otherwise v)'s poke.\nState the n of u.",
+        "1")]
+    // a getter that changes its object, on a call's result
+    [InlineData("Define object box with (the number n):\n    Get up as number:\n        One's n becomes 9.\n        Return 5.\n    Done.\nDone.\nDefine object holder with (the box held):\n    Bind box to inside:\n        Return one's held.\n    Done.\nDone.\nDefine h as a new holder { the held a new box { the n 1 } }.\nState (cast h's inside)'s up.\nState the n of the held of h.\nState (h's held)'s up.\nState the n of the held of h.",
+        "5\n1\n5\n9")]
+    // a field of a call's result, set
+    [InlineData("Define object box with (the number n).\nBind void to poke unto box:\n    One's n becomes 9.\nDone.\nDefine object holder with (the box held):\n    Bind box to inside:\n        Return one's held.\n    Done.\n    Bind holder to me:\n        Return one.\n    Done.\n    Get inner as box:\n        Return one's held.\n    Done.\nDone.\nDefine h as a new holder { the held a new box { the n 1 } }.\nThe n of (cast h's inside) becomes 9.\nState the n of the held of h.",
+        "1")]
+    // a method on an item of a call's result, which the series keeps
+    [InlineData("Define object box with (the number n).\nBind void to poke unto box:\n    One's n becomes 9.\nDone.\nBind series of box to give, given (the series of box s):\n    Return s.\nDone.\nDefine s as a series of box with (a new box { the n 1 }).\nCast (item 1 of cast give on (s))'s poke.\nState the n of item 1 of s.",
+        "9")]
+    // a field of an item of a call's result
+    [InlineData("Define object box with (the number n).\nBind void to poke unto box:\n    One's n becomes 9.\nDone.\nBind series of box to give, given (the series of box s):\n    Return s.\nDone.\nDefine s as a series of box with (a new box { the n 1 }).\nThe n of item 1 of (cast give on (s)) becomes 9.\nState the n of item 1 of s.",
+        "9")]
+    // a method on a field, by 'of' and by 's
+    [InlineData("Define object box with (the number n).\nBind void to poke unto box:\n    One's n becomes 9.\nDone.\nDefine object holder with (the box held):\n    Bind box to inside:\n        Return one's held.\n    Done.\n    Bind holder to me:\n        Return one.\n    Done.\n    Get inner as box:\n        Return one's held.\n    Done.\nDone.\nDefine h as a new holder { the held a new box { the n 1 } }.\nCast (the held of h)'s poke.\nState the n of the held of h.\nThe n of the held of h becomes 2.\nCast (h's held)'s poke.\nState the n of the held of h.",
+        "9\n9")]
+    // a method on a series' first, and on a record's field
+    [InlineData("Define object box with (the number n).\nBind void to poke unto box:\n    One's n becomes 9.\nDone.\nDefine s as a series of box with (a new box { the n 1 }).\nCast (the first of s)'s poke.\nState the n of item 1 of s.\nDefine r as a record with (the held a new box { the n 1 }).\nCast (the held of r)'s poke.\nState the n of the held of r.",
+        "9\n9")]
+    // a method on a pair's value, kept by the pair
+    [InlineData("Define object box with (the number n).\nBind void to poke unto box:\n    One's n becomes 9.\nDone.\nDefine m as a map from text to box.\nIn m, the entry for \"k\" becomes a new box { the n 1 }.\nFor each pair in m, repeat:\n    Cast (the value of pair)'s poke.\n    State the n of the value of pair.\nDone.\nState the n of ((the entry for \"k\" in m) but void is a new box { the n 7 }).",
+        "9\n1")]
+    // the field of a call is the call's, once
+    [InlineData("Bind the record result with (the number n) to make:\n    State \"made\".\n    Return a record with (the n 1).\nDone.\nState the n of cast make.",
+        "made\n1")]
+    public void EveryPlaceAValueIsStored_CopiesIt_OnBothBackends(string source, string printed)
+    {
+        Assert.Equal(printed, InterpretRaw(source).Replace("\r\n", "\n").TrimEnd('\n'));
+        Assert.Equal(InterpretRaw(source), CompileRaw(source));
+    }
+
     [Fact]
     public void Series_MutatedParam_Shares_MatchesInterpreter()
     {

@@ -249,14 +249,13 @@ static int the equal(the type-c a, the type-c b) { return the tests; }
         Define field-name as cast unquoted on (cast field-of on (statement, 1)).
         Define target as cast field-of on (statement, 2).
         Define target-kind as cast one's kind-of on (target) or pass the failure off.
-        Define target-c as cast one's c-of on (target) or pass the failure off.
         If cast object-of on (target-kind) is not "":
             Define as-field-set as cast made on ("PossessiveSetStatement", a series with (target, cast field-of on (statement, 1), cast field-of on (statement, 3))).
             Cast one's emit-field-set on (as-field-set) or pass the failure off.
             Return.
         Done.
         If cast is-record on (target-kind) is false, return a failure (cast not-built on ("setting the {field-name} of a {target-kind}")).
-        If cast is-place on (target) is false, return a failure (cast not-built on ("setting a field of something that is not a name")).
+        Define target-c as cast one's c-settable on (target) or pass the failure off.
         Define held as cast record-field-kind on (target-kind, field-name).
         If held is "", return a failure (cast not-built on ("the {field-name} of a {target-kind}")).
         Define value as cast one's c-of-as on (cast field-of on (statement, 3), held) or pass the failure off.

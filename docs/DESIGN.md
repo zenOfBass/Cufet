@@ -175,6 +175,10 @@ What it means for a value not to be there, and how types relate.
   use the "struct model": value-on-assignment, mutable-in-place via `becomes` and
   via mutating methods.)
 
+  **Every place a value is stored follows this one rule**: `Define`, `becomes`, an argument, an item,
+  an entry or a field, a capture, the variable of a `For each`, and a `Judge`'s `it`. A place that shared instead would
+  be the one to remember.
+
   ⚠ **Maps were unstated here until 2026-09-23** and a reader had to infer which
   side they fell on. MEASURED: they SHARE. `Define copy as original.` makes a
   second name for one map, and handing a map to a function lets that function

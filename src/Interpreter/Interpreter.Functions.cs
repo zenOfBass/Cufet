@@ -27,7 +27,7 @@ public sealed partial class Interpreter
     {
         if (funcExpr is PossessiveAccess pa)
         {
-            var target = Evaluate(pa.Target);
+            var target = EvaluateReceiver(pa.Target);
             return DispatchMethod(pa.Member, target, args, line);
         }
 
@@ -38,7 +38,7 @@ public sealed partial class Interpreter
                 // Not a free function — first arg is the receiver, remaining args are params.
                 if (args.Count == 0)
                     throw new RuntimeException($"'{vr.Name}' is not defined (line {line}).");
-                var receiver = Evaluate(args[0]);
+                var receiver = EvaluateReceiver(args[0]);
                 return DispatchMethod(vr.Name, receiver, args.Skip(1).ToList(), line);
             }
             if (val is not FunctionValue func)
@@ -234,7 +234,7 @@ public sealed partial class Interpreter
         PushBodyScope();
 
         for (int i = 0; i < paramNames.Count; i++)
-            Scope[paramNames[i]] = argValues[i];
+            Scope[paramNames[i]] = BindCopy(argValues[i]);
         Scope["one"] = receiver;
 
         object? returnValue = null;

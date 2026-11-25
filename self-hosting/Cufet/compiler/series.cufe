@@ -450,8 +450,7 @@ size_t the length = strlen(the pieces[the index]); memcpy(the cursor, the pieces
             Return.
         Done.
         If cast is-record on (set-kind):
-            If cast is-place on (target) is false, return a failure (cast not-built on ("setting a field of something that is not a name")).
-            Define record-c as cast one's c-of on (target) or pass the failure off.
+            Define record-c as cast one's c-settable on (target) or pass the failure off.
             Define member as cast one's c-record-item on (record-c, set-kind, cast field-of on (statement, 2)) or pass the failure off.
             Define part-held as cast one's record-item-kind on (set-kind, cast field-of on (statement, 2)) or pass the failure off.
             Cast one's put on (assigned-to on (member, cast one's c-of-as on (cast field-of on (statement, 3), part-held) or pass the failure off)).

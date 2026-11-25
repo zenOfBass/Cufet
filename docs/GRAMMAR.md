@@ -1049,7 +1049,8 @@ Storing a value copies it or shares it, and its type decides which.
 | a voidable, a union | as the value it holds |
 
 A value is stored by `Define`, by `becomes` (to a name, a field, an item or an entry), by `Insert`,
-as an argument, in a literal's items, entries or fields, and in a function that captures it.
+as an argument, in a literal's items, entries or fields, as the variable of a `For each`, as the `it`
+of a `Judge`, and in a function that captures it.
 
 - **A copy applies the same rule to each field.** A record inside a record is copied with it; a series
   or a map inside a record is shared with the original.
@@ -1058,10 +1059,16 @@ as an argument, in a literal's items, entries or fields, and in a function that 
   not.
 - **What is taken out goes by its own type.** `Define card as item 1 of deck.` copies a record and
   shares a series. The same holds for a map's entry and for a field.
+- **A `For each` variable is a copy of a record or an object**, so changing it leaves the collection
+  alone. Over a map, the key and the value are each copied. A `Judge`'s `it` is a copy too; inside
+  `If x is a …`, `x` is still `x`.
 - **A field reached through the container is changed in place**: `The suit of item 1 of deck
   becomes "Spades".`
 - **`one` is the object the method was called on**, not a copy, wherever that object is held: a name,
   a field, or an item of a series.
+- **A record or an object nothing holds is a value of its own**: the result of a call, of a getter, of
+  `when`, or of `but void is`. A method called on it, or a field set in it, changes that value and
+  nothing else.
 - **Between tasks every value is copied**, whatever its type, by a channel and by a task that captures
   it. A channel itself is shared.
 

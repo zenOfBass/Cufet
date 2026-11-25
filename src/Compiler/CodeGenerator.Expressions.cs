@@ -738,10 +738,15 @@ public sealed partial class CodeGenerator
                 : $"cufet_chase_at({p[0]}, cufet_idx_check(cufet_to_int({p[1]}), ({p[0]})->len, \"{nm}\", {sa.Line}))",
                 pastedTwice: true);
         }
-        return InOrder(operands, emitted, p => sa.Index == null
+        // ★ A record or an object is read through its address, so the C names the item itself however
+        // the series was reached: a `({ … })` holding the item would be a copy with no address, and a
+        // method called on an item of a call's result was C that gcc refused.
+        bool place = tt is SeriesType { ElementType: RecordType or ObjectType };
+        string read = InOrder(operands, emitted, p => (place ? "&" : "") + (sa.Index == null
             ? $"({p[0]})->data[cufet_last_check(({p[0]})->len, \"{nm}\", {sa.Line}) - 1]"
-            : $"({p[0]})->data[cufet_idx_check(cufet_to_int({p[1]}), ({p[0]})->len, \"{nm}\", {sa.Line}) - 1]",
+            : $"({p[0]})->data[cufet_idx_check(cufet_to_int({p[1]}), ({p[0]})->len, \"{nm}\", {sa.Line}) - 1]"),
             pastedTwice: true);
+        return place ? $"(*{read})" : read;
     }
 
     // The name used in OOB messages — the interpreter passes the variable's name (quoted inside

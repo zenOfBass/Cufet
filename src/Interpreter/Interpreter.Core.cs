@@ -174,8 +174,8 @@ public sealed partial class Interpreter
     }
 
     // "Binding is binding": a value type (record/object) is COPIED at every site where it is
-    // stored — Define, becomes, closure capture, argument binding, AND container insertion
-    // (series/map element stores). Region types (series/maps) are shared by reference. This is
+    // stored — Define, becomes, closure capture, argument binding, container insertion
+    // (series/map element stores), AND the variable of a For each. Region types (series/maps) are shared by reference. This is
     // the single policy that keeps value semantics consistent everywhere a value comes to rest,
     // and it matches the native compiler (where a value struct copies on every store). Records
     // and objects DeepCopy so nested value fields copy too; series/maps and scalars pass through.
@@ -1064,7 +1064,7 @@ public sealed partial class Interpreter
                     EnterScope();
                     try
                     {
-                        Scope["it"] = subject!;
+                        Scope["it"] = BindCopy(subject!);   // a name of its own, as a loop's is
                         foreach (var s in arm.Body) Execute(s);
                     }
                     finally { ExitScope(); }
@@ -1079,7 +1079,7 @@ public sealed partial class Interpreter
                     EnterScope();
                     try
                     {
-                        Scope["it"] = subject!;
+                        Scope["it"] = BindCopy(subject!);   // a name of its own, as a loop's is
                         foreach (var s in judge.OtherwiseBody) Execute(s);
                     }
                     finally { ExitScope(); }
@@ -1290,7 +1290,7 @@ public sealed partial class Interpreter
 
             case SeriesSetStatement ss:
             {
-                var ssTarget = Evaluate(ss.Series);
+                var ssTarget = EvaluateReceiver(ss.Series);
                 if (ssTarget is CufetChase ssChase)
                 {
                     var ssName = ss.Series is VariableReference ssVr ? ssVr.Name : "this expression";
@@ -1318,7 +1318,7 @@ public sealed partial class Interpreter
                     var ssOwner = FindOwnerForPositional(ssOv, ssIdx);
                     if (ssOwner == null)
                         throw new RuntimeException($"Object '{ssOv.TypeName}' has no positional field at position {ssIdx} (line {ss.Line}).");
-                    ssOwner.Value.owner.PositionalFields[ssOwner.Value.idx] = Evaluate(ss.Value);
+                    ssOwner.Value.owner.PositionalFields[ssOwner.Value.idx] = BindCopy(Evaluate(ss.Value));
                     break;
                 }
                 if (ssTarget is RecordValue ssRrv)
@@ -1332,7 +1332,7 @@ public sealed partial class Interpreter
                         throw new RuntimeException(ssRrv.PositionalFields.Count == 0
                             ? $"This record has no positional fields (line {ss.Line})."
                             : $"This record has {ssRrv.PositionalFields.Count} positional field(s); there is no position {ssIdx} (line {ss.Line}).");
-                    ssRrv.PositionalFields[ssIdx - 1] = Evaluate(ss.Value);
+                    ssRrv.PositionalFields[ssIdx - 1] = BindCopy(Evaluate(ss.Value));
                     break;
                 }
                 if (ssTarget is not List<object> list)
@@ -1343,7 +1343,7 @@ public sealed partial class Interpreter
 
             case RecordNamedSetStatement rnss:
             {
-                var recordVal = Evaluate(rnss.Record);
+                var recordVal = EvaluateReceiver(rnss.Record);
                 if (recordVal is ObjectValue rnssOv)
                 {
                     // Route through setter if one exists and we're not already inside it (bypass).
@@ -1357,7 +1357,7 @@ public sealed partial class Interpreter
                     if (owner == null)
                         throw new RuntimeException($"Object of type '{rnssOv.TypeName}' has no field named '{rnss.FieldName}' (line {rnss.Line}).");
                     var fi = owner.NamedFields.FindIndex(f => f.Name == rnss.FieldName);
-                    owner.NamedFields[fi] = (rnss.FieldName, Evaluate(rnss.Value));
+                    owner.NamedFields[fi] = (rnss.FieldName, BindCopy(Evaluate(rnss.Value)));
                     break;
                 }
                 if (recordVal is not RecordValue rv)
@@ -1365,7 +1365,7 @@ public sealed partial class Interpreter
                 var fieldIdx = rv.NamedFields.FindIndex(f => f.Name == rnss.FieldName);
                 if (fieldIdx < 0)
                     throw new RuntimeException($"This record has no field named '{rnss.FieldName}' (line {rnss.Line}).");
-                rv.NamedFields[fieldIdx] = (rnss.FieldName, Evaluate(rnss.Value));
+                rv.NamedFields[fieldIdx] = (rnss.FieldName, BindCopy(Evaluate(rnss.Value)));
                 break;
             }
 
@@ -1531,7 +1531,7 @@ public sealed partial class Interpreter
                             throw new RuntimeException(
                                 $"{collectionDisplay ?? "The set"} was modified during a for-each loop on line {fe.Line} — collect into a separate series, or use a While loop if you need to change it while looping.");
                         EnterScope();
-                        Scope[iterKey] = member;
+                        Scope[iterKey] = BindCopy(member);
                         bool setStopped = false;
                         try { foreach (var st in fe.Body) Execute(st); }
                         catch (StopException) { setStopped = true; }
@@ -1552,7 +1552,7 @@ public sealed partial class Interpreter
                             throw new RuntimeException(
                                 $"{collectionDisplay ?? "The map"} was modified during a for-each loop on line {fe.Line} — collect into a separate series, or use a While loop if you need to change it while looping.");
                         EnterScope();
-                        Scope[iterKey] = new MappingValue(kvp.Key, kvp.Value);
+                        Scope[iterKey] = new MappingValue(BindCopy(kvp.Key), BindCopy(kvp.Value));
                         bool stopped = false;
                         try { foreach (var s in fe.Body) Execute(s); }
                         catch (StopException) { stopped = true; }
@@ -1600,7 +1600,7 @@ public sealed partial class Interpreter
                         throw new RuntimeException(
                             $"{seriesDisplay} was modified during a for-each loop on line {fe.Line} — collect into a separate series, or use a While loop if you need to change it while looping.");
                     EnterScope();
-                    Scope[iterKey] = list[i];
+                    Scope[iterKey] = BindCopy(list[i]);
                     bool stopped = false;
                     try { foreach (var s in fe.Body) Execute(s); }
                     catch (StopException) { stopped = true; }
@@ -1737,7 +1737,7 @@ public sealed partial class Interpreter
         // ISA.2d — the literal's Annotation is the declared element type, and it is REQUIRED for an
         // empty literal, so `a series of text with ()` always knows what it holds.
         SeriesLiteral    sl   => Series(sl.Elements.Select(e => BindCopy(Evaluate(e))), sl.Annotation),
-        SeriesAccess     sa   => EvaluateSeriesAccess(sa),
+        SeriesAccess     sa   => EvaluatePlace(sa).Value,
         SeriesLength     sl   => Evaluate(sl.Series) switch
                                  {
                                      // ⚠ Before List<object>, because a chase IS one — it is a
@@ -1754,9 +1754,9 @@ public sealed partial class Interpreter
                                     rl.PositionalFields.Select(Evaluate).ToList(),
                                     rl.NamedFields.Select(f => (f.Name, Evaluate(f.Value))).ToList()),
         BitsAtWidth baw => EvaluateBitsAtWidth(baw),
-        RecordNamedAccess rna => EvaluateRecordNamedAccess(rna),
+        RecordNamedAccess rna => EvaluatePlace(rna).Value,
         ObjectLiteral    ol   => EvaluateObjectLiteral(ol),
-        PossessiveAccess pa   => EvaluatePossessiveAccess(pa),
+        PossessiveAccess pa   => EvaluatePlace(pa).Value,
         CastExpression   cast => EvaluateCastExpr(cast),
         TextJoin   tj => EvaluateTextJoin(tj),
         ChaseLiteral => new CufetChase(),
@@ -1937,10 +1937,53 @@ public sealed partial class Interpreter
         return Evaluate(taken ? ce.Value : ce.Alternative);
     }
 
-    private object EvaluateSeriesAccess(SeriesAccess sa)
+    /// <summary>
+    /// What a method is called on, or a field is set in: the value where it is kept, or a copy of its
+    /// own when nothing keeps it.
+    /// </summary>
+    /// <remarks>
+    /// ★ A call's result, a getter's, or the one a `when` or a `but void is` picks is a VALUE, so what
+    /// is done to it reaches nobody — the compiled program hands the method a temporary. Here the same
+    /// object was still the one a field held, and `Cast (cast h's inside)'s poke.` changed `h`.
+    /// </remarks>
+    private object EvaluateReceiver(IExpression expr)
     {
-        var val = Evaluate(sa.Target);
+        var (value, stored) = EvaluatePlace(expr);
+        return stored ? value : BindCopy(value);
+    }
 
+    /// <summary>A value, and whether the expression names where it is kept — CodeGenerator.IsAddressable.</summary>
+    private (object Value, bool Stored) EvaluatePlace(IExpression expr)
+    {
+        switch (expr)
+        {
+            case VariableReference:
+                return (Evaluate(expr), true);
+            case SeriesAccess sa:
+            {
+                var (target, stored) = EvaluatePlace(sa.Target);
+                return (ReadPosition(sa, target), stored || target is List<object>);
+            }
+            case RecordNamedAccess rna:
+            {
+                var (target, stored) = EvaluatePlace(rna.Record);
+                // A getter may change what it reads, so it is handed a copy as a method is.
+                bool gets = target is ObjectValue ov && FindGetterInObjDefs(ov, rna.FieldName) != null;
+                return (ReadNamed(rna, gets && !stored ? BindCopy(target) : target), stored && !gets);
+            }
+            case PossessiveAccess pa:
+            {
+                var (target, stored) = EvaluatePlace(pa.Target);
+                bool gets = target is ObjectValue ov && FindGetterInObjDefs(ov, pa.Member) != null;
+                return (ReadMember(pa, gets && !stored ? BindCopy(target) : target), stored && !gets);
+            }
+            default:
+                return (Evaluate(expr), false);
+        }
+    }
+
+    private object ReadPosition(SeriesAccess sa, object val)
+    {
         if (val is RecordValue rv)
         {
             if (sa.Index == null)
@@ -2002,14 +2045,12 @@ public sealed partial class Interpreter
         return bv with { Width = stated };
     }
 
-    private object EvaluateRecordNamedAccess(RecordNamedAccess rna)
+    private object ReadNamed(RecordNamedAccess rna, object target)
     {
         // The width a bits value already carries — see TypeChecker.Records for why this is not a
         // keyword. Every bits value has one; it is what drives the leading zeros when it prints.
-        if (Evaluate(rna.Record) is BitsValue bw && rna.FieldName == "width")
+        if (target is BitsValue bw && rna.FieldName == "width")
             return (decimal)bw.Width;
-
-        var target = Evaluate(rna.Record);
 
         if (target is MappingValue mv)
         {
@@ -2543,8 +2584,8 @@ public sealed partial class Interpreter
         var prevHidden = _hiddenTopLevelData;
         ImportTopLevelVisible(saved.Scopes);
         PushBodyScope();
-        Scope[oad.LeftName]  = left;
-        Scope[oad.RightName] = right;
+        Scope[oad.LeftName]  = BindCopy(left);
+        Scope[oad.RightName] = BindCopy(right);
 
         object? returnValue = null;
         try

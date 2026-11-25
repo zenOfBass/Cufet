@@ -6,7 +6,7 @@ public sealed partial class Interpreter
 {
     private void ExecutePossessiveSet(PossessiveSetStatement pss)
     {
-        var target = Evaluate(pss.Target);
+        var target = EvaluateReceiver(pss.Target);
         if (target is not ObjectValue pssOv)
             throw new RuntimeException($"Possessive assignment requires an object (line {pss.Line}).");
 
@@ -136,7 +136,7 @@ public sealed partial class Interpreter
         ImportTopLevelVisible(saved.Scopes);
         PushBodyScope();
         Scope["one"]             = receiver;
-        Scope[setter.ParamName]  = newValue;
+        Scope[setter.ParamName]  = BindCopy(newValue);
 
         try
         {
@@ -245,9 +245,8 @@ public sealed partial class Interpreter
         return BuildObjectValue(def, ol.PositionalValues, named, ol.Line);
     }
 
-    private object EvaluatePossessiveAccess(PossessiveAccess pa)
+    private object ReadMember(PossessiveAccess pa, object target)
     {
-        var target = Evaluate(pa.Target);
         if (target is BookValue bv)
         {
             // The book's Cufet layer wins member by member — a getter or field its module object

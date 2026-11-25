@@ -1014,7 +1014,7 @@ public sealed partial class CodeGenerator
             case SeriesSetStatement ss when TypeOf(ss.Series) is RecordType or ObjectType:
             {
                 // Positional field assignment on a record/object: the Nth of x becomes v.
-                string baseExpr = EmitExpr(ss.Series);
+                string baseExpr = AddressableReceiver(ss.Series);
                 string valExpr  = EmitExpr(ss.Value);
                 FlushPreEmits(sb, indent);
                 int idx0 = TypeOf(ss.Series) is ObjectType sot
@@ -2700,6 +2700,7 @@ public sealed partial class CodeGenerator
     {
         ObjectType ot => GetterFor(ot.Name, member) is null,
         RecordType    => true,
+        MappingType   => true,   // `the value of pair` is the loop's own variable — cv_pair_value
         _             => false,
     };
 
@@ -2776,7 +2777,7 @@ public sealed partial class CodeGenerator
     private void EmitMemberSet(StringBuilder sb, string indent, IExpression target, string member,
                                IExpression value, int? escapeToDepth = null)
     {
-        string baseExpr = EmitExpr(target);
+        string baseExpr = AddressableReceiver(target);
         bool   isRecv   = target is VariableReference { Name: "one" };
         // Widen first (a plain T into a voidable/union slot — the one implicit coercion),
         // then escape-copy the value that is actually stored.

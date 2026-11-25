@@ -7,7 +7,7 @@
       holds a pointer to it.
 
     ★ A method changes the object it is called on, so it takes it by address — `one` is `*cv_one`.
-      Called on something that is not a place — the result of a call — it waits for a later slice.
+      Called on something nothing keeps — the result of a call — it is handed a copy.
 
     ★ Fields are held, printed and compared in the order the checked tree lists them.
 */
@@ -61,13 +61,19 @@ Pull books on collections, and the c-language.
 
     Bind c-language axiom or failure to c-possessive unto emitter, given (the node expression):
         Cast one's possessive-kind-of on (expression) or pass the failure off.
-        Define held as cast one's c-of on (cast field-of on (expression, 1)) or pass the failure off.
-        Define object-name as cast object-of on (cast one's kind-of on (cast field-of on (expression, 1)) or pass the failure off).
+        Define target as cast field-of on (expression, 1).
+        Define object-name as cast object-of on (cast one's kind-of on (target) or pass the failure off).
         Define member as cast unquoted on (cast field-of on (expression, 2)).
         If (the entry for "{object-name}'s getter {member}" in one's methods) is not void:
-            Return call-of-one on (cast c-getter-name on (object-name, member), held).
+            // A getter may change the object it reads, so it is handed its address, as a method is.
+            Define getter-c as cast c-getter-name on (object-name, member).
+            Define address as cast one's c-address on (target) or pass the failure off.
+            If cast is-no-c on (address) is false, return call-of-one on (getter-c, address).
+            Define c-language read-of-a-copy, given (the term type-c, the c-language axiom value, the term getter-c),
+                as [({ the type-c cf_recv = the value; the getter-c(&cf_recv); })].
+            Return read-of-a-copy on (cast c-struct-name on (object-name), cast one's c-of on (target) or pass the failure off, getter-c).
         Done.
-        Return field-read on (held, cast c-name on (member)).
+        Return field-read on (cast one's c-of on (target) or pass the failure off, cast c-name on (member)).
     Done.
 
     /// The object a literal makes: the filled-in copy the checker chose for an object with blanks
@@ -110,40 +116,54 @@ Pull books on collections, and the c-language.
         Return cast c-struct-value on (cast c-struct-name on (object-name), listing).
     Done.
 
-    /// Whether an expression names a place C can take the address of — a name, `one`, or a field
-    /// of one of those.
-    Bind fact to is-place, given (the node expression):
-        If expression's kind is "VariableReference", return true.
-        If expression's kind is "PossessiveAccess", return cast is-place on (cast field-of on (expression, 1)).
-        Return false.
-    Done.
-
-    /// The address of an object a method is called on, as C — a name, a field of one, or an item of
-    /// a series, at any depth — or "" when it has none and lives only for the call.
+    /// The address of where a value is kept, as C — a name, a field of one, or an item of a series,
+    /// at any depth — or "" when nothing keeps it and it lives only for the call: a call's result, a
+    /// getter's, or what a `when` picks.
     Bind c-language axiom or failure to c-address unto emitter, given (the node receiver):
         Define c-language address-of, given (the c-language axiom place), as [&(the place)].
-        If cast is-place on (receiver), return address-of on (cast one's c-of on (receiver) or pass the failure off).
+        Define c-language kept-at, given (the c-language axiom address), as [(*(the address))].
+        If receiver's kind is "VariableReference", return address-of on (cast one's c-of on (receiver) or pass the failure off).
         If receiver's kind is "SeriesAccess":
             Define target as cast field-of on (receiver, 1).
             Define held as cast one's kind-of on (target) or pass the failure off.
+            If cast is-record on (held):
+                Define record-at as cast one's c-address on (target) or pass the failure off.
+                If cast is-no-c on (record-at), return [].
+                Return address-of on (cast one's c-record-item on (kept-at on (record-at), held, cast field-of on (receiver, 2)) or pass the failure off).
+            Done.
             Define element as cast element-of on (held).
-            If element is "" or cast object-of on (element) is "", return [].
+            If cast object-of on (element) is "" and cast is-record on (element) is false, return [].
             Define series-c as cast one's c-of on (target) or pass the failure off.
             Define place as cast one's c-place on (cast field-of on (receiver, 2), [cf_at], target, cast line-number on (cast field-of on (receiver, 3))) or pass the failure off.
             Define c-language item-address, given (the term series-type, the c-language axiom held-series, the c-language axiom place),
                 as [({ the series-type* cf_at = the held-series; &cf_at->data[the place]; })].
             Return item-address on (cast series-c-name on (element), series-c, place).
         Done.
-        If receiver's kind is "PossessiveAccess":
-            Define base as cast one's c-address on (cast field-of on (receiver, 1)) or pass the failure off.
-            If cast is-no-c on (base), return [].
-            Define member as cast unquoted on (cast field-of on (receiver, 2)).
-            Define owner as cast object-of on (cast one's kind-of on (cast field-of on (receiver, 1)) or pass the failure off).
-            If owner is "" or (the entry for "{owner}'s getter {member}" in one's methods) is not void, return [].
-            Define c-language member-address, given (the c-language axiom base, the term member), as [&((*the base).the member)].
-            Return member-address on (base, cast c-name on (member)).
-        Done.
-        Return [].
+        Define named as receiver.
+        If receiver's kind is "RecordNamedAccess", the named becomes cast as-possessive on (receiver).
+        If named's kind is not "PossessiveAccess", return [].
+        Define holder as cast field-of on (named, 1).
+        Define holder-kind as cast one's kind-of on (holder) or pass the failure off.
+        Define member as cast unquoted on (cast field-of on (named, 2)).
+        Define owner as cast object-of on (holder-kind).
+        If owner is "" and cast is-record on (holder-kind) is false and cast is-mapping on (holder-kind) is false, return [].
+        If (the entry for "{owner}'s getter {member}" in one's methods) is not void, return [].
+        Define base as cast one's c-address on (holder) or pass the failure off.
+        If cast is-no-c on (base), return [].
+        // The key and the value of a pair are the loop's own, and named as C names them.
+        If cast is-mapping on (holder-kind), return address-of on (field-read on (kept-at on (base), member)).
+        Return address-of on (field-read on (kept-at on (base), cast c-name on (member))).
+    Done.
+
+    /// What a set writes into, as C: where the value is kept, or a place of its own that nobody reads,
+    /// as a method called on it is given.
+    Bind c-language axiom or failure to c-settable unto emitter, given (the node target):
+        Define address as cast one's c-address on (target) or pass the failure off.
+        Define c-language kept-at, given (the c-language axiom address), as [(*(the address))].
+        If cast is-no-c on (address) is false, return kept-at on (address).
+        Define c-language held-alone, given (the c-language axiom type-c, the c-language axiom value), as [((the type-c[]){ the value })[0]].
+        Define kind as cast one's kind-of on (target) or pass the failure off.
+        Return held-alone on (cast c-type on (kind), cast one's c-of on (target) or pass the failure off).
     Done.
 
     /// The method a call reaches, by `<receiver>'s <method>`.
@@ -185,11 +205,10 @@ Pull books on collections, and the c-language.
         Return "cg_{cast c-ident on (object-name)}_{cast c-ident on (getter-name)}".
     Done.
 
-    /// A getter's head as C: what it gives back, its name, and the object it reads — by value, so
-    /// it may read the result of a call as well as a name.
+    /// A getter's head as C: what it gives back, its name, and the object it reads, by address.
     Bind text or failure to c-getter-signature unto emitter, given (the text object-name, the node getter):
         Define gives as cast one's kind-of-type on (cast field-of on (getter, 2)) or pass the failure off.
-        Return "{cast c-type on (gives)} {cast c-getter-name on (object-name, cast unquoted on (cast field-of on (getter, 1)))}({cast c-struct-name on (object-name)} cf_self)".
+        Return "{cast c-type on (gives)} {cast c-getter-name on (object-name, cast unquoted on (cast field-of on (getter, 1)))}({cast c-struct-name on (object-name)}* cv_one)".
     Done.
 
     /// One getter as C. Its body sees `one`, the object it reads.
@@ -202,8 +221,7 @@ Pull books on collections, and the c-language.
             Cast writer's emit-statement on (inner) or pass the failure off.
         Done.
         Define signature as cast one's c-getter-signature on (object-name, getter) or pass the failure off.
-        Define c-language receiver-held, given (the term type-c), as [    the type-c* cv_one = &cf_self;].
-        Return cast c-function-text on (signature, "{receiver-held on (cast c-struct-name on (object-name))}\n{writer's body converted to text}").
+        Return cast c-function-text on (signature, writer's body converted to text).
     Done.
 
     Bind text to c-setter-name, given (the text object-name, the text setter-name):
@@ -242,12 +260,11 @@ Pull books on collections, and the c-language.
     /// `<value>'s <field> becomes <value>.`
     Bind void or failure to emit-field-set unto emitter, given (the node statement):
         Define target as cast field-of on (statement, 1).
-        If cast is-place on (target) is false, return a failure (cast not-built on ("setting a field of something that is not a name")).
         Define held as cast one's kind-of on (target) or pass the failure off.
         Define object-name as cast object-of on (held).
         If object-name is "", return a failure (cast not-built on ("setting a field of a {held}")).
         Define field as cast unquoted on (cast field-of on (statement, 2)).
-        Define target-c as cast one's c-of on (target) or pass the failure off.
+        Define target-c as cast one's c-settable on (target) or pass the failure off.
         // A setter takes the write — except `one`'s own field, written inside that field's setter.
         Define setter as the entry for "{object-name}'s setter {field}" in one's methods.
         Define bypassed as target's kind is "VariableReference" and cast unquoted on (cast field-of on (target, 1)) is "one"
