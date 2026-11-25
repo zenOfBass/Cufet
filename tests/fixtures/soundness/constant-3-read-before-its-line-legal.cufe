@@ -1,0 +1,17 @@
+/*  EXPECTED: COMPILES and runs; compiled output must match the interpreter.
+
+    A constant read before its line has run stops, and can be caught. */
+
+
+Bind number to total:
+    Return the number of sizes.
+Done.
+Try to:
+    State cast total.
+Done.
+In case of exception:
+    State "stopped".
+    Suppress the exception.
+Done.
+Define sizes as a series of number with (11, 22) permanently.
+State cast total.

@@ -1,0 +1,25 @@
+/*  A loop over a rabbit's set and chase gives each element to an outer text.
+    Broken: the loop's name had the depth of the program. See docs/SOUNDNESS.md.  */
+
+Pull a book on collections.
+    Define last-word as "outer".
+    Define last-letter as "outer".
+    Pull a rabbit.
+        Define own as a set of text.
+        Insert "in" joined to "ner" into own.
+        For each word in own, the last-word becomes word.
+        Define letters as a chase.
+        Insert "abcd" into letters.
+        For each letter in letters, the last-letter becomes letter.
+    Done.
+
+    /*  Make and drop enough values that freed memory is handed out again. */
+    Define churn as a series of text.
+    Define tick as 0.
+    While tick is less than 400, repeat:
+        Insert ("zzzzzzzz" joined to "yyyyyyyy") into churn.
+        The tick becomes tick + 1.
+    Done.
+    State last-word.
+    State last-letter.
+Done.

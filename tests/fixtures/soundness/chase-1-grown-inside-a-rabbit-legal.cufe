@@ -1,0 +1,20 @@
+/*  EXPECTED: COMPILES and runs; compiled output must match the interpreter.
+
+    A chase grows in the region it was made in, as a series does (obligation O3). */
+
+
+Pull a book on collections.
+    Define letters as a chase.
+    Pull a rabbit.
+        For each n in range 1 to 20, insert "abcd" into letters.
+    Done.
+
+    /*  Make and drop enough values that freed memory is handed out again. */
+    Define churn as a series of text.
+    Define tick as 0.
+    While tick is less than 400, repeat:
+        Insert ("zzzzzzzz" joined to "yyyyyyyy") into churn.
+        The tick becomes tick + 1.
+    Done.
+    State letters converted to text.
+Done.

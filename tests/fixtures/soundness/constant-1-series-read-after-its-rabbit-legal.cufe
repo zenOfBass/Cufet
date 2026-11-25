@@ -1,0 +1,20 @@
+/*  EXPECTED: COMPILES and runs; compiled output must match the interpreter.
+
+    A rabbit's constant is the program's, and lives as long (docs/SOUNDNESS.md, constants). */
+
+
+Pull a rabbit.
+    Define sizes as a series of number with (11, 22, 33) permanently.
+Done.
+Bind number to total:
+    Return the number of sizes + item 2 of sizes.
+Done.
+
+/*  Make and drop enough values that freed memory is handed out again. */
+Define churn as a series of text.
+Define tick as 0.
+While tick is less than 400, repeat:
+    Insert ("zzzzzzzz" joined to "yyyyyyyy") into churn.
+    The tick becomes tick + 1.
+Done.
+State cast total.

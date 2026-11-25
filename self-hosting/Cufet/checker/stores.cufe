@@ -390,7 +390,7 @@ Pull a book on collections.
     /// Whether a value of this type carries a series or a map: itself, or inside it.
     Bind fact to holds-container unto checker, given (the node shape):
         Define kind as shape's kind.
-        If kind is "SeriesType" or kind is "MapType" or kind is "MatrixType" or kind is "ChannelType" or kind is "AddressType", return true.
+        If kind is "SeriesType" or kind is "MapType" or kind is "SetType" or kind is "ChaseType" or kind is "MatrixType" or kind is "ChannelType" or kind is "AddressType", return true.
         If kind is "ObjectType", return cast one's object-holds-container on (cast unquoted on (cast field-of on (shape, 1)), a map from text to fact).
         Return false.
     Done.
@@ -1282,7 +1282,7 @@ Pull a book on collections.
     Done.
 
     Bind fact to is-made-here, given (the text kind):
-        Return kind is "SeriesLiteral" or kind is "MapLiteral" or kind is "ObjectLiteral" or kind is "MatrixLiteral"
+        Return kind is "SeriesLiteral" or kind is "MapLiteral" or kind is "SetLiteral" or kind is "ChaseLiteral" or kind is "ObjectLiteral" or kind is "MatrixLiteral"
             or kind is "MatrixSized" or kind is "RangeExpression" or kind is "ChannelCreation" or kind is "DeliveryExpression".
     Done.
 

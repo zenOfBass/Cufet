@@ -382,7 +382,7 @@ public sealed partial class TypeChecker
     /// <summary>Whether a value of this type carries a series or a map: itself, or inside it.</summary>
     private bool HoldsContainer(CufetType? type, HashSet<string>? seen) => type switch
     {
-        SeriesType or MapType or MatrixType or ChannelType or AddressType => true,
+        SeriesType or MapType or SetType or ChaseType or MatrixType or ChannelType or AddressType => true,
         ObjectType objectType => ObjectHoldsContainer(objectType, seen ?? new HashSet<string>(StringComparer.Ordinal)),
         _ => false,
     };
@@ -824,7 +824,7 @@ public sealed partial class TypeChecker
     private void Bound(string bounded, DepthTerm term) => _depthBounds.Add((bounded, term));
 
     private static bool IsMadeHere(IExpression expr) =>
-        expr is SeriesLiteral or MapLiteral or ObjectLiteral or MatrixLiteral or MatrixSized
+        expr is SeriesLiteral or MapLiteral or SetLiteral or ChaseLiteral or ObjectLiteral or MatrixLiteral or MatrixSized
              or RangeExpression or ChannelCreation or DeliveryExpression;
 
     /// <summary>How deep the container an expression IS may lie, at the lowest.</summary>

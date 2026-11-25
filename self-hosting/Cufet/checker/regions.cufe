@@ -10,10 +10,10 @@
 */
 
 Pull a book on collections.
-    /// What a series, a map, an object — anything held by reference — is; a value-typed one copies.
+    /// What a series, a map, a set, a chase, an object — anything held by reference — is; a value-typed one copies.
     Bind fact to is-reference-type, given (the node shape):
         Define kind as shape's kind.
-        Return kind is "SeriesType" or kind is "MapType" or kind is "ObjectType" or kind is "MatrixType"
+        Return kind is "SeriesType" or kind is "MapType" or kind is "SetType" or kind is "ChaseType" or kind is "ObjectType" or kind is "MatrixType"
             or kind is "ChannelType" or kind is "AddressType".
     Done.
 
@@ -41,7 +41,7 @@ Pull a book on collections.
     /// open union always.
     Bind fact to is-region-bearing unto checker, given (the node shape):
         Define kind as shape's kind.
-        If kind is "TextType" or kind is "SeriesType" or kind is "MapType" or kind is "MatrixType" or kind is "ChannelType"
+        If kind is "TextType" or kind is "SeriesType" or kind is "MapType" or kind is "SetType" or kind is "ChaseType" or kind is "MatrixType" or kind is "ChannelType"
                 or kind is "FunctionType" or kind is "StashType" or kind is "ObjectType":
             Return true.
         Done.
@@ -174,8 +174,11 @@ Pull a book on collections.
     /// A value of this type can be copied whole into another region.
     Bind fact to copies-out unto checker, given (the node shape, the map from text to fact seen):
         Define kind as shape's kind.
-        If kind is "NumberType" or kind is "BitsType" or kind is "FactType" or kind is "VoidType" or kind is "TextType", return true.
-        If kind is "SeriesType" or kind is "VoidableType", return cast one's copies-out on (cast field-of on (shape, 1), seen).
+        If kind is "NumberType" or kind is "BitsType" or kind is "FactType" or kind is "VoidType" or kind is "TextType"
+                or kind is "ChaseType" or kind is "MatrixType":
+            Return true.
+        Done.
+        If kind is "SeriesType" or kind is "SetType" or kind is "VoidableType", return cast one's copies-out on (cast field-of on (shape, 1), seen).
         If kind is "MapType":
             Return cast one's copies-out on (cast field-of on (shape, 1), seen) and cast one's copies-out on (cast field-of on (shape, 2), seen).
         Done.

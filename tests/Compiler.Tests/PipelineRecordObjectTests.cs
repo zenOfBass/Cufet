@@ -838,6 +838,113 @@ public class PipelineRecordObjectTests : PipelineTestBase
         Assert.Contains(says, CompileExpectingStop(source));
     }
 
+    /// <summary>A chase or a set stored into, grown or handed on across a rabbit, as a series is.</summary>
+    [Theory]
+    // text chase each
+    [InlineData("Pull books on collections, and math.\n    Define g as \"q\".\n    Pull a rabbit.\n        Define c as a chase.\n        Insert \"xy\" joined to \"z\" into c.\n        For each ch in c, the g becomes ch.\n    Done.\n    Define junk as a series of text.\n    Define z as 0.\n    While z is less than 200, repeat:\n        Insert \"junk{z}\" joined to \"x\" into junk.\n        Insert \"{z}\" joined to \"y\" into junk.\n        Increment z by 1.\n    Done.\n    State g.\nDone.\n",
+        "z")]
+    // text set each
+    [InlineData("Pull books on collections, and math.\n    Define g as \"q\".\n    Pull a rabbit.\n        Define s as a set of text.\n        Insert \"xy\" joined to \"z\" into s.\n        For each ch in s, the g becomes ch.\n    Done.\n    Define junk as a series of text.\n    Define z as 0.\n    While z is less than 200, repeat:\n        Insert \"junk{z}\" joined to \"x\" into junk.\n        Insert \"{z}\" joined to \"y\" into junk.\n        Increment z by 1.\n    Done.\n    State g.\nDone.\n",
+        "xyz")]
+    // text each inserted
+    [InlineData("Pull books on collections, and math.\n    Define g as a series of text with (\"q\").\n    Pull a rabbit.\n        Define s as a set of text.\n        Insert \"xy\" joined to \"z\" into s.\n        For each ch in s, insert ch into g.\n    Done.\n    Define junk as a series of text.\n    Define z as 0.\n    While z is less than 200, repeat:\n        Insert \"junk{z}\" joined to \"x\" into junk.\n        Insert \"{z}\" joined to \"y\" into junk.\n        Increment z by 1.\n    Done.\n    State g.\nDone.\n",
+        "(q, xyz)")]
+    // text chase each inserted
+    [InlineData("Pull books on collections, and math.\n    Define g as a series of text with (\"q\").\n    Pull a rabbit.\n        Define s as a chase.\n        Insert \"xyz\" into s.\n        For each ch in s, insert ch into g.\n    Done.\n    Define junk as a series of text.\n    Define z as 0.\n    While z is less than 200, repeat:\n        Insert \"junk{z}\" joined to \"x\" into junk.\n        Insert \"{z}\" joined to \"y\" into junk.\n        Increment z by 1.\n    Done.\n    State g.\nDone.\n",
+        "(q, x, y, z)")]
+    // set insert text
+    [InlineData("Pull books on collections, and math.\n    Define g as a set of text.\n    Pull a rabbit.\n        Define w as \"xy\" joined to \"z\".\n        Insert w into g.\n    Done.\n    Define junk as a series of text.\n    Define z as 0.\n    While z is less than 200, repeat:\n        Insert \"junk{z}\" joined to \"x\" into junk.\n        Insert \"{z}\" joined to \"y\" into junk.\n        Increment z by 1.\n    Done.\n    State g has \"xyz\".\nDone.\n",
+        "true")]
+    // set insert in fn
+    [InlineData("Pull books on collections, and math.\n    Bind void to put, given (the set of text s):\n        Pull a rabbit.\n            Define w as \"xy\" joined to \"z\".\n            Insert w into s.\n        Done.\n    Done.\n    Define g as a set of text.\n    Pull a rabbit.\n        Cast put on (g).\n    Done.\n    Define junk as a series of text.\n    Define z as 0.\n    While z is less than 200, repeat:\n        Insert \"junk{z}\" joined to \"x\" into junk.\n        Insert \"{z}\" joined to \"y\" into junk.\n        Increment z by 1.\n    Done.\n    State g has \"xyz\".\nDone.\n",
+        "true")]
+    // set insert in fn, no rabbit
+    [InlineData("Pull books on collections, and math.\n    Bind void to put, given (the set of text s):\n        Insert \"xy\" joined to \"z\" into s.\n    Done.\n    Define g as a set of text.\n    Pull a rabbit.\n        Cast put on (g).\n    Done.\n    Define junk as a series of text.\n    Define z as 0.\n    While z is less than 200, repeat:\n        Insert \"junk{z}\" joined to \"x\" into junk.\n        Insert \"{z}\" joined to \"y\" into junk.\n        Increment z by 1.\n    Done.\n    State g has \"xyz\".\nDone.\n",
+        "true")]
+    // set each stored in set
+    [InlineData("Pull books on collections, and math.\n    Define g as a set of text.\n    Pull a rabbit.\n        Define s as a set of text.\n        Insert \"xy\" joined to \"z\" into s.\n        For each ch in s, insert ch into g.\n    Done.\n    Define junk as a series of text.\n    Define z as 0.\n    While z is less than 200, repeat:\n        Insert \"junk{z}\" joined to \"x\" into junk.\n        Insert \"{z}\" joined to \"y\" into junk.\n        Increment z by 1.\n    Done.\n    State g has \"xyz\".\nDone.\n",
+        "true")]
+    // set in record
+    [InlineData("Pull books on collections, and math.\n    Define g as a record with (the s a set of number with (1)).\n    Pull a rabbit.\n        Define s as a set of number with (4, 5).\n        The g becomes a record with (the s s).\n    Done.\n    Define junk as a series of text.\n    Define z as 0.\n    While z is less than 200, repeat:\n        Insert \"junk{z}\" joined to \"x\" into junk.\n        Insert \"{z}\" joined to \"y\" into junk.\n        Increment z by 1.\n    Done.\n    Define got as the s of g.\n    State got has 5.\nDone.\n",
+        "true")]
+    // set grow in fn
+    [InlineData("Pull books on collections, and math.\n    Bind void to put, given (the set of number s, the number n):\n        Insert n into s.\n    Done.\n    Define g as a set of number with (1).\n    Pull a rabbit.\n        For each n in range 1 to 40, cast put on (g, n).\n    Done.\n    Define junk as a series of text.\n    Define z as 0.\n    While z is less than 200, repeat:\n        Insert \"junk{z}\" joined to \"x\" into junk.\n        Insert \"{z}\" joined to \"y\" into junk.\n        Increment z by 1.\n    Done.\n    State g has 40.\n    State the number of g.\nDone.\n",
+        "true\n40")]
+    // chase grow
+    [InlineData("Pull books on collections, and math.\n    Define g as a chase.\n    Pull a rabbit.\n        For each n in range 1 to 40, insert \"ab\" into g.\n    Done.\n    Define junk as a series of text.\n    Define z as 0.\n    While z is less than 200, repeat:\n        Insert \"junk{z}\" joined to \"x\" into junk.\n        Insert \"{z}\" joined to \"y\" into junk.\n        Increment z by 1.\n    Done.\n    State g converted to text.\nDone.\n",
+        "abababababababababababababababababababababababababababababababababababababababab")]
+    // chase grow in fn
+    [InlineData("Pull books on collections, and math.\n    Bind void to put, given (the chase c):\n        Insert \"ab\" into c.\n    Done.\n    Define g as a chase.\n    Pull a rabbit.\n        For each n in range 1 to 40, cast put on (g).\n    Done.\n    Define junk as a series of text.\n    Define z as 0.\n    While z is less than 200, repeat:\n        Insert \"junk{z}\" joined to \"x\" into junk.\n        Insert \"{z}\" joined to \"y\" into junk.\n        Increment z by 1.\n    Done.\n    State g converted to text.\nDone.\n",
+        "abababababababababababababababababababababababababababababababababababababababab")]
+    // chase grow in fn rabbit
+    [InlineData("Pull books on collections, and math.\n    Bind void to put, given (the chase c):\n        Pull a rabbit.\n            For each n in range 1 to 40, insert \"ab\" into c.\n        Done.\n    Done.\n    Define g as a chase.\n    Pull a rabbit.\n        Cast put on (g).\n    Done.\n    Define junk as a series of text.\n    Define z as 0.\n    While z is less than 200, repeat:\n        Insert \"junk{z}\" joined to \"x\" into junk.\n        Insert \"{z}\" joined to \"y\" into junk.\n        Increment z by 1.\n    Done.\n    State g converted to text.\nDone.\n",
+        "abababababababababababababababababababababababababababababababababababababababab")]
+    // chase insert start
+    [InlineData("Pull books on collections, and math.\n    Define g as a chase.\n    Pull a rabbit.\n        For each n in range 1 to 40, insert \"ab\" into the start of g.\n    Done.\n    Define junk as a series of text.\n    Define z as 0.\n    While z is less than 200, repeat:\n        Insert \"junk{z}\" joined to \"x\" into junk.\n        Insert \"{z}\" joined to \"y\" into junk.\n        Increment z by 1.\n    Done.\n    State g converted to text.\nDone.\n",
+        "abababababababababababababababababababababababababababababababababababababababab")]
+    // chase insert point
+    [InlineData("Pull books on collections, and math.\n    Define g as a chase.\n    Pull a rabbit.\n        For each n in range 1 to 40, insert 65 into g.\n    Done.\n    Define junk as a series of text.\n    Define z as 0.\n    While z is less than 200, repeat:\n        Insert \"junk{z}\" joined to \"x\" into junk.\n        Insert \"{z}\" joined to \"y\" into junk.\n        Increment z by 1.\n    Done.\n    State g converted to text.\nDone.\n",
+        "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")]
+    // chase second name
+    [InlineData("Pull books on collections, and math.\n    Define g as a chase.\n    Define h as g.\n    Pull a rabbit.\n        For each n in range 1 to 40, insert \"ab\" into h.\n    Done.\n    Define junk as a series of text.\n    Define z as 0.\n    While z is less than 200, repeat:\n        Insert \"junk{z}\" joined to \"x\" into junk.\n        Insert \"{z}\" joined to \"y\" into junk.\n        Increment z by 1.\n    Done.\n    State g converted to text.\nDone.\n",
+        "abababababababababababababababababababababababababababababababababababababababab")]
+    // chase field grow
+    [InlineData("Pull books on collections, and math.\n    Define object box with (the chase c).\n    Define g as a new box { the c a chase }.\n    Pull a rabbit.\n        Define h as g's c.\n        For each n in range 1 to 40, insert \"ab\" into h.\n    Done.\n    Define junk as a series of text.\n    Define z as 0.\n    While z is less than 200, repeat:\n        Insert \"junk{z}\" joined to \"x\" into junk.\n        Insert \"{z}\" joined to \"y\" into junk.\n        Increment z by 1.\n    Done.\n    Define got as g's c.\n    State got converted to text.\nDone.\n",
+        "abababababababababababababababababababababababababababababababababababababababab")]
+    // chase method grow
+    [InlineData("Pull books on collections, and math.\n    Define object box with (the chase c):\n        Bind void to add:\n            Insert \"ab\" into one's c.\n        Done.\n    Done.\n    Define g as a new box { the c a chase }.\n    Pull a rabbit.\n        For each n in range 1 to 40, cast g's add.\n    Done.\n    Define junk as a series of text.\n    Define z as 0.\n    While z is less than 200, repeat:\n        Insert \"junk{z}\" joined to \"x\" into junk.\n        Insert \"{z}\" joined to \"y\" into junk.\n        Increment z by 1.\n    Done.\n    Define got as g's c.\n    State got converted to text.\nDone.\n",
+        "abababababababababababababababababababababababababababababababababababababababab")]
+    // chase sorted
+    [InlineData("Pull books on collections, and math.\n    Define g as a chase.\n    Pull a rabbit.\n        Define c as a chase.\n        Insert \"cab\" into c.\n        The g becomes c sorted.\n    Done.\n    Define junk as a series of text.\n    Define z as 0.\n    While z is less than 200, repeat:\n        Insert \"junk{z}\" joined to \"x\" into junk.\n        Insert \"{z}\" joined to \"y\" into junk.\n        Increment z by 1.\n    Done.\n    State g converted to text.\nDone.\n",
+        "abc")]
+    // chase in record
+    [InlineData("Pull books on collections, and math.\n    Define g as a record with (the c a chase).\n    Pull a rabbit.\n        Define c as a chase.\n        Insert \"abc\" into c.\n        The g becomes a record with (the c c).\n    Done.\n    Define junk as a series of text.\n    Define z as 0.\n    While z is less than 200, repeat:\n        Insert \"junk{z}\" joined to \"x\" into junk.\n        Insert \"{z}\" joined to \"y\" into junk.\n        Increment z by 1.\n    Done.\n    Define got as the c of g.\n    State got converted to text.\nDone.\n",
+        "abc")]
+    // chase returned from rabbit fn
+    [InlineData("Pull books on collections, and math.\n    Bind chase to mk:\n        Pull a rabbit.\n            Define c as a chase.\n            Insert \"abc\" into c.\n            Return c.\n        Done.\n    Done.\n    Define g as a chase.\n    Pull a rabbit.\n        State \"x\".\n    Done.\n    Define junk as a series of text.\n    Define z as 0.\n    While z is less than 200, repeat:\n        Insert \"junk{z}\" joined to \"x\" into junk.\n        Insert \"{z}\" joined to \"y\" into junk.\n        Increment z by 1.\n    Done.\n    Define k as cast mk.\n    For each n in range 1 to 40, insert \"ab\" into k.\n    State k converted to text.\nDone.\n",
+        "x\nabcabababababababababababababababababababababababababababababababababababababababab")]
+    // set returned from rabbit fn
+    [InlineData("Pull books on collections, and math.\n    Bind set of text to mk:\n        Pull a rabbit.\n            Define c as a set of text.\n            Insert \"ab\" joined to \"c\" into c.\n            Return c.\n        Done.\n    Done.\n    Define g as a chase.\n    Pull a rabbit.\n        State \"x\".\n    Done.\n    Define junk as a series of text.\n    Define z as 0.\n    While z is less than 200, repeat:\n        Insert \"junk{z}\" joined to \"x\" into junk.\n        Insert \"{z}\" joined to \"y\" into junk.\n        Increment z by 1.\n    Done.\n    Define k as cast mk.\n    For each n in range 1 to 40, insert \"w{n}\" into k.\n    State k has \"abc\".\n    State k has \"w40\".\nDone.\n",
+        "x\ntrue\ntrue")]
+    // closure captures chase
+    [InlineData("Pull books on collections, and math.\n    Define g as a chase.\n    Pull a rabbit.\n        Define add as a function: Insert \"abcdefghijklmnopqrstuvwxyz\" into g. Return 1. Done.\n        State cast add.\n    Done.\n    Define junk as a series of text.\n    Define z as 0.\n    While z is less than 200, repeat:\n        Insert \"junk{z}\" joined to \"x\" into junk.\n        Insert \"{z}\" joined to \"y\" into junk.\n        Increment z by 1.\n    Done.\n    State g converted to text.\nDone.\n",
+        "1\nabcdefghijklmnopqrstuvwxyz")]
+    // chase const
+    [InlineData("Pull books on collections, and math.\n    Define g as a chase.\n    Pull a rabbit.\n        Define k as a chase permanently.\n        Insert \"abc\" into k.\n    Done.\n    Define junk as a series of text.\n    Define z as 0.\n    While z is less than 200, repeat:\n        Insert \"junk{z}\" joined to \"x\" into junk.\n        Insert \"{z}\" joined to \"y\" into junk.\n        Increment z by 1.\n    Done.\n    For each n in range 1 to 40, insert \"ab\" into k.\n    State k converted to text.\nDone.\n",
+        "abcabababababababababababababababababababababababababababababababababababababababab")]
+    // set const of rabbit text
+    [InlineData("Pull books on collections, and math.\n    Define g as a chase.\n    Pull a rabbit.\n        Define w as \"xy\" joined to \"z\".\n        Define k as a set of text with (w) permanently.\n    Done.\n    Define junk as a series of text.\n    Define z as 0.\n    While z is less than 200, repeat:\n        Insert \"junk{z}\" joined to \"x\" into junk.\n        Insert \"{z}\" joined to \"y\" into junk.\n        Increment z by 1.\n    Done.\n    State k has \"xyz\".\nDone.\n",
+        "true")]
+    // set state
+    [InlineData("Pull books on collections, and math.\n    Define g as a series of set of number with (a set of number with (4, 5)).\n    Pull a rabbit.\n        State \"x\".\n    Done.\n    Define junk as a series of text.\n    Define z as 0.\n    While z is less than 200, repeat:\n        Insert \"junk{z}\" joined to \"x\" into junk.\n        Insert \"{z}\" joined to \"y\" into junk.\n        Increment z by 1.\n    Done.\n    State g.\nDone.\n",
+        "x\n((4, 5))")]
+    // set in voidable state
+    [InlineData("Pull books on collections, and math.\n    Define the voidable set of number g as a set of number with (4, 5).\n    Pull a rabbit.\n        State \"x\".\n    Done.\n    Define junk as a series of text.\n    Define z as 0.\n    While z is less than 200, repeat:\n        Insert \"junk{z}\" joined to \"x\" into junk.\n        Insert \"{z}\" joined to \"y\" into junk.\n        Increment z by 1.\n    Done.\n    State g.\nDone.\n",
+        "x\n(4, 5)")]
+    // set of text beside series of text
+    [InlineData("Pull books on collections, and math.\n    Define g as 1.\n    Pull a rabbit.\n        Define c as a channel of set of text.\n        Define d as a channel of series of text.\n        Send (a set of text with (\"a\", \"a\")) through c.\n        Send (a series of text with (\"b\", \"b\")) through d.\n        State the delivery from c.\n        State the delivery from d.\n    Done.\n    Define junk as a series of text.\n    Define z as 0.\n    While z is less than 200, repeat:\n        Insert \"junk{z}\" joined to \"x\" into junk.\n        Insert \"{z}\" joined to \"y\" into junk.\n        Increment z by 1.\n    Done.\n    State \"x\".\nDone.\n",
+        "(a)\n(b, b)\nx")]
+    // chase through a channel
+    [InlineData("Pull books on collections, and math.\n    Define g as a chase.\n    Pull a rabbit.\n        Define c as a channel of chase.\n        Define w as a chase.\n        Insert \"abc\" into w.\n        Send w through c.\n        Insert \"d\" into w.\n        Define got as the delivery from c.\n        If got is not void:\n            Insert \"z\" into got.\n            State got converted to text.\n        Done.\n    Done.\n    Define junk as a series of text.\n    Define z as 0.\n    While z is less than 200, repeat:\n        Insert \"junk{z}\" joined to \"x\" into junk.\n        Insert \"{z}\" joined to \"y\" into junk.\n        Increment z by 1.\n    Done.\n    State \"x\".\nDone.\n",
+        "abcz\nx")]
+    // empty chase through a channel
+    [InlineData("Pull books on collections, and math.\n    Define g as a chase.\n    Pull a rabbit.\n        Define c as a channel of chase.\n        Define w as a chase.\n        Send w through c.\n        Define got as the delivery from c.\n        If got is not void:\n            Insert \"abc\" into got.\n            State got converted to text.\n        Done.\n    Done.\n    Define junk as a series of text.\n    Define z as 0.\n    While z is less than 200, repeat:\n        Insert \"junk{z}\" joined to \"x\" into junk.\n        Insert \"{z}\" joined to \"y\" into junk.\n        Increment z by 1.\n    Done.\n    State \"x\".\nDone.\n",
+        "abc\nx")]
+    // task captures chase
+    [InlineData("Pull books on collections, and math.\n    Define g as a chase.\n    Pull a rabbit.\n        Define w as a chase.\n        Insert \"abc\" into w.\n        Have rabbit start a task:\n            State w converted to text.\n        Done.\n    Done.\n    Define junk as a series of text.\n    Define z as 0.\n    While z is less than 200, repeat:\n        Insert \"junk{z}\" joined to \"x\" into junk.\n        Insert \"{z}\" joined to \"y\" into junk.\n        Increment z by 1.\n    Done.\n    State \"x\".\nDone.\n",
+        "abc\nx")]
+    // task captures set
+    [InlineData("Pull books on collections, and math.\n    Define g as a chase.\n    Pull a rabbit.\n        Define w as a set of text with (\"a\").\n        Have rabbit start a task:\n            State w has \"a\".\n        Done.\n    Done.\n    Define junk as a series of text.\n    Define z as 0.\n    While z is less than 200, repeat:\n        Insert \"junk{z}\" joined to \"x\" into junk.\n        Insert \"{z}\" joined to \"y\" into junk.\n        Increment z by 1.\n    Done.\n    State \"x\".\nDone.\n",
+        "true\nx")]
+    // a set asked what it is
+    [InlineData("Pull a book on collections.\n    Define s as a set of number with (4).\n    State s is a set of number.\n    State s is a set of text.\n    Define e as a set of text.\n    State e is a set of number.\n    Define c as a chase.\n    State c is a chase.\n    Define the (set of number or text) u as \"q\".\n    The u becomes s.\n    If u is a set of number, state u has 4.\nDone.",
+        "true\nfalse\nfalse\ntrue\ntrue")]
+    public void AChaseOrASetAcrossARabbit_IsSafeOnBothBackends(string source, string printed)
+    {
+        Assert.Equal(printed, InterpretRaw(source).Replace("\r\n", "\n").TrimEnd('\n'));
+        Assert.Equal(InterpretRaw(source), CompileRaw(source));
+    }
+
     [Fact]
     public void Series_MutatedParam_Shares_MatchesInterpreter()
     {

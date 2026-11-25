@@ -16,7 +16,8 @@ public sealed partial class TypeChecker
         {
             var chaseIter = forEach.IteratorName ?? "it";
             EnterScope();
-            Scope[chaseIter] = new TypeInfo(CufetType.Text, forEach.Series, forEach.Line);
+            // Each character is a text made as the loop reaches it.
+            Scope[chaseIter] = new TypeInfo(CufetType.Text, forEach.Series, forEach.Line, RabbitDepth: _rabbitDepth);
             try { CheckBlock(forEach.Body); }
             finally { ExitScope(); }
             return;
@@ -29,7 +30,8 @@ public sealed partial class TypeChecker
             var setIter = forEach.IteratorName ?? "it";
             EnterScope();
             Scope[setIter] = new TypeInfo(
-                ResolveParamType(setType.ElementType), forEach.Series, forEach.Line);
+                ResolveParamType(setType.ElementType), forEach.Series, forEach.Line,
+                RabbitDepth: ContainerDepthOf(forEach.Series));
             try { CheckBlock(forEach.Body); }
             finally { ExitScope(); }
             return;
@@ -198,6 +200,10 @@ public sealed partial class TypeChecker
                     null, add.Line, add.Column,
                     $"insert a {FormatType(inserted)} into it",
                     $"Everything in this set must be {FormatTypePlural(setType.ElementType)}.");
+            // What a set holds is a value, never a container, so it is copied to where the set is
+            // rather than refused: the rule a map's key is stored by.
+            add.EscapeToDepth = EscapeDepthFor(add.Value, inserted, ContainerDepthOf(add.Series));
+            NoteHomeCopy(add.Series, inserted, depth => add.EscapeToDepth = depth);
             return;
         }
 

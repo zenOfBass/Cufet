@@ -36,6 +36,17 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   the rabbit holds (`Define k as xs permanently.`) cannot move, so it stays its block's own and a
   function reading it is refused. Present in every version back to 0.20.0 at least. Both checkers, both
   compilers, the interpreter.
+- **A chase and a set keep to the region rules a series keeps to.** Neither type was named in them, so
+  nothing was refused and nothing was copied, and a compiled program read freed memory: a chase grown
+  inside a rabbit (its buffer moved into the rabbit), a rabbit's chase or set given to an outer name or
+  kept in one, text inserted into an outer set, and the text a `For each` over a rabbit's set or chase gives, stored
+  outside. A chase grows in the region it was made in now; the rest are refused or copied as they are for a
+  series. Present in every version back to 0.20.0 at least. Nothing in the repository is refused by it.
+  Both checkers, both compilers.
+- **A set inside a series, a map, an object, a record or a voidable compiles.** gcc refused it. A chase or
+  a set can be sent through a channel, captured by a task, or handed back by one; interpreted, a chase was
+  shared with the receiver and a set arrived as a map. `is a set of number` and `is a chase` were always
+  false interpreted.
 - **A constant read before its line has run stops the program, compiled as well as interpreted.** A function
   called above `Define k as … permanently.` read a zero, `(null)`, or crashed on a series that was not
   there. Both now stop with `'k' has no value yet on line 3. Line 2 gives it one, and that line hasn't

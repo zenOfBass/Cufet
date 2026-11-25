@@ -288,7 +288,7 @@ public sealed partial class TypeChecker
                 // only: the return signature leaves it untraced, as it always has.
                 return SymbolicExprDepth(rna.Record, paramIdx, refParamIdxs, localDepths, captured);
 
-            case SeriesLiteral or MapLiteral or MatrixLiteral or MatrixSized or RangeExpression or ChannelCreation:
+            case SeriesLiteral or MapLiteral or SetLiteral or ChaseLiteral or MatrixLiteral or MatrixSized or RangeExpression or ChannelCreation:
                 // Made here, which is wherever the caller is. Whatever was put IN it is no deeper.
                 return [FreshDepthIndex];
 

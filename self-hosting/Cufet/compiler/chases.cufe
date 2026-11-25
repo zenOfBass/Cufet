@@ -14,11 +14,11 @@ Pull books on collections, and the c-language.
     /// The C every chase works through.
     Bind c-language axiom to c-chase-runtime:
         Return [
-        typedef struct { int32_t* data; int len; int cap; } CufetChase;
+        typedef struct { int32_t* data; int len; int cap; CufetArena* home; } CufetChase;
 
         static CufetChase* cufet_chase_new(void) {
             CufetChase* c = (CufetChase*)cufet_arena_alloc(sizeof(CufetChase));
-            c->len = 0; c->cap = 16;
+            c->len = 0; c->cap = 16; c->home = cufet_arena_here();
             c->data = (int32_t*)cufet_arena_alloc(sizeof(int32_t) * (size_t)c->cap);
             return c;
         }
@@ -26,7 +26,7 @@ Pull books on collections, and the c-language.
         static void cufet_chase_push(CufetChase* c, int32_t point) {
             if (c->len == c->cap) {
                 int grown = c->cap * 2;
-                int32_t* moved = (int32_t*)cufet_arena_alloc(sizeof(int32_t) * (size_t)grown);
+                int32_t* moved = (int32_t*)cufet_arena_alloc_in(c->home, sizeof(int32_t) * (size_t)grown);
                 memcpy(moved, c->data, sizeof(int32_t) * (size_t)c->len);
                 c->data = moved; c->cap = grown;
             }

@@ -25,7 +25,11 @@ Pull books on collections, and the c-language.
     /// The kinds a value of `kind` holds, whose families its own calls.
     Bind series of text or failure to copied-parts unto emitter, given (the text kind):
         Define parts as a series of text.
-        If cast is-plain-copy on (kind) or kind is "text", return parts.
+        If cast is-plain-copy on (kind) or kind is "text" or kind is "chase", return parts.
+        If cast is-set on (kind):
+            Insert cast set-element on (kind) into parts.
+            Return parts.
+        Done.
         If cast element-of on (kind) is not "":
             Insert cast element-of on (kind) into parts.
             Return parts.
@@ -92,6 +96,17 @@ Pull books on collections, and the c-language.
             Define c-language series-copied, given (the term series-c, the c-language axiom held-c, the term element-copy),
                 as [if (!v) return v; the series-c* r = (the series-c*)a(sizeof(the series-c)); r->len = v->len; r->cap = v->len; r->home = (a == cufet_arena_alloc ? cufet_arena_here() : NULL); r->data = v->len ? (the held-c*)a((size_t)v->len * sizeof(the held-c)) : NULL; for (int i = 0; i < v->len; i++) r->data[i] = the element-copy(v->data[i], a); return r;].
             Return series-copied on (cast series-c-name on (element), cast c-type on (element), "{cast copy-family on (element)}_copy").
+        Done.
+        // Room for one more even when empty: growing one doubles the room it has.
+        If kind is "chase":
+            Return [if (!v) return v; CufetChase* r = (CufetChase*)a(sizeof(CufetChase)); r->len = v->len; r->cap = v->len + 1; r->home = (a == cufet_arena_alloc ? cufet_arena_here() : NULL); r->data = (int32_t*)a((size_t)r->cap * sizeof(int32_t)); memcpy(r->data, v->data, (size_t)v->len * sizeof(int32_t)); return r;].
+        Done.
+        // Its own key and its own value, so each element is copied once.
+        If cast is-set on (kind):
+            Define member-kind as cast set-element on (kind).
+            Define c-language set-copied, given (the term map-c, the c-language axiom held-c, the term held-copy),
+                as [if (!v) return v; the map-c* r = (the map-c*)a(sizeof(the map-c)); r->len = v->len; r->cap = v->len; r->home = (a == cufet_arena_alloc ? cufet_arena_here() : NULL); r->keys = v->len ? (the held-c*)a((size_t)v->len * sizeof(the held-c)) : NULL; r->vals = v->len ? (the held-c*)a((size_t)v->len * sizeof(the held-c)) : NULL; for (int i = 0; i < v->len; i++) r->keys[i] = r->vals[i] = the held-copy(v->vals[i], a); return r;].
+            Return set-copied on (cast map-c-name on (cast set-storage on (kind)), cast c-type on (member-kind), "{cast copy-family on (member-kind)}_copy").
         Done.
         If cast is-map on (kind):
             Define key-kind as cast map-key-kind on (kind).
@@ -160,6 +175,12 @@ Pull books on collections, and the c-language.
             Define c-language series-freed, given (the term element-free),
                 as [if (!v) return; for (int i = 0; i < v->len; i++) the element-free(v->data[i]); free(v->data); free(v);].
             Return series-freed on ("{cast copy-family on (cast element-of on (kind))}_freeheap").
+        Done.
+        If kind is "chase", return [if (!v) return; free(v->data); free(v);].
+        If cast is-set on (kind):
+            Define c-language set-freed, given (the term held-free),
+                as [if (!v) return; for (int i = 0; i < v->len; i++) the held-free(v->vals[i]); free(v->keys); free(v->vals); free(v);].
+            Return set-freed on ("{cast copy-family on (cast set-element on (kind))}_freeheap").
         Done.
         If cast is-map on (kind):
             Define c-language map-freed, given (the term key-free, the term held-free),

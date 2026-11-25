@@ -1363,7 +1363,7 @@ static int cufet_str_code_point(const char* s) {
         MapType m => "M(" + TypeSig(m.KeyType) + "," + TypeSig(m.ValueType) + ")",
         // ⚠ Its OWN signature. A set and a map of the same element type share a C struct but are
         // different Cufet types, and one signature for both would make them the same type.
-        SetType st2 => "S(" + TypeSig(st2.ElementType) + ")",
+        SetType st2 => "SE(" + TypeSig(st2.ElementType) + ")",
         FailureType f => "F(" + TypeSig(f.Inner) + ")",
         VoidType => "V",      // only ever inside `void or failure`: the success that carries nothing
         MatrixType => "MX",   // one fixed runtime struct (CufetMatrix*) — identity is the type itself
@@ -2169,7 +2169,11 @@ static int cufet_str_code_point(const char* s) {
         foreach (var (name, _, _) in _mapStructs) sb.AppendLine($"typedef struct {name}_s {name};");
         // `_write` is forward-declared: a record/object/voidable whose field is a map calls it
         // from its own `_write`, which is emitted before the map runtime's full definitions.
-        foreach (var (name, _, _) in _mapStructs) sb.AppendLine($"static void {name}_write({name}* m);");
+        foreach (var (name, k, v) in _mapStructs)
+        {
+            sb.AppendLine($"static void {name}_write({name}* m);");
+            if (TypeSig(k) == TypeSig(v)) sb.AppendLine($"static void {name}_set_write({name}* m);");
+        }
         sb.AppendLine();
     }
 
@@ -2226,6 +2230,12 @@ static int cufet_str_code_point(const char* s) {
             sb.AppendLine($"    }}");
             sb.AppendLine($"    printf(\"}}\");");
             sb.AppendLine($"}}");
+            // ★ A set printed as the collection it reads as — its elements in the order they went in,
+            // spelled as a series is — not through the map it is stored as, which named each member twice.
+            if (TypeSig(k) == TypeSig(v))
+                sb.AppendLine($"static void {name}_set_write({name}* m) {{ fputs(\"(\", stdout); "
+                            + $"for (int i = 0; i < m->len; i++) {{ if (i > 0) fputs(\", \", stdout); {WriteCall("m->vals[i]", v)}; }} "
+                            + $"fputs(\")\", stdout); }}");
         }
         sb.AppendLine();
     }

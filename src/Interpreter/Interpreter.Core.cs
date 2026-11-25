@@ -2991,6 +2991,8 @@ public sealed partial class Interpreter
         MapType tm    => s is MapType sm && StaticMatch(sm.KeyType, tm.KeyType)
                                         && StaticMatch(sm.ValueType, tm.ValueType),
         RecordType    => s is RecordType,
+        SetType tset  => s is SetType sset && StaticMatch(sset.ElementType, tset.ElementType),
+        ChaseType     => s is ChaseType,
         MatrixType    => s is MatrixType,
         ObjectType to => s is ObjectType so && so.Name == to.Name,   // nominal
         VoidType      => false,          // a non-voidable declared type is never void
@@ -3024,7 +3026,13 @@ public sealed partial class Interpreter
                                 ? sl.All(e => RuntimeIsType(e, st.ElementType))
                                 : ElementTypeOf(sl) is not { } de || StaticMatch(de, st.ElementType)),
         MatrixType      => value is MatrixValue,
-        MapType mt      => value is Dictionary<object, object> md
+        ChaseType       => value is CufetChase,
+        SetType set     => value is CufetSet members
+                            && (members.Count > 0
+                                ? members.Values.All(e => RuntimeIsType(e, set.ElementType))
+                                : members.DeclaredElement is not { } held || StaticMatch(held, set.ElementType)),
+        // A set is stored as a map and is not one.
+        MapType mt      => value is Dictionary<object, object> md and not CufetSet
                             && (md.Count > 0
                                 ? md.All(kv => RuntimeIsType(kv.Key, mt.KeyType)
                                             && RuntimeIsType(kv.Value, mt.ValueType))

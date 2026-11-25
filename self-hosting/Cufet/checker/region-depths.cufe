@@ -307,7 +307,7 @@ Pull a book on collections.
         If kind is "MapLookup":
             Return cast one's symbolic-depth on (cast field-of on (said, 1), positions, referenced, locals, captured, storing).
         Done.
-        If kind is "SeriesLiteral" or kind is "MapLiteral" or kind is "MatrixLiteral" or kind is "MatrixSized"
+        If kind is "SeriesLiteral" or kind is "MapLiteral" or kind is "SetLiteral" or kind is "ChaseLiteral" or kind is "MatrixLiteral" or kind is "MatrixSized"
                 or kind is "RangeExpression" or kind is "ChannelCreation":
             // Made here, which is wherever the caller is.
             Return a series with (-2).
@@ -331,7 +331,7 @@ Pull a book on collections.
             If found is not void, return found's depth.
             Return 0.
         Done.
-        If kind is "SeriesLiteral" or kind is "MapLiteral" or kind is "MatrixLiteral" or kind is "MatrixSized"
+        If kind is "SeriesLiteral" or kind is "MapLiteral" or kind is "SetLiteral" or kind is "ChaseLiteral" or kind is "MatrixLiteral" or kind is "MatrixSized"
                 or kind is "ObjectLiteral" or kind is "RangeExpression" or kind is "ChannelCreation":
             Return one's rabbit-depth.
         Done.

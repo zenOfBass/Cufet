@@ -1052,7 +1052,12 @@ Pull a book on collections.
             // A chase gives one-character texts; a set gives its elements.
             "ChaseType" or "SetType":
                 Define element-type as cast plain-type on ("TextType").
-                If kind is "SetType", the element-type becomes cast field-of on (looped-type, 1).
+                // A chase's are made as the loop reaches them; a set's live where the set does.
+                Define element-depth as one's rabbit-depth.
+                If kind is "SetType":
+                    The element-type becomes cast field-of on (looped-type, 1).
+                    The element-depth becomes cast one's container-depth on (looped).
+                Done.
                 Define each-name as "it".
                 If cast is-nothing on (cast field-of on (statement, 1)) is false:
                     The each-name becomes cast unquoted on (cast field-of on (statement, 1)).
@@ -1060,7 +1065,7 @@ Pull a book on collections.
                 Cast one's enter-scope.
                 Cast one's bind-name on (each-name, a new binding {
                     the shape element-type, the established-by looped, the line at-row, the permanent false,
-                    the module false, the depth 0, the parameter false, the judged false }).
+                    the module false, the depth element-depth, the parameter false, the judged false }).
                 Cast one's check-block on (cast field-of on (statement, 3)) or pass the failure off.
                 Cast one's exit-scope.
                 Return.

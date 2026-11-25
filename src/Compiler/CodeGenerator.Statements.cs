@@ -910,8 +910,13 @@ public sealed partial class CodeGenerator
                     FlushPreEmits(sb, indent);
                     string setValue = EmitAsType(sa.Value, setAsMap.ValueType);
                     FlushPreEmits(sb, indent);
-                    string put = InOrder(new[] { sa.Series, sa.Value }, new[] { setExpr, setValue },
-                        both => $"{setName}_put({both[0]}, {both[1]}, {both[1]})", pastedTwice: true);
+                    string put = InOrder(new[] { sa.Series, sa.Value }, new[] { setExpr, setValue }, both =>
+                    {
+                        // An element from a shorter-lived region is copied to where the set is.
+                        string copied = EmitEscapeCopy(both[1], setAsMap.ValueType, sa.EscapeToDepth, $"({both[0]})->home");
+                        return copied == both[1] ? $"{setName}_put({both[0]}, {both[1]}, {both[1]})"
+                             : $"({{ __auto_type cf_sel = {copied}; {setName}_put({both[0]}, cf_sel, cf_sel); }})";
+                    }, pastedTwice: true);
                     sb.AppendLine($"{indent}{put};");
                     break;
                 }

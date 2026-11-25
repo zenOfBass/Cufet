@@ -1,0 +1,20 @@
+/*  EXPECTED: COMPILES and runs; compiled output must match the interpreter.
+
+    A rabbit's text put into an outer set is copied to where the set is. */
+
+
+Pull a book on collections.
+    Define words as a set of text.
+    Pull a rabbit.
+        Insert "in" joined to "ner" into words.
+    Done.
+
+    /*  Make and drop enough values that freed memory is handed out again. */
+    Define churn as a series of text.
+    Define tick as 0.
+    While tick is less than 400, repeat:
+        Insert ("zzzzzzzz" joined to "yyyyyyyy") into churn.
+        The tick becomes tick + 1.
+    Done.
+    State words has "inner".
+Done.

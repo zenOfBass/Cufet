@@ -48,8 +48,30 @@ public sealed partial class Interpreter
     private void ExecuteCloseStatement(CloseStatement cs)
         => ((ChannelValue)Evaluate(cs.Channel)).Close(++_channelStamp);
 
+    private static CufetChase CopyOf(CufetChase chase)
+    {
+        var copy = new CufetChase();
+        copy.AddRange(chase);
+        return copy;
+    }
+
+    private static CufetSet CopyOf(CufetSet set)
+    {
+        var copy = new CufetSet { DeclaredElement = set.DeclaredElement };
+        foreach (var member in set.Values)
+        {
+            var own = DeepCopyForChannel(member);
+            copy[own] = own;
+        }
+        return copy;
+    }
+
     private static object DeepCopyForChannel(object value) => value switch
     {
+        // A buffer is copied as a series is: each side has its own from here.
+        CufetChase chase => CopyOf(chase),
+        // Before the map it is stored as, or what arrived would be one.
+        CufetSet set => CopyOf(set),
         List<object> list => list.Select(DeepCopyForChannel).ToList(),
         // ⚠ The COMPARER travels with the copy. `ToDictionary` without it hands back a map using
         // the default one, where a record key compares by reference — so a map that worked before

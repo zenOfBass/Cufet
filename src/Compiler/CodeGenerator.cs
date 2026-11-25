@@ -742,6 +742,7 @@ public sealed partial class CodeGenerator
             case FailureType ft: RegisterFailableStruct(ft); RegisterChanElem(ft.Inner, false); RegisterChanElem(TText, false); break;
             case MatrixType: break;   // a matrix crosses as itself; nothing to register
             case ChaseType:  _usesChase  = true; break;
+            case SetType set: RegisterSetStruct(set); RegisterChanElem(set.ElementType, false); break;
             case RecordType rt:
                 RegisterRecordStruct(rt);
                 foreach (var f in RecordFields(rt)) if (!IsChanPod(f.Type)) RegisterChanElem(f.Type, false);
@@ -846,6 +847,23 @@ public sealed partial class CodeGenerator
                 sb.Append($"for (int i = 0; i < v->len; i++) {{ r->keys[i] = cchan_{ki}_copy(v->keys[i], a); r->vals[i] = cchan_{vi}_copy(v->vals[i], a); }} return r;");
                 break;
             }
+            case SetType set:
+            {
+                // Its own key and its own value, so each element is copied once and pasted twice.
+                string mn = RegisterSetStruct(set), ec = EmitCType(set.ElementType);
+                int ei = ChanIdxOf(set.ElementType);
+                sb.Append($"if (!v) return v; {mn}* r = ({mn}*)a(sizeof({mn})); r->len = v->len; r->cap = v->len; r->home = {CopyHome}; ");
+                sb.Append($"r->keys = v->len ? ({ec}*)a((size_t)v->len * sizeof({ec})) : NULL; ");
+                sb.Append($"r->vals = v->len ? ({ec}*)a((size_t)v->len * sizeof({ec})) : NULL; ");
+                sb.Append($"for (int i = 0; i < v->len; i++) r->keys[i] = r->vals[i] = cchan_{ei}_copy(v->vals[i], a); return r;");
+                break;
+            }
+            case ChaseType:
+                // ⚠ Room for one more even when empty: growing one doubles the room it has.
+                sb.Append($"if (!v) return v; CufetChase* r = (CufetChase*)a(sizeof(CufetChase)); r->len = v->len; r->cap = v->len + 1; r->home = {CopyHome}; ");
+                sb.Append("r->data = (int32_t*)a((size_t)r->cap * sizeof(int32_t)); ");
+                sb.Append("memcpy(r->data, v->data, (size_t)v->len * sizeof(int32_t)); return r;");
+                break;
             case MatrixType:
                 sb.Append("if (!v) return v; CufetMatrix* r = (CufetMatrix*)a(sizeof(CufetMatrix)); r->rows = v->rows; r->cols = v->cols; ");
                 sb.Append("int nn = v->rows * v->cols; r->data = nn ? (CufetDec*)a((size_t)nn * sizeof(CufetDec)) : NULL; ");
@@ -919,6 +937,13 @@ public sealed partial class CodeGenerator
                 break;
             case MapType mt:
                 sb.Append($"if (!v) return; for (int i = 0; i < v->len; i++) {{ cchan_{ChanIdxOf(mt.KeyType)}_freeheap(v->keys[i]); cchan_{ChanIdxOf(mt.ValueType)}_freeheap(v->vals[i]); }} free(v->keys); free(v->vals); free(v);");
+                break;
+            case SetType set:
+                // Each element is its own key, so it is freed once.
+                sb.Append($"if (!v) return; for (int i = 0; i < v->len; i++) cchan_{ChanIdxOf(set.ElementType)}_freeheap(v->vals[i]); free(v->keys); free(v->vals); free(v);");
+                break;
+            case ChaseType:
+                sb.Append("if (!v) return; free(v->data); free(v);");
                 break;
             case MatrixType:
                 sb.Append("if (!v) return; free(v->data); free(v);");
@@ -1242,6 +1267,7 @@ public sealed partial class CodeGenerator
         RecordType => t is RecordType,        // shape-erased (unreachable — see above)
         MatrixType => t is MatrixType,
         ChaseType => t is ChaseType,
+        SetType ts => t is SetType held && StaticKindMatches(held.ElementType, ts.ElementType),
         ObjectType ot => t is ObjectType o2 && o2.Name == ot.Name,   // nominal
         // A non-voidable value is never void — but a union may have `void` as one of its CASES, and
         // `is a void` has to find that case's tag.
@@ -1501,11 +1527,9 @@ public sealed partial class CodeGenerator
         ObjectType ot => $"{ObjStructName(ot.Name)}_write({valExpr})",
         VoidableType vt => $"{RegisterVoidableStruct(vt)}_write({valExpr})",
         MapType mt => $"{RegisterMapStruct(mt)}_write({valExpr})",
-        // ★ Printed as the collection it reads as — its elements in the order they went in, spelled
-        // as a series is — not through the map it is stored as, which named each member twice.
-        SetType st => $"({{ {RegisterSetStruct(st)}* cf_sw = {valExpr}; fputs(\"(\", stdout); "
-                    + $"for (int cf_si = 0; cf_si < cf_sw->len; cf_si++) {{ if (cf_si > 0) fputs(\", \", stdout); "
-                    + $"{WriteCall("cf_sw->vals[cf_si]", st.ElementType)}; }} fputs(\")\", stdout); }})",
+        // A function of its own, so that a series or a record holding a set can name it ahead of the
+        // struct: written in place, one inside anything else read a struct not declared yet.
+        SetType st => $"{RegisterSetStruct(st)}_set_write({valExpr})",
         MatrixType => $"cufet_mat_write({valExpr})",
         // ★★ Shown as the COLLECTION it is — `(h, e, l, l, o)` — never as the text it will become.
         // A reader must never mistake a buffer for a `text`; when the text is what you want,

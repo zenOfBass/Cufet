@@ -20,6 +20,9 @@ the result was judged as long-lived as the argument. Twenty-five of the twenty-s
 search turned up had this shape. The last kept an item of a rabbit's series in a name outside it,
 which the compiler copies out, and ran right; the model does not know that copy.
 
+Constants, chases and sets came after that, on 2026-11-24 and 25, out of none of the four: no rule had
+mentioned them, and the model and the random programs have none. They are at the end of section 4.
+
 The rest of the document is in three parts.
 
 1. **What is wrong.** Section 4 sets out the four obligations, with the programs that break each
@@ -59,7 +62,7 @@ F2 and F4 are the two that matter most. F2 means a depth written down inside a f
 relative to wherever the function happened to be called. F4 meant a series that was made outside
 a rabbit could have its buffer moved into the rabbit by a single `Insert`.
 
-**F4 now.** A series header, and a map header, records the arena it was made in, and growing it
+**F4 now.** A series header, a map header (a set is stored as one) and a chase header record the arena it was made in, and growing it
 allocates the new buffer in that arena whatever rabbit is open (`cufet_arena_here`,
 `cufet_arena_alloc_in`). An arena is its own heap block, so it can be named; and an arena that a
 `Return` merges into the one below (F3) stays behind as a stub that forwards to where its blocks
@@ -232,6 +235,11 @@ built under AddressSanitizer on Linux (`result-1`, `param-1`, `alias-2`), and ea
 | `result-4-parameter-wrapped-in-an-object` | O1 | crashes | **refused** |
 | `binder-1-it-in-a-judge` | O1 | crashes | **refused** |
 | `result-5-parameter-replaced-then-returned` | O1 | (found later) crashes | **refused** |
+| `chase-1-grown-inside-a-rabbit` | O3 | (found later) wrong output | **right** |
+| `chase-2-kept-by-an-outer-name` | every rule | (found later) wrong output | **refused** |
+| `set-1-text-into-an-outer-set` | O4 | (found later) crashes | **right** |
+| `set-2-kept-by-an-outer-name` | every rule | (found later) wrong output | **refused** |
+| `loop-1-text-of-a-set-and-a-chase` | O1 | (found later) wrong output | **right** |
 | `constant-1-series-read-after-its-rabbit` | constants | (found later) crashes, or wrong output | **right** |
 | `constant-2-text-of-the-rabbit` | constants | refused | **right** |
 | `constant-3-read-before-its-line` | constants | (found later) crashes | **stops first, as interpreted** |
@@ -244,6 +252,13 @@ defines is now made in the program's arena (`PlaceOfConstant` in C#, `place-of-c
 its depth is 0 to every rule here; one that is something the rabbit holds is the block's own, and no
 function reads it. The interpreter never had the hole: it stopped with `'sizes' isn't defined`, and now
 answers as the compiled program does. A read that could come before the constant's line asks a flag first.
+
+**Chases and sets** were in no rule at all: the checker's list of what a region holds named neither, so
+a store of one was never asked about, and a chase's header named no arena to grow in. Found on
+2026-11-25, while deciding what a constant of each type should do. They are in every rule a series is
+in now, in both checkers. Checked under AddressSanitizer on Linux: 180 programs written for this and
+for the constants, 124 of them accepted and built, and no read of freed memory; the same programs on
+0.30.0 had 38.
 
 "Wrong output" is the worse result: the program exits 0. Which of the two a failing row shows is
 chance, since both are a read of freed memory.

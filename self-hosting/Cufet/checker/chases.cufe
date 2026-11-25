@@ -130,5 +130,9 @@ Pull a book on collections.
             Return a failure (cast refusal-of on ("{spoken} holds {cast plural-words on (element)}", "", at-row,
                 "insert a {cast type-words on (inserted)} into it", "Everything in this set must be {cast plural-words on (element)}.")).
         Done.
+        // What a set holds is a value, never a container, so it is copied to where the set is rather
+        // than refused: the rule a map's key is stored by.
+        Cast one's note-escape on (statement, ":EscapeToDepth", value, inserted, cast one's container-depth on (target)).
+        Cast one's note-home-copy on (statement, ":EscapeToDepth", inserted, target).
     Done.
 Done.

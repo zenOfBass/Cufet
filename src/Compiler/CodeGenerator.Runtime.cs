@@ -2162,14 +2162,16 @@ static int cufet_run_capture(const char* program, char* const argv[], const char
     // cost is 4× memory on a thing you build and discard, which is where that trade is cheapest.
     //
     // ⚠ Arena-allocated and never freed by hand: a chase is a reference type that dies with its
-    // rabbit, exactly as a series or a map does.
+    // rabbit, exactly as a series or a map does, and it grows in the arena it was made in, as they do
+    // (`home`). It grew in whichever was open, so one added to inside a rabbit was freed at `Done.`
+    // (2026-11-25, docs/SOUNDNESS.md, `chase-1`).
     private const string ChaseRuntime =
 """
-typedef struct { int32_t* data; int len; int cap; } CufetChase;
+typedef struct { int32_t* data; int len; int cap; CufetArena* home; } CufetChase;
 
 static CufetChase* cufet_chase_new(void) {
     CufetChase* c = (CufetChase*)cufet_arena_alloc(sizeof(CufetChase));
-    c->len = 0; c->cap = 16;
+    c->len = 0; c->cap = 16; c->home = cufet_arena_here();
     c->data = (int32_t*)cufet_arena_alloc(sizeof(int32_t) * (size_t)c->cap);
     return c;
 }
@@ -2177,7 +2179,7 @@ static CufetChase* cufet_chase_new(void) {
 static void cufet_chase_push(CufetChase* c, int32_t point) {
     if (c->len == c->cap) {
         int grown = c->cap * 2;
-        int32_t* moved = (int32_t*)cufet_arena_alloc(sizeof(int32_t) * (size_t)grown);
+        int32_t* moved = (int32_t*)cufet_arena_alloc_in(c->home, sizeof(int32_t) * (size_t)grown);
         memcpy(moved, c->data, sizeof(int32_t) * (size_t)c->len);
         c->data = moved; c->cap = grown;
     }

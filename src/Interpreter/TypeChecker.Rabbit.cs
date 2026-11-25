@@ -302,7 +302,7 @@ public sealed partial class TypeChecker
 
     // ── Outward-only store invariant helpers ─────────────────────────────────
 
-    // Series, maps, objects, and matrices are reference types tracked by rabbit depth.
+    // Series, maps, sets, chases, objects, and matrices are reference types tracked by rabbit depth.
     // Value types (number, text, fact, record) may be stored anywhere without constraint.
     // ★ NOTE (ESC.1): this SHALLOW, top-level test governs the existing REJECTIONS only, and is
     // deliberately left alone — the TypeChecker is shared, so widening it would reject programs the
@@ -315,7 +315,7 @@ public sealed partial class TypeChecker
     // whether the compiler must deep-COPY a value into the destination's arena, and an address must
     // never be copied anywhere: it is not arena memory, it is C's.
     private static bool IsReferenceType(CufetType? t) =>
-        t is SeriesType or MapType or ObjectType or MatrixType or ChannelType or AddressType;
+        t is SeriesType or MapType or SetType or ChaseType or ObjectType or MatrixType or ChannelType or AddressType;
 
     // ── ESC.1 — the STRUCTURAL region-bearing test ───────────────────────────
     // `IsReferenceType` is a TOP-LEVEL test: it misses `text` entirely, and every value-typed
@@ -344,7 +344,7 @@ public sealed partial class TypeChecker
         NumberType or BitsType or FactType => false,
         VoidType                 => false,
         TextType                 => true,   // ★ arena-allocated in the compiler; the reported UAF
-        SeriesType or MapType    => true,
+        SeriesType or MapType or SetType or ChaseType => true,
         MatrixType or ChannelType => true,
         FunctionType             => true,   // a closure env is arena-allocated (ESC.4 territory)
         // ★ A stash IS a closure — it lowers to one before either backend sees it — so it has to
@@ -377,7 +377,7 @@ public sealed partial class TypeChecker
     {
         if (!IsReferenceType(inferredType)) return 0;
         if (expr is VariableReference vr && TryLookup(vr.Name, out var ti)) return ti.RabbitDepth;
-        if (expr is SeriesLiteral or MapLiteral or MatrixLiteral or MatrixSized
+        if (expr is SeriesLiteral or MapLiteral or SetLiteral or ChaseLiteral or MatrixLiteral or MatrixSized
                  or ObjectLiteral or RangeExpression or ChannelCreation)
             return _rabbitDepth;
         if (expr is CastExpression cast && _castDepthCache.TryGetValue(cast, out var cachedDepth))
@@ -483,7 +483,8 @@ public sealed partial class TypeChecker
     /// <summary>A value of this type can be copied whole into another region.</summary>
     private bool CopiesOut(CufetType? type, HashSet<string> seen) => type switch
     {
-        NumberType or BitsType or FactType or VoidType or TextType => true,
+        NumberType or BitsType or FactType or VoidType or TextType or ChaseType or MatrixType => true,
+        SetType set           => CopiesOut(set.ElementType, seen),
         SeriesType series     => CopiesOut(series.ElementType, seen),
         MapType map           => CopiesOut(map.KeyType, seen) && CopiesOut(map.ValueType, seen),
         VoidableType voidable => CopiesOut(voidable.Inner, seen),
