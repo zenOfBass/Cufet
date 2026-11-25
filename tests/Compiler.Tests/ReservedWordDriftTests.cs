@@ -90,9 +90,8 @@ public class ReservedWordDriftTests
     {
         var documented = DocumentedReserved();
 
-        // `a`, `an` and `the` are articles, listed in §1 under Noise with their own explanation
-        // that they are not reserved in the "forbidden as a name" sense. They lex as Article, so
-        // `IsReserved` is true for them and they are genuinely in the table — nothing to exempt.
+        // `a`, `an` and `the` are listed in §1 under Articles. They lex as Article, so `IsReserved`
+        // is true for them, and none of them can be a name — nothing to exempt.
         var missing = LexerLiterals()
             .Where(w => IsReserved(w) && !documented.Contains(w))
             .OrderBy(w => w)

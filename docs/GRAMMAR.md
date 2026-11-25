@@ -1,27 +1,11 @@
 ﻿# Cufet Grammar & Constraints Reference
 
-This document is the **operational** reference for writing Cufet correctly upfront.
-It covers the things that would otherwise be discovered by erroring: reserved words
-you can't use as names, scope rules inside object methods, which operations accept
-complex expressions vs bare names, where constructs are/aren't allowed, and the
-sharp edges that look reasonable but parse or type-check differently than expected.
+The exact rules of Cufet: what is allowed, what it means, and what is refused. To learn the language,
+read [REFERENCE.md](REFERENCE.md); for the books it ships with, [BOOKS.md](BOOKS.md).
 
-It is **not** a feature tour — see [REFERENCE.md](REFERENCE.md) for that, or [BOOKS.md](BOOKS.md)
-for the books Cufet ships with.
-
-**Both backends, unless marked.** Cufet runs interpreted or compiles to a native binary,
-and the lexer, parser, and type checker are shared — so every constraint here applies to
-both. A rule that holds for one and not the other is a bug, not a caveat: either the
-behaviour is made precise on both sides or the compiler refuses outright. The deliberate
-exceptions are called out inline where they arise, and there are two kinds:
-**concurrency scheduling** (interpreted tasks are cooperative, compiled tasks are real OS
-threads — so no interleaving is specified), and a genuinely **platform-owned** result
-(filesystem enumeration order).
-
-**Maintenance:** every feature slice that adds a keyword, syntactic form, or
-constraint must update this document. The reserved-keyword list in §1 especially.
-A future improvement would generate that list from the lexer's keyword table
-automatically so it can never drift; for now it is maintained by hand.
+Every rule holds interpreted and compiled, unless it says otherwise. Two things differ on purpose: the
+order concurrent tasks interleave in, and the sequence a random generator gives. Where the compiler
+cannot build something the interpreter runs, it refuses it.
 
 ---
 
@@ -41,83 +25,58 @@ automatically so it can never drift; for now it is maintained by hand.
 
 ## 1. Reserved keywords
 
-Every token below is lexed as a specific `TokenType` — the lexer will never
-produce an `Identifier` for these strings, so they cannot be used as variable
-names, field names, function names, or for-each iterator names.
+Each word in these tables is reserved: it cannot name a variable, a field, a parameter, a function, a
+method, a type, or the variable of a `For each`. Reserved words are case-insensitive (`State`, `state`
+and `STATE` are one word).
 
-Keywords are **case-insensitive** (`State`, `state`, `STATE` are identical).
+### Articles
 
-### ★ Where a declaration belongs
+| Word |
+|---|
+| `a` |
+| `an` |
+| `the` |
 
-**A TYPE declaration belongs to the PROGRAM, wherever it is written.** `Define object`, an
-interface, a shorthand, an unmaker, an operator overload and a named maker are all registered for the
-whole program even when written inside a function, a loop, an `If` arm or a rabbit block — so a
-type declared in one is usable after it.
+An article may stand before any name and changes nothing there. After `is` it does:
 
-**A VALUE binding does not.** `Define x as 5.` is local to its block, and a `Bind` nested inside a
-function is a closure rather than a free function. The two rules are what make `Define object` in a
-function body sensible and `Define x as 5.` in one still private.
-
-★ **A type may be declared more than once, and the last declaration wins** — the same rule
-shadowing follows everywhere else. An earlier definition is dead: nothing dispatches to it, its
-methods are never emitted, and its body is not checked. ⚠ The linter reports it, because a reader
-cannot see it from the earlier definition alone. A shorthand is the exception: one written twice
-is refused.
-
-### Noise (consumed silently wherever articles appear)
-
-These are **not** reserved in the sense of being forbidden; they are consumed by
-the parser before it looks for the next meaningful token. You will never see them
-as identifiers, but that is fine — they read as natural articles.
-
-⚠ **One place where `a`/`an` and `the` are NOT interchangeable: after `is`.**
-`x is a <type>` and `x is not a <type>` are TYPE TESTS, and only `a`/`an` introduce
-one. `x is the phrase` is an ordinary COMPARISON against the value named `phrase`,
-because a name may be written with its article — which is the house style.
-
-★ This is the only spelling where the article carries meaning rather than being skipped.
-
-| Word | Token |
-|---|---|
-| `a` | Article |
-| `an` | Article |
-| `the` | Article |
+- `x is a <type>` and `x is not a <type>` test a type.
+- `x is the <name>` compares with the value of that name, as `x is <name>` does.
 
 ### Statement-level keywords
 
-| Word | Token | Notes |
-|---|---|---|
-| `state` | State | Output statement |
-| `define` | Define | Variable declaration |
-| `as` | As | |
-| `becomes` | Becomes | Reassignment |
-| `permanently` | Permanently | Lock a binding |
-| `shadow` | Shadow | Deliberate shadowing |
-| `return` | Return | Return from function |
-| `stop` | Stop | Break loop |
-| `exit` | Exit | `Exit.` / `Exit with <number>.` — end the program with a chosen status |
-| `skip` | Skip | Continue loop |
-| `bury` | Bury | `Have <rabbit> bury <v>.` — hand one value out and suspend there. Never bare: a rabbit always does it |
-| `unbury` | Unbury | Resume a stash and take its next value — a `voidable T` |
-| `stash` | Stash | The TYPE, as in `a stash of number`. Never a call form |
-| `cite` | Cite | `Cite <name>.`, `Cite <name> on (…).` — place what a `cufet` axiom holds |
+| Word | Where |
+|---|---|
+| `state` | `State <value>.` |
+| `define` | `Define <name> as <value>.` |
+| `as` | |
+| `becomes` | `The <name> becomes <value>.` |
+| `permanently` | `Define <name> as <value> permanently.` |
+| `shadow` | `Define a shadow <name> as <value>.` |
+| `return` | `Return <value>.` |
+| `stop` | `Stop.` ends the loop |
+| `exit` | `Exit.`, `Exit with <number>.` end the program |
+| `skip` | `Skip.` goes to the loop's next turn |
+| `bury` | `Have <rabbit> bury <value>.`, and never without the rabbit |
+| `unbury` | `unbury <stash>`, a `voidable T` |
+| `stash` | the type, `a stash of number` |
+| `cite` | `Cite <name>.`, `Cite <name> on (…).` |
 
 ### Control flow
 
-| Word | Token |
+| Word | Where |
 |---|---|
-| `if` | If |
-| `otherwise` | Otherwise |
-| `when` | When |
-| `done` | Done |
-| `while` | While |
-| `repeat` | Repeat |
-| `until` | Until |
-| `try` | Try |
-| `case` | Case |
-| `suppress` | Suppress |
-| `judge` | Judge |
-| `where` | Where |
+| `if` | `If <fact>:` |
+| `otherwise` | `Otherwise:`, `Otherwise if <fact>:`, and in `when` |
+| `when` | `<value> when <fact>, otherwise <value>` |
+| `done` | `Done.` ends a block |
+| `while` | `While <fact>, repeat:` |
+| `repeat` | `Repeat:` … `Until <fact>.`, and `, repeat:` |
+| `until` | |
+| `try` | `Try to:` |
+| `case` | `In case of failure:`, `In case of exception:` |
+| `suppress` | `Suppress the exception.` |
+| `judge` | `Judge <value>, where it is:` |
+| `where` | |
 
 ### ★ A bits width is data — readable and statable
 
@@ -1736,6 +1695,20 @@ Output: `during rabbit`, `task A`, `task B`, `after` — both tasks complete bef
 
 ## 6. Where constructs are allowed
 
+### Where a declaration belongs
+
+**An object, an interface and a shorthand belong to the program**, wherever they are written: in a
+function, an `If`, a loop, a task or a rabbit's block, each is usable before and after it.
+
+**A value belongs to its block.** `Define x as 5.` lasts until that block's `Done.`
+
+**An operator overload and an unmaker are refused** inside a function, an `If` or a loop.
+
+**A type declared twice is the last one.** Nothing reaches the earlier one and its body is not checked;
+`cufet check` warns of it. This is an object's or an interface's rule: a second shorthand or a second
+method of one name, a second overload for one pair of types, and a second unmaker for one type are
+refused.
+
 ### `Define` is forbidden inside object bodies
 
 Only `Bind` (methods), `Get` (getters), and `Set` (setters) are allowed inside an
@@ -2542,7 +2515,7 @@ Everything else a block holds goes anywhere. A type belongs to the program where
 value is *meant* to land at the cite site. A function is the one thing whose meaning would change
 with the company it keeps.
 
-**Where a cited declaration lands falls out of [Where a declaration belongs](#-where-a-declaration-belongs)**,
+**Where a cited declaration lands falls out of [Where a declaration belongs](#where-a-declaration-belongs)**,
 and nothing about `Cite` adds to it. The block's statements are spliced in at the cite site, so a
 cited object belongs to the program however deeply the `Cite` sits — usable after the function that
 cited it, on both backends.
