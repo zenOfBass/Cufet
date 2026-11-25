@@ -26,6 +26,32 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   Both compilers. A local function of the same name is no longer replaced by it when interpreted, and a
   method reading a name of the function around it is told so, where it said the name was a top-level
   value.
+- **A `permanently` constant no longer reaches freed memory.** Every function may read a constant, and
+  nothing asked whether it was still there. A series defined `permanently` in a rabbit and read by a
+  function after the rabbit's `Done.` was freed memory in a compiled program, which printed whatever was
+  in it and exited 0; interpreted, the program stopped with `'k' isn't defined`. Now a rabbit's
+  constant belongs to the program, as GRAMMAR has said it does, and its value lives as long: made there, or copied
+  there when it is built from the rabbit's text. The program reads it after the block too, and a second
+  constant of its name is refused in any block, as two at the top of the file are. One that is something
+  the rabbit holds (`Define k as xs permanently.`) cannot move, so it stays its block's own and a
+  function reading it is refused. Present in every version back to 0.20.0 at least. Both checkers, both
+  compilers, the interpreter.
+- **A constant read before its line has run stops the program, compiled as well as interpreted.** A function
+  called above `Define k as … permanently.` read a zero, `(null)`, or crashed on a series that was not
+  there. Both now stop with `'k' has no value yet on line 3. Line 2 gives it one, and that line hasn't
+  run.` The same for a lambda named at the top of the file and cast too soon. A function made too soon stops where
+  it is made, since it takes the constant along.
+- **A function bound in a rabbit's block compiles wherever it is cast**: after the block, before it, from
+  another function or another rabbit. The checker and the interpreter made it a free function, as GRAMMAR
+  says, and the compiler left it a local of the block.
+- **A function reading a constant of its rabbit or its `Pull a book` block can be cast after the block,
+  interpreted.** It stopped with `'k' isn't defined`. So can a method, a getter or a setter written in a
+  `Pull a book` block and using the book, which stopped with `'math' isn't defined`.
+- **A method that uses a function of the block it is written in is refused.** It checked clean and never
+  compiled; interpreted it worked only where that function happened to be in reach. A method belongs to
+  its type and takes nothing of the block along, so it is told to have the function passed in or kept in
+  a field. Functions still capture. A method also no longer reaches a local function of whoever casts it,
+  interpreted. Both checkers.
 - **A function bound inside a lambda or a task no longer decides what that gives back.** `Define g as a
   function given (the number q): Bind number to h: …` was refused at its own `Return`, as "declared
   void". Both checkers.

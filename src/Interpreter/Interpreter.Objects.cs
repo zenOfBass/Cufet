@@ -80,7 +80,8 @@ public sealed partial class Interpreter
 
         var saved      = SaveScopes();
         var prevHidden = _hiddenTopLevelData;
-        ImportTopLevelVisible(saved.Scopes);
+        ImportTopLevelVisible(saved.Scopes, ofType: true);
+        BindMemberPulls(getter, line);
         PushBodyScope();
         Scope["one"] = receiver;
 
@@ -133,7 +134,8 @@ public sealed partial class Interpreter
 
         var saved      = SaveScopes();
         var prevHidden = _hiddenTopLevelData;
-        ImportTopLevelVisible(saved.Scopes);
+        ImportTopLevelVisible(saved.Scopes, ofType: true);
+        BindMemberPulls(setter, line);
         PushBodyScope();
         Scope["one"]             = receiver;
         Scope[setter.ParamName]  = BindCopy(newValue);
@@ -304,7 +306,8 @@ public sealed partial class Interpreter
 
         var saved      = SaveScopes();
         var prevHidden = _hiddenTopLevelData;
-        ImportTopLevelVisible(saved.Scopes);
+        ImportTopLevelVisible(saved.Scopes, ofType: true);
+        BindMemberPulls(ud, ud.Line);
         PushBodyScope();
         Scope["one"] = receiver;
 

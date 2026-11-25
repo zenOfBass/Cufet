@@ -256,6 +256,8 @@ the freeing        fflush(stdout); return 130;
             Cast one's free-names on (inner, a map from text to fact, found).
         Done.
         Define captured as a series of text.
+        Define asked as cast one's constants-asked on (body, a map from text to fact, cast line-number on (cast field-of on (statement, 3))).
+        If cast is-no-c on (asked) is false, cast one's put on (asked).
         For each pair in found, repeat:
             Define name as the key of pair.
             If name is "one", return a failure (cast not-built on ("a task that reads 'one'")).

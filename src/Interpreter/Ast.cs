@@ -168,7 +168,29 @@ public sealed record DefineStatement(string Name, IExpression Value, bool Perman
     /// the clause has been parsed and discarded.
     /// </remarks>
     public bool HasParameterClause { get; init; }
+
+    /// <summary>Where a shared constant's value lives, set by the checker. Null ⇒ nothing to place: no
+    /// region is open, or the value is held in none. See TypeChecker.PlaceOfConstant.</summary>
+    public ConstantPlace? Place { get; set; }
+
+    /// <summary>The type of a shared constant, set by the checker where its own line is checked.</summary>
+    /// <remarks>The compiler types every constant before it writes any body, and one whose value reads
+    /// a name of its block cannot be typed from there.</remarks>
+    public CufetType? ConstantType { get; set; }
 }
+
+/// <summary>Where the value of a `permanently` constant lives when a region is open around it.</summary>
+public enum ConstantPlace
+{
+    /// <summary>Made by its own line, so it is made in the program's region.</summary>
+    Made,
+    /// <summary>Built from text the region holds, so it is copied into the program's region.</summary>
+    Copied,
+    /// <summary>It is something the block holds, or hides the program's own constant, so it is the
+    /// block's and no function reads it.</summary>
+    OfItsBlock,
+}
+
 public sealed record BecomesStatement(string Name, IExpression Value, int Line, int Column) : IStatement
 {
     // ESC.1 — set by the checker when the stored value's region depth is DEEPER than the

@@ -98,6 +98,51 @@ public class MessageWordingTests
         Assert.StartsWith("That doesn't work: 'k' is a top-level value", CheckFails(
             "Define k as 1.\nDefine object box with (the number n).\nBind number to plus unto box, one's n + k."));
 
+    /// <summary>A method using a function of the block it is written in.</summary>
+    [Theory]
+    [InlineData("Define object box with (the number n).\nBind void to f:\n    Bind number to g:\n        Return 1.\n    Done.\n    Bind number to plus unto box, one's n + cast g.\nDone.\nCast f.", 6)]
+    [InlineData("Bind void to f:\n    Bind number to g:\n        Return 1.\n    Done.\n    Define object crate with (the number n):\n        Bind number to plus, one's n + cast g.\n    Done.\nDone.\nCast f.", 6)]
+    [InlineData("Define object box with (the number n).\nBind void to f:\n    Bind number to g:\n        Return 1.\n    Done.\n    Get plus unto box as number, one's n + cast g.\nDone.\nCast f.", 6)]
+    [InlineData("Define object box with (the number n).\nBind void to f:\n    Bind number to g:\n        Return 1.\n    Done.\n    Set n unto box given (the number k):\n        One's n becomes k + cast g.\n    Done.\nDone.\nCast f.", 7)]
+    [InlineData("Define object box with (the number n).\nBind void to f:\n    Bind number to g:\n        Return 1.\n    Done.\n    Bind number to plus unto box:\n        Define h as g.\n        Return cast h.\n    Done.\nDone.\nCast f.", 7)]
+    [InlineData("Define object box with (the number n).\nBind void to f:\n    Define g as a function: Return 1. Done.\n    Bind number to plus unto box, one's n + cast g.\nDone.\nCast f.", 4)]
+    [InlineData("Define object box with (the number n).\nBind void to f, given (the number function g given ()):\n    Bind number to plus unto box, one's n + cast g.\nDone.", 3)]
+    [InlineData("Define object box with (the number n).\nBind void to f:\n    Bind number to plus unto box, one's n + cast g.\n    Bind number to g:\n        Return 1.\n    Done.\nDone.\nCast f.", 3)]
+    [InlineData("Define object box with (the number n).\nPull a rabbit.\n    Define g as a function: Return 1. Done.\n    Bind number to plus unto box, one's n + cast g.\nDone.", 4)]
+    [InlineData("Define object box with (the number n).\nDefine t as a function:\n    Bind number to g:\n        Return 1.\n    Done.\n    Bind number to plus unto box, one's n + cast g.\n    Return 1.\nDone.\nState cast t.", 6)]
+    [InlineData("Define object box with (the number n).\nPull a rabbit.\n    Have rabbit start a task:\n        Bind number to g, 1.\n        Bind number to plus unto box, one's n + cast g.\n    Done.\nDone.", 5)]
+    public void AMethodUsingAFunctionOfItsBlock_IsToldWhoseItIs(string source, int line)
+    {
+        Assert.Equal("That doesn't work: 'g' belongs to the block this method is written in, and a method can't see it.\n"
+            + $"Here on line {line}, you're trying to use 'g' inside a method.\n\n"
+            + "A method belongs to its type, and can be cast where that block is gone. Pass 'g' in as a parameter, "
+            + "or keep it in a field.", CheckFails(source));
+    }
+
+    /// <summary>A constant that is something its block holds, or hides the program's, is the block's own.</summary>
+    [Theory]
+    [InlineData("Pull a rabbit.\n    Define xs as a series of number with (1, 2).\n    Define k as xs permanently.\n    Bind number to f:\n        Return the number of k.\n    Done.\nDone.", 5)]
+    [InlineData("Bind series of number to same, given (the series of number s), s.\nPull a rabbit.\n    Define xs as a series of number with (1, 2).\n    Define k as cast same on (xs) permanently.\n    Bind number to f:\n        Return the number of k.\n    Done.\nDone.", 6)]
+    [InlineData("Define k as 1 permanently.\nPull a rabbit.\n    Define a shadow k as 2 permanently.\n    Bind number to f, k.\nDone.", 4)]
+    public void AFunctionReadingAConstantOfItsBlocksOwn_IsToldSo(string source, int line)
+    {
+        Assert.Equal("That doesn't work: 'k' belongs to the block it's defined in, and a function can't see it.\n"
+            + "A function can be called after that block's 'Done.', and what 'k' stands for is gone by then.\n"
+            + $"Here on line {line}, you're trying to read 'k' inside a function.\n\nPass 'k' in as a parameter.",
+            CheckFails(source));
+    }
+
+    /// <summary>A rabbit's series kept in a constant, which outlives the rabbit.</summary>
+    [Fact]
+    public void ARabbitsSeriesKeptInAConstant_IsRefused() =>
+        Assert.StartsWith("That doesn't work: this value lives in a shorter-lived region than its destination", CheckFails(
+            "Pull a rabbit.\n    Define rows as a series of series of number with (a series of number with (1, 2)) permanently.\n    Define xs as a series of number with (1, 2).\n    Insert xs into rows.\nDone."));
+
+    [Fact]
+    public void TwoConstantsOfOneNameInTwoBlocks_AreRefused() =>
+        Assert.StartsWith("That doesn't work: 'k' already exists in an enclosing scope.", CheckFails(
+            "Pull a rabbit.\n    Define x as 2.\n    Define k as x + 1 permanently.\nDone.\nPull a rabbit.\n    Define y as 2.\n    Define k as y + 1 permanently.\nDone."));
+
     /// <remarks>
     /// ⚠ The resolver that refuses a written type has no place, so this one gave no line at all. It
     /// gives where the statement or definition STARTS, and says so: a type carries no line of its own.

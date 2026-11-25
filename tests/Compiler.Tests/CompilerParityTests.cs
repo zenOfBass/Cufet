@@ -65,7 +65,7 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     : PipelineTestBase, IClassFixture<CompiledCufetCompiler>
 {
     /// <summary>How many hand-written programs must build and print alike. Raised as it grows; never lowered.</summary>
-    private const int BuiltFloor = 522;
+    private const int BuiltFloor = 558;
 
     private static string[] PreludeArgs =>
         ["--prelude", Path.Combine(RepoRoot, "src", "Interpreter", "Prelude").Replace('\\', '/')];
@@ -265,6 +265,43 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
         "Define g as a function given (the number q):\n    Bind number to h:\n        Return 5.\n    Done.\n    Return q + cast h.\nDone.\nState cast g on (1).",
         "Define g as a function given (the number q):\n    Bind text to h, \"five\".\n    Return q.\nDone.\nState cast g on (1).",
         "Pull a rabbit.\n    Have rabbit start a task as sum:\n        Bind number to h, 5.\n        Return cast h + 1.\n    Done.\n    State the awaited result of sum.\nDone.",
+        // Functions and constants of a rabbit's block and a book's, and what a method sees of its block (2026-11-25).
+        "Pull a rabbit.\n    Bind number to f:\n        Return 5.\n    Done.\n    State cast f.\nDone.",
+        "Pull a rabbit.\n    Bind number to f:\n        Return 5.\n    Done.\nDone.\nState cast f.",
+        "State cast f.\nPull a rabbit.\n    Bind number to f:\n        Return 5.\n    Done.\nDone.",
+        "Pull a rabbit.\n    Bind number to f:\n        Return 5.\n    Done.\n    State cast g.\nDone.\nBind number to g:\n    Return cast f.\nDone.",
+        "Pull a rabbit.\n    Bind number to f:\n        Return 5.\n    Done.\nDone.\nPull a rabbit.\n    State cast f.\nDone.",
+        "Define object box with (the number n).\nPull a rabbit.\n    Bind making a box to small, given (the number k), a new box { the n k }.\nDone.\nDefine b as cast small on (3).\nState b's n.",
+        "Pull a rabbit.\n    Bind number to f, given (the number q):\n        If q is 0, return 0.\n        Return cast g on (q - 1) + 1.\n    Done.\n    Bind number to g, given (the number q):\n        If q is 0, return 0.\n        Return cast f on (q - 1) + 1.\n    Done.\nDone.\nState cast f on (3).",
+        "Define g as a function given (the number q): Return q. Done.\nPull a rabbit.\n    Bind number to f, given (the number q):\n        Return q + 5.\n    Done.\n    The g becomes f.\nDone.\nState cast g on (1).",
+        "Define interface greeter for the text function hi.\nDefine object host with (the number n) and greeter:\n    Bind text to hi, \"hi\".\nDone.\nPull a rabbit.\n    Bind text to say, given (the greeter g), cast g's hi.\nDone.\nDefine b as a new host { the n 1 }.\nState cast say on (b).",
+        "Pull a book on math.\n    Pull a rabbit.\n        Bind number to f:\n            Return math's pi.\n        Done.\n    Done.\nDone.\nState cast f.",
+        "Define object box with (the number n).\nPull a book on math.\n    Bind number to pied unto box, one's n * math's pi.\n    Get tau unto box as number, math's pi * 2.\nDone.\nDefine b as a new box { the n 1 }.\nState cast b's pied.\nState b's tau.",
+        "Define object box with (the number n).\nBind void to g:\n    Pull a book on math.\n        Bind number to pied unto box, one's n * math's pi.\n    Done.\nDone.\nDefine b as a new box { the n 1 }.\nState cast b's pied.",
+        "Pull a rabbit.\n    Define k as a series of number with (1, 2) permanently.\nDone.\nBind number to f:\n    Return the number of k.\nDone.\nDefine junk as a series of text.\nDefine z as 0.\nWhile z is less than 200, repeat:\n    Insert \"junk{z}\" into junk.\n    Increment z by 1.\nDone.\nState cast f.",
+        "Pull a rabbit.\n    Define k as a series of number with (1, 2) permanently.\n    Bind number to f:\n        Return the number of k.\n    Done.\n    State cast f.\nDone.\nDefine junk as a series of text.\nDefine z as 0.\nWhile z is less than 200, repeat:\n    Insert \"junk{z}\" into junk.\n    Increment z by 1.\nDone.\nState cast f.",
+        "Pull a rabbit.\n    Define k as 5 permanently.\n    Bind number to f, k.\nDone.\nState cast f.",
+        "Pull a book on math.\n    Define k as a series of number with (1, 2) permanently.\n    Bind number to f:\n        Return the number of k.\n    Done.\nDone.\nDefine junk as a series of text.\nDefine z as 0.\nWhile z is less than 200, repeat:\n    Insert \"junk{z}\" into junk.\n    Increment z by 1.\nDone.\nState cast f.",
+        "Pull a rabbit.\n    Define w as \"a\" joined to \"b\".\n    Define k as w joined to \"c\" permanently.\n    Bind text to f, k.\nDone.\nDefine junk as a series of text.\nDefine z as 0.\nWhile z is less than 200, repeat:\n    Insert \"junk{z}\" into junk.\n    Increment z by 1.\nDone.\nState cast f.",
+        "Pull a rabbit.\n    Define w as \"a\" joined to \"b\".\n    Define k as w permanently.\n    Bind text to f, k.\nDone.\nDefine junk as a series of text.\nDefine z as 0.\nWhile z is less than 200, repeat:\n    Insert \"junk{z}\" into junk.\n    Increment z by 1.\nDone.\nState cast f.",
+        "Pull a rabbit.\n    Define w as \"a\" joined to \"b\".\n    Define k as a series of text with (w, \"c\") permanently.\n    Bind text to f, item 1 of k.\nDone.\nDefine junk as a series of text.\nDefine z as 0.\nWhile z is less than 200, repeat:\n    Insert \"junk{z}\" into junk.\n    Increment z by 1.\nDone.\nState cast f.",
+        "Pull a rabbit.\n    Define xs as a series of number with (1, 2).\n    Define k as the number of xs permanently.\n    Bind number to f, k.\nDone.\nState cast f.",
+        "Bind series of number to mk, a series of number with (1, 2).\nPull a rabbit.\n    Define k as cast mk permanently.\n    Bind number to f:\n        Return the number of k.\n    Done.\nDone.\nDefine junk as a series of text.\nDefine z as 0.\nWhile z is less than 200, repeat:\n    Insert \"junk{z}\" into junk.\n    Increment z by 1.\nDone.\nState cast f.",
+        "Define object crate with (the series of number xs).\nPull a rabbit.\n    Define k as a new crate { the xs a series of number with (1, 2) } permanently.\n    Bind number to f:\n        Return the number of k's xs.\n    Done.\nDone.\nDefine junk as a series of text.\nDefine z as 0.\nWhile z is less than 200, repeat:\n    Insert \"junk{z}\" into junk.\n    Increment z by 1.\nDone.\nState cast f.",
+        "Bind number function given () to mk, given (the text w):\n    Return a function: Return the length of w. Done.\nDone.\nPull a rabbit.\n    Define k as cast mk on (\"abc\" joined to \"d\") permanently.\n    Bind number to f, cast k.\nDone.\nDefine junk as a series of text.\nDefine z as 0.\nWhile z is less than 200, repeat:\n    Insert \"junk{z}\" into junk.\n    Increment z by 1.\nDone.\nState cast f.",
+        "Pull a rabbit.\n    Define k as a series of number with (1, 2) permanently.\n    Define w as 4.\n    Insert w into k.\nDone.\nInsert 7 into k.\nBind number to f:\n    Return the number of k.\nDone.\nDefine junk as a series of text.\nDefine z as 0.\nWhile z is less than 200, repeat:\n    Insert \"junk{z}\" into junk.\n    Increment z by 1.\nDone.\nState cast f.",
+        "Pull a rabbit.\n    Define names as a series of text with (\"a\") permanently.\n    Define w as \"x\" joined to \"y\".\n    Insert w into names.\nDone.\nBind text to f, item 2 of names.\nDefine junk as a series of text.\nDefine z as 0.\nWhile z is less than 200, repeat:\n    Insert \"junk{z}\" into junk.\n    Increment z by 1.\nDone.\nState cast f.",
+        "Pull a rabbit.\n    Define x as 2.\n    Define k as x + 1 permanently.\nDone.\nState k.",
+        "Pull a rabbit.\n    Define k as a series of number with (1, 2) permanently.\n    Pull a rabbit.\n        Define j as k permanently.\n        Bind number to f:\n            Return the number of j.\n        Done.\n    Done.\nDone.\nDefine junk as a series of text.\nDefine z as 0.\nWhile z is less than 200, repeat:\n    Insert \"junk{z}\" into junk.\n    Increment z by 1.\nDone.\nState cast f.",
+        "Pull a rabbit.\n    Define xs as a series of number with (1, 2).\n    Define k as xs permanently.\n    Insert 5 into xs.\n    State the number of k.\nDone.",
+        "Define k as 1 permanently.\nBind number to f, k.\nPull a rabbit.\n    Define a shadow k as 2 permanently.\n    State k.\n    State cast f.\nDone.",
+        "Pull a rabbit.\n    Define k as \"a\" joined to \"b\" permanently.\n    Have rabbit start a task:\n        State k.\n    Done.\nDone.",
+        "Try to:\n    State cast f.\nDone.\nIn case of exception:\n    State \"stopped\".\n    Suppress the exception.\nDone.\nDefine k as 5 permanently.\nBind number to f, k.\nState cast f.",
+        "State cast f on (2).\nDefine k as 5 permanently.\nBind number to f, given (the number k), k.",
+        "Define object box with (the number n).\nBind number to f, given (the number q):\n    Bind number to plus unto box, cast f on (0).\n    Return q.\nDone.\nDefine b as a new box { the n 1 }.\nState cast b's plus.",
+        "Define object box with (the number n).\nPull a rabbit.\n    Bind number to g:\n        Return 1.\n    Done.\n    Bind number to plus unto box, one's n + cast g.\n    Define b as a new box { the n 1 }.\n    State cast b's plus.\nDone.\nDefine c as a new box { the n 2 }.\nState cast c's plus.",
+        "Define object box with (the number n).\nPull a book on math.\n    Bind number to g:\n        Return 1.\n    Done.\n    Bind number to plus unto box, one's n + cast g.\nDone.\nDefine b as a new box { the n 2 }.\nState cast b's plus.",
+        "Define object box with (the number n).\nBind number to g unto box, one's n.\nBind void to f:\n    Bind number to g:\n        Return 1.\n    Done.\n    Bind number to more-of unto box, cast g on (one).\n    Define b as a new box { the n 2 }.\n    State cast b's more-of.\nDone.\nCast f.",
         // Objects: made, read, set, copied as values, compared, nested, holding a series, and their methods — inside the object or bound unto it.
         "Define object point with (the number across, the number up).\nDefine spot as a new point { the across 3, the up 4 }.\nState spot's across.\nState spot's up.",
         "Define object point with (the number across, the number up).\nDefine spot as a new point { the across 3, the up 4 }.\nState spot.",
@@ -936,6 +973,27 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
         // The code point of a text that is not one character.
         ("State \"before\".\nState the code point of \"ab\".",
          "'the code point of' needs exactly one character (line 2)."),
+        // A constant read before the line that gives it a value has run (2026-11-25).
+        ("State cast f.\nDefine k as 5 permanently.\nBind number to f, k.",
+         "'k' has no value yet on line 3. Line 2 gives it one, and that line hasn't run."),
+        ("State cast f.\nDefine k as a series of number with (1, 2) permanently.\nBind number to f:\n    Return the number of k.\nDone.",
+         "'k' has no value yet on line 4. Line 2 gives it one, and that line hasn't run."),
+        ("State cast f.\nDefine k as \"a\" permanently.\nBind text to f, k.",
+         "'k' has no value yet on line 3. Line 2 gives it one, and that line hasn't run."),
+        ("State k.\nDefine k as 5 permanently.",
+         "'k' has no value yet on line 1. Line 2 gives it one, and that line hasn't run."),
+        ("State cast f.\nPull a rabbit.\n    Define k as a series of number with (1, 2) permanently.\nDone.\nBind number to f:\n    Return the number of k.\nDone.",
+         "'k' has no value yet on line 6. Line 3 gives it one, and that line hasn't run."),
+        ("Cast f.\nDefine k as 5 permanently.\nBind void to f:\n    Define h as a function given (the number q):\n        Return q + k.\n    Done.\n    State cast h on (1).\nDone.",
+         "'k' has no value yet on line 4. Line 2 gives it one, and that line hasn't run."),
+        ("Cast f.\nDefine k as 5 permanently.\nBind void to f:\n    Bind number to h:\n        Return k.\n    Done.\n    State cast h.\nDone.",
+         "'k' has no value yet on line 4. Line 2 gives it one, and that line hasn't run."),
+        ("Define object box with (the number n):\n    Bind number to plus, one's n + k.\nDone.\nDefine b as a new box { the n 1 }.\nState cast b's plus.\nDefine k as 5 permanently.",
+         "'k' has no value yet on line 2. Line 6 gives it one, and that line hasn't run."),
+        ("Cast f.\nDefine k as 5 permanently.\nBind void to f:\n    Pull a rabbit.\n        Have rabbit start a task:\n            State k.\n        Done.\n    Done.\nDone.",
+         "'k' has no value yet on line 5. Line 2 gives it one, and that line hasn't run."),
+        ("State cast f.\nDefine the voidable number k as 5 permanently.\nBind number to f:\n    If k is void, return 0.\n    Return k.\nDone.",
+         "'k' has no value yet on line 4. Line 2 gives it one, and that line hasn't run."),
         // A task that fails before it sends closes its channels; the fault is reported at Done. (2026-11-19)
         ("Pull a rabbit.\n    Define results as a channel of number.\n    Have rabbit start a task:\n        Define empty as a series of number.\n        State item 1 of empty.\n        Send 1 through results.\n        Close results.\n    Done.\n    State (the delivery from results) but void is 0.\nDone.",
          "There's no item 1"),

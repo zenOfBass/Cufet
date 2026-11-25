@@ -189,6 +189,11 @@ static int the equal(the type-c a, the type-c b) { if (a.tag != b.tag) return 0;
         Define to-kind as cast one's kind-of-type on (marked) or pass the failure off.
         Define stored as cast one's stored-kind on (name).
         Define held as cast one's redirected-c on (name) but void is c-word on (cast c-name on (name)).
+        // A shared constant is seen from anywhere, and asked for where it may have no value yet.
+        If stored is "" and (the entry for name in one's constants) is not void:
+            The stored becomes the entry for name in one's constants but void is "".
+            The held becomes cast one's c-constant on (name, cast line-number on (cast field-of on (expression, 2))).
+        Done.
         // A judgement's `void` arm has nothing to reach: it reads as it is held.
         If to-kind is stored or to-kind is "void", return cast narrowed-to on (stored, held).
         // A voidable narrowed past void reads as its value — and then, if it holds a union, within it.

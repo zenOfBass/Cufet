@@ -122,6 +122,15 @@ public sealed partial class Interpreter
     // evaluated constant looks like any other datum.
     private readonly HashSet<string> _permanentTopLevel = new(StringComparer.Ordinal);
 
+    // The same constants by the statement that defines them, and the program's own scope, which holds
+    // them: one written in a `Pull` block is read after the block's `Done.` too.
+    private readonly HashSet<DefineStatement> _sharedDefines = new(ReferenceEqualityComparer.Instance);
+    private Dictionary<string, object> _programScope = null!;
+
+    // Where each name the program gives a value for good is given it. A body can be called before
+    // that line has run, and is told which line it is.
+    private readonly Dictionary<string, int> _givenOn = new(StringComparer.Ordinal);
+
     // ★ The ONE place the runtime's top-level visibility rule lives — the mirror of the checker's
     // TypeChecker.ImportTopLevelVisible, which decides legality; this keeps the runtime in step.
     // Every body that runs detached from the top-level scope — a top-level function, a method, a
@@ -140,18 +149,30 @@ public sealed partial class Interpreter
     private void ImportOwnBookNames(List<Dictionary<string, object>> savedScopes, string book)
     {
         string owned = " in " + book;
-        foreach (var scope in savedScopes)
+        foreach (var scope in savedScopes.Append(_programScope))
             foreach (var (k, v) in scope)
                 if (k.EndsWith(owned, StringComparison.Ordinal)
                     && (v is FunctionValue || _permanentTopLevel.Contains(k)))
                     Scope[k] = v;
     }
 
-    private void ImportTopLevelVisible(List<Dictionary<string, object>> savedScopes)
+    //
+    // ★ `ofType` is a body that belongs to a type: it takes the program's functions and none of the
+    // block it was written in, or of whoever cast it.
+    private void ImportTopLevelVisible(List<Dictionary<string, object>> savedScopes, bool ofType = false)
     {
-        foreach (var scope in savedScopes)
-            foreach (var (k, v) in scope)
-                if (v is FunctionValue || _permanentTopLevel.Contains(k)) Scope[k] = v;
+        if (ofType)
+        {
+            foreach (var (k, v) in _programScope)
+                if (v is FunctionValue) Scope[k] = v;
+        }
+        else
+            foreach (var scope in savedScopes)
+                foreach (var (k, v) in scope)
+                    if (v is FunctionValue) Scope[k] = v;
+        // The program's own, and not a block's that hides one: a body means the name where it is written.
+        foreach (var k in _permanentTopLevel)
+            if (_programScope.TryGetValue(k, out var v)) Scope[k] = v;
 
         if (_callDepth != 1 || savedScopes.Count == 0) return;
         _hiddenTopLevelData = new Dictionary<string, object>();
@@ -955,8 +976,16 @@ public sealed partial class Interpreter
         // ⚠ A `permanently` inside a FUNCTION body is still shared with nothing: this walk does
         // not enter one, which is the same reason the function hoist does not.
         foreach (var stmt in FlattenHoistable(program.Statements))
-            if (stmt is DefineStatement { Permanent: true } constant)
+            if (stmt is DefineStatement { Permanent: true, Place: not ConstantPlace.OfItsBlock } constant)
+            {
                 _permanentTopLevel.Add(constant.Name);
+                _sharedDefines.Add(constant);
+                _givenOn.TryAdd(constant.Name, constant.Line);
+            }
+        NoteMemberPulls(program);
+        foreach (var define in program.Statements.OfType<DefineStatement>())
+            if (define.Value is LambdaLiteral) _givenOn.TryAdd(define.Name, define.Line);
+        _programScope = Scope;
 
         // Hoist top-level function definitions, each remembering the pulls it was WRITTEN inside —
         // and record the same for any MODULE written inside one, which its methods rebind on
@@ -1026,7 +1055,10 @@ public sealed partial class Interpreter
                 if (Scope.ContainsKey(d.Name))
                     throw new RuntimeException($"'{d.Name}' is already defined on line {d.Line}.");
             {
-                Scope[d.Name] = BindCopy(Evaluate(d.Value));
+                var defined = BindCopy(Evaluate(d.Value));
+                // A shared constant is the program's, so a block it is written in does not end it.
+                if (_sharedDefines.Contains(d)) { _programScope[d.Name] = defined; break; }
+                Scope[d.Name] = defined;
                 _scopeDefOrder[^1].Add(d.Name);
 
                 break;
@@ -1398,6 +1430,7 @@ public sealed partial class Interpreter
                 {
                     // Inside a function body: create a closure carrying the current environment.
                     // Capture before setting the name so we can add self-reference for recursion.
+                    RequireGiven(bind, bind.Parameters.Select(p => p.Name).Append(bind.Name), bind.Body, bind.Line);
                     var capturedEnv = CaptureClosure();
                     var closureFn = new FunctionValue
                     {
@@ -1917,7 +1950,13 @@ public sealed partial class Interpreter
         }
     }
 
-    private object EvaluateLambda(LambdaLiteral lam) => new FunctionValue
+    private object EvaluateLambda(LambdaLiteral lam)
+    {
+        RequireGiven(lam, lam.Parameters.Select(p => p.Name), lam.Body, lam.Line);
+        return MadeFunction(lam);
+    }
+
+    private object MadeFunction(LambdaLiteral lam) => new FunctionValue
     {
         ParameterNames = lam.Parameters.Select(p => p.Name).ToList(),
         Body           = lam.Body,
@@ -2587,7 +2626,8 @@ public sealed partial class Interpreter
 
         var saved      = SaveScopes();
         var prevHidden = _hiddenTopLevelData;
-        ImportTopLevelVisible(saved.Scopes);
+        ImportTopLevelVisible(saved.Scopes, ofType: true);
+        BindMemberPulls(oad, line);
         PushBodyScope();
         Scope[oad.LeftName]  = BindCopy(left);
         Scope[oad.RightName] = BindCopy(right);
@@ -2700,6 +2740,29 @@ public sealed partial class Interpreter
     private static decimal ToNumber(object val, string op) =>
         val is decimal d ? d : throw new RuntimeException($"Operator '{op}' requires a number.");
 
+    /// <summary>A constant read before the line that defines it has run. The compiled program says the
+    /// same: see `cufet_not_given` in CodeGenerator.Runtime.cs.</summary>
+    private static string NotGivenYet(string name, int line, int givenOn) =>
+        $"'{name}' has no value yet on line {line}. Line {givenOn} gives it one, and that line hasn't run.";
+
+    /// <summary>A function made where it names a constant takes it along, so the constant has to be there.</summary>
+    private void RequireGiven(object function, IEnumerable<string> parameters, IReadOnlyList<IStatement> body, int line)
+    {
+        if (_givenOn.Count == 0) return;
+        if (!_namesRead.TryGetValue(function, out var names))
+        {
+            var refs = new HashSet<string>(StringComparer.Ordinal);
+            var defs = new HashSet<string>(parameters, StringComparer.Ordinal);
+            foreach (var stmt in body) TaskCaptures.CollectRefsDefs(stmt, refs, defs);
+            names = [.. refs.Where(r => !defs.Contains(r) && _givenOn.ContainsKey(r)).Order(StringComparer.Ordinal)];
+            _namesRead.Add(function, names);
+        }
+        foreach (var name in names)
+            if ((_callDepth > 0 || _permanentTopLevel.Contains(name)) && !TryLookupValue(name, out _)) throw new RuntimeException(NotGivenYet(name, line, _givenOn[name]));
+    }
+
+    private readonly System.Runtime.CompilerServices.ConditionalWeakTable<object, string[]> _namesRead = new();
+
     private string UndefinedVariableMessage(string name, int line)
     {
         var located = line > 0 ? $" on line {line}" : "";
@@ -2713,6 +2776,8 @@ public sealed partial class Interpreter
                     $"Or pass '{name}' as a parameter:\n" +
                     $"    Bind void to your-function, given (the <type> {name}): ...\n" +
                     $"Or define your function inside a scope where '{name}' is already bound, so it captures '{name}' as a closure.";
+
+        if (_givenOn.TryGetValue(name, out int givenOn)) return NotGivenYet(name, line, givenOn);
 
         var suggestion = FindSuggestion(name);
         var msg = $"'{name}' isn't defined{located} — it was never given a value with Define.";

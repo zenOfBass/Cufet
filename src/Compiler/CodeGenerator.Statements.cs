@@ -323,8 +323,22 @@ public sealed partial class CodeGenerator
                 // function before main starts.
                 if (_sharedConstants.Contains(d))
                 {
-                    _sharedConstDecls.Add($"static {EmitCType(vt)} {MangleName(d.Name)};");
-                    sb.AppendLine($"{indent}{MangleName(d.Name)} = {valExpr};");
+                    string shared = MangleName(d.Name), id = CIdent(d.Name);
+                    _sharedConstDecls.Add($"static {EmitCType(vt)} {shared};");
+                    // ★ In the program's region, so a function called after the rabbit's `Done.` still
+                    // finds it: made there, or copied there when it is built from the rabbit's text.
+                    if (d.Place == ConstantPlace.Made)
+                        sb.AppendLine($"{indent}{{ int cf_ov = cufet_alloc_override; cufet_alloc_override = 0; "
+                                    + $"{shared} = {valExpr}; cufet_alloc_override = cf_ov; }}");
+                    else
+                        sb.AppendLine($"{indent}{shared} = {(d.Place == ConstantPlace.Copied ? EmitEscapeCopy(valExpr, vt, 0) : valExpr)};");
+                    _varRabbitDepth[d.Name] = 0;
+                    if (_constLines.ContainsKey(d.Name) && !_constAlwaysSet.Contains(d.Name))
+                    {
+                        _sharedConstDecls.Add($"static int cvon_{id}; static void* const cvat_{id} = &{shared};");
+                        sb.AppendLine($"{indent}cvon_{id} = 1;");
+                    }
+                    if (_inMain) _constSetInMain.Add(d.Name);
                     break;
                 }
 
@@ -673,7 +687,9 @@ public sealed partial class CodeGenerator
                 // it — JoinTasks first, ExitScope second.
                 string? rabbitSnap = null;
                 _rabbitDepth++;   // this rabbit pops its arena at Done. (independent of concurrency) —
-                EmitScopedBlock(sb, prs.Body, inner,                    // so a region-capturing closure
+                // Binds hoisted at Generate time are free functions already.
+                EmitScopedBlock(sb, prs.Body.Where(s => s is not BindStatement b || !_rabbitBinds.Contains(b)).ToList(),
+                                inner,                                  // so a region-capturing closure
                                 s => rabbitSnap = s, deferUnmakerRun: true);  // created here can dangle
                 // ★ An automatic rabbit chooses here, at its `Done.` — still at its own depth and
                 // with its own names in scope, since the chosen body runs as its own code.
@@ -2906,7 +2922,7 @@ public sealed partial class CodeGenerator
                                 : v.Name == "one" && _methodReceiverType != null ? "(*cv_one)"
                                 : v.Name == "input" ? "stdin"   // `the input` = the stdin stream
                                 : v.Name == "output" ? "stdout" // `the output` = the stdout stream
-                                : NarrowedRead(v) is { } nacc ? $"({MangleName(v.Name)}){nacc.Access}"
+                                : NarrowedRead(v) is { } nacc ? $"({NameRead(v.Name, v.Line)}){nacc.Access}"
                                // A recursive nested Bind's own name as a VALUE → its closure over the current env.
                                 : _closureSelf is { } cse && v.Name == cse.Name ? $"({RegisterFuncStruct(cse.Type)}){{ .fn = {cse.ClosFn}, .env = cf_envp }}"
                                // A bare named function used as a VALUE → the {fn, NULL} closure value.
@@ -2942,7 +2958,7 @@ public sealed partial class CodeGenerator
                                // receiver can be built here rather than threaded in from the caller.
                                 : !_varTypes.ContainsKey(v.Name) && DeferredModuleType(v.Name) is { } dm
                                     ? $"({EmitCType(dm)}){{0}}"
-                                : MangleName(v.Name),
+                                : NameRead(v.Name, v.Line),
         CastExpression cast   => EmitCastExpr(cast),
         AxiomLiteral bareSource => EmitAxiomValue(bareSource, bareSource.Line),   // `[…]` filling a code hole
         LambdaLiteral lam     => EmitLambda(lam),

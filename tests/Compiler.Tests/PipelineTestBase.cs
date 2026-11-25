@@ -241,6 +241,32 @@ public abstract class PipelineTestBase
         return sb.ToString();
     }
 
+    /// <summary>What a compiled program that stops on a fault says on stderr; one that does not stop fails the test.</summary>
+    protected static string CompileExpectingStop(string source)
+    {
+        var binPath = CompileToBinary(source);
+        try
+        {
+            var psi = new ProcessStartInfo(binPath)
+            {
+                RedirectStandardOutput = true, RedirectStandardError = true, RedirectStandardInput = true,
+                StandardErrorEncoding = System.Text.Encoding.UTF8, UseShellExecute = false,
+            };
+            using var proc = Process.Start(psi)!;
+            proc.StandardInput.Close();
+            var stdout = proc.StandardOutput.ReadToEndAsync();
+            var stderr = proc.StandardError.ReadToEndAsync();
+            if (!proc.WaitForExit(ProgramTimeoutMs))
+            {
+                try { proc.Kill(entireProcessTree: true); } catch (InvalidOperationException) { }
+                throw new Xunit.Sdk.XunitException($"The compiled binary did not finish within {ProgramTimeoutMs / 1000} s.");
+            }
+            Assert.True(proc.ExitCode == 1, $"It exited {proc.ExitCode}, printing: {stdout.Result}");
+            return stderr.Result;
+        }
+        finally { try { File.Delete(binPath); } catch { } }
+    }
+
     /// <summary>Oracle assertion for a program that ends in an unhandled fault.</summary>
     protected static void AssertFaultOracle(string source) =>
         Assert.Equal(InterpretThroughFaultRaw(source), CompileRaw(source));

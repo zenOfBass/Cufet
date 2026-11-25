@@ -20,6 +20,7 @@ Pull a book on collections.
             "SortExpression", return a series of text with (":KeyFunction").
             "ReturnStatement", return a series of text with (":RunsAxiom").
             "VariableReference", return a series of text with (":NarrowedType").
+            "DefineStatement", return a series of text with (":HasParameterClause", ":Place", ":ConstantType").
             "BecomesStatement" or "SeriesInsertStatement" or "SeriesSetStatement" or "RecordNamedSetStatement"
                     or "PossessiveSetStatement",
                 return a series of text with (":EscapeToDepth").

@@ -126,15 +126,15 @@ Pull a book on collections.
         Define fresh as cast builtin-scope.
         Cast carry-modules on (saved, fresh).
         Define earlier-hidden as one's hidden.
-        Define hiding as a map from text to fact.
+        Define hiding as a map from text to text.
         For each scope in saved, repeat:
             For each pair in scope, repeat:
                 Define held as the value of pair.
-                If held's shape's kind is "FunctionType" or held's permanent:
+                If held's shape's kind is "FunctionType" or cast is-shared on (held):
                     In fresh, the entry for (the key of pair) becomes held.
                 Done.
                 Otherwise:
-                    In hiding, the entry for (the key of pair) becomes true.
+                    In hiding, the entry for (the key of pair) becomes "top".
                 Done.
             Done.
         Done.

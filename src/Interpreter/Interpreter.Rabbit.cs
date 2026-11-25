@@ -101,6 +101,7 @@ public sealed partial class Interpreter
             return;
         }
 
+        RequireGiven(lts, [], body, lts.Line);
         TaskHandle? handle = lts.Name != null ? new TaskHandle() : null;
 
         // A sequential rabbit's task waits for the one started before it — whether that one ended

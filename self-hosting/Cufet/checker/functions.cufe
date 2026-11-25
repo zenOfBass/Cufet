@@ -290,15 +290,20 @@ Pull a book on collections.
             Done.
         Done.
         Otherwise:
-            Define hiding as a map from text to fact.
+            Define hiding as a map from text to text.
             For each scope in saved, repeat:
                 For each pair in scope, repeat:
                     Define held as the value of pair.
-                    If held's shape's kind is "FunctionType" or held's permanent:
+                    If held's shape's kind is "FunctionType" or cast is-shared on (held):
                         In fresh, the entry for (the key of pair) becomes held.
                     Done.
-                    Otherwise:
-                        In hiding, the entry for (the key of pair) becomes true.
+                    // A block's own constant hides a shared one of its name, and is not seen itself.
+                    Otherwise if held's of-block:
+                        In hiding, the entry for (the key of pair) becomes "constant".
+                        If (the entry for (the key of pair) in fresh) is not void, remove (the key of pair) from fresh.
+                    Done.
+                    Otherwise if (the entry for (the key of pair) in hiding but void is "") is not "constant":
+                        In hiding, the entry for (the key of pair) becomes "top".
                     Done.
                 Done.
             Done.
@@ -629,6 +634,9 @@ Pull a book on collections.
                 If the number of methods is greater than 0, the fix becomes "Available methods: {cast quoted-names on (methods, "")}.".
                 Return a failure (cast refusal-of on ("'{owner}' has no method named '{name}'", "",
                     at-row, "call method '{name}' on a {owner}", fix)).
+            Done.
+            If found is void and (the entry for name in one's hidden but void is "") is "function":
+                Return a failure (cast function-of-the-block on (name, at-row)).
             Done.
             // Bound further down, outside the group this call could reach.
             If found is void and cast one's is-bound-below on (name):

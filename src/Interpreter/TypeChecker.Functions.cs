@@ -216,7 +216,7 @@ public sealed partial class TypeChecker
                 // A top-level constant is made before any region opens, and it is all a function's
                 // body can see of the top level. Any other name — one captured from an enclosing
                 // function, or bound by a statement this walk does not model — is not traced.
-                if (TraceLookup(vr.Name, out var seen) && seen!.Permanent && !seen.IsParameter)
+                if (TraceLookup(vr.Name, out var seen) && seen!.Shared && !seen.IsParameter)
                     return [];
                 return UntracedDepth(refParamIdxs, captured);
 
@@ -1099,6 +1099,8 @@ public sealed partial class TypeChecker
             // ★ Everything that legitimately resolves late has already been taken by the time
             // this is reached — axioms, generic fillings, method dispatch and ordinary bindings
             // are each handled above, and a template’s name is resolved before any of them.
+            if (_hiddenTopLevelData is HiddenNames { Functions: var ofBlock } && ofBlock.Contains(vr.Name))
+                throw HiddenTopLevelDataError(vr);
             if (NotAProjectYet(vr.Name, callLine, callCol, $"cast '{vr.Name}'") is { } besideIt)
                 throw besideIt;
             // Bound further down, outside the group this call could reach.

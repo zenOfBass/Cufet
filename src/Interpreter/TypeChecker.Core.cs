@@ -613,7 +613,11 @@ public sealed class UnionType : CufetType
 // "is its type a BookType", which meant BOOKS survived and a writer's own module did not; the
 // two are the same thing now, and the flag says what was actually meant.
 // Judged: a judgement's `it`, whose reads carry the type their arm gives it (VariableReference.NarrowedType).
-public record TypeInfo(CufetType Type, IExpression EstablishingExpr, int EstablishingLine, bool Permanent = false, int RabbitDepth = 0, bool IsParameter = false, bool IsPulledModule = false, bool Judged = false);
+public record TypeInfo(CufetType Type, IExpression EstablishingExpr, int EstablishingLine, bool Permanent = false, int RabbitDepth = 0, bool IsParameter = false, bool IsPulledModule = false, bool Judged = false, bool OfItsBlock = false)
+{
+    /// <summary>A `permanently` constant every body may read: the program's, not a block's own.</summary>
+    public bool Shared => Permanent && !OfItsBlock;
+}
 
 // Line/Column point at the violation — the position the message's "Here on line N" sentence
 // names. They are 0 only for the rare error with no AST node to blame; a diagnostic consumer
@@ -1402,6 +1406,7 @@ public sealed partial class TypeChecker
         var dispatched = DispatchExpansion.Expand(program.Statements);
         if (!ReferenceEquals(dispatched, program.Statements)) program = new Program(dispatched);
 
+        _globalScope = _scopes[0];
         Pass1Hoist(program);
         // ⭐⭐ IN SCOPE FOR THE RESOLVE, AND TAKEN AWAY AGAIN. See RegisterPulledBookTypes.
         var bookTypeNames = RegisterPulledBookTypes(program);
@@ -1725,10 +1730,13 @@ public sealed partial class TypeChecker
         // for the non-constant case tells them to do: "Declare it `Define x as <value>
         // permanently.` if it never changes". A rabbit block is where most programs put their
         // constants, and the advice has to work there or it is not advice.
+        _sharedDefines.Clear();
         foreach (var stmt in FlattenHoistable(program.Statements))
         {
             if (stmt is not DefineStatement { Permanent: true } constant) continue;
-            if (Scope.ContainsKey(constant.Name)) continue;
+            _sharedDefines.Add(constant);
+            // One that hides another is its block's own, and nothing outside the block means it.
+            if (constant.Shadow || Scope.ContainsKey(constant.Name)) continue;
 
             // ★ An axiom has no type until its declaration tags it, so it is tagged here: a body may
             // fill or run a `permanently` axiom declared further on, in this file or a neighbour's.
@@ -1759,6 +1767,9 @@ public sealed partial class TypeChecker
 
     /// <summary>True while a `permanently` axiom is tagged ahead of its declaration.</summary>
     private bool _hoistingAxiom;
+
+    /// <summary>Every `permanently` the hoist reaches: a constant, but for what PlaceOfConstant finds.</summary>
+    private readonly HashSet<DefineStatement> _sharedDefines = new(ReferenceEqualityComparer.Instance);
 
     /// <summary>Shared constants registered ahead of their declaration, awaiting it.</summary>
     private readonly HashSet<string> _hoistedConstants = new(StringComparer.Ordinal);
@@ -3640,7 +3651,16 @@ public sealed partial class TypeChecker
         // Read before the name is bound: a shadow's value names the one it hides (O2).
         bool givesContainer = HoldsContainer(declared ?? type, null);
         var given = givesContainer ? GivenOf(define.Value, declared ?? type, element: false, defining: true) : null;
-        Scope[define.Name] = new TypeInfo(declared ?? type, define.Value, define.Line, permanent, _rabbitDepth);
+        define.Place = PlaceOfConstant(define, declared ?? type, reclaimingHoist);
+        bool ofItsBlock = define.Place == ConstantPlace.OfItsBlock;
+        bool shared     = define.Permanent && !ofItsBlock && _sharedDefines.Contains(define);
+        var info = new TypeInfo(declared ?? type, define.Value, define.Line, permanent,
+                                shared ? 0 : _rabbitDepth, OfItsBlock: ofItsBlock);
+        Scope[define.Name] = info;
+        // ★ The program's, wherever it is written: read after its block as well as in it, and a
+        // second of its name is refused as two at the top of the file are.
+        if (shared) _globalScope[define.Name] = info;
+        define.ConstantType = shared && !reclaimingHoist ? info.Type : null;
         if (given != null) NoteGiven(define.Name, given, replacing: false);
         RecordStashLocal(define.Name, declared ?? type, define.Line, define.Column);
     }
@@ -3973,7 +3993,7 @@ public sealed partial class TypeChecker
         foreach (var scope in saved.V)
             foreach (var (k, v) in scope)
                 if (k.EndsWith(owned, StringComparison.Ordinal)
-                    && (v.Type is FunctionType || v.Permanent))
+                    && (v.Type is FunctionType || v.Shared))
                     Scope[k] = v;
 
         // Its own top-level DATA is still hidden, exactly as a writer's own is — the rule about
@@ -3981,36 +4001,74 @@ public sealed partial class TypeChecker
         _hiddenTopLevelData = saved.V
             .SelectMany(scope => scope)
             .Where(kv => kv.Key.EndsWith(owned, StringComparison.Ordinal)
-                      && kv.Value.Type is not FunctionType && !kv.Value.Permanent)
+                      && kv.Value.Type is not FunctionType && !kv.Value.Shared)
             .Select(kv => kv.Key)
             .ToHashSet(StringComparer.Ordinal);
     }
 
+    /// <summary>The program's own scope, which every body's scopes stand apart from.</summary>
+    private Dictionary<string, TypeInfo> _globalScope = new(StringComparer.Ordinal);
+
+    /// <summary>The name is a function of the whole program, and not of a block in it.</summary>
+    private bool IsProgramFunction(string name, TypeInfo info) =>
+        info.Type is FunctionType && _globalScope.TryGetValue(name, out var global)
+        && global.Type is FunctionType && global.EstablishingLine == info.EstablishingLine;
+
+    /// <param name="ofType">The body belongs to a type rather than to the block it is written in: a
+    /// method, a getter, a setter, an unmaker. It takes nothing of that block along, so a function bound
+    /// in the function around it is no more its own than that function's other names are.</param>
     private void ImportTopLevelVisible(
-        (List<Dictionary<string, TypeInfo>> V, List<Dictionary<string, CufetType>> T) saved)
+        (List<Dictionary<string, TypeInfo>> V, List<Dictionary<string, CufetType>> T) saved, bool ofType = false)
     {
+        bool Local(string name, TypeInfo info) =>
+            ofType && info.Type is FunctionType && !IsProgramFunction(name, info);
+
+        var hidden    = new List<string>();
+        var constants = new List<string>();
+        var functions = new List<string>();
         foreach (var scope in saved.V)
-            foreach (var (k, v) in scope.Where(kv => kv.Value.Type is FunctionType || kv.Value.Permanent))
-                Scope[k] = v;
+            foreach (var (k, v) in scope)
+                if (Local(k, v)) { Scope.Remove(k); hidden.Add(k); functions.Add(k); }
+                else if (v.Type is FunctionType || v.Shared) Scope[k] = v;
+                else
+                {
+                    hidden.Add(k);
+                    // A block's own constant hides a shared one of its name, and is not seen itself.
+                    if (v.OfItsBlock) { Scope.Remove(k); constants.Add(k); }
+                }
+
+        // One bound further down the block is no more a method's than one bound above it.
+        if (ofType)
+            foreach (var name in _boundBelow.SelectMany(below => below))
+                if (!_globalScope.ContainsKey(name)) { hidden.Add(name); functions.Add(name); }
 
         _hiddenTopLevelData = new HiddenNames(
-            saved.V.SelectMany(s => s)
-                .Where(kv => kv.Value.Type is not FunctionType && !kv.Value.Permanent)
-                .Select(kv => kv.Key),
-            saved.V.Skip(1).SelectMany(s => s).Select(kv => kv.Key));
+            hidden, saved.V.Skip(1).SelectMany(s => s).Select(kv => kv.Key), constants, functions);
     }
 
-    /// <summary>The names a body cannot see, and which of them a block around it holds.</summary>
-    private sealed class HiddenNames(IEnumerable<string> all, IEnumerable<string> ofBlock)
+    /// <summary>The names a body cannot see: which of them a block around it holds, which are constants
+    /// of the block's own, and which are functions of it that a method does not take along.</summary>
+    private sealed class HiddenNames(IEnumerable<string> all, IEnumerable<string> ofBlock,
+                                     IEnumerable<string> constants, IEnumerable<string> functions)
         : HashSet<string>(all, StringComparer.Ordinal)
     {
         public HashSet<string> OfBlock { get; } = new(ofBlock, StringComparer.Ordinal);
+        public HashSet<string> Constants { get; } = new(constants, StringComparer.Ordinal);
+        public HashSet<string> Functions { get; } = new(functions, StringComparer.Ordinal);
     }
 
     // The same rule the interpreter enforced at runtime, moved to check time so both backends
     // refuse identically — and so `check` stops passing a program that cannot run. The wording
     // follows the interpreter's original message, which was already the clearest thing about this.
     private TypeException HiddenTopLevelDataError(VariableReference vr) =>
+        _hiddenTopLevelData is HiddenNames { Functions: var functions } && functions.Contains(vr.Name)
+        ? TypeError(
+            $"'{vr.Name}' belongs to the block this method is written in, and a method can't see it",
+            null, vr.Line, vr.Column,
+            $"use '{vr.Name}' inside a method",
+            $"A method belongs to its type, and can be cast where that block is gone. Pass '{vr.Name}' in as a "
+          + $"parameter, or keep it in a field.")
+        :
         // A method written inside a function reads its type's fields and not that function's names,
         // which are no top-level value: it belongs to the type, and the type to the program.
         _hiddenTopLevelData is HiddenNames hidden && hidden.OfBlock.Contains(vr.Name) && TryLookup("one", out _)
@@ -4020,6 +4078,14 @@ public sealed partial class TypeChecker
             $"read '{vr.Name}' inside a method",
             $"A method belongs to its type, so it sees its own names, other functions, and top-level "
           + $"`permanently` constants. Pass '{vr.Name}' in as a parameter.")
+        // Told its own reason: the advice below is to make it `permanently`, and it is.
+        : _hiddenTopLevelData is HiddenNames { Constants: var constants } && constants.Contains(vr.Name)
+        ? TypeError(
+            $"'{vr.Name}' belongs to the block it's defined in, and a function can't see it",
+            $"A function can be called after that block's 'Done.', and what '{vr.Name}' stands for is gone by then",
+            vr.Line, vr.Column,
+            $"read '{vr.Name}' inside a function",
+            $"Pass '{vr.Name}' in as a parameter.")
         : TypeError(
             $"'{vr.Name}' is a top-level value, but function and method bodies can't see top-level data",
             null, vr.Line, vr.Column,

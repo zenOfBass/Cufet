@@ -641,6 +641,21 @@ Pull a book on collections.
         Done.
     Done.
 
+    /// The name is a function of the whole program, and not of a block in it.
+    Bind fact to is-program-function unto checker, given (the text name, the binding held):
+        Define known as the entry for name in one's program-scope.
+        If known is void, return false.
+        Return known's shape's kind is "FunctionType" and known's line is held's line.
+    Done.
+
+    /// A function of the block a method is written in, named in that method.
+    Bind text to function-of-the-block, given (the text name, the number at-row):
+        Return cast refusal-of on (
+            "'{name}' belongs to the block this method is written in, and a method can't see it", "",
+            at-row, "use '{name}' inside a method",
+            "A method belongs to its type, and can be cast where that block is gone. Pass '{name}' in as a parameter, or keep it in a field.").
+    Done.
+
     /// The body of a method, a getter or a setter: `one` is the object, the parameters are bound,
     /// and otherwise it sees what a top-level function sees — functions and `permanently`
     /// constants. `parameters` is a list of `[<type> <name>]`; `resolving` says whether each type is
@@ -658,20 +673,38 @@ Pull a book on collections.
         // A body of its own: its returns are not the first return of a lambda it is written in.
         Define earlier-inferring as one's inferring-lambda.
         The one's inferring-lambda becomes false.
-        Define hiding as a map from text to fact.
-        // Each is true, or false where a block around this one holds it.
+        Define hiding as a map from text to text.
+        // Each is "top", or "block" where a block around this one holds it, or "function" for one of
+        // that block's functions: a body that belongs to a type takes none of them along.
         Define of-block as false.
         For each scope in saved, repeat:
             For each pair in scope, repeat:
                 Define held as the value of pair.
-                If held's shape's kind is "FunctionType" or held's permanent:
-                    In fresh, the entry for (the key of pair) becomes held.
+                Define outer-name as the key of pair.
+                If held's shape's kind is "FunctionType" and cast one's is-program-function on (outer-name, held) is false:
+                    In hiding, the entry for outer-name becomes "function".
+                    If (the entry for outer-name in fresh) is not void, remove outer-name from fresh.
                 Done.
-                Otherwise:
-                    In hiding, the entry for (the key of pair) becomes of-block is false.
+                Otherwise if held's shape's kind is "FunctionType" or cast is-shared on (held):
+                    In fresh, the entry for outer-name becomes held.
+                Done.
+                Otherwise if (the entry for outer-name in hiding but void is "") is not "function":
+                    Define whose as "top".
+                    If held's of-block, the whose becomes "constant".
+                    If of-block, the whose becomes "block".
+                    In hiding, the entry for outer-name becomes whose.
+                    If held's of-block and (the entry for outer-name in fresh) is not void, remove outer-name from fresh.
                 Done.
             Done.
             The of-block becomes true.
+        Done.
+        // One bound further down the block is no more a method's than one bound above it.
+        For each below in one's bound-below, repeat:
+            For each pair in below, repeat:
+                If (the entry for (the key of pair) in one's program-scope) is void:
+                    In hiding, the entry for (the key of pair) becomes "function".
+                Done.
+            Done.
         Done.
         The one's hidden becomes hiding.
         The one's scopes becomes a series with (fresh).

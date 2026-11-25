@@ -221,7 +221,7 @@ Pull a book on collections.
         For each scope in enclosing, repeat:
             For each pair in scope, repeat:
                 Define held as the value of pair.
-                If held's shape's kind is not "FunctionType" and held's permanent is false:
+                If held's shape's kind is not "FunctionType" and cast is-shared on (held) is false:
                     If held's parameter, in names, the entry for (the key of pair) becomes cast captured-parameter-depth.
                     Otherwise, in names, the entry for (the key of pair) becomes held's depth.
                 Done.
@@ -1679,7 +1679,7 @@ Pull a book on collections.
                 Define constant as false.
                 Define callee-key as "".
                 If found is not void:
-                    If found's permanent and found's parameter is false, the constant becomes true.
+                    If cast is-shared on (found) and found's parameter is false, the constant becomes true.
                     If found's shape's kind is "FunctionType", the callee-key becomes "{name}@{found's line}".
                 Done.
                 In one's stores's trace-constants, the entry for memo-key becomes constant.
@@ -1708,7 +1708,7 @@ Pull a book on collections.
         Done.
         Define found as cast one's look-up on (name).
         If found is void, return false.
-        Return found's permanent and found's parameter is false.
+        Return cast is-shared on (found) and found's parameter is false.
     Done.
 
     /// The key a name's function keeps its signature under, or "".

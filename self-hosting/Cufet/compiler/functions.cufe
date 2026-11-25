@@ -239,7 +239,7 @@ typedef struct { the c-gives (*fn)(the param-list); void* env; } the struct-c;
     /// a C function of its own, and the value that holds it and what it captured. `named` is the
     /// Bind's name, "" for a lambda; `gives` what it gives back, "?" to work it out from its body.
     Bind c-language axiom or failure to c-closure unto emitter, given (the node parameters, the node body, the text named,
-            the text gives, the text label):
+            the text gives, the text label, the number at-row):
         // Its parameters, and what it captures — every name the body reads that this place knows.
         Define takes as a series of text.
         Define taken-names as a series of text.
@@ -296,6 +296,9 @@ typedef struct { the c-gives (*fn)(the param-list); void* env; } the struct-c;
         Define c-language capture-filled, given (the c-language axiom earlier, the term member, the c-language axiom captured),
             as [the earlier cf_e->the member = the captured;].
         Define filled as environment-made on (env-type).
+        Define c-language asked-first, given (the c-language axiom asked, the c-language axiom filled), as [the asked the filled].
+        Define asked as cast one's constants-asked on (body, own, at-row).
+        If cast is-no-c on (asked) is false, the filled becomes asked-first on (asked, filled).
         If group-first is not "", the filled becomes group-noted on (filled, "cf_genv_{label}").
         For each name in captured, repeat:
             If group-first is not "" and (the entry for "pending:{name}" in one's inferred but void is "") is not "":
@@ -409,7 +412,7 @@ typedef struct { the c-gives (*fn)(the param-list); void* env; } the struct-c;
             Done.
         Done.
         If group-first is not "", in one's inferred, the entry for "pending:{name}" becomes "".
-        Define value as cast one's c-closure on (cast field-of on (statement, 3), cast field-of on (statement, 4), name, gives, label) or pass the failure off.
+        Define value as cast one's c-closure on (cast field-of on (statement, 3), cast field-of on (statement, 4), name, gives, label, cast line-number on (cast field-of on (statement, 7))) or pass the failure off.
         Define kind as cast one's bound-kind on (statement) or pass the failure off.
         In one's kinds, the entry for name becomes kind.
         In one's kinds, the entry for "%{name}" becomes kind.
@@ -494,7 +497,7 @@ typedef struct { the c-gives (*fn)(the param-list); void* env; } the struct-c;
         Define label as "{(cast field-of on (expression, 3))'s word}_{(cast field-of on (expression, 4))'s word}".
         Define known as the entry for "λ{label}" in one's inferred but void is "".
         If known is not "", return known.
-        Cast one's c-closure on (cast field-of on (expression, 1), cast field-of on (expression, 2), "", "?", label) or pass the failure off.
+        Cast one's c-closure on (cast field-of on (expression, 1), cast field-of on (expression, 2), "", "?", label, cast line-number on (cast field-of on (expression, 3))) or pass the failure off.
         Return the entry for "λ{label}" in one's inferred but void is "".
     Done.
 
@@ -506,7 +509,10 @@ typedef struct { the c-gives (*fn)(the param-list); void* env; } the struct-c;
         If callee's kind is "VariableReference":
             If (the entry for cast call-target on (call) in one's functions) is not void, return false.
             Define called-name as cast unquoted on (cast field-of on (callee, 1)).
-            Return cast is-function on (cast one's stored-kind on (called-name)).
+            Define called-kind as cast one's stored-kind on (called-name).
+            // A shared constant is seen from anywhere.
+            If called-kind is "", the called-kind becomes the entry for called-name in one's constants but void is "".
+            Return cast is-function on (called-kind).
         Done.
         If callee's kind is "PossessiveAccess":
             Define owner-kind as cast one's kind-of on (cast field-of on (callee, 1)) or pass the failure off.

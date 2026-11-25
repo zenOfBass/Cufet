@@ -1,0 +1,15 @@
+/*  A function reads a series constant, and is called before the line that gives it one.
+    Broken: a constant was read without asking whether its line had run. See docs/SOUNDNESS.md.  */
+
+Bind number to total:
+    Return the number of sizes.
+Done.
+Try to:
+    State cast total.
+Done.
+In case of exception:
+    State "stopped".
+    Suppress the exception.
+Done.
+Define sizes as a series of number with (11, 22) permanently.
+State cast total.

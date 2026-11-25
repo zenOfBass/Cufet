@@ -300,6 +300,24 @@ Done.
 Every body that leaves the top-level scope reads them on the same terms — a function, a method, a
 getter, a setter, an unmaker, an operator overload, a pipe stage.
 
+A constant written in `Pull a rabbit.` or `Pull a book on …` is shared in the same way, and can be read
+after the block's `Done.`:
+
+```cufet
+Pull a rabbit.
+    Define suits as a series of text with ("clubs", "hearts") permanently.
+Done.
+Bind number to suit-count:
+    Return the number of suits.
+Done.
+State cast suit-count.
+```
+```output
+2
+```
+
+Calling a function before the line that gives a constant its value stops the program.
+
 The difference is mutation, not scope. Functions are kept away from top-level data so data flow
 stays explicit and nothing can be changed behind your back — and a permanent binding cannot be
 changed at all, so it is safe to share. For anything mutable, pass it in as a parameter.

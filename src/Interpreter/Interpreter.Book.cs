@@ -121,6 +121,42 @@ public sealed partial class Interpreter
     private readonly Dictionary<string, IReadOnlyList<(string Local, string Book)>> _moduleLexicalPulls =
         new(StringComparer.Ordinal);
 
+    /// <summary>The pulls each method, getter, setter, unmaker and overload was written inside.</summary>
+    /// <remarks>
+    /// By the declaration, for the same reason a function carries its own: it belongs to its type,
+    /// and its type is used after the block that gave it `math` has closed. Any pull around it, in a
+    /// function as well as at the top level.
+    /// </remarks>
+    private readonly Dictionary<object, List<(string Local, string Book)>> _memberPulls =
+        new(ReferenceEqualityComparer.Instance);
+
+    private void NoteMemberPulls(Program program)
+    {
+        AstSearch.Visit(program.Statements, node =>
+        {
+            if (node is not PullStatement pull) return;
+            foreach (var stmt in AstSearch.EveryStatement(pull.Body))
+                foreach (var member in stmt switch
+                {
+                    BindStatement { UntoType: not null } or GetterDeclaration or SetterDeclaration
+                        or UnmakerDeclaration or OperatorOverloadDeclaration => [stmt],
+                    ObjectDefinition made => [.. made.Methods, .. made.Getters, .. made.Setters],
+                    _ => Array.Empty<object>(),
+                })
+                {
+                    if (!_memberPulls.TryGetValue(member, out var pulls)) _memberPulls[member] = pulls = [];
+                    // A nearer pull of the same name is the one meant, and it is met later.
+                    pulls.RemoveAll(had => pull.Books.Any(book => book.LocalName == had.Local));
+                    pulls.AddRange(pull.Books.Select(book => (book.LocalName, book.BookName)));
+                }
+        });
+    }
+
+    private void BindMemberPulls(object member, int line)
+    {
+        if (_memberPulls.TryGetValue(member, out var pulls)) BindLexicalPulls(pulls, line);
+    }
+
     /// <summary>What a `Pull` binds for one name — and what a lexically captured pull rebinds.</summary>
     /// <remarks>
     /// <para>

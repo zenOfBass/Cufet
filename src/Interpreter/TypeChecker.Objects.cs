@@ -609,7 +609,7 @@ public sealed partial class TypeChecker
         // the book's own, which is the one case where importing all of it is exactly right. Asking
         // for the renamed name here instead reported `'log-ten' isn't defined` on the very file
         // that defines it, four lines up.
-        if (!_checkingBookLayer || TreatProgramAsPrelude) ImportTopLevelVisible(saved);
+        if (!_checkingBookLayer || TreatProgramAsPrelude) ImportTopLevelVisible(saved, ofType: true);
         else ImportOwnBookNames(saved, _bookLayerName);
         // ⚠ A child scope for the body, so a local named like a top-level constant SHADOWS
         // it rather than colliding with it. See the long note in TypeChecker.CheckBindBody —
@@ -698,7 +698,7 @@ public sealed partial class TypeChecker
     {
         var saved = SaveScopes();
 
-        ImportTopLevelVisible(saved);
+        ImportTopLevelVisible(saved, ofType: true);
         // ⚠ A child scope for the body, so a local named like a top-level constant SHADOWS
         // it rather than colliding with it. See the long note in TypeChecker.CheckBindBody —
         // one bug, six sites, and this is one of them.
@@ -759,7 +759,7 @@ public sealed partial class TypeChecker
     {
         var saved = SaveScopes();
 
-        ImportTopLevelVisible(saved);
+        ImportTopLevelVisible(saved, ofType: true);
         // ⚠ A child scope for the body, so a local named like a top-level constant SHADOWS
         // it rather than colliding with it. See the long note in TypeChecker.CheckBindBody —
         // one bug, six sites, and this is one of them.
@@ -829,7 +829,7 @@ public sealed partial class TypeChecker
                 $"Define 'object {ud.UnmakesTypeName}' before declaring an unmaker for it.");
 
         var saved = SaveScopes();
-        ImportTopLevelVisible(saved);
+        ImportTopLevelVisible(saved, ofType: true);
         // ⚠ A child scope for the body, so a local named like a top-level constant SHADOWS
         // it rather than colliding with it. See the long note in TypeChecker.CheckBindBody —
         // one bug, six sites, and this is one of them.
@@ -1293,7 +1293,7 @@ public sealed partial class TypeChecker
         bool isFallible = HasDirectFailureReturn(oad.Body);
 
         var saved = SaveScopes();
-        ImportTopLevelVisible(saved);
+        ImportTopLevelVisible(saved, ofType: true);
         // ⚠ A child scope for the body, so a local named like a top-level constant SHADOWS
         // it rather than colliding with it. See the long note in TypeChecker.CheckBindBody —
         // one bug, six sites, and this is one of them.

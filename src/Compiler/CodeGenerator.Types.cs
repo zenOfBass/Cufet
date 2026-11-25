@@ -584,39 +584,85 @@ static int cufet_str_code_point(const char* s) {
         foreach (var topLevelConst in TypeChecker.FlattenHoistable(program.Statements)
                                                  .OfType<DefineStatement>())
         {
-            if (!topLevelConst.Permanent && !topLevelStatements.Contains(topLevelConst)) continue;
+            bool isConstant = topLevelConst.Permanent && topLevelConst.Place != ConstantPlace.OfItsBlock;
+            if (!isConstant && !topLevelStatements.Contains(topLevelConst)) continue;
 
             // A `permanently` binding and a literal lambda MUST classify — they always could, and
             // swallowing a failure here would turn a loud error into a silently broken program.
             // Everything else is classified only to find function-VALUED bindings that are not
             // literal lambdas (an alias, or any expression yielding one), and a type this pass
             // cannot work out yet simply stays a local of main, exactly as it was before.
-            bool mustClassify = topLevelConst.Permanent || topLevelConst.Value is LambdaLiteral;
+            bool mustClassify = isConstant || topLevelConst.Value is LambdaLiteral;
             CufetType constType;
             if (mustClassify)
-                constType = topLevelConst.DeclaredType ?? TypeOf(topLevelConst.Value);
+                constType = topLevelConst.DeclaredType
+                         ?? (topLevelStatements.Contains(topLevelConst) ? null : topLevelConst.ConstantType)
+                         ?? TypeOf(topLevelConst.Value);
             else
                 try { constType = topLevelConst.DeclaredType ?? TypeOf(topLevelConst.Value); }
                 catch { continue; }
 
-            if (!topLevelConst.Permanent && constType is not FunctionType)
+            if (!isConstant && constType is not FunctionType)
             {
                 if (topLevelStatements.Contains(topLevelConst) && _varTypes.TryAdd(topLevelConst.Name, constType))
                     typedForThisPass.Add(topLevelConst.Name);
                 continue;
             }
 
-            _sharedConstants.Add(topLevelConst);
+            // Source a name stands for is pasted where it is used, and is no value to read too soon.
+            if (constType is not AxiomType) _sharedConstants.Add(topLevelConst);
             _sharedConstTypes[topLevelConst.Name] = constType;
             _varTypes[topLevelConst.Name]         = constType;
         }
         foreach (var name in typedForThisPass) _varTypes.Remove(name);
+        NoteConstantLines(program);
+
+        // ── Functions bound in a rabbit's block ───────────────────────────────
+        // A free function, as one in a `Pull a book` block is (above): hoisting is transparent to a
+        // rabbit for the checker and the interpreter, and left a closure of its block here, one could
+        // not be called after the `Done.`, or before it, or from another function (2026-11-24).
+        //
+        // ⚠ One that casts a function VALUE the block holds has something to close over, and stays a
+        // closure; so does one that calls such a function.
+        var rabbitBinds = new List<(BindStatement Bind, List<(string Local, string Book)> Aliases)>();
+        foreach (var prs in TypeChecker.FlattenHoistable(program.Statements).OfType<PullRabbitStatement>())
+        {
+            var aliases = new List<(string Local, string Book)>();
+            foreach (var outer in allPulls)
+                if (AstSearch.Contains(outer.Body, n => ReferenceEquals(n, prs)))
+                    foreach (var (bookName, localName) in outer.Books)
+                        aliases.Add((localName, bookName.ToLowerInvariant()));
+            foreach (var s in prs.Body)
+                if (s is BindStatement { UntoType: null } rb) rabbitBinds.Add((rb, aliases));
+        }
+        var freeNames = new HashSet<string>(_funcReturnTypes.Keys.Concat(rabbitBinds.Select(r => r.Bind.Name)), StringComparer.Ordinal);
+        for (bool dropped = true; dropped;)
+        {
+            dropped = false;
+            foreach (var one in rabbitBinds.ToList())
+                if (CapturedBy(one.Bind, one.Aliases, freeNames, pullAxioms).Count > 0)
+                {
+                    rabbitBinds.Remove(one);
+                    if (!_funcReturnTypes.ContainsKey(one.Bind.Name)) freeNames.Remove(one.Bind.Name);
+                    dropped = true;
+                }
+        }
+        foreach (var (bind, aliases) in rabbitBinds)
+        {
+            _funcReturnTypes[bind.Name] = bind.ReturnType;
+            _funcTypes[bind.Name] = new FunctionType(bind.Parameters.Select(p => p.Type).ToList(), bind.ReturnType);
+            _rabbitBinds.Add(bind);
+            if (HasIfaceParam(bind, IsIfaceParam) && aliases.Count == 0) _ifaceFuncs[bind.Name] = bind;
+            else pullBinds.Add((bind, aliases));
+        }
 
         // The whole body emission, as a reusable pass: the CAT.2 discovery pre-pass runs it into a
         // throwaway buffer first so the OPEN-union case set is complete before the real pass emits
         // any `is a` tag check (function bodies emit before main, so an `is a T` can precede `Add T`).
         void EmitAllBodies(StringBuilder body)
         {
+            _constSetInMain.Clear();
+            _inMain = false;
             // Object method / getter / setter bodies (each a C function taking a receiver pointer).
             foreach (var def in _objectDefs.Values)
             {
@@ -643,42 +689,7 @@ static int cufet_str_code_point(const char* s) {
                 // Best-effort capture check: a hoisted bind must not reference pull-scope locals
                 // (params + its own defines + functions + book aliases are fine — anything else is
                 // a closure capture, the deferred gap).
-                var refs = new HashSet<string>(); var defs = new HashSet<string>();
-                foreach (var s in bind.Body) TaskCaptures.CollectRefsDefs(s, refs, defs);
-                // ⭐⭐ Object MEMBERS count as known, the same way free functions on the line above
-                // do. `cast sum on (the here)` — the free-cast form README teaches — writes the
-                // member's name in callee position, where the walk sees an ordinary variable being
-                // read. So ANY method call in that spelling, inside a function inside a `Pull`
-                // block, was refused as "captures 'sum' from the pull scope": a program the
-                // interpreter runs, on a name that is not a variable and cannot be one.
-                //
-                // ⚠ A DIVERGENCE, and independent of the one CollectRefsDefs now handles — the
-                // object here can be declared at the top of the file. The possessive spelling
-                // (`the here's sum`) was never affected, because there the member is a bare string
-                // the walk cannot see; that is the same asymmetry the free-cast form had for
-                // generic methods, and it is why this went unnoticed.
-                //
-                // ⚠ Best-effort, and this widens it: a captured LOCAL sharing a member's name is
-                // now missed, exactly as one sharing a free function's name already was. The trade
-                // was already made one line up; what changes here is that correct programs stop
-                // being refused.
-                // ⚠ SHARED CONSTANTS are known too. One lives at C file scope, so a hoisted
-                // function reading it is not closing over anything — it is reading a symbol that
-                // outlives every frame. Without this, a `permanently` declared in the same pull
-                // block was reported as a capture, which is the fix the checker's own advice for
-                // the non-constant case tells a reader to make.
-                var known = new HashSet<string>(bind.Parameters.Select(p => p.Name)
-                    .Concat(defs).Concat(_funcReturnTypes.Keys).Concat(aliases.Select(a => a.Local))
-                    .Concat(_sharedConstTypes.Keys)
-                    // ★ Declared AXIOMS too: a name bound to foreign source emits no value at all —
-                    // a call pastes the source, and source as a value is a C string literal — so a
-                    // hoisted function naming one closes over nothing.
-                    .Concat(pullAxioms)
-                    .Concat(_objectDefs.Values.SelectMany(def =>
-                        def.Methods.Select(m => m.Name)
-                           .Concat(def.Getters.Select(g => g.Name))
-                           .Concat(def.Setters.Select(s => s.Name)))));
-                var captured = refs.Where(r => !known.Contains(r) && r != "it" && r != "input" && r != "output" && r != "the failure").ToList();
+                var captured = CapturedBy(bind, aliases, _funcReturnTypes.Keys, pullAxioms);
                 if (captured.Count > 0)
                     throw new CompilerException(
                         $"function '{bind.Name}' (inside a Pull-book block) captures '{captured[0]}' from the pull scope — closures are not yet supported by the compiler.");
@@ -727,6 +738,7 @@ static int cufet_str_code_point(const char* s) {
                 body.AppendLine("#endif");
             }
             body.AppendLine("    cufet_arena_push();");
+            _inMain = true;
             foreach (var stmt in program.Statements)
             {
                 if (stmt is BindStatement) continue;       // emitted above
@@ -736,6 +748,7 @@ static int cufet_str_code_point(const char* s) {
                 if (stmt is InterfaceDefinition) continue;          // no runtime representation
                 EmitStatement(body, stmt, "    ");
             }
+            _inMain = false;
             body.AppendLine("    cufet_arena_pop();");
             body.AppendLine("    return 0;");
             body.AppendLine("}");
@@ -993,6 +1006,48 @@ static int cufet_str_code_point(const char* s) {
     // `Define object` inside a book pull came to crash the compiler.
     private void CollectInterfaceDefs(IEnumerable<IStatement> stmts) =>
         AstSearch.Visit(stmts, n => { if (n is InterfaceDefinition ifd) _interfaceDefs[ifd.Name] = ifd; });
+
+    /// <summary>What a function written in a `Pull` block would have to capture, were it hoisted out of it.</summary>
+    private List<string> CapturedBy(BindStatement bind, List<(string Local, string Book)> aliases,
+                                    IEnumerable<string> functions, HashSet<string> pullAxioms)
+    {
+        var refs = new HashSet<string>(); var defs = new HashSet<string>();
+        foreach (var s in bind.Body) TaskCaptures.CollectRefsDefs(s, refs, defs);
+        // ⭐⭐ Object MEMBERS count as known, the same way free functions on the line above
+        // do. `cast sum on (the here)` — the free-cast form README teaches — writes the
+        // member's name in callee position, where the walk sees an ordinary variable being
+        // read. So ANY method call in that spelling, inside a function inside a `Pull`
+        // block, was refused as "captures 'sum' from the pull scope": a program the
+        // interpreter runs, on a name that is not a variable and cannot be one.
+        //
+        // ⚠ A DIVERGENCE, and independent of the one CollectRefsDefs now handles — the
+        // object here can be declared at the top of the file. The possessive spelling
+        // (`the here's sum`) was never affected, because there the member is a bare string
+        // the walk cannot see; that is the same asymmetry the free-cast form had for
+        // generic methods, and it is why this went unnoticed.
+        //
+        // ⚠ Best-effort, and this widens it: a captured LOCAL sharing a member's name is
+        // now missed, exactly as one sharing a free function's name already was. The trade
+        // was already made one line up; what changes here is that correct programs stop
+        // being refused.
+        // ⚠ SHARED CONSTANTS are known too. One lives at C file scope, so a hoisted
+        // function reading it is not closing over anything — it is reading a symbol that
+        // outlives every frame. Without this, a `permanently` declared in the same pull
+        // block was reported as a capture, which is the fix the checker's own advice for
+        // the non-constant case tells a reader to make.
+        var known = new HashSet<string>(bind.Parameters.Select(p => p.Name)
+            .Concat(defs).Concat(functions).Concat(aliases.Select(a => a.Local))
+            .Concat(_sharedConstTypes.Keys)
+            // ★ Declared AXIOMS too: a name bound to foreign source emits no value at all —
+            // a call pastes the source, and source as a value is a C string literal — so a
+            // hoisted function naming one closes over nothing.
+            .Concat(pullAxioms)
+            .Concat(_objectDefs.Values.SelectMany(def =>
+                def.Methods.Select(m => m.Name)
+                   .Concat(def.Getters.Select(g => g.Name))
+                   .Concat(def.Setters.Select(s => s.Name)))));
+        return refs.Where(r => !known.Contains(r) && r != "it" && r != "input" && r != "output" && r != "the failure").ToList();
+    }
 
     // Is this parameter type an INTERFACE? The parser emits a bare shell ObjectType for any user
     // type name; the front-end's ResolveParamType turns a shell whose name is a declared interface

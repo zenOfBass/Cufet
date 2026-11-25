@@ -425,6 +425,80 @@ public sealed partial class TypeChecker
         return valueDepth > targetDepth ? targetDepth : null;
     }
 
+    // ── Where a shared constant lives ────────────────────────────────────────
+
+    /// <summary>
+    /// Where the value of a `permanently` constant lives, so that a body may read it after its block.
+    /// </summary>
+    /// <remarks>
+    /// ★ A constant written in a rabbit is read by functions, and a function can be called after the
+    /// rabbit's `Done.`. Left in the rabbit, a series read that way was freed memory (2026-11-24). So
+    /// it lives with the program: made there when its line makes it, copied there when all it took from
+    /// the region is text, which cannot change. A series or a map the region holds cannot be moved
+    /// without becoming a different one, and that constant stays its block's own: every reader in the
+    /// block has it, and a function, which may outlive the block, does not.
+    /// </remarks>
+    private ConstantPlace? PlaceOfConstant(DefineStatement define, CufetType type, bool hoisted)
+    {
+        if (!_sharedDefines.Contains(define)) return null;
+        // A constant that hides the program's own cannot take its place.
+        if (define.Shadow) return ConstantPlace.OfItsBlock;
+        if (_rabbitDepth == 0 || !HeldInRegion(type)) return null;
+
+        var refs = new HashSet<string>(StringComparer.Ordinal);
+        var defs = new HashSet<string>(StringComparer.Ordinal);
+        TaskCaptures.CollectRefsDefs(define.Value, refs, defs);
+        var held = new List<CufetType>();
+        foreach (var name in refs)
+            if (TryLookup(name, out var info) && info.RabbitDepth > 0 && !info.IsPulledModule
+                && HeldInRegion(info.Type) && !IsProgramFunction(name, info))
+                held.Add(info.Type);
+        if (held.Count == 0) return ConstantPlace.Made;
+        if (CopiesOut(type, []) && (IsContainerFree(type) || held.All(IsContainerFree))) return ConstantPlace.Copied;
+        if (!hoisted) return ConstantPlace.OfItsBlock;
+        // Registered for the whole program by a reading of its value that its own line does not bear
+        // out: a name it uses is shadowed here.
+        throw TypeError(
+            "this value lives in a shorter-lived region than its destination — it will be gone when that region ends",
+            null, define.Line, define.Column,
+            $"keep it in '{define.Name}', which lives as long as the program",
+            "Declare the container inside that region too, so both end at its 'Done.', "
+          + "or make the value before the region opens, so it lives as long as the container.");
+    }
+
+    /// <summary>A value of this type can hold something a region owns.</summary>
+    private static bool HeldInRegion(CufetType? type) => type switch
+    {
+        NumberType or BitsType or FactType or VoidType or BookType => false,
+        RecordType record     => record.PositionalTypes.Any(HeldInRegion) || record.NamedFields.Any(f => HeldInRegion(f.Type)),
+        VoidableType voidable => HeldInRegion(voidable.Inner),
+        UnionType { Cases: { } cases } => cases.Any(HeldInRegion),
+        _ => true,
+    };
+
+    /// <summary>A value of this type holds nothing two names could share and one of them change.</summary>
+    private bool IsContainerFree(CufetType type) =>
+        !FieldHoldsContainer(type, new HashSet<string>(StringComparer.Ordinal));
+
+    /// <summary>A value of this type can be copied whole into another region.</summary>
+    private bool CopiesOut(CufetType? type, HashSet<string> seen) => type switch
+    {
+        NumberType or BitsType or FactType or VoidType or TextType => true,
+        SeriesType series     => CopiesOut(series.ElementType, seen),
+        MapType map           => CopiesOut(map.KeyType, seen) && CopiesOut(map.ValueType, seen),
+        VoidableType voidable => CopiesOut(voidable.Inner, seen),
+        RecordType record     => record.PositionalTypes.All(t => CopiesOut(t, seen))
+                              && record.NamedFields.All(f => CopiesOut(f.Type, seen)),
+        UnionType { Cases: { } cases } => cases.All(one => CopiesOut(one, seen)),
+        ObjectType written    => !seen.Add(written.Name)
+                              || _objectDefs.TryGetValue(written.Name, out var made)
+                                 && made.PositionalTypes.All(t => CopiesOut(t, seen))
+                                 && made.NamedFields.All(f => CopiesOut(f.FieldType, seen))
+                                 && (made.EmbeddedTypeName is not { } embedded
+                                     || _objectDefs.TryGetValue(embedded, out var inner) && CopiesOut(inner, seen)),
+        _ => false,
+    };
+
     // Core check: source depth > target depth means a shorter-lived value would be stored
     // in a longer-lived container — a future use-after-free in the native backend.
     // `action` fills the "you're trying to ..." slot in the error message.

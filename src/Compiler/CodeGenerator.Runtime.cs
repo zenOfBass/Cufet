@@ -420,6 +420,13 @@ static long long cufet_idx_check(long long idx, int len, const char* name, int l
                            idx, name, len, len == 1 ? "item" : "items", len, line));
     return 0;
 }
+/* A shared constant read before the line that gives it a value has run. The interpreter's words:
+   Interpreter.NotGivenYet. */
+static void cufet_not_given(int missing, const char* name, int line, int given_on) {
+    if (missing)
+        cufet_raise(cufet_msgf("'%s' has no value yet on line %d. Line %d gives it one, and that line hasn't run.",
+                               name, line, given_on));
+}
 static long long cufet_last_check(int len, const char* name, int line) {
     if (len == 0) cufet_raise(cufet_msgf("Can't access the last item — '%s' is empty on line %d.", name, line));
     return len;

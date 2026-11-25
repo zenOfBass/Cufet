@@ -98,6 +98,121 @@ Pull a book on collections.
         Otherwise, cast note on (statement, mark, cast nothing).
     Done.
 
+    // ── Where a shared constant lives ────────────────────────────────────────
+
+    /// Where a `Define` stands, as the key its constant is known by.
+    Bind text to define-place, given (the node statement):
+        Return "{(cast field-of on (statement, 5))'s word}:{(cast field-of on (statement, 6))'s word}".
+    Done.
+
+    /// Where the value of a `permanently` constant lives: "" when nothing has to place it, "Made" or
+    /// "Copied" into the program's region, or "OfItsBlock" when it is its block's own. `PlaceOfConstant`
+    /// in C#, where the reason is.
+    Bind text or failure to place-of-constant unto checker, given (the node statement, the node shape, the fact hoisted):
+        If (the entry for cast define-place on (statement) in one's shared-defines) is void, return "".
+        // A constant that hides the program's own cannot take its place.
+        If cast truth-of on (cast field-of on (statement, 4)), return "OfItsBlock".
+        If one's rabbit-depth is 0 or cast is-held-in-region on (shape) is false, return "".
+        Define refs as a map from text to fact.
+        Define defs as a map from text to fact.
+        Cast refs-and-defs on (cast field-of on (statement, 2), refs, defs).
+        Define holding as 0.
+        Define all-free as true.
+        For each pair in refs, repeat:
+            Define found as cast one's look-up on (the key of pair).
+            If found is not void:
+                If found's depth is greater than 0 and found's module is false and cast is-held-in-region on (found's shape):
+                    If found's shape's kind is not "FunctionType" or cast one's is-program-function on (the key of pair, found) is false:
+                        Increment holding by 1.
+                        If cast one's is-container-free on (found's shape) is false, the all-free becomes false.
+                    Done.
+                Done.
+            Done.
+        Done.
+        If holding is 0, return "Made".
+        If cast one's copies-out on (shape, a map from text to fact):
+            If all-free or cast one's is-container-free on (shape), return "Copied".
+        Done.
+        If hoisted is false, return "OfItsBlock".
+        // Registered for the whole program by a reading of its value that its own line does not bear
+        // out: a name it uses is shadowed here.
+        Define name as cast unquoted on (cast field-of on (statement, 1)).
+        Return a failure (cast refusal-of on (
+            "this value lives in a shorter-lived region than its destination — it will be gone when that region ends", "",
+            cast number-of on (cast field-of on (statement, 5)), "keep it in '{name}', which lives as long as the program",
+            "Declare the container inside that region too, so both end at its 'Done.', or make the value before the region opens, so it lives as long as the container.")).
+    Done.
+
+    /// A value of this type can hold something a region owns.
+    Bind fact to is-held-in-region, given (the node shape):
+        Define kind as shape's kind.
+        If kind is "NumberType" or kind is "BitsType" or kind is "FactType" or kind is "VoidType" or kind is "BookType", return false.
+        If kind is "VoidableType", return cast is-held-in-region on (cast field-of on (shape, 1)).
+        If kind is "UnionType" and cast is-open-union on (shape) is false:
+            For each member in (cast field-of on (shape, 1))'s children, repeat:
+                If cast is-held-in-region on (member), return true.
+            Done.
+            Return false.
+        Done.
+        If kind is "RecordType":
+            For each positional in (cast field-of on (shape, 1))'s children, repeat:
+                If cast is-held-in-region on (positional), return true.
+            Done.
+            For each named in (cast field-of on (shape, 2))'s children, repeat:
+                If cast is-held-in-region on (cast field-of on (named, 2)), return true.
+            Done.
+            Return false.
+        Done.
+        Return true.
+    Done.
+
+    /// A value of this type holds nothing two names could share and one of them change.
+    Bind fact to is-container-free unto checker, given (the node shape):
+        Return cast one's field-holds-container on (shape, a map from text to fact) is false.
+    Done.
+
+    /// A value of this type can be copied whole into another region.
+    Bind fact to copies-out unto checker, given (the node shape, the map from text to fact seen):
+        Define kind as shape's kind.
+        If kind is "NumberType" or kind is "BitsType" or kind is "FactType" or kind is "VoidType" or kind is "TextType", return true.
+        If kind is "SeriesType" or kind is "VoidableType", return cast one's copies-out on (cast field-of on (shape, 1), seen).
+        If kind is "MapType":
+            Return cast one's copies-out on (cast field-of on (shape, 1), seen) and cast one's copies-out on (cast field-of on (shape, 2), seen).
+        Done.
+        If kind is "UnionType" and cast is-open-union on (shape) is false:
+            For each member in (cast field-of on (shape, 1))'s children, repeat:
+                If cast one's copies-out on (member, seen) is false, return false.
+            Done.
+            Return true.
+        Done.
+        If kind is "RecordType":
+            For each positional in (cast field-of on (shape, 1))'s children, repeat:
+                If cast one's copies-out on (positional, seen) is false, return false.
+            Done.
+            For each named in (cast field-of on (shape, 2))'s children, repeat:
+                If cast one's copies-out on (cast field-of on (named, 2), seen) is false, return false.
+            Done.
+            Return true.
+        Done.
+        If kind is "ObjectType":
+            Define name as cast unquoted on (cast field-of on (shape, 1)).
+            If (the entry for name in seen) is not void, return true.
+            In seen, the entry for name becomes true.
+            Define definition as cast one's definition-of on (name).
+            If definition is void, return false.
+            For each positional in (cast field-of on (definition, 2))'s children, repeat:
+                If cast one's copies-out on (positional, seen) is false, return false.
+            Done.
+            For each named in (cast field-of on (definition, 3))'s children, repeat:
+                If cast one's copies-out on (cast field-of on (named, 2), seen) is false, return false.
+            Done.
+            Define embedded as cast embedded-name on (definition).
+            If embedded is not "", return cast one's copies-out on (cast object-type-named on (embedded), seen).
+            Return true.
+        Done.
+        Return false.
+    Done.
+
     /// A value stored where it would outlive its region is refused.
     Bind void or failure to check-region-store unto checker, given (the node value, the node value-type,
             the number target-depth, the number at-row, the text action):

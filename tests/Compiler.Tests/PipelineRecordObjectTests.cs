@@ -672,6 +672,172 @@ public class PipelineRecordObjectTests : PipelineTestBase
         Assert.Equal(InterpretRaw(source), CompileRaw(source));
     }
 
+    /// <summary>A function bound in a rabbit's block is a free function, as one in a book's block is.</summary>
+    [Theory]
+    // inside
+    [InlineData("Pull a rabbit.\n    Bind number to f:\n        Return 5.\n    Done.\n    State cast f.\nDone.",
+        "5")]
+    // after its block
+    [InlineData("Pull a rabbit.\n    Bind number to f:\n        Return 5.\n    Done.\nDone.\nState cast f.",
+        "5")]
+    // before its block
+    [InlineData("State cast f.\nPull a rabbit.\n    Bind number to f:\n        Return 5.\n    Done.\nDone.",
+        "5")]
+    // from a top-level function, cast inside
+    [InlineData("Pull a rabbit.\n    Bind number to f:\n        Return 5.\n    Done.\n    State cast g.\nDone.\nBind number to g:\n    Return cast f.\nDone.",
+        "5")]
+    // from another rabbit
+    [InlineData("Pull a rabbit.\n    Bind number to f:\n        Return 5.\n    Done.\nDone.\nPull a rabbit.\n    State cast f.\nDone.",
+        "5")]
+    // a maker
+    [InlineData("Define object box with (the number n).\nPull a rabbit.\n    Bind making a box to small, given (the number k), a new box { the n k }.\nDone.\nDefine b as cast small on (3).\nState b's n.",
+        "3")]
+    // recursive, and two calling each other
+    [InlineData("Pull a rabbit.\n    Bind number to f, given (the number q):\n        If q is 0, return 0.\n        Return cast g on (q - 1) + 1.\n    Done.\n    Bind number to g, given (the number q):\n        If q is 0, return 0.\n        Return cast f on (q - 1) + 1.\n    Done.\nDone.\nState cast f on (3).",
+        "3")]
+    // as a value
+    [InlineData("Define g as a function given (the number q): Return q. Done.\nPull a rabbit.\n    Bind number to f, given (the number q):\n        Return q + 5.\n    Done.\n    The g becomes f.\nDone.\nState cast g on (1).",
+        "6")]
+    // taking an interface
+    [InlineData("Define interface greeter for the text function hi.\nDefine object host with (the number n) and greeter:\n    Bind text to hi, \"hi\".\nDone.\nPull a rabbit.\n    Bind text to say, given (the greeter g), cast g's hi.\nDone.\nDefine b as a new host { the n 1 }.\nState cast say on (b).",
+        "hi")]
+    // in a rabbit in a book's block, using the book
+    [InlineData("Pull a book on math.\n    Pull a rabbit.\n        Bind number to f:\n            Return math's pi.\n        Done.\n    Done.\nDone.\nState cast f.",
+        "3.1415926535897932384626433833")]
+    // a method of the book's block, after it
+    [InlineData("Define object box with (the number n).\nPull a book on math.\n    Bind number to pied unto box, one's n * math's pi.\n    Get tau unto box as number, math's pi * 2.\nDone.\nDefine b as a new box { the n 1 }.\nState cast b's pied.\nState b's tau.",
+        "3.1415926535897932384626433833\n6.2831853071795864769252867666")]
+    // a method of a book's block in a function
+    [InlineData("Define object box with (the number n).\nBind void to g:\n    Pull a book on math.\n        Bind number to pied unto box, one's n * math's pi.\n    Done.\nDone.\nDefine b as a new box { the n 1 }.\nState cast b's pied.",
+        "3.1415926535897932384626433833")]
+    // casting a lambda of the block
+    [InlineData("Pull a rabbit.\n    Define g as a function given (the number q): Return q + 1. Done.\n    Bind number to f, cast g on (1).\n    Bind number to f2, cast f + 1.\n    State cast f2.\nDone.",
+        "3")]
+    public void AFunctionOfARabbitsBlock_IsCastAnywhere_OnBothBackends(string source, string printed)
+    {
+        Assert.Equal(printed, InterpretRaw(source).Replace("\r\n", "\n").TrimEnd('\n'));
+        Assert.Equal(InterpretRaw(source), CompileRaw(source));
+    }
+
+    /// <summary>A constant written in a block is the program's, and lives as long.</summary>
+    [Theory]
+    // a series, read after its rabbit
+    [InlineData("Pull a rabbit.\n    Define k as a series of number with (1, 2) permanently.\nDone.\nBind number to f:\n    Return the number of k.\nDone.\nDefine junk as a series of text.\nDefine z as 0.\nWhile z is less than 200, repeat:\n    Insert \"junk{z}\" into junk.\n    Increment z by 1.\nDone.\nState cast f.",
+        "2")]
+    // by a function of the rabbit
+    [InlineData("Pull a rabbit.\n    Define k as a series of number with (1, 2) permanently.\n    Bind number to f:\n        Return the number of k.\n    Done.\n    State cast f.\nDone.\nDefine junk as a series of text.\nDefine z as 0.\nWhile z is less than 200, repeat:\n    Insert \"junk{z}\" into junk.\n    Increment z by 1.\nDone.\nState cast f.",
+        "2\n2")]
+    // a number
+    [InlineData("Pull a rabbit.\n    Define k as 5 permanently.\n    Bind number to f, k.\nDone.\nState cast f.",
+        "5")]
+    // in a book's block
+    [InlineData("Pull a book on math.\n    Define k as a series of number with (1, 2) permanently.\n    Bind number to f:\n        Return the number of k.\n    Done.\nDone.\nDefine junk as a series of text.\nDefine z as 0.\nWhile z is less than 200, repeat:\n    Insert \"junk{z}\" into junk.\n    Increment z by 1.\nDone.\nState cast f.",
+        "2")]
+    // text made there
+    [InlineData("Pull a rabbit.\n    Define w as \"a\" joined to \"b\".\n    Define k as w joined to \"c\" permanently.\n    Bind text to f, k.\nDone.\nDefine junk as a series of text.\nDefine z as 0.\nWhile z is less than 200, repeat:\n    Insert \"junk{z}\" into junk.\n    Increment z by 1.\nDone.\nState cast f.",
+        "abc")]
+    // text of the rabbit
+    [InlineData("Pull a rabbit.\n    Define w as \"a\" joined to \"b\".\n    Define k as w permanently.\n    Bind text to f, k.\nDone.\nDefine junk as a series of text.\nDefine z as 0.\nWhile z is less than 200, repeat:\n    Insert \"junk{z}\" into junk.\n    Increment z by 1.\nDone.\nState cast f.",
+        "ab")]
+    // a series of the rabbit's text
+    [InlineData("Pull a rabbit.\n    Define w as \"a\" joined to \"b\".\n    Define k as a series of text with (w, \"c\") permanently.\n    Bind text to f, item 1 of k.\nDone.\nDefine junk as a series of text.\nDefine z as 0.\nWhile z is less than 200, repeat:\n    Insert \"junk{z}\" into junk.\n    Increment z by 1.\nDone.\nState cast f.",
+        "ab")]
+    // a number read off the rabbit's series
+    [InlineData("Pull a rabbit.\n    Define xs as a series of number with (1, 2).\n    Define k as the number of xs permanently.\n    Bind number to f, k.\nDone.\nState cast f.",
+        "2")]
+    // what a call made
+    [InlineData("Bind series of number to mk, a series of number with (1, 2).\nPull a rabbit.\n    Define k as cast mk permanently.\n    Bind number to f:\n        Return the number of k.\n    Done.\nDone.\nDefine junk as a series of text.\nDefine z as 0.\nWhile z is less than 200, repeat:\n    Insert \"junk{z}\" into junk.\n    Increment z by 1.\nDone.\nState cast f.",
+        "2")]
+    // an object
+    [InlineData("Define object crate with (the series of number xs).\nPull a rabbit.\n    Define k as a new crate { the xs a series of number with (1, 2) } permanently.\n    Bind number to f:\n        Return the number of k's xs.\n    Done.\nDone.\nDefine junk as a series of text.\nDefine z as 0.\nWhile z is less than 200, repeat:\n    Insert \"junk{z}\" into junk.\n    Increment z by 1.\nDone.\nState cast f.",
+        "2")]
+    // a closure
+    [InlineData("Bind number function given () to mk, given (the text w):\n    Return a function: Return the length of w. Done.\nDone.\nPull a rabbit.\n    Define k as cast mk on (\"abc\" joined to \"d\") permanently.\n    Bind number to f, cast k.\nDone.\nDefine junk as a series of text.\nDefine z as 0.\nWhile z is less than 200, repeat:\n    Insert \"junk{z}\" into junk.\n    Increment z by 1.\nDone.\nState cast f.",
+        "4")]
+    // inserted into there and after
+    [InlineData("Pull a rabbit.\n    Define k as a series of number with (1, 2) permanently.\n    Define w as 4.\n    Insert w into k.\nDone.\nInsert 7 into k.\nBind number to f:\n    Return the number of k.\nDone.\nDefine junk as a series of text.\nDefine z as 0.\nWhile z is less than 200, repeat:\n    Insert \"junk{z}\" into junk.\n    Increment z by 1.\nDone.\nState cast f.",
+        "4")]
+    // the rabbit's text inserted
+    [InlineData("Pull a rabbit.\n    Define names as a series of text with (\"a\") permanently.\n    Define w as \"x\" joined to \"y\".\n    Insert w into names.\nDone.\nBind text to f, item 2 of names.\nDefine junk as a series of text.\nDefine z as 0.\nWhile z is less than 200, repeat:\n    Insert \"junk{z}\" into junk.\n    Increment z by 1.\nDone.\nState cast f.",
+        "xy")]
+    // read by the program after
+    [InlineData("Pull a rabbit.\n    Define x as 2.\n    Define k as x + 1 permanently.\nDone.\nState k.",
+        "3")]
+    // another name for one
+    [InlineData("Pull a rabbit.\n    Define k as a series of number with (1, 2) permanently.\n    Pull a rabbit.\n        Define j as k permanently.\n        Bind number to f:\n            Return the number of j.\n        Done.\n    Done.\nDone.\nDefine junk as a series of text.\nDefine z as 0.\nWhile z is less than 200, repeat:\n    Insert \"junk{z}\" into junk.\n    Increment z by 1.\nDone.\nState cast f.",
+        "2")]
+    // another name for the rabbit's series, read in the block
+    [InlineData("Pull a rabbit.\n    Define xs as a series of number with (1, 2).\n    Define k as xs permanently.\n    Insert 5 into xs.\n    State the number of k.\nDone.",
+        "3")]
+    // one hiding the program's
+    [InlineData("Define k as 1 permanently.\nBind number to f, k.\nPull a rabbit.\n    Define a shadow k as 2 permanently.\n    State k.\n    State cast f.\nDone.",
+        "2\n1")]
+    // in a task
+    [InlineData("Pull a rabbit.\n    Define k as \"a\" joined to \"b\" permanently.\n    Have rabbit start a task:\n        State k.\n    Done.\nDone.",
+        "ab")]
+    // cast before it is given, and caught
+    [InlineData("Try to:\n    State cast f.\nDone.\nIn case of exception:\n    State \"stopped\".\n    Suppress the exception.\nDone.\nDefine k as 5 permanently.\nBind number to f, k.\nState cast f.",
+        "stopped\n5")]
+    // a parameter of its name
+    [InlineData("State cast f on (2).\nDefine k as 5 permanently.\nBind number to f, given (the number k), k.",
+        "2")]
+    public void AConstantOfABlock_IsTheProgramsOnBothBackends(string source, string printed)
+    {
+        Assert.Equal(printed, InterpretRaw(source).Replace("\r\n", "\n").TrimEnd('\n'));
+        Assert.Equal(InterpretRaw(source), CompileRaw(source));
+    }
+
+    /// <summary>What a method sees of the block it is written in is what the program has.</summary>
+    [Theory]
+    // the function around it
+    [InlineData("Define object box with (the number n).\nBind number to f, given (the number q):\n    Bind number to plus unto box, cast f on (0).\n    Return q.\nDone.\nDefine b as a new box { the n 1 }.\nState cast b's plus.",
+        "0")]
+    // a function of the rabbit's block
+    [InlineData("Define object box with (the number n).\nPull a rabbit.\n    Bind number to g:\n        Return 1.\n    Done.\n    Bind number to plus unto box, one's n + cast g.\n    Define b as a new box { the n 1 }.\n    State cast b's plus.\nDone.\nDefine c as a new box { the n 2 }.\nState cast c's plus.",
+        "2\n3")]
+    // a function of a book's block
+    [InlineData("Define object box with (the number n).\nPull a book on math.\n    Bind number to g:\n        Return 1.\n    Done.\n    Bind number to plus unto box, one's n + cast g.\nDone.\nDefine b as a new box { the n 2 }.\nState cast b's plus.",
+        "3")]
+    // its type's own method, named as a local function is
+    [InlineData("Define object box with (the number n).\nBind number to g unto box, one's n.\nBind void to f:\n    Bind number to g:\n        Return 1.\n    Done.\n    Bind number to more-of unto box, cast g on (one).\n    Define b as a new box { the n 2 }.\n    State cast b's more-of.\nDone.\nCast f.",
+        "2")]
+    public void AMethodWrittenInABlock_SeesTheProgramsFunctions(string source, string printed)
+    {
+        Assert.Equal(printed, InterpretRaw(source).Replace("\r\n", "\n").TrimEnd('\n'));
+        Assert.Equal(InterpretRaw(source), CompileRaw(source));
+    }
+
+    /// <summary>A constant read before its line has run stops both backends, in the same words.</summary>
+    [Theory]
+    // a number
+    [InlineData("State cast f.\nDefine k as 5 permanently.\nBind number to f, k.", "k", 3, 2)]
+    // a series
+    [InlineData("State cast f.\nDefine k as a series of number with (1, 2) permanently.\nBind number to f:\n    Return the number of k.\nDone.", "k", 4, 2)]
+    // a text
+    [InlineData("State cast f.\nDefine k as \"a\" permanently.\nBind text to f, k.", "k", 3, 2)]
+    // read by the program
+    [InlineData("State k.\nDefine k as 5 permanently.", "k", 1, 2)]
+    // in a rabbit
+    [InlineData("State cast f.\nPull a rabbit.\n    Define k as a series of number with (1, 2) permanently.\nDone.\nBind number to f:\n    Return the number of k.\nDone.", "k", 6, 3)]
+    // a closure made too soon
+    [InlineData("Cast f.\nDefine k as 5 permanently.\nBind void to f:\n    Define h as a function given (the number q):\n        Return q + k.\n    Done.\n    State cast h on (1).\nDone.", "k", 4, 2)]
+    // a function bound in a function
+    [InlineData("Cast f.\nDefine k as 5 permanently.\nBind void to f:\n    Bind number to h:\n        Return k.\n    Done.\n    State cast h.\nDone.", "k", 4, 2)]
+    // a method
+    [InlineData("Define object box with (the number n):\n    Bind number to plus, one's n + k.\nDone.\nDefine b as a new box { the n 1 }.\nState cast b's plus.\nDefine k as 5 permanently.", "k", 2, 6)]
+    // a task
+    [InlineData("Cast f.\nDefine k as 5 permanently.\nBind void to f:\n    Pull a rabbit.\n        Have rabbit start a task:\n            State k.\n        Done.\n    Done.\nDone.", "k", 5, 2)]
+    // a voidable one
+    [InlineData("State cast f.\nDefine the voidable number k as 5 permanently.\nBind number to f:\n    If k is void, return 0.\n    Return k.\nDone.", "k", 4, 2)]
+    // a lambda the program names
+    [InlineData("State cast f.\nDefine g as a function given (the number q): Return q. Done.\nBind number to f, cast g on (1).", "g", 3, 2)]
+    public void AConstantReadBeforeItsLine_StopsBothBackends(string source, string name, int line, int givenOn)
+    {
+        string says = $"'{name}' has no value yet on line {line}. Line {givenOn} gives it one, and that line hasn't run.";
+        Assert.Equal(says, Assert.Throws<RuntimeException>(() => InterpretRaw(source)).Message);
+        Assert.Contains(says, CompileExpectingStop(source));
+    }
+
     [Fact]
     public void Series_MutatedParam_Shares_MatchesInterpreter()
     {

@@ -160,7 +160,16 @@ Pull a book on collections.
         Define hidden-here as the entry for name in one's hidden.
         If hidden-here is not void:
             Define at-row as cast number-of on (cast field-of on (said, 2)).
-            If hidden-here is false:
+            If hidden-here is "function", return a failure (cast function-of-the-block on (name, at-row)).
+            // Told its own reason: the advice below is to make it `permanently`, and it is.
+            If hidden-here is "constant":
+                Return a failure (cast refusal-of on (
+                    "'{name}' belongs to the block it's defined in, and a function can't see it",
+                    "A function can be called after that block's 'Done.', and what '{name}' stands for is gone by then",
+                    at-row, "read '{name}' inside a function",
+                    "Pass '{name}' in as a parameter.")).
+            Done.
+            If hidden-here is "block":
                 Return a failure (cast refusal-of on (
                     "'{name}' belongs to the block this method is written in, and a method can't see it", "",
                     at-row, "read '{name}' inside a method",

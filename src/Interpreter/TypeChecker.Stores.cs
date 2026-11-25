@@ -191,7 +191,7 @@ public sealed partial class TypeChecker
         var names = new Dictionary<string, int>(StringComparer.Ordinal);
         foreach (var scope in enclosing)
             foreach (var (name, info) in scope)
-                if (info.Type is not FunctionType && !info.Permanent)
+                if (info.Type is not FunctionType && !info.Shared)
                     names[name] = info.IsParameter ? CapturedParameterDepth : info.RabbitDepth;
         return names;
     }

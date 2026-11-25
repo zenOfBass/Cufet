@@ -109,16 +109,19 @@ Pull books on collections, and the c-language.
     /// Every module or book a pull names, as a global made once, zeroed — they hold nothing, so one
     /// does for every pull of it, and a function written inside a pull reaches it as the pull's own
     /// statements do. Known by the name it was pulled as, through the table shared constants use.
-    Bind void to register-pulled-modules unto emitter, given (the series of node hoisted):
-        For each statement in hoisted, repeat:
+    /// A pull in a body counts too: a method written `unto` its type there is cast from outside it.
+    Bind void to register-pulled-modules unto emitter, given (the series of node statements):
+        For each statement in statements, repeat:
             If statement's kind is "PullStatement":
                 For each pulled in (cast field-of on (statement, 1))'s children, repeat:
                     Define pulled-name as cast unquoted on (cast field-of on (pulled, 1)).
-                    If (the entry for pulled-name in one's objects) is not void:
-                        In one's constants, the entry for cast unquoted on (cast field-of on (pulled, 2)) becomes "object {pulled-name}".
+                    Define pulled-as as cast unquoted on (cast field-of on (pulled, 2)).
+                    If (the entry for pulled-name in one's objects) is not void and (the entry for pulled-as in one's constants) is void:
+                        In one's constants, the entry for pulled-as becomes "object {pulled-name}".
                     Done.
                 Done.
             Done.
+            If statement's kind is not "atom", cast one's register-pulled-modules on (statement's children).
         Done.
     Done.
 Done.

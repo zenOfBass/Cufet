@@ -11,21 +11,29 @@
 
 Pull a book on collections.
     /// What a name stands for in a scope — C#'s `TypeInfo`. `judged`: a judgement's `it`, whose reads
-    /// carry the type their arm gives it.
+    /// carry the type their arm gives it. `of-block`: a `permanently` that is its block's own, which no
+    /// function sees.
     Define object binding with (the node shape, the node established-by, the number line, the fact permanent,
-        the fact module, the number depth, the fact parameter, the fact judged).
+        the fact module, the number depth, the fact parameter, the fact judged, the fact of-block with default false).
+
+    /// A `permanently` constant every body may read: the program's, not a block's own.
+    Bind fact to is-shared, given (the binding held):
+        Return held's permanent and held's of-block is false.
+    Done.
 
     Define object checker with (
         the series of map from text to binding scopes,
         the map from text to number ended-names,
         the map from text to fact ended-in-a-try,
         the map from text to fact hoisted-constants,
+        the map from text to fact shared-defines,
+        the map from text to binding program-scope,
         the fact hoisting-axiom,
         the map from text to node narrowed,
         the fact in-function,
         the series of node expected-returns,
         the number function-line,
-        the map from text to fact hidden,
+        the map from text to text hidden,
         the map from text to node defs,
         the series of text def-order,
         the series of text shorthand-names,
@@ -397,6 +405,7 @@ Pull a book on collections.
         // The types a pulled book introduces are names while signatures are gathered and resolved —
         // and only then; inside a body they mean something only within their pull.
         Define book-type-names as cast one's register-pulled-book-types on (program).
+        The one's program-scope becomes item 1 of one's scopes.
         Cast one's hoist-interfaces on (program).
         Cast one's hoist-objects on (program) or pass the failure off.
         Cast one's check-method-blanks or pass the failure off.
@@ -450,7 +459,10 @@ Pull a book on collections.
         For each statement in cast hoistable on (program), repeat:
             If statement's kind is "DefineStatement" and cast truth-of on (cast field-of on (statement, 3)):
                 Define name as cast unquoted on (cast field-of on (statement, 1)).
-                If (the entry for name in cast one's innermost) is void:
+                In one's shared-defines, the entry for cast define-place on (statement) becomes true.
+                // One that hides another is its block's own, and nothing outside the block means it.
+                Define shadowing as cast truth-of on (cast field-of on (statement, 4)).
+                If shadowing is false and (the entry for name in cast one's innermost) is void:
                     Define value-type as cast field-of on (statement, 7).
                     // ★ An axiom has no type until its declaration tags it, so it is tagged here: a
                     // body may fill or run one declared further on, here or in a neighbour's file.
@@ -1377,9 +1389,21 @@ Pull a book on collections.
         Define gives-container as cast one's holds-container on (kept).
         Define giving as cast one's given-of on (cast unknown-type, kept, false, false).
         If gives-container, the giving becomes cast one's given-of on (value, kept, false, true).
-        Cast one's bind-name on (name, a new binding {
+        Define place as cast one's place-of-constant on (statement, kept, reclaiming) or pass the failure off.
+        Define shared as permanent and place is not "OfItsBlock" and (the entry for cast define-place on (statement) in one's shared-defines) is not void.
+        Define depth-kept as one's rabbit-depth.
+        If shared, the depth-kept becomes 0.
+        Define bound as a new binding {
             the shape kept, the established-by value, the line at-row, the permanent held-for-good, the module false,
-            the depth one's rabbit-depth, the parameter false, the judged false }).
+            the depth depth-kept, the parameter false, the judged false, the of-block place is "OfItsBlock" }.
+        Cast one's bind-name on (name, bound).
+        // The program's, wherever it is written: read after its block as well as in it, and a second
+        // of its name is refused as two at the top of the file are.
+        If shared, in one's program-scope, the entry for name becomes bound.
+        If place is "", cast note on (statement, ":Place", cast nothing).
+        Otherwise, cast note on (statement, ":Place", cast atom on (place)).
+        If shared and reclaiming is false, cast note on (statement, ":ConstantType", kept).
+        Otherwise, cast note on (statement, ":ConstantType", cast nothing).
         If gives-container, cast one's note-given on (name, giving, false).
         Cast one's record-stash-local on (name, kept, at-row) or pass the failure off.
     Done.
@@ -1468,12 +1492,14 @@ Pull a book on collections.
             the ended-names a map from text to number,
             the ended-in-a-try a map from text to fact,
             the hoisted-constants a map from text to fact,
+            the shared-defines a map from text to fact,
+            the program-scope a map from text to binding,
             the hoisting-axiom false,
             the narrowed a map from text to node,
             the in-function false,
             the expected-returns a series with (cast unknown-type),
             the function-line 0,
-            the hidden a map from text to fact,
+            the hidden a map from text to text,
             the defs a map from text to node,
             the def-order a series of text,
             the shorthand-names a series of text,

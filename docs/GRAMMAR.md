@@ -2841,6 +2841,34 @@ Pull a rabbit.
 Done.
 ```
 
+Such a constant belongs to the program. It can be read after its block's `Done.`, by the program as
+well as by a function, and no other block may define a constant of its name. Two are the block's own
+instead, read in the block and by no function:
+
+- one whose value is something the block holds, such as another name for a rabbit's series;
+- one that hides a constant, with `a shadow`.
+
+```cufet-refused
+Pull a rabbit.
+    Define xs as a series of number with (1, 2).
+    Define k as xs permanently.
+    Bind number to f:
+        Return the number of k.     ← refused: 'k' belongs to the block it's defined in
+    Done.
+Done.
+```
+
+A body may be called before the line that gives a constant its value. Reading it then stops the
+program:
+
+```
+'k' has no value yet on line 3. Line 2 gives it one, and that line hasn't run.
+```
+
+**A method takes nothing of the block it is written in**, so a function bound in the function around it,
+or a lambda that block holds, is refused in it. A function bound in a rabbit's block or a `Pull a book`
+block is the program's, and a method may cast it.
+
 ⚠ **A `permanently` inside a FUNCTION body is shared with nothing.** Hoisting does not enter one,
 which is the same reason a nested `Bind` is a closure rather than a free function.
 

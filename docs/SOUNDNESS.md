@@ -232,7 +232,18 @@ built under AddressSanitizer on Linux (`result-1`, `param-1`, `alias-2`), and ea
 | `result-4-parameter-wrapped-in-an-object` | O1 | crashes | **refused** |
 | `binder-1-it-in-a-judge` | O1 | crashes | **refused** |
 | `result-5-parameter-replaced-then-returned` | O1 | (found later) crashes | **refused** |
+| `constant-1-series-read-after-its-rabbit` | constants | (found later) crashes, or wrong output | **right** |
+| `constant-2-text-of-the-rabbit` | constants | refused | **right** |
+| `constant-3-read-before-its-line` | constants | (found later) crashes | **stops first, as interpreted** |
 | `control-nothing-escapes` | nothing | same on both | same on both |
+
+**Constants** are in none of the four. A `permanently` constant is read by every function, and the model
+has none, so nothing here asked whether its rabbit was still open, or whether its line had run. Found
+on 2026-11-24 while testing GRAMMAR's claim that a rabbit's constant is shared. A constant a rabbit
+defines is now made in the program's arena (`PlaceOfConstant` in C#, `place-of-constant` in Cufet), so
+its depth is 0 to every rule here; one that is something the rabbit holds is the block's own, and no
+function reads it. The interpreter never had the hole: it stopped with `'sizes' isn't defined`, and now
+answers as the compiled program does. A read that could come before the constant's line asks a flag first.
 
 "Wrong output" is the worse result: the program exits 0. Which of the two a failing row shows is
 chance, since both are a read of freed memory.

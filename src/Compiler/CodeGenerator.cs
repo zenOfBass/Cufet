@@ -125,6 +125,72 @@ public sealed partial class CodeGenerator
         new(ReferenceEqualityComparer.Instance as IEqualityComparer<DefineStatement>);
     private readonly List<string> _sharedConstDecls = [];
 
+    // Functions bound in a rabbit's block, emitted as free functions — see Generate.
+    private readonly HashSet<BindStatement> _rabbitBinds = new(ReferenceEqualityComparer.Instance);
+
+    // ── A constant read before its line has run ───────────────────────────
+    // A function may be called above the line that gives a constant it reads its value. C would hand
+    // it a zero, or a NULL series to follow; the interpreter stops, so this stops, with a flag beside
+    // the constant that its line sets.
+    //
+    // ★ The read asks whether `&cv_k` IS the constant, so a local of the same name, a parameter or a
+    // copy a closure took, is never asked about: C's own scoping says which one the name means.
+    private readonly Dictionary<string, int> _constLines = new(StringComparer.Ordinal);
+    // Those no body can be called ahead of: the lines from the top down to the first that could call one.
+    private readonly HashSet<string> _constAlwaysSet = new(StringComparer.Ordinal);
+    // Those main has already given a value, while main is being written.
+    private readonly HashSet<string> _constSetInMain = new(StringComparer.Ordinal);
+    private bool _inMain;
+
+    private void NoteConstantLines(Program program)
+    {
+        foreach (var d in _sharedConstants) _constLines.TryAdd(d.Name, d.Line);
+        bool First(IEnumerable<IStatement> statements)
+        {
+            foreach (var stmt in statements)
+                switch (stmt)
+                {
+                    case BindStatement or ObjectDefinition or InterfaceDefinition or OperatorOverloadDeclaration
+                        or UnmakerDeclaration or GetterDeclaration or SetterDeclaration:
+                        break;
+                    case DefineStatement d when CallsNothing(d.Value):
+                        if (_sharedConstants.Contains(d)) _constAlwaysSet.Add(d.Name);
+                        break;
+                    case PullStatement p:
+                        if (!First(p.Body)) return false;
+                        break;
+                    case PullRabbitStatement r:
+                        if (!First(r.Body)) return false;
+                        break;
+                    default:
+                        return false;
+                }
+            return true;
+        }
+        First(program.Statements);
+    }
+
+    /// <summary>Working this value out can run no body of the program's.</summary>
+    private static bool CallsNothing(IExpression value) =>
+        value is NumberLiteral or StringLiteral or BooleanLiteral or BitsLiteral or LambdaLiteral or AxiomLiteral
+              or VariableReference
+        || value is UnaryExpression u && CallsNothing(u.Operand)
+        || value is SeriesLiteral { } s && s.Elements.All(CallsNothing);
+
+    /// <summary>A name as C, stopping first if it is a shared constant that has no value yet.</summary>
+    private string NameRead(string name, int line) =>
+        NotGiven(name, line) is { } asked ? $"(*({asked}, &{MangleName(name)}))" : MangleName(name);
+
+    /// <summary>The question whether a name is a shared constant with no value yet, or null where it
+    /// cannot be one.</summary>
+    private string? NotGiven(string name, int line)
+    {
+        if (!_constLines.TryGetValue(name, out int givenOn) || _constAlwaysSet.Contains(name)
+            || _inMain && _constSetInMain.Contains(name)) return null;
+        string id = CIdent(name);
+        return $"cufet_not_given((void*)&{MangleName(name)} == cvat_{id} && !cvon_{id}, \"{name}\", {line}, {givenOn})";
+    }
+
     // ── Foreign axioms ────────────────────────────────────────────────────
     // One C function per distinct axiom, keyed by the source it wraps so the same axiom returned
     // in two places is pasted once. Collected while bodies are emitted and appended above them.
@@ -1823,6 +1889,8 @@ public sealed partial class CodeGenerator
 
         // Spawn: snapshot captures into the heap arg (PODs copied, channels shared by pointer,
         // regions deep-copied into a heap envelope the task owns and frees) + create.
+        foreach (var c in caps)
+            if (NotGiven(c, lts.Line) is { } asked) sb.AppendLine($"{indent}{asked};");
         sb.AppendLine($"{indent}{{ struct cufet_targ{tid}* cf_a = (struct cufet_targ{tid}*)malloc(sizeof(struct cufet_targ{tid}));");
         foreach (var c in caps)
             sb.AppendLine($"{indent}  cf_a->{MangleName(c)} = {(Bridged(c) ? $"{ChanHeapEnv(_varTypes[c])}({MangleName(c)})" : MangleName(c))};");

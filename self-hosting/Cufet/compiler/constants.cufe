@@ -1,0 +1,146 @@
+/*  Shared constants — a `permanently` the hoist reaches, kept as a C global and set where its `Define`
+    stands.
+
+    ★ It lives with the program, whatever rabbit its line is in: what the line makes is sent to the
+      program's arena, and a rabbit it takes text from is kept, as `regions.cufe` keeps one whose own
+      values are stored outside it. One the checker marked `OfItsBlock` is no global: an ordinary name
+      of its block, which no function reads.
+
+    ★ A function may be called above the line that gives a constant it reads its value. C would hand
+      it a zero, or a NULL series to follow, so the read stops first, as the interpreter does: a flag
+      beside the constant, which its line sets. The read asks whether `&cv_k` IS the constant, so a
+      local of the same name, or a copy a closure took, is never asked about.
+*/
+
+Pull books on collections, and the c-language.
+    /// Whether a `Define` of the hoist is a shared constant, and not its block's own.
+    Bind fact to is-shared-define, given (the node statement):
+        If statement's kind is not "DefineStatement" or (cast field-of on (statement, 3))'s word is not "true", return false.
+        Define place as cast keyed-field on (statement, ":Place").
+        If place is void, return true.
+        Return place's word is not "OfItsBlock".
+    Done.
+
+    /// The kind of a shared constant: as declared, as the checker noted it where the value reads a name
+    /// of its block, or worked out.
+    Bind text or failure to constant-kind-of unto emitter, given (the node statement):
+        If cast is-nothing on (cast field-of on (statement, 7)) is false:
+            Return cast one's kind-of-type on (cast field-of on (statement, 7)) or pass the failure off.
+        Done.
+        Define noted as cast keyed-field on (statement, ":ConstantType").
+        If noted is not void, return cast one's kind-of-type on (noted) or pass the failure off.
+        Return cast one's kind-of on (cast field-of on (statement, 2)) or pass the failure off.
+    Done.
+
+    /// Working this value out can run no body of the program's.
+    Bind fact to calls-nothing, given (the node value):
+        Define kind as value's kind.
+        If kind is "NumberLiteral" or kind is "StringLiteral" or kind is "BooleanLiteral" or kind is "BitsLiteral"
+                or kind is "LambdaLiteral" or kind is "AxiomLiteral" or kind is "VariableReference":
+            Return true.
+        Done.
+        If kind is "UnaryExpression", return cast calls-nothing on (cast field-of on (value, 2)).
+        If kind is "SeriesLiteral":
+            For each element in (cast field-of on (value, 1))'s children, repeat:
+                If cast calls-nothing on (element) is false, return false.
+            Done.
+            Return true.
+        Done.
+        Return false.
+    Done.
+
+    /// Notes each constant no body can be called ahead of — those from the top down to the first line
+    /// that could call one — and says whether that line has not been met yet.
+    Bind fact to note-first-constants unto emitter, given (the series of node statements):
+        For each statement in statements, repeat:
+            Define kind as statement's kind.
+            If cast declares-only on (statement), skip.
+            If kind is "DefineStatement":
+                If cast calls-nothing on (cast field-of on (statement, 2)) is false, return false.
+                If cast is-shared-define on (statement):
+                    In one's inferred, the entry for "const-safe:{cast unquoted on (cast field-of on (statement, 1))}" becomes "yes".
+                Done.
+            Done.
+            Otherwise if kind is "PullStatement" or kind is "PullRabbitStatement":
+                If cast one's note-first-constants on ((cast field-of on (statement, 2))'s children) is false, return false.
+            Done.
+            Otherwise, return false.
+        Done.
+        Return true.
+    Done.
+
+    /// Whether reading a constant here has to ask if it has a value.
+    Bind fact to asks-given unto emitter, given (the text name):
+        If (the entry for "const-line:{name}" in one's inferred) is void, return false.
+        If (the entry for "const-safe:{name}" in one's inferred) is not void, return false.
+        Return (the entry for "%given:{name}" in one's kinds) is void.
+    Done.
+
+    Bind c-language axiom to given-asked unto emitter, given (the text name, the number at-row):
+        Define given-on as (the entry for "const-line:{name}" in one's inferred but void is "0") converted to number but void is 0.
+        Define c-language asked, given (the term held, the term at, the term flag, the text name, the number at-row, the number given-on),
+            as [cufet_not_given((void*)&the held == the at && !the flag, the name, the at-row, the given-on)].
+        Return asked on (cast c-name on (name), "cvat_{cast c-ident on (name)}", "cvon_{cast c-ident on (name)}", name, at-row, given-on).
+    Done.
+
+    /// A shared constant read: its name, stopping first if it has no value yet.
+    Bind c-language axiom to c-constant unto emitter, given (the text name, the number at-row):
+        If cast one's asks-given on (name) is false, return c-word on (cast c-name on (name)).
+        Define c-language read-asked, given (the c-language axiom asked, the term held), as [(*(the asked, &the held))].
+        Return read-asked on (cast one's given-asked on (name, at-row), cast c-name on (name)).
+    Done.
+
+    /// The constants a body written here reads, asked of as it is made: it takes them along, so they
+    /// have to be there. C to run first, or no C at all.
+    Bind c-language axiom to constants-asked unto emitter, given (the node body, the map from text to fact own, the number at-row):
+        Define found as a map from text to fact.
+        Cast one's constants-read on (body, own, found).
+        Define names as a series of text.
+        For each pair in found, insert the key of pair into names.
+        Define c-language asked-too, given (the c-language axiom earlier, the c-language axiom asked), as [the earlier the asked;].
+        Define asking as cast no-c.
+        For each name in names sorted, repeat:
+            If cast one's asks-given on (name), the asking becomes asked-too on (asking, cast one's given-asked on (name, at-row)).
+        Done.
+        Return asking.
+    Done.
+
+    Bind void to constants-read unto emitter, given (the node tree, the map from text to fact own, the map from text to fact found):
+        If tree's kind is "VariableReference":
+            Define read as cast unquoted on (cast field-of on (tree, 1)).
+            If (the entry for read in own) is void and (the entry for read in one's kinds) is void and (the entry for read in one's constants) is not void:
+                In found, the entry for read becomes true.
+            Done.
+            Return.
+        Done.
+        For each child in tree's children, repeat:
+            Cast one's constants-read on (child, own, found).
+        Done.
+    Done.
+
+    /// A shared constant set, where its `Define` stands.
+    Bind void or failure to emit-constant unto emitter, given (the node statement):
+        Define name as cast unquoted on (cast field-of on (statement, 1)).
+        Define shared-kind as the entry for name in one's constants but void is "".
+        Define value as cast field-of on (statement, 2).
+        Define sent-out as cast keyed-field on (statement, ":Place") is not void.
+        If sent-out:
+            If cast one's reaches-deeper on (value, 0), cast one's keep-rabbits-below on (0).
+            Define c-language override-held, given (the c-language axiom arena), as [{ int cf_ov = cufet_alloc_override; cufet_alloc_override = the arena;].
+            Cast one's put on (override-held on (cast arena-at on (0))).
+        Done.
+        Cast one's put on (assigned-to on (c-word on (cast c-name on (name)), cast one's c-of-as on (value, shared-kind) or pass the failure off)).
+        If sent-out, cast one's put on ([cufet_alloc_override = cf_ov; }]).
+        If (the entry for "const-line:{name}" in one's inferred) is not void and (the entry for "const-safe:{name}" in one's inferred) is void:
+            Cast one's put on (assigned-to on (c-word on ("cvon_{cast c-ident on (name)}"), [1])).
+        Done.
+        If (the entry for "%main" in one's kinds) is not void, in one's kinds, the entry for "%given:{name}" becomes "yes".
+    Done.
+
+    /// A shared constant's C: the global, and the flag its line sets where something may read it sooner.
+    Bind text to c-constant-global unto emitter, given (the text name, the text kind):
+        Define global as "static {cast c-type on (kind)} {cast c-name on (name)};\n".
+        If (the entry for "const-line:{name}" in one's inferred) is void or (the entry for "const-safe:{name}" in one's inferred) is not void, return global.
+        Return "{global}static int cvon_{cast c-ident on (name)}; static void* const cvat_{cast c-ident on (name)} = &{cast c-name on (name)};\n".
+    Done.
+Done.

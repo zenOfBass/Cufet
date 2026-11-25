@@ -373,6 +373,7 @@ Pull books on collections, and the c-language.
                 If redirected is not void, return redirected.
                 // Inside a method, `one` is the object it was called on, held by its address.
                 If name is "one", return [(*cv_one)].
+                If (the entry for name in one's kinds) is void, return cast one's c-constant on (name, cast line-number on (cast field-of on (expression, 2))).
                 Return c-word on (cast c-name on (name)).
             Done.
             "ObjectLiteral", return cast one's c-object-literal on (expression) or pass the failure off.
@@ -432,7 +433,7 @@ Pull books on collections, and the c-language.
             "ChaseLiteral", return [cufet_chase_new()].
             "LambdaLiteral":
                 Define lambda-label as "{(cast field-of on (expression, 3))'s word}_{(cast field-of on (expression, 4))'s word}".
-                Return cast one's c-closure on (cast field-of on (expression, 1), cast field-of on (expression, 2), "", "?", lambda-label) or pass the failure off.
+                Return cast one's c-closure on (cast field-of on (expression, 1), cast field-of on (expression, 2), "", "?", lambda-label, cast line-number on (cast field-of on (expression, 3))) or pass the failure off.
             Done.
             "ConditionalExpression", return cast one's c-chosen on (expression) or pass the failure off.
             "SortExpression", return cast one's c-sorted on (expression) or pass the failure off.
@@ -875,10 +876,7 @@ Pull books on collections, and the c-language.
                 Define name as cast unquoted on (cast field-of on (statement, 1)).
                 // A shared constant is a global, set where its `Define` stands.
                 If (the entry for cast place-of-define on (statement) in one's constant-places) is not void:
-                    Define shared-kind as the entry for name in one's constants but void is "".
-                    Define c-language name-form, given (the term c-name, the c-language axiom c-of-as),
-                        as [the c-name = the c-of-as;].
-                    Cast one's put on (name-form on (cast c-name on (name), cast one's c-of-as on (cast field-of on (statement, 2), shared-kind) or pass the failure off)).
+                    Cast one's emit-constant on (statement) or pass the failure off.
                     Return.
                 Done.
                 Define assigned as cast field-of on (statement, 2).
@@ -1389,19 +1387,16 @@ Pull books on collections, and the c-language.
         Cast writer's note-groups on (program).
         // Every shared constant: a `permanently` the hoist reaches, its kind known before any body is.
         For each statement in hoisted, repeat:
-            If statement's kind is "DefineStatement" and (cast field-of on (statement, 3))'s word is "true":
+            If cast is-shared-define on (statement):
                 Define constant-name as cast unquoted on (cast field-of on (statement, 1)).
-                Define constant-kind as "".
-                If cast is-nothing on (cast field-of on (statement, 7)) is false:
-                    The constant-kind becomes cast writer's kind-of-type on (cast field-of on (statement, 7)) or pass the failure off.
+                In writer's constants, the entry for constant-name becomes cast writer's constant-kind-of on (statement) or pass the failure off.
+                If (the entry for "const-line:{constant-name}" in writer's inferred) is void:
+                    In writer's inferred, the entry for "const-line:{constant-name}" becomes (cast field-of on (statement, 5))'s word.
                 Done.
-                Otherwise:
-                    The constant-kind becomes cast writer's kind-of on (cast field-of on (statement, 2)) or pass the failure off.
-                Done.
-                In writer's constants, the entry for constant-name becomes constant-kind.
                 In writer's constant-places, the entry for cast place-of-define on (statement) becomes true.
             Done.
         Done.
+        If cast writer's note-first-constants on (book-constants), cast writer's note-first-constants on (program's children).
         For each pair in objects, repeat:
             Define conformance as cast writer's conformance-beyond on (the value of pair).
             If conformance is not "", return a failure (cast not-built on (conformance)).
@@ -1476,6 +1471,7 @@ Pull books on collections, and the c-language.
             Insert "{cast writer's c-method-signature on (owner, method) or pass the failure off};\n" into declared.
             Insert cast writer's c-method on (owner, method) or pass the failure off into defined.
         Done.
+        In writer's kinds, the entry for "%main" becomes "yes".
         // A book's constants first, as the prelude runs before the program.
         For each constant in book-constants, repeat:
             Cast writer's emit-statement on (constant) or pass the failure off.
@@ -1534,7 +1530,7 @@ Pull books on collections, and the c-language.
             Insert written into union-types.
         Done.
         For each pair in writer's constants, repeat:
-            Insert "static {cast c-type on (the value of pair)} {cast c-name on (the key of pair)};\n" into union-types.
+            Insert cast writer's c-constant-global on (the key of pair, the value of pair) into union-types.
         Done.
         Define out as a chase.
         Insert "#include \"cufet-runtime.h\"\n\n" into out.

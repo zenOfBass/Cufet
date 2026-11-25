@@ -36,6 +36,8 @@ public sealed partial class Interpreter
             if (!TryLookupValue(vr.Name, out var val))
             {
                 // Not a free function — first arg is the receiver, remaining args are params.
+                if (_givenOn.TryGetValue(vr.Name, out int givenOn))
+                    throw new RuntimeException(NotGivenYet(vr.Name, vr.Line, givenOn));
                 if (args.Count == 0)
                     throw new RuntimeException($"'{vr.Name}' is not defined (line {line}).");
                 var receiver = EvaluateReceiver(args[0]);
@@ -218,7 +220,7 @@ public sealed partial class Interpreter
         // the reason for it live in TypeChecker.CheckMethodBody; this keeps the runtime in step,
         // and without it a book's local collides with any name the writer used for a function.
         if (!BuiltinBookValues.ContainsKey(receiver.TypeName))
-            ImportTopLevelVisible(saved.Scopes);
+            ImportTopLevelVisible(saved.Scopes, ofType: true);
         else
             // ★ Its OWN file scope, which it could not see at all before those names were made
             // private. Keeps step with the checker — see TypeChecker.ImportOwnBookNames.
@@ -230,6 +232,7 @@ public sealed partial class Interpreter
         // so a caller's own pull still wins. See _moduleLexicalPulls.
         if (_moduleLexicalPulls.TryGetValue(receiver.TypeName, out var lexical))
             BindLexicalPulls(lexical, line);
+        BindMemberPulls(method, line);
 
         PushBodyScope();
 
