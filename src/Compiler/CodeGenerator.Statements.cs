@@ -587,6 +587,12 @@ public sealed partial class CodeGenerator
                 EmitForEachFromInput(sb, fi, indent);
                 break;
 
+            // A method of its type, wherever it is written — MergeUntoMethods has it already, and the
+            // type's own methods are emitted with the type. Emitted here as a local closure, its `one`
+            // was nothing: "'n' can't be read from a number".
+            case BindStatement { UntoType: not null }:
+                break;
+
             case BindStatement nb:
             {
                 // A nested Bind (inside a function/lambda body) is a NAMED local closure — desugar to

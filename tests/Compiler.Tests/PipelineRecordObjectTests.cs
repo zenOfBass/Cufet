@@ -609,6 +609,69 @@ public class PipelineRecordObjectTests : PipelineTestBase
         Assert.Equal(InterpretRaw(source), CompileRaw(source));
     }
 
+    /// <summary>A method belongs to its type wherever its `unto` is written, as an object's own do.</summary>
+    /// <remarks>It interpreted in a function or a rabbit and never compiled (2026-11-24): the compiler
+    /// made a local function of it, whose `one` was nothing.</remarks>
+    [Theory]
+    // in a function, used inside it
+    [InlineData("Define object box with (the number n).\nBind void to f:\n    Bind number to twice unto box:\n        Return one's n * 2.\n    Done.\n    Define b as a new box { the n 2 }.\n    State cast b's twice.\nDone.\nCast f.",
+        "4")]
+    // used outside it, and before it
+    [InlineData("Define object box with (the number n).\nDefine b as a new box { the n 2 }.\nState cast b's twice.\nBind void to f:\n    Bind number to twice unto box, one's n * 2.\nDone.",
+        "4")]
+    // changing its object
+    [InlineData("Define object box with (the number n).\nBind void to f:\n    Bind void to bump unto box:\n        One's n becomes 9.\n    Done.\nDone.\nDefine b as a new box { the n 2 }.\nCast b's bump.\nState b's n.",
+        "9")]
+    // taking a value, calling a function and reading a constant
+    [InlineData("Define object box with (the number n).\nDefine k as 5 permanently.\nBind number to inc, given (the number q), q + k.\nBind void to f:\n    Bind number to grown unto box, given (the number step), cast inc on (one's n + step).\nDone.\nDefine b as a new box { the n 2 }.\nState cast b's grown on (4).",
+        "11")]
+    // in a function in a function
+    [InlineData("Define object box with (the number n).\nBind void to f:\n    Bind void to g:\n        Bind number to twice unto box, one's n * 2.\n        Define b as a new box { the n 3 }.\n        State cast b's twice.\n    Done.\n    Cast g.\nDone.\nCast f.",
+        "6")]
+    // between two local functions
+    [InlineData("Define object box with (the number n).\nBind number to f:\n    Bind number to g:\n        Return 1.\n    Done.\n    Bind number to twice unto box, one's n * 2.\n    Bind number to h:\n        Return cast g + 1.\n    Done.\n    Define b as a new box { the n 3 }.\n    Return cast h + cast b's twice.\nDone.\nState cast f.",
+        "8")]
+    // beside a local function of its name
+    [InlineData("Define object box with (the number n).\nBind number to f:\n    Bind number to twice, given (the number k), k * 2.\n    Bind number to twice unto box, one's n * 20.\n    Define b as a new box { the n 3 }.\n    Return cast twice on (1) + cast b's twice.\nDone.\nState cast f.",
+        "62")]
+    // in a lambda
+    [InlineData("Define object box with (the number n).\nDefine g as a function given (the number q):\n    Bind number to twice unto box, one's n * 2.\n    Return q.\nDone.\nDefine b as a new box { the n 2 }.\nState cast b's twice.\nState cast g on (1).",
+        "4\n1")]
+    // a getter and a setter
+    [InlineData("Define object box with (the number n).\nBind void to f:\n    Get twice unto box as number, one's n * 2.\n    Set n unto box given (the number k):\n        One's n becomes k + 1.\n    Done.\nDone.\nDefine b as a new box { the n 2 }.\nThe n of b becomes 4.\nState b's twice.",
+        "10")]
+    // in a rabbit, and after it
+    [InlineData("Define object box with (the number n).\nPull a rabbit.\n    Bind number to twice unto box, one's n * 2.\n    Define b as a new box { the n 2 }.\n    State cast b's twice.\nDone.\nDefine c as a new box { the n 3 }.\nState cast c's twice.",
+        "4\n6")]
+    // in a rabbit in a function
+    [InlineData("Define object box with (the number n).\nBind void to f:\n    Pull a rabbit.\n        Bind number to twice unto box, one's n * 2.\n    Done.\nDone.\nDefine b as a new box { the n 2 }.\nState cast b's twice.",
+        "4")]
+    // in a task
+    [InlineData("Define object box with (the number n).\nPull a rabbit.\n    Have rabbit start a task:\n        Bind number to twice unto box, one's n * 2.\n    Done.\nDone.\nDefine b as a new box { the n 2 }.\nState cast b's twice.",
+        "4")]
+    // one that buries
+    [InlineData("Define object box with (the number n).\nBind void to f:\n    Bind number to ticks unto box, given (the rabbit hopper):\n        Have hopper bury one's n.\n        Have hopper bury 7.\n    Done.\nDone.\nPull a rabbit as hopper.\n    Define b as a new box { the n 2 }.\n    For each t in cast b's ticks on (hopper), state t.\nDone.",
+        "2\n7")]
+    public void AMethodWrittenUntoItsTypeInABody_IsTheTypes_OnBothBackends(string source, string printed)
+    {
+        Assert.Equal(printed, InterpretRaw(source).Replace("\r\n", "\n").TrimEnd('\n'));
+        Assert.Equal(InterpretRaw(source), CompileRaw(source));
+    }
+
+    /// <summary>A function bound inside a lambda or a task returns for itself, and not for them.</summary>
+    [Theory]
+    [InlineData("Define g as a function given (the number q):\n    Bind number to h:\n        Return 5.\n    Done.\n    Return q + cast h.\nDone.\nState cast g on (1).",
+        "6")]
+    [InlineData("Define g as a function given (the number q):\n    Bind text to h, \"five\".\n    Return q.\nDone.\nState cast g on (1).",
+        "1")]
+    [InlineData("Pull a rabbit.\n    Have rabbit start a task as sum:\n        Bind number to h, 5.\n        Return cast h + 1.\n    Done.\n    State the awaited result of sum.\nDone.",
+        "6")]
+    public void AFunctionInsideALambdaOrATask_ReturnsForItself(string source, string printed)
+    {
+        Assert.Equal(printed, InterpretRaw(source).Replace("\r\n", "\n").TrimEnd('\n'));
+        Assert.Equal(InterpretRaw(source), CompileRaw(source));
+    }
+
     [Fact]
     public void Series_MutatedParam_Shares_MatchesInterpreter()
     {

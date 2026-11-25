@@ -138,6 +138,10 @@ public static class TaskCaptures
             case LambdaLiteral lam:
                 Nested(lam.Parameters.Select(p => p.Name), lam.Body);
                 return;
+            // ⚠ A method bound `unto` its type here binds no name here, and reads its own receiver.
+            case BindStatement { UntoType: not null } method:
+                Nested(method.Parameters.Select(p => p.Name).Append("one"), method.Body);
+                return;
             case BindStatement nb:
                 defs.Add(nb.Name);                        // the local function's NAME binds in the enclosing scope
                 Nested(nb.Parameters.Select(p => p.Name), nb.Body);

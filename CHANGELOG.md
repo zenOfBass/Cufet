@@ -21,6 +21,14 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   never true, and so was a `Judge` arm naming it, so the branch could not run and nothing said so. It is
   refused like any other undefined type, with its line. Wherever a type is undefined, the nearest one
   within two edits is suggested: `Did you mean 'number'?` Both checkers.
+- **`Bind … unto` inside a function, a rabbit or a task compiles.** A method belongs to its type wherever
+  it is written; interpreted it did, and the compiler refused it with `'n' can't be read from a number`.
+  Both compilers. A local function of the same name is no longer replaced by it when interpreted, and a
+  method reading a name of the function around it is told so, where it said the name was a top-level
+  value.
+- **A function bound inside a lambda or a task no longer decides what that gives back.** `Define g as a
+  function given (the number q): Bind number to h: …` was refused at its own `Return`, as "declared
+  void". Both checkers.
 - **A method called on the result of a call changes only that result, interpreted as well as compiled.**
   `Cast (cast h's inside)'s poke.` changed the object `h` still held when interpreted. The same for a
   getter's result, a `when`, a `but void is`, a field set in any of these, and a getter that changes

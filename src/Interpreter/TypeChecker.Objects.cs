@@ -627,6 +627,10 @@ public sealed partial class TypeChecker
         var prevFunctionLine     = _functionDeclarationLine;
         var prevRabbitDepth      = _rabbitDepth;
         var prevHidden           = _hiddenTopLevelData;
+        // ⚠ A body of its own, so its returns are measured against its own type and are not the
+        // first return of a lambda or a task it is written in.
+        var prevInferring = _inferringLambdaReturn;
+        _inferringLambdaReturn = false;
         var prevRecordingStash   = _recordingStashFn;
         // Only this body's own locals belong to this body's machine — the same rule CheckBind
         // applies, under the qualified key a method needs.
@@ -673,6 +677,7 @@ public sealed partial class TypeChecker
             _functionDeclarationLine = prevFunctionLine;
             _rabbitDepth             = prevRabbitDepth;
             _hiddenTopLevelData      = prevHidden;
+            _inferringLambdaReturn = prevInferring;
             _recordingStashFn        = prevRecordingStash;
             _storeFrame              = storeFrame.Parent;
             RestoreScopes(saved);
@@ -706,6 +711,10 @@ public sealed partial class TypeChecker
         var prevFunctionLine     = _functionDeclarationLine;
         var prevRabbitDepth      = _rabbitDepth;
         var prevHidden           = _hiddenTopLevelData;
+        // ⚠ A body of its own, so its returns are measured against its own type and are not the
+        // first return of a lambda or a task it is written in.
+        var prevInferring = _inferringLambdaReturn;
+        _inferringLambdaReturn = false;
         _inFunction              = true;
         _expectedReturnType      = getter.ReturnType;
         _functionDeclarationLine = getter.Line;
@@ -740,6 +749,7 @@ public sealed partial class TypeChecker
             _functionDeclarationLine = prevFunctionLine;
             _rabbitDepth             = prevRabbitDepth;
             _hiddenTopLevelData      = prevHidden;
+            _inferringLambdaReturn = prevInferring;
             RestoreScopes(saved);
         }
     }
@@ -763,6 +773,10 @@ public sealed partial class TypeChecker
         var prevFunctionLine     = _functionDeclarationLine;
         var prevRabbitDepth      = _rabbitDepth;
         var prevHidden           = _hiddenTopLevelData;
+        // ⚠ A body of its own, so its returns are measured against its own type and are not the
+        // first return of a lambda or a task it is written in.
+        var prevInferring = _inferringLambdaReturn;
+        _inferringLambdaReturn = false;
         _inFunction              = true;
         _expectedReturnType      = null; // void — setters never return a value
         _functionDeclarationLine = setter.Line;
@@ -785,6 +799,7 @@ public sealed partial class TypeChecker
             _functionDeclarationLine = prevFunctionLine;
             _rabbitDepth             = prevRabbitDepth;
             _hiddenTopLevelData      = prevHidden;
+            _inferringLambdaReturn = prevInferring;
             RestoreScopes(saved);
         }
     }
@@ -827,6 +842,10 @@ public sealed partial class TypeChecker
         var prevFunctionLine     = _functionDeclarationLine;
         var prevRabbitDepth      = _rabbitDepth;
         var prevHidden           = _hiddenTopLevelData;
+        // ⚠ A body of its own, so its returns are measured against its own type and are not the
+        // first return of a lambda or a task it is written in.
+        var prevInferring = _inferringLambdaReturn;
+        _inferringLambdaReturn = false;
         _inFunction              = true;
         _expectedReturnType      = null; // void — 'return a failure' is caught as "returning a value from void"
         _functionDeclarationLine = ud.Line;
@@ -842,6 +861,7 @@ public sealed partial class TypeChecker
             _functionDeclarationLine = prevFunctionLine;
             _rabbitDepth             = prevRabbitDepth;
             _hiddenTopLevelData      = prevHidden;
+            _inferringLambdaReturn = prevInferring;
             RestoreScopes(saved);
         }
         // No DefinitelyReturns check — destructors are void, return is optional.

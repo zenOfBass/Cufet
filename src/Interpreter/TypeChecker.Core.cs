@@ -3993,18 +3993,34 @@ public sealed partial class TypeChecker
             foreach (var (k, v) in scope.Where(kv => kv.Value.Type is FunctionType || kv.Value.Permanent))
                 Scope[k] = v;
 
-        _hiddenTopLevelData = saved.V
-            .SelectMany(s => s)
-            .Where(kv => kv.Value.Type is not FunctionType && !kv.Value.Permanent)
-            .Select(kv => kv.Key)
-            .ToHashSet(StringComparer.Ordinal);
+        _hiddenTopLevelData = new HiddenNames(
+            saved.V.SelectMany(s => s)
+                .Where(kv => kv.Value.Type is not FunctionType && !kv.Value.Permanent)
+                .Select(kv => kv.Key),
+            saved.V.Skip(1).SelectMany(s => s).Select(kv => kv.Key));
+    }
+
+    /// <summary>The names a body cannot see, and which of them a block around it holds.</summary>
+    private sealed class HiddenNames(IEnumerable<string> all, IEnumerable<string> ofBlock)
+        : HashSet<string>(all, StringComparer.Ordinal)
+    {
+        public HashSet<string> OfBlock { get; } = new(ofBlock, StringComparer.Ordinal);
     }
 
     // The same rule the interpreter enforced at runtime, moved to check time so both backends
     // refuse identically — and so `check` stops passing a program that cannot run. The wording
     // follows the interpreter's original message, which was already the clearest thing about this.
     private TypeException HiddenTopLevelDataError(VariableReference vr) =>
-        TypeError(
+        // A method written inside a function reads its type's fields and not that function's names,
+        // which are no top-level value: it belongs to the type, and the type to the program.
+        _hiddenTopLevelData is HiddenNames hidden && hidden.OfBlock.Contains(vr.Name) && TryLookup("one", out _)
+        ? TypeError(
+            $"'{vr.Name}' belongs to the block this method is written in, and a method can't see it",
+            null, vr.Line, vr.Column,
+            $"read '{vr.Name}' inside a method",
+            $"A method belongs to its type, so it sees its own names, other functions, and top-level "
+          + $"`permanently` constants. Pass '{vr.Name}' in as a parameter.")
+        : TypeError(
             $"'{vr.Name}' is a top-level value, but function and method bodies can't see top-level data",
             null, vr.Line, vr.Column,
             $"read '{vr.Name}' inside a top-level function or a method",

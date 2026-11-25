@@ -157,8 +157,15 @@ Pull a book on collections.
             Cast one's note-function-value on (said, found).
             Return found's shape.
         Done.
-        If (the entry for name in one's hidden) is not void:
+        Define hidden-here as the entry for name in one's hidden.
+        If hidden-here is not void:
             Define at-row as cast number-of on (cast field-of on (said, 2)).
+            If hidden-here is false:
+                Return a failure (cast refusal-of on (
+                    "'{name}' belongs to the block this method is written in, and a method can't see it", "",
+                    at-row, "read '{name}' inside a method",
+                    "A method belongs to its type, so it sees its own names, other functions, and top-level `permanently` constants. Pass '{name}' in as a parameter.")).
+            Done.
             Return a failure (cast refusal-of on (
                 "'{name}' is a top-level value, but function and method bodies can't see top-level data", "",
                 at-row, "read '{name}' inside a top-level function or a method",

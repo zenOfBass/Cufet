@@ -408,6 +408,10 @@ public sealed partial class TypeChecker
         var prevFunctionLine      = _functionDeclarationLine;
         var prevRabbitDepth       = _rabbitDepth;
         var prevHidden            = _hiddenTopLevelData;
+        // ⚠ A body of its own, so its returns are measured against its own type and are not the
+        // first return of a lambda or a task it is written in.
+        var prevInferring = _inferringLambdaReturn;
+        _inferringLambdaReturn = false;
         var prevRecordingStash    = _recordingStashFn;
         // Only this body's own locals belong to this body's state machine. A nested Bind sets its
         // own name here (or clears it), so its locals never leak into the enclosing slot table.
@@ -462,6 +466,7 @@ public sealed partial class TypeChecker
             _functionDeclarationLine  = prevFunctionLine;
             _rabbitDepth              = prevRabbitDepth;
             _hiddenTopLevelData       = prevHidden;
+            _inferringLambdaReturn = prevInferring;
             _recordingStashFn         = prevRecordingStash;
             _storeFrame               = storeFrame.Parent;
             RestoreScopes(saved);

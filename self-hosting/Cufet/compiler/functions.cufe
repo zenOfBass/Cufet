@@ -219,6 +219,8 @@ typedef struct { the c-gives (*fn)(the param-list); void* env; } the struct-c;
     /// this place knows that the body neither takes nor declares.
     Bind void to free-names unto emitter, given (the node tree, the map from text to fact own, the map from text to fact found):
         Define kind as tree's kind.
+        // A method written `unto` its type here names nothing here, and reads its own receiver.
+        If kind is "BindStatement" and cast joins-a-type on (tree), return.
         If kind is "DefineStatement" or kind is "BindStatement", in own, the entry for cast unquoted on (cast field-of on (tree, 1)) becomes true.
         If kind is "ForEachStatement" and cast is-nothing on (cast field-of on (tree, 1)) is false:
             In own, the entry for cast unquoted on (cast field-of on (tree, 1)) becomes true.

@@ -655,7 +655,12 @@ Pull a book on collections.
         Define fresh as cast builtin-scope.
         Cast carry-modules on (saved, fresh).
         Define earlier-hidden as one's hidden.
+        // A body of its own: its returns are not the first return of a lambda it is written in.
+        Define earlier-inferring as one's inferring-lambda.
+        The one's inferring-lambda becomes false.
         Define hiding as a map from text to fact.
+        // Each is true, or false where a block around this one holds it.
+        Define of-block as false.
         For each scope in saved, repeat:
             For each pair in scope, repeat:
                 Define held as the value of pair.
@@ -663,9 +668,10 @@ Pull a book on collections.
                     In fresh, the entry for (the key of pair) becomes held.
                 Done.
                 Otherwise:
-                    In hiding, the entry for (the key of pair) becomes true.
+                    In hiding, the entry for (the key of pair) becomes of-block is false.
                 Done.
             Done.
+            The of-block becomes true.
         Done.
         The one's hidden becomes hiding.
         The one's scopes becomes a series with (fresh).
@@ -701,6 +707,7 @@ Pull a book on collections.
         The one's rabbit-depth becomes earlier-depth.
         Decrement one's nesting by 1.
         The one's hidden becomes earlier-hidden.
+        The one's inferring-lambda becomes earlier-inferring.
         The one's scopes becomes saved.
         Cast one's trim-type-scopes on (saved-types).
     Done.

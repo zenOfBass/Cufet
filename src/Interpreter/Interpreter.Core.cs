@@ -1385,6 +1385,11 @@ public sealed partial class Interpreter
             case OperatorOverloadDeclaration:
                 break; // already hoisted / no runtime action
 
+            // A method of its type, gathered with the rest before anything ran: it makes no function
+            // here, and made one it took the name of a local function spelled like it.
+            case BindStatement { UntoType: not null }:
+                break;
+
             case BindStatement bind:
                 // ★ A task body counts as a function body here, as the checker already treats it:
                 // nothing hoists a Bind out of a task, so without this the function was never made

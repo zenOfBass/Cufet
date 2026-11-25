@@ -81,6 +81,23 @@ public class MessageWordingTests
     public void ADefinedTypeTestedFor_IsAccepted(string source) =>
         new TypeChecker().Check(new Parser(new CufetLexer(source).Tokenize()).Parse());
 
+    /// <summary>A method reading a name of the function or block around it, which is no top-level value.</summary>
+    [Theory]
+    [InlineData("Define object box with (the number n).\nBind void to f, given (the number k):\n    Bind number to plus unto box, one's n + k.\nDone.\nCast f on (1).", 3)]
+    [InlineData("Define object box with (the number n).\nBind void to f:\n    Define k as 1.\n    Bind number to plus unto box, one's n + k.\nDone.\nCast f.", 4)]
+    [InlineData("Bind void to f, given (the number k):\n    Define object crate with (the number n):\n        Bind number to plus, one's n + k.\n    Done.\nDone.\nCast f on (1).", 3)]
+    [InlineData("Define object box with (the number n).\nPull a rabbit.\n    Define k as 1.\n    Bind number to plus unto box, one's n + k.\nDone.", 4)]
+    public void AMethodReadingAroundIt_IsToldWhoseTheNameIs(string source, int line)
+    {
+        Assert.StartsWith("That doesn't work: 'k' belongs to the block this method is written in, and a method can't see it.\n"
+            + $"Here on line {line}, you're trying to read 'k' inside a method.\n\n", CheckFails(source));
+    }
+
+    [Fact]
+    public void AMethodReadingTopLevelData_IsStillToldSo() =>
+        Assert.StartsWith("That doesn't work: 'k' is a top-level value", CheckFails(
+            "Define k as 1.\nDefine object box with (the number n).\nBind number to plus unto box, one's n + k."));
+
     /// <remarks>
     /// ⚠ The resolver that refuses a written type has no place, so this one gave no line at all. It
     /// gives where the statement or definition STARTS, and says so: a type carries no line of its own.

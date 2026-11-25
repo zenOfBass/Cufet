@@ -65,7 +65,7 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     : PipelineTestBase, IClassFixture<CompiledCufetCompiler>
 {
     /// <summary>How many hand-written programs must build and print alike. Raised as it grows; never lowered.</summary>
-    private const int BuiltFloor = 506;
+    private const int BuiltFloor = 522;
 
     private static string[] PreludeArgs =>
         ["--prelude", Path.Combine(RepoRoot, "src", "Interpreter", "Prelude").Replace('\\', '/')];
@@ -248,6 +248,23 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
         "Define object box with (the number n).\nBind void to poke unto box:\n    One's n becomes 9.\nDone.\nDefine s as a series of box with (a new box { the n 1 }).\nCast (the first of s)'s poke.\nState the n of item 1 of s.\nDefine r as a record with (the held a new box { the n 1 }).\nCast (the held of r)'s poke.\nState the n of the held of r.",
         "Define object box with (the number n).\nBind void to poke unto box:\n    One's n becomes 9.\nDone.\nDefine m as a map from text to box.\nIn m, the entry for \"k\" becomes a new box { the n 1 }.\nFor each pair in m, repeat:\n    Cast (the value of pair)'s poke.\n    State the n of the value of pair.\nDone.\nState the n of ((the entry for \"k\" in m) but void is a new box { the n 7 }).",
         "Bind the record result with (the number n) to make:\n    State \"made\".\n    Return a record with (the n 1).\nDone.\nState the n of cast make.",
+        // A method bound `unto` its type inside a body, and a function inside a lambda or a task (2026-11-24).
+        "Define object box with (the number n).\nBind void to f:\n    Bind number to twice unto box:\n        Return one's n * 2.\n    Done.\n    Define b as a new box { the n 2 }.\n    State cast b's twice.\nDone.\nCast f.",
+        "Define object box with (the number n).\nDefine b as a new box { the n 2 }.\nState cast b's twice.\nBind void to f:\n    Bind number to twice unto box, one's n * 2.\nDone.",
+        "Define object box with (the number n).\nBind void to f:\n    Bind void to bump unto box:\n        One's n becomes 9.\n    Done.\nDone.\nDefine b as a new box { the n 2 }.\nCast b's bump.\nState b's n.",
+        "Define object box with (the number n).\nDefine k as 5 permanently.\nBind number to inc, given (the number q), q + k.\nBind void to f:\n    Bind number to grown unto box, given (the number step), cast inc on (one's n + step).\nDone.\nDefine b as a new box { the n 2 }.\nState cast b's grown on (4).",
+        "Define object box with (the number n).\nBind void to f:\n    Bind void to g:\n        Bind number to twice unto box, one's n * 2.\n        Define b as a new box { the n 3 }.\n        State cast b's twice.\n    Done.\n    Cast g.\nDone.\nCast f.",
+        "Define object box with (the number n).\nBind number to f:\n    Bind number to g:\n        Return 1.\n    Done.\n    Bind number to twice unto box, one's n * 2.\n    Bind number to h:\n        Return cast g + 1.\n    Done.\n    Define b as a new box { the n 3 }.\n    Return cast h + cast b's twice.\nDone.\nState cast f.",
+        "Define object box with (the number n).\nBind number to f:\n    Bind number to twice, given (the number k), k * 2.\n    Bind number to twice unto box, one's n * 20.\n    Define b as a new box { the n 3 }.\n    Return cast twice on (1) + cast b's twice.\nDone.\nState cast f.",
+        "Define object box with (the number n).\nDefine g as a function given (the number q):\n    Bind number to twice unto box, one's n * 2.\n    Return q.\nDone.\nDefine b as a new box { the n 2 }.\nState cast b's twice.\nState cast g on (1).",
+        "Define object box with (the number n).\nBind void to f:\n    Get twice unto box as number, one's n * 2.\n    Set n unto box given (the number k):\n        One's n becomes k + 1.\n    Done.\nDone.\nDefine b as a new box { the n 2 }.\nThe n of b becomes 4.\nState b's twice.",
+        "Define object box with (the number n).\nPull a rabbit.\n    Bind number to twice unto box, one's n * 2.\n    Define b as a new box { the n 2 }.\n    State cast b's twice.\nDone.\nDefine c as a new box { the n 3 }.\nState cast c's twice.",
+        "Define object box with (the number n).\nBind void to f:\n    Pull a rabbit.\n        Bind number to twice unto box, one's n * 2.\n    Done.\nDone.\nDefine b as a new box { the n 2 }.\nState cast b's twice.",
+        "Define object box with (the number n).\nPull a rabbit.\n    Have rabbit start a task:\n        Bind number to twice unto box, one's n * 2.\n    Done.\nDone.\nDefine b as a new box { the n 2 }.\nState cast b's twice.",
+        "Define object box with (the number n).\nBind void to f:\n    Bind number to ticks unto box, given (the rabbit hopper):\n        Have hopper bury one's n.\n        Have hopper bury 7.\n    Done.\nDone.\nPull a rabbit as hopper.\n    Define b as a new box { the n 2 }.\n    For each t in cast b's ticks on (hopper), state t.\nDone.",
+        "Define g as a function given (the number q):\n    Bind number to h:\n        Return 5.\n    Done.\n    Return q + cast h.\nDone.\nState cast g on (1).",
+        "Define g as a function given (the number q):\n    Bind text to h, \"five\".\n    Return q.\nDone.\nState cast g on (1).",
+        "Pull a rabbit.\n    Have rabbit start a task as sum:\n        Bind number to h, 5.\n        Return cast h + 1.\n    Done.\n    State the awaited result of sum.\nDone.",
         // Objects: made, read, set, copied as values, compared, nested, holding a series, and their methods — inside the object or bound unto it.
         "Define object point with (the number across, the number up).\nDefine spot as a new point { the across 3, the up 4 }.\nState spot's across.\nState spot's up.",
         "Define object point with (the number across, the number up).\nDefine spot as a new point { the across 3, the up 4 }.\nState spot.",
