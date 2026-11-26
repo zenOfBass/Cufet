@@ -132,6 +132,15 @@ How the language reads on the page.
   `process's`. No English plural-possessive exception (`series'` is wrong in
   Cufet). One rule, no edge case.
 
+- **`Increment` and `Decrement` name the target once.** 35% of the `becomes`
+  statements in `examples/` were `X becomes X + …`, and that repetition is where a
+  typo hides: a line that is not self-referential is invisible among thirty-seven
+  that are. Naming the target once makes the odd one out stand out. The target must
+  be a name or a possessive chain because the desugaring names it twice, and
+  anything with a side effect would run twice. Not `Increase`/`Decrease`: a keyword
+  can never be a name, and "increase" is an everyday noun; "increment" is a
+  programming term, so reserving it takes much less away.
+
 ---
 
 ## Absence, and the type system

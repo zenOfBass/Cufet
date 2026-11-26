@@ -78,7 +78,7 @@ An article may stand before any name and changes nothing there. After `is` it do
 | `judge` | `Judge <value>, where it is:` |
 | `where` | |
 
-### ★ A bits width is data — readable and statable
+### A bits width
 
 ```cufet-fragment
 State the width of 0x0F.        → 8
@@ -86,22 +86,16 @@ State 0b0 at 3 bits.            → 0b000
 Define p as 0b1 at n bits.      ← the width may be computed
 ```
 
-A `bits` always carried a width — it is what pads the leading zeros — but a program could neither
-read it nor choose one, and it is only ever RAISED to fit the value: `0b0 shifted left by 2` is
-`0b0`, not `0b000`. Stating a width is the only way to ask for zeros no operand held, which is why
-`0b0 at 3 bits` is also how "three zero bits" is spelled. There is no separate literal form.
+- `the width of <bits>` is the value's width, a number.
+- `<bits> at <n> bits` is the value at width `n`; `n` is any number expression.
+- Otherwise a width only grows to fit the value: `0b0 shifted left by 2` is `0b0`.
+- Widening always works. Narrowing that drops only zeros works: `0b00000001 at 2 bits` is `0b01`.
+- Narrowing that drops a set bit is refused: by the checker when the value and the width are both
+  literal, and otherwise at run time as an exception, as dividing by zero is. `In case of exception`
+  catches it; `In case of failure` does not.
+- `width`, `at` and `bits` are not reserved: each may name a variable or a field.
 
-**Widening always works. Narrowing is refused when it would drop a set bit** — at check time when
-the value and the width are both literal, at run time otherwise, in the class dividing by zero is
-in rather than as a `failure`. Narrowing that loses nothing is fine: `0b00000001 at 2 bits` is
-`0b01`. Mask with `and` if dropping bits is what you meant.
-
-⚠ **Neither `width`, `at` nor `bits` is reserved.** `the width of p` is resolved in the type
-checker, since only a bits value can reach it, so `width` remains a legal field name —
-`huffmancoding` had one. `at ... bits` is matched by lexeme in the postfix position, exactly as
-`item at (r, c)` is.
-
-### ★ `Increment` / `Decrement` name the target once
+### `Increment` / `Decrement`
 
 ```cufet-fragment
 Increment i by 1.
@@ -110,29 +104,12 @@ Increment one's tally by 3.
 Increment total by item at (rr, cc) of board.
 ```
 
-Pure sugar: `Increment i by 1.` **is** `The i becomes i + 1.` — desugared in the parser, so no
-backend knows the form exists.
-
-**Why it earns a keyword.** 35% of the `becomes` statements in `examples/` were `X becomes X + …`,
-and that repetition is where a typo hides — it hides *well*, because a line that is genuinely not
-self-referential is invisible among thirty-seven that are. Naming the target once makes the odd one
-out announce itself: `huffmancoding.cufe` has exactly one `The next-w becomes w + 1.` left, and it
-is now the only statement of that shape in the file.
-
-**The amount is any expression.** The target is not: it must be a plain name or a possessive chain,
-because the desugaring names it twice and anything with a side effect would run twice.
-
-**Numeric only** — no text joining, no series growth. Growing a series is `Insert`, and the two
-never read alike: different verb, different preposition.
-
-  | | |
-  |---|---|
-  | `Increment total by 1.` | arithmetic |
-  | `Insert 1 into totals.` | insertion |
-
-**Not `Increase`/`Decrease`.** Every keyword is barred from being an identifier, and `increase` is
-an everyday noun — "a price increase" — of exactly the kind that already costs users names.
-`increment` is a programming term, so reserving it takes much less away.
+- `Increment <target> by <amount>.` is `The <target> becomes <target> + <amount>.`, and
+  `Decrement` is the same with `-`.
+- The target is a name or a possessive chain (`one's tally`). Anything else is refused.
+- The amount is any expression.
+- Numbers only: `Increment` on text is refused. Growing a series is `Insert`.
+- A `permanently` name is refused, as `becomes` on it is.
 
 ### ★ Every block construct takes a comma and one thing, or a colon and a block
 
