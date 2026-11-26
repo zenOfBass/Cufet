@@ -133,34 +133,30 @@ dotnet run --project src\App\Cufet.App.csproj -- emit-c myprogram.cufe myprogram
 dotnet run --project src\App\Cufet.App.csproj -- build tools\shell.cufe
 ```
 
-⚠ **This repo has no root `blueprint.cufe`**, so plain `cufet build` does nothing here. One was
-written, verified and committed on 2026-09-14, then removed — nothing was wrong with it. ⚠ The
-**v0.23.0 tag** still says *"Cufet's own tools are built by a blueprint at the root of this repo"*,
-which was true when written and cannot be edited. DESIGN (*The build description, and what a
-project is*) holds the reasoning behind the build system.
+⚠ **This repo has no root `blueprint.cufe`**, so plain `cufet build` does nothing here. Build a
+tool the long way instead, as above: that uses the compiler you are editing, where `cufet` from
+PATH would use whatever happens to be installed. A project that USES Cufet says `cufet` in its
+steps, but this repo IS Cufet, so a blueprint bootstrapping from PATH would always be one release
+behind its own source. DESIGN (*The build description, and what a project is*) holds the
+reasoning behind the build system.
 
-★ Build a tool the long way instead, as above: that uses the compiler you are editing, where
-`cufet` from PATH would use whatever happens to be installed. ⚠ That was the removed blueprint's
-one friction — a project that USES Cufet should say `cufet` in its steps, but this repo IS Cufet,
-so a front door bootstrapping from PATH is permanently one release behind its own source.
-
-★ **Use the fast loop while working, and the full suite before pushing.** The lexer and
+**Use the fast loop while working, and the full suite before pushing.** The lexer and
 interpreter are 2,430 tests in 40 seconds, and they cover the entire shared front end — where
 most changes land, since both backends are downstream of it. The compiler suite builds and runs
 programs through gcc: measured 2026-10-25 at **78 minutes of work in 15.3 minutes of wall
 clock**, a 5.1× overlap on eight cores. Nothing is skipped, only deferred to the moment it can
 still catch you.
 
-⚠ **The wall clock is set by the slowest CLASS, not by the sum.** xUnit runs one class's tests
+**The wall clock is set by the slowest CLASS, not by the sum.** xUnit runs one class's tests
 one after another, and other classes beside it. Today that floor is `CompilerParityTests` — the
 compiler written in Cufet, building its probes, the examples, and itself to a fixed point, which
 alone is four minutes and cannot be split. Twice a single test has quietly become the whole
 suite's time: `ExampleOracleTests` building a 33-file library program by program (2026-10-01),
 and `CheckerParityTests` checking every file of a large folder together with the whole folder
-(2026-10-25, 16 of 21 minutes). ★ Read before guessing: `--logger trx` records each test's start,
+(2026-10-25, 16 of 21 minutes). Read before guessing: `--logger trx` records each test's start,
 end and duration, and the class whose span ends last is the floor.
 
-⚠⚠ **On Windows, suspect your antivirus before you believe a slower number.** Every compiled
+⚠ **On Windows, suspect your antivirus before you believe a slower number.** Every compiled
 test links a *novel* executable and runs it exactly once, so it always pays first-execution
 scanning and never collects the discount a second run would get. Measured 2026-09-13 with
 Defender real-time protection on: a binary with novel contents takes **482 ms** to start, the
@@ -175,7 +171,7 @@ Add-MpPreference -ExclusionPath "$env:TEMP\cufet-tests"      # elevated PowerShe
 Remove-MpPreference -ExclusionPath "$env:TEMP\cufet-tests"   # to undo
 ```
 
-★ **The instrument degrades too.** `dotnet build` and `dotnet test` leave MSBuild worker nodes
+**The instrument degrades too.** `dotnet build` and `dotnet test` leave MSBuild worker nodes
 alive between invocations, and a dozen of them on an eight-core machine will quietly spoil any
 timing you take afterwards — including the timing of whatever you just changed. Run
 `dotnet build-server shutdown` first, and set `MSBUILDDISABLENODEREUSE=1` for the run itself.
@@ -255,12 +251,12 @@ Anything that is not Cufet — shell, C, JSON, trees, diagrams, phrase tables la
 is left untagged and not checked.
 
 **Tag a new block when you write it.** `python tools/doc-tag.py` proposes tags for untagged fences
-and `--apply` writes them, but it is a first pass to review, not an oracle. ⚠ It only claims
+and `--apply` writes them, but it is a first pass to review, not an oracle. It only claims
 `cufet-refused` where a person wrote it in the annotation, because the two mistakes are not
 symmetric: a wrong `refused` asserts a block keeps failing and is silent forever, while a wrong
 `fragment` fails on the next run with the reason attached. Guess only toward the loud one.
 
-★ **The output assertion is the part that catches a doc that is merely WRONG**, as opposed to one
+**The output assertion is the part that catches a doc that is merely WRONG**, as opposed to one
 that no longer compiles. It found a channels sample documented as printing 30 that printed 20 — an
 extra delivery swallowed the first value — and eleven other doc bugs in one pass, seven of them a
 missing article inside an interpolation.
@@ -296,7 +292,7 @@ entries and thirty of esbuild's reading identically — a replace-all of the OUT
 still safe, but one of the INCOMING version would have rewritten every esbuild pin in the file.
 Edit the two root `version` fields, or let `npm version` do it.
 
-★ Expect hits that are HISTORY and must stay: ROADMAP and code comments say things like *"shipped
+Expect hits that are HISTORY and must stay: ROADMAP and code comments say things like *"shipped
 in 0.17.0"* and *"the 0.16.0 arc"*. The grep is a prompt to look, not a list of edits — what it is
 checking for is a version asserted as CURRENT in a place nobody remembered.
 
@@ -309,7 +305,7 @@ dotnet pack src\App\Cufet.App.csproj -c Release
 dotnet tool update --global --add-source src\App\bin\Release Cufet
 ```
 
-★★ **And `cufet --version` is not the check for this — it is the trap.** It reports the INSTALLED
+**And `cufet --version` is not the check for this — it is the trap.** It reports the INSTALLED
 build, so run after a release it answers a different question than the one being asked and reads as
 confirmation. Measured 2026-08-31: `cufet --version` said `0.16.0` while the tree said `0.18.0` —
 two releases stale, with every source place correct. It surfaced only because `tools/repl.cufe`
@@ -378,7 +374,7 @@ behaviors differing is never in that category.
 > agreeing. Worth remembering when adding to this list: "the backends differ" is not
 > evidence that a behaviour is undefined.
 >
-> ★ And note the shape of the fix, because it generalises. Generating the C table from
+> And note the shape of the fix, because it generalises. Generating the C table from
 > .NET would have made the two agree *at generation time* while the interpreter still
 > asked ICU at run time — a newer Unicode arriving with a runtime upgrade would silently
 > reopen the gap, and a test would only report it after it was already true. **Prefer a
@@ -415,7 +411,7 @@ These are open tasks that are explicitly tracked, not forgotten:
 SIGINT, task-lifetime memory scoping, fan-out distribution under OS threads, and the REFERENCE
 chapters for concurrency, pipes, regions, books, matrix and operator overloading.)*
 
-⚠ **Approach B was filed here as "theoretical fragility" and it was not.** It was holding three
+**Approach B was filed here as "theoretical fragility" and it was not.** It was holding three
 live bugs: a user-defined generic could not be written as a `Define`'s type, as a parameter type,
 or as a return type. Nothing caught them because every generic annotation in the corpus is
 `series of number` — a BUILT-IN, which leads with its own keyword and so never met the fault. The
@@ -438,7 +434,7 @@ fail quietly rather than loudly, which is why they are written down.
   The table's other half matters too: a listed refusal that starts succeeding also
   fails the test, so the table cannot rot into fiction.
 
-  ★ **A switch whose fallback returns a plausible answer must be changed to throw
+  **A switch whose fallback returns a plausible answer must be changed to throw
   before the audit can see it**, because the audit reads refusal as "unhandled".
   `EmitStructs`' `DepName` was the case in point: a local function ending in
   `_ => null`, where null reads as "depends on nothing" — so a missing arm ordered

@@ -44,7 +44,7 @@ The decision the rest of them answer to.
   against it: *could a user eventually have written this?* A "no" is not fatal, but it is a
   cost that has to be named.
 
-  ⚠ **The two halves are not equally close, and pretending otherwise would mislead.** A book
+  **The two halves are not equally close, and pretending otherwise would mislead.** A book
   is a stateless capability bag — an object with members, and reachable. A **rabbit is a scope
   with a lifetime**, with compiler-enforced region and escape rules, so a user-definable
   rabbit means user-definable continuations. That lands on the unanswered "which restriction?"
@@ -52,22 +52,21 @@ The decision the rest of them answer to.
   than the near one. `book` is-a `module` is buildable now; `rabbit` is-a `module` is a
   direction.
 
-  ✅ **DECIDED 2026-09-17: that direction is taken, and it is what the book/module distinction
-  MEANS.** A **module may own a lifetime; a book may not** — and a person must be able to write
-  a lifetime-owning module, not only pull the one the compiler provides. ★★ Every other candidate
+  **That direction is taken, and it is what the book/module distinction MEANS.** A **module may own a lifetime; a book may not** — and a person must be able to write
+  a lifetime-owning module, not only pull the one the compiler provides. Every other candidate
   line collapsed under measurement, and they collapsed the same way: they were already true of
   BOTH. Statelessness is the floor for anything pullable (a book with fields and a module with
   fields draw the identical refusal). Instantiation is not it either — a bundled book with a Cufet
   layer is instantiated too. **Lifetime is the only asymmetry the language has**, and today exactly
   one object holds it, through a statement of its own rather than through being a module.
 
-  ✅ **BUILT 2026-09-19 — `and region`.** `Define object workspace with () and region.` opens an
+  **`and region`.** `Define object workspace with () and region.` opens an
   arena scope on `Pull`, can be told to bury, and enforces the outward-only invariant on the type
   you wrote. `Prelude/rabbit.cufe` says `and region` too, so a rabbit is the FIRST INSTANCE of the
   rule rather than an exception to it — its regionhood is a line in Cufet instead of a branch in
   the compiler.
 
-  ★★ **The cost named above was WRONG, and measuring it is what made the work small.** *"A
+  **The cost named above was WRONG, and measuring it is what made the work small.** *"A
   user-definable lifetime means user-definable continuations"* was asserted twice in this entry and
   never checked. MEASURED: nothing in `bury`/`unbury` depends on the region being a rabbit —
   `cd_rabbit` compiles to an EMPTY STRUCT that is threaded into the closure and never read, and
@@ -75,19 +74,19 @@ The decision the rest of them answer to.
   halves were separable all along. The region half came to five small changes plus one predicate,
   and the *"which restriction?"* question never entered into it.
 
-  ★ **What actually paid for it** was the thing this document already claimed: every rule keeping
+  **What actually paid for it** was the thing this document already claimed: every rule keeping
   a rabbit sound is depth arithmetic, so one increment at a region pull buys the whole
   adversarially-tested outward-only invariant. Nothing new had to be proved.
 
-  ⚠ **What is NOT here, and never was:** `bury` and `unbury` written in Cufet. They are the
+  **What is NOT here, and never was:** `bury` and `unbury` written in Cufet. They are the
   language's floor, compiler-provided the way `If` is. Nothing is privileged — any region gets
   them — but a person cannot implement one, and that promise belongs to *the compiler, written in
   Cufet*, which names `bury`'s state-machine transform by name. This line was about WHICH
   ASYMMETRY the distinction means; it never borrowed that promise.
-  ✅ **Kept 2026-10-07:** the checker written in Cufet makes the transform itself —
+  The checker written in Cufet makes the transform itself —
   `self-hosting/Cufet/checker/stash-machine.cufe`, node for node as `StashTransform.cs` does.
 
-  ⚠⚠ **Giving a type a suspension VERB was measured and abandoned 2026-09-19.** Writing one down
+  **A type does not get a suspension VERB.** Writing one down
   needs a way to say *"calling this suspends my caller"* as distinct from *"this function is a
   generator"*, and the second is what a body containing `bury` already means (the checker says so:
   *"'x' buries values, so it has to say what kind"*). Three spellings were tried and all failed the
@@ -242,8 +241,7 @@ What it means for a value not to be there, and how types relate.
   an entry or a field, a capture, the variable of a `For each`, and a `Judge`'s `it`. A place that shared instead would
   be the one to remember.
 
-  ⚠ **Maps were unstated here until 2026-09-23** and a reader had to infer which
-  side they fell on. MEASURED: they SHARE. `Define copy as original.` makes a
+  **Maps SHARE.** `Define copy as original.` makes a
   second name for one map, and handing a map to a function lets that function
   change the caller's. Found by writing `examples/circuits/`, where a settling
   loop that wrote into the map it was given silently rewrote its caller's inputs.
@@ -300,11 +298,11 @@ What it means for a value not to be there, and how types relate.
   green
   ```
 
-  ★ A case that carries nothing says so once — `Define object red.` and `a new red`, with no
+  A case that carries nothing says so once — `Define object red.` and `a new red`, with no
   `with ()` and no `{ }`. That ceremony was the friction that would have made someone ask for
   enums, and removing it was a parser tweak rather than a feature.
 
-  ⚠ **No ordinal or ordering either**, and that is the same decision rather than a separate gap.
+  **No ordinal or ordering either**, and that is the same decision rather than a separate gap.
   It is rarely what anyone actually wants from an enum, and a method on the object gives it to
   whoever does.
 
@@ -367,20 +365,20 @@ What an object owns, and what a property may do.
   and this is why it is the behaviour.
 
   The decision was MATCH-EXACTLY: replicate the interpreter's block-scope LIFO firing precisely,
-  *including* the value-copy and escape double-fires and both gaps. ★★ Four reasons, and each one
+  *including* the value-copy and escape double-fires and both gaps. Four reasons, and each one
   kills the obvious repair:
 
   1. **Deterministic, so sound and oracle-able as it stands.** Block-exit LIFO is the same shape
      the open-files cleanup stack already uses.
   2. **The double-fire IS the language.** Cufet objects are value types with NO IDENTITY, so an
-     unmaker is a per-binding HOOK and N copies mean N unmakings. ⚠ Exempting "the returned
+     unmaker is a per-binding HOOK and N copies mean N unmakings. Exempting "the returned
      binding" — the obvious narrow fix — requires exactly the identity the language declines.
   3. **The frame gap is LOAD-BEARING.** Firing at frames would unmake a returned local WHILE IT IS
      BEING RETURNED. Closing it properly needs escape analysis.
   4. **Unmaking is NOT deallocation.** The arena owns all memory and exposes no `free`, so an
      unmaker body is ordinary user code — which is why a repeat is observable but SAFE.
 
-  ⚠ **FFI resources are not affected the same way**, which is worth knowing before anyone
+  **FFI resources are not affected the same way**, which is worth knowing before anyone
   reopens this: foreign releases are a FLAT list with a per-block base, so one acquired inside a
   function body still runs at the nearest enclosing block — late, not never. Unmaker bindings live
   in per-scope dictionaries and are simply dropped.
@@ -391,18 +389,18 @@ What an object owns, and what a property may do.
 - **Fields may have a DEFAULT; parameters may not — and the asymmetry is the point.**
   `the number age with default 0` lets a construction site leave the field out.
 
-  ★★ **The invariant is kept rather than loosened.** Every field is still set on every object;
+  **The invariant is kept rather than loosened.** Every field is still set on every object;
   an object has no unset state. What changed is only who wrote the value down. That matters
   because the pressure here is the opposite of C#'s, which added `required` and `init` to retrofit
   mandatory fields onto defaults-everywhere — starting from "everything must be supplied" and
   making individual fields optional keeps the property that made it worth having.
 
-  ★ **The default is an EXPRESSION filled in at each construction site**, never a value computed
+  **The default is an EXPRESSION filled in at each construction site**, never a value computed
   once at the definition, so `with default a series of number` gives every object its own. The
   mutable-default trap is answered by construction rather than by a rule forbidding it. The
   checker fills them onto the literal, so neither backend learns that defaults exist.
 
-  ⚠ **Parameters did NOT get the same spelling, and it is not an oversight.** A parameter's arity
+  **Parameters did NOT get the same spelling, and it is not an oversight.** A parameter's arity
   is read by OVERLOAD DISPATCH — several versions of one name told apart by argument types, plus
   `when` clauses — so an optional parameter changes what "the same signature" means, and two
   versions that differ only in an optional tail may or may not be distinguishable. A field has no
@@ -436,10 +434,8 @@ Which capabilities are spelled into the language and which are pulled from a boo
   *module-loading operation*, not object construction. The `module` interface
   is the contract program code depends on; the loader produces
   `module`-conforming values. `book` is-a `module` (same pattern as
-  `vehicle`/`car`). ⚠⚠ **This used to read "singleton and statelessness are
-  loader-enforced conventions", and both halves were wrong.** MEASURED
-  2026-09-17: nothing enforces either one, and neither distinguishes a book from
-  a module in any case — a book with fields and a module with fields draw the
+  `vehicle`/`car`). **Singleton and statelessness are not what separates them.**
+  Nothing enforces either one, and neither distinguishes a book from a module in any case — a book with fields and a module with fields draw the
   same refusal, *"a pull has nowhere to put their values"*. Statelessness is the
   FLOOR for everything pullable, not a line between the two. The line is
   LIFETIME, and it is recorded under *What Cufet is for*. The `module`
@@ -450,19 +446,19 @@ Which capabilities are spelled into the language and which are pulled from a boo
   code-point order — `(Apple, apple, banana, pear, Ápple)` — while `"a" is less than "b"` is
   refused outright: *"ordering works on numbers and on bits."*
 
-  ★ **Ordinal is the order that costs nothing to agree on.** It is locale-free, so both backends
+  **Ordinal is the order that costs nothing to agree on.** It is locale-free, so both backends
   produce it by construction rather than by sharing a table — the same class of problem the shared
   case table solves the hard way, avoided here by never having it. A locale-aware order would make
   the answer depend on the machine, and the oracle is structurally blind to that: every machine
   that runs the suite is en-US, so a per-machine difference would ship unseen.
 
-  ⚠ **The refusal on `<` is the other half, and it is a teaching decision.** `"apple" is less
+  **The refusal on `<` is the other half, and it is a teaching decision.** `"apple" is less
   than "Banana"` is false in code-point order and true in every dictionary a learner has met.
   Offering the operator would teach the wrong rule silently. `sorted` is where ordering is the
   stated point, so ordering lives there and nowhere else.
 
 - **An `Otherwise` arm must say something real — there is no no-op statement.** Cufet has none:
-  `pass` exists only in `or pass the failure off`. ★ Requiring the arm to say something is what
+  `pass` exists only in `or pass the failure off`. Requiring the arm to say something is what
   makes coverage mean *you thought about the remaining cases*; a no-op is the `catch {}` of case
   dispatch. Revisit only if writing real statements in ignore-this arms becomes a genuine
   irritation rather than a hypothetical one.
@@ -471,10 +467,10 @@ Which capabilities are spelled into the language and which are pulled from a boo
   in the front end written in Cufet (about one line in 15) and 8 in all of `examples/` — the cost of
   a program where nearly every function can fail, not of Cufet code in general. Making propagation
   implicit would undo the rule that a failure is never dropped or handed on without saying so, which
-  is what makes an unhandled one a static error. Declined 2026-10-31.
+  is what makes an unhandled one a static error.
 
 - **No membership comparison (`is any of`), and if one ever arrives it must be a COMPARISON.**
-  `If x is 1 or x is 2` says it today. ⚠ The constraint that matters is on the shape, not the
+  `If x is 1 or x is 2` says it today. The constraint that matters is on the shape, not the
   need: `Define maybe as any of (1, 2, 3).` would import Raku-style junctions as VALUES, whose
   threading order is explicitly undefined and therefore incompatible with the no-divergence rule.
   A comparison is expressible; a junction value is not.
@@ -483,7 +479,7 @@ Which capabilities are spelled into the language and which are pulled from a boo
   toolkit is complete (join, measure, convert both ways, split, search, find, slice, replace,
   case, trim). What is absent is absent by decision rather than by omission: `in uppercase` is
   invariant and simple, so `ß` stays `ß` rather than becoming `SS`, and there is no way to index a
-  character out of a text. ★ Locale-aware casing is the same per-machine hazard the shared case
+  character out of a text. Locale-aware casing is the same per-machine hazard the shared case
   table exists to neutralise — see *Two backends, one language*. A character sequence you can
   index is `chase`, which the `collections` book hands out, and that separation is the point.
 
@@ -502,7 +498,7 @@ Which capabilities are spelled into the language and which are pulled from a boo
   not static) gives free test isolation: each `new Interpreter()` gets its own entropy
   seed.
 
-  ★ **`chance` has no members and never had any.** Its whole surface is statement and
+  **`chance` has no members and never had any.** Its whole surface is statement and
   expression syntax — `a random number from 1 to 6`, `randomly shuffled`, `a random guess`,
   `Seed the chance with 42.` — which the language parses directly rather than dispatching
   through the book, so pulling it is what *licenses* those forms rather than what supplies
@@ -516,14 +512,11 @@ Which capabilities are spelled into the language and which are pulled from a boo
   not "iterator support" — it is one more source kind on the loop, rewritten in the
   front end into the drain it stands for.
 
-  ★ **And `For each` over a user-defined object stays refused.** The simple case is
+  **And `For each` over a user-defined object stays refused.** The simple case is
   already spelled `For each x in obj's items`, and a real structure has *several*
   orders — a tree has three at least — so no single `For each` could pick the right
   one. Naming the walk is the better surface, and a walk is a burying function, which
-  is a stash, which the loop above takes. Measured 2026-08-20: the shape that used to
-  make this expensive (an interface can be neither a return type nor generic, so
-  nothing could declare "hands back something steppable") is gone, and the answer is
-  still no — for the reason above rather than for cost.
+  is a stash, which the loop above takes. The answer is no for that reason, not for cost.
 
 - **`Pull … Done.` unification — one surface for scoped resources.** Books, rabbits,
   and other acquired resources all use a unified `Pull <thing>: … Done.` block syntax.
@@ -557,28 +550,28 @@ Which capabilities are spelled into the language and which are pulled from a boo
 `src/Interpreter/Prelude/regex.cufe` rather than in either backend. Both choices are forced, and by
 the same thing.
 
-★★ **The engine is Cufet because the ORACLE requires it.** Reaching for a ready-made engine on each
+**The engine is Cufet because the ORACLE requires it.** Reaching for a ready-made engine on each
 side — .NET's `Regex` interpreted, POSIX `regcomp` compiled — would have shipped two dialects that
 disagree about greediness, character classes and empty matches: silently, on inputs nobody thought
 to test. One implementation spliced in before either backend sees a program has nothing to diverge
 from. `collections` is the precedent.
 
-★★ **An automaton because backtracking cannot be made deterministic here.** A backtracking engine
+**An automaton because backtracking cannot be made deterministic here.** A backtracking engine
 can hang forever on a pattern that looks fine, and the usual defence is a timeout — which is
-nondeterministic exactly where this project demands byte-for-byte agreement. ★ The third reason is
+nondeterministic exactly where this project demands byte-for-byte agreement. The third reason is
 specific to Cufet and is the decisive one: **the engine is itself written in Cufet**, so
 backtracking's worst case on a slow host is not "slow", it is "never finishes".
 
-⚠ That decision is what rules out **backreferences**, permanently rather than pending a trigger —
+That decision is what rules out **backreferences**, permanently rather than pending a trigger —
 along with lookahead and lookbehind, which are precisely the features that make a "regular
 expression" not regular. All three need the backtracking this book declined at the start.
 
-⚠ **CAPTURES are the one exception, and are refused as NOT YET rather than CANNOT.** The three
+**CAPTURES are the one exception, and are refused as NOT YET rather than CANNOT.** The three
 above need backtracking and so can never arrive; an automaton can carry captures, at real cost in
 complexity. Nothing has asked for them — but do not read the list above as covering them, because
 the reason that kills the others does not apply.
 
-★ **A book on a LANGUAGE does not choose its own contents.** `[a-z]` and `{2,5}` mean what they mean
+**A book on a LANGUAGE does not choose its own contents.** `[a-z]` and `{2,5}` mean what they mean
 in regex everywhere, and a book that cannot spell them is a Cufet-flavoured subset wearing regex's
 name on the cover. **Trigger discipline governs what Cufet INVENTS; FIDELITY governs a book.**
 Refusing unbuilt metacharacters BY NAME was the honest IOU in the meantime — it paid off five times
@@ -594,7 +587,7 @@ uses of `Stop.` and 11 of `Skip.`, and **not one wants to escape an outer loop**
 nesting escapes with `return` from inside a function, and extracting a nested search into a named
 function is usually better than labelling the loop anyway.
 
-★★ **Two programs were written to hunt the witness, and failed for DIFFERENT reasons — which is
+**Two programs were written to hunt the witness, and failed for DIFFERENT reasons — which is
 what turns an absence into an argument.**
 
 - `examples/algorithms/beamforming.cufe` could not produce one structurally. Its loops ACCUMULATE —
@@ -604,22 +597,22 @@ what turns an absence into an argument.**
   row's fields are judged by checks that share no rule, so nothing loops over them — and the
   character-level scanning that WOULD have looped is what a pattern is for.
 
-★★ **So `regex` structurally removes the shape that would want a named loop.** A continue-outer
+**So `regex` structurally removes the shape that would want a named loop.** A continue-outer
 needs a nested scan, and in a language with patterns the nested scan does not get written. That is
 why five real programs have now failed to produce a witness.
 
-⚠ **The one flag that looks like the workaround is not one.** `tools/shell.cufe` sets `broken` in
+**The one flag that looks like the workaround is not one.** `tools/shell.cufe` sets `broken` in
 its redirect parse, but the loop is single and the flag's job is to carry *"this failed"* PAST the
 loop's end — which no label would remove. Check for that shape before reading a flag as evidence.
 
-⚠ **What would reopen this**, and it is a program this project has already committed to writing: a
+**What would reopen this**, and it is a program this project has already committed to writing: a
 hand-written LEXER, walking characters one at a time — the one scan a pattern cannot do for you —
 advancing position, line and column together. Extraction resists hardest when an early exit must
 also advance several scalars, because records and objects copy while only collections are
 reference-typed. If the compiler-in-Cufet does not want a named loop either, that is close to
 decisive.
 
-★ And the argument none of this touches is **readability, not capability**: `Stop.` silently means
+And the argument none of this touches is **readability, not capability**: `Stop.` silently means
 "the innermost one", and in a triple-nested loop the reader has to count. An optional label could
 make *existing* code clearer without enabling anything new. That is the case that could still carry
 the feature even if no program ever strictly needs it.
@@ -636,7 +629,7 @@ comes out is a value, and `cufet build` walks it. Zig, CMake, Bazel and Gradle a
 and performing is what a `build.sh` does. It is also what lets a whole graph be refused before
 touching disk, and what lets a tool list a project's targets without building anything.
 
-★★ **The graph is never written down.** A step declares `needs` and `makes`; a step that needs a
+**The graph is never written down.** A step declares `needs` and `makes`; a step that needs a
 path another step makes runs second, and nothing anywhere states an edge. Staleness is by content,
 so inputs must be declared regardless — declaring edges too would state one fact twice, and the two
 could then disagree with nothing to catch it.
@@ -645,13 +638,13 @@ could then disagree with nothing to catch it.
 NOMINAL type without native machinery — `BookLoading.MakePrivate` renames whatever a book layer
 declares, which is why `matrix` and `chase` are C# types. A shape needs none of that: record typing
 is structural, so `a record with (the name …, …)` builds one and the longhand spelling stays
-interchangeable. ⚠ The rule that said a book "cannot hand out a type" was wider than its reason.
+interchangeable. The rule that said a book "cannot hand out a type" was wider than its reason.
 
 **`Pull a book on blueprints.` is a GATE, not a library.** The record shape does not need it. It is
 there so a file can declare what it IS, which is what lets `cufet build` refuse a blueprint that
 does not say so, rather than treating a bare function name as magic.
 
-★ **A book, not core.** Putting a build vocabulary into the language — targets, steps, artifacts,
+**A book, not core.** Putting a build vocabulary into the language — targets, steps, artifacts,
 toolchains — would spend permanent surface and move away from what Zig gets right: a build script
 is an ordinary program using an ordinary library. Two consequences follow and were both measured.
 A blueprint computes its own paths, so `the environment variable "OS"` supplies a binary's
@@ -659,21 +652,21 @@ extension and no CLI output flag is needed. And a blueprint never needs to say a
 libraries are not built, they are pulled by the programs that are, and a build wanting one checked
 runs `cufet check` as an ordinary step.
 
-★ **How a blueprint reads was worked until it was right.** `step` as a name for the record shape,
+**How a blueprint reads was worked until it was right.** `step` as a name for the record shape,
 and returning a series literal rather than building one up, took this repo's own blueprint from 82
-lines to 39. ⚠ Two further reductions were weighed and DECLINED, recorded so they are not
+lines to 39. Two further reductions were weighed and DECLINED, recorded so they are not
 re-derived:
 
 - **Inferring `makes` from `runs`.** Derivable for a `cufet build` step and nothing else, so it
   would make the build book know one program's behaviour, and go silently wrong if that behaviour
-  changed. ⚠ `needs` cannot be inferred that way at all — `terminals.cufe` is a dependency only
+  changed. `needs` cannot be inferred that way at all — `terminals.cufe` is a dependency only
   because `shell.cufe` PULLS it, which is what `cufet pulls` exists to answer.
 - **A step-constructor in the book.** The first item of exactly the build vocabulary this design
-  declined to spend. ★ A helper written in the blueprint ITSELF needs no language change and is
+  declined to spend. A helper written in the blueprint ITSELF needs no language change and is
   what `build.zig` does — MEASURED at two steps it costs about twelve lines to save fourteen, so it
   starts paying somewhere around five.
 
-★★ **A project is a directory holding `blueprint.cufe`**, and only the file's LOCATION is read —
+**A project is a directory holding `blueprint.cufe`**, and only the file's LOCATION is read —
 never its contents. Every tool that resolves a pull needs the project root, and none of them should
 execute a build description to import a book. Finding a file is a walk up the tree; running one is
 arbitrary code.
@@ -686,15 +679,15 @@ the filesystem's timestamp resolution — and the failure is a wrong build with 
 is the category this language declines everywhere else. Decisive: **git does not preserve
 modification times**, so a timestamp answer depends on how the tree arrived on the machine.
 
-⚠⚠ **The standard optimisation is the unsound thing.** Stat first and hash only when size or mtime
+⚠ **The standard optimisation is the unsound thing.** Stat first and hash only when size or mtime
 changed is what every fast build system does, and it silently reintroduces the resolution bug as a
 "fast path". Written down so nobody adds it later as an obvious win.
 
-⚠ The algorithm is NAMED by the language rather than taken from the platform — FNV-1a, written out
+The algorithm is NAMED by the language rather than taken from the platform — FNV-1a, written out
 on both backends and pinned to published vectors. The lesson is the shared case table's: .NET
 casing turned out to be ICU-backed and to differ per machine.
 
-★★ **A build that rebuilds too often looks exactly like one that works.** This is why the skip is
+**A build that rebuilds too often looks exactly like one that works.** This is why the skip is
 never tested alone: an over-declared dependency, a signature compared after being reconstructed, a
 step with no outputs — each produces correct output forever while doing far too much work. Only the
 three ways of going stale, tested separately, say the skip was decided rather than guessed.
@@ -706,10 +699,10 @@ enumerate its own tree and generate a step per file. `cufet pulls <file>` suppli
 which FILES a file brings in, reported from what the loader resolved rather than from re-reading
 the source. Together, a blueprint that names no file and no dependency rebuilds correctly.
 
-★ Convention-over-configuration needs no config FORMAT here, because the build file is a program:
+Convention-over-configuration needs no config FORMAT here, because the build file is a program:
 the loop is the convention and an `If` is the exception, in one language.
 
-⚠ Two shapes were declined for `pulls` and should not be re-derived. A **book member** would need a
+Two shapes were declined for `pulls` and should not be re-derived. A **book member** would need a
 C implementation, since a native member is emitted into compiled programs — and answering *"what
 does this file pull"* means parsing Cufet, which the C runtime cannot do. An **axiom** hits the same
 wall: it is a way to call C, and C still cannot parse Cufet. A Cufet-side heuristic that matches
@@ -718,15 +711,14 @@ not know, and an under-declared `need` is a silently stale build.
 
 ### Where a book comes from, and what a pin is
 
-The package manager, settled across 2026-09-13 to 09-18 and shipped. Recorded here because the
-reasoning is what nobody should have to re-derive; what it DOES is in the changelog and in
+The package manager. Recorded here because the reasoning is what nobody should have to re-derive; what it DOES is in the changelog and in
 [BOOKS.md](BOOKS.md#pinned-books-cufet-install).
 
-★★ **One constraint decides nearly all of it: ONE BOOK PER NAME in a program, wherever it came
+**One constraint decides nearly all of it: ONE BOOK PER NAME in a program, wherever it came
 from.** `MakePrivate` renames what a book declares to `<name> in <book>`, so the name IS the
 namespace, and two versions of one book cannot coexist by construction. Cufet therefore needs
 version SELECTION and never isolation — npm's nested private copies are structurally unavailable.
-★ Python is the precedent rather than npm: `site-packages` is flat with one version per name, and
+Python is the precedent rather than npm: `site-packages` is flat with one version per name, and
 virtualenvs exist because of it. Cufet already has the virtualenv — `books/` is per-project by
 construction.
 
@@ -736,7 +728,7 @@ What follows from that constraint alone:
   at two commits is a REFUSAL naming both, which is the answer this language gives everywhere else,
   rather than npm nesting two copies or pip taking whichever landed last.
 - **`books/` stays FLAT**, one file per name on disk, mirroring one book per name in the program.
-  ⚠ The old complaint that *"two books cannot carry different versions of a third"* DISSOLVES here:
+  The old complaint that *"two books cannot carry different versions of a third"* DISSOLVES here:
   it is not a folder problem and no folder shape fixes it.
 - **Dependencies are DERIVED, not declared.** `Pull a book on canvas.` IS the declaration, and
   `cufet pulls` reports what the loader resolved. A manifest listing dependencies would be a second
@@ -744,48 +736,48 @@ What follows from that constraint alone:
   that is exactly what a pin carries and nothing else.
 - **A book is a PROJECT when you develop it and a FILE when you consume it.** Its own
   `blueprint.cufe` carries its pins and travels only as far as the installer; only the `.cufe` lands
-  in `books/`. ⚠ Forced rather than chosen: a blueprint inside `books/` would mark that directory a
+  in `books/`. Forced rather than chosen: a blueprint inside `books/` would mark that directory a
   project root.
-- ★ **Fetched versus written is then free** — anything in `books/` was fetched, because a book you
+- **Fetched versus written is then free** — anything in `books/` was fetched, because a book you
   wrote lives beside the file that pulls it, where *nearest wins* already puts it first.
 
-★★ **A SOURCE IS A GIT REPOSITORY AND A COMMIT SHA, and the pin format and the transport are
+**A SOURCE IS A GIT REPOSITORY AND A COMMIT SHA, and the pin format and the transport are
 COUPLED — which is what decided it.** A pin recording a CONTENT CHECKSUM cannot be fetched by git:
 MEASURED in this repository, `core.autocrlf=true` with no `.gitattributes`, so a clone rewrites LF
 to CRLF and a fetched book's bytes differ from the publisher's. Hashing after normalising "fixes"
 that by discarding what a checksum is for. A commit sha names the commit rather than the working
 tree, git guarantees it, and it stays true whoever fetched it — so the transport can change later
-without invalidating a pin already published. ★ Both ecosystems set that precedent: `go get` shelled
+without invalidating a pin already published. Both ecosystems set that precedent: `go get` shelled
 out to `git` for years before `GOPROXY`, and pip still does for `pip install git+https://…`.
 
-⚠ **What that costs, recorded so nobody rediscovers it as a surprise:** a consumer needs `git` on
+**What that costs, recorded so nobody rediscovers it as a surprise:** a consumer needs `git` on
 PATH; a fetch failure arrives in git's vocabulary rather than Cufet's own voice; and two
 machines with different autocrlf settings end up with different BYTES in `books/`, so `blueprints`
 sees a changed input and rebuilds when nothing changed. That last is wasted work rather than a wrong
 answer, but this project has a line about exactly it — *"a build that rebuilds too often looks
 exactly like one that works"*.
 
-⚠⚠ **The installer RUNS a fetched blueprint, and the loader never does.** *"Only its LOCATION is
+⚠ **The installer RUNS a fetched blueprint, and the loader never does.** *"Only its LOCATION is
 read"* constrains the LOADER — `check`, `run`, the editor — so importing a book can never execute a
 build description. An installer is a build-time tool and by the time the loader runs, `books/` is
 already populated. The exception is deliberate, so that a blueprint may COMPUTE its pins, and the
 installer names each blueprint before running it.
 
-★★ **Which is precisely why there is a record.** Because pins can be computed, the closure is not a
+**Which is precisely why there is a record.** Because pins can be computed, the closure is not a
 function of the files at all — MEASURED: one blueprint, unchanged and at one commit, pinned a
 different book depending on whether it ran inside a git repository. `.cufet-pins` is the tool's own
 file and never `blueprint.cufe`: writing a closure back into the source you wrote is `go mod tidy`,
 and every ecosystem keeping a lock splits the two for that reason. Deleting it is the escape hatch,
 with no flag, exactly as `.cufet-build` offers the build.
 
-⚠ **The honest limitation underneath all of it.** `Resolve` accepts exactly `<name>.cufe`, so a
+**The honest limitation underneath all of it.** `Resolve` accepts exactly `<name>.cufe`, so a
 book is precisely one file, and a book outgrowing one file must split into OTHER books that take
 global names. Two libraries each needing a different `utils` cannot coexist — they are refused
 rather than silently merged, which is the right answer to one-book-per-name, and it is still a
-limit. ★ This is the one thing that could argue for per-book directories or a real namespace,
+limit. This is the one thing that could argue for per-book directories or a real namespace,
 against the flat shape above.
 
-### A directory is a namespace — BUILT 2026-09-20
+### A directory is a namespace
 
 That argument was made, and it won. The note above anticipated the shape; what follows is the
 decision, reached by trying to write a multi-file program (`tools/snake`) and meeting the wall
@@ -805,32 +797,30 @@ directory is a **refusal**.
   document rejects elsewhere. The marker survives only where a book arrives as a single file.
 - **A book that outgrows one file gets a directory**, which is the limitation above, dissolved.
 
-★★ **MEASURED: the file list CANNOT live in the blueprint**, which is what decided directory over
+**MEASURED: the file list CANNOT live in the blueprint**, which is what decided directory over
 manifest. Resolution must not execute a build description — the editor resolves names as you
 type, and `check` and `run` resolve without running anything. A walk up the tree costs nothing;
 reading a plan costs running it. The first sketch put the tree in the blueprint and had to be
 withdrawn for this reason.
 
-★★ **MEASURED: the directory rule breaks nothing in this repository.** Top-level name collisions
+**MEASURED: the directory rule breaks nothing in this repository.** Top-level name collisions
 between files in one directory are everywhere — `play` appears in five files in `examples/parsing`
 alone — and **every one of those directories has no blueprint above it**, so none is a project and
-none is affected. The only project in the tree has zero. ⚠ The first scan of this over-counted by
+none is affected. The only project in the tree has zero. The first scan of this over-counted by
 matching locals inside function bodies; the number that matters is top-level only.
 
-⚠ **What it does NOT solve.** Crossing into `books/` is unchanged, and so is the question of
+**What it does NOT solve.** Crossing into `books/` is unchanged, and so is the question of
 where a shared book lives: a program in a subfolder reaches `beside itself` and `<project>/books/`,
 never the project root. That is a separate gap and it stays open.
 
 #### What building it settled
 
-- **A local book or module is LEGAL, just pointless.** The user's rule, 2026-09-20: *"they are
-  only for external code."* Nothing refuses one inside a project and nothing should — the
-  directory simply does the grouping a marker used to, so there is no longer a job for the marker.
-  ⚠ An earlier plan had a slice that refused pulling a project's own directory; it was cancelled
-  by this, and `Pull` is unchanged.
+- **A local book or module is LEGAL, just pointless.** Books and modules are for external code.
+  Nothing refuses one inside a project and nothing should — the directory does the grouping, so
+  there is no job left for the marker, and `Pull` is unchanged.
 
-- ★★ **A plain `Define` is not a name a directory offers**, and `permanently` is exactly the word
-  that says otherwise. ⚠⚠ MEASURED, and it is what the rule costs if you get it wrong:
+- **A plain `Define` is not a name a directory offers**, and `permanently` is exactly the word
+  that says otherwise. MEASURED, and it is what the rule costs if you get it wrong:
   `tools/shell.cufe` and `tools/repl.cufe` each open their body with
   `Define asking as cast terminals's interactive.` Counting those made two programs' WORKING
   VARIABLES a name clash between two libraries — and splicing one into the other would have
@@ -851,25 +841,25 @@ never the project root. That is a separate gap and it stays open.
   written INSIDE `tools/terminals/` is refused. Measured against the real file, which referred to
   itself fifteen times — eight through `one's` and seven through `terminals's`.
 
-- ★★ **How it is implemented, and why there is no third answer to disagree with.**
+- **How it is implemented, and why there is no third answer to disagree with.**
   `terminals's read-key` is rewritten BEFORE THE HOIST into the single unwritable name
   `read-key in terminals`, and that directory's files are spliced under those names. It is the
   third pass to use that trick, after the loader's file privacy and `ModuleTypeLifting` — so the
   checker, the interpreter and the compiler each meet an ordinary top-level declaration, and none
   of the three learns that directories exist.
 
-⚠ **The gap that leaves.** The rewrite runs before any scope exists, so it cannot tell a directory
+**The gap that leaves.** The rewrite runs before any scope exists, so it cannot tell a directory
 from a name spelled the same. A DECLARATION or a `Define` taking a directory's name is refused,
 which removes the half anyone is likely to write; a PARAMETER or a loop variable is not, and would
 need a member name to collide as well before anything went wrong. Recorded rather than met with a
 walk over every name-introducing form in the language.
 
-⚠ **A project cannot build itself through its own blueprint until the new compiler is installed.**
+**A project cannot build itself through its own blueprint until the new compiler is installed.**
 A blueprint step shells out to the `cufet` on the PATH, so `cufet build` in `tools/` failed with
 *"'spot' is not a defined type"* against 0.24.0 while the local build compiled the same files. An
 ordinary bootstrap gap, recorded so nobody reads it as a defect.
 
-#### The tree the blueprint draws — BUILT 2026-10-03
+#### The tree the blueprint draws
 
 **A folder is two things — how files are organised, and a namespace wall — and at size they pull
 apart.** The checker written in Cufet showed it from both ends: kept in one folder, its 38 files
@@ -878,7 +868,7 @@ shared one namespace and names ran short; split into folders, `node` would have 
 cross a folder at all. So the blueprint may draw the tree, and the drawing says which each folder is:
 at the left edge, its own namespace; indented under another, part of it.
 
-★★ **Data, read and never run — which is what reconciles it with the measurement above.** The file
+**Data, read and never run — which is what reconciles it with the measurement above.** The file
 list was kept out of the blueprint because resolving a name must not execute a build description.
 The tree is not executed: `tree`'s body must be one `Return` of a written-out text, PARSED and read as
 a drawing. A computed tree is refused rather than run.
@@ -888,11 +878,11 @@ a drawing. A computed tree is refused rather than run.
 - **Folders only** — the filesystem already lists the files, and listing them again would drift.
 - **Every source folder, once there is a tree.** A partial drawing would be read as the whole
   project and be wrong; a drawing you can trust is the reason to have one. No tree, no change.
-- **The programmer is responsible for it being right.** ★ The editor may MAINTAIN it — update it on
+- **The programmer is responsible for it being right.** The editor may MAINTAIN it — update it on
   a move or rename, prompt "own namespace, or part of its parent?" on a new folder — but must not
   INFER it: fold or wall is intent, and an inferred tree is a cache of a guess.
 
-#### A folded folder keeps its own names — DECIDED 2026-10-04
+#### A folded folder keeps its own names
 
 **The north star is "explicit for reference and scope", so one name has to mean one thing wherever
 it can be reached — and the cure for names running short is to put fewer of them in reach, never to
@@ -922,55 +912,53 @@ was editing.
 
 What the toolchain is, and what it declines to become.
 
-- **GENERATED PAGES — BUILT, 2026-09-18.** `cufet page` writes a reader's page for a book. What it
+- **GENERATED PAGES.** `cufet page` writes a reader's page for a book. What it
   does is in the changelog; the decisions are here.
 
-  ★★ **The generator is small because the language did the work.** A Cufet signature is English, so
+  **The generator is small because the language did the work.** A Cufet signature is English, so
   a page's declaration line is the declaration copied out and there is no rendering of types into
   prose — which is most of what a documentation generator normally is. A book is an object, so the
   member list is one the checker already holds.
 
-  ★ **It prints to stdout and decides nothing about where a page lives.** *Where is it published*
+  **It prints to stdout and decides nothing about where a page lives.** *Where is it published*
   sat as an open fork for weeks alongside a hosting question that had already been answered. It was
   never a question the tool should have an opinion about: `check`, `tokens` and `pulls` all report
   and let you redirect, and doing the same dissolves the fork rather than answering it.
 
-  ✅ **Pages are for books, not for the bundled ones — and the premise that made this a fork was
-  wrong.** It was claimed that `BOOKS.md` and the `///` comments *"say the same things"*. MEASURED:
-  they do not. `BOOKS.md` is an INVENTORY plus book-level behaviour (*"Each yields void for an empty
+  **Pages are for books, not for the bundled ones.** `BOOKS.md` and the `///` comments do not say
+  the same things, MEASURED. `BOOKS.md` is an INVENTORY plus book-level behaviour (*"Each yields void for an empty
   series"*); the `///` carries per-member semantics (*"`-2.5` floors to `-3`, not `-2`"*) that appear
-  nowhere in `BOOKS.md`. They are complementary, so there was nothing to generate away. ★ The only
+  nowhere in `BOOKS.md`. They are complementary, so there was nothing to generate away. The only
   real staleness was the inventory, and `BookDocumentationTests` pins it in both directions.
 
-  ⚠ **A book whose surface is SYNTAX or a native member has no page**, and says why rather than
+  **A book whose surface is SYNTAX or a native member has no page**, and says why rather than
   claiming not to be a book — `blueprints` carries no `Define object` on purpose, because a Cufet
-  layer would put its native `checksum` out of reach. ⚠ This is not a policy about bundled books:
+  layer would put its native `checksum` out of reach. This is not a policy about bundled books:
   `math` is bundled and pages perfectly well. What is missing is a declaration to read.
 
-  ⚠ **Parameters cannot be documented individually**, because the language has no syntax for it. A
+  **Parameters cannot be documented individually**, because the language has no syntax for it. A
   page lists a signature and cannot annotate its arguments. Stated so nobody reads it as a bug.
 
 - **THE REPL SHELLS OUT — there is no evaluator written in Cufet.** The REPL weighed writing one
   against shelling out to `cufet`, and shelled out: `cufet` already holds the type checker, and a
   hand-written evaluator would say something worse about a bad line than the compiler already says.
-  An evaluator is also a THIRD implementation of the language. The ROADMAP once placed it with the
-  compiler written in Cufet; it was never part of that work, and came off with it (2026-10-26).
+  An evaluator is also a THIRD implementation of the language.
 
-- **A LANGUAGE SERVER — DECLINED, 2026-09-17.** Not deferred. It sat under *Deferred* for months
-  waiting on a trigger, and the last candidate has now been ruled out too.
+- **A LANGUAGE SERVER — DECLINED.** Not deferred: every trigger that could have called for one has
+  been ruled out.
 
-  ★ **The front end reports at most ONE error.** A run stops at the first one, so a report is that
+  **The front end reports at most ONE error.** A run stops at the first one, so a report is that
   error plus whatever warnings were collected on the way — each already carrying a line, a column
   and a prose explanation. A language server exists so that incremental, resident analysis pays for
   itself across many diagnostics. There is nothing here for it to earn back.
 
-  ★★ **And the editor already has both halves of what it would provide.** `cufet check --json`
+  **And the editor already has both halves of what it would provide.** `cufet check --json`
   writes one diagnostic per line, so the squiggles are the front end's OWN answers rather than a
   second implementation that could disagree with it; `cufet tokens --json` writes the semantic kind
   of every name it can place, which is the other thing an editor normally gets from a server. A
   grammar cannot tell a type from a parameter in Cufet, so that half had to exist regardless.
 
-  ⚠ **The last candidate trigger is gone.** Building a blueprint's steps ALGORITHMICALLY looked
+  **The last candidate trigger is gone.** Building a blueprint's steps ALGORITHMICALLY looked
   like the one thing that might want a resident index, and it does not: a blueprint is an ordinary
   Cufet program, so it gets the same one-error report as everything else.
 
@@ -981,7 +969,7 @@ What the toolchain is, and what it declines to become.
 
 ## What 1.0 promises
 
-Agreed 2026-11-19. **A program that checks and runs on 1.0 checks, runs and prints the same thing
+**A program that checks and runs on 1.0 checks, runs and prints the same thing
 on every 1.x.** New things may arrive; nothing that works stops working, and breaking that takes
 2.0. So 1.0 is ready when nothing still planned would rename, reserve, refuse or change the meaning
 of something a program can say today; when REFERENCE and GRAMMAR describe what `check` accepts;
@@ -998,7 +986,7 @@ and when both backends agree on every program either accepts.
 
 The two arcs where soundness was the whole problem.
 
-- **Region model soundness — the adversarial arc (three holes closed 2026-06-26–28, a fourth 2026-10-04).**
+- **Region model soundness — the adversarial arc.**
   The outward-only invariant ("a value may escape to a longer-lived region but never
   inward to a shorter-lived one") is the whole safety story for the regions model.
   Its teeth were tested adversarially — deliberately probing whether the invariant
@@ -1064,7 +1052,7 @@ The two arcs where soundness was the whole problem.
     more rather than less: the interpreter's GC forgives a region error that compiled
     code turns into a use-after-free.
 
-  **Hole #4 — the possessive method call (found and closed 2026-10-04).** `cast box's
+  **Hole #4 — the possessive method call.** `cast box's
   contents` reached the method through a resolved copy of its type that had dropped its
   `ReturnDepthSignature`, so the result read as depth 0 — #1 again, through a path #3 had not
   covered. Found by USE, not attack: writing the checker in Cufet. Pinned by
@@ -1075,7 +1063,7 @@ The two arcs where soundness was the whole problem.
   attempt at a proof in November 2026 found twenty-two programs these four had missed, every one
   now refused or right on both compilers. Constants, chases and sets came after that, out of no
   obligation the proof names: no rule had mentioned them. And O2 and O4 as built did not hold at a
-  call, in seven places, closed on 2026-11-25 (`docs/SOUNDNESS.md`, *At a call*). The account of that, the four obligations any repair
+  call, in seven places, now closed (`docs/SOUNDNESS.md`, *At a call*). The account of that, the four obligations any repair
   has to meet, and what is proved as against only tested, is `docs/SOUNDNESS.md`.
 
 - **Concurrency arc — message-passing + structured concurrency, cooperative (v0.9.0).**
@@ -1160,8 +1148,7 @@ The two arcs where soundness was the whole problem.
   would reallocate into the task's own arena; and the pattern is a genuine data
   race that only the cooperative scheduler was hiding.
 
-- **A task's fault reaches its rabbit, and an exception does not become a failure on the way
-  (2026-09-08).** Three rules, one sentence each, and the third is the one that was weighed and
+- **A task's fault reaches its rabbit, and an exception does not become a failure on the way.** Three rules, one sentence each, and the third is the one that was weighed and
   declined.
 
   *A fault nobody claimed surfaces at the rabbit's `Done.`* The rabbit already owns the tasks and
@@ -1176,28 +1163,28 @@ The two arcs where soundness was the whole problem.
   fault at the await and suppressing it still ended the program. Fire-and-forget needs no separate
   rule: it has no result to read, so it is never claimed and always reports.
 
-  ★★ *An exception does NOT become a failure by crossing a task boundary — weighed and declined.*
+  *An exception does NOT become a failure by crossing a task boundary — weighed and declined.*
   The tempting version makes every `the awaited result of` a `T or failure`, so an awaiter is
   compelled to handle whatever the task might do. It was declined on consistency: `1 / n` does not
   make you prove `n` is not zero anywhere else in the language, and a division by zero should not
   change category because it happened one thread over. Awaiting would have become the single place
   where a possible exception is forced into a type.
 
-  ⚠ The argument on the other side is real and was not dismissed: you can see `1 / n` in front of
+  The argument on the other side is real and was not dismissed: you can see `1 / n` in front of
   you and cannot see inside a task body from the await site, which is exactly why concurrency is
   different. What settled it is that the parent is *already told* — the fault is raised at the
   await, and a `Try` there catches it exactly as it would locally. The choice was between telling
   and compelling, not between telling and silence. A deliberate `return a failure` is unaffected:
   that rides in the type as it always has, and the await must still handle it.
 
-- **Rabbits as actors — SETTLED 2026-09-20: the language already had it.**
+- **Rabbits as actors: the language already has it.**
   An actor needs five things, and Cufet had all five before anyone set out to build one:
   an identity (`Pull a rabbit as hopper`), a mailbox (a channel), more than one kind of message
   (**a channel of a union**), a guarantee every kind is handled (`Judge`, coverage proved by the
   checker), and a way to be told to stop (`Close` makes the next delivery void). Worked example,
   run on both backends by the corpus suite: `examples/concurrency/actor-mailbox.cufe`.
 
-  ★★ **The recorded blocker was wrong, and it is worth knowing why it was believed.** The ROADMAP
+  **The recorded blocker was wrong, and it is worth knowing why it was believed.** The ROADMAP
   held that the mailbox waited on `automatic` — a guarded multi-input wait — reasoning from Go's
   `select` and Occam's `ALT`, *"and how an actor-rabbit would read a mailbox"*. **That reasoning
   does not transfer.** Those languages need a select because a channel there carries ONE type, so
@@ -1206,63 +1193,61 @@ The two arcs where soundness was the whole problem.
   whose exhaustiveness is checked. For a mailbox, that is all a select would give, and the
   coverage is proved rather than hoped for.
 
-  ⚠ The entry contradicted itself and the wrong half was load-bearing: a later line already said
+  The entry contradicted itself and the wrong half was load-bearing: a later line already said
   *"the mailbox and message-send surface are separate, later work."* MEASURED before deleting the
   item — a full actor with state, multi-kind dispatch and replies, byte-identical on both
   backends, on the already-shipped 0.23.0 with no new feature.
 
-  ★ **`automatic` was built later for what a union channel cannot do:** senders that each own a
+  **`automatic` was built later for what a union channel cannot do:** senders that each own a
   pipe of their own, so no single channel exists to carry the union. See *Composition modes for
   rabbits*.
 
-  ★ **What was declined:** a `Have hopper …` message-send sugar, making the mailbox implicit.
+  **What was declined:** a `Have hopper …` message-send sugar, making the mailbox implicit.
   It would trade capability for a shorter line — an explicit channel gives an inbox AND an
   outbox, separately typed and separately closed, where one implicit mailbox gives neither.
 
-- **A repeating task form — BUILT AND REMOVED THE SAME DAY, 2026-09-20.**
+- **A repeating task form — built, and removed.**
   `Have rabbit start a task, repeat: … Done.` made a task's body a loop: `Stop` ended it, `Skip`
   took the next turn, and an undeclared fault ended the turn rather than the program. It worked on
   both backends and was removed anyway. **Do not rebuild it without answering what follows.**
 
-  ★★ **The justification was "let it crash", and the analogy does not survive contact.** That
+  **The justification was "let it crash", and the analogy does not survive contact.** That
   pattern is valuable because a crashing process **loses corrupted state and restarts clean**. A
   repeating task has no state to lose: each turn is a scope, so a body-local resets, and the place
   a loop normally keeps a total — *above* the loop — does not exist, because the body **is** the
   loop. Nothing to corrupt and nothing to restore, so the argument was borrowed rather than earned.
 
-  ★★ **MEASURED: a `While` loop with a `Try` inside an ordinary task already does more.** It
+  **MEASURED: a `While` loop with a `Try` inside an ordinary task already does more.** It
   survives the faulting job, keeps a tally, *and counts what it dropped* — verified identical on
   both backends. The repeating form could not produce that last line at all. Its one distinctive
   behaviour was swallowing a fault **silently, with no way to observe it happened**, which is a
   misfeature rather than a feature.
 
-  ⚠ **And the obvious fix converges on what exists.** The cure for the tally gap is a preamble
+  **And the obvious fix converges on what exists.** The cure for the tally gap is a preamble
   before the loop — at which point the construct *is* a loop inside an ordinary task.
 
-  ★ What it did buy was real but small: the receive written once instead of twice, since a
+  What it did buy was real but small: the receive written once instead of twice, since a
   `While`-shaped worker must prime the pump and advance at the bottom. Not worth its price, which
   was a **narrowed grammar** — `Have rabbit start a task, Repeat: … Until x.` was legal before —
   plus a new form in two documents and a capture rule existing only to serve it.
 
-  ★ **It was not wasted.** Building it surfaced a live divergence reaching back to 0.23.0: a rabbit
+  **It was not wasted.** Building it surfaced a live divergence reaching back to 0.23.0: a rabbit
   ran its own scope's unmakers *before* joining its tasks, destroying rabbit-local objects while
   the tasks that could still read them ran. That fix stayed. See the CHANGELOG entry.
 
-- **Composition modes for rabbits — agreed with the user and built 2026-11-07.** Occam's SEQ, PAR
-  and ALT are `sequential`, `parallel` and `automatic`. Taken up before the tutorial, so that
-  concurrency is settled when the lesson is written rather than added to it afterwards.
+- **Composition modes for rabbits.** Occam's SEQ, PAR and ALT are `sequential`, `parallel` and
+  `automatic`.
 
-  ★ **The tasks of an automatic rabbit are marked where they are written, and nothing is hidden.**
+  **The tasks of an automatic rabbit are marked where they are written, and nothing is hidden.**
   `Have dispatcher start a task for an order in orders:` names the channel and the delivery in
   the header. Two shapes were refused: a guard on the task's first line, which hides a branch, and
   borrowing `it` from `Judge`.
 
-  ★★ **Whatever was SENT first wins**, across channels. The user wanted the choice principled,
-  never random. The task written first was the other candidate, and it loses on a plain case: had
+  **Whatever was SENT first wins**, across channels. The choice is principled, never random. The task written first was the other candidate, and it loses on a plain case: had
   a hundred orders queued before a cancel was sent, all hundred would be packed before the older
   cancel. So every send and close takes the next number from one counter, in both backends.
 
-  ★ **A closed, empty channel runs its task with void**, exactly as `the delivery from` does. The
+  **A closed, empty channel runs its task with void**, exactly as `the delivery from` does. The
   alternative, never running that task, gives the program no way to learn the channel finished.
   ⚠ **Swapping this rule later would break programs silently**: their void branches would go dead
   and loops waiting on them would hang. So anything further, such as a test for a closed channel
@@ -1270,7 +1255,7 @@ The two arcs where soundness was the whole problem.
 
   **No timeout**, for the same reason: no program needs one yet, and one would sit beside the rest.
 
-  ★★ **The chosen task runs on the rabbit's own thread, at its `Done.`** (agreed the same day). It
+  **The chosen task runs on the rabbit's own thread, at its `Done.`** (agreed the same day). It
   was first built as a thread like every other task, and writing the closed-pipe loop showed the
   cost: a task may not change what it captured, so the loop could only learn what the chosen task
   did through an extra channel and a send in every task. But nothing ever runs beside an automatic
@@ -1278,7 +1263,7 @@ The two arcs where soundness was the whole problem.
   branch in the process that ran the ALT, and Go's `select` runs a case in its own goroutine, for
   that same reason. So the task may change the names around it, as ordinary code. Two refusals
   follow from where it runs: a `return` in it would leave whatever the rabbit sits in, and a name
-  from a block ended by `Done.` (the loop that offered the task) is gone by then. ⚠ The cost is that
+  from a block ended by `Done.` (the loop that offered the task) is gone by then. The cost is that
   a task follows different rules in this one mode, and the docs say so rather than hide it.
 
   **`parallel` is a label** for what a rabbit always did. **`sequential`** starts each task once
@@ -1290,11 +1275,10 @@ The two arcs where soundness was the whole problem.
 ## Foreign interoperability
 
 How anything that is not Cufet gets reached from inside Cufet — C libraries, and source
-written in other languages. Designed 2026-08-21; **the first slice — an axiom returned as a
-number — runs on both backends, and everything else here is still design.** The
-ordered work lives in [ROADMAP.md](ROADMAP.md); this is the *why*.
+written in other languages. What is still to come lives in [ROADMAP.md](ROADMAP.md); this is the
+*why*.
 
-### A book does not add phrases to the grammar — declined 2026-11-19
+### A book does not add phrases to the grammar
 
 A book declaring phrase shapes (`from each <name> in <series> where <fact>`, live inside a pull of
 it) was on the roadmap and is declined. Such a shape could make a statement that is valid today
@@ -1316,11 +1300,11 @@ The arena that knows when a region dies is the thing that knows when a pointer d
 Not `pointer`. `address` is plain English for exactly what it is, where `pointer` is C's word for
 it. The FFI item always described "an explicit address-of", so the word was already in play.
 
-★ It costs nothing. `address` and `pointer` both have zero uses across `examples/` and the prelude,
+It costs nothing. `address` and `pointer` both have zero uses across `examples/` and the prelude,
 and a type name does not have to be reserved — `rabbit` appears nowhere in the lexer and is
 resolved in the type checker instead. So `the text address` stays available as a field name.
 
-⚠ There is no address-*of* operator. Cufet never creates an address: one only ever comes back from
+There is no address-*of* operator. Cufet never creates an address: one only ever comes back from
 C and goes back into C. See "Cufet never models a C struct".
 
 ```
@@ -1334,24 +1318,24 @@ There is **one kind of foreign pointer**: opaque, rabbit-scoped, and impossible 
 dereference implicitly. Reading through it is an **explicit act that always copies into the
 arena** — `the text at handle` yields rabbit-owned text, never a view into foreign memory.
 
-★ **`the text at <address>` is the only read there is**, and it yields `voidable text`. Reading a
+**`the text at <address>` is the only read there is**, and it yields `voidable text`. Reading a
 struct or a scalar was considered and is unnecessary: an axiom can project a field
 (`[readdir(the dir)->d_name]`) or declare a local and return it
 (`[int status; waitpid(the pid, &status, 0); return status;]`), so the value comes back as an
 ordinary return rather than through an address. Text is the one case with no single-expression
 answer on the C side, because the bytes belong to C and have to be copied out.
 
-★ **Every address coming back from C is `voidable address`.** NULL is C's universal failure signal
+**Every address coming back from C is `voidable address`.** NULL is C's universal failure signal
 — `fopen`, `malloc`, `getenv`, `opendir` all use it — so every way C can fail lands in the
 mechanism the language already has, and the checker will not let it be skipped. No new failure
 concept anywhere in the FFI.
 
-★ `char*` and `FILE*` are therefore the *same type*. What differs is not the value but what
+`char*` and `FILE*` are therefore the *same type*. What differs is not the value but what
 the writer does with it: you read through the first and never through the second. An earlier
 draft split "data" from "handles" and that was a mechanism invented where an operation would
 do.
 
-★ Explicit reads are the guardrail working in the open. You are inside a rabbit block
+Explicit reads are the guardrail working in the open. You are inside a rabbit block
 *because* this is the dangerous area, so reading foreign memory should be a thing visible in
 a diff rather than marshalling hidden in a declaration.
 
@@ -1377,11 +1361,11 @@ writer never frees anything by hand — the **declaration** names the release fu
 per binding, because `getenv` and `strdup` have identical C signatures and opposite
 obligations and nothing can infer which is which.
 
-★ `UnwindTo` already fires unmakers at every nonlocal exit, so a handle is released whether
+`UnwindTo` already fires unmakers at every nonlocal exit, so a handle is released whether
 the block is left by `Return`, `Stop`, an exception or `Suppress`, with no new cleanup code.
 That was the point of collapsing the cleanup families into one `CleanupPoint`.
 
-⚠ **When a declaration says nothing, do not free.** A leak is recoverable, visible to a leak
+**When a declaration says nothing, do not free.** A leak is recoverable, visible to a leak
 checker, and bounded by the rabbit's lifetime; a double-free is memory corruption that
 surfaces somewhere else entirely. Guardrails fail toward the recoverable side.
 
@@ -1397,13 +1381,13 @@ the declaration.
 | `char*` | `text` | the arena copy above |
 | `void*`, `FILE*` | the opaque pointer | never dereferenced |
 | `bool` | `fact` | |
-| `double` | `number` | ⚠ **the only lossy conversion in the boundary** |
+| `double` | `number` | **the only lossy conversion in the boundary** |
 
-★ Neither integer path can be silently wrong. `number` is a decimal with 28–29 significant
+Neither integer path can be silently wrong. `number` is a decimal with 28–29 significant
 digits, so it holds every `int64` *exactly* — converting is a **range check**, not a lossy
 narrowing, and it refuses loudly like the `bits` rule does.
 
-⚠ **`double` is the exception, and it is why the shim exists.** `number` is base-10 and a C
+**`double` is the exception, and it is why the shim exists.** `number` is base-10 and a C
 `double` is base-2; `0.1` is exact as one and not the other. Two separately-written
 conversions would differ in the last ULP — which is exactly the libm caveat this project
 already retired once by going pure decimal, and exactly the shape of the casing bug that the
@@ -1414,20 +1398,20 @@ not "FFI implemented twice": the compiler knows each signature statically and em
 call, so only the *interpreter* dispatches dynamically. What is shared is the part that can
 silently disagree.
 
-★ Because the dynamic dispatch lives in C, the interpreter's P/Invoke surface is a handful
+Because the dynamic dispatch lives in C, the interpreter's P/Invoke surface is a handful
 of fixed `DllImport`s — no `DynamicMethod`, no `calli`.
 
-⚠ **A subprocess pipeline BUFFERS, and that is what keeps the two backends agreeing.** `run A |
+**A subprocess pipeline BUFFERS, and that is what keeps the two backends agreeing.** `run A |
 run B` runs each stage to completion and hands its whole output to the next, in both backends
 identically. Streaming would be faster and would let `yes | head -1` finish — but streaming is
 observable through TERMINATION rather than merely through output order, so a streaming compiler
 against a buffering interpreter is a divergence that HANGS rather than one that prints the wrong
-thing. ★ Contrast the FUNCTION pipe, where the two legitimately differ (buffered interpreted,
+thing. Contrast the FUNCTION pipe, where the two legitimately differ (buffered interpreted,
 one thread per stage compiled) because each channel is FIFO and the observable order is therefore
 the same. The subprocess form has no such guarantee, so it buffers on both sides until it can
 stream on both.
 
-⚠ **Headers and LINK FLAGS are one feature, not two.** The bundled header set covers what links
+**Headers and LINK FLAGS are one feature, not two.** The bundled header set covers what links
 by default, so binding a library of your own is the gap — and shipping headers alone would be
 worse than shipping nothing: `#include <sqlite3.h>` gets the declarations and then fails at
 "undefined reference", i.e. a feature that cannot work for the case that motivates it.
@@ -1436,7 +1420,7 @@ worse than shipping nothing: `#include <sqlite3.h>` gets the declarations and th
 one area where being wrong means memory corruption rather than a wrong number, and it is the
 last place to give up a second opinion.
 
-⚠ The playground runs the interpreter in **wasm**, where FFI cannot work at all. "This
+The playground runs the interpreter in **wasm**, where FFI cannot work at all. "This
 program cannot run in this environment" is therefore a required outcome regardless.
 
 ### Cufet never models a C struct
@@ -1460,7 +1444,7 @@ A struct that must **persist** across calls — saved terminal state to restore 
 an opaque `address`, allocated in one axiom and `released by` another. Cufet stores it and hands it
 back; it never looks inside.
 
-★ **This is the same argument that removed struct reads and scalar reads**, applied once more.
+**This is the same argument that removed struct reads and scalar reads**, applied once more.
 Every out-parameter, every field access, every layout question is answerable in C, by the person who
 is already writing C. Modelling any of it on the Cufet side would be building a second, worse C.
 
@@ -1472,7 +1456,7 @@ is already writing C. Modelling any of it on the Cufet side would be building a 
   Cufet never creates one and needs no operator to
 - reading a struct or a scalar through an address — `the text at` is the only read there is
 
-⚠ The rejected alternative is recorded because it will look tempting: declaring C structs in Cufet
+The rejected alternative is recorded because it will look tempting: declaring C structs in Cufet
 and having the interpreter compute layouts from standard alignment rules. It works for scalars,
 arrays and nested structs and quietly gets **bitfields, packed structs and unions** wrong —
 silently, which is the failure mode this project keeps refusing.
@@ -1503,7 +1487,7 @@ Two things could be called "the C book" and only one has to exist.
   live wherever they are defined: at the top level, or inside a module a writer wrote. A "book of C
   bindings" is now just a module that happens to contain axioms, with no special status.
 
-★ That dissolves a gap the earlier design had and never closed: if a `c` book were **bundled**,
+That dissolves a gap the earlier design had and never closed: if a `c` book were **bundled**,
 writers could not add to it, because `unto` may not target a bundled book. Under axioms there is
 nothing to add to — you write your own.
 
@@ -1516,16 +1500,16 @@ platform. The arguments against that were both wrong and are recorded so they do
   naming question: a program calling `tcgetattr` is POSIX-only whatever the book is called. Naming
   changes only *where* the failure is reported, not whether it happens.
 
-⚠ Splitting by platform (`c-windows`, `c-linux`) is the wrong axis entirely — it puts the platform
+Splitting by platform (`c-windows`, `c-linux`) is the wrong axis entirely — it puts the platform
 in the book's identity, and a program written against one still does not run on the other.
 
 **No portability warning.** A linter note saying *"you used a Linux-only function without handling
 other platforms"* was considered and rejected: writers get access to platform-specific functions
-without being nagged for using them. ★ It is also a weaker case than it looks next to the void
+without being nagged for using them. It is also a weaker case than it looks next to the void
 guardrail — void must be handled because ignoring it gives a **silent wrong answer**, whereas a
 function absent on this platform fails loudly and early. The guardrails exist where failures hide.
 
-★ A warning is only worth issuing if the reader can act on it, and acting on this one would need a
+A warning is only worth issuing if the reader can act on it, and acting on this one would need a
 platform-branch concept in the language. That is a real feature, worth revisiting only if programs
 are ever distributed to machines the author does not control — which needs a loader and a package
 manager first.
@@ -1541,7 +1525,7 @@ would be the right one the moment any of these arrive:
 - varargs beyond a fixed shape
 - **callbacks from C into Cufet**
 
-★ With scalars and pointers only, every argument passes the same way and the switch is small
+With scalars and pointers only, every argument passes the same way and the switch is small
 and inspectable. The design keeps it that way: foreign pointers are opaque, so structs arrive
 and depart *as pointers*, never by value.
 
@@ -1551,7 +1535,7 @@ library owns the loop.* Nothing in the target set does — sockets, `ioctl`, ter
 runtime's own `sigaction`, and a Cufet signal handler would be wrong anyway, since handlers
 must be async-signal-safe and cannot run an arena allocator.
 
-⚠ **Callbacks are also asymmetric between backends**, which is the sharper reason. In the
+**Callbacks are also asymmetric between backends**, which is the sharper reason. In the
 compiled backend C-calls-Cufet is nearly free, because compiled Cufet *is* C. In the
 interpreter the same callback needs a trampoline that re-enters the interpreter. Under
 "ships only when both backends run it", that makes them expensive, full stop.
@@ -1577,7 +1561,7 @@ it, and accepts it on trust. `listing`, `source` and `block` describe how it loo
 describes what the language is agreeing to. It also fits how Cufet names things — `rabbit`, `bury`,
 `stash`, `book` are all evocative rather than literal.
 
-★ Measured before choosing: `source` appears 48 times in `examples/` and the prelude and `block` 12,
+Measured before choosing: `source` appears 48 times in `examples/` and the prelude and `block` 12,
 against 0 for `axiom`. `block` also collides with the language's own word for a `… Done.` structure,
 and `expression` is a core term used 72 times in GRAMMAR and REFERENCE. `code` is a mass noun — *a
 code* is a cipher, which is the sense `huffmancoding.cufe` already uses it in.
@@ -1586,7 +1570,7 @@ code* is a cipher, which is the sense `huffmancoding.cufe` already uses it in.
 because this is the one construct whose content is not Cufet at all: anything reusing existing
 punctuation would need disambiguating by context, which is what you least want around foreign text.
 
-⚠ **The tag cannot be dropped.** `Define a c-language axiom x as […]` may shorten to
+**The tag cannot be dropped.** `Define a c-language axiom x as […]` may shorten to
 `Define c-language x as […]` — the brackets say "axiom" — but not to `Define x as […]`. The
 brackets say *this is verbatim foreign text*; they cannot say *which* language, and the tag names
 the consumer. Making it inferable from what happens to be pulled would make a line's meaning depend
@@ -1602,10 +1586,10 @@ Pull a book on sql.                 ← `sql-language` says language twice
 Pull a book on regex.
 ```
 
-★ The constraint that survives in every case: `c` on its own is a single letter, which the style
+The constraint that survives in every case: `c` on its own is a single letter, which the style
 rule refuses, so C is qualified regardless of what the rest do.
 
-⚠ A mechanical `<name>-language` rule was the alternative and was not taken. It buys consistency —
+A mechanical `<name>-language` rule was the alternative and was not taken. It buys consistency —
 you always know how to spell it, and the suffix says *this is a foreign language book* at a glance —
 at the cost of reading redundantly wherever the name already ends in "language", which SQL and HTML
 both do. The judgment is per language now, so someone adding a binding decides rather than looks up.
@@ -1622,36 +1606,36 @@ Define c-language open-file, given (the text file-path, the number flags),
 Define the number handle as cast open-file on (config-path, read-only).
 ```
 
-★ **`the file-path` is never valid C or SQL.** That is what makes a symbol-free marker unambiguous —
+**`the file-path` is never valid C or SQL.** That is what makes a symbol-free marker unambiguous —
 it is English sitting in code that is not English, so nothing has to be escaped or disambiguated.
 It also reads as the line above it: `the text file-path` in the declaration, `the file-path` in the
-body. ⚠ `path` itself is RESERVED (`the path <p> exists`), so it cannot be a parameter name.
+body. `path` itself is RESERVED (`the path <p> exists`), so it cannot be a parameter name.
 
-⚠ Rejected markers, with the reason each failed: `?` says nothing about which argument goes where;
+Rejected markers, with the reason each failed: `?` says nothing about which argument goes where;
 bare `x, y, z` collide with the foreign language's own identifiers and break the no-single-letter
 rule; `#path` collides with the C preprocessor, which a C axiom will very often open with; `{path}`
 is taken twice in Cufet (interpolation, object construction) and is C's commonest punctuation —
 `{x}` is also a valid scalar initialiser. `@path` was the best symbol and remains the fallback.
 
-★ **The precedent is `run`.** `Run "grep" with arguments ("-v", "3")` passes a *list of values*,
+**The precedent is `run`.** `Run "grep" with arguments ("-v", "3")` passes a *list of values*,
 never a concatenated command string — which is why there is no shell injection there. An axiom does
 the same: the text is fixed at definition and only values vary at use, so an axiom cannot be
 assembled from strings. The C side receives a marshalled `int`; the SQL side receives a bound
 parameter. Neither receives text.
 
-★ The parameter list also supplies what marshalling needs — the C types of the arguments — which
+The parameter list also supplies what marshalling needs — the C types of the arguments — which
 otherwise had nowhere to come from once binding declarations were dropped.
 
-⚠ **Known edge:** `the file-path` inside a string literal in the foreign text would be substituted —
+**Known edge:** `the file-path` inside a string literal in the foreign text would be substituted —
 `[printf("the file-path is %s", the file-path)]` has one hole and one piece of prose. Every candidate marker
 shares this, so it did not separate them, but it is real.
 
-### ⚠⚠ Splicing cannot reach `regex`, and the reason is the marker's own reason
+### Splicing cannot reach `regex`, and the reason is the marker's own reason
 
 A pattern takes no parameters — `Define regex p, given (…)` is refused, with a test. That is not a
 temporary limitation awaiting a slice; it follows from why `the` works everywhere else.
 
-★★ **The marker is unambiguous because the embedded language has a syntax that can be VIOLATED.**
+**The marker is unambiguous because the embedded language has a syntax that can be VIOLATED.**
 `the file-path` is not valid C, not valid SQL, not valid Cufet — it is English sitting in code that
 is not English, which is exactly what makes it impossible to mistake for the host text.
 
@@ -1661,13 +1645,13 @@ not `the`, not `@`, not any candidate weighed above — that a pattern could not
 literally. The property every rejected marker failed on is the property regex denies to all of them
 at once.
 
-★ Nor does the embedded language supply one. **No regex flavour interpolates.** Perl's `/$foo/` and
+Nor does the embedded language supply one. **No regex flavour interpolates.** Perl's `/$foo/` and
 Ruby's `/#{foo}/` are the HOST language's interpolation applied before the engine ever sees a
 string; Python, Java and JS build a string and hand it over. That every one of those ecosystems also
 ships an escaping function — `re.escape`, `Regexp.quote`, `Pattern.quote` — is the evidence that
 splicing into a pattern is a known hazard rather than a feature regex offers.
 
-⚠ So the honest consequence is the one the book already states: **a pattern is fixed where it is
+So the honest consequence is the one the book already states: **a pattern is fixed where it is
 written.** A program cannot take a pattern on its command line, and `examples/systems/search.cufe`
 can never become grep. That is the guarantee working, not a gap in it — and the reason a bad
 pattern is refused at its declaration rather than failing on the line that uses it.
@@ -1679,13 +1663,13 @@ Define c-language number add, given (the number left, the number right), as [the
 Define the c-language number axiom add, ...                    ← the same thing, spelled out
 ```
 
-★ **The order is `c-language number axiom`, not `number c-language axiom`**, because the tag
+**The order is `c-language number axiom`, not `number c-language axiom`**, because the tag
 qualifies the *axiom*: this is a C-language axiom that yields a number, not a number that came
 from C. Both middle words drop, and every rung of the ladder still reads —
 `the c-language number axiom add`, `c-language number add`, `c-language axiom add`, `c-language
 add`.
 
-⚠ **The alternative was tried first and reversed the same day.** The result type came from the line
+**The alternative** took the result type from the line
 *using* the axiom (`Define the number fd as cast open-file on (…)`), on the reasoning that a
 declared type is already what a value must fit into. It works, and the cost was much larger in
 practice than on paper: the call had to be the **entire right-hand side of a typed binding**, so it
@@ -1694,7 +1678,7 @@ result went through a named intermediate first — measured at one line becoming
 call sites in the first real program written against it. The cost fell on *uses*, and uses are what
 multiply.
 
-⚠ **And it could not be inferred from the C**, which is the tempting third answer. The C type is
+**And it could not be inferred from the C**, which is the tempting third answer. The C type is
 knowable — `_Generic` already reads it, which is why no C type is ever written down — but three
 things stop it deciding the *Cufet* type:
 
@@ -1704,7 +1688,7 @@ things stop it deciding the *Cufet* type:
 - **It would vary by platform.** `size_t` and `time_t` are not the same width everywhere, so the
   same program would have different Cufet types on different machines. That is a divergence in the
   language, not in a backend.
-- **★ The C type does not determine the meaning.** `isatty` gives an `int` that is really a fact;
+- **The C type does not determine the meaning.** `isatty` gives an `int` that is really a fact;
   `fopen` gives a pointer that is really a handle; `getchar` gives an `int` that is a character *or*
   an end. C says how many bits arrive, never what they are. Inferring would be Cufet claiming to
   know something it cannot, which is exactly what "taken as given without proof" refuses.
@@ -1719,11 +1703,11 @@ hands one back unrun. Passing an axiom around does not run it.
 
 Quoted Cufet and embedded foreign source live under **one type name**, tagged by language.
 
-★ **The unification is real, not cosmetic: hygiene and SQL injection are the same problem.**
+**The unification is real, not cosmetic: hygiene and SQL injection are the same problem.**
 Both are "splice this in as a **value**, never as text". One splicing rule gives macros their
 hygiene and SQL its parameterisation, from the same mechanism.
 
-★ It is also the same shape as the pointer design one level up — a block is inert until an
+It is also the same shape as the pointer design one level up — a block is inert until an
 explicit consumer interprets it, exactly as a foreign pointer is inert until an explicit read.
 
 **Two rules, both single:**
@@ -1740,17 +1724,17 @@ explicit consumer interprets it, exactly as a foreign pointer is inert until an 
 Neither timing is a choice. Running a `cufet` block at run time hits the wall below;
 executing a `sql` block at compile time has no database to execute against.
 
-⚠ **DSLs bottom out in FFI. They never get their own execution path** — that is the specific
+**DSLs bottom out in FFI. They never get their own execution path** — that is the specific
 discipline that keeps this from becoming JNI plus JDBC plus annotations, three mechanisms
 where one belongs. A SQL wrapper contributes *syntax and validation*; FFI carries it.
 
-### An axiom's text as a value — BUILT 2026-11-02
+### An axiom's text as a value
 
 **The problem:** the compiler written in Cufet builds its C as quoted text, so every C brace is
 `\{` or `\}` — 306 lines, 194 of them with a hole as well. The axiom already has the splicing marker
 that needs no escaping. What it lacks is a way to hand back its TEXT instead of running.
 
-★ **One mechanism serves this and macros**, and this comes first. A compile-time macro is the same
+**One mechanism serves this and macros**, and this comes first. A compile-time macro is the same
 filled source consumed by the compiler instead of turned into text; it comes later, run by the
 shipped interpreter, and the Cufet-written front end refuses a macro-using program as unsupported
 rather than growing an evaluator.
@@ -1781,7 +1765,7 @@ Done.
 - **Filling gives back an UNRUN AXIOM, not text.** That is what lets it fill another axiom's code
   hole — the "function assembling a SQL fragment hands one back unrun" above. `converted to text`,
   which gave `<axiom>`, gives the filled source; it is the only step that makes text.
-- ⚠ This lifts "a resultless axiom takes no parameters". The reason for that rule was that nothing
+- This lifts "a resultless axiom takes no parameters". The reason for that rule was that nothing
   calls a preamble; filling one is now the call.
 
 **Three kinds of hole, decided by the parameter:**
@@ -1792,13 +1776,13 @@ Done.
 | `the term type-c` | text | itself — refused when filled unless it is a valid identifier of the language |
 | `the text x`, `the number n`, … | a value | the language's own literal — quoted and escaped |
 
-★★ **There is no "trust this text" door.** Text reaches code only as another axiom or as a term
+**There is no "trust this text" door.** Text reaches code only as another axiom or as a term
 that passed the identifier check, so "values stay values, never text" holds by default, and the
-injection argument above survives intact. ⚠ It has a cost, measured: the compiler passes C around
+injection argument above survives intact. It has a cost, measured: the compiler passes C around
 as TEXT far beyond the brace lines (`cast c-equal on (inner, "a.value", "b.value")`), and every such
 piece becomes an axiom, `[a.value]`.
 
-★ **`term` is a mark, not a type.** A term is plain text; only the `given` says it enters as a
+**`term` is a mark, not a type.** A term is plain text; only the `given` says it enters as a
 name. A separate type was weighed: it would move the refusal from where the name is FILLED to
 where it is MADE — a few lines apart in the compiler, whose names are all assembled at run time —
 for a whole new type. The word is from logic, and from Spinoza's *Ethics*, where the axioms come
@@ -1811,7 +1795,7 @@ stays a preamble, pasted above every wrapper, so a small fragment cannot be name
 scope does not build. A bare one had been refused (nothing named its language), so no program
 changed meaning.
 
-⚠ **`on` fills only `c-language` source.** Cufet source is filled at compile time, by `Cite`: see
+**`on` fills only `c-language` source.** Cufet source is filled at compile time, by `Cite`: see
 *Holes in cufet source*, below.
 
 **No gluing syntax.** A hole counts only where no letter, digit, `_` or `-` follows it, so
@@ -1820,11 +1804,11 @@ the unused-parameter refusal says so. A glued name is built in
 Cufet, where text holes already build names, and passed as its own term: `"{type-c}_eq"`. The cost
 is one parameter per glued name.
 
-★ **This answers the recorded reason splicing was declined.** Splicing one axiom into another was
+**This answers the recorded reason splicing was declined.** Splicing one axiom into another was
 refused because the outer substitution would search the inner text, merging two parameter lists.
 Holes are filled in **one pass over the axiom's own text**; what is pasted in is never searched.
 
-### Holes in cufet source — BUILT 2026-11-05
+### Holes in cufet source
 
 The same axiom with its other consumer: the tag names who reads it, and for `cufet` that is the
 compiler, so the fill happens at compile time and leaves ordinary declarations.
@@ -1840,7 +1824,7 @@ copies. It is the first use, in `parser/chains.cufe`.
 source is checked, and `cast one's next` means nothing until `next` is known. So a name a block MAKES
 is a `term`, and its own declaration says what it is; a name it CALLS states its type.
 
-★ **This settles the macro entry's open question — typed holes want types before expansion, and
+**This settles the macro entry's open question — typed holes want types before expansion, and
 expansion runs before the checker — without moving either.** A hole's type is compared with the name
 that fills it as each `Cite` is placed, so the blame lands on the `Cite`. Past that, a body right
 against the hole is right for every name that fits, and the filled copies are ordinary code holding
@@ -1848,7 +1832,7 @@ the block's own lines, so checking them IS checking the block, blamed where it w
 block nothing cites needs anything more: a throwaway copy of the program with the block standing in
 its own place, a stand-in declared for each hole.
 
-⚠ **Different from a generic on purpose.** A generic's body is checked only when filled, because
+**Different from a generic on purpose.** A generic's body is checked only when filled, because
 `element` could be anything and there is nothing to check against. A hole states what it is, so that
 reason does not reach it.
 
@@ -1861,7 +1845,7 @@ Fexprs were already ruled out on Wand's result: no two expressions are ever equi
 takes out `check`, monomorphization, and any compiled backend that is not an embedded
 interpreter.
 
-⚠ That is true but it is **not the decisive reason**, and the decisive one should be on
+That is true but it is **not the decisive reason**, and the decisive one should be on
 record because it survives disagreeing with the theory:
 
 > A compiled Cufet binary is standalone C from gcc. Running a Cufet block at run time would
@@ -1872,13 +1856,13 @@ deliberately does not depend on .NET. So the options are a second interpreter in
 implementations to keep bit-identical, when two is already the hardest thing here), or
 compiled binaries that refuse `eval` (a divergence), or not having it.
 
-★ Note the distinction the earlier framing missed: an explicit `eval` is **not** a fexpr. A
+Note the distinction the earlier framing missed: an explicit `eval` is **not** a fexpr. A
 fexpr makes *every* call site potentially non-evaluating, which is what collapses the theory;
 an explicit `eval` is visible where it is used and leaves reasoning about the rest of the
 program intact. `check` and monomorphization would survive it. The C-interpreter cost is what
 does not.
 
-★ **The umbrella survives intact anyway:** a `cufet` block need not exist at run time at all,
+**The umbrella survives intact anyway:** a `cufet` block need not exist at run time at all,
 because a macro consumes it before the checker.
 
 ⚠ **Monomorphization is load-bearing, not speculative** — the prelude ships
@@ -1934,7 +1918,7 @@ Why the interpreter and the compiler must agree, and what that agreement is stan
   and an uncatchable end, on the grounds that running out of stack is a defect rather than
   a condition anyone plans around.
 
-  ⚠⚠ **That measurement was of gcc's willingness, and it was not ours to rely on.** Emitted
+  ⚠ **That measurement was of gcc's willingness, and it was not ours to rely on.** Emitted
   C returns a number through a hidden pointer — `CufetDec` is 24 bytes — so the callee's
   result is copied into the caller's slot *after the call comes back*, and `return f(x)` is
   therefore not a tail call at all. Measured 2026-09-06: `__attribute__((musttail))` on that
@@ -1951,9 +1935,8 @@ Why the interpreter and the compiler must agree, and what that agreement is stan
   address, and gcc's own flattening of every shape this rewrite does not cover still depends on
   it not being there.
 
-  ⚠ What is NOT accepted here is silence, which is what this replaced: a compiled program
-  that overflowed used to exit `0xC00000FD` on Windows with nothing on either stream, and
-  segfault on Linux where the only word — "Segmentation fault" — comes from the shell and
+  What is NOT accepted here is silence: a compiled program that overflows unguarded exits
+  `0xC00000FD` on Windows with nothing on either stream, and segfaults on Linux where the only word — "Segmentation fault" — comes from the shell and
   vanishes the moment the program is run from anything else.
 
   *What the rule buys.* Every disagreement has a known location and a forced resolution:
@@ -1982,19 +1965,18 @@ Why the interpreter and the compiler must agree, and what that agreement is stan
   other. [REFERENCE.md](REFERENCE.md) is the closest thing that exists today, and the gap
   is exact: it describes what each construct does, rather than defining it.
 
-- **Narrowing is decided once, by the checker — BUILT 2026-10-26.** The checker writes the type a
+- **Narrowing is decided once, by the checker.** The checker writes the type a
   narrowing gives a read onto the read (`VariableReference.NarrowedType`, printed `:NarrowedType`),
-  a judgement's `it` included, and both compilers read it. They used to work every narrowing out
-  again from the same syntax — the guard, the then-arm, the else by elimination, a grouped test —
-  and each new rule was then a change in every copy. MEASURED 2026-09-26: three fixes in one week,
-  and each first fix CREATED a divergence (runs interpreted, refused compiled) until the other copy
-  caught up. Writing the compiler in Cufet had made it four copies.
+  a judgement's `it` included, and both compilers read it. Working every narrowing out again in
+  each compiler made each new rule a change in every copy, and MEASURED, each first fix CREATED a
+  divergence (runs interpreted, refused compiled) until the other copy caught up: three in one
+  week, with four copies once the compiler was written in Cufet.
 
-  ★ What a compiler keeps is only how its C REACHES a type: a voidable's value, then a union's case
+  What a compiler keeps is only how its C REACHES a type: a voidable's value, then a union's case
   member. A union narrowed to fewer of its cases is a representation choice each makes for itself —
   C#'s keeps the union it was declared as, the Cufet one converts to the smaller union.
 
-  ★ Measured before the switch, by having C#'s compiler log every read where its own answer and the
+  Measured before the switch, by having C#'s compiler log every read where its own answer and the
   checker's differed: across the compiler suite the one real disagreement was a
   shared node — two fillings of a generic shared one variable read, so the type the checker wrote
   was the last filling's. A filling's reads are fresh nodes now, as its calls already were.

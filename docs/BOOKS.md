@@ -99,7 +99,7 @@ Done.
 decimal operations, and `pi` and `e` are decimal-precise constants (28 fractional digits,
 correctly rounded).
 
-★ **The whole book is written in Cufet, and nothing in it touches a `double`.** The square
+**The whole book is written in Cufet, and nothing in it touches a `double`.** The square
 root is Newton–Raphson on the decimal; `log` and `exp` reduce their argument and sum a series;
 `power` is exact for a whole-number exponent, which is also the only kind a negative base
 accepts. Because both backends run the same algorithm on the same arithmetic, they give the
@@ -135,7 +135,7 @@ the same sequence in both.
 
 `matrix` is a rectangular grid of numbers, available inside `Pull a book on collections.`
 
-★ **Scaling by a number needs no failure handling.** `m * 2` and `2 * m` multiply every element,
+**Scaling by a number needs no failure handling.** `m * 2` and `2 * m` multiply every element,
 and there are no dimensions to disagree — so scaling gives a plain `matrix`, unlike `+`, `-` and
 matrix product, which are fallible because two matrices can be the wrong shapes for each other.
 Arithmetic is exact decimal, and is **fallible** — dimensions have to agree, so `+`, `-`
@@ -284,7 +284,7 @@ Done.
 (zoe, adam, mira)
 ```
 
-★★ **A set is a map with the value removed**, and it is stored as exactly that: the element keyed to
+**A set is a map with the value removed**, and it is stored as exactly that: the element keyed to
 itself. So what may be an element, how elements compare, and the iteration order are the map's
 answers already — see [Maps in REFERENCE.md](REFERENCE.md#maps) for which types may be a key.
 
@@ -295,7 +295,7 @@ Three refusals, each naming the word it wants rather than the type it got:
 - `<map> has X` → *write `has a key for`*. A set holds things; a map holds keys.
 - `Insert X after the first item of <set>` → a set has no positions.
 
-⚠ **There is no removal.** Nothing has needed to take something back out yet, and a spelling
+**There is no removal.** Nothing has needed to take something back out yet, and a spelling
 invented without a caller is one that has to be lived with.
 
 ---
@@ -351,7 +351,7 @@ Done.
 - **`Remove <one character> from`** takes the first occurrence out. Like setting a position, it
   takes exactly one character and refuses a longer text when it runs.
 
-★★ **A number inserted into a chase is a character's CODE POINT.** This is the one type in the
+**A number inserted into a chase is a character's CODE POINT.** This is the one type in the
 language where that reading exists, and it is not a conversion — a chase holds code points, so
 naming an element by its number is naming the element. A one-character text is the other way to
 write the same thing.
@@ -373,11 +373,11 @@ Hi
 27
 ```
 
-⚠ **The digits are still sayable, and you say so** — `Insert 27 converted to text` appends `2` and
+**The digits are still sayable, and you say so** — `Insert 27 converted to text` appends `2` and
 `7`. Nothing converts silently here, and `Insert` never has: `Insert 27 into <series of text>` is
 refused, so no reader arrives expecting it to stringify.
 
-★ **This is what makes an escape sequence writable.** A text literal escapes `\n`, `\t`, `\r`, `\\`,
+**This is what makes an escape sequence writable.** A text literal escapes `\n`, `\t`, `\r`, `\\`,
 `\"`, `\{` and `\}` and nothing else, so an ESC character had no spelling anywhere — and clearing a
 terminal, which is the most ordinary thing a full-screen program does, needed a C axiom:
 
@@ -393,15 +393,15 @@ Done.
 4
 ```
 
-⚠ A code point outside 0–U+10FFFF, a lone surrogate, or a number with a fractional part is not a
+A code point outside 0–U+10FFFF, a lone surrogate, or a number with a fractional part is not a
 character. Written out, it is refused before the program runs; computed, it fails where it is
 evaluated, with the same words.
 
-★ [`examples/systems/life.cufe`](../examples/systems/life.cufe) is why this exists — Conway's Game
+[`examples/systems/life.cufe`](../examples/systems/life.cufe) is why this exists — Conway's Game
 of Life drawing in place, which needs an ESC character and so could not be written at all until a
 number could name one.
 
-★★ **That first sentence is a promise, and it is tested rather than asserted:**
+**That first sentence is a promise, and it is tested rather than asserted:**
 `EverySeriesOperation_WorksOnAChase` walks the series surface against a chase.
 
 - **It follows COLLECTION conventions, not text ones.** `Insert`, `the number of`, and printing
@@ -419,7 +419,7 @@ number could name one.
 - **Reference-typed and region-allocated**, like a series or a map: it dies with its rabbit.
 - Two chases compare by **content**, as a series does.
 
-⚠ **Outside the pull, `chase` is an ordinary name.** A word spent on one construct is a name a
+**Outside the pull, `chase` is an ordinary name.** A word spent on one construct is a name a
 writer loses forever, so a type a book introduces only claims its name where that book was asked
 for — `Define chase as 5.` is a perfectly good line in a program that never pulls `collections`.
 The cost is the other direction: inside the pull, that line is gone.
@@ -478,7 +478,7 @@ Done.
 55
 ```
 
-⚠ Written bare — `[int s = 0; for (...) ...; return s;]` — gcc rejects it, because that text is
+Written bare — `[int s = 0; for (...) ...; return s;]` — gcc rejects it, because that text is
 placed where a value is expected rather than where a body is.
 
 #### An axiom that says nothing is source
@@ -501,7 +501,7 @@ Done.
 That is how two axioms share a helper. One declared *inside* an axiom belongs to that axiom alone,
 so without this each would carry its own copy.
 
-⚠ A preamble **takes no parameters** — a parameter's value comes from a call, and nothing calls
+A preamble **takes no parameters** — a parameter's value comes from a call, and nothing calls
 this. And nothing in it is checked: a wrapper's guards ask what an expression produces, and a
 declaration produces nothing, so what you write reaches the C compiler exactly as written.
 
@@ -575,7 +575,7 @@ job` is refused: running it has to produce something, and an axiom that never sa
 to be handed around as. Add the result and it is accepted. `the c-language axiom job`, taking
 nothing, is the one exception: it is complete C source as a value, the kind a code hole takes.
 
-★ **An axiom carrying `and free it with` travels too.** The freeing is registered where the address
+**An axiom carrying `and free it with` travels too.** The freeing is registered where the address
 is ACQUIRED, so it happens once per call however that call was reached — by name, or through a
 value that arrived from somewhere else entirely. The rabbit rule is unchanged: an address still
 cannot be held outside a rabbit block, and it is still freed when that block ends, exception
@@ -613,10 +613,10 @@ it.
 | `text` | `const char*`, UTF-8, valid for the length of the call |
 | `fact` | `int`, 1 or 0 |
 
-⚠ A parameter the source never mentions is refused — only names you declared are substituted, so
+A parameter the source never mentions is refused — only names you declared are substituted, so
 a misspelling would otherwise reach the C compiler as a stray `the`.
 
-⚠ A reserved word cannot be a parameter name. `path` and `where` are two, so write `file-path` and
+A reserved word cannot be a parameter name. `path` and `where` are two, so write `file-path` and
 `folder`.
 
 **Call one as a statement when you only want the effect**, and the answer is discarded:
@@ -701,7 +701,7 @@ not the value but what you do with it. There is **no address-of operator**: an a
 comes *from* C and goes *back* to C, so Cufet never makes one, and there is no layout question to
 answer because a struct is C's idea and struct work happens in C.
 
-⚠ **An address may only be held inside a rabbit, and cannot outlive one.** That block already means
+**An address may only be held inside a rabbit, and cannot outlive one.** That block already means
 region-scoped memory work, so it is also where a pointer's lifetime is answered for — the rabbit
 that knows when the region dies is what knows when the pointer dies. Holding one outside a rabbit
 is a static error, and so is putting one somewhere that outlasts the block: an address obeys the
@@ -825,7 +825,7 @@ The set is **platform-guarded**, because the interesting headers are not portabl
 calling `tcgetattr` is a Unix program however it is written, and on Windows the C compiler says so
 before the program ever runs.
 
-⚠ **A library of your own is not reachable yet.** The reason is linking rather than headers: a
+**A library of your own is not reachable yet.** The reason is linking rather than headers: a
 header gives you declarations, and something still has to put `-lsqlite3` on the command line. Both
 halves have to arrive together, so neither has.
 
@@ -936,12 +936,12 @@ function or method it calls (`the number function next unto reader`, filled with
 a literal. Everything in a block is checked, so a mistake in one is reported at its own line, and a
 fill that does not fit at the `Cite`. GRAMMAR, *Holes in cufet source*, has the rules.
 
-⚠ One name holds one block; a second under the same name is refused. ⚠ `and free it with` is refused, and it is the one thing the two tags differ on: a
+One name holds one block; a second under the same name is refused. `and free it with` is refused, and it is the one thing the two tags differ on: a
 release clause hands memory back to the language that allocated it, and nothing was allocated across
-a boundary here. ⚠ A message from inside a block reports the line it occupies in the file that
+a boundary here. A message from inside a block reports the line it occupies in the file that
 holds it, not the line it would have on its own.
 
-★ Nothing about this reaches a backend. The blocks are placed and then removed while the program is
+Nothing about this reaches a backend. The blocks are placed and then removed while the program is
 still being checked, so what runs — interpreted or compiled — is a program of ordinary declarations,
 and neither backend has a word to say about a cufet axiom.
 
@@ -964,12 +964,12 @@ false
 
 A pattern takes one `text` and gives back a `fact` — whether the subject holds it.
 
-★ **It is checked before the program runs, and that is the whole reason for the brackets.** Because
+**It is checked before the program runs, and that is the whole reason for the brackets.** Because
 a pattern is fixed where it is written, a bad one is refused at its declaration rather than failing
 on the line that uses it. An ordinary function taking `text` could not promise that: its argument is
 not known until it has one.
 
-⚠ **A value is spliced into a pattern, never concatenated into it** — the same guarantee
+**A value is spliced into a pattern, never concatenated into it** — the same guarantee
 `run "grep" with arguments (…)` makes, and the reason a pattern cannot be assembled at run time.
 `Define regex p, given (…)` is refused for that reason: a pattern takes no parameters.
 
@@ -1014,7 +1014,7 @@ false
 true
 ```
 
-★ **A pattern asks whether the subject HOLDS a match**, not whether the whole subject is one — so
+**A pattern asks whether the subject HOLDS a match**, not whether the whole subject is one — so
 `[na]` finds the `na` inside `banana`. **Anchors are how you say "the whole thing"**, and they are
 what turns a pattern from a search into a check:
 
@@ -1033,11 +1033,11 @@ false
 true
 ```
 
-★ `^` and `$` are ordinary states in the automaton rather than settings on the pattern, so they
+`^` and `$` are ordinary states in the automaton rather than settings on the pattern, so they
 compose wherever anything else does — `(^cat|dog$)` anchors each side of the alternation
 separately, which a pair of flags on the whole pattern could not have expressed.
 
-★★ **A negated class is not the mirror of a positive one, and the difference is worth knowing.**
+**A negated class is not the mirror of a positive one, and the difference is worth knowing.**
 `[abc]` is shorthand for `(a|b|c)` — it says nothing the book could not already say. `[^abc]` says
 something genuinely new, because "every character except these" cannot be written out as a list.
 The two spellings are one character apart and only one of them is sugar.
@@ -1057,12 +1057,12 @@ false
 true
 ```
 
-★ Reading up to a delimiter is what it is for, and it composes with everything else for nothing —
+Reading up to a delimiter is what it is for, and it composes with everything else for nothing —
 `[^,]` is an ordinary one-character state, so a `+` over it works exactly as `a+` does.
 
 #### Case, and whitespace
 
-⚠ **Matching is exact, and that includes case** — which is regex's own default, not a shortcoming.
+**Matching is exact, and that includes case** — which is regex's own default, not a shortcoming.
 `[WARN]` does not match `warn`. **Ask for the other behaviour with `(?i)`**, which folds everything
 after it to the end of its group, or `(?i:…)` to fold just part:
 
@@ -1084,12 +1084,12 @@ true
 false
 ```
 
-★ The casing comes from the same table the rest of the language uses, so a pattern means the same
+The casing comes from the same table the rest of the language uses, so a pattern means the same
 thing on every machine — which is not automatic, because the platform's own casing is not.
 
 #### Lines
 
-⚠ **`.` stops at a line break**, and `^` and `$` mean the whole subject rather than each line.
+**`.` stops at a line break**, and `^` and `$` mean the whole subject rather than each line.
 Both are regex's defaults, and both are askable-for: `(?s)` lets `.` cross a break, `(?m)` makes the
 anchors line-wise.
 
@@ -1114,11 +1114,11 @@ true
 false
 ```
 
-★ A line break is one `\n` here whatever a file is stored as — a CRLF source does not put a `\r`
+A line break is one `\n` here whatever a file is stored as — a CRLF source does not put a `\r`
 into a literal, and reading a file's lines strips it — so `(?m)` needs no second answer for
 Windows.
 
-★ **Whitespace is written literally, and needs no escape.** A space, a tab or a line break typed
+**Whitespace is written literally, and needs no escape.** A space, a tab or a line break typed
 into a pattern is that character — a pattern may run across lines the same way a `<<...>>` literal
 does. `\t` and `\n` are refused for the reason every unknown escape is: `\d` will mean digits one
 day, and quietly meaning `d` until then is a change nobody sees. Nothing is missing here but a
@@ -1126,7 +1126,7 @@ spelling, and the refusal says which character to type instead.
 
 **What is refused, and refused by name:**
 
-★★ **Nothing is refused as "not yet" any more, and that is the whole arc finishing.** Five things
+**Nothing is refused as "not yet" any more, and that is the whole arc finishing.** Five things
 once were — `a*`, `[a-z]`, `^ab`, `ab$` and `a{2}` — each named in its refusal rather than quietly
 read as ordinary characters. Every one is now supported, and **not a single pattern written against
 those refusals changed meaning on the day it landed.** Reading `a*` as two characters would have
@@ -1142,13 +1142,13 @@ Done.
 
 > `'\1' is not an escape this pattern understands`
 
-★ **Backreferences and lookaround are precisely the features that make a "regular expression" not
+**Backreferences and lookaround are precisely the features that make a "regular expression" not
 regular.** They need a machine that can backtrack, and backtracking is what this book refused at
 the start — because it can hang forever on a pattern that looks fine, and because the usual defence
 is a timeout, which is nondeterministic where two backends must agree byte for byte. So the book
 does the regular parts of regex, completely, and says plainly which parts it does not do and why.
 
-⚠ A `-` just before the `]` is an ordinary dash, not half a range. ⚠ Both empty forms are refused,
+A `-` just before the `]` is an ordinary dash, not half a range. Both empty forms are refused,
 in opposite directions: `[]` admits nothing so the pattern could never match, and `[^]` excludes
 nothing and so means `.`, which says it more clearly.
 
@@ -1167,12 +1167,12 @@ true
 true
 ```
 
-⚠ An unknown escape is refused for the same reason a metacharacter is: `\d` will mean digits one
+An unknown escape is refused for the same reason a metacharacter is: `\d` will mean digits one
 day, and quietly meaning `d` until then is a change nobody would see. An **empty** pattern is
 refused too, and so is an empty side of a `\|` — both would match everywhere, including the empty
 subject.
 
-★★ See [`examples/parsing/semver.cufe`](../examples/parsing/semver.cufe) for the pattern surface
+See [`examples/parsing/semver.cufe`](../examples/parsing/semver.cufe) for the pattern surface
 under real load — it validates semantic versions, and every case it checks carries **the answer the
 spec gives**, not one this project chose. Two backends agreeing proves only that they agree; an
 answer key written by somebody else is what makes agreement mean correct. The awkward rule is the
@@ -1184,7 +1184,7 @@ it triages a log by the shapes its lines hold, which is the case patterns are ac
 is never written for the thing that reads it, and half of what matters in one is a shape rather
 than a word.
 
-★ It is also where the edges showed up in a real program rather than in a test — and it is why
+It is also where the edges showed up in a real program rather than in a test — and it is why
 anchors exist. That program could *count and flag* but not *validate*, because a pattern asks
 whether a subject **holds** a match and there was no way to add "and that is all of it". The limit
 arrived as a refusal naming `^` rather than as a wrong answer, which is the whole argument for
@@ -1192,7 +1192,7 @@ refusing by name; `^` and `$` landed in the release after it.
 
 #### It cannot hang
 
-★★ **Patterns run on an automaton, never on backtracking.** `a*a*a*a*b` against a long run of a's
+**Patterns run on an automaton, never on backtracking.** `a*a*a*a*b` against a long run of a's
 with no `b` is the input that makes a backtracking engine try every way of dividing those a's
 between the four stars — exponential, and the reason "regular expression denial of service" is a
 phrase. Here the set of live states is carried forward one character at a time, so the cost is
@@ -1202,13 +1202,13 @@ The price is **backreferences**, which an automaton cannot express and this lang
 
 #### Why this book is written the way it is
 
-★★ **One meaning, not two.** A pattern is read by the front end and lowered to an ordinary function
+**One meaning, not two.** A pattern is read by the front end and lowered to an ordinary function
 before either backend meets the program, so there is nothing for an interpreter and a compiler to
 disagree about. Reaching for a ready-made engine on each side — .NET's on one, POSIX's on the other
 — would have given two dialects that differ on greediness, character classes and empty matches, and
 differ silently, on inputs nobody thought to test.
 
-★ Like `cufet` and unlike `the c-language`, this is a language book Cufet **reads itself**. Nothing
+Like `cufet` and unlike `the c-language`, this is a language book Cufet **reads itself**. Nothing
 is marshalled, no toolchain is reached for, and no boundary is crossed. The brackets mean *this text
 is not the program around it* in both cases; what differs is who reads what is inside.
 
@@ -1218,7 +1218,7 @@ is not the program around it* in both cases; what differs is who reads what is i
 
 ### Blueprints (`blueprints`)
 
-★ **The book introduces two shapes.** A `step` is one thing the build does; a `pin` is one
+**The book introduces two shapes.** A `step` is one thing the build does; a `pin` is one
 book the project depends on, held at one commit:
 
 | shape | fields |
@@ -1226,7 +1226,7 @@ book the project depends on, held at one commit:
 | `step` | `the name`, `the needs`, `the makes`, `the runs` |
 | `pin` | `the name`, `the source`, `the commit` |
 
-⚠ A pin records a COMMIT rather than a version: a version string would be a second name for
+A pin records a COMMIT rather than a version: a version string would be a second name for
 the same thing, and a content checksum cannot survive a `git` checkout that rewrites line endings.
 
 
@@ -1274,17 +1274,17 @@ leaves with 1 — saying whether no step makes it, or which step should have and
 it, so run it from there; `needs`, `makes`, and any file `runs` names are all measured from that
 folder.
 
-★★ **Running a blueprint performs nothing.** It defines `blueprint` and calls nothing, so what
+**Running a blueprint performs nothing.** It defines `blueprint` and calls nothing, so what
 comes out is a plan; the build happens afterwards, to that plan. Run it with plain `cufet
 blueprint.cufe` and you get no output and no compilation, which is correct rather than a bug.
 
-★★ **The graph is never written down.** `smoke` above runs after `shell` because it needs a path
+**The graph is never written down.** `smoke` above runs after `shell` because it needs a path
 `shell` makes — and nothing says so. There are no edges to declare, and that is not brevity:
 staleness is decided by hashing what a step needs, so `needs` has to be declared regardless.
 Writing edges too would state one fact twice, and an edge could then claim a dependency the inputs
 deny with nothing to catch it.
 
-★★ **`step` is a NAME for that shape, not a new type.** The book introduces it the way
+**`step` is a NAME for that shape, not a new type.** The book introduces it the way
 `collections` introduces `matrix`, but a step stays an ordinary structural record: you build one
 with `a record with (…)`, and writing the shape out longhand means exactly the same thing —
 
@@ -1304,7 +1304,7 @@ Done.
 — is the same parameter as `the series of step items`. Neither backend learns anything; what it
 saves is spelling four fields out twice in every blueprint.
 
-⚠ **The name is lexically scoped to the pull**, like `matrix`. Close the block and `step` stops
+**The name is lexically scoped to the pull**, like `matrix`. Close the block and `step` stops
 being a type. Pulling the book is still mostly how a file declares what it *is*, which is what lets
 `cufet build` refuse a blueprint that does not.
 
@@ -1322,14 +1322,14 @@ $ cufet build
 $
 ```
 
-★ **A skipped step says nothing**, so the second build above is the whole output of a build with
+**A skipped step says nothing**, so the second build above is the whole output of a build with
 nothing to do. The emptiness is the report.
 
-★★ **The argv is part of what is compared**, not only the inputs. A step whose files are untouched
+**The argv is part of what is compared**, not only the inputs. A step whose files are untouched
 but whose flags changed produces a different result, so comparing inputs alone would skip exactly
 the rebuild the change was made to cause.
 
-★★ **Staleness travels the chain, and stops where the content stops.** `smoke` needs what `shell`
+**Staleness travels the chain, and stops where the content stops.** `smoke` needs what `shell`
 makes, so changing `tools/shell.cufe` runs both. But if `shell` runs again and produces a
 byte-identical binary — because you edited a comment, or deleted the output and remade it — `smoke`
 does **not** run, since what it depends on never actually changed. A build keyed on *"did the step
@@ -1338,7 +1338,7 @@ really moved.
 
 The record is written after every step that succeeds, so a build that fails halfway keeps what it
 did and the next one carries on rather than starting over. A step that fails records nothing and
-runs again. ⚠ **There is no rebuild-everything flag** — deleting `.cufet-build` is how you ask for
+runs again. **There is no rebuild-everything flag** — deleting `.cufet-build` is how you ask for
 one, and a project under version control usually ignores it.
 
 **Its one member is `checksum`**, which is what staleness is decided by:
@@ -1353,7 +1353,7 @@ Done.
 `voidable bits` — void when the file cannot be read, because a build asks about inputs that do not
 exist yet constantly and "nothing there to checksum" is an answer rather than an error.
 
-★★ **Content, never timestamps.** A timestamp answers *"was this touched"*; a build wants *"is this
+**Content, never timestamps.** A timestamp answers *"was this touched"*; a build wants *"is this
 different"*. They differ at the edges — a file touched without changing, or a change inside the
 filesystem's timestamp resolution — and the failure is a wrong build with no complaint. Decisive:
 git does not preserve modification times, so a timestamp answer depends on how the tree arrived on
@@ -1364,7 +1364,7 @@ collision is possible in principle — at a few thousand files, somewhere around
 — and a collision is a stale build with no complaint, so it is stated here rather than pretended
 away.
 
-⚠⚠ **It is for blueprints, and nothing else.** `checksum` exists to decide staleness, and pulling
+⚠ **It is for blueprints, and nothing else.** `checksum` exists to decide staleness, and pulling
 this book is a file's declaration that it IS a build description — so reaching for it from an
 ordinary program is off-label rather than merely unusual. The practical consequence is concrete:
 pulling the book brings the step-walker with it, the walker runs subprocesses, and a compiled
@@ -1373,11 +1373,11 @@ build` runs it interpreted. A program that pulls the book for its checksum alone
 fine and fail to compile on Windows — and that is the book being used for something it is not for,
 not a limitation of the checksum.
 
-⚠ **`cufet build blueprint.cufe` is refused by name.** Under the overload it would compile the
+**`cufet build blueprint.cufe` is refused by name.** Under the overload it would compile the
 build description itself into a binary, which is never what anyone means — and it would do it
 quietly, which is the failure this language declines everywhere else.
 
-⚠ **Steps that need each other are refused**, not hung on: *"these steps need each other and cannot
+**Steps that need each other are refused**, not hung on: *"these steps need each other and cannot
 be ordered."*
 
 ### Pinned books (`cufet install`)
@@ -1407,7 +1407,7 @@ A pin is three things:
 | `source` | anything `git clone` takes — a URL, or a path |
 | `commit` | the exact commit to read the book out of |
 
-★★ **A pin names a COMMIT, and the transport is why.** A version string would be a second name for
+**A pin names a COMMIT, and the transport is why.** A version string would be a second name for
 the same thing, and the two can disagree. A content checksum is the obvious alternative and it
 cannot survive the journey: `git` rewrites line endings on checkout where `core.autocrlf` is set,
 so the bytes that arrive are not always the bytes that were published. A commit sha is the one
@@ -1415,7 +1415,7 @@ identifier `git` itself guarantees. The installer clones with `--no-checkout` an
 with `git show <commit>:<file>`, straight out of the object store, so there is no working tree for
 any setting to rewrite.
 
-★ **The clone is kept, as a cache**, at `books/.cufet-cache/<name>`; a second install re-reads it
+**The clone is kept, as a cache**, at `books/.cufet-cache/<name>`; a second install re-reads it
 instead of fetching again. That location is measured rather than tidy: `Write` does not create
 parent directories and Cufet cannot make one, so `books/` has to be brought into being by
 something — and `git clone` creates its target including parents. Deleting `books/` therefore
@@ -1426,7 +1426,7 @@ offers the build.
 are fetched too, and theirs after that. A project pins what it uses and nothing else; a library's
 dependencies stay the library's business.
 
-⚠⚠ **`cufet install` RUNS a fetched blueprint.** That is how its pins are read — the blueprint is
+⚠ **`cufet install` RUNS a fetched blueprint.** That is how its pins are read — the blueprint is
 executed and prints them — and it is the npm/pip postinstall hazard, chosen deliberately so that a
 blueprint may *compute* its pins rather than only spell them out. **Installing a book runs code
 from its repository.** The installer names each one before it runs — untagged below because no one
@@ -1441,17 +1441,17 @@ cufet install: fetching deep
 cufet install: deep at 662ebab7a91d45760eae51ccb354fa987470bed3
 ```
 
-⚠ It is also an exception to the rule stated for `blueprint.cufe` elsewhere — that only its
+It is also an exception to the rule stated for `blueprint.cufe` elsewhere — that only its
 LOCATION is ever read and never its contents. That rule is about the **loader**, so that importing
 a book can never execute a build description, and it still holds there. The installer is the one
 tool that deliberately does otherwise.
 
-⚠⚠ **One book per name, so a name pinned twice to different commits is refused**, naming both pins
+**One book per name, so a name pinned twice to different commits is refused**, naming both pins
 and who wrote each. A program holds one book per NAME — that is what makes the name the namespace —
 so exact pins force a *selection*, and there is nobody but you to make it. Two books wanting the
 same book at the same commit is agreement rather than conflict, and costs one fetch.
 
-★ **Pins cannot form a cycle.** A commit cannot contain its own sha, so for A to pin B while B pins
+**Pins cannot form a cycle.** A commit cannot contain its own sha, so for A to pin B while B pins
 that same A, B would have to be committed knowing a sha that does not exist until B does. Exact
 pins are acyclic by construction, for the same reason a git history is.
 
@@ -1460,11 +1460,11 @@ commit, tab-separated, sorted by name — covering the whole closure, including 
 yourself. The next install reads it back, and a name that now resolves somewhere else is **refused,
 naming both**.
 
-★★ **That is not the usual lockfile argument, and it is sharper here.** Because a blueprint may
+**That is not the usual lockfile argument, and it is sharper here.** Because a blueprint may
 COMPUTE its pins, the closure is not a function of the files at all: one blueprint, unchanged and at
 a single commit, can pin a different book depending on whether it runs inside a git repository. Nothing else anywhere records what a project actually got.
 
-★ **It is the tool's file, not yours.** Writing the closure back into `blueprint.cufe` would be a
+**It is the tool's file, not yours.** Writing the closure back into `blueprint.cufe` would be a
 tool editing the source you wrote; every ecosystem that keeps a lock splits the two for that reason.
 Deleting `.cufet-pins` is the escape hatch and there is no flag, exactly as with `.cufet-build`. A
 failed install writes nothing — a partial record is one the next install would compare against

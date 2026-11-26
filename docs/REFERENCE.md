@@ -143,7 +143,7 @@ Articles (`a`, `an`, `the`) are noise **almost** everywhere — `Define the tota
 and `Define total as 0.` are identical, and so are `given (the number n)` and
 `given (number n)`.
 
-★ **The exception: `the` is the named-field marker.** Wherever a field could be
+**The exception: `the` is the named-field marker.** Wherever a field could be
 *positional* instead, `the` is what says a name follows — and there it is required,
 not decoration:
 
@@ -755,7 +755,7 @@ Pull a rabbit as hopper.
 Done.
 ```
 
-⚠ There is no bare `Bury x.` A rabbit is always the one doing it, which is what
+There is no bare `Bury x.` A rabbit is always the one doing it, which is what
 puts the ownership of the buried state somewhere you can see rather than leaving
 it ambient.
 
@@ -829,7 +829,7 @@ same programs.
 
 | Shape | Why |
 | --- | --- |
-| `Bury` inside the `Otherwise` of a judgement whose arms name **types** over a **non-union** subject | The leftover cases have to be named to resume into them, and only a closed union says what they are. ⚠ A judgement whose arms name VALUES is exempt: it narrowed nothing on the way past, so there is nothing to restore. |
+| `Bury` inside the `Otherwise` of a judgement whose arms name **types** over a **non-union** subject | The leftover cases have to be named to resume into them, and only a closed union says what they are. A judgement whose arms name VALUES is exempt: it narrowed nothing on the way past, so there is nothing to restore. |
 | A nested `Judge` inside a burying body | The inner one rebinds `it` at a narrower type, and one name holds one type here. Bind the inner subject to a name of its own. |
 | `Bury` inside `Try to` or a rabbit block | A handler and a region are context a resumption cannot restore. |
 | `Bury` inside `For each` over a map | Resuming means counting back to where the loop was, and a map's entries have no position to count to. Loop over a series. |
@@ -993,7 +993,7 @@ Pull a rabbit as hopper.
 Done.
 ```
 
-⚠ **What you bury in a burrow does not come out of it.** Once the block ends the
+**What you bury in a burrow does not come out of it.** Once the block ends the
 ground is gone, and so is everything buried in it — carrying the stash out and
 unburying it later is refused, the same way any closure over rabbit-scoped state
 is. That is not a restriction bolted onto stashes; it is what burying somewhere
@@ -1123,7 +1123,7 @@ a pattern: 0x0F
 even a nested string: inner world
 ```
 
-★ **A hole takes what `converted to text` takes** — text, number, fact, bits, a chase, and a series
+**A hole takes what `converted to text` takes** — text, number, fact, bits, a chase, and a series
 of texts, numbers, facts or bits (or a series of such series). A series becomes the text `State`
 prints for it:
 
@@ -1213,14 +1213,14 @@ Define note as <<first line
 second line>>.
 ```
 
-★ **A line break in a literal is one `\n`**, whatever the file is stored as. A CRLF source does
+**A line break in a literal is one `\n`**, whatever the file is stored as. A CRLF source does
 not put a `\r` into the text, so `the length of note` is 22 on every platform and a checkout
 that converts line endings cannot change what a program means. This holds for `"..."` too; it
 matters most here, because a multi-line verbatim literal is the ordinary way to write one and
 there is no escape to reach for instead. (A *lone* `\r` is not a line break, so one you write
 deliberately is kept.)
 
-★ **There is no interpolation here** — that is the trade for total literalness. Join instead,
+**There is no interpolation here** — that is the trade for total literalness. Join instead,
 which is what a hole is doing anyway:
 
 ```cufet
@@ -1228,7 +1228,7 @@ Define name as "world".
 State <<hello, >> joined to name.          → hello, world
 ```
 
-> ⚠ **Text ending in `>` needs the quoted form.** `<<a>>>` closes at the first `>>` and leaves a
+> **Text ending in `>` needs the quoted form.** `<<a>>>` closes at the first `>>` and leaves a
 > stray `>` behind. Write `"a>"`. This is the one thing the verbatim form cannot spell.
 
 **Length** — `the length of`, the character count:
@@ -1427,7 +1427,7 @@ Define hundred as range 1 to 100.        ← also valid anywhere a series goes
   so the operation that reverses one is the operation that reverses this.
 - It produces an ordinary `series of number` — all series operations apply.
 
-⚠ **A range written with both ends as literals, ending below where it starts, is refused** rather
+**A range written with both ends as literals, ending below where it starts, is refused** rather
 than quietly being empty, because it can only be a mistake. Where the fault is visible on the line,
 it is said out loud.
 
@@ -1879,7 +1879,7 @@ right shift to choose between.
 
 `left` and `right` are **not reserved** — `the left of node` still works.
 
-> **★ A shift does not add width the value does not occupy.** A result's width is the same rule
+> **A shift does not add width the value does not occupy.** A result's width is the same rule
 > everything else follows — the left operand's width, raised to fit the value — so a shift widens
 > only when the value grows into the new positions. Leading zeros survive when there is a width to
 > inherit them from, and cannot appear when there is not:
@@ -1961,7 +1961,7 @@ write = 0b010
 0b001
 ```
 
-★ **A width is data.** A program reads it back with `the width of`, and states one with
+**A width is data.** A program reads it back with `the width of`, and states one with
 `at … bits` — the only way to ask for leading zeros no operand held. Widening always works;
 narrowing is refused when it would drop a set bit.
 
@@ -2013,7 +2013,7 @@ Define object red.
 Define light as a new red.
 ```
 
-★ That is what makes a closed union usable as an **enumeration**, and a stronger one than a
+That is what makes a closed union usable as an **enumeration**, and a stronger one than a
 separate `enum` construct would be — `Judge` over a closed union proves every case is handled, so
 `Otherwise` is optional and a missing case is a static error:
 
@@ -2156,7 +2156,7 @@ Ada, 36, London
 Bo, 0, nowhere
 ```
 
-★★ **An object still has no unset state.** Every field is set on every object — what changed is
+**An object still has no unset state.** Every field is set on every object — what changed is
 only who wrote the value down. Defaults are per-field and opt-in: a field without one is exactly
 as mandatory as it was, and leaving it out is the same refusal it always was.
 
@@ -2536,13 +2536,13 @@ Rules:
   ends the program. A dying program still unmakes what the blocks it is leaving hold.
 - **A task body is a block** — an object defined at the top of `Have <rabbit> start a
   task:` is unmade at that task's `Done.`, whether the task finishes or faults.
-- ⚠⚠ **A function or method BODY is NOT a block, and its own `Define`s are never unmade.**
+- ⚠ **A function or method BODY is NOT a block, and its own `Define`s are never unmade.**
   Neither is the program's top level. The same object declared in an `If` or a loop fires
   its unmaker, and declared directly in a function body fires nothing — in both backends. Only the
   task body above is the exception. So a function that opens a resource and lets it fall out of
   scope LEAKS it, which is the case this feature exists for.
-  ★ The workaround is a block: wrap the binding in `If`, a loop, or a rabbit, and it fires at that
-  `Done.` ⚠ This is a known limitation with a prerequisite of its own — a value being RETURNED is
+  The workaround is a block: wrap the binding in `If`, a loop, or a rabbit, and it fires at that
+  `Done.` This is a known limitation with a prerequisite of its own — a value being RETURNED is
   not exempt from its scope's unmakers today, so simply firing them here would destroy what a
   function hands back. See DESIGN, *Objects: lifetime and accessors*, for the four reasons this
   is the behaviour rather than a bug.
@@ -2556,12 +2556,12 @@ Rules:
   object, so two names exist and the unmaker fires **twice**. An object reached without a
   `Define` — a temporary, an element of a series, a field of another object — has no declaring
   block, so its unmaker **never** fires. Cufet does not track who owns a resource; you do.
-- ⚠⚠ **An unmaker may run MORE THAN ONCE per logical object, so write it to be ID—POTENT.**
+- ⚠ **An unmaker may run MORE THAN ONCE per logical object, so write it to be ID—POTENT.**
   A copy fires it twice; a value returned out of the block it was declared in is unmade on the way
-  out and handed over anyway. ★ **Safe** for hooks that can repeat — logging, flushing, marking,
-  setting a flag. ⚠ **Unsafe** for release that cannot — closing a file by name, releasing a
+  out and handed over anyway. **Safe** for hooks that can repeat — logging, flushing, marking,
+  setting a flag. **Unsafe** for release that cannot — closing a file by name, releasing a
   lock, decrementing a count. For those, expose a method and call it where you can see it happen.
-  ★ This follows from what an unmaker IS: a per-binding scope-exit hook, not an ownership
+  This follows from what an unmaker IS: a per-binding scope-exit hook, not an ownership
   destructor. Cufet objects are value types with no identity, so there is no unique owner to give
   the release to, and unmaking is not deallocation — the arena owns the memory and exposes no
   `free`, which is why a repeat is observable but never a double-free.
@@ -2619,7 +2619,7 @@ Three things fall out of the shape:
   with no `with (…)` is the empty one.
 - **Children can be attached later.** A node's `children` is an ordinary series, so
   `Insert kid into the children of parent.` works and the tree can be grown top-down.
-- ★ **But a child is stored by copy.** Objects are values, and a series holds what it
+- **But a child is stored by copy.** Objects are values, and a series holds what it
   was given — not a link to it. So this prints `after` then `before`:
 
   ```cufet-fragment
@@ -2926,7 +2926,7 @@ Bind series of number function given (the number) to the-ops:
 Done.
 ```
 
-⚠ **Where the name sits is what tells two readings apart**, and both are real:
+**Where the name sits is what tells two readings apart**, and both are real:
 
 - `the series of number function make given (the number)` — a parameter taking a function that
   RETURNS a series of numbers. The name sits straight after `function`.
@@ -3563,7 +3563,7 @@ In case of failure:
 Done.
 ```
 
-★ **A failure message is any text**, not only a literal — an interpolation is how a failure names
+**A failure message is any text**, not only a literal — an interpolation is how a failure names
 what went wrong:
 
 ```cufet
@@ -3690,7 +3690,7 @@ State " done".
 Loading... done
 ```
 
-★ **It costs no new anything.** `Write <text> to <stream>.` already existed for file streams, and
+**It costs no new anything.** `Write <text> to <stream>.` already existed for file streams, and
 so did the type — so reading from `the output` is refused by the direction check that was already
 there:
 
@@ -3703,7 +3703,7 @@ Here on line 1, you're trying to read from a writable stream of text.
 Use a readable stream of text as the source — 'the input' is always available, or use 'With the file ... open for reading as s:' for a file stream.
 ```
 
-★ **It flushes on every write**, so a prompt reaches the reader before the program blocks waiting
+**It flushes on every write**, so a prompt reaches the reader before the program blocks waiting
 for their answer:
 
 ```cufet-fragment
@@ -3716,7 +3716,7 @@ line the way the platform does — CRLF on Windows — while a newline written I
 you chose and is passed through untouched. So `Write "a\nb" to the output.` sends a bare line feed on
 every platform, and `State "a"` does not.
 
-⚠ `Define output as …` is refused, exactly as `Define input as …` is: the name is taken. ⚠ The
+`Define output as …` is refused, exactly as `Define input as …` is: the name is taken. The
 word also means "send this value downstream" inside a pipe stage, which `input` has always done
 too — `for each s from input, … output s` — and the two readings are decided by where they appear.
 
@@ -3748,7 +3748,7 @@ Append "more\n" to the file "out.txt".      ← append to end
 Write and append complete silently on success; on failure they raise a Cufet
 failure caught by the enclosing `Try` handler.
 
-⚠ **A write creates the FILE, never the directory.** Writing into a directory that is not there
+**A write creates the FILE, never the directory.** Writing into a directory that is not there
 fails with *"the directory for 'notes/today.txt' does not exist"* — nothing was being looked for,
 so it names the thing you can go and make.
 
@@ -3763,7 +3763,7 @@ All three are fallible, like every other filesystem operation, and complete sile
 Failure categories: `"not-found"`, `"already-there"`, `"not-empty"`, `"permission-denied"`,
 `"disk-error"`.
 
-★★ **The refusals are most of what these are**, and both are the language's ordinary character
+**The refusals are most of what these are**, and both are the language's ordinary character
 applied to the filesystem:
 
 - **`Make the directory` does not create missing parents.** `Make the directory "a/b/c".` when `a`
@@ -3775,7 +3775,7 @@ applied to the filesystem:
 - Making one that is **already there** fails too, rather than quietly doing nothing — so a program
   that means *"make sure this exists"* asks `the path … exists` and says so.
 
-★ `Remove` is the same word series mutation uses (`Remove <x> from <series>`); `file` and
+`Remove` is the same word series mutation uses (`Remove <x> from <series>`); `file` and
 `directory` are what make the two readings decidable, so neither cost a new keyword.
 
 **Scoped file streams — `With the file ... open for reading/writing as`:**
@@ -3890,7 +3890,7 @@ Done.
 The series must be a `series of text`, and an empty one is not a missing one — the program still
 launches, with no arguments.
 
-⚠ **A `(` after `arguments` always opens the written-out list.** So `with arguments (argv)` is a
+**A `(` after `arguments` always opens the written-out list.** So `with arguments (argv)` is a
 list of ONE argument that happens to be a series, not the series form, and is refused as such:
 
 ```cufet-refused
@@ -4050,11 +4050,11 @@ the same status whether the program was interpreted or compiled: `cufet check.cu
 compiled `./check` both leave with what the program said.
 
 - **Statuses run from 0 to 255**, whole. Anything else is refused — at check time when the number
-  is written out, and where it runs when it is computed. ⚠ The operating system keeps only the low
+  is written out, and where it runs when it is computed. The operating system keeps only the low
   eight bits, so `Exit with 256.` would leave with **0** — success, from a line that plainly meant
   otherwise. Refusing beats that silent reinterpretation, the same call the `bits` narrowing rule
   makes.
-- ★★ **Leaving UNWINDS.** Every open block's unmakers still run on the way out, so a program
+- **Leaving UNWINDS.** Every open block's unmakers still run on the way out, so a program
   that chooses to leave early is not the one way out that loses an `unmaking`. A `Pull a rabbit`
   holding a connection closes it whether the program falls off the end or exits from the middle.
 - **Nothing after it runs**, including in the blocks it is leaving through.
@@ -4089,18 +4089,18 @@ Done.
 Run as `cufet greet.cufe alice bob`, that prints `2`. A compiled `./greet alice bob` prints `2`
 as well, and that agreement is what shapes the rest of the rule.
 
-- ★★ **The program's own name is not among them, and cannot be.** `cufet greet.cufe alice bob`
+- **The program's own name is not among them, and cannot be.** `cufet greet.cufe alice bob`
   and `./greet alice bob` disagree about the head — `cufet` against `./greet`, with the script
   path present in one and absent in the other. There is no definition of argument zero the two
   could share, so it is left out rather than defined differently on each side.
-- ★ **A series, never a `voidable`.** No arguments is an EMPTY series, so a program can walk
+- **A series, never a `voidable`.** No arguments is an EMPTY series, so a program can walk
   them without asking whether they are there. This is where they differ from the environment:
   a lookup can miss, a sequence can only be short.
 - **They arrive as written.** Cufet does not parse flags — `--name value` is two arguments, and
   what they mean is the program's business.
 - Read-only.
 
-⚠ **`arguments` is a reserved word**, so it cannot name a variable or a field. It is the one
+**`arguments` is a reserved word**, so it cannot name a variable or a field. It is the one
 word in this area that is reserved rather than contextual: `the arguments` stands alone with
 nothing after it to key on, and `the X` is already how a variable named `X` may be written — so
 the two would be the same spelling in the same position.
@@ -4323,7 +4323,7 @@ depends on the order tasks ran in may differ between runs and between the two ba
 which is what a rabbit's name is for: a rabbit is an agent you summon and hand a job.
 The bare `rabbit` keyword still means the enclosing one, and the two forms mix freely.
 
-⚠ Naming a rabbit pulled *further out* is refused. The task would be joined by that
+Naming a rabbit pulled *further out* is refused. The task would be joined by that
 rabbit's `Done.`, so it would have to outlive the block it was written in. Give the work
 to the rabbit pulled in this block, or move the work out to where that rabbit lives.
 
@@ -4426,7 +4426,7 @@ forced into a type.
 **And a fault nobody claimed surfaces at the rabbit's `Done.`** — reported after every task has
 been joined, so the body's output is complete first:
 
-- ★★ **Reading a result takes ownership of its failure.** A task whose result was awaited is that
+- **Reading a result takes ownership of its failure.** A task whose result was awaited is that
   awaiter's business, so `Done.` does not announce it a second time. Catching a task's fault at the
   await and suppressing it ends it.
 - A fire-and-forget task has no result to read, so its fault is never claimed and always reports.
@@ -4507,11 +4507,11 @@ packing carrots
 
 - The rabbit runs its body, then waits at its `Done.` until one of the channels has something,
   runs the matching task with it, and ends. The loop around it is what keeps it serving.
-- ★ **The chosen task runs as the rabbit's own code**, at its `Done.`, as an Occam ALT's branch
+- **The chosen task runs as the rabbit's own code**, at its `Done.`, as an Occam ALT's branch
   does. Nothing runs beside it, so unlike any other task it **may change the names around it**.
   That is also why it cannot `return`, and cannot use a name from a block that has ended by
   `Done.`, such as the loop that offered it.
-- ★ **Whatever was sent first wins.** When several channels hold something, the task that runs is
+- **Whatever was sent first wins.** When several channels hold something, the task that runs is
   the one whose delivery went in earliest, across all of them. The order the tasks are written in
   does not matter. Ticket 17 was sent before either order, so it is handled first.
 - **A closed, empty channel is ready too.** Its task runs, and the delivery is void, exactly as
@@ -4597,7 +4597,7 @@ A task may freely **read** anything from the enclosing scope, of any type. A tas
 **not change** something it captured — and this holds for a plain number just as much as
 for a series:
 
-```cufet
+```cufet-refused
 Define data as a series of number with (1, 2, 3).
 Define tally as 0.
 Pull a rabbit.
@@ -4606,11 +4606,15 @@ Pull a rabbit.
         The tally becomes tally + 1.   ← REJECTED too, for the same reason
     Done.
 Done.
+State data.
+State tally.
 ```
 
-Both backends refuse this when the program is checked. The reason is worth knowing: the
-task holds its own copy, so the change could never be seen outside — and two tasks doing
-it at once is a straightforward data race. Send the result back through a channel, or
+Both backends refuse this when the program is checked, because something outside the task
+reads the name afterwards. The reason is worth knowing: the task holds its own copy, so the
+change could never be seen outside — and two tasks doing it at once is a straightforward data
+race. A change nothing outside reads is not refused, since it cannot be seen; `cufet build`
+warns about it. In an automatic rabbit a task may change what it uses. Send the result back through a channel, or
 `return` it from a named task and await it.
 
 This is about *writing* to a capture, not about captures being restricted. Reading one is
@@ -4634,10 +4638,6 @@ Done.
 ```output
 20
 ```
-
-> ⚠ The interpreter does **not** enforce this — it hands task bodies the live enclosing
-> binding, and runs one task at a time, so the mutation appears to work. Write to the
-> rule and both backends agree.
 
 #### Interpreted versus compiled
 
@@ -4849,7 +4849,7 @@ Pull greeting-kit.                  ← loads greeting-kit.cufe if nothing here 
 Done.
 ```
 
-★ **Beside the file that pulls it** — which, when one book pulls another, means beside *that book*
+**Beside the file that pulls it** — which, when one book pulls another, means beside *that book*
 rather than beside whatever program started things. A folder holding a book and what it needs works
 wherever you put it.
 
@@ -4867,15 +4867,15 @@ myproject/
         game.cufe
 ```
 
-★★ **Local wins.** A `canvas.cufe` sitting beside `paint.cufe` is the one `paint` gets, and `game`
+**Local wins.** A `canvas.cufe` sitting beside `paint.cufe` is the one `paint` gets, and `game`
 still gets the project's. The shared folder is a default, not a ceiling.
 
-⚠ Only the blueprint's *location* is read; it is never run. Finding a file is a walk up the tree,
+Only the blueprint's *location* is read; it is never run. Finding a file is a walk up the tree,
 and `cufet check`, the editor and a plain `cufet run` all resolve pulls without executing anything.
-⚠ No blueprint above a file means no project, and a pull then looks only beside the pulling file —
+No blueprint above a file means no project, and a pull then looks only beside the pulling file —
 so a loose `.cufe` anywhere on disk keeps meaning exactly what it meant.
 
-★ **Either spelling reaches a file.** `Pull a book on ‹name›.` and `Pull a ‹name›.` both load one;
+**Either spelling reaches a file.** `Pull a book on ‹name›.` and `Pull a ‹name›.` both load one;
 which you write depends on what the thing IS, not on where it lives — see
 [Books and modules](#books-and-modules) below.
 
@@ -4919,28 +4919,28 @@ and the member you want:
 State cast terminals's read-key.       ← tools/snake/snake.cufe reaching tools/terminals/
 ```
 
-★★ **A folder's files already are a group of declarations under one name.** `and book` said that a
+**A folder's files already are a group of declarations under one name.** `and book` said that a
 second time, and a `Pull` between two files of one folder said it a third. Books, modules and
 `Pull` all still work inside a project and nothing refuses them — there is simply nothing left for
 one to do. What they are FOR is a book in `books/`, which is somebody else's code, and a region's
 lifetime: both are boundaries a qualification cannot cross.
 
 **What a directory offers is what its files DECLARE** — functions, object types and interfaces,
-plus any `permanently` constant. ⚠ A plain `Define` at a file's top level is a value binding in
+plus any `permanently` constant. A plain `Define` at a file's top level is a value binding in
 that file's own body, not a name the directory hands out; two programs in one directory may each
 have their own `Define asking as …` and neither sees the other's.
 
 ⚠ **Only the file you RUN runs.** A neighbour contributes its declarations and nothing else, which
 is why two programs may share a directory — each of them starts something on its last line.
 
-⚠ **A repeated top-level name within one directory is refused**, naming both files. There is
+**A repeated top-level name within one directory is refused**, naming both files. There is
 nothing between them to keep two apart, so the second would silently replace the first.
 
-⚠ **A name that is also a directory of the project is refused**, because `terminals's read-key`
-would then have two readings. ⚠ A directory cannot qualify ITSELF: inside `tools/terminals/`, its
+**A name that is also a directory of the project is refused**, because `terminals's read-key`
+would then have two readings. A directory cannot qualify ITSELF: inside `tools/terminals/`, its
 own names are already in scope, so write `put` rather than `terminals's put`.
 
-⚠ **No blueprint above a file means no project**, and everything above is then exactly as it was:
+**No blueprint above a file means no project**, and everything above is then exactly as it was:
 a loose `.cufe` has no neighbours and pulls its books beside itself.
 
 #### Drawing the tree
@@ -4982,7 +4982,7 @@ into another namespace. So every name written bare is found by walking UP the tr
   `.git`) are not drawn, and `books/` belongs to the pins.
 - **Read, never run.** `tree` must be `Return` of a written-out text; anything else in its body is
   refused, because resolving a name executes nothing.
-- ⚠ **The drawing is read strictly**, since it is the one place indentation means something: tabs
+-**The drawing is read strictly**, since it is the one place indentation means something: tabs
   mixed with spaces, an indent matching no level above it, a folder that is not there, a folder drawn
   twice and a source folder left out are each refused, on the drawing's line.
 - **No tree, no change** — every folder is its own namespace.
@@ -5019,20 +5019,20 @@ Done.
 Define there as a new point { the across 1, the up 1 }.      ← refused: not in scope
 ```
 
-★ **Members are what an object HAS; declarations are what a module CARRIES.** A type is not a
+**Members are what an object HAS; declarations are what a module CARRIES.** A type is not a
 member — it is not reached with `'s` and no interface can require one — so only a module may carry
 one, and an ordinary object that tries is refused with a message naming the fix.
 
-⚠ Two modules may each carry a `point` without colliding.
+Two modules may each carry a `point` without colliding.
 
-⚠ The files are resolved and compiled **together**, as one program. Cufet has no separate
+The files are resolved and compiled **together**, as one program. Cufet has no separate
 compilation, and multi-file is about writing a program across files rather than building them
 independently.
 
 #### Books and modules
 
 **A book is a module that owns no LIFETIME** — what another language would have made a header
-file. It says so with `and book`, and every book is a module. ★ The surface then reads the
+file. It says so with `and book`, and every book is a module. The surface then reads the
 difference: you consult a book, and you have one of a module.
 
 ```cufet
@@ -5045,7 +5045,7 @@ Done.
 mechanism and asks the same question everywhere, but the surface says which KIND of thing you are
 pulling. The noun is what reads: *a book on math* is English, *a math* is not.
 
-★ Nothing about the bundled books is privileged here — `math` is a book because it says it is one,
+Nothing about the bundled books is privileged here — `math` is a book because it says it is one,
 and anybody's module can say the same.
 
 **A region is a module that OWNS one.** It says so with `and region`, and pulling it opens a
@@ -5060,7 +5060,7 @@ Pull workspace as bench.
 Done.
 ```
 
-★★ **A rabbit is one of these, not an exception to them.** `Prelude/rabbit.cufe` says
+**A rabbit is one of these, not an exception to them.** `Prelude/rabbit.cufe` says
 `and region` like any other, so the thing a rabbit does is a thing the language offers rather than
 a power one built-in type was given. A region you wrote can be told to bury, and the stash it
 hands back is an ordinary `stash of T`:
@@ -5075,15 +5075,15 @@ Bind number to counting-up, given (the workspace bench, the number first-value):
 Done.
 ```
 
-⚠ **The region rules are the rabbit's rules, because they are one set of rules.** A value made
+**The region rules are the rabbit's rules, because they are one set of rules.** A value made
 inside a region may not be stored where it would outlive it — *"this value lives in a
 shorter-lived region than its destination"* — and that is enforced for your region exactly as it
 is for a rabbit.
 
-⚠ **`and book and region` is refused.** A book owns no lifetime and a region is nothing but one,
+**`and book and region` is refused.** A book owns no lifetime and a region is nothing but one,
 so they are opposite claims. `and module and region` is allowed but says one thing twice.
 
-⚠ `Pull books on ‹a›, and ‹b›.` applies one spelling to every name, so all of them must be books.
+`Pull books on ‹a›, and ‹b›.` applies one spelling to every name, so all of them must be books.
 A book and a module you hold one of are pulled by different words, so they nest rather than
 sharing a statement.
 
@@ -5142,7 +5142,7 @@ Here on line 5, you're trying to pull 'ledger-kit' as a book.
 Write 'Pull a ledger-kit.' instead — or add 'and book' to its definition if it owns no lifetime.
 ```
 
-⚠ **Saying both is refused**, in either order. A book is already a module, so the pair adds nothing
+**Saying both is refused**, in either order. A book is already a module, so the pair adds nothing
 and reads as a claim to be both kinds at once:
 
 ```cufet-refused
@@ -5200,7 +5200,7 @@ cufet pulls program.cufe            list the FILES it brings in
 cufet page book.cufe                write a reader's page for the book in it
 ```
 
-★ **`pulls` exists so a blueprint need not list dependencies by hand.** It prints one
+**`pulls` exists so a blueprint need not list dependencies by hand.** It prints one
 `<file>: <pulled>` line per pair, always prefixed, however many files you ask about:
 
 ```
@@ -5211,36 +5211,36 @@ repl.cufe: shell.cufe
 repl.cufe: terminals/terminals.cufe
 ```
 
-⚠ **A NEIGHBOUR is a dependency too**, which is why each of those two names the other: they share
+**A NEIGHBOUR is a dependency too**, which is why each of those two names the other: they share
 a directory, so each is part of the other's program and a change to one really does make the
 other's build stale. Nothing in either file says so — that is the point of generating the list.
 
-★ **`check` and `tokens` also take `--as=<path>`** — check this text as though it were that
+**`check` and `tokens` also take `--as=<path>`** — check this text as though it were that
 file. An editor checking UNSAVED text has to write it somewhere, and a program's neighbours, its
 namespaces and its `books/` folder are found from the directory the file is IN — so a scratch copy
 elsewhere is a different program. The text comes from the file given; `--as` only says where it
 belongs and what to name the report after.
 
 It reports what the **loader resolved**, not a re-reading of your source, so it cannot disagree
-with what a build actually loads. ★ Bundled books never appear — `math` and `the c-language` are
+with what a build actually loads. Bundled books never appear — `math` and `the c-language` are
 spliced in without being paths, and a build `need` has to be something that can be hashed. It is
 **transitive**, because a file pulled by a file you pull is equally a reason to rebuild.
 
-⚠ A file that does not type-check still reports its pulls. `pulls` is a question about loading, and
+A file that does not type-check still reports its pulls. `pulls` is a question about loading, and
 a build whose source is momentarily broken must still know what to watch.
 
-★ **`build` is overloaded by arity.** With a file it compiles that one file; with nothing it reads
+**`build` is overloaded by arity.** With a file it compiles that one file; with nothing it reads
 `blueprint.cufe` and does what the build description says — see [BOOKS.md](BOOKS.md#blueprints-blueprints).
-⚠ `cufet build blueprint.cufe` is refused by name, because under the overload it would quietly
+`cufet build blueprint.cufe` is refused by name, because under the overload it would quietly
 compile the build description itself into a binary.
 
-★ **`install` reads the PINS in that same blueprint** — each one a book, a git source and an exact
+**`install` reads the PINS in that same blueprint** — each one a book, a git source and an exact
 commit — clones each source once into `books/.cufet-cache/`, and writes the pinned file to `books/`,
 where a pull already looks. Books that a fetched book pins are fetched too, so a project pins what
 it uses and not what its books use. Full detail, including the `pin` shape, is in
 [BOOKS.md](BOOKS.md#pinned-books-cufet-install).
 
-⚠⚠ **Reading a fetched book's pins RUNS its blueprint**, so installing a book runs code from its
+⚠ **Reading a fetched book's pins RUNS its blueprint**, so installing a book runs code from its
 repository. That is the npm/pip postinstall hazard, taken deliberately so a blueprint may compute
 its pins; `install` names each blueprint before it runs one. `install` requires **`git` on your
 `PATH`**, and nothing else — there is no registry, and publishing a book is `git push`.
@@ -5299,7 +5299,7 @@ programs still interpret:
 cufet check --native program.cufe
 ```
 
-> ★ **A clean `--native` is not a promise the build will succeed.** It reports refusals,
+> **A clean `--native` is not a promise the build will succeed.** It reports refusals,
 > and a refusal is the code generator saying so out loud. It cannot report a defect *in*
 > the generator — code that is emitted but does not compile — because from the generator's
 > side that looks like success. `cufet build` is the only thing that proves a program

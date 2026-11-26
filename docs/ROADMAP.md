@@ -31,9 +31,9 @@ The compiler written in Cufet is done: it builds every program in `examples/` an
 
 2. **Compile-time macros — the `cufet` tag's expander.** Hygienic, expanding to Cufet AST before the
     checker runs. A macro is what consumes the `cufet` tag of the BLOCKS type, and `Cite` with holes is
-    the substitution half ([DESIGN.md](DESIGN.md#holes-in-cufet-source--built-2026-11-05)). Left:
+    the substitution half ([DESIGN.md](DESIGN.md#holes-in-cufet-source)). Left:
     syntax parameters, and generating AST from them, in both front ends and held to the same answers.
-    ⚠ Macro errors are the worst part of every language that has them, and clear errors are this
+    Macro errors are the worst part of every language that has them, and clear errors are this
     language's distinguishing feature — that tax is paid deliberately, not early.
 
 ## The design mountains
@@ -44,15 +44,15 @@ they are large, not because they are waiting — the order among them means noth
 1. **A REPL page.** `tools/repl.cufe` keeps state by REPLAY — it re-runs
    the accumulated lines and shows only what the new run added — and that gets SIMPLER in the
    browser: `Runtime.Run(source)` already takes a whole program and returns its output, statelessly.
-   ⚠ Replay repeats side effects, and a page invites longer sessions than a terminal; every line
+   Replay repeats side effects, and a page invites longer sessions than a terminal; every line
    re-runs every earlier one. Accepted natively; write it down rather than rediscover it.
 
 2. **The project tree — the rest of it.** The blueprint's drawing of the tree is BUILT in the C#
    front end (why it is shaped this way: DESIGN.md, *The tree the blueprint draws*). Left: the
    editor's maintenance — rewrite an entry when a folder moves or is renamed, ask "own namespace, or part of
    its parent?" when one is created, offer the edit that fixes a reference broken by the choice,
-   every write confirmed. ⚠ Cross-folder TYPES stay a gap for folders that remain walls — `snake` cannot
-   name a `terminals` type. ⚠ The Cufet front end checks one file alone and loads no project,
+   every write confirmed. Cross-folder TYPES stay a gap for folders that remain walls — `snake` cannot
+   name a `terminals` type. The Cufet front end checks one file alone and loads no project,
    so it needs a reader of its own only once it does.
 
 ## Ongoing, no fixed slot
@@ -113,7 +113,7 @@ the blueprint run in `App/Program.cs` and the pipeline tests (`InterpretRaw`).
   `pipe()`/`dup2`. *Blocker:* that, and no program has wanted it — `tools/shell.cufe` documents the
   limit and lives with it.
 
-  ★ Not an axiom-campaign item: nothing reaches for C to do this. The language does it, buffered.
+  Not an axiom-campaign item: nothing reaches for C to do this. The language does it, buffered.
 
 - **Move semantics at channel send.** A send deep-copies across the thread boundary. That is
   sound, and it is what keeps the two threads' arenas disentangled, but it is not free. A move

@@ -309,7 +309,7 @@ Done.
 | `yield` | YieldKw | |
 | `pull` | Pull | `Pull a book on <name>.` — `book` and `books` are NOT reserved |
 
-⚠ `channel` and `delivery` are **not** here: both take a mandatory `of`/`from`, so they are
+`channel` and `delivery` are **not** here: both take a mandatory `of`/`from`, so they are
 contextual — see [Contextual words](#contextual-words--not-reserved).
 
 ### Matrix
