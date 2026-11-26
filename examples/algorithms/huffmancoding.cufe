@@ -5,9 +5,10 @@
    the whole message into a single bits value, and decodes it back to prove
    the round trip.
 
-   Codes are stored as (pattern, width) pairs: a bits value carries its own
-   width for display, but nothing in the language will tell you that width
-   as a number, and the packer needs it. */
+   Codes are stored as (pattern, width) pairs. A pattern's own width only
+   grows to fit its value: the code 00 is built as 0b0 shifted left by 1,
+   which is still 0b0, one bit wide. So the length of a code is kept
+   beside it, and the packer needs it. */
 
 Define object hnode with (the text symbol, the number freq, the series of hnode children).
 Define object hcode with (the bits pattern, the number width).
