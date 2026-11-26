@@ -461,7 +461,6 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
         "Define ages as a map with (\"a\": 1, \"b\": 2, \"c\": 3).\nRemove \"b\" from ages.\nState ages.\nIn ages, the entry for \"b\" becomes 20.\nState ages.\nIn ages, the entry for \"a\" becomes 10.\nState ages.",
         "Define ages as a map with (\"a\": 1, \"b\": 2).\nFor each pair in ages, repeat:\n    State the key of pair.\n    State the value of pair.\nDone.\nFor each pair in ages, state pair.",
         "Define counts as a map with (\"a\": 1, \"b\": 2).\nFor each pair in counts, repeat:\n    In counts, the entry for the key of pair becomes the value of pair * 10.\nDone.\nState counts.",
-        "Define counts as a map with (\"a\": 1).\nFor each pair in counts, repeat:\n    In counts, the entry for \"z\" becomes 0.\nDone.\nState counts.",
         "Define words as a map with (1: \"one\", 2: \"two\").\nState words.\nState the entry for 2 in words.\nDefine flags as a map with (true: \"yes\", false: \"no\").\nState the entry for false in flags.",
         "Define left as a map with (\"a\": 1).\nDefine right as a map with (\"a\": 1).\nState left is right.\nDefine alias as left.\nState left is alias.\nIn alias, the entry for \"b\" becomes 2.\nState left.",
         "Define maybe as a map from text to voidable number.\nIn maybe, the entry for \"x\" becomes void.\nIn maybe, the entry for \"y\" becomes 5.\nState maybe.\nState maybe has a key for \"x\".\nState maybe has an entry for \"x\".\nState the entry for \"x\" in maybe.\nState the entry for \"y\" in maybe.",
@@ -975,6 +974,10 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
         ("Define xs as a series of number with (1, 2, 3).\nFor each n in xs, repeat:\n    State n.\n    If n is 3, insert 4 into xs.\nDone.\nState xs.",
          "was modified during a for-each loop"),
         ("Define counts as a map with (\"a\": 1, \"b\": 2).\nFor each pair in counts, repeat:\n    State the key of pair.\n    In counts, the entry for \"z\" becomes 0.\nDone.\nState counts.",
+         "'counts' was modified during a for-each loop"),
+        // ★ A change in the ONLY pass, so only the check after it can see it — missed by both backends
+        // until 2026-11-25, and pinned as printing until then (it sat in the list above).
+        ("Define counts as a map with (\"a\": 1).\nFor each pair in counts, repeat:\n    In counts, the entry for \"z\" becomes 0.\nDone.\nState counts.",
          "'counts' was modified during a for-each loop"),
         ("Define ages as a map with (\"a\": 1).\nState ages.\nRemove \"zzz\" from ages.\nState \"not reached\".",
          "Key not found in map on line 3."),

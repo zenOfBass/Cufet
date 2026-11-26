@@ -1578,9 +1578,7 @@ public sealed partial class Interpreter
                         if (setStopped) break;
                         // ★ And after the pass, as a series does — or a change in the last pass,
                         // or in the only one, went unseen (found 2026-11-25).
-                        if (feSet.Count != members.Count)
-                            throw new RuntimeException(
-                                $"{collectionDisplay ?? "The set"} was modified during a for-each loop on line {fe.Line} — collect into a separate series, or use a While loop if you need to change it while looping.");
+                        if (feSet.Count != members.Count) ThrowModifiedDuringLoop(collectionDisplay, "The set", fe.Line);
                     }
                     break;
                 }
@@ -1602,9 +1600,7 @@ public sealed partial class Interpreter
                         catch (SkipException) { /* next iteration */ }
                         finally { ExitScope(); }
                         if (stopped) break;
-                        if (dict.Count != snapshot.Count)
-                            throw new RuntimeException(
-                                $"{collectionDisplay ?? "The map"} was modified during a for-each loop on line {fe.Line} — collect into a separate series, or use a While loop if you need to change it while looping.");
+                        if (dict.Count != snapshot.Count) ThrowModifiedDuringLoop(collectionDisplay, "The map", fe.Line);
                     }
                     break;
                 }
@@ -1661,6 +1657,19 @@ public sealed partial class Interpreter
             }
         }
     }
+
+    /// <summary>The after-the-pass refusal of a loop over a set or a map.</summary>
+    /// <remarks>
+    /// ⚠⚠ OUT OF `Execute` ON PURPOSE. Written inline there, its message and interpolation grew
+    /// `Execute`'s stack frame, every call passes through `Execute`, and the playground's wasm stack
+    /// ran out on `examples/algorithms/sudoku.cufe` where it had not before (CI, 2026-11-26): the
+    /// guard in `OutOfStack` keeps a fixed reserve between calls, and a fatter frame ate it. Keep
+    /// anything new in that switch this thin, and measure sudoku in the playground after.
+    /// </remarks>
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private static void ThrowModifiedDuringLoop(string? named, string unnamed, int line) =>
+        throw new RuntimeException(
+            $"{named ?? unnamed} was modified during a for-each loop on line {line} — collect into a separate series, or use a While loop if you need to change it while looping.");
 
     // Snapshots the full visible scope chain for a closure (outer-to-inner so inner wins).
     // Deep-copies value-typed objects (records, objects) so they're independent;
