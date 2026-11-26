@@ -61,8 +61,8 @@ public sealed class CompiledCufetCompiler : CompiledFrontEnd, IDisposable
 /// that prints something else — fails the test.
 /// </para>
 /// </remarks>
-public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler compiled)
-    : PipelineTestBase, IClassFixture<CompiledCufetCompiler>
+public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler compiled, CompiledCufetChecker builtByCSharp)
+    : PipelineTestBase, IClassFixture<CompiledCufetCompiler>, IClassFixture<CompiledCufetChecker>
 {
     /// <summary>How many hand-written programs must build and print alike. Raised as it grows; never lowered.</summary>
     private const int BuiltFloor = 586;
@@ -1184,8 +1184,16 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     /// <summary>One large file for the memory ceiling: checking it loads its whole folder.</summary>
     private const string HeavyFile = "self-hosting/Cufet/compiler/emitting.cufe";
 
-    /// <summary>The most private memory the checker the Cufet compiler builds may hold over <see cref="HeavyFile"/>.</summary>
+    /// <summary>How many times the private memory of the checker `cufet build` builds, over <see cref="HeavyFile"/>,
+    /// the one the Cufet compiler builds may hold.</summary>
     /// <remarks>
+    /// ★ A RATIO, measured against the same checker built by C#'s compiler on the same file, since
+    /// 2026-11-25. What this guards is the Cufet compiler's lowering, and the two builds do identical
+    /// work: a fixed number in megabytes went red each time the checker's own source grew, and was raised
+    /// three times for that alone. The ratio was 1.10 (2,288 / 2,086 MB) on 2026-10-24, 1.11 (3,278 /
+    /// 2,963 MB) on 2026-11-14 and 1.13 (4,404 / 3,887 MB) on 2026-11-25; the lowering below was about
+    /// 2.3. ⚠ Growth both builds share is not seen here: 3,887 MB for one file is a question of its own.
+    /// The history of the fixed number, which this replaced:
     /// ★ Measured 2026-10-24 on Windows: the checker `cufet build` builds peaked at 2,086 MB over this
     /// file, and the one the Cufet compiler builds at 2,288 MB. The ceiling is 1.5 times the first.
     /// Raise it, with a new measurement of both, when the file grows — never to make a red test green.
@@ -1198,7 +1206,7 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
     /// made a throwaway chase on every insert at a chase's end. Every parity test stayed green, because
     /// they compare only what the checker prints.
     /// </remarks>
-    private const long HeavyFileMemoryCeilingBytes = 4_400L * 1024 * 1024;
+    private const double HeavyFileMemoryRatio = 1.3;
 
     [Fact]
     public void TheCompiledCompiler_BuildsTheChecker_WhichChecksAsCSharpDoes()
@@ -1213,12 +1221,16 @@ public class CompilerParityTests(ITestOutputHelper output, CompiledCufetCompiler
             Assert.True(files.Count >= 60, $"only {files.Count} example programs found under {RepoRoot}");
             var got = ByFile(Run(exe, ["--tree", .. PreludeArgs, .. files], RepoRoot));
 
-            // And how much memory it takes over one large file — see HeavyFileMemoryCeilingBytes.
+            // And how much memory it takes over one large file, beside the same checker built by C# —
+            // see HeavyFileMemoryRatio.
             Run(exe, ["--tree", .. PreludeArgs, HeavyFile], RepoRoot, out long peak);
-            Assert.True(peak > 0, "the checker's memory was never measured, so this would pass on nothing.");
-            Assert.True(peak <= HeavyFileMemoryCeilingBytes,
-                $"the checker the Cufet compiler builds held {peak / (1024 * 1024):N0} MB at its peak over {HeavyFile}; "
-              + $"the ceiling is {HeavyFileMemoryCeilingBytes / (1024 * 1024):N0} MB. See HeavyFileMemoryCeilingBytes.");
+            Run(builtByCSharp.Exe, ["--tree", .. PreludeArgs, HeavyFile], RepoRoot, out long reference);
+            Assert.True(peak > 0 && reference > 0, "the checkers' memory was never measured, so this would pass on nothing.");
+            output.WriteLine($"memory over {HeavyFile}: {peak / (1024 * 1024):N0} MB, and {reference / (1024 * 1024):N0} MB built by C#");
+            Assert.True(peak <= reference * HeavyFileMemoryRatio,
+                $"the checker the Cufet compiler builds held {peak / (1024 * 1024):N0} MB at its peak over {HeavyFile}, "
+              + $"and the one `cufet build` builds {reference / (1024 * 1024):N0} MB; the most allowed is {HeavyFileMemoryRatio} times that. "
+              + "See HeavyFileMemoryRatio.");
             var problems = new List<string>();
             int trees = 0;
             foreach (var name in files)
