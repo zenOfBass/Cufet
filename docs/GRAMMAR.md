@@ -15,11 +15,11 @@ cannot build something the interpreter runs, it refuses it.
 - [2. Object methods and field access](#2-object-methods-and-field-access)
 - [3. Value vs. reference semantics](#3-value-vs-reference-semantics)
 - [4. Comparison forms — both work everywhere](#4-comparison-forms--both-work-everywhere)
-- [5. Which operations accept expressions vs bare names](#5-which-operations-accept-expressions-vs-bare-names)
+- [5. Collections, books, pulls and tasks](#5-collections-books-pulls-and-tasks)
 - [6. Where constructs are allowed](#6-where-constructs-are-allowed)
 - [7. Streaming pipes](#7-streaming-pipes)
 - [8. Sharp edges](#8-sharp-edges)
-- [9. Writing Cufet: the mental model](#9-writing-cufet-the-mental-model)
+- [9. Loops, and the interpreter's scheduler](#9-loops-and-the-interpreters-scheduler)
 
 ---
 
@@ -111,14 +111,12 @@ Increment total by item at (rr, cc) of board.
 - Numbers only: `Increment` on text is refused. Growing a series is `Insert`.
 - A `permanently` name is refused, as `becomes` on it is.
 
-### ★ Every block construct takes a comma and one thing, or a colon and a block
+### A body takes a comma and one thing, or a colon and a block
 
-One rule, not one per construct. A **comma** means *one thing, inline*; a **colon** means *a block,
-closed by `Done.`* The comma is the point and a colon would be wrong — Cufet already spells those
-two things that way, and using a colon for both would leave its only reliable structural signal
-meaning two different things.
-
-**What "one thing" is depends on whether the body must produce a value.**
+- After a header, a **comma** takes one thing on the same line, and a **colon** opens a block that
+  `Done.` closes.
+- For a body that gives back a value, the one thing is an expression, and `Return` is implied. For
+  any other body it is a statement.
 
 | Body | Inline form | |
 |---|---|---|
@@ -130,13 +128,13 @@ meaning two different things.
 | setter | statement | `Set radius given (the number r), one's radius becomes r.` |
 | unmaker | statement | `Bind unmaking a gate to close-gate, State "closing {one's id}".` |
 | `If`, `Judge` arm | statement | `If x is 1, State "one".` |
-| **task** | statement | `Have rabbit start a task as batch-1, return 1 + 2 + 3.` |
+| task | statement | `Have rabbit start a task as batch-1, return 1 + 2 + 3.` |
 
-An expression body's **`Return` is implicit** — dropping `Return` and `Done.` is the whole of what
-the form buys. A void body has no value to imply a return for, so it takes a statement.
-
-**Loops are separated by `repeat:`, not by the comma**, because the comma is already spent on the
-loop's own header:
+- A task's inline body is a statement, so a value it gives back is written with `return`.
+- A function with no parameters has its inline body straight after the comma:
+  `Bind number to leg-pairs, legs / 2.` `given` is what marks parameters.
+- A loop's header already holds a comma, so a loop opens a block with `, repeat:`, and its inline
+  form is a statement after the comma:
 
 ```cufet-fragment
 For each n in items, repeat: State n. Done.     ← block
@@ -144,75 +142,36 @@ For each n in items, State n.                   ← inline
 While i is less than 3, the i becomes i + 1.    ← inline
 ```
 
-**The consumer loop is the exception to that exception.** `for each <name> from input` has no
-`in <series>` clause, so its header spends no comma and it uses the ordinary comma-versus-colon
-rule rather than `repeat:`:
+- The consumer loop of a pipe stage, `for each <name> from input`, has no `in` clause and takes a
+  comma or a colon as other bodies do. `, repeat:` is refused there.
+- An inline body is a one-statement block: it checks and runs the same.
+- `Try`, `Pull` and a function with no name take only the block form.
 
-```cufet
-for each s from input: output s. Done.          ← block
-for each s from input, output s.                ← inline
-```
-
-★ **A task takes a STATEMENT, and it is the only value-bearing body that must.** Every other body
-that can return states its type on the same line — `Bind number to …`, `Get area as number` — and
-that declaration is exactly what lets the inline form drop `Return`. A task's header declares
-nothing: it may hand back a result or merely send on a channel. So `return` stays written out, and
-what the form buys is the `Done.`:
+### `Judge`
 
 ```cufet-fragment
-Have rabbit start a task as batch-1, return 1 + 2 + 3 + 4 + 5.
-Have rabbit start a task as producer, send 7 through nums.
+Judge thing, where it is:
+    A number, state "a number".
+    A text or a fact:
+        State "not a number".
+    Done.
+Done.
 ```
 
-**A function with no parameters uses the same comma**, and `given` is what tells the two apart:
-
-```cufet
-Define legs as 8 permanently.
-Bind number to leg-pairs, legs / 2.                 ← inline body, no parameters
-Bind number to double, given (the number n), n * 2.
-```
-
-**An inline body is an ordinary one-statement body.** Nothing downstream can tell the spellings
-apart — same AST, same type-checking, same output on both backends.
-
-**Three constructs are deliberately outside the rule.** `Try` — its body is rarely one statement
-and its handler is the part you least want compressed. `Pull a rabbit` — it has no header to hang a
-comma on. And a **lambda**, because it appears inside argument lists where the comma is already the
-separator: `cast apply on (10, a function given (the number x), x * 2)` could not be read. A lambda
-body is always `Done.`-terminated.
-
-**`Judge <subject>, where it is:` — coverage is total, by proof or by default.** An arm names
-either a **type** (`A num-node`, `A number or a text`) or a **value** (`"cd"`, `"fg" or "bg"`),
-taking the comma form for one statement or a colon and `Done.` for a block. A value arm opens with
-the literal itself, since the header already says `it is`. The subject is evaluated **once** and
-bound to `it`.
-
-- **Closed-union subject, type arms** → exhaustiveness is *proved*; `Otherwise` is optional and a
-  missing case is a static error.
-- **Any other subject, or any value arm** → `Otherwise` is **required**. No set of values can be
-  proved to exhaust a type, so a value judgement always defaults its coverage. Control can never
-  fall off the end.
-- **One kind of arm per judgement.** Mixing a type arm with a value arm is refused: a judgement
-  dispatching on a tag *and* on a value would have to say what happens when both could match.
-- **A type arm narrows `it`** to its case. **A value arm narrows nothing** — matching `"cd"` says
-  nothing about the type that the subject's declaration did not — so `it` reads at the subject's
-  own type there.
-- **A grouped type arm does not narrow** — an arm covering two cases cannot know which arrived, so
-  `it` stays the union there.
-- **An arm's values are literals**: number (`-1` included), text, bits, `true`/`false`. Not an
-  expression, and not an interpolated string — a case has to be a fixed thing on the page.
-- **The subject may be an expression.** Narrowing is variable-level, so `If` cannot narrow one;
-  binding to `it` is what makes it possible here.
-- **Nothing may follow `Otherwise`** — a later arm could never run.
-- **An arm an earlier arm already covers is legal, and dead** — the first match wins, the same
-  rule an `Otherwise if` chain follows. ⚠ The linter reports it, because nothing in the text
-  says the second body can never run. Advice, not a refusal.
-- A judgement whose arms all return counts as returning for the every-path-returns rule.
-
-⚠ **Native backend: TYPE arms need a closed union.** A `Judge` whose arms name types over a
-non-union subject type-checks and interprets, and the compiler **refuses it cleanly** — there is no
-tag to dispatch on. Value arms have no such limit: they compare, on either backend, using the same
-equality `is` uses.
+- The subject is any expression. It is evaluated once, and is `it` inside the arms.
+- An arm names types (`A num-node`, `A number or a text`) or values (`"cd"`, `"fg" or "bg"`), then
+  takes a comma and a statement, or a colon and a block.
+- A value is a literal: a number (`-1` included), text without holes, bits, `true` or `false`.
+- Every arm of one judgement names types, or every arm names values. Mixing them is refused.
+- Over a closed union with type arms, `Otherwise` is optional and a case no arm covers is refused.
+  Every other judgement must end with `Otherwise`.
+- Nothing may follow `Otherwise`.
+- A type arm narrows `it` to the types it names. A value arm narrows nothing.
+- An arm an earlier arm already covers is legal and never runs: the first match wins. `cufet check`
+  warns about it.
+- A judgement whose arms all return counts as returning.
+- Compiled, type arms need a closed-union subject; the compiler refuses any other, and
+  `cufet check --native` warns. Value arms compile on any subject.
 
 ### Functions and objects
 
@@ -285,38 +244,18 @@ equality `is` uses.
 | `numeric` | Numeric |
 | `whitespace` | Whitespace |
 
-**Two literal forms, one type.** Which delimiters you use decides only what the lexer
-interprets on the way in; both produce `text`, and after lexing nothing downstream can tell
-them apart.
+**Two literal forms, one type.** Both give `text`, and nothing after the lexer can tell them apart.
 
-| Form | Escapes (`\n`, `\"`, `\{`, …) | Interpolation (`{...}`) | Nests |
+| Form | Escapes (`\n`, `\"`, `\{`, …) | Holes (`{...}`) | Nests |
 |---|---|---|---|
 | `"..."` | yes | yes | — |
-| `<<...>>` | **no** | **no** | yes, by depth-counting `<<` / `>>` |
+| `<<...>>` | no | no | yes, counting `<<` and `>>` |
 
-Both may run across lines. `<<...>>` is total by design: `"` and `{` are the two characters a
-quoted literal cannot hold plainly, and a form that suppressed one but not the other would
-still need an escape for the other. The trade is that there is no hole inside it — use
-`joined to`.
-
-**★ A line break inside either form is one `\n`, whatever the file is stored as.** A CRLF source
-does not put a `\r` into the text. This is a language rule, not a lexer convenience: without it
-the same program means different things depending on how the working tree was checked out —
-`the length of` differs, and a comparison against `"a\nb"` fails on one machine and not another.
-A *lone* `\r` is not a line break on any platform Cufet targets, so one written deliberately is
-kept as a carriage return.
-
-**A character is a Unicode code point.** Every count and position — `the length of`, `the
-characters from N to M`, `the first`/`last N characters`, and what `the position of` returns — is
-measured in code points on **both** backends, regardless of how each one stores text (UTF-16
-interpreted, UTF-8 compiled). This is a language rule, not an implementation detail: counting
-storage units instead made the same program answer differently depending on the backend.
-
-⚠ A code point is not a grapheme. `e` followed by a combining accent is **2**, though a reader
-sees one character. Grapheme segmentation needs the Unicode tables and is not carried into the
-emitted C. Operations that neither count nor return a position — `contains`, `starts with`,
-`ends with`, `split`, `replace`, `joined to` — are unaffected, because UTF-8 is self-synchronising and a byte-wise match is
-therefore a character-wise match.
+- Both may run across lines. A line break inside either is one `\n`, whatever line endings the file
+  has. A lone `\r` is kept.
+- A character is a Unicode code point, on both backends. `the length of`, `the characters from N to
+  M`, `the first`/`last N characters` and `the position of` all count code points.
+- A code point is not a grapheme: `e` followed by a combining accent has length 2.
 
 ### Records and maps
 
@@ -388,7 +327,7 @@ though the collections book uses the word.
 
 `left`, `right`, `hex`, `binary` and `octal` are **not** reserved: `the left of node` and
 `Define binary as "…"` both work. The `0x` / `0b` / `0o` literal forms lex as a single `Bits`
-token, digit count included — see [Leading zeros are significant](#-leading-zeros-are-significant--the-width-comes-from-the-digit-count).
+token, digit count included — see [Leading zeros are significant](#leading-zeros-are-significant--the-width-comes-from-the-digit-count).
 
 ### Chance and randomness
 
@@ -429,169 +368,56 @@ These are reserved and meaningful in both condition position (`If`, `While`,
 
 ### Contextual words — NOT reserved
 
-These are matched by lexeme or shape in specific positions, not by token type.
-Outside those positions they parse as regular identifiers and can be used as variable
-names, parameter names, field names, and iterator names:
+Each of these words has a meaning only in the place shown. Anywhere else it is an ordinary name, so
+it may be a variable, a parameter, a field or a loop's variable.
 
-`line`, `lines`, `all`, `reading`, `writing`, `exists`, `variable`, `requested`
+| Word | Recognised in |
+|---|---|
+| `line`, `lines`, `all` | `read a line from …`, `read all from …`, `read all lines from …` |
+| `reading`, `writing` | `… open for reading as …`, `… open for writing as …` |
+| `exists` | `the path <p> exists` |
+| `characters` | `the characters from <a> to <b> of <t>`, `the first <n> characters of <t>` |
+| `delivery` | `the delivery from <channel>` |
+| `entry` | `the entry for <k> in <m>` |
+| `key` | `<m> has a key for <k>` |
+| `channel` | `a channel of <T>` |
+| `interrupt`, `requested` | `the interrupt is requested` |
+| `environment`, `variable` | `the environment variable <n>` |
+| `read` | `read a line …`, `read all …` |
+| `contents` | `the contents of the directory <path>` |
+| `current` | `the current directory` |
+| `make` | `Make the directory <path>.` |
+| `text`, `fact`, `bits` | a type |
+| `axiom` | `the c-language axiom …`, after a language book's name |
+| `default` | `with default <value>` after a field |
+| `starts`, `ends` | `<text> starts with …`, `<text> ends with …` |
+| `code`, `point` | `the code point of <text>` |
+| `region` | `and region` in an object's conformance list |
+| `terminal` | `run <prog> with the terminal` |
+| `left`, `right` | `shifted left by`, `shifted right by` |
+| `hex`, `binary`, `octal` | `converted to hex` / `binary` / `octal` |
+| `width`, `at`, `bits` | `the width of <bits>`, `<bits> at <n> bits` |
+| `at`, `filled`, `rows`, `columns`, `matrix` | the collections book |
+| `random`, `randomly`, `shuffled`, `guess`, `seed` | the chance book; `Seed the chance with <n>.` |
+| `first` … `tenth`, `last` | `the <ordinal> of <series>`, `first`/`last <n> characters of <text>` |
+| `book`, `books`, `module`, `rabbit` | `Pull`, and a conformance list |
 
-`input` and `output` are contextual too, and may be a parameter, a field or an iterator. They
-cannot be a variable: each is already a name everywhere, for the stream.
-
-⚠ `arguments` is **reserved** — `the arguments` has no mandatory tail, so nothing tells it
-from a variable of that name.
-
-`characters`, `delivery`, `entry`, `key`, `interrupt`, `environment`, `read` and `channel`
-are not reserved. Each has a MANDATORY token immediately after it, which is the whole test:
-
-| Word | The shape that wanted it | Mandatory token |
-|---|---|---|
-| `characters` | `the characters from <a> to <b> of <t>` | `from` |
-| `delivery` | `the delivery from <channel>` | `from` |
-| `entry` | `the entry for <k> in <m>` | `for` |
-| `key` | `<m> has a key for <k>` | `for` |
-| `channel` | `a channel of <T>` | `of` |
-| `interrupt` | `the interrupt is requested` | `is` |
-| `environment` | `the environment variable <n>` | `variable` |
-| `read` | `read a line from the input` | `line` / `all` |
-
-`contents` is not reserved either: the TARGET of a field access has to
-be an expression, and `the contents of the DIRECTORY <path>` puts a keyword there. `the directory
-<path>` is not an expression standing alone, so `contents` could never have been a field name in
-that shape — which is the mandatory-token rule again, reaching two tokens out instead of one.
-
-`length` and `size` are not reserved, by a different route. Their shape is
-`the <word> of <x>`, which NAMED FIELD ACCESS claims before the expression switch runs, so a
-mandatory token cannot free them. Instead the TARGET'S TYPE decides, exactly as it already does
-for `the rows of <matrix>` and `the width of <bits>`: text has a length, a map has a size, and on
-anything else the name is an ordinary field. `Define length as 7.` and a record field called
-`size` both work.
-
-So `Define key as 5.`, `given (the number entry)` and a record field named `channel` all
-work. ⚠ `position` is still **reserved**. Its shape is `the position of <needle> in <haystack>`,
-and the `in` that distinguishes it sits after a whole expression — so nothing adjacent decides
-it, and named field access claims `the position of <needle>` before the `in` is ever reached.
-
-**Type names** — `text`, `fact` and `bits` are contextual too. The lexer has no token for any
-of them; they are recognised by lexeme in type position, so `Define text as "hi".` is legal.
-(`number` *is* reserved, because `the number of s` needs its own token.)
-
-**`axiom`** is contextual on the same terms, recognised only where a **language book's name comes
-immediately before it** — `the c-language axiom fragment`. It qualifies under the rule below
-because that preceding name is mandatory and there is no other shape in which two identifiers in
-type position are followed by a third. `Define axiom as 1.` and `given (the number axiom)` keep
-working. The language book's own name is not reserved either, and cannot be: **no module's name
-ever is**, because nobody can reserve `inventory` or `parser` in advance.
-
-**Book vocabulary** — `at`, `filled`, `guess`, `shuffled`, `rows`, `columns`, `matrix`,
-`random`, `randomly` and `seed` are contextual. A reserved word is taken from *every* program in
-the language, whether or not it pulls the book that wanted it; these are recognised by shape
-instead, so `Define rows as 5.` works even though the collections book uses the word.
-
-`seed` was the last one held back, on the grounds that `Seed the chance with <n>.` is capitalised
-and an identifier must start lowercase. Capitalised contextual statement words removed that
-obstacle, and the word is one the code most likely to pull this book will want.
-
-**`make`** — contextual, recognised only at a STATEMENT HEAD with `directory` following:
-`Make the directory <path>.` `Define make as "Toyota".` stays legal everywhere, and so does a
-function or field called `make`. ★ The word is decidable without being reserved because no other
-statement begins with a bare name and that word — the same trick `output` and `Seed` use, and it is
-why `make` appears in `CapitalisableStatementWords` rather than in the keyword table.
-
-**`default`** — contextual, recognised only in `with default <value>` trailing a FIELD name:
-`the number age with default 0`. ★ It costs no reserved word — a field list admits only `,` or
-`)` after a name, so the word is decidable in that one position and `Define default as 5.` stays
-legal. It sits in the same trailing slot as `permanently`, so the rule stays one rule: a modifier
-follows the thing it modifies.
-
-**`starts`, `ends`** — contextual, recognised only between a value and `with`: `line starts with
-"error"`, `name ends with ".cufe"`, at the same tier as `contains`. ★ They cost no reserved word —
-no value is ever followed by a bare name and `with`, so the pair is decidable in that one place and
-`Define starts as 3.` stays legal.
-
-**`alphabetic`, `numeric`, `whitespace`** — RESERVED, unlike `starts`: each comes LAST, right after
-`is` (or `is not`), and `x is <name>` is already equality, so nothing after the word could tell a
-class from a variable. `ch is numeric` is a fact; every character must be in the class, and empty
-text is in none.
-
-**`code`, `point`** — contextual, recognised only as `the code point of <text>`. ★ They cost no
-reserved word, exactly as `the text at` does not: two names side by side, then `of`, is a shape no
-value takes, so `Define code as 3.` stays legal.
-
-**`region`** — contextual, a name in a conformance list: `Define object workspace with () and
-region.` Pulling one opens an arena scope its `Done.` closes. ★ It costs no reserved word, exactly
-as `module` and `book` do not — all three are ordinary names the checker recognises in that slot,
-so `Define region as 5.` stays legal. ⚠ `and book and region` is REFUSED (opposite claims); `and
-module and region` is allowed but redundant.
-
-⚠ **`Remove` is overloaded by what follows it**, not by a second keyword: `Remove <x> from
-<series>` mutates a series, `Remove the file <path>.` and `Remove the directory <path>.` act on the
-filesystem. The noun decides, so removing a file cost no name at all.
-
-**`terminal`** — contextual on the same terms, recognised only in the modifier slot of a `run`
-expression: `run <prog> with the terminal`. `Define terminal as 5.` stays legal everywhere, and a
-book named for the same device is reached through `Pull`, a different slot, so the two do not
-clash. ★ `tools/terminals/` is named in the PLURAL for a separate reason — a book's name has to
-complete *"Pull a book on ___"*, which wants a mass noun or a plural, and `terminal` is a count
-noun. It read as something you have one of, and the name was saying so before anyone noticed.
-Reserving the word would have taken an ordinary noun from every program in the language to save
-one lexeme check in one position.
-
-**`input`** — the same, in the same slot: `run <prog> with input <text>`. ⚠ Note that `input` is
-already **bound** at global scope to this program's own standard input stream, which is a different
-thing from being reserved. The modifier neither takes that name nor shadows it: the two are the
-same noun with different owners, and the value written straight after the modifier is what says
-whose is whose.
-
-`the rows of x` and `the columns of x` are resolved by the **type of `x`** — a matrix's row or
-column count, or a record's field of that name — exactly as `the key of mapping` already is. The
-parser cannot tell, but a reader never has the ambiguity. On a matrix they are the only two
-members: an element is reached with `the item at (r, c) of m`, never `the item 3 of m`.
-
-**`current`** is contextual, promoted only when `directory` immediately follows it — so
-`the current directory` is the working directory while `Define current as 0.`,
-`given (the number current)` and `the current of r` all keep working. It qualifies under the
-rule below because `directory` is a mandatory following token and is itself already reserved.
-Worth having: `current` is a far more tempting variable name than the alternative spelling
-`working` would have been, which is why the shorter phrase is also the safer one.
-
-**The rule for when a word can go contextual**, and the three that cannot:
-- Its shape needs a **mandatory distinguishing token**. `a matrix with …` has `with`;
-  `a random number/item/guess` and `randomly shuffled` each have a required next word.
-  **`catalogue` and `atlas` have optional tails** — `a catalogue` alone is valid — so nothing
-  separates them from a variable of that name. They stay reserved.
-  **`arguments` has no tail at all** — `the arguments` is the whole phrase — so it is the same
-  case one step further. `the X` is already how a variable named `X` may be written, which puts
-  the accessor and an ordinary name in the same spelling and the same position; telling them
-  apart by whether such a variable happens to be in scope would make a line's meaning depend on
-  the scope above it, which is what `Pull math.` is refused to avoid. It stays reserved, and the
-  cost is that no variable and no field may be called `arguments`.
-- A **statement-initial** word may be written with a capital even though it is not reserved.
-  `Output 7.` and `output 7.` are the same statement, so a contextual word does not force a
-  statement to break the capitalise-the-first-word convention. This costs nothing: an identifier
-  must start lowercase, so the capitalised spelling was never available as a name in the first
-  place, and the lowercase form stays usable (`Define output as 42.`).
-
-  `seed` is contextual on the same terms, recognised by the **`chance` that must follow it**. That
-  is a *positive* test rather than a list of shapes to exclude, and it is exact: no statement form
-  is `<variable> <name>`, so a variable called `seed` can never be followed by `chance`.
-  `Define seed as 42.`, `seed becomes 43.` and `Seed the chance with seed.` all coexist.
-
-**Ordinals** (`first`, `second`, `third`, `fourth`, `fifth`, `sixth`, `seventh`,
-`eighth`, `ninth`, `tenth`, `last`) — contextual in the accessor shape:
-- **Accessor position:** `the <ordinal> of <series>` / `<ordinal> of <series>` → positional series access
-- **Text-edge substring:** `first <count> characters of <text>` / `last <count> characters of <text>`
-- **Everywhere else:** ordinary identifier (`Define first as 5.`, `For each last in items,`, param name, etc.)
-
-The accessor shape takes priority in `the <ordinal> of X` — if you name an object field `first`, access
-it via `one's first` / `alice's first` (possessive), not `the first of alice` (which is always series access).
+- `input` and `output` mean a stream in a pipe stage (§7). Each may be a parameter, a field or a
+  loop's variable, but not a variable: both are already defined everywhere.
+- `the length of`, `the size of`, `the rows of`, `the columns of`, `the width of` and `the key of`
+  are decided by the type of what follows `of`. On any other type the word is that value's field.
+- `the <ordinal> of x` is always a position. A field named `first` is reached as `x's first`.
+- A statement's first word may be capitalised even when it is not reserved: `Output 7.`,
+  `Seed the chance with 42.`, `Make the directory "out".`
+- `Remove` is decided by what follows it: `Remove <x> from <series>.`, `Remove the file <path>.`,
+  `Remove the directory <path>.`
+- An object may say `and module and region`. `and book and region` is refused.
+- These stay **reserved**: `arguments`, `position`, `number`, `path`, `catalogue`, `atlas`,
+  `alphabetic`, `numeric`, `whitespace`.
+- `<text> is alphabetic` (or `numeric`, `whitespace`) is true when every character is in the class.
+  Empty text is in none.
 
 ### Bit patterns — `0x` / `0b` / `0o`
-
-`bits` is a **bit pattern, not a quantity**. `0o755` is three permission triples, not "seven
-hundred fifty-five" — so it is a separate type from `number`, with no implicit conversion in
-either direction. `0xFF = 255` is a type error; cross over with `converted to number` /
-`converted to hex`.
 
 ```cufet
 State 0xFF.   // 0xFF   — hex
@@ -600,25 +426,15 @@ State 0o755.   // 0o755  — octal
 State 0xDE_AD_BE_EF.   // 0xDEADBEEF — '_' groups digits and is dropped
 ```
 
-A value **prints in the base it was written in**. Hex digits print uppercase: a computed value
-has no literal to take its case from.
+- `bits` is its own type. Nothing converts between it and `number` without being asked:
+  `0xFF = 255` is refused.
+- A value prints in the base it was written in. Hex digits print in capitals.
+- `0755` is the number seven hundred and fifty-five. Octal is written `0o755`.
+- `_` may group the digits of a `0x`, `0b` or `0o` literal, between two digits only: `0x_FF`,
+  `0xFF_` and `0xF__F` are refused. A decimal number takes no `_`.
+- A value is at most 64 bits wide. A wider literal is refused.
 
-**No bare-zero octal.** `0755` is seven hundred and fifty-five, not 493. C's footgun is not
-reproduced — octal must say `0o`.
-
-**`_` groups digits, and only in these bases.** Decimal gets no separator at all: grouping in
-hex, binary and octal is structural (nibbles, bytes, permission triples), while in decimal it is
-cosmetic and in a fraction it marks nothing. It must sit *between* digits — `0x_FF`, `0xFF_` and
-`0xF__F` are all errors.
-
-**Ceiling is 64 bits.** That covers every C flag set, file mode and address there is; anything
-wider is cryptography or scientific computing, which belongs behind a foreign-function boundary
-rather than distorting this type.
-
-### ★ Leading zeros are significant — the width comes from the digit count
-
-This is the one genuinely unfamiliar rule, and it is **unlike C, Java, Rust, Go and Python**,
-where `0x0F` and `0xF` are the same value and width is a property of the declared type.
+### Leading zeros are significant — the width comes from the digit count
 
 ```cufet
 State 0xF.   // 0xF   — 4 bits
@@ -626,16 +442,10 @@ State 0x0F.   // 0x0F  — 8 bits
 State 0x000F.   // 0x000F — 16 bits
 ```
 
-They compare equal — equality is on value, so `0xF = 0x0F` is true — but they display
-differently, and the width is what `not` flips within. That is the point: it is what lets
-`not 0xFF` be `0x00` instead of `-6`, with no signed reading and no negative numbers anywhere
-in the type. Zero-padding hex to a byte boundary is already a habit; here it carries meaning.
+- Each hex digit is 4 bits, each octal digit 3, each binary digit 1.
+- Equality and ordering compare the value: `0xF = 0x0F` and `0o377 = 0xFF` are true.
 
 ### Gates — `and` / `or` / `not` / `xor`
-
-**A 32-bit AND is 32 AND gates side by side.** So the same words serve a `fact` (one bit) and a
-`bits` value (N of them) — the words are already the gate names, already English, and already
-Cufet keywords. Only `xor` is new.
 
 ```cufet
 State 0xFF and 0x0F.   // 0x0F
@@ -645,33 +455,30 @@ State not 0xFF.   // 0x00
 State true xor false.   // true
 ```
 
-**Gates do not work on `number`.** A quantity has no bits to combine — `5 and 3` and `not 5` are
-type errors. That separation is the point: it is why `not 0xFF` is `0x00` and why the `-6` a
-signed reading would give can never appear.
+- `and`, `or`, `xor` and `not` work on `fact` and on `bits`, never on `number`: `5 and 3` and
+  `not 5` are refused.
+- Both sides of a gate are facts, or both are bits. So `0xFF and 0x0F = 0x0F`, which groups as
+  `0xFF and (0x0F = 0x0F)`, is refused.
+- `not` flips within the value's own width: `not 0x0` is `0xF`, `not 0x00` is `0xFF`.
+- Precedence is `and`, then `xor`, then `or`, all below comparisons: `a and b xor c or d` is
+  `((a and b) xor c) or d`.
+- On facts, `and` and `or` skip their right side when the left decides. On bits both sides always
+  run, and `xor` always runs both.
 
-**`not` flips within the value's own width.** `not 0x0` is `0xF` (one digit, four bits) while
-`not 0x00` is `0xFF` (two digits, eight). Clearing a bit is `flags and not MASK`.
-
-**Precedence: `and` > `xor` > `or`**, mirroring `&` > `^` > `|`, and all three sit below
-comparisons — so `a and b xor c or d` groups as `((a and b) xor c) or d`.
-
-### ★ The result takes the LEFT operand's base and width
+### The result takes the LEFT operand's base and width
 
 ```cufet
 State 0xFF and 0b1010.   // 0x0A     — hex on the left, so hex out
 State 0b1010 and 0xFF.   // 0b1010   — binary on the left, so binary out
 ```
 
-Left, because in real bit code the left operand is the **accumulator** — `flags or MASK`,
-`flags and not MASK` — so it is the thing you care about and will print. Right-dominance would
-let a mask's notation hijack the display of the thing being masked.
-
-A result **widens** when the value needs more room (`0b1 or 0xFF` → `0b11111111`) and never
-truncates. Nothing silently falls off the end; narrow deliberately with an `and`.
+- A result has the left operand's base and width, raised to fit the value: `0b1 or 0xFF` is
+  `0b11111111`. It never narrows, so `(0b1 * 0x100) - 0x1` is `0b011111111`.
+- A width is raised only as far as the value reaches: `0b00001111 shifted left by 2` is
+  `0b00111100`, and `0b0 shifted left by 2` is `0b0`.
+- To narrow, mask with `and`, or say the width with `at <n> bits`.
 
 ### Crossing between a quantity and a pattern
-
-There is no implicit conversion, so you say which you mean:
 
 ```cufet
 State 255 converted to hex.   // 0xFF
@@ -681,31 +488,12 @@ State 0xFF converted to number.   // 255
 State 0xFF converted to text.   // "0xFF"
 ```
 
-**`bits converted to number` can never fail** — 64 bits always fits a number's 96-bit mantissa —
-so it gives a plain `number`, not a voidable one the way `text converted to number` does.
-
-Going the other way **raises** if the number is not a whole, non-negative value below 2⁶⁴. Like
-arithmetic overflow and unlike text-to-number, these are programming errors rather than a data
-condition, so a voidable would only force an unwrap at every crossing.
-
-This is also what makes a **computed** value showable in hex, which a literal-only notation
-could never do:
-
-```cufet
-Define total as 200 + 55.
-State total converted to hex.   // 0xFF
-```
-
-To restate a pattern in another base, go through a number: `x converted to number converted to
-binary`.
-
-**`hex`, `binary` and `octal` are not reserved** — they are matched by lexeme in this shape
-only, so `Define hex as 5.` still works.
+- `<bits> converted to number` is a plain `number`; it cannot fail.
+- `<number> converted to hex` (or `binary`, `octal`) is plain `bits`. A number that is negative,
+  not whole, or 2⁶⁴ or more raises an exception.
+- To change base, go through a number: `x converted to number converted to binary`.
 
 ### Shifts — `shifted left by` / `shifted right by`
-
-**Shifting is wiring, not a gate** — it moves bits rather than combining them — so it is a
-trailing transform in the `sorted` / `trimmed` family, not an operator.
 
 ```cufet
 State 0b0001 shifted left by 3.   // 0b1000
@@ -713,29 +501,16 @@ State 0xFF shifted left by 4.   // 0xFF0  — widened, nothing lost
 State 0xFF shifted right by 4.   // 0x0F
 ```
 
-**The amount is a `number`, not bits.** It counts *positions* — a quantity, like the `3` in
-`item 3 of s`. `0xFF shifted left by 0x1` is a type error. It must be whole and non-negative.
-
-**Left shifts widen; right shifts discard the low bits.** That is the one place something
-genuinely falls off, and it is not an inconsistency: discarding them *is* a right shift, rather
-than a failure of representation. Being unsigned also means there is no arithmetic-versus-logical
-right shift — no sign bit, so only one answer.
-
-Shifting left past the 64-bit ceiling raises, like a multiply overflow.
-
-**`left` and `right` are not reserved.** They are matched by lexeme in this shape only, so
-`the left of node` and `Define left as 7.` both keep working — a binary tree should not have to
-give up its field names to spell one operator.
+- The amount is a whole, non-negative `number`. A `bits` amount is refused; a negative or
+  fractional one raises an exception.
+- A left shift widens; past 64 bits it raises an exception. A right shift drops the low bits.
 
 ```cufet
 Define n as 8.
 State (0b1 shifted left by n) - 0x1.   // 0b011111111 — the standard n-bit mask
 ```
 
-### Arithmetic — and what has no representation
-
-`+ - * / %` work on two bit patterns. **`/` is integer division**, unlike on numbers — the same
-surface with a different meaning per operand type, as matrix arithmetic already does.
+### Arithmetic
 
 ```cufet
 State 0x0F + 0x01.   // 0x10
@@ -744,64 +519,18 @@ State 0xFF / 0x10.   // 0x0F   — integer division
 State 0x07 / 0x02.   // 0x03   — where 7 / 2 is 3.5
 ```
 
-Ordering (`<`, `>`, `<=`, `>=`, and the word forms) works too. **Equality and ordering compare
-the VALUE**, so base and width are ignored: `0xFF = 0x00FF` and `0o377 = 0xFF` are both true.
+- `+ - * / %` work on two bits values. `/` is integer division.
+- `<`, `>`, `<=`, `>=` and their word forms compare the value.
+- Unary minus is refused.
+- A result below zero or past 64 bits raises an exception, as dividing by zero does. `In case of
+  exception` catches it.
 
-**Unary minus is refused** — bits are unsigned and have no negative. You probably want `not`.
-
-**A result with no representation raises**, exactly as division by zero does:
-
-```cufet
+```cufet-fragment
 State 0x00 - 0x1.   // would be negative, and bits are unsigned
 State 0xFFFFFFFFFFFFFFFF + 0x1.   // does not fit in 64 bits
 ```
 
-These raise rather than becoming value-level failures on purpose. A failure would ride in the
-type as `bits or failure` and force an unwrap after *every* masking expression — which is
-precisely why division by zero is not one either. Catch them with `In case of exception` if you
-need to.
-
-**Width never shrinks back.** The rule is the left operand's width raised to fit, so once a
-value has widened it stays wide: `(0b1 * 0x100) - 0x1` prints `0b011111111`, nine digits, not
-eight. Narrow deliberately with an `and` if you want the shorter form.
-
-**★ And width is never raised past what the value occupies — including by a shift.** The same
-rule governs `shifted left by`, so it widens only when the value grows into the new positions:
-`0b00001111 shifted left by 2` is `0b00111100` (width 8, inherited) but `0b0 shifted left by 2`
-is `0b0`, not `0b000`. A pattern is the only thing that carries a width, so an all-zero result
-has no width to carry and leading zeros that no operand ever held cannot be produced. A program
-for which the width is data rather than decoration — a Huffman table, a bit-packer — must track
-it in a second field, because **a bits value's width cannot be read as a number**. Both halves
-are on the roadmap.
-
-### ★ `and`/`or` short-circuit on facts, and cannot on bits
-
-```cufet-fragment
-false and cast f on ()   // f never runs
-0x00  and cast f on ()   // f always runs
-```
-
-Combining two patterns needs both patterns, so there is nothing to skip. The same word takes a
-different evaluation strategy depending on operand type — statically determined, and the same
-deliberate exception matrix arithmetic already makes for `+` and `*`. (`xor` never
-short-circuits, on facts either: both sides always decide the answer.)
-
-### C's most famous precedence bug is a type error here
-
-In C, `a & b == c` silently parses as `a & (b == c)` and computes nonsense. Cufet has the same
-precedence — but the mis-parse produces `bits and fact`, which is **refused at compile time**:
-
-```cufet-refused
-State 0xFF and 0x0F = 0x0F.   // type error, not a wrong answer
-```
-
-Keeping bit patterns out of `number` closes that footgun for free.
-
 ### Comments — `//`, `/* ... */`, and the documentation forms `///` and `/** ... */`
-
-Comment content never becomes a token and is never parsed. It is **not discarded**, though: the
-lexer carries each comment as trivia on the token that follows it, which is what lets a doc comment
-be found from the declaration it sits above without the parser knowing comments exist.
 
 ```cufet
 // to the end of the line
@@ -810,87 +539,47 @@ be found from the declaration it sits above without the parser knowing comments 
 Define x as 5.   // inline
 ```
 
-**`//` runs to the end of the line.** There is no ambiguity with division: `/` is a
-single-character token with no lookahead of its own, so `//` could only ever have parsed as
-division by a unary slash, which is not an expression Cufet has.
-
-**Block comments NEST** — an inner `/*` opens a nested comment and the outer one ends only at
-the `*/` closing it, so commenting out a block that already contains comments works. This is the
-one place Cufet differs from C, and it differs the way Rust, Swift and D do. **Unterminated**
-(a `/*` whose `*/` never arrives) is a lexer error naming the **outermost** opening line; a `//`
-needs no terminator and may end at end-of-file.
-
-A `/*` inside a `//` comment does not open a block, and a `//` inside a block comment is just
-text. Comment markers inside a string literal are text — strings are consumed whole before
-whitespace-skipping ever looks at them.
-
-**`///` and `/** ... */` are documentation**, read by tooling rather than only by whoever opens the
-file. A doc comment's content is **Markdown**.
+- `//` runs to the end of the line, and may end the file.
+- `/* … */` nests: an inner `/*` needs its own `*/`. One that never closes is refused, at the
+  outermost `/*`.
+- A `/*` inside a `//` comment opens nothing, and `//` inside a block comment is text. Comment marks
+  inside a string are text.
+- `///` and `/** … */` are documentation, and their content is Markdown. `////` (four or more
+  slashes) and `/**/` are ordinary comments.
 
 ```cufet
 /// Splits a line on the separator.
 Define first-word as "cufet".
 
 /** Fails when the separator is empty.
-  * The star column is the Javadoc habit and is stripped, because
-  * Markdown would read it as a bullet list.
+  * The star column is stripped.
   */
 Define second-word as "shell".
 ```
 
-Two carve-outs, both so an ordinary comment cannot become documentation by accident:
+- A doc comment belongs to the declaration below it, and an editor shows it wherever that name is
+  used:
 
-- **Four or more slashes is an ordinary comment.** `////////` is a divider somebody drew, not a
-  doc comment — the same hole C# and Rust carve.
-- **`/**/` is an empty ordinary comment**, not a doc comment that never closes.
-
-**What a doc comment attaches to.** The declaration below it — and an editor shows it wherever that
-name is used, not only where it was declared.
-
-| Documented | Reached by |
+| Documented | Shown at |
 |---|---|
-| A function | its name, at the declaration and at every call |
-| A type | its name, wherever it is written |
-| A book or module | its name, at `Pull` and at every `‹book›'s ‹member›` |
-| A method of a book | **through its owner** — `math's round` |
-| A getter of a book | **through its owner** — `math's pi` |
+| A function | its declaration and every call |
+| A type | every place its name is written |
+| A book or module | `Pull`, and every `‹book›'s ‹member›` |
+| A method or getter of a book | uses through its owner: `math's round`, `math's pi` |
 
-⚠ **A member is found through its owner, never by its bare name alone.** `math` has a member called
-`round`; so might your program. Qualifying is what stops one being handed the other's documentation
-— a hover card with the *wrong* text is worse than none, so where the owner is unknown the answer
-is silence.
-
-⚠ **An alias does not answer.** `Pull greeting-kit as kit.` — hovering `kit` finds nothing, because
-the name written is not the name declared.
-
-⚠ **A blank `///` line is a paragraph break**, and is kept. Everything else about the content is
-Markdown and is passed through untouched.
-
-★ The **bundled books carry their own documentation**, read from their own source — so `math`,
-`collections`, `chance` and `rabbit` answer in any program that pulls them.
-
-A doc block **nests** exactly as `/* ... */` does. On its continuation lines a leading `*` — with
-the whitespace before it and one space after — is removed; everything past that is kept, so a
-nested list or an indented code block survives. That is the only place the lexer touches a
-comment's inside, and it is removing a marker rather than reformatting: left in, `  * more text`
-is a Markdown **bullet**, so keeping it would render a paragraph as a list.
+- A book's member is found only through its owner, never by its bare name.
+- A name a book was pulled under (`Pull greeting-kit as kit.`) shows nothing.
+- The bundled books carry documentation of their own.
+- A blank `///` line is a paragraph break. In a `/** … */` block, a leading `*` on a continuation
+  line, with the space before it and one space after, is removed; the rest is kept as written.
 
 ---
 
 ## 2. Object methods and field access
 
-### The rule: fields are never in direct scope inside methods
-
-The type-checker and interpreter both set up a method's local scope with **only**:
-- `one` — the receiver (self)
-- The method's own parameters
-- Function-valued bindings visible in the enclosing scope
-
-Object fields from the `with (...)` header are **not** put into the method scope.
-A bare reference to `nodes` inside a method will be "undefined variable `nodes`"
-at both type-check and runtime.
-
-**Always access fields via `one's fieldname`:**
+- Inside a method, the names in scope are `one` (the object the method was called on), the
+  method's parameters, and the functions and constants visible where the object is defined.
+- A field is never in scope by its bare name; it is `one's <field>`. A bare field name is refused.
 
 ```cufet
 Define object stack with (the series of number items):
@@ -910,64 +599,12 @@ Define object stack with (the series of number items):
 Done.
 ```
 
-Series operations take `one's field` directly — no local alias needed.
-
-### Map and series operations: `one's field` works everywhere
-
-Both map and series operations take `IExpression` for the container argument.
-Possessive access works without any local alias:
-
-```
-In one's adjacency, the entry for n becomes fresh.          ← OK (map set)
-Define val as the entry for key in one's adjacency.         ← OK (map read)
-If one's cache has a key for key:                           ← OK (map check)
-
-Insert card into one's cards.                                    ← OK (series add)
-Remove first item from one's cards.                         ← OK (series remove)
-item i of one's cards becomes updated.                      ← OK (series set)
-the number of one's cards                                   ← OK (series length)
-Define top as the first of one's items.                     ← OK (series read)
-Define val as item 3 of one's items.                        ← OK (series read)
-For each x in one's nodes, repeat: ...                      ← OK (for-each)
-```
-
-⚠ **A mutation on a computed series is LOST, silently.** Mutate a variable or a field
-access. `Insert x into (one's cards sorted)` inserts into the temporary sorted copy,
-which nothing holds afterwards, so the insert has no effect and nothing reports it.
-The type checker refuses a target that is not a series at all; a series that is
-merely computed is accepted.
-
-### Field mutation: `one's field becomes X`
-
-To replace a field's value wholesale (not mutate in place), use possessive
-assignment:
-
-```
-one's count becomes one's count + 1.
-one's label becomes "updated".
-```
-
-This produces a `PossessiveSetStatement` and is valid in method bodies.
-
-### Summary table
-
-| Operation | Accepts expression? | Notes |
-|---|---|---|
-| `Insert X into series` | Yes — IExpression | target must evaluate to a series |
-| `Insert X into the start of series` | Yes — IExpression | same |
-| `Insert X after item N of series` | Yes — IExpression | same |
-| `Remove item N from series` | Yes — IExpression | same |
-| `Remove X from series` (by value) | Yes — IExpression | also works on maps |
-| `item N of series becomes X` | Yes — IExpression | target must be series/object/record |
-| `the number of series` | Yes — IExpression | same |
-| `the first/last of series` | Yes — IExpression | read |
-| `item N of series` | Yes — IExpression | read |
-| `For each x in series` | Yes — IExpression | read |
-| `sorted`/`in reverse` on series | Yes — IExpression | read |
-| `In map, the entry for K becomes V` | Yes — IExpression | map mutation |
-| `the entry for K in map` | Yes — IExpression | map read |
-| `map has a key for K` | Yes — IExpression | map read |
-| `one's field becomes X` | Yes — PossessiveSetStatement | field mutation |
+- `one's <field>`, like any expression, may be the series or map of every series and map operation:
+  `Insert`, `Remove`, `Item N of … becomes`, `In …, the entry for K becomes V`, `has a key for`,
+  `the number of`, `For each`, `sorted`, and the rest.
+- `one's <field> becomes <value>.` replaces the field.
+- ⚠ A change made to a computed series is lost, and nothing reports it: `Insert x into (one's cards
+  sorted)` inserts into a copy nothing holds. A target that is not a series at all is refused.
 
 ---
 
@@ -1025,359 +662,175 @@ a
 
 ## 4. Comparison forms — both work everywhere
 
-**Both symbol forms and word forms work in both expression position and condition
-position.** They are the same operation (compare two values, produce a `fact`);
-the choice is purely stylistic.
+Every form below works in a condition and in an expression, and each gives a `fact`.
 
-### Symbol forms
-
-`=`, `<`, `>`, `<=`, `>=` — terse, math-style:
-
-```cufet-fragment
-Define same as x = y.
-Define big  as x > 100.
-Define ok   as x >= 0 and x <= 10.
-If x < 10, State "small".
-While count < bound, repeat:
-```
-
-`=` is equality only — assignment is `becomes`, declaration is `Define ... as`.
-
-### Word forms
-
-`is`, `is not`, `is greater than`, `is less than`, `is 5 or more`, `is 5 or less`
-— verbose, sentence-style:
-
-```cufet-fragment
-If x is 5:
-If x is not 3:
-If x is greater than 10:
-If x is less than 10:
-While x is less than bound, repeat:
-Define in-range as (x is 5 or more).
-```
-
-### Idiomatic guidance
-
-Word forms are the **recommended, taught style** for `If`/`While` conditions —
-they read like English sentences. Symbol forms are natural in expression position
-— they read like math. But either form is accepted everywhere; reach for whichever
-reads better in context.
-
-```cufet-fragment
-If x < 10, State "small".              ← symbol in condition — works, terse
-If x is less than 10, State "small".   ← word in condition — idiomatic, recommended
-
-Define big as x > 100.                 ← symbol in expression — works, idiomatic
-Define big as (x is greater than 100). ← word in expression — works, verbose
-```
-
-### Equivalence: `=` and `is` both mean equality
-
-`=` and `is` (without a following `greater`/`less`/`not`) both perform equality
-comparison — they produce identical AST nodes. Use whichever reads better:
-
-```cufet-fragment
-If x = 5, State "five".    ← symbol equality in condition — works
-If x is 5, State "five".   ← word equality in condition — idiomatic
-State (x = 5).             ← symbol equality in expression — idiomatic
-State (x is 5).            ← word equality in expression — works
-```
-
-### Negated word forms
-
-The negated word forms are valid — they map to the corresponding comparison:
-
-| Form | Equivalent | Meaning |
+| Symbol | Word | Meaning |
 |---|---|---|
-| `is not greater than X` | `<= X` | at most X |
-| `is not less than X` | `>= X` | at least X |
-| `is not X` | `!= X` | inequality |
-| `is not equal to X` | `!= X` | inequality (verbose form) |
+| `x = y` | `x is y` | equal |
+| | `x is not y`, `x is not equal to y` | not equal |
+| `x > y` | `x is greater than y` | greater |
+| `x < y` | `x is less than y` | less |
+| `x >= y` | `x is y or more`, `x is not less than y` | at least |
+| `x <= y` | `x is y or less`, `x is not greater than y` | at most |
+
+- `=` is only equality. Assignment is `becomes`; a declaration is `Define … as`.
+- There is no `!=`, no `is equal to`, and no `is more than`; `is more than` is refused with a pointer to
+  `is greater than`.
+- `true` and `false` are `fact` values, usable wherever a `fact` is.
+- `not <fact>` negates; `x is true` and `x is false` compare.
+- REFERENCE teaches words in conditions and symbols in expressions. That is style; the checker accepts
+  either in both places.
 
 ```cufet-fragment
 If count is not greater than 10:           ← count <= 10
-While x is not less than 0, repeat:        ← x >= 0
-If name is not "admin":                    ← inequality
-Define ok as (score is not less than 50).  ← expression position
-If count is not equal to 0:                ← verbose inequality
-```
-
-Both `is not X` and `is not equal to X` mean the same thing — use whichever
-reads more naturally in context.
-
-### Invalid forms
-
-**`is more than` is a compile error — use `is greater than` instead.** The parser
-catches `is more than` and emits: *"did you mean 'is greater than'?"*
-
-```cufet-refused
-While count is greater than 0, repeat:   ← CORRECT
-While count is more than 0, repeat:      ← COMPILE ERROR
-```
-
-### Boolean literals: `true` and `false`
-
-`true` and `false` are **reserved keywords** that produce `fact` values — the same
-type comparisons produce. Use them freely wherever a boolean is needed:
-
-```
-return true.
-Define flag as false.
-If result is false, State "failed".
-While keep-going is true, repeat: ... Done.
-Send true through ch.           ← channel of fact
-```
-
-### Negating a fact in condition context
-
-`not (fact-expr)` negates a boolean expression:
-
-```cufet-fragment
 While not (cast is-empty on pq), repeat:
-If not (visited has a key for neighbor):
-```
-
-`is false` and `is true` also work as direct comparisons:
-
-```cufet-fragment
-While (cast is-empty on pq) is false, repeat:
-If result is true, State "ok".
+Define ok as (score is not less than 50).
+Define big as x > 100.
 ```
 
 ---
 
-## 5. Which operations accept expressions vs bare names
+## 5. Collections, books, pulls and tasks
 
-Every series and map operation now accepts an **IExpression** for the container
-argument — `one's field`, `alice's cards`, a variable name, or any expression that
-evaluates to the right type. There are no bare-name-only positions left in the
-series/map layer.
+Wherever an operation below names a series, a map, a set or a matrix, any expression of that type
+may stand there: a name, `one's cards`, `alice's hand`, a call.
 
-### Series operations — all accept IExpression
+### Series operations
 
-| Syntax | Read or mutate? |
+| Syntax | Read or change |
 |---|---|
-| `Insert X into expr.` | mutate |
-| `Insert X into the start of expr.` | mutate |
-| `Insert X after item N of expr.` | mutate |
-| `Remove the last item from expr.` | mutate |
-| `Remove item N from expr.` | mutate |
-| `Remove X from expr.` (by value) | mutate |
-| `item N of expr becomes X.` | mutate |
-| `the number of expr` | read |
-| `the first/last of expr` | read |
-| `item N of expr` | read |
-| `For each x in expr, repeat:` | read |
-| `expr sorted` / `expr sorted by field-or-function` / `in reverse` | read |
+| `Insert X into s.` | change |
+| `Insert X into the start of s.` | change |
+| `Insert X after item N of s.` | change |
+| `Remove the last item from s.` | change |
+| `Remove item N from s.` | change |
+| `Remove X from s.` | change: the first item equal to `X` |
+| `Item N of s becomes X.` | change |
+| `the number of s` | read |
+| `the first of s`, `the last of s` | read |
+| `item N of s` | read |
+| `For each x in s, repeat:` | read |
+| `s sorted`, `s sorted by <field or function>`, `s in reverse` | read |
 
-**Mutating ops** (`Insert`, `Remove`, `item N of ... becomes`) take effect only on a
-variable or field reference (`my-series`, `one's cards`, `alice's hand`). On a
-computed series they change a temporary and are lost without a word — see above.
-Passing a non-series expression (e.g. a number) is a **static type error**:
+- A change to a series that is computed rather than named (`Insert 1 into (s sorted).`) is lost,
+  and nothing reports it. A target that is not a series is refused.
 
-```
-Insert 1 into (x + y).   ← TYPE ERROR: (x + y) is not a series
-```
+### Map operations
 
-### Map operations — all accept IExpression
-
-| Syntax | Read or mutate? |
+| Syntax | Read or change |
 |---|---|
-| `In expr, the entry for K becomes V.` | mutate |
-| `the entry for K in expr` | read |
-| `expr has a key for K` | read |
-| `the size of expr` | read |
-| `For each pair in expr, repeat:` | read |
+| `In m, the entry for K becomes V.` | change |
+| `Remove K from m.` | change |
+| `the entry for K in m` | read, a voidable |
+| `m has a key for K` | read |
+| `the size of m` | read |
+| `For each pair in m, repeat:` | read |
 
 ### Set operations
 
-Every form below needs `Pull a book on collections.` in scope, the same as `matrix` — that is what
-puts the `set` type there.
-
-| Syntax | Read or mutate? |
+| Syntax | Read or change |
 |---|---|
-| `a set of T` / `a set of T with (a, b, c)` | build |
-| `Insert V into expr.` | mutate |
-| `expr has V` | read |
-| `the number of expr` | read |
-| `For each name in expr, repeat:` | read |
+| `a set of T`, `a set of T with (a, b, c)` | build |
+| `Insert V into s.` | change |
+| `s has V` | read |
+| `the number of s` | read |
+| `For each name in s, repeat:` | read |
 
-★★ **A set is a map with the value removed**, and is stored as exactly that: the element keyed to
-itself. Which types may be an element, how they compare, and that iteration follows **insertion
-order on both backends** are the map's answers already.
+- A set holds each value once, and inserting one it holds changes nothing.
+- A set's order is the order its values were first inserted, on both backends. Which types may be a
+  value, and how they compare, are the rules for a map's keys.
+- A set has no positions: `Insert V after the first item of s.` is refused.
+- `the size of` a set is refused; it is `the number of`. `m has V` on a map is refused; it is
+  `m has a key for V`.
+- A value cannot be removed from a set.
 
-- **`Insert` is idempotent.** Inserting what is already there is not an error and not a second copy
-  — a set holds each thing once, which is what makes it a set.
-- ⚠ **No position.** `Insert V after the first item of <set>` is refused: a set has no positions.
-- ⚠ **`the number of`, not `the size of`.** A set reads as a collection of things, so it takes the
-  series spelling. Writing `the size of` is refused with the word it wants.
-- ⚠ **`has`, not `has a key for`.** A set holds things rather than keys. Asking a map with the bare
-  form is refused with the words it wants, and the other way round.
-- **There is no removal.** Nothing has needed to take something back out yet.
+### Matrices — the collections book
 
-### Collections book — matrix operations
+Every form below needs `Pull a book on collections.` in scope.
 
-Every form below needs `Pull a book on collections.` in scope, because that is what puts the
-`matrix` type there. Indices are **1-based**, and a matrix holds numbers and nothing else.
-
-| Syntax | Read or mutate? |
+| Syntax | |
 |---|---|
-| `a matrix with ((1, 2), (3, 4))` | construct — rows given literally, rectangularity enforced |
-| `a matrix with R by C` | construct — sized, every cell zero |
-| `a matrix with R by C filled with V` | construct — sized, every cell `V` |
+| `a matrix with ((1, 2), (3, 4))` | rows given; they must be the same length |
+| `a matrix with R by C` | every cell 0 |
+| `a matrix with R by C filled with V` | every cell `V` |
 | `the item at (r, c) of m` | read |
-| `The item at (r, c) of m becomes V.` | mutate |
-| `the rows of m` / `the columns of m` | read |
-| `cast collections's transpose of (m)` | read — returns a new matrix |
+| `The item at (r, c) of m becomes V.` | change |
+| `the rows of m`, `the columns of m` | read |
+| `cast collections's transpose of (m)` | a new matrix |
 
-`R`, `C` and the indices are any number expressions; `R` and `C` must be positive whole numbers,
-checked at compile time when literal and at runtime when computed. A matrix is a **reference
-type**, so a write is seen through every name for it — see
-[Value vs. reference semantics](#3-value-vs-reference-semantics).
+- A matrix holds numbers only. Indices start at 1.
+- `R` and `C` are whole numbers above zero: refused when checked if they are literals, and an
+  exception when the line runs if they are computed.
+- `item N of m` is refused; a cell is `the item at (r, c) of m`.
 
-### Collections book — matrix arithmetic
+| Expression | Meaning | Needs |
+|---|---|---|
+| `a + b`, `a - b` | element by element | the same rows and columns |
+| `a * b` | matrix product | `a`'s columns = `b`'s rows |
+| `m * n`, `n * m` (`n` a number) | every element times `n` | |
 
-Matrix arithmetic operators (`+`, `-`, `*`) are available inside `Pull a book on collections.`
-blocks. All three are **fallible** — dimension mismatch produces a failure that must be handled.
-
-| Expression | Semantics | Dimension requirement | Failure category |
-|---|---|---|---|
-| `a + b` | element-wise add | `a` and `b` have identical dimensions | `"dimension-mismatch"` |
-| `a - b` | element-wise subtract | `a` and `b` have identical dimensions | `"dimension-mismatch"` |
-| `a * b` | matrix product | `a.columns == b.rows` | `"dimension-mismatch"` |
-
-`*` is **matrix product** (the standard dot-product triple-loop, yielding an `m×p` result
-from an `m×n` left and an `n×p` right). It is NOT element-wise multiplication.
-
-**Strict-fallible rule applies** — using any of these operators outside a `Try to:` block or
-without `but on failure <default>` is a static type error:
+- `+`, `-` and `*` between matrices can fail, with category `"dimension-mismatch"`, so they must be
+  handled: inside `Try to:`, or with `but on failure <default>`.
+- `/` between matrices, and `+`, `-` or `/` between a matrix and a number, are refused.
 
 ```cufet-refused
 Pull a book on collections.
     Define lhs as a matrix with ((1, 2), (3, 4)).
     Define rhs as a matrix with ((5, 6), (7, 8)).
-    Define sum as lhs + rhs.       ← TYPE ERROR: matrix '+' can fail — you must handle the failure
-    Try to:
-        Define sum as lhs + rhs.   ← OK — inside Try block
-    Done.
-    In case of failure:
-        State "dimension mismatch".
-    Done.
-    Define sum as lhs + rhs but on failure (a matrix with 2 by 2).  ← OK — inline handler
+    Define sum as lhs + rhs.       ← refused: matrix '+' can fail
+    Define sum2 as lhs + rhs but on failure (a matrix with 2 by 2).  ← fine
 Done.
 ```
-
-**Not defined — clear static errors:**
-- `matrix / matrix` — matrix division is not a single operation (would need matrix inversion,
-  which is deferred). Produces a type error: "arithmetic requires numbers on both sides."
-- `matrix / number` and `matrix + number` — the same type error. Scaling is the one mixed form:
-  `matrix * number` and `number * matrix` multiply every element.
-- Element-wise multiply (Hadamard product) — deferred; if ever added, it will be a named
-  collections function (`Cast collections's element-wise-multiply on (a, b)`), NOT an operator
-  (`*` is reserved for matrix product — one canonical way).
 
 ### Chance book operations
 
-All randomness operations require `chance` to be in scope — `Pull a book on chance.`
-must appear before any chance expression or `Seed` statement. Using them without a
-pull is a **static type error** (TypeException).
+Every form below needs `Pull a book on chance.` in scope; without it, it is refused.
 
-| Syntax | Return type | Notes |
+| Syntax | Type | |
 |---|---|---|
-| `a random number from low to high` | `number` | Whole numbers, inclusive; `low > high` → RuntimeException |
-| `a random item from series` | `voidable T` | Empty series → `void`; pair with `but void is default` |
-| `randomly shuffled series` | `series of T` | Non-mutating; returns a new series |
-| `a random guess` | `fact` | 50/50 true/false |
+| `a random number from low to high` | `number` | a whole number, both ends included |
+| `a random item from s` | `voidable T` | `void` when `s` is empty |
+| `randomly shuffled s` | `series of T` | a new series; `s` is unchanged |
+| `a random guess` | `fact` | |
+| `Seed the chance with <number>.` | statement | the same seed gives the same sequence |
 
-**Seed statement** — reseeds the per-interpreter RNG:
+- `low` greater than `high` raises an exception.
+- `low` and `high` may be arithmetic (`from 1 to n + 5`), not a comparison.
+- Without `Seed`, each run differs.
 
-```cufet-fragment
-Seed the chance with 42.
-```
+### `Pull … Done.`
 
-The seed must be a `number`. Seeding makes the sequence reproducible; without an
-explicit seed the RNG is entropy-seeded on interpreter creation.
-
-**Bound-expression level** — `low` and `high` in `a random number from low to high`
-are parsed at addition level (same precedence as `the characters from N to M of text`).
-Arithmetic works; logical/comparison forms do not:
+`Pull` opens a scope and `Done.` closes it. What was pulled is in scope until then.
 
 ```cufet-fragment
-State a random number from 1 to n + 5.    ← OK
-State a random number from 1 to 6.        ← OK
-```
-
-**Series target** — `a random item from <series>` and `randomly shuffled <series>`
-parse their target with `ParseCorePrimary`. Identifiers, possessive access
-(`one's cards`), parenthesized expressions, and series literals all work.
-
-**Type-matching `but void is`** — `a random item from series` returns `voidable T`.
-The fallback in `but void is` must match the element type `T`:
-
-```cufet-fragment
-Define picked as a random item from xs but void is 0.   ← OK for series of number
-Define picked as a random item from xs but void is "".  ← OK for series of text
-```
-
-### `Pull ... Done.` — books and rabbits
-
-★★ **A MODULE's body may reach for a module its caller pulled. A plain function may not.** The
-difference is not a special case — a module is pulled INTO a block, so its methods run there and
-inherit what that block pulled, and the pull site is where a missing one is reported. Nothing pulls
-a plain function into anything, so there is no block for it to inherit from and nowhere the debt
-could be checked; a function reaching an unpulled module name is refused where it is WRITTEN.
-
-⚠ A body written *inside* a pull is unaffected and is the ordinary way to write this — the pulled
-names are in its lexical scope like any others:
-
-```cufet
-Pull a book on math.
-    Bind number to rooted, given (the number x):
-        Return (math's square-root of (x)) but void is 0.
-    Done.
-
-    State cast rooted on (25).
-Done.
-```
-
-A function written outside one pulls what it needs itself.
-
-`Pull` opens a scope; `Done.` closes it and frees whatever was pulled.
-
-**Single book:**
-```cufet
-Pull a book on math.
-    Define r as math's square-root of 16.
-Done.
-```
-
-**Multiple books (shared scope, one `Done.`):**
-```cufet
+Pull a book on math.                         ← a book
+Pull a book on math as m.
 Pull books on math, collections, and chance.
-    Define m as a matrix with ((1, 2), (3, 4)).
-    Define n as a random number from 1 to 6.
-Done.
-```
-Plural `books` for two or more; singular `a book` for one. Number matches count.
-
-**Per-book aliasing (each entry independently optional):**
-```
 Pull books on math as m, collections as c, and chance.
-    ...
-Done.
-```
-
-**Module — the general form:**
-```cufet-fragment
-Pull greeting-kit.
+Pull greeting-kit.                           ← a module you hold one of
 Pull greeting-kit as kit.
+Pull a rabbit.                               ← a rabbit, which is a region
+Pull a rabbit as hopper.
 ```
-Any object conforming to `module` (`Define object greeting-kit with () and module:`). The
-article is noise, so `Pull a greeting-kit.` is the same statement.
 
-**What a module hands out.** A module that declares an interface offers **only what that interface
-declares**; a module that declares none offers everything.
+- A book is pulled `a book on <name>` or `books on <a>, … and <z>`; anything else is pulled by its
+  name. A book pulled plainly, or anything else pulled as a book, is refused, and so is `Pull books
+  on` naming one that is not a book. To pull both kinds, nest the pulls.
+- The article before a module's name is noise: `Pull a greeting-kit.` is `Pull greeting-kit.`
+- Pulls nest. A `Bind` inside a `Pull` body is a top-level `Bind`.
+
+**Modules and books.**
+
+- An object is a module when it says `and module`, and a book when it says `and book`. Every book
+  is a module. `and book and module` is refused, and so is `and book and region`.
+- A book owns no lifetime. A module may own a region, with `and region`.
+- An object that is not a module cannot be pulled. A module with fields is refused when the pull
+  runs; make one with `a new <type> { … }` instead.
+- A module's body holds `Define object` declarations and methods. Its object types, and unions of
+  them, are reachable through it; an interface cannot be declared there.
+- A module that declares interfaces hands out only what they declare. One that declares none hands
+  out every method. `module` and `book` declare no methods. Inside the module, through `one`,
+  everything is reachable.
 
 ```cufet-fragment
 Define interface greeter for { The text function greet }.
@@ -1389,135 +842,27 @@ Done.
 
 Pull greeting-kit.
     State cast greeting-kit's greet on ().     ← in `greeter`, so reachable
-    State cast greeting-kit's helper on ().    ← refused: not part of what it hands out
+    State cast greeting-kit's helper on ().    ← refused, also through an alias
 Done.
 ```
 
-- **Declaring nothing hands out everything**, and that is a decision rather than a default: a
-  module IS an object and an object exposes its methods. The interface is a positive declaration of
-  what you offer, not a marker on what you keep — so no module written before this changed meaning.
-- **`module` and `book` are markers, not surfaces.** They declare no methods and say what a thing
-  IS rather than what it offers, so conforming to them alone restricts nothing.
-- **`one` is inside; everything else is outside.** A helper stays reachable from the thing it helps.
-  ⚠ That includes a module pulled under an ALIAS — `kit's helper` is refused exactly as
-  `greeting-kit's helper` is.
-- Several interfaces may be declared, and the surface is their union.
-
-★ **This is not a fourth form — it is the form the others are special cases of.** `Pull a
-rabbit.` was always `Pull <name>`:
-
-```cufet-fragment
-Pull greeting-kit.
-Pull greeting-kit as kit.
-Pull rabbit.
-```
-
-⚠ **A BOOK IS NOT PULLED THIS WAY.** `Pull math.` is refused; write `Pull a book on math.` The
-plain form is for a module you hold one of.
-
-```cufet-fragment
-Pull a book on math.                      ← something you consult
-Pull a book on math as m.
-Pull books on math, and collections.
-```
-
-⚠ **A module carries OBJECT TYPES only.** A union of them works and narrows with `Judge`, because
-a union is built from object types. An interface does not — a module body takes `Define object` and
-nothing else. Axioms need no home here: a module’s METHODS hold them, which is how
-`tools/terminals/terminals.cufe` reaches `termios`.
-
-### ★ `book` is a subtype of `module`
-
-A **book** is a module that owns no LIFETIME — what another language would have made a header
-file. It is declared with `and book`, and every book is a module:
-
-```cufet-fragment
-Define object shapes with () and module:      ← a module
-Define object trigonometry with () and book:  ← a book
-```
-
-★★ **Lifetime is the whole of the difference.** A module may own a region, which it says with
-`and region` (REFERENCE, *A region is a module that OWNS one*); `rabbit` is the bundled one. A book
-may not. Nothing else separates them: anything pullable is stateless, and both may hand out types
-you make values of, as `collections` and `blueprints` do.
-
-⚠ **`and book and module` is refused**, in either order. A book is already a module, so the pair
-says nothing extra and reads as a claim to be both kinds at once. Say one or the other.
-
-★ **There is one mechanism, not two.** Headers and modules are the same thing here; `book` is the
-narrower job rather than a separate kind. Everything downstream of a pull — members, scope,
-privacy, the loader — treats a book exactly as it treats any module.
-
-⚠ **The spelling must match what the thing is.** A book pulled plainly, or a module pulled as a
-book, is refused and the message names the fix. This is what *"the surface says which KIND of thing
-you are pulling"* always claimed; until `book` existed it could only be enforced for the bundled
-ones, because a writer had no way to say which kind theirs was.
-
-⚠ **`Pull books on …` applies ONE spelling to every name in it**, so they must all be books. A book
-and a module you hold one of cannot be pulled in a single statement — they nest:
-
-```cufet-fragment
-Pull a book on math.
-    Pull a shapes.
-        State cast shapes's scaled on (math's pi).
-    Done.
-Done.
-```
-
-★ **Either form reaches another file.** Which word is written says what the thing IS, not where it
-lives.
-
-★ **No module's NAME is reserved, and neither is `book` or `books`.**
-`math`, `collections`, `chance`, `rabbit`, `book` and `books` are all ordinary identifiers, so
-`For each book in books, repeat:` reads, and a writer may even define a module named `book` and
-reach it with `Pull book.`
-
-The rule this settles, and it has to hold for modules that do not exist yet: **a module's name
-can never be reserved**, because nobody can reserve `inventory` or `parser` in advance. The
-parser still *recognises* these words where they do a job — pulling a rabbit opens a region,
-`Have rabbit …` addresses the enclosing one, and `book`/`books` open the `… on <name>` spelling
-when `on` follows — because recognising a word is not reserving it.
-
-`book on <name>` is **required** for a book, and it is required because it is what reads: *a book
-on math* is natural English and *a math* is not. Pulling is one mechanism — the same question is
-asked at every pull site — but the surface says which KIND of thing is being pulled, because
-something you consult and something you have one of are not the same thing.
-
-What makes something a book is that it says `and book`, not how it is implemented, and `math`,
-`collections` and `chance` say it like any other. ⚠ `blueprints`, `regex` and the language books
-have no `Define object` to carry the marker, so the checker's own list is what says they are books.
-
-`module` is a **marker interface**: it requires no methods, only the claim. An object that
-does not conform is refused at the pull site. Pulling **instantiates**, so a module with
-fields is refused — a pull has nowhere to put their values; use `a new <type> { … }`.
+- No module's name is reserved, and neither are `book` and `books`. A bundled book's name
+  (`math`, `collections`, `chance`, `rabbit`, …) cannot name a new object; `a new collections { }`
+  and `unto` on a bundled book are refused.
+- `blueprints`, `regex` and the language books are books without a `Define object`.
 
 ### What a body may reach for
 
-**A function or method resolves the names it can see where it is WRITTEN — plus any MODULE its
-caller pulled.** Those are the only two, and the second is the whole reason the first has an
-exception: a pulled module is a capability of the block that uses the body, which is what lets a
-module's method say `math's pi` and leave `math` to whoever pulls it.
-
-★★ **A module's needs are its caller's only where the module has no provider of its own.** A module
-written *inside* a pull keeps it, exactly as a function written there does — so a book that pulls
-what it needs in its own file is pulled by one name, and its dependencies stay private:
-
-```cufet
-Pull a book on math.
-    Define object circles with () and book:
-        Bind number to area, given (the number r):
-            Return math's pi * r * r.
-        Done.
-    Done.
-Done.
-
-Pull a book on circles.
-    State (cast circles's area on (2)) converted to text.
-Done.
-```
-
-A module written at top level pulls nothing, so its names are still the caller's to supply. That is
-the shape a library file uses to say `math's pi` and leave `math` open, and it is unchanged:
+- A function or method reaches the names visible where it is written, and any module its caller
+  pulled. A name that is neither is refused when the program is checked.
+- A plain function reaches a module only where it is written inside that module's `Pull`.
+- A module written inside a `Pull` keeps what that pull gives it. One written at the top level
+  takes its modules from where it is pulled, and pulling it without them is refused.
+- A name made with `as` (`Pull a book on math as m.`) is an ordinary name of that block. A function
+  written outside the block cannot reach it.
+- A function with no name sees everything around it, aliases and locals included.
+- A module's needs are not followed through a free function it calls, or through a function held in
+  a variable.
 
 ```cufet
 Define object circles with () and book:
@@ -1531,129 +876,8 @@ Pull books on math, and circles.
 Done.
 ```
 
-⚠ Both programs print `12.566370614359172953850573533`. The difference is only which pull site has
-to know about `math`, and a module that resolves a name where it is written does not make its
-caller name it too.
+### Rabbits and tasks
 
-A name that is neither is refused **when the program is checked**, not when the line runs:
-
-```cufet-refused
-Bind number to sneaky:
-    Return borrowed + 1.        ← `borrowed` is a local of the CALLER — refused
-Done.
-```
-
-★ **"Module" means DECLARED — a bundled book, or an object marked `and module`. An alias is not
-one.** `Pull math as m.` makes `m` an ordinary name in that block, so a body written *inside* the
-pull sees it like anything else; a body written OUTSIDE it does not. That shape worked only while
-every caller happened to choose the same alias — rename it at one call site and the function breaks
-with nothing to point at. An alias is for the block that makes it, not something to publish.
-
-★ A **lambda** is not a detached body at all: it captures its enclosing scope, so it sees
-everything lexically around it, aliases and locals included.
-
-⚠ Known gap: a module's needs are checked at its pull, but they are not transitively closed. A
-module that reaches `math` only through a free function it calls is not caught, and neither is a
-function reached through a variable rather than by name. Only module names are affected.
-
-★ **A bundled book's name is reserved for the book.** Defining an object named `math`,
-`collections`, `chance` or any other bundled name is refused at the definition. The same wall has no side doors:
-`a new collections { }` is refused (**`Pull` is the only constructor** — a book is a
-scope-thing, and its construction is the bracket), and `unto` may not target a bundled book
-(it would splice a writer's member straight onto the book). The prelude's own definitions of
-`math`, `collections` and `chance` are the one exception: each is its book's **Cufet layer**, and a
-book and its layer resolve as ONE module. A member the layer defines is ordinary Cufet method (or
-getter) dispatch; whatever the layer does not define is the native book's — all reached through the
-same pulled name. The native side of `collections` introduces only the `matrix` type, and `math` has
-no native part. A book the program never pulls is dropped from it, so an unused one costs nothing.
-
-**Rabbit (singular only):**
-```
-Pull a rabbit as hopper.
-    ...
-Done.
-```
-Anonymous form (`Pull a rabbit.`) omits the name. A NAMED rabbit can be given work by name —
-`Have hopper start a task as job:` — as well as through the bare `rabbit` keyword, which means the
-enclosing one. Naming a rabbit pulled further out is refused: a task is joined by its rabbit's
-`Done.`, so it would have to outlive the block it is written in.
-
-A **mode** may stand between the article and `rabbit`: `Pull an automatic rabbit.`,
-`Pull a sequential rabbit.`, `Pull a parallel rabbit.` (the default). It says how the rabbit's
-TASKS compose. None of the three words is reserved: each is a mode only where `rabbit` follows it.
-See REFERENCE, *Composition modes*.
- Rabbits stay singular — multiple arenas
-usually want independent lifetimes (nest two `Pull a rabbit` blocks with separate `Done.`s).
-
-**Nesting** — any `Pull ... Done.` scope can nest inside another:
-```
-Pull a book on math.
-    Pull a rabbit.
-        ...
-    Done.
-Done.
-```
-
-**Bind transparency** — `Bind` declarations inside a `Pull ... Done.` body are treated as
-top-level (the pull scope does not count as a "block" for `Bind`-placement purposes).
-Hoisting passes (functions, objects, overloads) see through pull bodies automatically.
-
----
-
-### `Have rabbit start a task` — structured cooperative task spawn
-
-Spawns a cooperative structured task inside the enclosing rabbit's scope.
-
-**Syntax:**
-```
-Pull a rabbit.
-    Have rabbit start a task:
-        ... task body ...
-    Done.
-    Have rabbit start a task as <name>:
-        ... task body ...
-    Done.
-    ... more statements ...
-Done.   ← all tasks spawned in this rabbit JOIN here
-```
-
-- **Requires an active rabbit** — `Have rabbit start a task` must appear inside a
-  `Pull a rabbit. ... Done.` block. Using it outside any rabbit is a parse error.
-- **In an automatic rabbit**, and only there, every task says what it waits on:
-  `Have dispatcher start a task for an order in orders:`. The name after `for` (its article is
-  noise) holds the delivery, as `voidable T`, inside the task body. The expression after `in` is
-  the channel, worked out when the `Have` line runs. Such a task may not also be named. The one
-  chosen runs at the rabbit's `Done.` as the rabbit's own code, so it may change the names around
-  it, may not `return`, and may not use a name from a block ended by then.
-- **Optional name** (`as <name>`) — binds an identity so the task's result can be awaited
-  with `the awaited result of <name>`. Both backends support this; an anonymous task is
-  fire-and-forget and its `return` value is dropped.
-- **An await may appear inside another task**, not only in the rabbit body, and several tasks
-  may await the same task. The awaited task must be declared **earlier**, since its name has to
-  be in scope — which makes the wait graph acyclic by construction, so tasks cannot deadlock on
-  each other. Awaiting a task declared later is a type error rather than a hang.
-
-**Semantics:**
-
-- **Cooperative when interpreted, genuinely parallel when compiled.** Interpreted, tasks run
-  on the cooperative scheduler — one at a time, interleaving only at explicit yield points.
-  Compiled, each task is a real OS thread. ★ **This is the one place the two backends
-  deliberately differ**, so *do not* write a program that depends on a particular
-  interleaving: it is not a specification. Everything below holds on both.
-- **Structured (the key guarantee)** — every task spawned inside a rabbit **joins at that
-  rabbit's `Done.`**: the `Done.` handler waits for all spawned tasks to complete before
-  releasing the scope. A task **cannot outlive its enclosing rabbit**.
-- **Sound by construction** — because tasks join before `Done.`, they are shorter-lived than
-  their rabbit. The existing region depth machinery (`CheckRegionStore`) handles escapes:
-  a task-local reference-type value cannot be stored into a longer-lived container.
-
-**A task may read what it captured, and may not change it.** Changing a captured name, of any
-type, is refused when the program is checked, by both backends: *"this task changes 'totals',
-which it captured from outside the task."* The task holds its own copy, so the change could never
-be seen outside, and two tasks making it at once would race. See REFERENCE, *What crosses a
-boundary, and what a task may touch*.
-
-**Example:**
 ```cufet
 Pull a rabbit.
     Have rabbit start a task:
@@ -1666,7 +890,25 @@ Pull a rabbit.
 Done.
 State "after".
 ```
-Output: `during rabbit`, `task A`, `task B`, `after` — both tasks complete before `after`.
+
+- `Have rabbit start a task` must be inside a rabbit's `Pull`; outside one it is refused. `rabbit`
+  means the innermost rabbit. A rabbit pulled `as hopper` may be named instead: `Have hopper start a
+  task …`. Naming a rabbit pulled further out is refused.
+- `Pull an automatic rabbit.`, `Pull a sequential rabbit.` and `Pull a parallel rabbit.` (the
+  default) say how its tasks run together; REFERENCE, *Composition modes*. None of the three words
+  is reserved.
+- Every task joins at its rabbit's `Done.`, so no task outlives its rabbit.
+- A task named with `as <name>` gives its result through `the awaited result of <name>`. An unnamed
+  task's `return` value is dropped.
+- A task may await another, and several may await the same one, but only one declared earlier.
+- In an automatic rabbit, each task says what it waits on: `Have dispatcher start a task for an
+  order in orders:`. `order` is the delivery, a `voidable T`; `orders` is the channel. Such a task
+  has no name, runs as the rabbit's own code at its `Done.`, may change names around it, may not
+  `return`, and may not use a name from a block already ended.
+- A task gets a copy of what it captures. Changing a captured name is refused when something
+  outside the task reads that name afterwards; in an automatic rabbit it is allowed.
+- Interpreted, tasks take turns on one thread; compiled, each is a thread of its own. Which order
+  they run in is not specified.
 
 ---
 
@@ -1674,39 +916,23 @@ Output: `during rabbit`, `task A`, `task B`, `after` — both tasks complete bef
 
 ### Where a declaration belongs
 
-**An object, an interface and a shorthand belong to the program**, wherever they are written: in a
-function, an `If`, a loop, a task or a rabbit's block, each is usable before and after it.
+- An object, an interface and a shorthand belong to the program wherever they are written (in a
+  function, an `If`, a loop, a task or a rabbit's block), and are usable before and after it.
+- A value belongs to its block: `Define x as 5.` lasts until that block's `Done.`
+- A function (`Bind`) may be declared at the top level, inside a `Pull` body (where it is
+  top-level), inside another function, and as a method inside an object. Inside an `If`, a loop, a
+  `Try` or a `With` it is refused.
+- An operator overload and an unmaker may be declared only at the top level.
+- An object or interface declared twice is the second one; `cufet check` warns that nothing reaches
+  the first. A second shorthand of one name, a second free function with the same argument types, a
+  second overload for one ordered pair of types, and a second unmaker for one type are refused.
 
-**A value belongs to its block.** `Define x as 5.` lasts until that block's `Done.`
+### Inside an object's body
 
-**An operator overload and an unmaker are refused** inside a function, an `If` or a loop.
-
-**A type declared twice is the last one.** Nothing reaches the earlier one and its body is not checked;
-`cufet check` warns of it. This is an object's or an interface's rule: a second shorthand or a second
-method of one name, a second overload for one pair of types, and a second unmaker for one type are
-refused.
-
-### `Define` is forbidden inside object bodies
-
-Only `Bind` (methods), `Get` (getters), and `Set` (setters) are allowed inside an
-object definition body. Field declarations go in the `with (...)` header:
-
-```
-Define object graph with (the series of node nodes,          ← fields here
-                          the map from node to series of edge adjacency):
-    Bind void to add-node, given (the text name):            ← methods here
-        ...
-    Done.
-Done.
-```
-
-`Define nodes as a series of node.` **inside** an object body is a parse error.
-
-### Named makers initialize empty complex fields
-
-When fields have types like `series of T` or `map from K to V`, you cannot write
-`a new graph` to create an empty instance — you must supply all field values.
-Use a `Bind making a` maker to hide that:
+- An object's body holds methods (`Bind`), getters (`Get`) and setters (`Set`). Its fields are in
+  the `with (…)` header. A `Define` in the body is refused, except that a module's body may declare
+  object types (§5).
+- `a new <type> { … }` must give every field that has no default. A maker hides that:
 
 ```cufet-fragment
 Bind making a graph to new-graph:
@@ -1716,13 +942,8 @@ Bind making a graph to new-graph:
 Done.
 ```
 
-Call it with `cast new-graph`.
-
-### Getters: `Get name as type:`
-
-Computed properties are declared inside an object body with `Get name as type:`.
-The body has access to `one` (the receiver). Accessed via `obj's name` or
-`the name of obj` — uniform access, same syntax as stored fields.
+- A getter, `Get <name> as <type>:`, is read like a field: `c's label` or `the label of c`. Its body
+  reaches fields through `one`.
 
 ```cufet
 Define object card with (the text suit, the text rank):
@@ -1732,218 +953,46 @@ Define object card with (the text suit, the text rank):
 Done.
 
 Define c as a new card { the suit "Spades", the rank "Ace" }.
-State c's label.                ← "Ace of Spades"
-State the label of c.           ← same thing
+State c's label.
+State the label of c.
 ```
 
-Getters access fields through `one` exactly like methods:
-
-```cufet
-Get count as number:
-    Return the number of one's items.
-Done.
-```
-
-### `Bind overloading` is top-level only
-
-Operator overload declarations cannot appear inside any block:
+### Series and map values
 
 ```cufet-fragment
-Bind overloading +, given (the lhs is a vec2, the rhs is a vec2):
-    Return a new vec2 { the x lhs's x + rhs's x, the y lhs's y + rhs's y }.
-Done.
+Define xs as a series of number.                       ← empty
+Define primes as a series of number with (2, 3, 5).
+Define m as a map from text to number.                 ← empty
+Define m as a map from text to number with ("k": 1).
+Define m as a map with ("k": 1).                       ← types inferred
 ```
 
-This must be at the top level of the file. Placing it inside a function body,
-conditional, loop, or Try block is a parse error.
+- Each is an expression, usable anywhere a value is: an argument, a `Return`, a map entry, a
+  `but void is` default.
+- `new` does not make a series or a map.
 
-### `Bind` inside bodies — only in another function or object
+### Names a field or a loop's variable cannot take
 
-Function declarations (`Bind`) are allowed:
-- At top level
-- Inside another function body
-- Inside an object body (methods)
-
-They are **not** allowed inside `If` arms, loop bodies, `Try` blocks, or `With`
-blocks.
-
-### `a series of T with (...)` as an expression
-
-A series literal (empty or pre-populated) can appear anywhere an expression is
-expected:
-
-```cufet-fragment
-Define xs as a series of number.
-Define suits as a series of text with ("Spades", "Hearts", "Diamonds", "Clubs").
-Define primes as a series of number with (2, 3, 5, 7, 11).
-Return a series of text.
-In adjacency, the entry for n becomes a series of edge.   ← in a map-set
-```
-
-Note: in `In map, the entry for K becomes <expr>.`, the value is an IExpression
-— so a series literal here is fine.
-
-But `a series of T with ()` cannot be the fallback in `but void is` when nested
-in certain positions (it parses ambiguously as a type rather than a value literal
-in some contexts). Use a local variable:
-
-```cufet-fragment
-Define empty as a series of edge.
-Define edges as the entry for src in adjacency but void is empty.
-```
-
-### `a map [from K to V] with (...)` — the three map forms
-
-`map` in expression position always requires a `with (...)` clause. The optional
-`from K to V` annotation controls whether types are explicit or inferred:
-
-```cufet-fragment
-Define m as a map from text to number.                 ← empty, typed
-Define m as a map from text to number with ("k": 1).   ← typed + populated
-Define m as a map with ("k": 1).                       ← inferred types
-```
-
-`new` is not used for map construction. `a map from K to V` without `with (...)`
-is a **type annotation** only — it names a type, not a value.
-
-### For-each iterator names must be identifiers (with one exception)
-
-The iterator variable in `For each <name> in <series>` must be an `Identifier`
-token. Any reserved keyword is illegal here, even if it "feels" natural. Common
-traps:
-
-- `entry` is reserved → use `pair`, `kv`, or another name
-- `start`, `from`, `to`, `end` are reserved → avoid them
-- `it` is reserved for the bare-`it` loop form
-
-**Exception — `item` is allowed** as an iterator name in both the series form
-(`for each item in my-list`) and the pipe consumer form (`for each item from the
-input:`). Inside the loop body, bare `item` (not followed by a number or `at`) is
-treated as a variable reference. See §7 for details.
-
-### `to` and `from` cannot be field names
-
-These are reserved structural keywords. If an object needs a source/destination
-field, use `src`, `dest`, `origin`, `target`, etc.
-
-### Reserved keywords are never valid field names
-
-The parser's `the <name> of <expr>` heuristic (which disambiguates named field
-access from other `the X of Y` constructs like series length, type annotations,
-etc.) now excludes the **entire reserved-keyword set** uniformly: no keyword can
-ever be a user-defined field name, because field names are identifiers and
-keywords are not.
-
-**Practical consequence:** adding a new keyword to the language cannot introduce
-a new field-name mis-fire. The exclusion is automatic and complete — you will
-not see a repeat of the `the series of number board` n-queens mis-parse.
-
-**Three narrow exceptions kept valid:**
-- `key` — for `the key of mapping` (key-value pair access)
-- `category` — for `the category of the failure` (failure type property)
-- `characters` — for `the characters of r` (user-defined field), disambiguated
-  from the substring syntax `the characters from N to M of text` by the presence
-  of `from` after the keyword (which causes `IsNamedAccessPattern` to return false
-  since it requires `of` immediately after the name)
-
-**Position decides, not lookahead.** The parser marks the positions where a TYPE is being read,
-and the `the <name> of …` guess is not consulted in any of them. The keyword exclusion above is the
-rule for field NAMES; telling a type from an expression is position's job, which is the one thing
-lookahead cannot do. `the stack of number counts` and `the city of alice` are the same tokens; only
-where they sit differs.
-
-That is what lets a user-defined generic be written as a type. A built-in leads with its own keyword
-(`series of number`), but `the stack of number counts` starts with an identifier, and no exclusion
-list can hold it without also taking away every field access.
-
-### ★ What a burying body may contain
-
-A body holding a `bury` is rewritten into a state machine before either backend
-sees it: the block it stops in becomes a step number, and every local that
-outlives a resumption is stored beside it. That rewrite is what constrains the
-body, and everything below follows from it.
-
-**Allowed, and each keeps its state across a resumption:** straight-line
-statements, `If` / `Otherwise`, `While`, `Repeat until`, `For each` over a
-series or a stash, `Stop`, `Skip`, nested loops, a reassigned parameter, and a
-local of any type — including a series or a map being built up item by item.
-
-A `For each` over a **stash** is allowed here because it is not a loop the
-machine has to learn: it is rewritten into its drain — `unbury`, a void test, the
-body — before the machine sees it, so what gets linearised is a `Repeat until`
-holding a `Define` and an `If`. Inside a burying body this is **delegation**, one
-stash consumed while another is produced.
-
-An `If` that **narrows** is allowed and keeps its narrowing, in the arm and in
-its `Otherwise` alike: the condition that reached the block is carried in and
-re-tested on entry (the `Otherwise` uses the negated form). That is not a branch —
-every local is restored from its slot first, so the test gives the answer it gave
-the first time. It exists so the type is known again.
-
-⚠ Both narrowing forms count: `x is a <type>` and **`x is not void`**. The second
-was missed for a while, and the failure is worth knowing because of its shape —
-the arm lost its guard, so the block ran with `x` back at the `voidable T` its
-slot holds. The interpreter narrows by value and never noticed; the compiler
-refused `x is greater than 3` for operating on a voidable. A front-end rewrite
-that drops a guard shows up as a **backend divergence**, not as a bad rewrite.
-
-**A METHOD may bury**, nested or `unto`, on exactly the same terms as a function —
-it takes a rabbit, its declared type is what it buries, and it has no `Return`.
-The rewrite turns one method into **two methods**, not two functions: the dispatch
-reads `one's <field>` the way the body it came from did, so the receiver has to
-still be there to resolve against. The closure the factory hands back captures
-`one`, which is what makes the state belong to the **instance** — two of a type
-give two stashes that share nothing.
-
-⚠ "Does this bury" is answered per `(type, method)`, never per name. Two types may
-each have a `ticks` with only one of them burying, and a name-keyed answer would
-rewrite the wrong one — or tell the ordinary one its `number` return type is a
-stash.
-
-A `Judge` is allowed too, and keeps both the narrowing and the binding. `it`
-becomes an ordinary local, so the subject is evaluated once and `it` is restored
-from its slot on every re-entry rather than re-evaluated; the arm's cases then
-guard the block the way an `If` arm's condition does. A **grouped** arm states
-itself as a disjunction (`it is a number or it is a fact`), and an `Otherwise`
-states the cases the arms left over the same way.
-
-⚠ **A nested `Judge` inside a burying body rebinds `it` at a narrower type**, and
-one name may hold one type in a burying function — so it is refused, by that rule
-rather than a judgement-specific one. Bind the inner subject to a name of its own.
-
-**Refused when the program is checked**, so both backends refuse identically:
-
-| Shape | Why |
-|---|---|
-| `Return` anywhere in the body | A burying function finishes by reaching its end; the stash reports that with `void`. Two ways to say "spent" is one too many. |
-| `Bury` inside the `Otherwise` of a judgement whose arms name **types** over a **non-union** subject | The leftover cases have to be named to resume into them, and only a closed union lists what they are. ⚠ A judgement whose arms name VALUES is exempt: it narrowed nothing on the way past, so there is nothing to restore. |
-| `Bury` inside `Try to` or `Pull a rabbit` | A handler and a region are context a resumption cannot restore. |
-| `Bury` inside `For each` over a **map** | Resuming counts back to where the loop was, and a map's entries have no position to count to. Loop over a series, or use `While`. |
-| `Define a shadow` anywhere in the body | Every scope in the body flattens into one, so the shadow would land on the name it was written to hide. |
-| One name used at two types in the body | Sibling blocks become one place to store it, and one place holds one type. Legal everywhere else in the language. |
+- A reserved word (§1) cannot name a field, a parameter or a loop's variable. `to`, `from`,
+  `start`, `end`, `it` and `category` are the ones most often reached for.
+- `item` may be a loop's variable, in a series loop and in a pipe's consumer loop. Inside the loop,
+  `item` alone is the variable; `item 2 of …` and `item at …` keep their meaning.
+- `For each in s` (no name) binds `it`.
+- Where a type is expected, `the <name> of …` is read as a type; elsewhere it is a field access. So
+  `the stack of number counts` (a generic type) and `the city of alice` (a field) do not clash.
 
 ### `For each` takes five kinds of source
 
-| Source | Iterator holds | Ends when |
+| Source | The variable holds | Ends when |
 |---|---|---|
 | a series | the element type | the last item is done |
-| a map | a `mapping` (`the key of`/`the value of`) | the last entry is done |
-| a set | the element type | the last element is done |
+| a map | a `mapping` (`the key of`, `the value of`) | the last entry is done |
+| a set | the element type | the last value is done |
 | a chase | each character, as a one-character text | the last character is done |
-| a stash | the **buried type**, not `voidable` of it | the stash answers `void` |
+| a stash | the buried type, not `voidable` of it | the stash answers `void` |
 
-Anything else is a static error: *"Only series, maps, sets, chases and stashes can be looped
-over."* A text is not one of them — put it in a chase to go through it a character at a time.
-
-The stash form is a **front-end rewrite**, not a third loop. This:
-
-```cufet-fragment
-For each value in counter, repeat:
-    State value.
-Done.
-```
-
-*is* this — the drain that was written by hand before the loop existed:
+- Anything else is refused. A text is not a source; put it in a chase.
+- Over a stash, the loop is the same as this, so `Stop` and `Skip` mean what they mean in any loop:
 
 ```cufet-fragment
 Repeat:
@@ -1957,66 +1006,47 @@ Repeat:
 Until false.
 ```
 
-Three things follow from that being the *definition* rather than a description.
-`Stop` and `Skip` in the body land on the `Repeat until`, so they mean exactly
-what they mean in any loop — and the rewrite's own `Stop` runs before the body is
-reached, so the two can never collide. The iterator is a plain `T` because the
-body sits inside the `is not void` arm. And neither backend learns anything: what
-they run is statements they have always run.
+### What a burying body may contain
 
-⚠ The `is not void` polarity is load-bearing. Cufet narrows a name **inside an
-arm**, not for the rest of a block on the strength of an early exit — so the
-body has to be *in* the arm. Written the other way round (`If value is void:
-Stop. Done.` then the body) every iterator would be a `voidable T`.
+- Allowed: plain statements, `If`/`Otherwise`, `While`, `Repeat … Until`, `For each` over a series
+  or a stash, `Stop`, `Skip`, nested loops, a parameter given a new value, and locals of any type.
+  Each keeps its state across a resumption.
+- An `If` that narrows (`x is a <type>`, `x is not void`) keeps its narrowing, in the arm and in its
+  `Otherwise`.
+- A `Judge` keeps its narrowing and its `it`; `it` is evaluated once.
+- A method may bury, as a function does. Its state belongs to the object it was called on.
 
-### ★ `stash of T` is an ordinary value type
+Refused when the program is checked:
 
-A stash goes where any value goes — a local, a parameter, an element of a series
-— because it lowers to a CLOSURE, and every `stash of T` is therefore the same
-two-pointer shape. No vtable is implied and no narrowing is needed.
+| In a burying body | |
+|---|---|
+| `Return` anywhere | a burying function ends by reaching its end |
+| a `Judge` inside a `Judge` whose `it` has another type | one name holds one type |
+| `Have … bury` in the `Otherwise` of a judgement with type arms over a subject that is not a closed union | |
+| `Have … bury` inside `Try to`, a rabbit's `Pull`, a task, or a file block | |
+| `Have … bury` inside `For each` over a map | |
+| `Define a shadow` | |
+| one name used at two types | |
 
-The front end keeps `stash of T` and `voidable T function given ()` as separate
-spellings on purpose: it is what makes an error say *"stash of number"*, and what
-stops a stash being `cast` directly instead of unburied. The back end must not,
-because a `stash of T` parameter has to accept exactly what `cast`ing a burying
-function produces — so the front end substitutes one for the other on the way
-out, and no `StashType` survives into either backend.
+### A stash, and function-valued fields
 
-**A stash lives in the region whose rabbit buried it, and dies with that region.**
-A rabbit is REQUIRED — `Have <rabbit> bury <v>.`, never a bare `Bury v.` — because
-burying is memory work and a rabbit is the agent that does memory work. A burying
-function takes one as a parameter, so the ownership arrives with the job instead of
-being ambient. Inside a burrow a stash does everything it does anywhere: be
-unburied, handed to a function, put in a series, held in a field. Carrying one OUT
-and unburying it later is refused, by the same rule that refuses any closure over
-rabbit-scoped state, because that is what burying somewhere means.
-
-⚠ Today that refusal is the COMPILER's, not the checker's, so the escaping
-program still interprets — `check --native` reports it as a warning. Under the
-rule above the interpreted behaviour is the wrong one: it digs silver out of
-ground that no longer exists.
-
-An object **field** may hold one too — `Define object ticker with (the stash of
-number source, the text name):` — on both backends.
-
-An ordinary function-valued field works the same way — `the number function twice
-given (a number)`. ⚠ The field NAME sits between `function` and `given`, the same
-order a function-typed parameter uses; `void` is legal there only as the return
-type (`the void function log`), never as a field type on its own.
-**A series of functions crosses a declaration boundary too, and where the NAME sits says which
-type is meant.** `series of T function` has two readings, and both are real:
+- `stash of T` is a value type: a local, a parameter, an item, a field
+  (`Define object ticker with (the stash of number source):`).
+- A stash lives in the region of the rabbit that buried it. Carrying it out of that region is
+  refused when the program is checked.
+- A field may hold a function: `the number function twice given (the number)`. The field's name
+  sits between `function` and `given`. `void` is allowed there only as the return type
+  (`the void function log`).
+- In a series of functions, the `given` clause divides the type from the name:
 
 | Written | Means |
 |---|---|
-| `the series of number function make given (the number)` | a function RETURNING a series of numbers |
-| `the series of number function given (the number) ops` | a SERIES of functions |
+| `the series of number function make given (the number)` | a function returning a series of numbers |
+| `the series of number function given (the number) ops` | a series of functions |
 
-The `given` clause is the divider. A function element type states its own clause, so the name has
-nowhere left to go but after the whole type; a function-typed parameter puts its name straight
-after `function` instead. ⚠ **A function element type must therefore carry its `given` clause
-wherever a name follows it.** In a series LITERAL nothing follows the type, so there the clause
-stays optional — `a series of number function with (twice)` is a series of functions that take
-nothing.
+- A function element type must carry its `given` clause wherever a name follows it. In a series
+  literal nothing follows, so `a series of number function with (twice)` is a series of functions
+  that take nothing.
 
 ```cufet
 Bind number to twice, given (the number n): Return n * 2. Done.
@@ -2034,12 +1064,7 @@ State cast apply-all on (a series of number function given (the number) with (tw
 30
 ```
 
-
-### ★ Foreign source — an `axiom` in `[ ... ]`
-
-Source in another language, held as a value. `axiom` names the **contract**: it is taken as given
-without proof, which is exactly what Cufet does with it — it cannot check a C listing and does not
-try.
+### Foreign source — an `axiom` in `[ ... ]`
 
 ```cufet
 Pull a book on the c-language.
@@ -2048,152 +1073,66 @@ Pull a book on the c-language.
 Done.
 ```
 
-**Square brackets appear nowhere else in the language**, and that is why they are the delimiter:
-this is the one construct whose contents are not Cufet at all, so reusing existing punctuation
-would need disambiguating by context — the last thing wanted around foreign text.
+- Square brackets hold foreign source, and appear nowhere else.
+- Brackets nest; a bracket after a backslash does not count. Nothing is unescaped: the foreign side
+  gets exactly the characters written. A lone `]` inside a foreign string ends the source early;
+  write `\]`.
+- The tag says the language and cannot be dropped: `Define c-language x as [ … ].` (or
+  `Define a c-language axiom x as [ … ].`). `Define x as [ … ].` is refused.
+- The language's book must be pulled: `Pull a book on the c-language.` It may be aliased (`as c`);
+  the tag still names the language.
+- What an axiom gives back is declared where it is written: `Define c-language number add, …`.
+  - An axiom that names a result is run with `cast`, and the call works wherever any call does. As
+    a statement, `Cast x on (…).` discards the result.
+  - An axiom that names no result and takes no parameters is a preamble: pasted once, above every
+    other axiom, so its declarations are shared. It is never run.
+  - One that names no result and takes parameters is source with holes (below).
+- An axiom binding is permanent, so a function body may use it.
 
-**Brackets NEST, and a backslash escapes one.** The scanner counts `[` / `]` pairs to find the
-end, which is what lets a C subscript survive — `[getenv(argv[0])]` lexes. A bracket preceded by
-a backslash does not count: `[\[]` and `[[^\]]]` are both one axiom.
-
-⚠ **Counting only — nothing is unescaped.** The consumer receives exactly the characters written,
-backslashes included, which is the promise the brackets make. `[a\\]` still closes, because the
-first backslash escapes the second and the `]` is left counting.
-
-★ The rule is language-agnostic, and that is what makes it allowable here: a backslash is an
-escape in every language this delimiter is likely to carry. It exists for `regex`, where `[`
-opens a character class rather than a subscript.
-
-⚠ An unbalanced bracket inside a foreign STRING literal — `[printf("]")]` — still ends the axiom
-early. Closing that would mean knowing which language this is, which the brackets deliberately do
-not say; write `[printf("\]")]` instead.
-
-**The tag can be shortened but never dropped.** `Define a c-language axiom x as [ … ].` may be
-written `Define c-language x as [ … ].`, because the brackets already say *axiom*. They cannot say
-*which* language, and the tag names who reads it — so `Define x as [ … ].` is refused. Inferring it
-from what happens to be pulled would make a line's meaning depend on scope above it, and break the
-moment two language books are pulled together.
-
-**The language's book must be pulled** — `Pull a book on the c-language.` A language book has no
-members; you pull it to write axioms in that language at all. Aliasing works (`as c`), and the tag
-still names the language rather than the alias.
-
-**What an axiom gives back is declared where the axiom is WRITTEN**, and the tag qualifies the
-axiom rather than the result — `c-language number add` is a C-language axiom that yields a number.
-Both middle words drop:
-
-```
-Define the c-language number axiom add, given (the number left, the number right), as [ ... ].
-Define c-language number add, given (the number left, the number right), as [ ... ].
-Define c-language axiom get-pid as [getpid()].        ← says nothing about the result
-Define c-language get-pid as [getpid()].
-```
-
-⚠ **An axiom that says what it gives back is an EXPRESSION you run.** Cufet cannot read a C
-listing, and an `int` might be a number, a fact or a handle — so whoever wrote the source says
-which, once.
-
-★★ **An axiom that says NOTHING about its result is SOURCE, and cannot be run.** It is pasted once,
-above every wrapper, so anything it declares is in scope for the axioms that come after it:
-
-```cufet
-Pull a book on the c-language.
-    Define c-language helpers as [static int twice(int x) { return x * 2; }].
-    Define c-language number four as [twice(2)].
-    State cast four.
-Done.
-```
-
-That is how two axioms SHARE a helper at run time. A helper declared inside one axiom belongs to
-that axiom alone. A preamble takes no parameters and substitutes nothing.
-
-⚠ **A preamble takes no parameters.** A parameter's value comes from a call, and nothing calls a
-preamble. C source that DOES take parameters is not a preamble at all: it has holes, it is never
-pasted, and it is filled and handed back as text — see *Source with holes* below.
-
-⚠ **Nothing in it is guarded or checked.** A wrapper's guards ask what the spliced EXPRESSION
-produces; a declaration produces nothing. What is written reaches the C compiler verbatim, and a
-mistake in it is reported as the author's C — which it is.
-
-### ★ An axiom's parameters, and splicing by the article
-
-An axiom declares what it takes the way every Cufet body does, and reaches those values inside the
-foreign text **by the article**:
+### An axiom's parameters
 
 ```cufet-fragment
 Define c-language open-read-only, given (the text file-path), as [open(the file-path, O_RDONLY)].
-
-Define the number fd as cast open-read-only on ("/etc/hostname").
 ```
 
-`the file-path` is never valid C or SQL — it is English sitting in code that is not English — so
-nothing has to be escaped or disambiguated. It reads as the line that declares it: `the text
-file-path` in `given`, `the file-path` in the source.
-
-**Only VALUES cross, never text.** The C side receives a marshalled `long long`, `const char*` or
-`int`; the axiom itself is fixed where it is written and cannot be assembled from strings. That is
-the same rule `Run "grep" with arguments ("-v", "3")` follows, and the same reason there is no
-injection there.
+- A parameter is reached in the source by its article: `the file-path`. That is substituted
+  everywhere in the source, inside a foreign string too.
+- A parameter the source never uses is refused.
+- Values cross, never source text:
 
 | Cufet | reaches C as |
 | --- | --- |
-| `number` | `long long` — **range-checked**, never truncated; a fractional or oversized value raises |
-| `text` | `const char*`, UTF-8, valid for the length of the call |
+| `number` | `long long`; a fractional or out-of-range value raises an exception |
+| `text` | `const char*`, UTF-8, valid for the call |
 | `fact` | `int`, 1 or 0 |
 
-**A `cast` of an axiom composes anywhere an ordinary call does** — in a condition, an
-interpolation, inside arithmetic, or as an argument — because what it gives back was settled
-where the axiom was declared rather than where it is used.
-
-⚠ **A declared parameter the source never mentions is refused**, because only declared names are
-substituted — a misspelled `the paht` stays in the C verbatim and would otherwise surface as a gcc
-complaint about a stray `the`.
-
-⚠ **Known edge:** `the file-path` inside a foreign *string literal* is substituted too —
-`[printf("the file-path is %s", the file-path)]` has one hole and one piece of prose. Every
-candidate marker shared this, so it separated none of them, but it is real.
-
-⚠ **A reserved word cannot be a parameter name.** `path` is reserved (`the path <p> exists`), so
-`given (the text path)` does not parse — `file-path` does. `where` is another, and both are words a
-C binding reaches for naturally; check the reserved list when a parameter name will not parse.
-
-**An axiom binding is permanent whether or not it says so.** The text is fixed at the declaration
-and there is no other value it could take — so a function body sees it, by the same carve-out that
-lets a body see a `permanently` constant.
-
-| Written | Means |
-| --- | --- |
-| `Define c-language x as [ … ].` | declare an axiom (`Define a c-language axiom x as [ … ].` is the same) |
-| `Bind number to f, x.` | run it, and give back the whole number it produced |
-| `Cast x on (a, b).` | run it as a STATEMENT, for its effect — the answer is discarded |
-| `… as [ … ], and free it with <name>.` | name the axiom that releases the address this one gives back |
-| `the c-language number axiom <name>` | an axiom AS A TYPE — a parameter, a field, an element |
-| `the c-language number axiom given (the text) <name>` | the same, saying what running it takes |
-| `Define c-language x, given (the term t, …), as [ … ].` | SOURCE with holes — filled, never run |
-| `x on (a, b)` | fill source and keep it, unrun — no `cast` |
-| `the c-language axiom <name>` | complete source as a value — a code hole, a parameter, a result |
-| `<source> converted to text` | the source's text |
-| `the text at <address>` | read through a foreign pointer — `voidable text`, always COPIED |
-| `Pull a book on the c-language.` | admit C axioms in this block |
-
-★ **A call in statement position discards the answer and checks the same.** The language must be
-pulled, the arguments must fit, and the declaration must still say what it gives back — the C
-wrapper's return type is built from that whether anyone reads it or not.
-
-**What crosses BACK from foreign source:**
+- What comes back:
 
 | Declared | C gives | |
 | --- | --- | --- |
-| `number` | any C whole number, signed or unsigned | exact — a decimal holds every 64-bit integer either way |
+| `number` | any C whole number, signed or unsigned | exact; `size_t` arrives unsigned |
 | `fact` | anything with a truth value | 1 or 0 |
-| `voidable number` | a `float`, `double` or `long double` | converted once, in shared C; NaN, an infinity, or a magnitude no decimal holds becomes void |
-| `voidable address` | a pointer of any kind | held opaquely, never read through; NULL becomes void |
-| `voidable text` | a `char*` or `const char*` | **copied**; NULL becomes void |
+| `voidable number` | `float`, `double`, `long double` | 17 significant digits; NaN, an infinity, or a magnitude no decimal holds is void |
+| `voidable address` | any pointer | held, never read through; NULL is void |
+| `voidable text` | `char*`, `const char*` | copied; NULL is void |
 
-### ★ Source with holes — filled, kept, and turned into text
+- A text result must be `voidable text`; plain `text` is refused. A floating result must be
+  `voidable number` and a whole one `number`; the wrong one is refused by the C compiler.
 
-C source that says nothing about a result may take parameters. Each `the <name>` in it is a HOLE.
-Filling it is written `on (…)` **without** `cast`, and gives back source again, still unrun:
+| Written | Means |
+| --- | --- |
+| `Define c-language x as [ … ].` | declare an axiom |
+| `Cast x on (a, b).` | run it as a statement; the result is discarded |
+| `… as [ … ], and free it with <name>.` | the axiom that releases the address this one gives back |
+| `the c-language number axiom <name>` | an axiom as a type: a parameter, a field, an item |
+| `the c-language number axiom given (the text) <name>` | the same, saying what running it takes |
+| `Define c-language x, given (the term t, …), as [ … ].` | source with holes: filled, never run |
+| `x on (a, b)` | fill source and keep it, unrun |
+| `the c-language axiom <name>` | complete source as a value |
+| `<source> converted to text` | the source's text |
+| `the text at <address>` | read through an address: a copied `voidable text` |
+
+### Source with holes
 
 ```cufet
 Pull a book on the c-language.
@@ -2209,66 +1148,24 @@ Done.
 static int int_eq(int a, int b) { return inner_eq(a.value, b.value); }
 ```
 
-`cast x on (…)` fills and runs; `x on (…)` fills and keeps. Inside the brackets only the brackets
-have to balance, so C's braces are written as they are. `converted to text` is the only step that
-makes text of source: until then it is code, and can fill another axiom's code hole.
-
-**Three kinds of hole, decided by the parameter:**
+- `x on (…)` fills and keeps; `cast x on (…)` on source with holes is refused, and `x on (…)` on
+  anything that is not source is refused. Holes are filled by position; a named argument is refused.
 
 | Declared | Takes | Goes in as |
 | --- | --- | --- |
-| `the c-language axiom test` | complete source of the SAME language: filled, or with no holes | its text, as written |
-| `the term type-c` | a text | itself, refused when filled unless it is a C name |
-| `the text x`, `the number n`, `the fact f` | a value | C's own literal: a quoted, escaped string; a number (bracketed when negative); 1 or 0 |
+| `the c-language axiom test` | complete source of the same language | its text |
+| `the term type-c` | a text | itself; when filled it must be a C name (letters, digits, `_`, not starting with a digit), or an exception is raised |
+| `the text x`, `the number n`, `the fact f` | a value | a C literal: a quoted, escaped string; a number, bracketed when negative; 1 or 0 |
 
-★ **There is no way to paste text in as code.** Text reaches code only as another axiom, or as a
-term that passed the name check: letters, digits and `_`, not starting with a digit. C's keywords
-are allowed, because a term is as often a type (`int`) as a name. A term that fails the check is
-refused when the program runs:
+- What fills a hole is not searched for holes.
+- A bare `[…]` may be an argument filling a code hole, or the `Return` of a function giving back
+  `c-language axiom`; it takes its language from there. Anywhere else it is refused.
+- A hole counts only where no letter, digit, `_` or `-` follows it: `the type-c_eq` and
+  `the held->len` fill nothing. Write `(the held)->len`, or pass the joined name as a term.
+- Filled source is never run, so it needs no C toolchain.
+- `on` fills only `c-language` source; `cufet` source is filled by `Cite`.
 
-```
-'9lives' is not a name in C, so it cannot fill the term 'name'. This happened on line 5.
-```
-
-`term` is a mark in `given`, not a type: what fills a term is plain text, and nothing else can be
-declared a term.
-
-★ **What fills a hole is never searched for holes.** The source is cut at its own holes first, in
-one pass, and filled afterwards, so `the left` inside a text handed in stays as it was written.
-
-**A bare `[…]` may be an argument, and takes its language from the hole it fills**, as in
-`cast c-equal on (inner, [a.value], [b.value])`. A NAMED axiom with no result and no parameters is a
-preamble, pasted above everything, so a small fragment cannot be named: `a.value` at file scope does
-not build. `Return [0].` in a function that gives back `c-language axiom` takes its language the
-same way. Anywhere else a bare one is refused, because nothing names its language.
-
-A function hands source back with `Bind c-language axiom to <name>, …`.
-
-⚠ **There is no syntax for a hole joined to letters.** A hole counts only where no letter, digit,
-`_` or `-` follows it, so `the type-c_eq` fills nothing and stays in the text as written. When that
-is the only place the name appears, the declared-but-unused refusal says so. Build the joined name in
-Cufet and pass it as a term of its own: `"{type-c}_eq"`.
-
-⚠ **`->` directly after a hole is the same case**, because `-` belongs to a Cufet name: `the held->len`
-is no hole. Bracket it: `(the held)->len`.
-
-⚠ **`Define x as [ … ]` declares an axiom; it does not hold a value.** With no result and no
-parameters it is a preamble, pasted above everything. A variable starts from a function's result or
-a fill instead.
-
-⚠ **Filled source is never run**, so it needs no C toolchain on either backend, and the playground
-fills it too. `cast` on source with holes is refused with the fix, and so is `x on (…)` on anything
-that is not source, so a forgotten `cast` never quietly makes a fragment. Holes are filled by
-position: a named argument is refused.
-
-⚠ **`on` fills only `c-language` source.** `cufet` source is filled by `Cite`, before the program
-runs: see [Holes in cufet source](#-holes-in-cufet-source).
-
-### ★ An axiom as a value
-
-An axiom **that says what it gives back** may be passed, stored and run wherever it lands. The type
-is written as the declaration reads, and `given (…)` says what running it takes — the same spelling
-and the same parser as a function type's, so the two cannot drift apart:
+### An axiom as a value
 
 ```cufet-fragment
 Bind number to measure, given (the c-language number axiom given (the text) job, the text what):
@@ -2276,131 +1173,41 @@ Bind number to measure, given (the c-language number axiom given (the text) job,
 Done.
 ```
 
-★ **Saying the result is what makes an axiom writable as a type.** The C wrapper's return type is
-built from the declared result, so an axiom with none has no signature to be. The one exception is
-C SOURCE that takes nothing: `the c-language axiom job` is complete source as a value, a code hole's
-type (*Source with holes*, below). Source still taking parameters, written as a type, is refused,
-and so is a `cufet` or `regex` axiom with no result. The refusal names the fix.
+- An axiom that names its result may be passed, stored and run. `given (…)` belongs only in that
+  type spelling; a declaration lists its parameters after the name.
+- A `c-language axiom` type with no result is complete source. Source still taking parameters,
+  written as a type, is refused.
+- An axiom and a function are different types; neither fills a parameter declared as the other.
+- `and free it with` runs once per call that acquires the address, however the axiom was reached.
+- An axiom prints as `<axiom>`. Source prints as its text.
 
-★ **`and free it with` is registered at the ACQUISITION**, not at the binding that catches the
-result — so it fires once per call, whether the axiom was reached by name or through a value, and
-whether or not anybody named what came back.
+### Addresses
 
-⚠ **An axiom and a function stay different types**, even though a value of either is the same pair
-of pointers underneath. An axiom has no body to read and its language is part of what it is, so
-neither satisfies a parameter declared as the other.
+- An `address` may be held only inside a rabbit's block. Holding one outside any rabbit is refused.
+- `the text at <address>` is the only read through one, and it copies into the rabbit's region. A
+  void address reads as void. An address prints as `<address>`.
+- There is one address type and no address-of operator.
+- `and free it with <name>` names an axiom taking one `address`; it runs on every way out of the
+  block, an exception included. A void result is not freed, and an axiom with no clause is never
+  freed. Nothing checks that the named axiom is the right one.
 
-★ **Identity is the SOURCE, not the name or the route.** Two names for one axiom, and a call by
-name beside a call through a value, all reach one wrapper — one copy of the foreign text, guarded
-once.
+### Running an axiom
 
-An axiom prints as `<axiom>`, as a function prints as `<function>`. ⚠ The compiler refuses `State`
-on either; `cufet check --native` reports it as a warning. C source as a value is the exception: it
-prints as its text, the same text `converted to text` gives.
+- An axiom sees the C standard library, plus POSIX on Unix and Win32/winsock on Windows, and writes
+  no `#include`. `<termios.h>`, `<poll.h>`, `<sys/socket.h>` and `<sys/wait.h>` are Unix-only;
+  `<windows.h>` and `<winsock2.h>` are Windows-only.
+- A library of your own cannot be linked yet.
+- Running an axiom needs a C toolchain on both backends. Interpreted, each axiom is compiled once
+  into a shared library, cached by its content. Where there is no toolchain (the playground) the
+  program refuses to run.
+- Every axiom a program can run is built before it starts, so one that does not compile means no
+  output at all, either way the program is run.
+- C's own global state belongs to one process: the interpreter's, or the compiled program's.
 
-⚠ **A parameter, a field, or an element is the only place the `given (…)` type spelling belongs.**
-A DECLARATION states its parameters after the name — `Define c-language number length-of, given
-(the text subject), as [ … ].` — and writing them twice is not a thing to do.
-
-⚠ **A `text` result must be declared `voidable text`.** C says nothing is there by handing back
-nothing — `getenv` on an unset name, `strerror` on a code it does not know — so NULL lands in the
-mechanism the language already has. A plain `text` is refused as a promise the C side cannot keep.
-
-⚠ **A text is COPIED out of C's memory, never aliased.** The bytes belong to C: `strerror` hands
-back a buffer the next call overwrites, and anything malloc'd dies when its owner says so. A Cufet
-text pointing at either would change under the program.
-
-⚠ **A floating result must be declared `voidable number`, and a whole one `number`** — the two
-guards are disjoint, so naming the wrong one is refused by the C compiler rather than converted.
-`number` is exact; `voidable number` is the one conversion that is not, which makes "which did you
-mean" a real question.
-
-★ **The base-2 to base-10 conversion is written ONCE**, in C both backends compile, and it hands
-back the three numbers a decimal is made of rather than a `double` — so neither backend converts
-anything and the last digit cannot disagree. 17 significant digits, which is what a `double`
-round-trips in.
-
-Everything else is refused rather than approximated:
-
-- an axiom as a parameter, a field, an element type, or something a function hands back unrun
-
-That is refused by the checker; the result-type questions above are refused by the **C compiler**,
-at the point where the type is actually known. Both name what is wrong.
-
-⚠ **An `address` may only be held inside a rabbit block, and cannot outlive one**, which is what
-makes that block the unsafe marker without a new keyword: a pointer is a rabbit responsibility,
-because the arena that knows when the region dies is what knows when the pointer dies. `Define
-handle as cast open-dir on (…)` outside one is a static error, and so is storing one into anything
-declared outside — an address obeys the same escape rule as a series or a map.
-
-★ **`the text at <address>` is the ONLY read there is**, and it always copies into the arena —
-`voidable text` that belongs to the rabbit, never a view into foreign memory. Reading through a
-void address is void. Reading a struct or a scalar is not offered and is not missing: an axiom can
-project a field or declare a local and hand it back, so those come home as ordinary results. ⚠
-Neither `text` nor `at` is reserved — the PAIR is what makes the phrase unmistakable.
-
-★ **`and free it with <name>`** names the axiom that frees the address, and the release then runs
-on every way out of the block, exception included. The releasing axiom takes one `address`. A void
-result is never freed, and an axiom with no clause is never freed — a leak is recoverable where a
-double free is not. ⚠ Nothing checks the named function is the RIGHT one; Cufet never reads the
-foreign text. The clause costs no reserved word: `it`, `with` and `and` are already tokens, and
-`free` is recognised only after `, and`, where nothing else can appear.
-
-★ **There is one kind of address**, so `char*` and `FILE*` are the same type — what differs is not
-the value but what the writer does with it. There is **no address-of operator**: an address only
-ever comes from C and goes back to C, so Cufet never creates one and never reads through one. An
-address prints as `<address>`, never as its value.
-
-★ **`size_t` needs no cast**, and a large one is not turned negative. `strlen`, `sizeof`, `fread`
-and the rest of libc's length-reporting family report an unsigned 64-bit value, and the boundary
-carries that value's signedness along with its bits — so `[strlen(the subject)]` is written as it
-would be in C, and an `unsigned long long` of 2^64−1 arrives as 18446744073709551615.
-
-**An axiom is given a fixed set of headers and writes no `#include`.** The C standard library,
-plus POSIX on Unix and Win32/winsock on Windows. The set is **platform-guarded** — `<termios.h>`,
-`<poll.h>`, `<sys/socket.h>` and `<sys/wait.h>` are Unix-only; `<windows.h>` and `<winsock2.h>` are
-Windows-only — and nothing is smoothed over, so a POSIX-only program is refused by the C compiler
-on Windows rather than mis-running.
-
-⚠ **A library of your own cannot be reached yet**, and the obstacle is linking rather than headers:
-a header declares, and something must still pass `-lsqlite3`. The two have to arrive together.
-
-⚠ **Foreign state is per-process, and the backends are two different processes** — a compiled
-program is its own, while the interpreter calls C inside the process running the interpreter. What
-C remembers globally (winsock initialisation, `errno`, a library's one-time setup) can differ
-between running and building. Cufet values cross identically; C's own memory is C's business.
-
-⚠ **An axiom needs a C toolchain to run, on either backend.** Compiled, its text is pasted into the
-program's own C. Interpreted, it is compiled into a small shared library and called — cached by
-content, so `gcc` runs once per distinct axiom per machine. Where no toolchain exists at all (the
-playground runs the interpreter in wasm) the program refuses to run, and says so.
-
-★ **Every axiom a program can run is built before the program starts**, on both backends — so a
-program with one axiom that will not compile produces **no output at all**, whichever way it is
-run. Running it and building it give the same answer, which is the point. An axiom that is
-*declared* and never returned is built by neither.
-
-⚠ **gcc's complaint about an axiom is the author's to fix**, not a compiler bug — the one exception
-to "every line gcc reads was written by cufet", and it is reported as such.
-
-⚠ **Brackets are counted, and nothing else is read.** Pairs nest, so `[argv[0]]` works; a lone `]`
-inside a foreign string literal closes the axiom early. `<<...>>` has the same edge, and closing it
-would mean knowing which foreign language this is. In practice what follows an early close is read
-as Cufet and refuses.
-
-### ★★ Cufet source — a `cufet` axiom, placed by `Cite`
-
-**A `cufet` axiom is Cufet source held under a name.** Same surface as a foreign one, different
-mechanism behind it: `[ … ]` still says *the text inside is not the program around it*, and for a
-`cufet` tag that stays true — it is parsed, but nothing happens to it until you say so.
-
-★★ **Which of the two kinds it is comes from the rule the `c-language` tag already follows:
-says what it gives back ⇒ something you RUN; says nothing ⇒ SOURCE.** One rule, read off the
-declaration, for both tags.
+### Cufet source — a `cufet` axiom, placed by `Cite`
 
 ```cufet
 Pull a book on cufet.
-    // Says it gives back a number ⇒ something you run. Called like any other.
     Define cufet number sum-to, given (the number top), as [
         Define the total as 0.
         For each step in range 1 to the top, repeat:
@@ -2412,20 +1219,12 @@ Pull a book on cufet.
 Done.
 ```
 
-**A runnable axiom's body is a BODY**, so it holds whatever a function body holds — a loop, a
-condition, its own locals. C reaches the same capability through a statement-expression, which is
-C's way of putting statements where an expression goes:
-
-```cufet-fragment
-Define c-language number sum-to, given (the number top),
-    as [({ int s = 0; for (int i = 1; i <= (int)the top; i++) s += i; s; })].
-```
-
-**A runnable cufet axiom has no crossing restriction, and none is missing.** A `c-language` axiom
-gives back a number, a fact or a voidable text because those are what survive the boundary; nothing
-crosses a boundary here, so any Cufet type comes back — `Define cufet series of number …` is fine.
-
-**It is a value, like any function.** Bind it to another name, pass it, store it, run it there.
+- The book is pulled as `Pull a book on cufet.`
+- A `cufet` axiom that names its result is a function body: any Cufet type may come back, and it is
+  a value like any function. One that names none is a block of declarations, placed by `Cite`.
+- A block holds objects, interfaces, `Define`s and `Bind`s. `Cite <name>.` places them where the
+  `Cite` is: a type belongs to the program wherever that is, and a value is a local there, so one
+  block cited twice makes two separate locals.
 
 ```cufet
 Pull a book on cufet.
@@ -2444,77 +1243,16 @@ Pull a book on cufet.
 Done.
 ```
 
-**The book is `cufet`, and it is pulled like any other language book** — `Pull a book on cufet.`,
-with no article, because `cufet` is a name where `the c-language` is a common noun.
+- A block may use only what belongs to the program (a function, a type, a `permanently` constant, a
+  pulled book) and what it declares itself.
+- A block that holds a function may be cited only at the top level or directly inside a `Pull`.
+- A block may be cited before its declaration. A block never cited places nothing, and its name
+  cannot be stated, passed or read.
+- One name holds one block; a second is refused.
+- A runnable `cufet` axiom cannot be cited. `and free it with` on a `cufet` axiom is refused.
+- A mistake inside a block is reported at the block's own line, once the block is cited.
 
-★ **The article belongs to `the c-language` alone**, and every other language book so far refuses
-one: `Pull a book on cufet.`, `Pull a book on regex.` A suggestion a reader is meant to copy has
-to be a line they would have written themselves — the refusal message got this backwards for
-`regex` the first time it ran.
-
-**A block holds DECLARATIONS** — an object, an interface, a `Define` and a `Bind`. The difference between
-them is the whole point of `Cite`: a TYPE belongs to the program wherever it is written, so a cited
-object is program-scope however deeply the `Cite` sits, while a VALUE lands as a local at the site
-that cited it. One block cited twice therefore makes two independent locals:
-
-```cufet
-Pull a book on cufet.
-    Define cufet counters as [
-        Define the tally as 0.
-    ].
-
-    Bind number to first:
-        Cite counters.
-        The tally becomes the tally + 5.
-        Return the tally.       ← 5
-    Done.
-
-    Bind number to second:
-        Cite counters.
-        Return the tally.       ← 0, its own
-    Done.
-Done.
-```
-
-⚠ **A block may only reach for names that belong to the PROGRAM** — a function, a type, a
-`permanently` constant, a pulled book — plus whatever it declares itself. Anything else is refused
-at the block's own line. That is what makes capture impossible by construction: a name the block did
-not declare would otherwise mean whatever the site that cited it happened to have, and one block
-cited twice would be two different programs.
-
-★★ **A block that holds a FUNCTION may only be cited where functions belong** — at the top level,
-or directly inside a `Pull` block. That is Q1 for a body, and it is a placement rule rather than a
-second check: placed where functions live, a `Bind` is a free function, and a free function already
-cannot read the data around it. Placed inside another body it would be a closure over the body
-citing it, which is the capture Q1 exists to prevent.
-
-Everything else a block holds goes anywhere. A type belongs to the program wherever it is written; a
-value is *meant* to land at the cite site. A function is the one thing whose meaning would change
-with the company it keeps.
-
-**Where a cited declaration lands falls out of [Where a declaration belongs](#where-a-declaration-belongs)**,
-and nothing about `Cite` adds to it. The block's statements are spliced in at the cite site, so a
-cited object belongs to the program however deeply the `Cite` sits — usable after the function that
-cited it, on both backends.
-
-**Declaring a block places nothing.** A block that is never cited declares nothing at all; if it
-did, `Cite` would have no work to do. The name holds source, not a value, so it cannot be stated,
-passed, or read.
-
-⚠ **A block may be cited before it is declared**, the way a declaration is available before its
-line everywhere else here.
-
-⚠ **One name holds one block.** A second under the same name is refused rather than shadowed — the
-one redeclaration in this language that is. Every other kind holds a value or a type and has an
-answer already (`Define a shadow`, or last-wins); a name holding source waiting to be placed would
-leave every `Cite` of it ambiguous at a glance.
-
-#### ★ Holes in cufet source
-
-**A block's `given` names holes, and `Cite <name> on (…)` fills them.** Each `Cite` places a copy
-with the holes filled, as if it had been written out there. This reaches what a function cannot: a
-method cannot be passed, and a lambda calling one works on a snapshot of the object, so a step it
-takes is lost.
+#### Holes in cufet source
 
 ```cufet
 Define object counter with (the number place):
@@ -2545,73 +1283,32 @@ State tally's place.
 4
 ```
 
-| declared | means | filled with |
+| Declared | Means | Filled with |
 | --- | --- | --- |
 | `the term made` | a name the block makes | a name in quotes |
-| `the number function next`, `… unto counter` | a function, or a method of that object, the block calls | its name, written bare |
+| `the number function next`, `… unto counter` | a function, or a method of that object, the block calls | its name, bare |
 | `the text x`, `the number n`, `the fact f` | a value | a literal |
 
-A hole can say what a function hole gives back in full, spelled as a `Bind` spells it:
-`the node or failure function next unto parser`, and what it takes comes after that, as on any
-function parameter: `… next unto parser given (the node)`. Those two spellings belong to a hole, because a
-hole is filled with a NAME; a function VALUE can be neither a method nor written that way.
-
-⚠ **What fills a hole is written out at the `Cite`.** The `Cite` happens before the program runs, so
-nothing has a value yet, and a variable is refused where a literal goes.
-
-⚠ **There is no hole for code.** A fill can name something or be a value, and cannot change the shape
-of what it lands in.
-
-★ **A block is checked as written.** Each hole says what it is, so a mistake in a block is reported at
-the block's own line, whether or not anything cites it, and a fill that does not fit is reported at
-the `Cite`. This is the opposite of a generic, whose body is not checked until it is
-filled: an `element` could be anything, and a hole says what it is.
-
-⚠ **A term is a name the block MAKES**, so the block must declare it with a `Bind` or a `Define`; a
-name it only calls says what it is. A hole nothing uses is refused, as C source's is. A hole for a
-value is refused if the block declares that name again, since only its reads are filled.
-
-⚠ **A folder carries its blocks and its `Cite`s**, so a file may cite a neighbour's block and a method
-one file stamps is seen by the others. A `Cite` from a neighbour places declarations only: a plain
-`Define` would run, and a neighbour's working lines stay in its file. A pulled book holds neither. A name
-a `Cite` makes in a folder is one of that folder's names, wherever its block sits: hidden from
-outside, and reached by qualifying it, `lib's stamped`. A block's own name is its folder's too, so
-a file may cite its own folder's blocks and those of the folders above it, and siblings may repeat
-a name.
-
-⚠ `Cite` fills holes, and `on` without a `Cite` does not: cufet source is not a value.
-
-⚠ **A runnable axiom cannot be cited**, and citing one says so rather than claiming the name is
-undeclared. Call it instead.
-
-⚠ **`and free it with` is refused on a cufet axiom — the one thing the two tags differ on.** A
-release clause hands memory back to the language that allocated it, and cufet source allocates
-nothing across a boundary; what it produces is an ordinary Cufet value.
-
-⚠ **A message from inside a block reports where the block actually sits**, not where it would sit if
-it were a file of its own. A lexer starts at line 1 and a block does not, so the fragment's position
-is carried into every token and every refusal it produces.
-
-⚠ **An interface DEFAULT written outside a block does not yet find a cited interface.** Defaults are
-expanded by the parser, which runs before anything is cited. A conformer writing its own method
-works; `Bind <type> to <name> unto <cited-interface>` does not.
+- `Cite <name> on (…)` fills the holes and places a copy. `on` without `Cite` does not fill cufet
+  source.
+- A function hole may say what it gives back as a `Bind` does, and what it takes after that:
+  `the node or failure function next unto parser given (the node)`.
+- What fills a hole is written out at the `Cite`; a variable is refused where a literal goes.
+- There is no hole for code.
+- A term must be declared by the block, with a `Bind` or a `Define`. A hole nothing uses is refused.
+  A value hole is refused if the block declares that name again.
+- A folder carries its blocks and `Cite`s: a file may cite a block from its own folder or a folder
+  above. A neighbour's `Cite` places declarations only. A name a `Cite` makes is its folder's,
+  reached from outside as `lib's stamped`. A pulled book carries neither.
+- An interface default written outside a block does not find a cited interface:
+  `Bind <type> to <name> unto <cited-interface>` is not found. A conformer's own method works.
 
 ---
 
 ## 7. Streaming pipes
 
-The `|` operator connects Cufet functions (or OS subprocesses) into a data pipeline.
-Stages are ordinary zero-parameter functions; `|` wires their implicit input/output streams.
-
-### Two branches
-
-| Branch | Left operand | Right operand | Runtime |
-|---|---|---|---|
-| **Task pipe** | Any function expression | Any function expression | Cufet channels + sequential buffering |
-| **Subprocess pipe** | `run "prog" ...` | `run "prog" ...` | OS process stdio chaining |
-
-A pipe statement is detected at statement level (`ParseStatement`) and never appears
-in expression position — a `PipeExpression` in expression context is a static type error.
+`|` joins stages into a pipe. Either every stage is a function (a task pipe), or every stage is a
+`run` (a subprocess pipe). Mixing the two is refused.
 
 ### Task pipe
 
@@ -2631,65 +1328,20 @@ Done.
 producer | consumer.
 ```
 
-Multi-stage (any number of stages):
-
-```cufet-fragment
-producer | doubler | consumer.
-```
-
-### Surface syntax
-
-**`output <value>.`** — emits a value to the implicit output stream. Valid only inside a
-function that is used as a pipe producer or middle stage. Using `output` outside a pipe
-context is a runtime error.
-
-**`for each <name> from the input:`** — consumer loop. Reads one value per iteration from
-the implicit input channel. Terminates automatically when the producer has finished and the
-channel is closed.
-
-- `<name>` is the iterator variable — any identifier, or the keyword `item`.
-- `Stop.` inside the body exits the loop early (as with any for-each).
-- `Skip.` skips to the next value.
-
-### Contextual recognition — `output` and `input`
-
-Neither `output` nor the word `input` in `from the input` is a globally reserved keyword.
-
-**`output`** is contextually recognized as a pipe-output statement when it appears as the
-first word of a statement and is followed by an expression — specifically, when the next
-token is NOT `becomes`, `'s`, `=`, or `|`. This means:
-
-```cufet-fragment
-Define output as 42.      ← variable declaration — works
-Output becomes 99.        ← reassignment — works
-Output | consumer.        ← left side of a pipe — 'output' is the variable, not a keyword
-Output 7.                 ← PIPE OUTPUT STATEMENT (only valid inside a pipe stage)
-Output 7.                 ← the same statement, capitalised
-```
-
-**`Output` may be capitalised**, so this statement is written like every other one. The capital
-is meaningful only in this position: `Output` is not a second spelling of a variable named
-`output`, because an uppercase-initial identifier is not legal anywhere.
-
-**`input`** in `for each <name> from the input:` is matched by lexeme (`"input"`) at the
-parse site, not by a reserved `TokenType`. Outside that exact syntactic position the word
-`input` refers to the built-in stdin readable stream (`the input`), which is always in
-scope. You cannot redefine `input` (it is pre-defined by the type checker as the stdin
-stream), but `output` is freely reusable as a variable name.
-
-### `item` as iterator name
-
-`item` is a reserved keyword (`TokenType.Item`) normally used for positional series
-access (`item 2 of my-list`) and matrix access (`item at (r, c) of m`).
-It is also accepted as the iterator name in for-each loops — including the consumer
-form. Inside a loop body, bare `item` (not followed by a number or `at`) is
-treated as a variable reference to the iterator binding.
-
-```
-For each item from the input:
-  State item.          ← 'item' is the bound iterator, not 'item N of ...'
-Done.
-```
+- A stage is a function with no parameters, or a function value. Any number of stages may be joined:
+  `producer | doubler | consumer.`
+- A task pipe is a statement. In expression position it is refused.
+- `Output <value>.` sends a value to the next stage. It may be capitalised. Outside a pipe stage it
+  stops the program when it runs.
+- `For each <name> from the input:` (or `from input`) takes one value per turn and ends when the
+  stage before has finished. `Stop` and `Skip` work as in any loop. The name may be `item`.
+- `input` and `output` are not reserved, and neither can be defined as a variable (§1).
+- What a stage reads is the type the stage before it outputs, and its body is checked with that
+  type, at the pipe. A stage used in no pipe has an unchecked consumer loop. One stage may be used
+  with only one input type in a program.
+- A stage reached through a function value is not followed: stages after it are not checked.
+- Interpreted, each stage runs to its end before the next starts; compiled, the stages run at once,
+  joined by channels. The order of what a linear pipe prints is the same either way.
 
 ### Subprocess pipe
 
@@ -2697,99 +1349,33 @@ Done.
 run "echo" with arguments ("hello") | run "cat".
 ```
 
-All stages must be `run` expressions. The `|` operator chains stdout → stdin between
-adjacent processes. The final process's stdout is written to the program's output.
+- Each stage's output is the next one's input; the last one's output is the program's.
+- A pipe of `run`s need not be handled: a failure to launch ends the program as an unhandled failure.
 
-Failures (missing program, permission denied) surface as Cufet failures with the same
-categories as standalone `run` expressions. The must-handle requirement is **waived**
-for `run` expressions inside a pipe — the pipe itself is considered an implicit handler.
-
-### An argument list that is not written out
-
-`with arguments` takes either a parenthesised list of expressions or a single expression of type
-`series of text`. **One token decides which:** a `(` immediately after `arguments` opens the
-written-out list, and anything else is read as the whole list.
+### `with arguments`
 
 ```cufet-fragment
 Try to:
     Define argv as a series of text with ("-l", "/tmp").
-    Run "ls" with arguments argv.          ← the series form
-    Run "ls" with arguments ("-l", "/tmp").  ← the written-out form
+    Run "ls" with arguments argv.               ← the whole list
+    Run "ls" with arguments ("-l", "/tmp").     ← written out
 Done.
 In case of failure:
     State "no ls".
 Done.
 ```
 
-⚠ **`with arguments (argv)` is therefore the written-out form with one element in it**, not the
-series form. The checker refuses it by name rather than letting the element type decide, because a
-reader has to be able to tell the two apart without knowing what `argv` holds. The same rule is why
-the parser may commit on a single token.
-
-Both `run` forms accept both spellings, in a pipe stage as well as standalone.
-
-`Run X.` at statement level (without `|`) **launches the program with this terminal** instead of
-capturing it. It is a statement, so it hands back nothing — no result record, and so no exit code
-to read. It can still fail to launch, so it still must be handled: put it in a `Try to:` block.
-The expression form is unchanged.
-
-```cufet-fragment
-Try to:
-    Run "git" with arguments ("log", "--oneline", "-5").   ← streams; nothing comes back
-    Define r as run "git" with arguments ("rev-parse", "HEAD").
-    State the output of r trimmed.                          ← captured; nothing is shown
-Done.
-In case of failure:
-    State "git not available".
-Done.
-```
-
-★ The difference is **who gets the terminal**, not what happens to the text. An expression `run`
-hands the child a pipe, which is why nothing appears until it exits and why a program that draws —
-`less`, `vim`, `top` — cannot start. Capturing the result and discarding it would have bought
-neither.
-
-### Execution model, and what is still restricted
-
-**Buffered when interpreted, truly streaming when compiled.** Interpreted, the producer
-stage runs to completion first, filling an in-memory buffer, and the consumer then drains
-it. Compiled, every stage runs as its own thread joined by channels, so values stream
-through as they are produced. A linear pipe's *observable output order* is the same either
-way — values cross each channel FIFO — so this is a throughput and memory difference, not
-a semantic one.
-
-**Mixing subprocess stages with function stages** (`run X | consumer-function`) is not
-supported. The shared front end rejects it identically on both backends, with a message
-naming the `run` result record as the offending stage. A pipe is either all `run` stages
-(a subprocess pipeline) or all function stages (a task pipeline).
-
-**Cross-stage element types are checked.** A stage's input type is written down nowhere —
-`for each n from the input:` declares no type — so it can only come from the stage
-upstream. The type checker walks each pipe left to right, carries every stage's output
-element type into the next as its input, and type-checks that stage's body against it.
-A producer emitting `number` into a stage that does `the length of n` is a normal type
-error, at the offending line, on both backends.
-
-Two consequences worth knowing:
-
-- **A consumer's body is checked at the pipe, not where it is written.** A `Bind` whose
-  body reads `from the input` is only fully checked once a pipe says what flows into it.
-  A stage function that is never used in any pipe has an unchecked `for each … from the
-  input` body.
-- **A stage function may be used at only one input element type** across the whole
-  program. Feeding the same function `number` in one pipe and `text` in another is a
-  clean type error naming both.
-
-Stages reached indirectly — a lambda, or a function value held in a variable — stop the
-chain rather than erroring: their bodies were checked where they were written, and there
-is no declared element type to propagate, so downstream stages go unchecked instead of
-producing a false positive.
+- `(` straight after `arguments` opens a written-out list; anything else is the whole list, a
+  `series of text`. `with arguments (argv)` with a series inside is refused.
+- `Run X.` as a statement gives the program the terminal and hands back nothing. `run X` as an
+  expression captures the output into a result record. Both can fail to launch, so both must be
+  handled.
 
 ---
 
 ## 8. Sharp edges
 
-### ★ A function or method sees other functions and CONSTANTS — not top-level data
+### A body sees functions and constants, not top-level data
 
 ```cufet-refused
 Define max-retries as 3 permanently.
@@ -2801,29 +1387,14 @@ Bind number to budget:
 Done.
 ```
 
-The rule keeps data flow explicit and prevents hidden global mutation. A `permanently` binding
-cannot be mutated, so it is exempt.
-
-★★ **"Top level" here means anywhere hoisting is transparent to — a `Pull` block included.** A
-constant declared inside `Pull a rabbit.` or `Pull a book on …` is a shared constant exactly as one
-written at the top of the file is, and a function declared in the same block is a free function for
-the same reason. That matters because a rabbit block is where most programs put both:
-
-```cufet
-Pull a rabbit.
-    Define the limit as 10 permanently.
-    Bind number to bumped:
-        Return the limit + 1.       ← fine: a shared constant, wherever the block is
-    Done.
-Done.
-```
-
-Such a constant belongs to the program. It can be read after its block's `Done.`, by the program as
-well as by a function, and no other block may define a constant of its name. Two are the block's own
-instead, read in the block and by no function:
-
-- one whose value is something the block holds, such as another name for a rabbit's series;
-- one that hides a constant, with `a shadow`.
+- A top-level function, a method, a getter, a setter, an unmaker, an operator overload and a pipe
+  stage see the program's functions and its `permanently` constants, and not its other top-level
+  values. Reading one is refused when the program is checked. So is a name defined nowhere.
+- A constant made at the top level of a `Pull` block is the program's, as one at the top of the
+  file is: functions read it, the program reads it after the block's `Done.`, and no other block may
+  define a constant of that name.
+- Two constants are the block's own, readable in it and by no function: one whose value is something
+  the block holds (another name for a rabbit's series), and one made `a shadow`.
 
 ```cufet-refused
 Pull a rabbit.
@@ -2835,289 +1406,21 @@ Pull a rabbit.
 Done.
 ```
 
-A body may be called before the line that gives a constant its value. Reading it then stops the
-program:
-
-```
-'k' has no value yet on line 3. Line 2 gives it one, and that line hasn't run.
-```
-
-**A method takes nothing of the block it is written in**, so a function bound in the function around it,
-or a lambda that block holds, is refused in it. A function bound in a rabbit's block or a `Pull a book`
-block is the program's, and a method may cast it.
-
-⚠ **A `permanently` inside a FUNCTION body is shared with nothing.** Hoisting does not enter one,
-which is the same reason a nested `Bind` is a closure rather than a free function.
-
-**It applies to every body that leaves the top-level scope**, in exactly the same terms: a
-top-level function, a **method**, a **getter**, a **setter**, a **unmaker**, an **operator
-overload**, a **pipe stage**. There is one rule, not one per body kind.
-
-A **lambda literal is not in that list** — it *captures* its enclosing scope, so a lambda sitting
-beside a binding closes over it normally:
-
-```cufet
-Pull a rabbit.
-    Define nums as a series of number with (1, 2, 3).
-    Define f as a function: Return the number of nums. Done.   ← captures nums
-Done.
-```
-
-The refusal is enforced by the **TypeChecker**, so both backends agree and `cufet check` catches it.
-
-A name that was never defined at all is a different case: it is still reported when the program
-runs, not by `check`.
-
-### ★ A `permanently` field is refused down EVERY write route, not just the obvious one
-
-```cufet
-Define object user with (the text id permanently, the text name).
-```
-
-The adverb **trails the field name** — `the text id permanently` — which is the same position
-`Define max-retries as 3 permanently.` already uses. One rule: `permanently` follows the thing it
-fixes. It also only reads as English there, because the verb it modifies is the enclosing `Define`.
-It is per-FIELD: neighbours in the same object stay writable.
-
-Construction is not a write, so the `a new user { … }` literal sets it normally. Everything after
-is refused, and the refusal is deliberately checked in front of the setter branch:
-
-| Route | |
-|---|---|
-| `alice's id becomes …` | refused |
-| `one's id becomes …` inside its own method | refused |
-| a promoted field written through an embed | refused |
-| a `Set id given (…)` setter | refused — a setter cannot stand in for this |
-
-The setter case is the one worth stating out loud: setters are **infallible**,
-so one guarding a permanent field could only ignore a bad write, never reject it. Letting the write
-route through a setter would leave `permanently` meaning nothing to anyone who declared one.
-
-### ★ `when` binds loosest, and `, otherwise` is mandatory
-
-`<value> when <condition>, otherwise <value>` is an expression, and it binds **looser than
-everything else** — including the `but void is` and `but on failure` suffixes:
-
-```
-Define parsed as raw but void is 0 when shout is true, otherwise 99.
-                 └──────────────┘ one arm      └──┘ the other
-```
-
-The `, otherwise` half is **required**. That is not decoration — it is what makes the comma
-unambiguous inside an argument or element list, with no lookahead:
-
-```
-Define sizes as a series of text with ("small" when n is 1, otherwise "big", "fixed").
-                                       └──── element 1 ─────────────────┘  └ el 2 ┘
-```
-
-A half-written `f(x when c, y)` is therefore **not** two arguments; it is an unfinished
-conditional and is refused as one. Writing a conditional inside a list is legal and reads badly;
-naming the value first is the recommended style, but the language does not force it.
-
-Chaining is **right-associative**, so a ladder falls through rather than nesting on the left:
-
-```
-"one" when count is 1, otherwise "two" when count is 2, otherwise "many"
-```
-
-**Exactly one arm evaluates**, on both backends — the compiler emits a C ternary and the
-interpreter evaluates the chosen side only. A call, a failure or a `State` in the untaken arm
-does not happen.
-
-**The arms may differ in type**, and the result is their union — the same inference
-`a catalogue with (1, "two")` already performs. For strictness, annotate: `Define the number fee
-as 0 when member is true, otherwise 25.` makes a mismatched arm an error at the definition.
-
-The condition must be `true` or `false`; there is no truthiness.
-
-### ★ A type may precede the name in `Define`, and a NAME is what tells the two forms apart
-
-Both of these are declarations, and the difference is whether a name follows the type:
-
-```cufet-fragment
-Define the text greeting as "hello".      ← declares greeting as text
-Define copy as src.                       ← copies src's value; src is not a type
-```
-
-The parser reads what follows `as` as a type first. In the second line that attempt swallows
-`src` as if it were a type name, then finds `as` where a variable name should be, so the whole
-attempt is rolled back and the line means what it always meant. **The rule to remember: a type
-before the name only counts when a name comes after it.**
-
-**This is the only way to write a union-typed variable.** Without a declared type, a binding's
-type is whatever its first value was, and `42` is a number, not `(number or text)`:
-
-```cufet-fragment
-Define the (number or text) x as 42.      ← x holds either; `x becomes "hi"` is legal
-Define x as 42.                           ← x holds numbers, and only numbers
-```
-
-The value **widens** into the declared type — the same single implicit coercion `becomes` and
-`return` perform — so the value only has to *fit*, not match exactly. A value that does not fit
-is an error at the declaration.
-
-### String interpolation — `{...}` inside a text literal
-
-Part of the text literal itself, so it is legal **anywhere a text expression is** — a `Define`,
-an argument, a file path — not only in `State`.
-
-| Rule | |
-|---|---|
-| A hole holds any **expression** | `"{count * 2}"`, `"{the length of s}"`, `"{item 2 of parts}"`, `"{here's x}"` |
-| Nesting is allowed | `"outer {"inner {who}"}"` |
-| The value is **converted to text** for you | `"{count}"` needs no `converted to text` |
-| ★ So a hole takes only what `converted to text` takes | text, number, fact, bits — **not** a series, record, object or map |
-| A literal brace is escaped | `\{` and `\}` |
-| An empty hole is a **parse error** | `"{}"` — always a mistake, never an empty string |
-
-★ **The hole is narrower than `State`.** `State parts.` prints a series as `(a, b)`, but
-`State "the parts: {parts}".` is a static type error — the conversion a hole performs has no
-answer for a container. Print it on its own line, or build the text explicitly.
-
-### Verbatim text — `<<...>>` cannot spell text ending in `>`
-
-`<<a>>>` closes at the **first** `>>` and leaves a stray `>` behind, which is then a comparison
-operator and almost certainly a parse error. Write that one as `"a>"`. Every verbatim syntax has
-such a corner; this is Cufet's, and it is the only one.
-
-Otherwise `<` and `>` are untouched: `a < b` and `a <= b` lex exactly as before. `<<` is claimed
-only because two comparisons in a row is not an expression Cufet has, so nothing valid was taken
-away.
-
-### ★ Transformations TRAIL, accessors LEAD
-
-The single most useful rule for guessing right the first time, because English will
-often supply the wrong order confidently.
-
-**Transformations follow the thing they act on** (they read as past participles or
-trailing phrases):
-
-```
-nums sorted            nums sorted by the age        nums sorted in reverse
-s trimmed              s in uppercase                s split by ","
-score converted to text                              first joined to last
-```
-
-**Accessors lead, as noun phrases** (`the … of …`):
-
-```
-the length of s        the number of s               the first of s
-the last of s          the position of x in s        the size of m
-```
-
-So it is `nums sorted`, never `sorted nums`. If you are reaching for a
-transformation, it goes *after*.
-
-### `sorted by <name>` — a field or a function, and never both
-
-The name after `by` is looked up twice: as a named field of the element, and as a function in
-scope. Exactly one must answer.
-
-- **Both answering is refused**, never settled by a preference. Before `sorted by <function>`
-  existed the field always won, so a preference would make adding a same-named function
-  elsewhere silently change what an existing line sorts by. The refusal says how to reach the
-  function anyway: write it inline, `sorted by a function given (the person value): Return cast
-  age on (value). Done`.
-- **Only a FUNCTION collides.** A same-named variable holding a number is not a key, so
-  `sorted by the score` still sorts by the field when `score` is also a variable.
-- **The article is noise either way** — `sorted by the size-of` and `sorted by size-of` are the
-  same, as they always were for fields.
-- **The parameter must be EXACTLY the element type**, not one it widens into. The compiled sort
-  passes each element as it is stored, with no argument slot to widen it through, so a
-  `voidable text` parameter taking a series of text is refused rather than miscompiled.
-- **The key must be a number or text** — the same two orders a field sort allows.
-- **A chase takes no key function**; it sorts its characters naturally or not at all.
-- **The key function runs exactly once per element, front to back**, before any comparison, on
-  both backends. A key that prints shows it.
-
-### Binary `-` needs spaces, because hyphens are identifier characters
-
-`grand-total` and `start-seed` are single names, so `x-y` is one identifier, not
-subtraction. Write `x - y` with spaces. Digits cannot start an identifier, so `1-1`
-is unambiguous and works either way — the rule only bites between names.
-
-**The same spacing settles `the <name> -…` inside a record literal**, where `the` could
-begin either a named field or an expression:
-
-```cufet-fragment
-a record with (the offset -1)      ← a named field 'offset' holding negative one
-a record with (the row - 1, 9)     ← the subtraction, a positional field
-```
-
-Every other operator is unambiguous there, because none of them can BEGIN a value:
-meeting one straight after the name means what came before it was an expression.
-`-` is the exception, and spacing is what tells the two apart — the same rule, in a
-second place.
-
-★ **The same test covers the word-shaped connectives**, which cannot begin a value
-either. That is what makes a noun phrase with a connective in it writeable here:
-
-```cufet-fragment
-a record with (the entry for "a" in ages but void is 0)   ← the map lookup
-cast size-of on (the characters from 1 to 2 of "hello")   ← the substring
-```
-
-### Functions and methods see other functions, but not top-level data
-
-`Bind void to f:` at the top level creates a **global procedure**, not a closure.
-When called, it runs in an isolated environment: other top-level functions are
-visible (enabling mutual recursion) and top-level `permanently` constants are
-visible, but ordinary top-level `Define`d values are not. Methods, getters,
-setters, unmakers and operator overloads run in the same isolation.
-
-```
-Define total as 0.
-
-Bind void to show:
-    State total.          ← CHECK ERROR: 'total' is a top-level value,
-Done.                        not visible inside a function or method.
-Cast show.
-```
-
-The error teaches the fix rather than saying "total isn't defined":
-
-```
-'total' is a top-level value, but function and method bodies can't see top-level data.
-They see other functions (for mutual recursion) and top-level `permanently` constants,
-but not top-level data that can change.
-Fix: declare it a shared constant if it never changes:
-    Define total as <value> permanently.
-Or pass 'total' as a parameter, or define your function inside a scope where
-'total' is already bound so it captures 'total' as a closure.
-```
-
-**Fix 1 — `permanently`, when the value never changes** (see the shared-constants
-rule above): the binding becomes a constant and every function and method may read it.
-
-```cufet
-Define total as 42 permanently.
-
-Bind void to show:
-    State total.          ← OK: a shared constant
-Done.
-Cast show.
-```
-
-**Fix 2 — pass as a parameter** (preferred for pure helpers, and the only option
-when the value changes):
-
-```cufet
-Define total as 42.
-
-Bind void to show, given (the number total):
-    State total.          ← OK: 'total' is a parameter
-Done.
-Cast show on (total).
-```
-
-**Fix 3 — nested closure** (when multiple helpers share the same *mutable* data):
+- A `permanently` inside a function body is that body's alone.
+- A body may run before the line that gives a constant its value. Reading it then stops the program:
+  `'k' has no value yet on line 3. Line 2 gives it one, and that line hasn't run.`
+- A method sees nothing of the block it is written in: a function bound in the function around it is
+  refused there. A function bound in a rabbit's or a book's `Pull` block is the program's, and a
+  method may call it.
+- A function with no name captures what is around it, and is not affected.
+- What a body cannot see, pass in as a parameter, make `permanently`, or reach by nesting the body
+  inside a function that has it:
 
 ```cufet
 Define total as 42.
 
 Bind void to run-report, given (the number t):
-    Bind void to show:    ← closure: captures 't' from run-report's scope
+    Bind void to show:    ← captures 't' from run-report's scope
         State t.
     Done.
     Cast show.
@@ -3125,90 +1428,133 @@ Done.
 Cast run-report on (total).
 ```
 
-**Why this design**: it's the same principle behind Cufet's message-passing
-concurrency — explicit data flow prevents hidden shared-mutable-state bugs. A
-function that references a global variable is implicitly coupled to global
-execution order; passing data as a parameter makes the dependency visible and
-the function independently testable. Nested closures are the right tool when
-you need a family of helpers sharing a common context.
+- Functions bound one after another inside a body, with no statement between them, see one another
+  and may call each other. A statement between two ends the group; calling across it is refused.
 
-**Mutual recursion still works**: top-level functions can call each other freely,
-because they see other `Bind`-defined functions (though not mutable `Define`d data).
+### A `permanently` field
 
-**A lambda is not affected**: `Define f as a function: … Done.` captures its enclosing
-scope, so it reads the locals around it normally. The isolation is about bodies that
-*detach* from the top-level scope, not about every body.
+```cufet
+Define object user with (the text id permanently, the text name).
+```
 
-**Nested functions written together see one another.** A `Bind` inside a function or a rabbit is
-a closure, made where it stands. Functions bound one after another, with no statement between
-them, are a group: each can call any other, as top-level functions can, so nested helpers may be
-mutually recursive. A statement between two ends the group — the later one may capture what that
-statement defines, which does not exist yet when the earlier one could run — and a call across
-it is refused, saying the function is bound further down the block. Move the `Bind` up beside the
-function that calls it.
+- `permanently` follows the field it fixes, and fixes only that field.
+- `a new user { … }` gives it its value. Every later write is refused: `alice's id becomes …`,
+  `one's id becomes …` in a method, a write through an embed, and a setter named for it.
 
-### ★ A definition with a blank is not a type
+### `when`
 
-`Define object stack of element with (…)` leaves a blank. The blank is a name **you**
-choose, and `of` marks it — the slot after the type's own name, so it is declared by
-POSITION and nothing has to be inferred. That is what keeps a mistyped type name an
-error instead of quietly becoming a blank.
+```
+Define parsed as raw but void is 0 when shout is true, otherwise 99.
+Define sizes as a series of text with ("small" when n is 1, otherwise "big", "fixed").
+"one" when count is 1, otherwise "two" when count is 2, otherwise "many"
+```
 
-- **`a stack` alone is refused.** Only `a stack of number` names a type. The refusal
-  says the blank needs filling and shows the shape, rather than claiming `stack` is
-  undefined — it is defined, it just names nothing on its own.
-- **Each filling is its own type.** `stack of number` and `stack of text` share no
-  values and no methods; filling happens by copying the definition, not by boxing.
-- **More than one blank works** — `object pair of left-thing of right-thing`, written
-  `a pair of number of text`. Naming them is what makes that possible.
-- ⚠ **A template's body is not checked until it is filled.** `element` is a blank, not
-  a type, so there is nothing to check it against. A template nothing fills is never
-  checked at all — a mistake inside one surfaces at the first use, not at its
-  definition.
-- **Neither backend ever sees a template.** A filling becomes an ordinary definition
-  named for it (`stack of number`) and is spliced into the program; the template is
-  dropped. Same rule that lets no `stash of T` survive the front end. The name has
-  spaces in it on purpose — a writer cannot type one, so it cannot collide.
+- `<value> when <fact>, otherwise <value>` binds looser than everything, `but void is` and
+  `but on failure` included.
+- `, otherwise` is required. In a list, `x when c, y` is an unfinished `when`, not two items.
+- It chains to the right.
+- Only the chosen side is evaluated, on both backends.
+- The two sides may differ in type; the result is their union. `Define the number fee as …` makes a
+  side that is not a number an error.
+- The condition must be a `fact`.
 
-### ★ A function's blanks come from its SIGNATURE, used twice
+### A type before the name in `Define`
 
-A function has no slot to declare a blank in the way `object stack of element` does,
-so its signature introduces them: a type name that names nothing, appearing at
-least **twice** across the parameters and the return type.
+```cufet-fragment
+Define the text greeting as "hello".      ← greeting is declared text
+Define copy as src.                       ← copies src
+Define the (number or text) x as 42.      ← x may later hold text
+```
 
-- ⚠ **Twice is the guard, and it is applied to the SIGNATURE only.** Used once, a
-  name is a spelling mistake and stays an unknown type — `given (the nubmer n)` is
-  an error, not a generic function. A body is never read for this: it is checked
-  per filling, not once.
-- **The filling is read off the arguments**, so a blank has to appear in a
-  parameter. One living only in the return type is refused — nothing says what it is.
-- **A blank means one type per call.** `cast pick on (1, "two")` against
-  `given (the element left, the element right)` is refused by name.
-- **Matching reaches inside**, so `voidable element` and `series of element` both
-  work — that is `minimum`'s shape and `unique`'s.
-- **Each filling is emitted separately**, named for it (`first-two of number`), and
-  the template is dropped before either backend runs.
+- `Define the <type> <name> as <value>.` declares the name's type. A type counts there only when a
+  name follows it.
+- Without a type, a name's type is its first value's, for life. This is the only way to give a
+  variable a union type.
+- The value must fit the declared type; it widens into it.
 
-### ★ An interface is a PARAMETER type and nothing else
+### Holes in text — `{...}`
 
-An interface may be the declared type of a function parameter. It may **not** be the element type
-of a series or catalogue, a field type, a return type, or a variable's type, and an
-interface-typed parameter may not be reassigned or forwarded to another interface-taking function.
+| | |
+|---|---|
+| A hole holds any expression | `"{count * 2}"`, `"{the length of s}"`, `"{item 2 of parts}"` |
+| Holes nest | `"outer {"inner {who}"}"` |
+| The value is converted to text | `"{count}"` |
+| What can be converted: | text, a number, a fact, bits, a chase, a series of those. Not a map, a record or an object |
+| A literal brace is escaped | `\{` and `\}` |
+| An empty hole is refused | `"{}"` |
 
-That is not an omission — it is what makes interfaces free. The argument at every call site is a
-**concrete** conformer, so each one gets its own specialised copy of the function and method calls
-stay direct. **No vtables, no type tags, no runtime dispatch.** Polymorphism that could be stored
-would need a representation that travels with the value, which is the cost this design declines.
+- Holes work anywhere a text does: a `Define`, an argument, a file path.
 
-**A default method (`Bind <type> to <name> unto <interface>`) does not change any of this.** The
-body is expanded into one ordinary method per conforming type before the type checker runs, so a
-default has a concrete receiver every time it is called and specialises per conformer exactly like
-a hand-written method. `one` inside a default is the *conformer*, never the interface — there is no
-value of interface type for it to be. A type's own method beats the default; two interfaces
-supplying the same defaulted name to one type is refused.
+### `<<...>>` cannot end in `>`
 
-**Hold a mixed group as a closed union and narrow it back.** The union says which types exist; the
-interface says what they must be able to do:
+- `<<a>>>` closes at the first `>>`. Write `"a>"`.
+- `<` and `>` are otherwise untouched: `a < b` and `a <= b` are comparisons.
+
+### Transformations trail, accessors lead
+
+```
+nums sorted            nums sorted by the age        nums in reverse
+s trimmed              s in uppercase                s split by ","
+score converted to text                              first joined to last
+
+the length of s        the number of s               the first of s
+the last of s          the position of x in s        the size of m
+```
+
+### `sorted by <name>`
+
+- The name is a field of the element or a function in scope. Both at once is refused; write the
+  function inline: `sorted by a function given (the person value): Return cast age on (value). Done`.
+- A variable of that name is not a key and does not collide.
+- The article is noise: `sorted by the size-of` is `sorted by size-of`.
+- A key function takes exactly the element type, not one it widens into.
+- The key is a number or a text.
+- A chase takes no key function.
+- The key function runs once per element, in order, before any comparison, on both backends.
+
+### Binary `-` needs spaces
+
+- `x-y` is one name. Subtraction is `x - y`. `1-1` is subtraction, since a name cannot start with a
+  digit.
+- In a record literal or an argument list, `the offset -1` is a field `offset` holding minus one,
+  and `the row - 1` is a subtraction. A word that cannot begin a value works the same way:
+  `the entry for "a" in ages but void is 0` is an expression.
+
+### A definition with a blank
+
+```cufet-fragment
+Define object stack of element with (the series of element items).
+Define counts as a new stack of number { the items a series of number }.
+```
+
+- `of <blank>` after a type's name declares a blank; more blanks may follow:
+  `object pair of left-thing of right-thing`, used as `a pair of number of text`.
+- `a stack` alone is refused; only a filled one is a type.
+- Each filling is its own type, sharing no values with another.
+- A definition's body is checked once filled. A definition nothing fills is never checked.
+
+### A function's blanks come from its signature
+
+- A type name that names nothing and appears at least twice across a function's parameters and
+  return type is a blank. Once, it is an unknown type, refused.
+- A blank must appear in a parameter; one only in the return type is an unknown type.
+- A blank means one type per call: `cast pick on (1, "two")` against
+  `given (the element left, the element right)` is refused.
+- Blanks match inside: `voidable element`, `series of element`.
+
+### An interface is a parameter type and nothing else
+
+- An interface may be the type of a function's parameter. As the type of a field, an item, a return
+  value or a variable it accepts no conforming value. An interface-typed parameter cannot be given a
+  new value, or passed on to another function taking an interface.
+- A default method, `Bind <type> to <name> unto <interface>`, is given to every conforming type.
+  Inside it, `one` is the conforming object. A type's own method of that name wins. Two interfaces
+  giving one type the same default is refused.
+- An object that declares an interface hands out, through `x's …`, only what its interfaces declare;
+  `cast <method> on (x)` reaches every method.
+- To hold different conformers together, use a closed union and `Judge` it back. A catalogue whose
+  type is inferred from mixed values is an open union, and passing one where an interface is wanted
+  is refused. Name the element type.
 
 ```
 Define crew as a catalogue of (hopper or thunderbird or beaver) with (…).
@@ -3221,464 +1567,131 @@ For each who in crew, repeat:
 Done.
 ```
 
-The arms look repetitive and are not: each compiles to a different specialisation.
+### A book in another file
 
-⚠ **The mistake this actually produces.** Writing `a catalogue with (…)` and letting the element
-type be inferred from mixed values gives an **open union**, and passing that where an interface is
-required is refused — correctly, since an open union has no fixed set of conformers to specialise
-for. The refusal names a type you never wrote, which is the confusing part: you get told you
-passed "an open union" without having typed the word `union` anywhere. Name the element type.
-
-### ★ A book in another file, and where its errors point
-
-`Pull a book on ‹name›.` resolves in four steps: a bundled book, then a module defined in this
-file, then `‹name›.cufe` beside **the file that pulls it**, then `‹name›.cufe` in the project's
-`books` folder. A missing file is not an error of its own — the name falls through to the refusal
-`Pull` already had, which now also names the places it looked.
-
-★ **A project is a directory holding `blueprint.cufe`**, found by walking up. Only its LOCATION is
-read, never its contents: every tool that resolves a pull would otherwise have to execute a build
-description to import a book. No blueprint above the file means no project, and the `books` step is
-simply skipped.
-
-★★ **A PULLED FILE IS A LIBRARY: its top level may DECLARE, but not ACT.** Pulling loads the
-file and runs it, so anything that does something would do it inside your pull, before your own
-first line. A file is therefore a program or a
-library, and a file that acts at its top level is refused at the pull, with the fix: split it in
-two.
-
-Declarations, plus `Define`, plus `Pull ... Done.` (which is transparent — a library may keep its
-whole body inside one):
-
-```cufet-fragment
-Define object pennies with () and book:
-    Bind number to to-the-penny, given (the number amount), amount.
-Done.
-Define rate as 5.
-```
-
-All of that is fine. A `State` line beside them is not, and is refused at the pull.
-
-⚠ No fence tag can show that half: `State "loaded".` is a perfectly good PROGRAM on its
-own, and is refused only when the file holding it is pulled. The refusal belongs to the
-pull, not to the line.
-
-⚠ `Define` stays allowed because a constant is how a library is written. The hole that leaves is
-known and deliberate: a `Define` whose VALUE does something still runs at pull time, and closing it
-needs an effect system the language does not have.
-
-★ The witness is `tools/shell.cufe` — its machinery is worth pulling and its last line starts the
-shell, so nothing can borrow it. Splitting such a file needs no language feature, which is why
-Cufet has no `if __name__ == "__main__"` and does not want one.
-
-★★ **Nearest wins**, so a book beside the puller shadows the project's. ⚠ Still one book per NAME in
-a program whichever place it came from — `MakePrivate` renames what a book declares to
-`‹name› in ‹book›`, so two files answering to one name would collide on every declaration.
-
-⚠⚠ **And two files answering to one name is REFUSED, naming both.** A library with its own
-`utils` beside it and a program with a different `utils` beside that are two files for one name, so
-the program is refused rather than handed one of them. ★ Two pulls of one name resolving to
-the SAME file is an ordinary diamond and stays legal — that is a shared dependency, not a
-conflict.
-
-⚠ A book's own pulls resolve beside **that book**, not beside the entry program. That is
-unobservable today, since a book is always found in one of the two search places and the shared
-folder is a fallback at every level — it becomes visible only once a book can live somewhere that
-is not itself a search place.
+- `Pull a book on ‹name›.` looks for a bundled book, then a module in this file, then `‹name›.cufe`
+  beside the file that pulls it, then `‹name›.cufe` in the project's `books` folder. The nearest
+  wins. A name found nowhere is refused, listing the places looked.
+- A project is a directory holding `blueprint.cufe`, found by walking up. Its location is read, not
+  its contents.
+- A pulled file is a library: its top level may declare things, `Define` values, and hold
+  `Pull … Done.` blocks. A file that does anything else at its top level is refused at the pull.
+- A `Define` whose value does something still runs when the file is pulled.
+- Two files answering to one name in one program are refused, naming both. Two pulls reaching the
+  same file are fine. A file pulled by two others is loaded once. A ring of pulls is refused.
+- A book's own pulls are looked for beside that book.
+- What a pulled file declares beside its module is private to that file.
 
 ### `the output`
 
-**`output` is a pre-defined NAME, not a keyword** — a `writable stream of text` bound to standard
-output, seeded into the global scope and into every fresh function scope exactly as `input` is. So
-`Define output as …` is refused with "already defined in this scope", which is the price `input`
-already charges.
-
-★ Nothing was added to the grammar. `Write <text> to <stream>.` is the file-stream statement, the
-type existed, and reading from it is refused by the direction check that was already there.
-
-⚠ The word carries two readings, decided by position: `output <v>` inside a pipe stage sends a
-value downstream, and `the output` is a stream. `input` carries the same pair —
-`for each s from input, … output s`.
-
-⚠⚠ **So `output` cannot be a variable.** The parser still reads the contextual forms:
-`output becomes …` parses as a reassignment, `output | …` as the left of a pipe, and
-both are refused by the TYPE checker rather than the parser — which is the evidence the parser
-still reads them that way.
-
-⚠ **It flushes on every write, and the two backends do it differently.** The interpreter calls
-Flush on the writer it was handed; the compiled program compares the FILE* to `stdout` at run time
-and calls `fflush`. The comparison is at RUN time on purpose: a stream may arrive through a
-parameter, so asking the syntax which stream it is would only answer when the answer was obvious.
-
-⚠ A newline written through it is DATA and stays a bare line feed; `State`'s terminator is
-CUFET_NL and is CRLF on Windows.
+- `output` is a name already defined, a `writable stream of text` on standard output, as `input` is
+  standard input. `Define output as …` is refused. `Write <text> to the output.` writes to it;
+  reading from it is refused.
+- In a pipe stage, `output <value>.` sends a value on instead (§7).
+- It is flushed on every write.
+- A newline written through it is a line feed. `State` ends its line with the platform's line end,
+  CRLF on Windows.
 
 ### Directory namespaces
 
-⚠⚠ **Inside a project none of the above is how files find each other.** A project is a tree with
-`blueprint.cufe` at its root; each directory in one is a namespace named after itself, its files
-share a single top-level scope, and another directory is reached by qualifying — `terminals's
-read-key` — with nothing pulled. Everything on pulls above still WORKS inside a project and
-nothing refuses it; it simply has no job left there beyond a book in `books/` and a region.
+- In a project, each directory is a namespace named after itself. Its files share one top level.
+  Another directory's member is reached by qualifying it, `terminals's read-key`, with nothing pulled.
+- A directory offers what its files declare, and their `permanently` constants. A plain `Define` at a
+  file's top level stays in that file.
+- Only the file you run runs; its neighbours give declarations only.
+- `blueprint.cufe` is in no namespace.
+- When the blueprint draws a tree (`Bind text to tree` returning a written-out text), the drawing
+  decides the namespaces: a folder at the left edge is a namespace, and one indented under another
+  belongs to it. A file sees its own folder's names and those of each folder above it; a name
+  declared in a folder and in one above it is refused. A sibling or lower folder is reached by
+  qualifying it. Siblings may repeat a name. From outside, a namespace offers its own folder's names.
+- Refused: tabs mixed with spaces in the drawing, an indent matching no level above, a missing
+  folder, a folder drawn twice, a source folder not drawn, a tree body that is not a written-out
+  text; a top-level name repeated within one directory; qualifying a member the directory does not
+  declare; a declaration or `Define` taking a directory's name; two directories of one name.
+- A parameter or a loop variable taking a directory's name is not refused.
 
-★★ **Gathered ahead of the pull pass, in the same front-end slot.** The file's neighbours are
-spliced first, so a pull naming one of them resolves to the declaration that is now present rather
-than loading the file a second time under a private rename.
-
-★★ **A qualification is a REWRITE, before the hoist.** `terminals's read-key` becomes the single
-name `read-key in terminals`, and that directory's files are spliced under those names by the same
-rename the book loader uses. So the checker and both backends meet an ordinary top-level
-declaration, and none of the three learns that directories exist — the third pass to use this
-trick, after file privacy and a module's carried types.
-
-⚠ **It fires only where the directory really declares that member**, because the rewrite runs
-before any scope exists and cannot tell a directory from a name spelled the same. A DECLARATION or
-a `Define` taking a directory's name is refused for the same reason. A parameter or a loop
-variable is not, and is a known gap.
-
-⚠ **What a directory offers is what its files DECLARE.** A plain `Define` at a file's top level is
-a value binding in that file's own body — not a name, and not spliced into a neighbour. A
-`permanently` constant is. The distinction is the one `AstSearch.EveryStatement` already states: a
-type declaration is program-scope wherever it is written, and a value binding is not.
-
-⚠ **Only the file you run runs.** A neighbour contributes declarations and nothing else, which is
-NOT the rule for a pulled file — a pulled file may not be a program at all, and two programs
-sharing a directory is ordinary.
-
-⚠ **`blueprint.cufe` is in no namespace**, in either direction: never a neighbour, and checking it
-brings in nobody.
-
-★ **The tree, when the blueprint draws one, decides what a namespace IS** — read by `ProjectTree`
-before any neighbour is gathered. The blueprint is PARSED, never run: a `Bind text to tree` whose
-body is one `Return` of a written-out text, read as a drawing of folders. A folder at the left edge
-is a namespace; one indented under another belongs to it. A file sees, by plain name, its own
-folder's declarations and each folder's above it in the namespace — gathered under one claim table,
-so a folder and one above it declaring one name is refused. Any other folder of the namespace, a
-sibling or one beneath, is a QUALIFIER, loaded on demand under a rename after its path (`program-tree in
-front-end/parser`); its references to renamed folders above it follow those renames
-(`MakePrivate`'s `alsoRenamed`), and so do its `unto`, maker and embed targets, which are strings.
-Siblings may repeat a name. From outside, a namespace offers its own folder's names. The drawing's
-refusals point at the blueprint's own lines: tabs mixed with spaces, an indent matching no level
-above it, a missing folder, a folder drawn twice, an undrawn source folder, and a body that is not a
-written-out text.
-
-⚠ **Refusals:** a repeated top-level name within one directory (naming both files); a member the
-directory does not declare (listing what it does); a declaration taking a directory's name; two
-directories of one name, refused at the qualification rather than where they were found.
-
-**Loaded in a front-end pass, ahead of `Cite` and the hoist.** After it the loaded file does not
-exist: its statements are the program’s, and the checker and both backends meet one longer
-program. Rings are refused by name; a book pulled by two others is loaded once.
-
-⚠ **Positions.** A loaded file is lexed at an OFFSET into a virtual line space, because tokens,
-AST nodes and exceptions carry a line and a column and no FILE — giving them one would touch every
-position in the front end. The reporter maps a virtual line back to its file and line.
-
-★★ **A loaded file’s top level is private to it**, and by RENAMING rather than by a new scope:
-everything the file declares beside a `module`-conforming object is renamed to something with a
-space in it, which no identifier can contain. The file’s own references are renamed with it, so
-its module still reaches its helpers; the host cannot name what it cannot spell.
-
-⚠ The rewrite rides on `AstSearch`, which walks every property of every node by reflection. A
-hand-written walk that forgot a node kind would leave a reference pointing at a name that no
-longer exists — loud at check time, which is the right direction, but the reflection walk means
-it cannot happen. Types are substituted separately, because that walk deliberately does not
-descend into a `CufetType`.
-
-★★ **The line appears twice in an error, and both have to agree.** Once in the reporter’s header,
-and once in the prose — 163 places in the front end write a line number into a message. So the
-resolution is applied to the COMPOSED message, not at each of them, and only rewrites a number
-that falls inside a block actually allocated to a loaded file. A single-file program allocates
-none, so nothing it prints can change.
-
-### ★ Several functions may share a name when one argument tells them apart
-
-Two `Bind`s of one name are **versions** when exactly one parameter's type differs between them.
-The call picks the version by that argument's type — statically when the type is known, and from
-the tag the value carries when the argument is a closed union.
-
-**Expanded in the front end, before the hoist.** Each version becomes an ordinary function under an
-unwritable name (`eval given num-node` — spaces, the same trick monomorphization uses), and the
-name the writer called becomes an ordinary function whose body is a `Judge` over the union of the
-versions' types. Neither backend learns dispatch exists.
-
-⚠ **The dispatcher's arms are generated from the versions**, so coverage cannot fall out of step
-with them, and a call passing a wider union than the versions cover is refused by ordinary
-assignability — naming exactly which case has no version.
-
-Every version must agree on **arity** and on **what it gives back**. The return type is not an
-implementation convenience: a caller has to know what it gets back without knowing which version
-ran, and the alternative is handing every caller a union to judge.
-
-**More than one argument may dispatch.** Each one becomes a `Judge`, nested, with the innermost
-arm running that combination's versions.
-
-⚠ **Coverage stops being free at two.** With one dispatched argument the versions ARE the cases
-and the dispatcher's parameter is their union, so nothing callable is unclaimed. With two, the
-parameters admit every PAIR and only the pairs someone wrote have a version — so every combination
-of the dispatched types must have one, and the missing one is named at the declaration.
-
-⚠ **Each level binds its narrowed subject to a local before descending.** `Judge` narrows `it`
-and nothing else — the subject variable keeps the union — so without the binding the inner `Judge`
-rebinds `it` and the outer argument's narrowed type is gone by the time the leaf calls the version
-that declared it.
-
-Refused: two versions claiming one combination, and a name whose declarations have nothing at all
-to tell them apart.
-
-### ★ `when` on a version: the fragment, and why it is bounded
-
-A version may carry `when <condition>` after its `given (…)`. Versions sharing one signature are
-told apart by their conditions; **exactly one per signature must carry none**, and that one is the
-fallback.
-
-**Overlap is refused, never resolved.** Two versions whose conditions can both hold is a compile
-error naming both lines. There is no priority rule, no declaration-order tiebreak and no
-specificity system, because the question "which of these two wins" is never asked — which is the
-same answer this language gives every other ambiguity.
-
-**Which makes the fragment the design, not a limitation of it.** Deciding whether two arbitrary
-boolean expressions can both hold is undecidable; deciding it for these atoms is a comparison:
-
-| Allowed | Example |
-|---|---|
-| Equality against a literal | `node's left is 0` |
-| Inequality against a literal | `tok's kind is not "eof"` |
-| Type test | `node is a num-lit` |
-| Negated type test | `node is not a num-lit` |
-| `and`, `or`, `xor` over those | `left is 0 xor right is 0` |
-
-⚠ **The atom set is closed under negation, and that is load-bearing.** Overlap being refused means
-a writer excludes the narrower case by hand — and excluding a conjunction needs a disjunction, so
-without `or` the design would refuse overlap and withhold the only way to write around it.
-
-⚠ `xor` carries no expressive power (the atoms already negate) and is in for consistency: `and`,
-`xor` and `or` are one family on one precedence line. It normalises by doubling conjuncts, where
-`or` only adds.
-
-**Out:** ordering and arithmetic. Those need interval reasoning rather than atom comparison.
-
-⚠ **The check is sound and deliberately incomplete.** Over a `(red or green)`, `is not a red` and
-`is not a green` are disjoint by exhaustion and no atom pair says so, so they are refused. Erring
-toward refusal is the safe direction — a refused program is a message, an accepted ambiguous one is
-a silent wrong answer.
-
-**A fallback is required rather than inferred**, even when the conditions look complementary:
-proving a SET of them covers every case is tautology checking, which the fragment does not promise.
-Widening either boundary later is additive.
-
-⚠ **The generated `If` chain is order-dependent; the dispatch is not.** Because no two conditions
-can hold at once, the chain answers the same in any order, so the order it happens to be generated
-in carries no meaning. The condition is also rewritten onto the narrowed subject before it reaches
-the chain — inside the generated `Judge` arm the parameter still holds the whole union.
-
-### ★ A name with nothing to tell its declarations apart
-
-Where no argument type differs, a second `Bind` of the same name is refused, naming both lines.
-Before this it was accepted silently and the later declaration won.
-
-Compared on the **hoisted** declarations, which has two consequences worth knowing:
-
-| Shape | Verdict | Why |
-|---|---|---|
-| Two top-level `Bind`s of one name, same parameter types | Refused | Nothing could pick between them |
-| Two top-level `Bind`s of one name, one parameter type differing | Allowed | Versions — see above |
-| The same name in two separate `Pull` blocks | Refused | Both bodies hoist into the SAME top-level scope, so a call in the first block reached the second block's body. Versions spanning blocks is a separate question, not yet settled |
-| A `Bind` inside a body, shadowing a top-level one | Allowed | Not hoisted. An ordinary local declaration, shadowing the way a local binding does |
-| Two types each declaring a `speak` method | Allowed | A method is not a free function — it is reached through its owner |
-| A `Bind … unto <type>` sharing a free function's name | Allowed | `unto` declares a method, reached through its owner — `cast rex's speak on ()` and `cast speak on (3)` are different calls |
-
-### ★ Named arguments: what tells them from an expression
-
-`the width 3` is a named argument; `the width of box` is a field access; `the width` on its own is
-the variable `width` with `the` as the noise it is everywhere else. All three open with the same
-two tokens, and an argument list is an EXPRESSION position, so position alone does not separate
-them the way it separates a type.
-
-The parser uses `IsNamedFieldStart` — the predicate object and record literals already use for the
-identical ambiguity — plus **one rule an argument list needs and a literal does not**: a named
-argument must have a VALUE after the name. A `,` or `)` there means the whole thing was an
-expression. `(the width)` inside a record literal has no other reading, but `cast twice on (the
-width)` is an ordinary call passing a variable and always was.
-
-The minus rule comes with the predicate: binary `-` is written with spaces, so `(the offset -1)`
-passes negative one and `(the offset - 1)` is a subtraction. So does the rule that a token which
-cannot BEGIN a value settles the reading — `for`, `from`, `is`, `joined` and the rest of the
-connectives, not just the symbol operators.
-
-**Positional first, then named.** Once a name has been given, position no longer says which
-parameter is meant, so a positional argument after a named one is a parse error.
-
-**The names come from the declaration, not the type.** `FunctionType.ParameterNames` is set
-wherever a declaration registers its signature and left null wherever a function type was WRITTEN —
-`the number function given (the number)` names nothing. It is not part of type equality, so
-`given (the number width)` and `given (the number w)` stay the same type. A call whose callee has
-no names is refused rather than matched against a nearby declaration.
-
-⚠ The checker reorders into `CastExpression.Args` and empties `NamedArgs`, **before** the generic
-machinery, which reads arguments by position to decide which body a call reaches. Emptying is also
-what makes the second checking pass over a filled generic safe.
-
-### `Return a failure.` re-propagates; `Return a failure "msg".` originates
-
-The parser checks whether a **string literal** immediately follows `failure`:
-
-- **`Return a failure "message".`** → new `FailureLiteral` — creates a fresh
-  failure with that message. Valid anywhere a failure can be returned.
-
-- **`Return a failure.`** → `VariableReference("the failure")` — reads the
-  variable `the failure`, which is only in scope inside a `In case of failure:`
-  handler body. Use this to re-propagate a caught failure unchanged.
-
-Getting these wrong causes type errors or runtime "undefined variable" errors. The
-safe rule: always use `Return a failure "message".` when originating; use
-`Return a failure.` (or `Return the failure.`) only in handler bodies.
-
-### `size` is reserved — cannot name getters or fields
-
-`size` is `TokenType.Size` (used for `the size of map`). It cannot be used as a
-getter name, field name, or variable name. For a computed count property on a
-collection type, use `count`, `length`, or `card-count` instead:
-
-```
-Get count as number:                      ← OK
-    Return the number of one's cards.
-Done.
-
-Get size as number:                       ← PARSE ERROR: 'size' is reserved
-    ...
-Done.
-```
-
-### `start` is a reserved keyword
-
-The lexer produces `TokenType.Start` for the word `start`. It cannot be used as a
-variable name, field name, or function name. Use `origin`, `src`, `begin`, etc.
-
-### `state` is a reserved keyword
-
-The lexer produces `TokenType.State` for the word `state` (the print-output
-statement). It cannot be used as a field name, variable name, or function name.
-Use `region`, `status`, `condition`, etc. when the concept of "state" (as a noun)
-is needed.
-
-### `=` in statement position is an assignment-mistake error
-
-`=` is **comparison only** in Cufet — assignment is `becomes` (update) or `Define ... as` (introduce).
-Writing `x = 5.` as a statement is a **parse-time educational error**:
-
-```cufet-refused
-x = 5.
-→ Line N: '=' is comparison, not assignment.
-  Did you mean 'x becomes 5.' (update) or 'Define x as 5.' (introduce)?
-```
-
-`=` still works as comparison in its valid positions:
+### Versions: several functions of one name
 
 ```cufet-fragment
-If x = 5, State "five".        ← OK: comparison in condition
-Define b as (x = 5).           ← OK: comparison in expression
+Bind number to eval, given (the num-node n), n's value.
+Bind number to eval, given (the add-node n), (cast eval on (n's left)) + (cast eval on (n's right)).
 ```
 
-This design eliminates the C-family `=`-vs-`==` footgun: `=` is unambiguously
-equality everywhere it appears. The statement-position error teaches the two
-correct assignment forms at the point of the mistake.
+- Two `Bind`s of one name are versions when parameter types tell them apart. A call picks one by the
+  argument's type, or, for a closed union, by what the value is at run time. A union wider than the
+  versions cover is refused, naming the missing case.
+- Every version takes the same number of arguments and gives back the same type.
+- When two or more arguments tell versions apart, every combination of their types needs a version;
+  a missing one is refused at the declaration.
+- Refused: two versions for one combination; two `Bind`s of one name with nothing to tell them apart,
+  including in two different `Pull` blocks.
+- Allowed: a `Bind` inside a body with a top-level function's name (it shadows it); two types each
+  with a method of one name; a method (`unto`) sharing a free function's name.
 
-### Comparisons after parenthesized sub-expressions
-
-After a parenthesized expression, the parser considers the primary expression
-complete and does not continue parsing a word comparison. This means:
-
-```
-Return (the number of items) is 0.    ← PARSE ERROR
-If (the number of items) is 0:        ← OK: 'is' here is a condition comparison
-```
-
-This is a **parser edge case**, not a design split between word and symbol forms.
-After a parenthesized sub-expression, the parser considers the primary complete and
-does not consume a following word-comparison keyword. Use a symbol form instead:
-
-In expression position, use a symbol comparison or an `If`-return pattern.
-
-### `or pass the failure off` is invalid inside a `Try` block
-
-Inside a `Try to: ... In case of failure:` block, fallible cast results are
-**auto-unwrapped** — the type checker strips `FailureType(T)` to `T` because
-the Try block IS the failure handler. Using `or pass the failure off` on an
-already-unwrapped `T` is a type error:
-
-```
-Try to:
-    Define x as cast compute on (args).              ← OK: failure auto-caught by Try
-    Define x as cast compute on (args) or pass the failure off.  ← TYPE ERROR
-Done.
-In case of failure:
-    ...
-Done.
-```
-
-### `or pass the failure off` ends an expression, or a call made for its effect
-
-`expr or pass the failure off` propagates a failure from a fallible expression. A
-`Cast` statement may end with it as well — the call is made for its effect, any
-value it gives back is dropped, and a failure goes to the caller:
-
-```
-Define result as cast compute on (x) or pass the failure off.   ← OK: the value is kept
-Cast compute on (x) or pass the failure off.                    ← OK: made for its effect
-```
-
-The same rules hold for both: the call must be able to fail, the function around it
-must be able to fail too, and neither is written inside a `Try`.
-
-### `but void is` fallback value must be the right type
-
-`voidable-expr but void is default-expr` — the type checker infers the unwrapped
-type from the left side. The right side must be assignable to that type. If the
-left side's type can't be determined (e.g., map lookup where the map variable is
-unknown to the type checker), the whole `Define` will fail with "type can't be
-determined". Use a local alias to give the type checker a named, typed binding.
-
-### Operator overloads: an ordered pair of types, arithmetic operators only
-
-The operand types are an ordered pair, at least one of them an object type: `number * vec` and
-`vec * number` are two overloads. The overloadable operators are `+`, `-`, `*`, `/` only.
-Comparisons and logical operators cannot be overloaded. See REFERENCE, *Operator overloading*.
-
-Parameter names cannot be `a`, `an`, or `the` (noise tokens) — use `lhs`/`rhs`
-or other identifiers.
-
-### Object literal field order and names
-
-`a new T { the fieldA valA, the fieldB valB }` — fields are supplied by name,
-not position, but the type checker validates that all required named fields are
-present. Positional fields (unnamed, declared without `the` in the `with (...)`)
-are provided positionally in `{ val1, val2 }`.
-
-### `entry` in map iteration
-
-When iterating a map with `For each pair in m`, the iteration variable is a
-pseudo-record with fields `key` and `value`:
+### `when` on a version
 
 ```cufet-fragment
-For each pair in m, repeat:
-    Define k as the key of pair.
-    Define v as the value of pair.
-Done.
+Bind text to kind, given (the number n) when n is 0, "zero".
+Bind text to kind, given (the number n), "other".
 ```
 
-Do **not** name the iterator `entry` — it is a reserved keyword. `pair`, `kv`,
-`item`, or any non-reserved word works.
+- Versions with one signature are told apart by `when <condition>` after `given (…)`. Exactly one per
+  signature has no condition, and runs when none holds.
+- Two versions whose conditions can both hold are refused.
+- A condition is built from: equality or inequality against a literal (`n is 0`, `k is not "eof"`),
+  a type test (`n is a num-lit`, `n is not a num-lit`), and `and`, `or`, `xor` over those. Ordering
+  and arithmetic are refused.
+- The overlap check can refuse conditions that never overlap: over `(red or green)`, `is not a red`
+  and `is not a green`.
 
-### Rabbit lifetime invariant: free functions, methods, and getters all carry depth
+### Named arguments
 
-The downward-only invariant enforces that a reference-typed value can only be
-stored into a container whose lifetime is at least as long as the value's. The
-return-depth inference system extends this to all call sites: **free functions,
-object methods, and getters** that return reference types are tracked — the checker
-infers how the return value's lifetime relates to the arguments and the receiver.
+```cufet-fragment
+Cast area on (the width 3, the height 4).
+Cast area on (2, the height 5).
+```
 
-**Free function depth laundering is caught:**
+- `the <parameter> <value>` names an argument. `the width` with no value after it is the variable
+  `width`, and `the width of box` is a field.
+- Positional arguments come first; a positional one after a named one is refused.
+- The names are the declaration's. A call through a function value held in a parameter or a field
+  cannot name arguments.
+
+### Failures
+
+- `Return a failure "message".` makes a new failure. `Return a failure.` (or `Return the failure.`)
+  hands on the one being handled, inside `In case of failure:`.
+- `<expr> or pass the failure off` hands a failure to the caller; so does
+  `Cast f on (x) or pass the failure off.`, which drops the value. The call must be able to fail,
+  the function around it too, and neither may be inside `Try`. Inside `Try to:`, a failing call's
+  value is already unwrapped.
+- In `<voidable> but void is <default>`, the default must fit the voidable's type.
+
+### Words that read as statements
+
+- `x = 5.` as a statement is refused, pointing at `becomes` and `Define`. `=` compares.
+- `start` and `state` are reserved; `size` is not.
+
+### Operator overloads
+
+- The operand types are an ordered pair, at least one an object type: `number * vec` and
+  `vec * number` are two overloads.
+- Only `+`, `-`, `*` and `/` can be overloaded.
+- `a`, `an` and `the` cannot name parameters: use `lhs` and `rhs`. See REFERENCE,
+  *Operator overloading*.
+
+### Object literals
+
+- `a new T { the field value, … }` gives fields by name; every field without a default must be
+  given. A field declared without a name (`with (number, the text label)`) is given by position:
+  `{ 5, the label "a" }`.
+- A map's loop variable is a `mapping`: `the key of pair`, `the value of pair`.
+
+### Region rules reach calls
+
+A reference value may be stored only where it lives at least as long. That reaches through a call:
+what a function, a method or a getter gives back is as short-lived as what it could be made from.
 
 ```cufet-refused
 Bind series of number to smuggle, given (the series of number s):
@@ -3688,222 +1701,39 @@ Done.
 Define outer as a series of number.
 Pull a rabbit.
     Define inner as a series of number with (1, 2, 3).
-    outer becomes Cast smuggle on (inner).   ← TYPE ERROR: inner is shorter-lived
+    The outer becomes cast smuggle on (inner).   ← refused: inner is shorter-lived
 Done.
 ```
 
-**Method depth laundering is caught:**
-
-```cufet-refused
-Define object bag with (the series of number items).
-Bind series of number to get-items unto bag:
-    Return one's items.
-Done.
-
-Define outer as a series of number.
-Pull a rabbit.
-    Define inner as a series of number with (1, 2, 3).
-    Define b as a new bag { the items inner }.
-    The outer becomes Cast get-items on (b).   ← TYPE ERROR: b (and its fields) is shorter-lived
-Done.
-```
-
-**Getter depth laundering is caught:**
-
-```cufet-refused
-Define object bag with (the series of number items):
-    Get payload as series of number:
-        return one's items.
-    Done.
-Done.
-
-Define outer as a series of number.
-Pull a rabbit.
-    Define inner as a series of number with (1, 2, 3).
-    Define b as a new bag { the items inner }.
-    The outer becomes b's payload.   ← TYPE ERROR: b is in a shorter-lived rabbit
-Done.
-```
-
-**Same-depth calls are still legal** (storing within the same rabbit, or into a
-longer-lived container):
-
-```cufet-fragment
-Pull a rabbit.
-    Define ones as a series of number with (1).
-    Define twos as a series of number with (2).
-    Define chain as a series of series of number with (ones, twos).   ← OK: all depth 1
-    Define first as cast head on (chain).    ← OK if result stored at depth 1 or deeper
-Done.
-```
-
-**Conservative fallback:** for calls whose exact depth signature can't be
-determined (recursive functions, unknown callees), the checker assumes the return
-carries the depth of the deepest reference-type input (receiver or argument). This
-is sound (over-strict, never under-strict) — it may reject contrived-safe code
-but will never permit an unsafe escape.
-
-**Capture-store prohibition:** a nested function (`isNested = true`) that captures
-a reference-type **parameter** of its enclosing function cannot store that captured
-parameter into any outer state. Parameters are registered at `RabbitDepth = 0` (the
-function's own perspective), but callers may pass rabbit-allocated (depth-N) values.
-The checker treats captured reference-type parameters as maximally deep so that any
-outward store is rejected:
-
-```cufet-refused
-Bind void to run-with, given (the series of number s):
-    Define sink as a series of number.
-    Bind void to tuck, given ():
-        The sink becomes s.              ← TYPE ERROR: captured parameter 's' treated as
-    Done.                               maximally deep — caller may pass a rabbit value
-    Cast tuck on ().
-Done.
-```
-
-Legal: capturing a reference-type parameter and only **reading** it (no outward
-store) is fine. Capturing a **local variable** (not a parameter) is also fine — locals
-have a known depth from when they were defined. The workaround for the rare case
-where the pattern is genuinely safe: pass the value as an explicit parameter to the
-nested function rather than capturing it.
+- Where the checker cannot tell (recursion, an unknown function), it takes the deepest argument or
+  receiver. This can refuse a program that is safe; it does not accept one that is not.
+- A function nested in another that stores a captured reference parameter of the outer function
+  into anything outside is refused. Reading it is fine, and so is storing a captured local. Pass the
+  value in as a parameter of the nested function instead.
+- SOUNDNESS.md has the whole account.
 
 ---
 
-## 9. Writing Cufet: the mental model
+## 9. Loops, and the interpreter's scheduler
 
-### Two grammars, one language
+### Changing a series while looping over it
 
-Cufet has two syntactic layers that compose but do not mix:
+- Inside `For each x in s`, inserting into or removing from `s` stops the program when it runs:
+  `'items' was modified during a for-each loop on line 5 — collect into a separate series, or use a
+  While loop if you need to change it while looping.`
+- Setting an item is allowed. An item set ahead of the loop is seen with its new value when the loop
+  reaches it, on both backends. To loop over the values as they were, copy the series first.
 
-**Expression grammar** — produces values, uses operators (`+`, `-`, `>`, `=`,
-`and`, `or`, `not`), terminated by `.` when it forms a statement. This is where
-arithmetic, string ops, function calls, field access, and boolean arithmetic live.
+### The interpreter's scheduler
 
-**Condition grammar** — produces `fact`, appears after `If`, `While`, and
-`until`. Comparison forms are fully unified: both symbol (`<`, `>`, `=`, etc.) and
-word (`is less than`, `is greater than`, `is`, etc.) comparisons work in both
-expression position and condition position. Word forms are idiomatic in conditions
-(they read like sentences); symbol forms are idiomatic in expressions (they read
-like math). Both are accepted everywhere.
+Everything below is the interpreter's. Compiled, each task is a thread of its own, and none of it
+applies. Which order tasks run in is not part of the language.
 
-### Articles are invisible everywhere
-
-`a`, `an`, `the` are consumed before looking for any token. `Define the total as
-0.` and `Define total as 0.` are identical. This is purely cosmetic — use
-whichever reads more naturally.
-
-### Everything terminates with `.`
-
-Every statement ends with `.`. Multi-statement blocks end with `Done.`. The `.`
-is what the parser uses to detect end-of-statement, so forgetting it causes
-cascade parse errors.
-
-### Object methods: `one` is the only self-reference
-
-Inside any method (or getter, setter, unmaker), `one` is the receiver. Fields
-are never in scope directly — always `one's fieldname`. Mutations to series fields
-work through a local alias (same reference). Map and scalar field mutations use
-possessive-set (`one's field becomes X`) or in-place map operations.
-
-### Empty collection idioms
-
-```cufet
-Define xs as a series of number.             ← empty series
-Define m  as a map from text to number.      ← empty map
-```
-
-Both create empty, typed, mutable collections. Use `Bind making a` makers
-to encapsulate initialization of objects that have collection fields.
-
-### Failure vs void — orthogonal concepts
-
-- `voidable T` — might be absent (`void`); unwrap with `but void is default`.
-- `T or failure` — might be a failure; propagate with `or pass the failure off`,
-  handle with `Try to: ... In case of failure: ...`.
-- Both can combine: `voidable T or failure` is possible but unusual.
-- `map lookup` returns `voidable V` (key might not exist).
-- Declared-fallible functions return `T or failure` — or `void or failure`, which gives
-  nothing back when it works and so is called as a statement.
-
-### The for-each body cannot add or remove elements during iteration
-
-`For each x in series` forbids **structural mutation** of the iterated collection —
-`Insert` and `Remove` operations that change the series' length, or any entry-add /
-entry-remove on the iterated map. Both are caught at runtime with a named error:
-
-```
-'items' was modified during a for-each loop on line 5 — collect into a separate series,
-or use a While loop if you need to change it while looping.
-```
-
-**Setting an item is allowed, and intended** (`the last of items becomes 99`). No position
-moves, so the loop still visits every item, and an item set ahead of the loop is seen with its new
-value when the loop reaches it — the same on both backends. If you want the values as they were
-when the loop began, copy the series first.
-
-If you need to add, remove, or filter during a loop, collect into a new series or
-use `While` with an index.
-
-### Cooperative scheduler: `Yield.` does not re-enqueue the calling task
-
-> ⚠ **Everything in this subsection describes the INTERPRETER only.** These are artefacts
-> of the cooperative scheduler and none of them apply to compiled programs, where each task
-> is a real OS thread. Where a consequence below changes when compiled, it says so.
-
-`Yield.` calls `DrainOne()` synchronously — one item from the scheduler queue is
-run as a subroutine, then control returns to the calling task. The calling task is
-NOT suspended and NOT re-enqueued. Its continuation is on the C# call stack, not
-in the scheduler queue.
-
-**Consequence 1 — fan-out work-queues do not distribute.**
-In a pattern with N workers reading from a shared channel, only ONE worker ever
-gets items. When the channel is empty and multiple workers call
-`the delivery from work`, each worker's delivery blocks in `DrainUntil`. The
-DrainUntil calls nest synchronously. Whichever worker's DrainUntil condition fires
-first (when the channel gets items) exits and processes items uninterrupted — the
-other workers' conditions are checked after the first worker finishes, finding the
-channel closed-and-empty. Example distribution with 3 workers: 30/0/0, not
-10/10/10.
-
-**Compiled, work really does distribute** — the workers are OS threads contending on a
-mutex/condvar channel, so each takes items as it becomes free. Do not assert an exact
-split, though: the distribution is genuinely nondeterministic. Assert the invariant (every
-item processed exactly once, totals correct), which is what the compiler's own fan-out
-test does.
-
-**Consequence 2 — `Yield.` in a producer with a blocking collector deadlocks.**
-```
-Have rabbit start a task as worker:     ← enqueued first
-    Define job as the delivery from work.   ← blocks → DrainUntil
-    ...
-Done.
-Have rabbit start a task as producer:   ← enqueued second
-    Send 1 through work.
-    Yield.                              ← DrainOne → runs collector
-    ...
-Done.
-Have rabbit start a task as collector:  ← enqueued third
-    Define got as the delivery from results.  ← blocks → DrainUntil → _ready empty → DEADLOCK
-    ...
-Done.
-```
-The producer is on the call stack (not in `_ready`). The collector's `DrainUntil`
-exhausts the queue with nothing left to produce results. The scheduler's deadlock
-detector fires: "channel deadlock — a task is waiting for delivery but no running
-or queued tasks will send."
-
-**Consequence 3 — close does correctly wake all blocked workers.**
-When a DrainUntil chain eventually runs the producer (which closes the channel),
-ALL outer workers' `DrainUntil` conditions (`chan.IsClosed`) become TRUE. Every
-blocked worker exits cleanly via `void`. No worker hangs at close. This is the
-coordination property the scheduler does guarantee.
-
-**Where this leaves you.** Compiling is what resolves all three: real threads block
-independently, so work distributes, the Consequence-2 deadlock cannot arise, and close still
-wakes every blocked receiver. The interpreter's cooperative scheduler is unchanged and
-these artefacts remain there — which is why the compiler's concurrency tests assert
-order-independent invariants against the binary rather than comparing output with the
-interpreter, and why the interpreter's particular interleaving is explicitly not part of
-the language specification.
-
-When writing a fan-out program that must run on **both** backends, treat the interpreted
-distribution as "first-to-unblock worker gets all" and depend only on the aggregate.
+- `Yield.` runs one queued task to its next stop, then returns to the task that yielded. That task
+  is not put back in the queue.
+- Workers sharing one channel do not share its work: the first to be unblocked takes everything
+  (30 and 0, not 15 and 15). Compiled, the work spreads, in no fixed split. A program meant for both
+  should depend only on totals.
+- A producer that yields while a later task blocks on another channel can end in
+  `channel deadlock — a task is waiting for delivery but no running or queued tasks will send.`
+- Closing a channel wakes every task blocked on it; each gets `void`.

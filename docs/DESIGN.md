@@ -141,6 +141,60 @@ How the language reads on the page.
   can never be a name, and "increase" is an everyday noun; "increment" is a
   programming term, so reserving it takes much less away.
 
+- **A comma takes one thing inline; a colon opens a block.** One rule for every
+  body, because Cufet already spells those two things that way, and a colon for
+  both would leave its only reliable structural signal meaning two things. A body
+  that declares its value's type on its header (`Bind number to …`, `Get area as
+  number`) may drop `Return`; a task's header declares nothing, since it may hand
+  back a result or only send on a channel, so it keeps `return`. A loop's header
+  has spent its comma, hence `, repeat:`. `Try` keeps the block because its handler
+  is the part least worth compressing; a function with no name keeps it because it
+  sits in argument lists, where the comma already separates arguments.
+
+- **`Judge`: coverage is total, by proof or by default.** No set of values can be
+  proved to exhaust a type, so a value judgement always needs `Otherwise`. Type arms
+  and value arms do not mix, because a judgement dispatching on a tag and on a value
+  would have to say what happens when both match. A value arm narrows nothing:
+  matching `"cd"` says nothing about the type the declaration did not. A dead arm is
+  a warning, not a refusal, as a dead `Otherwise if` would be.
+
+- **A word is reserved only when nothing beside it could tell it from a name.** A
+  reserved word is taken from every program, whether or not it uses the feature, so
+  a word stays an ordinary name wherever its phrase has a mandatory token next to it
+  (`a channel OF`, `the entry FOR`), a slot no value can fill (`and region`, `with
+  default`), or a type that decides (`the length of` text). `catalogue` and `atlas`
+  have optional tails, and `the arguments` has no tail at all; `the X` is already how
+  a variable named `X` is written, and deciding by whether such a variable is in
+  scope would make a line's meaning depend on the scope above it. `position`'s
+  telling `in` comes after a whole expression. `alphabetic` and kin come last,
+  after `is`, where `x is <name>` is already equality. So those stay reserved. A
+  capitalised statement word costs nothing either way, since a name can never start
+  with a capital.
+
+- **A line break in text is `\n`, and a character is a code point.** Otherwise the
+  same program would mean different things depending on how the working tree was
+  checked out, or on which backend ran it (UTF-16 interpreted, UTF-8 compiled).
+  Graphemes need the Unicode tables, which are not carried into the emitted C.
+  Matching (`contains`, `split`, `replace`) needs no rule, because UTF-8 is
+  self-synchronising. `<<…>>` turns off both escapes and holes, because `"` and `{`
+  are the two characters a quoted literal cannot hold plainly, and a form that freed
+  one would still need an escape for the other.
+
+- **`bits` is a pattern, not a quantity.** `0o755` is three permission triples,
+  not seven hundred and fifty-five, so there is no implicit conversion either way,
+  and gates never work on `number`. That is what makes `not 0xFF` be `0x00` and
+  never a negative number, and it turns C's `a & b == c` precedence bug into a type error. The
+  width comes from the digit count, unlike C, Java, Rust, Go and Python. The result
+  takes the LEFT operand's base and width because in bit code the left is the
+  accumulator (`flags or MASK`), and a mask's notation should not change how the
+  masked value prints. A result with no representation raises rather than failing,
+  as dividing by zero does: a failure would ride in the type as `bits or failure` and
+  force an unwrap after every mask. `bits converted to number` cannot fail, since 64
+  bits fit a number's 96-bit mantissa. The ceiling is 64 bits, which holds every C
+  flag set, file mode and address; wider is cryptography, which belongs behind a
+  foreign boundary. `_` groups digits only in these bases, where groups mean
+  something (nibbles, bytes, triples), and there is no bare-zero octal.
+
 ---
 
 ## Absence, and the type system
@@ -253,6 +307,40 @@ What it means for a value not to be there, and how types relate.
   ⚠ **No ordinal or ordering either**, and that is the same decision rather than a separate gap.
   It is rarely what anyone actually wants from an enum, and a method on the object gives it to
   whoever does.
+
+- **An interface is a parameter type and nothing else, which is what makes it free.**
+  The argument at every call is a concrete conformer, so each gets its own copy of
+  the function, and method calls stay direct: no vtables, no type tags, no run-time
+  dispatch. Polymorphism that could be stored would need a representation that
+  travels with the value. A default method is expanded into one ordinary method per
+  conforming type before checking, so it specialises the same way. To hold mixed
+  conformers, a closed union says which types exist and `Judge` narrows back.
+
+- **Versions of one name: argument types, and conditions only where overlap is
+  decidable.** Every version gives back one type, because a caller has to know what
+  it gets without knowing which version ran. Two versions that could both apply are
+  refused, never ranked: no priority, no declaration order, no specificity, which is
+  the answer the language gives every ambiguity. Whether two arbitrary conditions can
+  both hold is undecidable; for equality, inequality and type tests against literals
+  it is a comparison, so that is the fragment. It is closed under negation on
+  purpose: a writer excludes a narrower case by hand, and excluding a conjunction
+  needs a disjunction. The check errs toward refusal, since a refused program is a
+  message and an accepted ambiguous one is a silent wrong answer. A fallback is
+  required rather than inferred, because proving a set of conditions covers every
+  case is tautology checking.
+
+- **A body does not see top-level data.** A function that read a global would be
+  coupled to the order the program runs in; a parameter makes the dependency
+  visible and the function testable alone. A `permanently` value cannot change, so
+  it is exempt. Nested functions are the tool when a family of helpers shares
+  changing data. It is the same principle as message-passing between tasks.
+
+- **A pulled file is a library: it may declare, not act.** Pulling runs the file, so
+  anything it did would happen inside your pull, before your own first line. A file
+  is a program or a library, and splitting one needs no language feature, which is
+  why Cufet has no `if __name__ == "__main__"`. `Define` stays allowed because a
+  constant is how a library is written; a `Define` whose value does something still
+  runs, and closing that needs an effect system Cufet does not have.
 
 ---
 
@@ -442,6 +530,16 @@ Which capabilities are spelled into the language and which are pulled from a boo
   The `pull` verb signals "resource whose lifetime is managed here" and `Done.` closes
   it cleanly. The dot form (`Pull a book on X.`) keeps the short non-block form for
   scope-local imports. The two forms coexist and compose cleanly.
+
+- **How a pull is spelled says what kind of thing it is.** `a book on math` is how
+  English says something you consult; `Pull greeting-kit` is something you hold one
+  of. No module's name can ever be reserved, because nobody can reserve `inventory`
+  or `parser` in advance, so `book`, `books` and every module name stay ordinary
+  names. A module that declares no interface hands out everything, because a module
+  IS an object and an object exposes its methods; an interface is a positive
+  declaration of what is offered, so no module changed meaning when they arrived. A
+  name made with `as` belongs to the block that makes it: a function written outside
+  that reached it would work only while every caller chose the same alias.
 
 - **Matrix arithmetic is operator syntax, not book functions — settled.** `m + n`,
   `m - n`, `m * n` are the surface, not `collections' add of (m, n)`. The
