@@ -10,6 +10,24 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
 
 ### Fixed
 
+- **A foreign address can no longer be kept past the rabbit it was got in.** An axiom gives back a
+  `voidable address`, and the wrapper took it past the rule that refuses an address outliving its
+  rabbit, so one stored into a series or a name made in an outer rabbit was accepted. With `and free
+  it with`, the inner rabbit's `Done.` freed it and the outer one then read freed memory: the
+  interpreter printed garbage. It is refused now, in both checkers. Found while testing GRAMMAR's
+  claims, by hand.
+- **`has a key for` asks a map, and nothing else.** Anything was accepted: a set answered membership
+  by accident, and a number was refused only when the line ran. A set is asked `has <value>`, and
+  the refusal says so.
+- **Two methods of one name in one object are refused**, as a method and an `unto` one of the same
+  name already were. They were accepted with nothing said, and the interpreter ran the first.
+- **A plain object hands out all its methods, and a region module does too.** What an interface
+  declares limits what a MODULE hands out; it limited every object that declared one, so `x's m`
+  was refused where `cast m on (x)` was not, and a module declared `and region` handed out nothing
+  at all, since `region` counted as an interface with no methods.
+- **A map or a set changed in the last pass of a loop over it stops the program**, as a series does.
+  Only the start of each pass was checked, so a change in the last pass, or the only one, went
+  unseen, interpreted and compiled alike.
 - **A record or an object is copied at every place it is stored, interpreted as well as compiled.**
   In seven places the interpreter shared it, so a change through one name reached the other, while a
   compiled program copied and left it alone: the variable of a `For each` (over a series, a

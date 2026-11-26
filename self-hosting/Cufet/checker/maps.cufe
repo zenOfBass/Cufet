@@ -187,10 +187,22 @@ Pull a book on collections.
         Return cast wrapped on ("VoidableType", held).
     Done.
 
-    /// `has a key for` and `has an entry for` — a fact, whatever it is asked of.
+    /// `has a key for` and `has an entry for` — a fact, asked of a map and nothing else.
     Bind node or failure to infer-map-has unto checker, given (the node said):
         Define at-row as cast number-of on (cast field-of on (said, 3)).
-        Define map-shape as cast one's infer on (cast field-of on (said, 1)) or pass the failure off.
+        Define holder as cast field-of on (said, 1).
+        Define map-shape as cast one's infer on (holder) or pass the failure off.
+        If cast is-none on (map-shape) is false and map-shape's kind is not "MapType":
+            Define spoken as cast expression-words on (holder).
+            If map-shape's kind is "SetType":
+                Return a failure (cast refusal-of on ("{spoken} is a set, so ask it what it has",
+                    "A set holds things rather than keys, so it is asked `has <value>`; `has a key for` is a map's question", at-row,
+                    "ask a set about a key", "Write '{spoken} has <value>' instead.")).
+            Done.
+            If cast beyond-types on (map-shape), return a failure (cast not-judged on ("asking a {map-shape's kind} about a key")).
+            Return a failure (cast refusal-of on ("{spoken} is {cast type-words on (map-shape)}, and only a map is asked about its keys", "",
+                at-row, "ask a {cast type-words on (map-shape)} whether it has a key", "Use a map, or `has <value>` on a set.")).
+        Done.
         If map-shape's kind is "MapType":
             Cast one's check-map-key on (map-shape, cast field-of on (said, 2), at-row, "check for") or pass the failure off.
         Done.

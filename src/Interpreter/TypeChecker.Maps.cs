@@ -326,6 +326,7 @@ public sealed partial class TypeChecker
     private CufetType InferMapHasKey(MapHasKey hasKey)
     {
         var mapType = InferType(hasKey.Map);
+        RequireMapToAskAboutKeys(mapType, hasKey.Map, hasKey.Line, hasKey.Column);
         if (mapType is MapType mt)
         {
             var keyType = InferType(hasKey.Key);
@@ -339,9 +340,34 @@ public sealed partial class TypeChecker
         return CufetType.Fact;
     }
 
+    /// <summary>`has a key for` asks a MAP; `<set> has <value>` is the set's own question.</summary>
+    /// <remarks>
+    /// ⚠ Missing until 2026-11-25: anything at all was accepted here and the answer was a fact. A set
+    /// answered membership by accident — it is stored as a map — and a number was refused only when
+    /// the line ran. GRAMMAR and the set's own refusal had said the opposite all along.
+    /// </remarks>
+    private void RequireMapToAskAboutKeys(CufetType? target, IExpression held, int line, int column)
+    {
+        if (target is null or MapType) return;
+        if (target is SetType)
+            throw TypeError(
+                $"{FormatExpr(held)} is a set, so ask it what it has",
+                "A set holds things rather than keys, so it is asked `has <value>`; `has a key for` is a"
+              + " map's question",
+                line, column,
+                "ask a set about a key",
+                $"Write '{FormatExpr(held)} has <value>' instead.");
+        throw TypeError(
+            $"{FormatExpr(held)} is {FormatType(target)}, and only a map is asked about its keys",
+            null, line, column,
+            $"ask a {FormatType(target)} whether it has a key",
+            "Use a map, or `has <value>` on a set.");
+    }
+
     private CufetType InferMapHasEntry(MapHasEntry hasEntry)
     {
         var mapType = InferType(hasEntry.Map);
+        RequireMapToAskAboutKeys(mapType, hasEntry.Map, hasEntry.Line, hasEntry.Column);
         if (mapType is MapType mt)
         {
             var keyType = InferType(hasEntry.Key);

@@ -237,15 +237,23 @@ Pull a book on collections.
 
     // ── What a module hands out ───────────────────────────────────────────
 
-    /// The interfaces an object declares that are surfaces — every claim but `module` and `book`.
+    /// The interfaces a MODULE declares that are surfaces — every claim but `module`, `book` and
+    /// `region`. A plain object has none: what it hands out is everything.
     Bind series of text to declared-surfaces unto checker, given (the text owner):
         Define found as a series of text.
         Define definition as cast one's definition-of on (owner).
         If definition is void, return found.
+        Define pullable as false.
         For each claimed in cast conformed-names on (definition), repeat:
             Define lowered as claimed in lowercase.
-            If lowered is not "module" and lowered is not "book", insert claimed into found.
+            If lowered is "module" or lowered is "book" or lowered is "region":
+                The pullable becomes true.
+            Done.
+            Otherwise:
+                Insert claimed into found.
+            Done.
         Done.
+        If pullable is false, return a series of text.
         Return found.
     Done.
 

@@ -350,7 +350,8 @@ Pull books on collections, and the c-language.
         Define c-language each-memcpy-keys-form, given (the c-language axiom key-c, the c-language axiom held-c),
             as [if (cf_each_n > 0) { memcpy(cf_keys, cf_each->keys, (size_t)cf_each_n * sizeof(the key-c)); memcpy(cf_vals, cf_each->vals, (size_t)cf_each_n * sizeof(the held-c)); }].
         Cast one's put on (each-memcpy-keys-form on (key-c, held-c)).
-        Cast one's put on ([for (int cf_i = 0; cf_i < cf_each_n; cf_i++) {]).
+        // Checked before each pass and once more on the way out, as a series is (2026-11-25).
+        Cast one's put on ([for (int cf_i = 0; ; cf_i++) {]).
         Define mapping-kind as "mapping from {cast map-key-kind on (held)} to {cast map-value-kind on (held)}".
         In one's kinds, the entry for name becomes mapping-kind.
         Cast one's declared-here on (name).
@@ -360,6 +361,7 @@ Pull books on collections, and the c-language.
         Define c-language each-len-each-form, given (the text message),
             as [if (cf_each->len != cf_each_n) cufet_raise(cufet_msgf(the message));].
         Cast one's put on (each-len-each-form on ("{label} was modified during a for-each loop on line {(cast field-of on (statement, 4))'s word} — collect into a separate series, or use a While loop if you need to change it while looping.")).
+        Cast one's put on ([if (cf_i >= cf_each_n) break;]).
         Define c-language map-pair-name-form, given (the term map-c-pair, the term c-name),
             as [the map-c-pair the c-name = { cf_keys[cf_i], cf_vals[cf_i] };].
         Cast one's put on (map-pair-name-form on ("{map-c}_pair", cast c-name on (name))).

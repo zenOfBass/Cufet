@@ -13,6 +13,8 @@ Pull a book on collections.
     /// What a series, a map, a set, a chase, an object — anything held by reference — is; a value-typed one copies.
     Bind fact to is-reference-type, given (the node shape):
         Define kind as shape's kind.
+        // A voidable address too, which is what every axiom gives back (2026-11-25).
+        If kind is "VoidableType", return (cast field-of on (shape, 1))'s kind is "AddressType".
         Return kind is "SeriesType" or kind is "MapType" or kind is "SetType" or kind is "ChaseType" or kind is "ObjectType" or kind is "MatrixType"
             or kind is "ChannelType" or kind is "AddressType".
     Done.

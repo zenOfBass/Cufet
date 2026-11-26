@@ -1507,9 +1507,9 @@ public sealed partial class CodeGenerator
     /// over the items there when it began and carried on, where the interpreter stops with this
     /// error and GRAMMAR says it does. The oracle compares programs that finish. The compiler written
     /// in Cufet, held to the interpreter, found it.
-    /// ★ Where it is checked follows the interpreter exactly: a series or a chase before each pass
-    /// and once more after the last — a `Stop` leaves without it — and a set or a map before each
-    /// pass only.
+    /// ★ Where it is checked follows the interpreter exactly: before each pass and once more after
+    /// the last — a `Stop` leaves without it. A set and a map were checked before each pass only until
+    /// 2026-11-25, so a change made in the last pass, or the only one, went unseen on both backends.
     /// </remarks>
     private static string ModifiedDuringLoop(ForEachStatement fe, string unnamed, string length, string start)
     {
@@ -1581,8 +1581,9 @@ public sealed partial class CodeGenerator
         sb.AppendLine($"{indent}{{");
         sb.AppendLine($"{inner}{name}* {m} = {setExpr};");
         sb.AppendLine($"{inner}int {m}_n = {m}->len;");
-        sb.AppendLine($"{inner}for (int {idx} = 0; {idx} < {m}_n; {idx}++) {{");
+        sb.AppendLine($"{inner}for (int {idx} = 0; ; {idx}++) {{");
         sb.AppendLine($"{loopIndent}{ModifiedDuringLoop(fe, "The set", $"{m}->len", $"{m}_n")}");
+        sb.AppendLine($"{loopIndent}if ({idx} >= {m}_n) break;");
         sb.AppendLine($"{loopIndent}{EmitCType(mt.ValueType)} {member} = {m}->vals[{idx}];");
         EmitLoopBody(sb, fe.Body, loopIndent);
         sb.AppendLine($"{inner}}}");
@@ -1612,8 +1613,9 @@ public sealed partial class CodeGenerator
         sb.AppendLine($"{indent}{{");
         sb.AppendLine($"{inner}{name}* {m} = {mapExpr};");
         sb.AppendLine($"{inner}int {m}_n = {m}->len;");
-        sb.AppendLine($"{inner}for (int {idx} = 0; {idx} < {m}_n; {idx}++) {{");
+        sb.AppendLine($"{inner}for (int {idx} = 0; ; {idx}++) {{");
         sb.AppendLine($"{loopIndent}{ModifiedDuringLoop(fe, "The map", $"{m}->len", $"{m}_n")}");
+        sb.AppendLine($"{loopIndent}if ({idx} >= {m}_n) break;");
         sb.AppendLine($"{loopIndent}{EmitCType(mt.KeyType)} {pair}_key = {m}->keys[{idx}];");
         sb.AppendLine($"{loopIndent}{EmitCType(mt.ValueType)} {pair}_value = {m}->vals[{idx}];");
         EmitLoopBody(sb, fe.Body, loopIndent);

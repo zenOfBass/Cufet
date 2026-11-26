@@ -2518,6 +2518,18 @@ public sealed partial class TypeChecker
                     $"define an object named '{od.Name}'",
                     $"Pick another name — 'Pull {od.Name}.' always finds the one the language ships.");
 
+            // ★ Two methods of one name written in the body are refused as an `unto` one is. Until
+            // 2026-11-25 only the `unto` pair was compared, and two nested ones were accepted with
+            // nothing said: the interpreter ran the first, and nothing told the reader which.
+            var nestedSeen = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var nested in od.Methods)
+                if (!nestedSeen.Add(nested.Name))
+                    throw TypeError(
+                        $"'{od.Name}' already has a method '{nested.Name}'",
+                        null, nested.Line, nested.Column,
+                        $"declare another method named '{nested.Name}' for '{od.Name}'",
+                        "Method names must be unique per type, whether declared nested or with 'unto'. Rename one of them.");
+
             var methodSigs = od.Methods
                 .Select(m => (m.Name, MethodSignature(m, od.Name)))
                 .ToList();

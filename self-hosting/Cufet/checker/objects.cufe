@@ -290,8 +290,17 @@ Pull a book on collections.
                         cast number-of on (cast field-of on (statement, 9)), "define an object named '{name}'",
                         "Pick another name — 'Pull {name}.' always finds the one the language ships.")).
                 Done.
+                Define nested-seen as a map from text to fact.
                 For each method in (cast field-of on (statement, 4))'s children, repeat:
                     Cast check-buries-say-what on (method, "method") or pass the failure off.
+                    // Two methods of one name in the body are refused, as an `unto` pair is.
+                    Define nested-name as cast unquoted on (cast field-of on (method, 1)).
+                    If (the entry for nested-name in nested-seen) is not void:
+                        Return a failure (cast refusal-of on ("'{name}' already has a method '{nested-name}'", "",
+                            cast number-of on (cast field-of on (method, 7)), "declare another method named '{nested-name}' for '{name}'",
+                            "Method names must be unique per type, whether declared nested or with 'unto'. Rename one of them.")).
+                    Done.
+                    In nested-seen, the entry for nested-name becomes true.
                 Done.
                 // A definition that leaves a blank is a template: not a type, filled per use.
                 Define is-template as the number of (cast field-of on (statement, 12))'s children is greater than 0.

@@ -1058,13 +1058,22 @@ public sealed partial class TypeChecker
         return surface;
     }
 
+    /// <remarks>
+    /// ⚠ A MODULE's rule, and only a module's (2026-11-25). It applied to every object that declared
+    /// an interface, so a plain object's own methods could not be reached with `x's m` while
+    /// `cast m on (x)` reached them all the same — a rule wider than its reason, which is that a
+    /// module's author says what is API. `region` is a marker as `module` and `book` are, and offers
+    /// nothing, so it is no surface either.
+    /// </remarks>
     private List<string> DeclaredSurfaces(ObjectType ot)
     {
         var canonical = _objectDefs.TryGetValue(ot.Name, out var current) ? current : null;
         var conformed = canonical?.ConformedInterfaces ?? [];
+        if (!IsModuleConformer(conformed)) return [];
         return [.. conformed.Where(i =>
             !string.Equals(i, ModuleInterface, StringComparison.OrdinalIgnoreCase) &&
-            !string.Equals(i, BookInterface,   StringComparison.OrdinalIgnoreCase))];
+            !string.Equals(i, BookInterface,   StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(i, RegionInterface, StringComparison.OrdinalIgnoreCase))];
     }
 
     // ⚠⚠ THROUGH DisplayName, or the loader's file-privacy rename leaks: an interface a module

@@ -1576,6 +1576,11 @@ public sealed partial class Interpreter
                         catch (SkipException) { /* next iteration */ }
                         finally { ExitScope(); }
                         if (setStopped) break;
+                        // ★ And after the pass, as a series does — or a change in the last pass,
+                        // or in the only one, went unseen (found 2026-11-25).
+                        if (feSet.Count != members.Count)
+                            throw new RuntimeException(
+                                $"{collectionDisplay ?? "The set"} was modified during a for-each loop on line {fe.Line} — collect into a separate series, or use a While loop if you need to change it while looping.");
                     }
                     break;
                 }
@@ -1597,6 +1602,9 @@ public sealed partial class Interpreter
                         catch (SkipException) { /* next iteration */ }
                         finally { ExitScope(); }
                         if (stopped) break;
+                        if (dict.Count != snapshot.Count)
+                            throw new RuntimeException(
+                                $"{collectionDisplay ?? "The map"} was modified during a for-each loop on line {fe.Line} — collect into a separate series, or use a While loop if you need to change it while looping.");
                     }
                     break;
                 }

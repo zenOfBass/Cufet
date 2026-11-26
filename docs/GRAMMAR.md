@@ -741,7 +741,8 @@ may stand there: a name, `one's cards`, `alice's hand`, a call.
   value, and how they compare, are the rules for a map's keys.
 - A set has no positions: `Insert V after the first item of s.` is refused.
 - `the size of` a set is refused; it is `the number of`. `m has V` on a map is refused; it is
-  `m has a key for V`.
+  `m has a key for V`. `s has a key for V` on a set is refused; it is `s has V`. `has a key for` on
+  anything but a map is refused.
 - A value cannot be removed from a set.
 
 ### Matrices — the collections book
@@ -925,7 +926,8 @@ State "after".
 - An operator overload and an unmaker may be declared only at the top level.
 - An object or interface declared twice is the second one; `cufet check` warns that nothing reaches
   the first. A second shorthand of one name, a second free function with the same argument types, a
-  second overload for one ordered pair of types, and a second unmaker for one type are refused.
+  second method of one name in one object (nested or `unto`), a second overload for one ordered pair
+  of types, and a second unmaker for one type are refused.
 
 ### Inside an object's body
 
@@ -1184,6 +1186,8 @@ Done.
 ### Addresses
 
 - An `address` may be held only inside a rabbit's block. Holding one outside any rabbit is refused.
+- An address lives in the rabbit open where it was got, and may not be stored where it would outlive
+  it: into a series, a map or a name made in an outer rabbit.
 - `the text at <address>` is the only read through one, and it copies into the rabbit's region. A
   void address reads as void. An address prints as `<address>`.
 - There is one address type and no address-of operator.
@@ -1550,8 +1554,8 @@ Define counts as a new stack of number { the items a series of number }.
 - A default method, `Bind <type> to <name> unto <interface>`, is given to every conforming type.
   Inside it, `one` is the conforming object. A type's own method of that name wins. Two interfaces
   giving one type the same default is refused.
-- An object that declares an interface hands out, through `x's …`, only what its interfaces declare;
-  `cast <method> on (x)` reaches every method.
+- A module that declares an interface hands out only what its interfaces declare (§5). A plain
+  object hands out every method, whatever it declares.
 - To hold different conformers together, use a closed union and `Judge` it back. A catalogue whose
   type is inferred from mixed values is an open union, and passing one where an interface is wanted
   is refused. Name the element type.
@@ -1716,9 +1720,10 @@ Done.
 
 ## 9. Loops, and the interpreter's scheduler
 
-### Changing a series while looping over it
+### Changing a collection while looping over it
 
-- Inside `For each x in s`, inserting into or removing from `s` stops the program when it runs:
+- Inside `For each x in s`, inserting into or removing from `s` (a series, a map, a set or a chase)
+  stops the program when it runs, checked before each pass and after the last:
   `'items' was modified during a for-each loop on line 5 — collect into a separate series, or use a
   While loop if you need to change it while looping.`
 - Setting an item is allowed. An item set ahead of the loop is seen with its new value when the loop

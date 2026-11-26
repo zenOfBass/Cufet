@@ -315,8 +315,14 @@ public sealed partial class TypeChecker
     // after `Done.` — measured, on both backends, before this line existed. IsRegionBearing asks
     // whether the compiler must deep-COPY a value into the destination's arena, and an address must
     // never be copied anywhere: it is not arena memory, it is C's.
+    // ⚠ And a VOIDABLE address too, which is what every axiom gives back: without that arm the
+    // wrapper laundered the handle past this test, and an address stored into a series made in an
+    // outer rabbit was read after its `and free it with` had run — measured 2026-11-25, the
+    // interpreter printed freed memory. Only the address is unwrapped: a voidable series is a copy
+    // of a value, and widening that would refuse programs that are sound (see ESC.1 below).
     private static bool IsReferenceType(CufetType? t) =>
-        t is SeriesType or MapType or SetType or ChaseType or ObjectType or MatrixType or ChannelType or AddressType;
+        t is SeriesType or MapType or SetType or ChaseType or ObjectType or MatrixType or ChannelType or AddressType
+            or VoidableType { Inner: AddressType };
 
     // ── ESC.1 — the STRUCTURAL region-bearing test ───────────────────────────
     // `IsReferenceType` is a TOP-LEVEL test: it misses `text` entirely, and every value-typed
@@ -387,6 +393,9 @@ public sealed partial class TypeChecker
             return possDepth;
         if (expr is RecordNamedAccess rna && _rnaDepthCache.TryGetValue(rna, out var rnaDepth))
             return rnaDepth;
+        // ★ An address comes only from foreign source, and the rabbit open where it was got is the
+        // one whose `Done.` may free it — so one nothing else places was made HERE, never at 0.
+        if (inferredType is AddressType or VoidableType { Inner: AddressType }) return _rabbitDepth;
         return 0;
     }
 

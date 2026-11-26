@@ -373,6 +373,8 @@ Pull a book on collections.
             Define cached-member as the entry for cast node-place on (said, 3) in one's member-depths.
             If cached-member is not void, return cached-member.
         Done.
+        // An address nothing else places was got here, and this rabbit's `Done.` may free it.
+        If shape's kind is "AddressType" or shape's kind is "VoidableType", return one's rabbit-depth.
         Return 0.
     Done.
 

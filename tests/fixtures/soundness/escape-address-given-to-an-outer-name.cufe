@@ -1,0 +1,16 @@
+/*  EXPECTED: REJECTED at type-check, identically by both backends.
+    A foreign address got in an inner rabbit and given to a name made in an outer one,
+    straight from the call, with no name of its own in between. The rabbit open where an
+    address is got is the one whose Done. may free it, so that is where it lives. */
+
+Pull a book on the c-language.
+    Define c-language number release, given (the address p), as [({ free(the p); 0; })].
+    Define c-language voidable address dup, given (the text s), as [strdup(the s)], and free it with release.
+    Pull a rabbit.
+        Define h as cast dup on ("outer").
+        Pull a rabbit.
+            The h becomes cast dup on ("inner").
+        Done.
+        State the text at h but void is "none".
+    Done.
+Done.

@@ -1,0 +1,20 @@
+/*  EXPECTED: REJECTED at type-check, identically by both backends.
+    A foreign address stored into a series made in an outer rabbit.
+
+    An axiom gives back a `voidable address`, and the wrapper took it past the test that
+    refuses an address outliving its rabbit. With `and free it with`, the inner rabbit's
+    Done. freed it, and the outer rabbit then read freed memory: measured 2026-11-25, the
+    interpreter printed garbage. */
+
+Pull a book on the c-language.
+    Define c-language number release, given (the address p), as [({ free(the p); 0; })].
+    Define c-language voidable address dup, given (the text s), as [strdup(the s)], and free it with release.
+    Pull a rabbit.
+        Define keep as a series of voidable address.
+        Pull a rabbit.
+            Define h as cast dup on ("hello").
+            Insert h into keep.
+        Done.
+        State the text at (item 1 of keep) but void is "none".
+    Done.
+Done.

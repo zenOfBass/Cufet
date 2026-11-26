@@ -110,7 +110,8 @@ Pull books on collections, and the c-language.
         Define c-language each-memcpy-vals-form, given (the c-language axiom element-c),
             as [if (cf_each_n > 0) memcpy(cf_vals, cf_each->vals, (size_t)cf_each_n * sizeof(the element-c));].
         Cast one's put on (each-memcpy-vals-form on (element-c)).
-        Cast one's put on ([for (int cf_i = 0; cf_i < cf_each_n; cf_i++) {]).
+        // Checked before each pass and once more on the way out, as a series is (2026-11-25).
+        Cast one's put on ([for (int cf_i = 0; ; cf_i++) {]).
         In one's kinds, the entry for name becomes element.
         Cast one's declared-here on (name).
         In one's kinds, the entry for "%{name}" becomes element.
@@ -119,6 +120,7 @@ Pull books on collections, and the c-language.
         Define c-language each-len-each-form, given (the text message),
             as [if (cf_each->len != cf_each_n) cufet_raise(cufet_msgf(the message));].
         Cast one's put on (each-len-each-form on ("{label} was modified during a for-each loop on line {(cast field-of on (statement, 4))'s word} — collect into a separate series, or use a While loop if you need to change it while looping.")).
+        Cast one's put on ([if (cf_i >= cf_each_n) break;]).
         Define c-language element-name-vals-form, given (the c-language axiom element-c, the term c-name),
             as [the element-c the c-name = cf_vals[cf_i];].
         Cast one's put on (element-name-vals-form on (element-c, cast c-name on (name))).

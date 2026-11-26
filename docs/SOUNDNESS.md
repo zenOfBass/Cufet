@@ -314,6 +314,14 @@ show that the growth was all that was wrong with them. They are fixtures now, in
 (`grow-2`, `element-1`, `param-1`), with a fourth program that returns series out of nested
 rabbits and grows them afterwards, and all four are clean.
 
+**A foreign address** (2026-11-25). An address is one of the types O2 refuses to store outward, but
+an axiom gives back a `voidable address`, and the store rule's type test did not look inside the
+voidable. So an address got in an inner rabbit could be stored into a series or a name made in an
+outer one, and with `and free it with` it was freed at the inner `Done.` and read afterwards: measured
+in the interpreter, which printed garbage. Found by hand, while testing GRAMMAR's claims. The test
+looks through the voidable now, and an address nothing else places is taken to live in the rabbit
+open where it was got. Both checkers; fixtures `escape-address-*`, and the checker-parity list holds the shapes that stay legal.
+
 ## 5. Repaired rules
 
 These are rules for the core language of section 3, written for the runtime of 0.29.0. They need
