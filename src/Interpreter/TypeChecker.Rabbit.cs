@@ -412,10 +412,12 @@ public sealed partial class TypeChecker
     // reallocated into the rabbit's arena, so the series dangled after `Done.` even though every
     // element was a plain value. (Found in examples/concurrency/parallelsum.cufe.) So a non-region-bearing
     // value takes the depth of the store SITE — which is what decides (2).
-    private int? EscapeDepthFor(IExpression valueExpr, CufetType? valueType, int targetDepth)
-    {
-        int valueDepth =
+    private int? EscapeDepthFor(IExpression valueExpr, CufetType? valueType, int targetDepth) =>
+        EscapingFrom(valueExpr, valueType) > targetDepth ? targetDepth : null;
+
+    private int EscapingFrom(IExpression valueExpr, CufetType? valueType) =>
             !IsRegionBearing(valueType) ? _rabbitDepth
+            : valueType is FunctionType ? LivesAt(valueExpr)
             : valueExpr is VariableReference vr && TryLookup(vr.Name, out var ti) ? ti.RabbitDepth
             : valueExpr is CastExpression cast && _castDepthCache.TryGetValue(cast, out var cd) ? cd
             : valueExpr is PossessiveAccess poss && _possessiveDepthCache.TryGetValue(poss, out var pd) ? pd
@@ -423,8 +425,6 @@ public sealed partial class TypeChecker
             // Anything else (a literal, a concatenation, a conversion, …) is BORN HERE, so it
             // belongs to the region currently open.
             : _rabbitDepth;
-        return valueDepth > targetDepth ? targetDepth : null;
-    }
 
     // ── Where a shared constant lives ────────────────────────────────────────
 
@@ -508,14 +508,17 @@ public sealed partial class TypeChecker
     {
         var valueDepth = ValueDepthOf(valueExpr, valueType);
         if (valueDepth <= targetDepth) return;
-        // ⚠ The advice names no RABBIT. It used to, from before `and region` let anyone write a
-        // region, and a program whose only region was one it declared was told about a rabbit it
-        // had never pulled. Both fixes are measured to work.
-        throw TypeError(
+        throw ShorterLived(line, col, action);
+    }
+
+    // ⚠ The advice names no RABBIT. It used to, from before `and region` let anyone write a
+    // region, and a program whose only region was one it declared was told about a rabbit it
+    // had never pulled. Both fixes are measured to work.
+    private static TypeException ShorterLived(int line, int col, string action) =>
+        TypeError(
             "this value lives in a shorter-lived region than its destination — it will be gone when that region ends",
             null, line, col,
             action,
             "Declare the container inside that region too, so both end at its 'Done.', "
           + "or make the value before the region opens, so it lives as long as the container.");
-    }
 }

@@ -78,11 +78,13 @@ public sealed partial class TypeChecker
         nodes = new List<object>();
         CollectDepthNodes(body, nodes);
 
+        if (storing != null) storing.Holds = holds;
         // Every name the body gives a value to starts EMPTY, so that a name read before the walk
         // has reached its `Define` is not mistaken for one the walk knows nothing about.
         var localDepths = new Dictionary<string, HashSet<int>>(StringComparer.Ordinal);
         foreach (var node in nodes)
             if (DepthTargetOf(node) is { } target) localDepths.TryAdd(target.Name, []);
+        if (storing != null) storing.Locals = localDepths;
 
         // The store rule's: a field of an object the body writes out is a name of its own, `L.f`.
         var split = storing == null ? null : WrittenObjects(nodes);
@@ -110,11 +112,11 @@ public sealed partial class TypeChecker
     }
 
     /// <summary>Each name a body gives only objects written out, with the values each named field
-    /// was written with: the store rule treats each such field as a name of its own.</summary>
+    /// that can hold a container was written with: the store rule treats each such field as a name of its own.</summary>
     /// <remarks>An object is a struct held by value, so `copy's children` IS the series written into
     /// that field, not something the object might hold. A name given anything else by a `Define`, a
     /// `For each` or a `Judge` is not split; a later `becomes` is followed by the walk itself.</remarks>
-    private static Dictionary<string, List<(string Field, List<IExpression> Values)>> WrittenObjects(List<object> nodes)
+    private Dictionary<string, List<(string Field, List<IExpression> Values)>> WrittenObjects(List<object> nodes)
     {
         var split = new Dictionary<string, List<(string Field, List<IExpression> Values)>>(StringComparer.Ordinal);
         var otherwise = new HashSet<string>(StringComparer.Ordinal);
@@ -127,8 +129,10 @@ public sealed partial class TypeChecker
                 continue;
             }
             if (!split.TryGetValue(given.Name, out var fields)) split[given.Name] = fields = [];
+            _objectDefs.TryGetValue(literal.TypeName, out var literalType);
             foreach (var (field, value) in literal.NamedValues)
             {
+                if (!CarriedField(literalType, field).Carries) continue;
                 int at = fields.FindIndex(known => known.Field == field);
                 if (at < 0) fields.Add((field, [value]));
                 else fields[at].Values.Add(value);
@@ -174,10 +178,11 @@ public sealed partial class TypeChecker
     }
 
     // Everything this walk cannot trace: it may be any reference-typed parameter, or fresh.
-    private static HashSet<int> UntracedDepth(HashSet<int> refParamIdxs, Dictionary<string, int>? captured = null)
+    private HashSet<int> UntracedDepth(HashSet<int> refParamIdxs, Dictionary<string, int>? captured = null)
     {
         var all = new HashSet<int>(refParamIdxs) { FreshDepthIndex };
         if (captured != null) all.UnionWith(captured.Values);
+        if (captured != null && _looseConstants) all.Add(ConstantIndex);
         return all;
     }
 
@@ -217,8 +222,15 @@ public sealed partial class TypeChecker
                 // body can see of the top level. Any other name — one captured from an enclosing
                 // function, or bound by a statement this walk does not model — is not traced.
                 if (TraceLookup(vr.Name, out var seen) && seen!.Shared && !seen.IsParameter)
-                    return [];
+                    return captured != null && HoldsConstant(seen) ? [ConstantIndex] : [];
+                // A function with a name is no block's, but for one bound in a body: made here.
+                if (captured != null && seen is { Type: FunctionType })
+                    return IsFreeFunction(vr.Name, seen) ? [] : [FreshDepthIndex];
                 return UntracedDepth(refParamIdxs, captured);
+
+            // Made here, with what it captured; one that captured nothing is in no region at all.
+            case LambdaLiteral written when captured != null:
+                return _capturing.Contains(written) ? [FreshDepthIndex] : [];
 
             case CastExpression cast:
                 if (cast.Function is VariableReference funcVr
@@ -288,7 +300,20 @@ public sealed partial class TypeChecker
                 // only: the return signature leaves it untraced, as it always has.
                 return SymbolicExprDepth(rna.Record, paramIdx, refParamIdxs, localDepths, captured);
 
-            case SeriesLiteral or MapLiteral or SetLiteral or ChaseLiteral or MatrixLiteral or MatrixSized or RangeExpression or ChannelCreation:
+            case ButVoidDefault either:
+                return [.. SymbolicExprDepth(either.Voidable, paramIdx, refParamIdxs, localDepths, captured),
+                        .. SymbolicExprDepth(either.Default, paramIdx, refParamIdxs, localDepths, captured)];
+            case FailureFallback either:
+                return [.. SymbolicExprDepth(either.Fallible, paramIdx, refParamIdxs, localDepths, captured),
+                        .. SymbolicExprDepth(either.Default, paramIdx, refParamIdxs, localDepths, captured)];
+            case ConditionalExpression either:
+                return [.. SymbolicExprDepth(either.Value, paramIdx, refParamIdxs, localDepths, captured),
+                        .. SymbolicExprDepth(either.Alternative, paramIdx, refParamIdxs, localDepths, captured)];
+            case FailurePropagate passed:
+                return SymbolicExprDepth(passed.Fallible, paramIdx, refParamIdxs, localDepths, captured);
+
+            case SeriesLiteral or MapLiteral or SetLiteral or ChaseLiteral or MatrixLiteral or MatrixSized or RangeExpression or ChannelCreation
+                or SortExpression or SeriesReverse or TextSplit or AwaitedResultExpression or DeliveryExpression:
                 // Made here, which is wherever the caller is. Whatever was put IN it is no deeper.
                 return [FreshDepthIndex];
 
@@ -540,6 +565,8 @@ public sealed partial class TypeChecker
         foreach (var (type, name) in lambda.Parameters)
             Scope[name] = new TypeInfo(ResolveParamType(type), new VariableReference(name, 0, 0), lambda.Line, IsParameter: true);
 
+        NoteCapturing(lambda);
+
         var prevInFunction        = _inFunction;
         var prevReturnType        = _expectedReturnType;
         var prevFunctionLine      = _functionDeclarationLine;
@@ -557,7 +584,7 @@ public sealed partial class TypeChecker
         _overloadBodyIsFallible   = false; // nested lambdas are standalone, not part of the overload
         // Made before the body is checked, and given to the type afterwards: a function value
         // carries what it stores exactly as a named one does.
-        var lambdaStores = new StoreSummary();
+        var lambdaStores = new StoreSummary { IsValue = true };
         var storeFrame = OpenStoreFrame(
             lambdaStores, lambda.Body, lambda.Parameters.Select(p => (p.Name, (CufetType?)ResolveParamType(p.Type))), false,
             CapturedNames(saved.V));
@@ -922,7 +949,7 @@ public sealed partial class TypeChecker
         NoteCastTerm(cast, NoteCall(funcType, displayName, argsToValidate,
                  argsToValidate.Count < cast.Args.Count ? cast.Args[0]
                  : cast.Function is PossessiveAccess calledOn ? calledOn.Target : null,
-                 cast.Line, cast.Column, cast.Function));
+                 cast.Line, cast.Column, cast.Function, cast));
 
         if (funcType.ReturnType == null)
             throw TypeError(
@@ -1002,13 +1029,10 @@ public sealed partial class TypeChecker
                 else if (pIdx == ReceiverDepthIndex)
                 {
                     if (receiverExpr != null)
-                        retDepth = Math.Max(retDepth, ValueDepthOf(receiverExpr, InferType(receiverExpr)));
+                        retDepth = Math.Max(retDepth, LivesAt(receiverExpr));
                 }
                 else if (pIdx >= 0 && pIdx < argsToValidate.Count)
-                {
-                    var argType = InferType(argsToValidate[pIdx]);
-                    retDepth = Math.Max(retDepth, ValueDepthOf(argsToValidate[pIdx], argType));
-                }
+                    retDepth = Math.Max(retDepth, LivesAt(argsToValidate[pIdx]));
             }
         }
 

@@ -60,20 +60,36 @@ Pull a book on collections.
             "TextConvert", return cast one's infer-text-convert on (said) or pass the failure off.
             "NumberConvert", return cast one's infer-number-convert on (said) or pass the failure off.
             "ButVoidDefault", return cast one's infer-but-void on (said) or pass the failure off.
-            "SeriesLiteral", return cast one's infer-series-literal on (said) or pass the failure off.
+            "SeriesLiteral":
+                Define typed as cast one's infer-series-literal on (said) or pass the failure off.
+                Cast one's note-carrier on (said, typed, 3).
+                Return typed.
+            Done.
             "SeriesAccess", return cast one's infer-series-access on (said) or pass the failure off.
             "SeriesLength", return cast one's infer-series-length on (said) or pass the failure off.
             "CastExpression", return cast one's check-call on (said, true) or pass the failure off.
             "FailureLiteral", return cast one's infer-failure-literal on (said) or pass the failure off.
-            "MapLiteral", return cast one's infer-map-literal on (said) or pass the failure off.
+            "MapLiteral":
+                Define typed as cast one's infer-map-literal on (said) or pass the failure off.
+                Cast one's note-carrier on (said, typed, 4).
+                Return typed.
+            Done.
             "MapLookup", return cast one's infer-map-lookup on (said) or pass the failure off.
             "MapHasKey" or "MapHasEntry", return cast one's infer-map-has on (said) or pass the failure off.
             "FailureFallback", return cast one's infer-failure-fallback on (said) or pass the failure off.
             "FailurePropagate", return cast one's infer-failure-propagate on (said) or pass the failure off.
-            "ObjectLiteral", return cast one's infer-object-literal on (said) or pass the failure off.
+            "ObjectLiteral":
+                Define typed as cast one's infer-object-literal on (said) or pass the failure off.
+                Cast one's note-carrier on (said, typed, 4).
+                Return typed.
+            Done.
             "PossessiveAccess", return cast one's infer-possessive on (said, false) or pass the failure off.
             "RecordNamedAccess", return cast one's infer-named-access on (said) or pass the failure off.
-            "RecordLiteral", return cast one's infer-record-literal on (said) or pass the failure off.
+            "RecordLiteral":
+                Define typed as cast one's infer-record-literal on (said) or pass the failure off.
+                Cast one's note-carrier on (said, typed, 3).
+                Return typed.
+            Done.
             "IsTypeCheck", return cast one's infer-type-test on (said) or pass the failure off.
             "ConditionalExpression", return cast one's infer-conditional on (said) or pass the failure off.
             "TextSplit", return cast one's infer-text-split on (said) or pass the failure off.
@@ -144,6 +160,7 @@ Pull a book on collections.
 
     Bind node or failure to infer-name unto checker, given (the node said):
         Define name as cast unquoted on (cast field-of on (said, 1)).
+        Cast one's note-constant-use on (name).
         // ⚠ A narrowing is asked FIRST, before scope — C# keeps them by name, not by scope.
         Define narrowing as the entry for name in one's narrowed.
         If narrowing is not void, return narrowing.

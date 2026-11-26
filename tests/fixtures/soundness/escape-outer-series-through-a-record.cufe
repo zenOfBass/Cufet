@@ -1,0 +1,13 @@
+/*  EXPECTED: REJECTED at type-check, identically by both backends.
+    A rabbit's series is inserted into a series outside it, reached through a record made in the rabbit.
+
+    A record is copied where it is stored, but what it holds is shared, so a store through it
+    reaches the outer series (docs/SOUNDNESS.md, *Open*, closed 2026-11-25). */
+
+Define rows as a series of series of number.
+Pull a rabbit.
+    Define r as a record with (the t rows).
+    Define xs as a series of number with (3, 2).
+    Insert xs into the t of r.
+Done.
+State rows.

@@ -47,6 +47,24 @@ Versioning: feature arcs bump the minor version; 1.0.0 marks language stability.
   block, a named task, a named rabbit and a `Pull` of its own, each refused as a capture of the block.
 - **A task may ask a name it captured which value to pass on**: `cast f on (a when flag, otherwise b)` was
   refused as a task changing `flag`. Both checkers.
+- **A store reached through a cast no longer reads freed memory.** The region rules judged a store
+  written out in a body, and a store a called function makes was judged by where each name was made,
+  not by what it named. 136 small programs the checker accepted read freed memory when compiled, from
+  seven places: a value with no name (`xs sorted`, an item, a `when`) handed to a function that keeps
+  it; a second name for an outer series handed to one that stores into it; an outer series reached
+  through a record, a voidable, a union or a series a function wraps its parameter in; text stored
+  through a second name, copied to where the name was made rather than where the series is; a function
+  with no name storing into a second name it captured; a function that captured something kept through
+  a second name or a call; and a `permanently` series a function stores into or hands back. Each is
+  refused now, or, for text, copied to where the series really is. A function that captures nothing may
+  be kept anywhere, and is no longer refused by the compiler. Both checkers; 514 programs under
+  AddressSanitizer, none reading freed memory. Found by the random programs (`fuzz_cufet.py`) and then by
+  hand. One line of the checker written in Cufet was refused: it copied a tree but handed each leaf back
+  as it was, so the copy shared the leaf with the original. It copies every node now.
+- **An object type nobody makes, with a series or map field used nowhere else, compiles.** gcc refused
+  it with `unknown type name 'cser_3'`. Present in 0.30.0.
+- **A `permanently` constant in a rabbit whose value casts a function bound in that rabbit compiles.**
+  The compiler said `'bag' has no method 'h3'`.
 - **A chase and a set keep to the region rules a series keeps to.** Neither type was named in them, so
   nothing was refused and nothing was copied, and a compiled program read freed memory: a chase grown
   inside a rabbit (its buffer moved into the rabbit), a rabbit's chase or set given to an outer name or

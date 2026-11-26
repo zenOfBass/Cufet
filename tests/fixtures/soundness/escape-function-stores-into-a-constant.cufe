@@ -1,0 +1,16 @@
+/*  EXPECTED: REJECTED at type-check, identically by both backends.
+    A function stores what it is given into a `permanently` series, and is cast in a rabbit on one of
+    the rabbit's series.
+
+    A constant lives as long as the program, so a store into one is judged wherever the function
+    is cast (docs/SOUNDNESS.md, *Open*, closed 2026-11-25). */
+
+Define table as a series of series of number permanently.
+Bind void to add-row, given (the series of number r):
+    Insert r into table.
+Done.
+Pull a rabbit.
+    Define xs as a series of number with (3, 2).
+    Cast add-row on (xs).
+Done.
+State table.

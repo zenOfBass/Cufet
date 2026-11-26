@@ -884,7 +884,7 @@ public class PipelineEscapeTests : PipelineTestBase
             Done.
             State unbury (item 1 of keeper).
             """;
-        var ex = Assert.Throws<CompilerException>(() => Compile(src));
-        Assert.Contains("escape its region", ex.Message);
+        var ex = Assert.Throws<TypeException>(() => Compile(src));
+        Assert.Contains("shorter-lived region", ex.Message);
     }
 }

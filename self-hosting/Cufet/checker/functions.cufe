@@ -281,7 +281,7 @@ Pull a book on collections.
                         In fresh, the entry for (the key of pair) becomes a new binding {
                             the shape held's shape, the established-by held's established-by, the line held's line,
                             the permanent held's permanent, the module held's module,
-                            the depth cast captured-parameter-depth, the parameter true, the judged false }.
+                            the depth cast captured-parameter-depth, the parameter true, the judged false, the serial held's serial }.
                     Done.
                     Otherwise:
                         In fresh, the entry for (the key of pair) becomes held.
@@ -342,7 +342,7 @@ Pull a book on collections.
             If own's shape's kind is "FunctionType", the storing-as becomes "{name}@{own's line}".
         Done.
         Define reached-names as a map from text to number.
-        If nested, the reached-names becomes cast captured-names on (saved).
+        If nested, the reached-names becomes cast one's captured-names on (saved).
         Define store-around as cast one's open-store-frame on (storing-as, false, cast field-of on (statement, 4),
             cast field-of on (statement, 3), false, reached-names).
         Cast one's check-block on (cast field-of on (statement, 4)) or pass the failure off.
@@ -404,7 +404,7 @@ Pull a book on collections.
                     In fresh, the entry for (the key of pair) becomes a new binding {
                         the shape held's shape, the established-by held's established-by, the line held's line,
                         the permanent held's permanent, the module held's module,
-                        the depth cast captured-parameter-depth, the parameter true, the judged false }.
+                        the depth cast captured-parameter-depth, the parameter true, the judged false, the serial held's serial }.
                 Done.
                 Otherwise:
                     In fresh, the entry for (the key of pair) becomes held.
@@ -426,6 +426,7 @@ Pull a book on collections.
                 the permanent false, the module false, the depth 0, the parameter true, the judged false }).
         Done.
 
+        Cast one's note-capturing on (said, cast field-of on (said, 1), body).
         Define earlier-in-function as one's in-function.
         Define earlier-line as one's function-line.
         Define earlier-depth as one's rabbit-depth.
@@ -445,7 +446,7 @@ Pull a book on collections.
         Define at-column as cast number-of on (cast field-of on (said, 4)).
         Define storing-as as "lambda@{at-row}:{at-column}".
         Define store-around as cast one's open-store-frame on (storing-as, false, body, cast field-of on (said, 1), false,
-            cast captured-names on (saved)).
+            cast one's captured-names on (saved)).
         Cast one's check-block on (body) or pass the failure off.
         Cast one's close-store-frame on (store-around).
         The one's recording-stash becomes earlier-recording.
@@ -485,6 +486,7 @@ Pull a book on collections.
         If one's inferring-lambda:
             Define handed as cast unknown-type.
             If cast is-nothing on (value) is false, the handed becomes cast one's infer on (value) or pass the failure off.
+            Cast one's note-returned on (value, handed).
             If one's overload-fallible:
                 If handed's kind is "FailureMarkerType", return.
                 If cast is-nothing on (value) is false:
@@ -548,6 +550,7 @@ Pull a book on collections.
         If value-type's kind is "AxiomType" and hands-back's kind is not "AxiomType":
             Return a failure (cast source-not-reachable on (value-type, at-row)).
         Done.
+        Cast one's note-returned on (value, value-type).
         If cast is-rabbit-type on (value-type):
             Return a failure (cast refusal-of on ("rabbits cannot be returned — they flow downward only", "",
                 at-row, "return a rabbit from a function",

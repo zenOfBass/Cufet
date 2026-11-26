@@ -41,8 +41,12 @@ public sealed partial class TypeChecker
         if (inferred is MapType mapType)
         {
             var iterKey = forEach.IteratorName ?? "it";
+            var pairGiven = GivenOf(forEach.Series, mapType, element: true, defining: false);
             EnterScope();
-            Scope[iterKey] = new TypeInfo(new MappingType(ResolveParamType(mapType.KeyType), ResolveParamType(mapType.ValueType)), forEach.Series, forEach.Line);
+            Scope[iterKey] = new TypeInfo(
+                new MappingType(ResolveParamType(mapType.KeyType), ResolveParamType(mapType.ValueType)), forEach.Series, forEach.Line,
+                RabbitDepth: ContainerDepthOf(forEach.Series));
+            NoteGiven(iterKey, pairGiven, replacing: false);
             try { CheckBlock(forEach.Body); }
             finally { ExitScope(); }
             return;
@@ -203,7 +207,7 @@ public sealed partial class TypeChecker
             // What a set holds is a value, never a container, so it is copied to where the set is
             // rather than refused: the rule a map's key is stored by.
             add.EscapeToDepth = EscapeDepthFor(add.Value, inserted, ContainerDepthOf(add.Series));
-            NoteHomeCopy(add.Series, inserted, depth => add.EscapeToDepth = depth);
+            NoteHomeCopy(add.Series, add.Value, inserted, add.EscapeToDepth, depth => add.EscapeToDepth = depth);
             return;
         }
 
@@ -261,7 +265,7 @@ public sealed partial class TypeChecker
         CheckRegionStore(add.Value, valueType, add.Series, add.Line, add.Column,
             $"add a region-scoped value to a series in a longer-lived region");
         add.EscapeToDepth = EscapeDepthFor(add.Value, valueType, ContainerDepthOf(add.Series));
-        NoteHomeCopy(add.Series, valueType, depth => add.EscapeToDepth = depth);
+        NoteHomeCopy(add.Series, add.Value, valueType, add.EscapeToDepth, depth => add.EscapeToDepth = depth);
     }
 
     /// <summary>
@@ -400,7 +404,7 @@ public sealed partial class TypeChecker
             // made in a rabbit and set into an outer series was read after `Done.` had freed it
             // (docs/SOUNDNESS.md, `text-1`).
             seriesSet.EscapeToDepth = EscapeDepthFor(seriesSet.Value, valueType, ContainerDepthOf(seriesSet.Series));
-            NoteHomeCopy(seriesSet.Series, valueType, depth => seriesSet.EscapeToDepth = depth);
+            NoteHomeCopy(seriesSet.Series, seriesSet.Value, valueType, seriesSet.EscapeToDepth, depth => seriesSet.EscapeToDepth = depth);
             return;
         }
 

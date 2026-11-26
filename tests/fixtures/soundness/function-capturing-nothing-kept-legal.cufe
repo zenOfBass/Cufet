@@ -1,0 +1,15 @@
+/*  EXPECTED: COMPILES and runs; compiled output must match the interpreter.
+
+    A function written in a rabbit that captures nothing is kept outside it, through a second name;
+    so is a function bound at the top of the program.
+
+    A function value lives where what it captured lives, and these captured nothing (docs/SOUNDNESS.md, *Open*, closed 2026-11-25). */
+
+Bind number to plus-one, given (the number n): Return n + 1. Done.
+Define fs as a series of number function given (the number).
+Pull a rabbit.
+    Define k as fs.
+    Insert (a function given (the number n): Return n + 9. Done) into k.
+    Insert plus-one into k.
+Done.
+For each f in fs, state cast f on (1).

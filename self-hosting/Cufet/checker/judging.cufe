@@ -14,7 +14,8 @@ Pull a book on collections.
     /// carry the type their arm gives it. `of-block`: a `permanently` that is its block's own, which no
     /// function sees.
     Define object binding with (the node shape, the node established-by, the number line, the fact permanent,
-        the fact module, the number depth, the fact parameter, the fact judged, the fact of-block with default false).
+        the fact module, the number depth, the fact parameter, the fact judged, the fact of-block with default false,
+        the number serial with default 0).
 
     /// A `permanently` constant every body may read: the program's, not a block's own.
     Bind fact to is-shared, given (the binding held):
@@ -89,6 +90,7 @@ Pull a book on collections.
         the map from text to number member-depths,
         the series of map from text to fact bound-below,
         the number store-now,
+        the number binding-count with default 0,
         the store-book stores).
 
     /// A pull of a module, remembered with the names visible at it — its needs are verified once
@@ -235,6 +237,11 @@ Pull a book on collections.
 
     Bind void to bind-name unto checker, given (the text name, the binding held):
         Define here as cast one's innermost.
+        // Its own number, kept by every copy of it: what the region rules know a name by.
+        If held's serial is 0:
+            Increment one's binding-count by 1.
+            The held's serial becomes one's binding-count.
+        Done.
         In here, the entry for name becomes held.
     Done.
 
@@ -1041,10 +1048,13 @@ Pull a book on collections.
                 If cast is-nothing on (cast field-of on (statement, 1)) is false:
                     The map-iterator becomes cast unquoted on (cast field-of on (statement, 1)).
                 Done.
+                Define pair-given as cast one's given-of on (looped, looped-type, true, false).
+                Define pair-depth as cast one's container-depth on (looped).
                 Cast one's enter-scope.
                 Cast one's bind-name on (map-iterator, a new binding {
                     the shape entry-type, the established-by looped, the line at-row, the permanent false,
-                    the module false, the depth 0, the parameter false, the judged false }).
+                    the module false, the depth pair-depth, the parameter false, the judged false }).
+                Cast one's note-given on (map-iterator, pair-given, false).
                 Cast one's check-block on (cast field-of on (statement, 3)) or pass the failure off.
                 Cast one's exit-scope.
                 Return.
@@ -1147,7 +1157,7 @@ Pull a book on collections.
         Cast one's note-store on (value, given-type, target, at-row, "").
         Cast one's note-floor-store on (value, given-type, target, "", at-row, "add a region-scoped value to a series in a longer-lived region").
         Cast one's note-escape on (statement, ":EscapeToDepth", value, given-type, cast one's container-depth on (target)).
-        Cast one's note-home-copy on (statement, ":EscapeToDepth", given-type, target).
+        Cast one's note-home-copy on (statement, ":EscapeToDepth", value, given-type, target).
     Done.
 
     Bind void or failure to check-series-set unto checker, given (the node statement):
@@ -1176,7 +1186,7 @@ Pull a book on collections.
                 "set an item in a series to a region-scoped value from a shorter-lived region").
             // ⚠ Setting an item copies an escaping value as inserting one does (`text-1`).
             Cast one's note-escape on (statement, ":EscapeToDepth", cast field-of on (statement, 3), given-type, cast one's container-depth on (target)).
-            Cast one's note-home-copy on (statement, ":EscapeToDepth", given-type, target).
+            Cast one's note-home-copy on (statement, ":EscapeToDepth", cast field-of on (statement, 3), given-type, target).
             Return.
         Done.
         If container's kind is "ObjectType":
@@ -1391,7 +1401,7 @@ Pull a book on collections.
         Done.
         Cast one's require-rabbit-for-address on (kept, name, at-row) or pass the failure off.
         // Read before the name is bound: a shadow's value names the one it hides (O2).
-        Define gives-container as cast one's holds-container on (kept).
+        Define gives-container as cast one's leads-to-container on (kept).
         Define giving as cast one's given-of on (cast unknown-type, kept, false, false).
         If gives-container, the giving becomes cast one's given-of on (value, kept, false, true).
         Define place as cast one's place-of-constant on (statement, kept, reclaiming) or pass the failure off.
@@ -1459,7 +1469,13 @@ Pull a book on collections.
         Done.
         Cast one's check-region-store on (value, given-type, existing's depth, at-row,
             "reassign '{name}' to a value from a shorter-lived region") or pass the failure off.
-        If cast one's holds-container on (given-type):
+        // A function made where it is given is made for where it goes; any other stays where it is.
+        If given-type's kind is "FunctionType" and value's kind is not "LambdaLiteral":
+            If cast one's lives-at on (value) is greater than existing's depth:
+                Return a failure (cast shorter-lived on (at-row, "reassign '{name}' to a value from a shorter-lived region")).
+            Done.
+        Done.
+        If cast one's leads-to-container on (given-type):
             Cast one's note-given on (name, cast one's given-of on (value, given-type, false, false), true).
         Done.
         // A name of the body's own is only pointed somewhere else. A CAPTURED one is a place

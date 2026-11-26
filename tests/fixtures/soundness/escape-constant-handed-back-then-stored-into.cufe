@@ -1,0 +1,16 @@
+/*  EXPECTED: REJECTED at type-check, identically by both backends.
+    A function hands back a `permanently` series; a rabbit's series is stored into what it handed back.
+
+    What a cast hands back is no deeper than what it can reach, and a constant is as far out as
+    anything (docs/SOUNDNESS.md, *Open*, closed 2026-11-25). */
+
+Define table as a series of series of number permanently.
+Bind series of series of number to get-table:
+    Return table.
+Done.
+Pull a rabbit.
+    Define xs as a series of number with (3, 2).
+    Define k as cast get-table.
+    Insert xs into k.
+Done.
+State table.

@@ -68,7 +68,14 @@ Pull a book on collections.
     /// would outlive its own region there, or -1. A value holding no region memory counts as made
     /// where the store stands, which is what decides whether the destination's own growth moves.
     Bind number to escape-depth-for unto checker, given (the node value, the node value-type, the number target-depth):
+        If cast one's escaping-from on (value, value-type) is greater than target-depth, return target-depth.
+        Return -1.
+    Done.
+
+    /// How deep the region a stored value would be leaving is.
+    Bind number to escaping-from unto checker, given (the node value, the node value-type):
         Define value-depth as one's rabbit-depth.
+        If value-type's kind is "FunctionType", return cast one's lives-at on (value).
         If cast one's is-region-bearing on (value-type):
             Define kind as value's kind.
             If kind is "VariableReference":
@@ -84,8 +91,7 @@ Pull a book on collections.
                 If cached-member is not void, the value-depth becomes cached-member.
             Done.
         Done.
-        If value-depth is greater than target-depth, return target-depth.
-        Return -1.
+        Return value-depth.
     Done.
 
     /// Writes C#'s `EscapeToDepth` (or `KeyEscapeToDepth`, by `mark`) onto a store — the depth a
@@ -221,12 +227,14 @@ Pull a book on collections.
             the number target-depth, the number at-row, the text action):
         If cast is-reference-type on (value-type) is false, return.
         Define value-depth as cast one's depth-of-value on (value, value-type).
-        If value-depth is greater than target-depth:
-            Return a failure (cast refusal-of on (
-                "this value lives in a shorter-lived region than its destination — it will be gone when that region ends", "",
-                at-row, action,
-                "Declare the container inside that region too, so both end at its 'Done.', or make the value before the region opens, so it lives as long as the container.")).
-        Done.
+        If value-depth is greater than target-depth, return a failure (cast shorter-lived on (at-row, action)).
+    Done.
+
+    Bind text to shorter-lived, given (the number at-row, the text action):
+        Return cast refusal-of on (
+            "this value lives in a shorter-lived region than its destination — it will be gone when that region ends", "",
+            at-row, action,
+            "Declare the container inside that region too, so both end at its 'Done.', or make the value before the region opens, so it lives as long as the container.").
     Done.
 
     /// `Pull a rabbit [as <name>].` — one region deeper for the length of the block.

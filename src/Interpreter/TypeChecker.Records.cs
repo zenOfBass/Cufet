@@ -33,7 +33,7 @@ public sealed partial class TypeChecker
                 CheckRegionStore(stmt.Value, InferType(stmt.Value), stmt.Record, stmt.Line, stmt.Column,
                     $"set field '{stmt.FieldName}' to a value from a shorter-lived region", stmt.FieldName);
                 stmt.EscapeToDepth = EscapeDepthFor(stmt.Value, InferType(stmt.Value), ContainerDepthOf(stmt.Record));
-                NoteHomeCopy(stmt.Record, InferType(stmt.Value), depth => stmt.EscapeToDepth = depth);
+                NoteHomeCopy(stmt.Record, stmt.Value, InferType(stmt.Value), stmt.EscapeToDepth, depth => stmt.EscapeToDepth = depth);
                 return;
             }
             CheckObjectNamedSet(ot, stmt.FieldName, stmt.Value, stmt.Line, stmt.Column);
@@ -41,7 +41,7 @@ public sealed partial class TypeChecker
             CheckRegionStore(stmt.Value, objValueType, stmt.Record, stmt.Line, stmt.Column,
                 $"set field '{stmt.FieldName}' to a value from a shorter-lived region", stmt.FieldName);
             stmt.EscapeToDepth = EscapeDepthFor(stmt.Value, objValueType, ContainerDepthOf(stmt.Record));
-            NoteHomeCopy(stmt.Record, objValueType, depth => stmt.EscapeToDepth = depth);
+            NoteHomeCopy(stmt.Record, stmt.Value, objValueType, stmt.EscapeToDepth, depth => stmt.EscapeToDepth = depth);
             return;
         }
 
@@ -77,6 +77,7 @@ public sealed partial class TypeChecker
         CheckRegionStore(stmt.Value, valueType, stmt.Record, stmt.Line, stmt.Column,
             $"set field '{stmt.FieldName}' to a value from a shorter-lived region");
         stmt.EscapeToDepth = EscapeDepthFor(stmt.Value, valueType, ContainerDepthOf(stmt.Record));
+        NoteHomeCopy(stmt.Record, stmt.Value, valueType, stmt.EscapeToDepth, depth => stmt.EscapeToDepth = depth);
     }
 
     private RecordType InferRecordLiteral(RecordLiteral lit)
@@ -191,6 +192,7 @@ public sealed partial class TypeChecker
             var getterType = FindGetterInOtOrPromoted(ot, rna.FieldName);
             if (getterType != null)
             {
+                _getterReads.Add(rna);
                 if (IsReferenceType(getterType))
                     _rnaDepthCache[rna] = ComputeMemberAccessDepth(ot, rna.FieldName, rna.Record);
                 return getterType;

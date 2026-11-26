@@ -192,6 +192,13 @@ Pull a book on collections.
         Return copied.
     Done.
 
+    /// The same, where a value nothing traces may be a constant (`loose-constants`).
+    Bind series of number to untraced-in unto checker, given (the series of number referenced, the map from text to number captured, the fact storing):
+        Define copied as cast untraced on (referenced, captured).
+        If storing and cast one's loose-constants, insert cast constant-place into copied.
+        Return copied.
+    Done.
+
     /// Where this expression's value may come from. Empty: it lives outside every region.
     /// ★ `captured` and `storing` are the store rule's (`stores.cufe`). There a captured name is
     /// the place it was captured as, and stays that even where the body gives it a new value. The
@@ -231,8 +238,17 @@ Pull a book on collections.
             // A top-level constant is made before any region opens. Any other name — one captured
             // from an enclosing function, or bound by a statement this walk does not model — is
             // not traced.
-            If cast one's traced-constant on (name), return a series of number.
-            Return cast untraced on (referenced, captured).
+            If cast one's traced-constant on (name):
+                If storing and cast one's traced-holding on (name), return a series with (cast constant-place).
+                Return a series of number.
+            Done.
+            // A function with a name is no block's, but for one bound in a body: made here.
+            If storing:
+                Define free as cast one's traced-free on (name).
+                If free is "yes", return a series of number.
+                If free is "no", return a series with (-2).
+            Done.
+            Return cast one's untraced-in on (referenced, captured, storing).
         Done.
         If kind is "CastExpression":
             Define callee as cast field-of on (said, 1).
@@ -241,7 +257,7 @@ Pull a book on collections.
                 Define callee-key as cast one's traced-callee-key on (callee-name).
                 If callee-key is not "":
                     Define signature as the entry for callee-key in one's depth-signatures.
-                    If signature is void, return cast untraced on (referenced, captured).
+                    If signature is void, return cast one's untraced-in on (referenced, captured, storing).
                     Define reached as a series of number.
                     Define given-args as (cast field-of on (said, 2))'s children.
                     For each one-index in signature, repeat:
@@ -261,8 +277,21 @@ Pull a book on collections.
                     Return reached.
                 Done.
             Done.
-            Return cast untraced on (referenced, captured).
+            Return cast one's untraced-in on (referenced, captured, storing).
         Done.
+        // Made here, with what it captured; one that captured nothing is in no region at all.
+        If kind is "LambdaLiteral" and storing:
+            If (the entry for cast one's framed-place on (cast one's tracing-now, said, 3) in one's stores's capturing) is void, return a series of number.
+            Return a series with (-2).
+        Done.
+        If cast is-either on (kind) or kind is "ConditionalExpression":
+            Define other-place as 2.
+            If kind is "ConditionalExpression", the other-place becomes 3.
+            Define both as cast one's symbolic-depth on (cast field-of on (said, 1), positions, referenced, locals, captured, storing).
+            Cast union-into on (cast one's symbolic-depth on (cast field-of on (said, other-place), positions, referenced, locals, captured, storing), both).
+            Return both.
+        Done.
+        If kind is "FailurePropagate", return cast one's symbolic-depth on (cast field-of on (said, 1), positions, referenced, locals, captured, storing).
         // A field of an object the body writes out, for the store rule: a name of its own (O2).
         If storing:
             If kind is "PossessiveAccess" or kind is "RecordNamedAccess":
@@ -308,12 +337,13 @@ Pull a book on collections.
             Return cast one's symbolic-depth on (cast field-of on (said, 1), positions, referenced, locals, captured, storing).
         Done.
         If kind is "SeriesLiteral" or kind is "MapLiteral" or kind is "SetLiteral" or kind is "ChaseLiteral" or kind is "MatrixLiteral" or kind is "MatrixSized"
-                or kind is "RangeExpression" or kind is "ChannelCreation":
+                or kind is "RangeExpression" or kind is "ChannelCreation" or kind is "SortExpression" or kind is "SeriesReverse" or kind is "TextSplit"
+                or kind is "AwaitedResultExpression" or kind is "DeliveryExpression":
             // Made here, which is wherever the caller is.
             Return a series with (-2).
         Done.
         // A missed flow has to cost a refusal: "nothing reaches it" is the unsound answer.
-        Return cast untraced on (referenced, captured).
+        Return cast one's untraced-in on (referenced, captured, storing).
     Done.
 
     // ── At a call, and at a member read ───────────────────────────────────
@@ -391,8 +421,7 @@ Pull a book on collections.
                     The reaching becomes item (one-index + 1) of validated.
                 Done.
                 If cast is-none on (reaching) is false:
-                    Define reaching-type as cast one's infer on (reaching) but on failure cast unknown-type.
-                    Define reaching-depth as cast one's depth-of-value on (reaching, reaching-type).
+                    Define reaching-depth as cast one's lives-at on (reaching).
                     If reaching-depth is greater than deepest, the deepest becomes reaching-depth.
                 Done.
             Done.
@@ -412,8 +441,7 @@ Pull a book on collections.
     /// `ComputeMemberAccessDepth`: a field lives inside its object; a getter's value does too,
     /// unless its signature says it makes something new.
     Bind void to record-member-depth unto checker, given (the node said, the node target, the text owner, the text member):
-        Define target-type as cast one's infer on (target) but on failure cast unknown-type.
-        Define receiver-depth as cast one's depth-of-value on (target, target-type).
+        Define receiver-depth as cast one's lives-at on (target).
         Define depth as receiver-depth.
         Define getter-owner as cast one's getter-owner on (owner, member).
         If getter-owner is not "":

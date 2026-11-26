@@ -967,7 +967,8 @@ The two arcs where soundness was the whole problem.
   nothing is left: #4 arrived after this line first claimed "no known remaining gaps", and the
   attempt at a proof in November 2026 found twenty-two programs these four had missed, every one
   now refused or right on both compilers. Constants, chases and sets came after that, out of no
-  obligation the proof names: no rule had mentioned them. The account of that, the four obligations any repair
+  obligation the proof names: no rule had mentioned them. And O2 and O4 as built did not hold at a
+  call, in seven places, closed on 2026-11-25 (`docs/SOUNDNESS.md`, *At a call*). The account of that, the four obligations any repair
   has to meet, and what is proved as against only tested, is `docs/SOUNDNESS.md`.
 
 - **Concurrency arc — message-passing + structured concurrency, cooperative (v0.9.0).**

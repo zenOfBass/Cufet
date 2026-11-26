@@ -45,7 +45,7 @@ public sealed partial class TypeChecker
             CheckRegionStore(stmt.Value, InferType(stmt.Value), stmt.Target, stmt.Line, stmt.Column,
                 $"set '{stmt.Member}' to a value from a shorter-lived region than the object", stmt.Member);
             stmt.EscapeToDepth = EscapeDepthFor(stmt.Value, InferType(stmt.Value), ContainerDepthOf(stmt.Target));
-            NoteHomeCopy(stmt.Target, InferType(stmt.Value), depth => stmt.EscapeToDepth = depth);
+            NoteHomeCopy(stmt.Target, stmt.Value, InferType(stmt.Value), stmt.EscapeToDepth, depth => stmt.EscapeToDepth = depth);
             return;
         }
 
@@ -56,7 +56,7 @@ public sealed partial class TypeChecker
         CheckRegionStore(stmt.Value, valType, stmt.Target, stmt.Line, stmt.Column,
             $"set '{stmt.Member}' to a value from a shorter-lived region than the object", stmt.Member);
         stmt.EscapeToDepth = EscapeDepthFor(stmt.Value, valType, ContainerDepthOf(stmt.Target));
-        NoteHomeCopy(stmt.Target, valType, depth => stmt.EscapeToDepth = depth);
+        NoteHomeCopy(stmt.Target, stmt.Value, valType, stmt.EscapeToDepth, depth => stmt.EscapeToDepth = depth);
     }
 
     /// <summary>The defaults declared for a type, following the embed chain as construction does.</summary>
@@ -217,7 +217,7 @@ public sealed partial class TypeChecker
     //   depth when the sig is not yet available (getter body not yet analyzed).
     private int ComputeMemberAccessDepth(ObjectType ot, string memberName, IExpression targetExpr)
     {
-        var receiverDepth = ValueDepthOf(targetExpr, InferType(targetExpr));
+        var receiverDepth = LivesAt(targetExpr);
         var ownerOt = FindGetterOwnerOt(ot, memberName);
         if (ownerOt != null
             && _getterDepthSigs.TryGetValue(ownerOt.Name, out var gDict)
@@ -1172,6 +1172,7 @@ public sealed partial class TypeChecker
         var getterType = FindGetterInOtOrPromoted(ot, poss.Member);
         if (getterType != null)
         {
+            _getterReads.Add(poss);
             if (IsReferenceType(getterType))
                 _possessiveDepthCache[poss] = ComputeMemberAccessDepth(ot, poss.Member, poss.Target);
             return getterType;

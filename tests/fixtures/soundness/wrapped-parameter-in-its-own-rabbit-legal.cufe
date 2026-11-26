@@ -1,0 +1,17 @@
+/*  EXPECTED: COMPILES and runs; compiled output must match the interpreter.
+
+    A function wraps what it is given and stores, through that, a series it made; it is cast on a
+    series of the same rabbit.
+
+    Everything ends at the same `Done.` (docs/SOUNDNESS.md, *Open*, closed 2026-11-25). */
+
+Bind void to work, given (the series of series of number q):
+    Define t as a series of series of series of number with (q).
+    Insert a series of number with (1, 2) into item 1 of t.
+Done.
+Pull a rabbit.
+    Define mine as a series of series of number.
+    Insert a series of number into mine.
+    Cast work on (mine).
+    State mine.
+Done.

@@ -1,0 +1,27 @@
+/*  EXPECTED: COMPILES and runs; compiled output must match the interpreter.
+
+    Functions read a `permanently` series: count it, and copy out of it. The copy is filled in a rabbit.
+
+    Reading a constant is no store into it (docs/SOUNDNESS.md, *Open*, closed 2026-11-25). */
+
+Define table as a series of series of number with (a series of number with (1, 2)) permanently.
+Bind number to count-table:
+    Return the number of table.
+Done.
+Bind series of series of number to fresh-from-table:
+    Define t as a series of series of number.
+    For each r in table, repeat:
+        Define n as a series of number.
+        For each v in r, insert v into n.
+        Insert n into t.
+    Done.
+    Return t.
+Done.
+Pull a rabbit.
+    Define xs as a series of number with (3, 2).
+    Define k as cast fresh-from-table.
+    Insert xs into k.
+    State k.
+    State cast count-table.
+Done.
+State table.

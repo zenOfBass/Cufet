@@ -1,0 +1,17 @@
+/*  EXPECTED: REJECTED at type-check, identically by both backends.
+    A series with no name, sorted out of one made in a rabbit, is handed to a method that keeps it in an
+    object outside the rabbit.
+
+    A value with no name was taken to live as long as the program. It lives where it was made, or
+    where what it was made from lives, and is judged by that (docs/SOUNDNESS.md, *Open*, closed 2026-11-25). */
+
+Define object bag with (the series of number items).
+Bind void to keep unto bag, given (the series of number row):
+    One's items becomes row.
+Done.
+Define b as a new bag { the items a series of number with (9) }.
+Pull a rabbit.
+    Define xs as a series of number with (3, 2).
+    Cast b's keep on (xs sorted).
+Done.
+State b's items.

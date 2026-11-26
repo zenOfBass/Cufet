@@ -1,0 +1,15 @@
+/*  EXPECTED: REJECTED at type-check, identically by both backends.
+    A function wraps its parameter in a series of its own and stores, through that, a series it made;
+    it is cast in a rabbit on a series from outside.
+
+    What the function made lives in the rabbit; what it stored into is the parameter (docs/SOUNDNESS.md, *Open*, closed 2026-11-25). */
+
+Bind void to work, given (the series of series of number q):
+    Define t as a series of series of series of number with (q).
+    Insert a series of number with (1, 2) into item 1 of t.
+Done.
+Define rows as a series of series of number.
+Pull a rabbit.
+    Cast work on (rows).
+Done.
+State rows.

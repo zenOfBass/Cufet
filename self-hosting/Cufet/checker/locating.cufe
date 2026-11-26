@@ -108,9 +108,9 @@ Pull a book on collections.
 
     // ── Reading a loaded file ─────────────────────────────────────────────
 
-    /// A copy of a tree that shares nothing a note could change — every node but its leaves is new.
+    /// A copy of a tree that shares nothing a note could change — every node is new. A leaf too: its
+    /// children are a series like any other's, and handing the leaf itself back shared it.
     Bind node to copied-node, given (the node tree):
-        If tree's kind is "atom", return tree.
         Define copy as a new node { the kind tree's kind, the word tree's word, the children a series of node }.
         For each child in tree's children, repeat:
             Insert cast copied-node on (child) into copy's children.

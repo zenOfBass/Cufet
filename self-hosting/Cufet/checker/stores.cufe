@@ -25,16 +25,18 @@ Pull a book on collections.
     Define object store-pair with (the number from-place, the number into-place).
     Define object store-relay with (the number slot, the text toward, the number toward-position).
     Define object store-note with (the node value, the node target, the number line,
-        the series of number sources, the series of number targets, the text field-name).
+        the series of number sources, the series of number targets, the text field-name, the fact plain, the fact copied).
     Define object store-pass with (the number slot, the text handed).
     Define object call-note with (the text callee, the text display, the series of node handed-args, the node receiver,
-        the series of number given-depths, the series of fact given-holds, the number receiver-depth,
+        the series of number given-depths, the series of fact given-holds, the series of fact given-leads, the number receiver-depth,
+        the series of number source-depths, the number receiver-source, the series of fact given-plain, the fact receiver-plain,
         the number call-depth, the number line, the number within,
         the series of number given-sources, the series of number receiver-sources,
         the series of store-pass passes).
     Define object store-frame with (the text summary, the fact setter, the node body,
         the map from text to number positions, the series of number referenced,
-        the map from text to number captured, the number parent,
+        the map from text to number captured, the number parent, the series of number function-slots,
+        the series of node given-back, the series of number reached, the series of number handed-back,
         the series of store-note stores, the series of number calls, the series of home-note copies).
     /// A store of a text, or of anything else held in a region that holds no container, met inside a
     /// body: the statement, which of its marks says where to copy, and the target.
@@ -51,10 +53,15 @@ Pull a book on collections.
     Define object given-depths with (the depth-term owned, the depth-term floored, the series of text back,
         the fact splitting, the series of field-given fields).
     /// A cast written down: its callee, and the depth it stood at; its parts are kept beside it.
-    Define object cast-floor-note with (the text callee, the number depth).
+    Define object cast-floor-note with (the text callee, the number depth, the fact named).
     Define object cast-part with (the number note, the number slot, the text key, the fact exact, the depth-term term).
     /// A store judged at the end (O2): how deep the value may be, and what it may be no deeper than.
     Define object floor-store with (the number upper, the depth-term limit, the number line, the text action).
+
+    /// A store of something that is copied, judged at the end too: where it may be copied to by then.
+    Define object copied-store with (the number upper, the depth-term limit, the number copied-to, the node statement, the text mark).
+    /// A name a function captured that leads to a container: the place it has in a pair, and its key.
+    Define object captured-note with (the number place, the text name, the text key).
 
     /// Everything the rule keeps for the length of one check. Each part is a series or a map, so a
     /// copy of the book still reaches the one set of them.
@@ -85,7 +92,29 @@ Pull a book on collections.
         the map from text to text trace-keys,
         the map from number to fact memo-frames,
         the series of number tracing,
-        the map from text to series of store-pair call-pairs).
+        the map from text to series of store-pair call-pairs,
+        the map from text to series of number call-reaches,
+        the map from text to series of number call-hands,
+        the map from text to series of store-pair within-pairs,
+        the map from text to series of number reaches,
+        the map from text to series of number hands-back,
+        the map from text to series of captured-note captured-as,
+        the map from text to series of text inner-keys,
+        the map from text to series of number inner-is,
+        the map from text to series of number inner-holds,
+        the map from text to fact inner-local,
+        the map from text to node carriers,
+        the map from text to number cast-notes,
+        the map from text to fact capturing,
+        the map from text to fact rebound,
+        the map from text to fact trace-free,
+        the map from text to fact trace-holding,
+        the map from text to fact uses-constants,
+        the map from number to fact frame-constants,
+        the map from text to fact value-functions,
+        the map from text to fact getter-reads,
+        the map from text to fact loose,
+        the series of copied-store copied-stores).
 
     Bind store-book to fresh-store-book:
         Return a new store-book {
@@ -115,7 +144,29 @@ Pull a book on collections.
             the trace-keys a map from text to text,
             the memo-frames a map from number to fact,
             the tracing a series of number,
-            the call-pairs a map from text to series of store-pair }.
+            the call-pairs a map from text to series of store-pair,
+            the call-reaches a map from text to series of number,
+            the call-hands a map from text to series of number,
+            the within-pairs a map from text to series of store-pair,
+            the reaches a map from text to series of number,
+            the hands-back a map from text to series of number,
+            the captured-as a map from text to series of captured-note,
+            the inner-keys a map from text to series of text,
+            the inner-is a map from text to series of number,
+            the inner-holds a map from text to series of number,
+            the inner-local a map from text to fact,
+            the carriers a map from text to node,
+            the cast-notes a map from text to number,
+            the capturing a map from text to fact,
+            the rebound a map from text to fact,
+            the trace-free a map from text to fact,
+            the trace-holding a map from text to fact,
+            the uses-constants a map from text to fact,
+            the frame-constants a map from number to fact,
+            the value-functions a map from text to fact,
+            the getter-reads a map from text to fact,
+            the loose a map from text to fact,
+            the copied-stores a series of copied-store }.
     Done.
 
     // ── Places ────────────────────────────────────────────────────────────
@@ -126,6 +177,12 @@ Pull a book on collections.
 
     Bind number to outer-parameter-base:
         Return -1000001.
+    Done.
+
+    /// A `permanently` constant the body can reach: it lives as long as the program, wherever it is
+    /// named, so a store into one is judged wherever the body is cast.
+    Bind number to constant-place:
+        Return -2147483647.
     Done.
 
     /// The place a captured name at this rabbit depth has in a pair.
@@ -139,12 +196,12 @@ Pull a book on collections.
     Done.
 
     Bind fact to is-outer-parameter, given (the number place):
-        Return place is less than cast outer-parameter-base + 2 and place is not cast outer-unknown.
+        Return place is less than cast outer-parameter-base + 2 and place is greater than cast constant-place.
     Done.
 
     /// The rabbit depth a captured place has in the body it was captured from.
     Bind number to outer-depth, given (the number place):
-        If cast is-outer-parameter on (place), return 0.
+        If cast is-outer-parameter on (place) or place is cast constant-place, return 0.
         Return -3 - place.
     Done.
 
@@ -216,18 +273,180 @@ Pull a book on collections.
 
     /// The names a body written inside another can reach that are not its own, each with its
     /// rabbit depth there — a parameter's is the one that says "nothing can say".
-    Bind map from text to number to captured-names, given (the series of map from text to binding enclosing):
+    Bind map from text to number to captured-names unto checker, given (the series of map from text to binding enclosing):
         Define names as a map from text to number.
         For each scope in enclosing, repeat:
             For each pair in scope, repeat:
                 Define held as the value of pair.
-                If held's shape's kind is not "FunctionType" and cast is-shared on (held) is false:
+                Define free as false.
+                If held's shape's kind is "FunctionType", the free becomes cast one's is-free-function on (the key of pair, held).
+                If free is false and cast is-shared on (held) is false:
                     If held's parameter, in names, the entry for (the key of pair) becomes cast captured-parameter-depth.
                     Otherwise, in names, the entry for (the key of pair) becomes held's depth.
                 Done.
             Done.
         Done.
         Return names.
+    Done.
+
+    /// A function bound by name at the top of the program, outside every block: `IsFreeFunction` in C#.
+    Bind fact to is-free-function unto checker, given (the text name, the binding held):
+        If held's parameter or held's depth is not 0, return false.
+        Define maker-said as held's established-by.
+        If maker-said's kind is not "VariableReference", return false.
+        If cast number-of on (cast field-of on (maker-said, 2)) is not 0 or cast number-of on (cast field-of on (maker-said, 3)) is not 0, return false.
+        Return (the entry for "{name}@{held's line}" in one's stores's inner-functions) is void.
+    Done.
+
+    /// Every name a body says: read, cast, or given a value with `becomes`.
+    Bind void to names-in, given (the node branch, the map from text to fact names):
+        If branch's kind is "VariableReference" or branch's kind is "BecomesStatement":
+            In names, the entry for cast unquoted on (cast field-of on (branch, 1)) becomes true.
+        Done.
+        For each part in branch's children, repeat:
+            Cast names-in on (part, names).
+        Done.
+    Done.
+
+    /// A constant that is or leads to a container.
+    Bind fact to holds-constant unto checker, given (the binding held):
+        If held's shape's kind is "FunctionType" or held's shape's kind is "StashType", return false.
+        Return cast one's leads-to-container on (held's shape).
+    Done.
+
+    /// A name read in a body that is such a constant: the body uses one, and so does each around it.
+    Bind void to note-constant-use unto checker, given (the text name):
+        If one's store-now is 0, return.
+        Define found as cast one's look-up on (name).
+        If found is void, return.
+        If cast is-shared on (found) is false or found's parameter, return.
+        If cast one's holds-constant on (found) is false, return.
+        Define index as one's store-now.
+        While index is greater than 0, repeat:
+            In one's stores's frame-constants, the entry for index becomes true.
+            Define frame as item index of one's stores's frames.
+            The index becomes frame's parent.
+        Done.
+    Done.
+
+    /// Each read of a member that is a getter.
+    Bind void to note-getter-read unto checker, given (the node said):
+        In one's stores's getter-reads, the entry for cast one's framed-place on (one's store-now, said, 3) becomes true.
+    Done.
+
+    /// A value nothing traces may be a constant, when some function nothing can name hands one back: a
+    /// function with no name, one read as a value, a getter or an operator.
+    Bind fact to loose-constants unto checker:
+        Return (the entry for "yes" in one's stores's loose) is not void.
+    Done.
+
+    Bind fact to function-uses-constants unto checker, given (the text stored-as):
+        For each one-key in cast one's behind-key on (stored-as), repeat:
+            If (the entry for one-key in one's stores's uses-constants) is not void, return true.
+        Done.
+        Return false.
+    Done.
+
+    /// Which bodies reach a constant, by their own hand or through a function they cast. Whether any was found.
+    Bind fact to grow-constant-uses unto checker:
+        Define grew as false.
+        For each frame-index in one's stores's closed, repeat:
+            Define frame as item frame-index of one's stores's frames.
+            Define using as (the entry for frame-index in one's stores's frame-constants) is not void.
+            If using is false:
+                For each call-index in frame's calls, repeat:
+                    Define noted as item call-index of one's stores's calls.
+                    If using is false and cast one's function-uses-constants on (noted's callee), the using becomes true.
+                    For each handing in noted's passes, repeat:
+                        If using is false and cast one's function-uses-constants on (handing's handed), the using becomes true.
+                    Done.
+                Done.
+                If using, in one's stores's frame-constants, the entry for frame-index becomes true.
+            Done.
+            If using:
+                Define loosely as frame's summary is "" or frame's summary starts with "lambda@".
+                If frame's summary is not "":
+                    If (the entry for frame's summary in one's stores's uses-constants) is void:
+                        In one's stores's uses-constants, the entry for frame's summary becomes true.
+                        The grew becomes true.
+                    Done.
+                    If (the entry for frame's summary in one's stores's value-functions) is not void, the loosely becomes true.
+                Done.
+                If loosely and cast one's loose-constants is false:
+                    In one's stores's loose, the entry for "yes" becomes true.
+                    The grew becomes true.
+                Done.
+            Done.
+        Done.
+        Return grew.
+    Done.
+
+    Bind fact to reads-through-getter unto checker, given (the node said, the number frame-index):
+        Define reached as said.
+        While cast is-access on (reached's kind), repeat:
+            If reached's kind is "PossessiveAccess" or reached's kind is "RecordNamedAccess":
+                If (the entry for cast one's framed-place on (frame-index, reached, 3) in one's stores's getter-reads) is not void, return true.
+            Done.
+            The reached becomes cast accessed on (reached).
+        Done.
+        Return false.
+    Done.
+
+    /// Notes a function with no name that uses a name from around it.
+    Bind void to note-capturing unto checker, given (the node said, the node parameters, the node body):
+        Define own-names as a map from text to fact.
+        For each parameter in parameters's children, repeat:
+            In own-names, the entry for cast unquoted on (cast field-of on (parameter, 2)) becomes true.
+        Done.
+        Define names as a map from text to fact.
+        Cast names-in on (body, names).
+        For each pair in names, repeat:
+            If (the entry for the key of pair in own-names) is void:
+                Define found as cast one's look-up on (the key of pair).
+                If found is not void:
+                    Define counts as cast is-shared on (found) is false and found's module is false.
+                    If counts and found's shape's kind is "FunctionType":
+                        If cast one's is-free-function on (the key of pair, found), the counts becomes false.
+                    Done.
+                    If counts, in one's stores's capturing, the entry for cast one's framed-place on (one's store-now, said, 3) becomes true.
+                Done.
+            Done.
+        Done.
+    Done.
+
+    /// Where something stands, in one body.
+    Bind text to framed-place unto checker, given (the number frame-index, the node said, the number line-field):
+        Return "{frame-index}\t{cast node-place on (said, line-field)}".
+    Done.
+
+    /// Whether a name leads a function to a container it captured: noted under the function's key.
+    Bind void to note-captured-as unto checker, given (the text summary, the number place, the text name, the text key):
+        Define noted-names as the entry for summary in one's stores's captured-as.
+        If noted-names is void, return.
+        For each noted-name in noted-names, repeat:
+            If noted-name's place is place and noted-name's name is name, return.
+        Done.
+        Insert (a new captured-note { the place place, the name name, the key key }) into noted-names.
+    Done.
+
+    /// What functions written beside this body captured, this one reaches through them.
+    Bind void to reach-through unto checker, given (the store-frame frame, the text beside):
+        If frame's summary is "" or beside is frame's summary, return.
+        If cast one's written-in on (beside) is not frame's parent, return.
+        Define noted-names as the entry for beside in one's stores's captured-as.
+        If noted-names is void, return.
+        For each noted-name in noted-names, repeat:
+            Cast one's note-captured-as on (frame's summary, noted-name's place, noted-name's name, noted-name's key).
+        Done.
+    Done.
+
+    /// How many names functions are known to have captured — it only grows.
+    Bind number to captured-count unto checker:
+        Define counted as 0.
+        For each pair in one's stores's captured-as, repeat:
+            Increment counted by the number of the value of pair.
+        Done.
+        Return counted.
     Done.
 
     /// Begins a body. `summary` is the key its pairs go under, or "" for a body no cast can ask;
@@ -237,11 +456,14 @@ Pull a book on collections.
             the node parameters, the fact with-receiver, the map from text to number reached):
         Define positions as a map from text to number.
         Define referenced as a series of number.
+        Define function-slots as a series of number.
         Define index as 0.
         For each parameter in parameters's children, repeat:
             Define taken as cast one's resolved on (cast field-of on (parameter, 1)).
             In positions, the entry for cast unquoted on (cast field-of on (parameter, 2)) becomes index.
-            If cast is-reference-type on (taken) or taken's kind is "InterfaceType", insert index into referenced.
+            Define holds-one as cast holds-function on (taken).
+            If cast is-reference-type on (taken) or taken's kind is "InterfaceType" or holds-one, insert index into referenced.
+            If holds-one, insert index into function-slots.
             Increment index by 1.
         Done.
         If with-receiver:
@@ -272,10 +494,34 @@ Pull a book on collections.
                 In one's stores's pairs, the entry for summary becomes a series of store-pair.
                 In one's stores's wild, the entry for summary becomes a series of number.
                 In one's stores's relays, the entry for summary becomes a series of store-relay.
+                In one's stores's within-pairs, the entry for summary becomes a series of store-pair.
+                In one's stores's reaches, the entry for summary becomes a series of number.
+                In one's stores's hands-back, the entry for summary becomes a series of number.
+                In one's stores's captured-as, the entry for summary becomes a series of captured-note.
+            Done.
+            If the size of captured is greater than 0:
+                Define names as a map from text to fact.
+                Cast names-in on (body, names).
+                For each pair in names, repeat:
+                    Define captured-place-of as the entry for the key of pair in captured.
+                    If captured-place-of is not void:
+                        Define found as cast one's look-up on (the key of pair).
+                        If found is not void:
+                            If cast one's leads-to-container on (found's shape):
+                                Cast one's note-captured-as on (summary, captured-place-of, the key of pair, cast one's depth-key on (the key of pair)).
+                            Done.
+                        Done.
+                    Done.
+                Done.
+                Define around-key as "{around}".
+                If (the entry for around-key in one's stores's inner-keys) is void, in one's stores's inner-keys, the entry for around-key becomes a series of text.
+                Define inner-list as the entry for around-key in one's stores's inner-keys.
+                If inner-list is not void, insert summary into inner-list.
             Done.
         Done.
         Insert (a new store-frame { the summary summary, the setter setter, the body body, the positions positions,
-            the referenced referenced, the captured captured, the parent around,
+            the referenced referenced, the captured captured, the parent around, the function-slots function-slots,
+            the given-back a series of node, the reached a series of number, the handed-back a series of number,
             the stores a series of store-note, the calls a series of number, the copies a series of home-note }) into one's stores's frames.
         The one's store-now becomes the number of one's stores's frames.
         Return around.
@@ -299,7 +545,7 @@ Pull a book on collections.
         If (the entry for index in one's stores's traced) is not void, return.
         In one's stores's traced, the entry for index becomes true.
         Define frame as item index of one's stores's frames.
-        If the number of frame's stores is 0 and the number of frame's calls is 0 and the number of frame's copies is 0, return.
+        If the number of frame's stores is 0 and the number of frame's calls is 0 and the number of frame's copies is 0 and the number of frame's given-back is 0, return.
         // Traced again at the end, once what the functions it casts store is known (O2) — by then
         // the names a body written inside another reached are out of scope, so what they were is
         // kept the first time.
@@ -331,6 +577,25 @@ Pull a book on collections.
         For each call-index in frame's calls, repeat:
             Define asked as item call-index of one's stores's calls.
             In one's stores's call-pairs, the entry for asked's callee becomes cast one's pairs-of on (asked's callee).
+            In one's stores's call-reaches, the entry for asked's callee becomes cast one's places-of on (asked's callee, one's stores's reaches).
+            In one's stores's call-hands, the entry for asked's callee becomes cast one's places-of on (asked's callee, one's stores's hands-back).
+            Cast one's reach-through on (frame, asked's callee).
+            For each handing in asked's passes, repeat:
+                Cast one's reach-through on (frame, handing's handed).
+            Done.
+        Done.
+        // What the names functions written in this body captured are and hold, kept past the rabbit below.
+        For each inner-key in the entry for "{index}" in one's stores's inner-keys but void is a series of text, repeat:
+            For each noted-name in the entry for inner-key in one's stores's captured-as but void is a series of captured-note, repeat:
+                In one's stores's inner-is, the entry for "{index}\t{noted-name's name}" becomes a series of number.
+                In one's stores's inner-holds, the entry for "{index}\t{noted-name's name}" becomes a series of number.
+            Done.
+        Done.
+        While the number of frame's reached is greater than 0, repeat:
+            Remove item (the number of frame's reached) from frame's reached.
+        Done.
+        While the number of frame's handed-back is greater than 0, repeat:
+            Remove item (the number of frame's handed-back) from frame's handed-back.
         Done.
         Insert index into one's stores's tracing.
         // What the walk makes on the way goes with this rabbit; the places are numbers, and stay.
@@ -338,7 +603,7 @@ Pull a book on collections.
             Define gathered as a series of node.
             Cast gather-depth-nodes on (frame's body, gathered).
             Define split-names as a map from text to fact.
-            Cast split-written-objects on (gathered, split-names).
+            Cast one's split-written-objects on (gathered, split-names).
             Define holds as a map from text to series of number.
             For each held-name in cast one's holding-names on (index, gathered, split-names), repeat:
                 If (the entry for held-name in holds) is void, in holds, the entry for held-name becomes a series of number.
@@ -381,6 +646,14 @@ Pull a book on collections.
                     Insert place into copy's targets.
                 Done.
             Done.
+            For each given-value in frame's given-back, repeat:
+                For each place in cast one's reach-of on (given-value, frame's positions, frame's referenced, locals, frame's captured, holds), repeat:
+                    If cast holds-number on (frame's reached, place) is false, insert place into frame's reached.
+                Done.
+                For each place in cast one's is-of on (given-value, frame's positions, frame's referenced, locals, frame's captured, holds), repeat:
+                    If cast holds-number on (frame's handed-back, place) is false, insert place into frame's handed-back.
+                Done.
+            Done.
         Done.
         Remove item (the number of one's stores's tracing) from one's stores's tracing.
     Done.
@@ -392,7 +665,58 @@ Pull a book on collections.
         Define kind as shape's kind.
         If kind is "SeriesType" or kind is "MapType" or kind is "SetType" or kind is "ChaseType" or kind is "MatrixType" or kind is "ChannelType" or kind is "AddressType", return true.
         If kind is "ObjectType", return cast one's object-holds-container on (cast unquoted on (cast field-of on (shape, 1)), a map from text to fact).
+        Return cast holds-function on (shape).
+    Done.
+
+    /// A function value, or something copied with one inside: what a function captured cannot be
+    /// copied with it, so it stays where it was made, as a container does.
+    Bind fact to holds-function, given (the node shape):
+        Define kind as shape's kind.
+        If kind is "FunctionType" or kind is "StashType", return true.
+        If kind is "VoidableType" or kind is "FailureType", return cast holds-function on (cast field-of on (shape, 1)).
+        If kind is "RecordType":
+            For each part in (cast field-of on (shape, 1))'s children, repeat:
+                If cast holds-function on (part), return true.
+            Done.
+            For each pair in (cast field-of on (shape, 2))'s children, repeat:
+                If cast holds-function on (item 2 of pair's children), return true.
+            Done.
+            Return false.
+        Done.
+        If kind is "UnionType" and cast is-open-union on (shape) is false:
+            For each member in (cast field-of on (shape, 1))'s children, repeat:
+                If cast holds-function on (member), return true.
+            Done.
+        Done.
         Return false.
+    Done.
+
+    /// Whether a value of this type can lead to a container: one itself, or a record, a voidable, a
+    /// union or a failure with one inside. ★ Wider than `holds-container`, which asks what a store must
+    /// not move: one of these is copied where it is stored, and what it leads to is shared all the same.
+    Bind fact to leads-to-container unto checker, given (the node shape):
+        Define kind as shape's kind.
+        If kind is "none", return false.
+        If kind is "InterfaceType", return true.
+        If kind is "RecordType":
+            For each part in (cast field-of on (shape, 1))'s children, repeat:
+                If cast one's leads-to-container on (part), return true.
+            Done.
+            For each pair in (cast field-of on (shape, 2))'s children, repeat:
+                If cast one's leads-to-container on (item 2 of pair's children), return true.
+            Done.
+            Return false.
+        Done.
+        If kind is "VoidableType" or kind is "FailureType", return cast one's leads-to-container on (cast field-of on (shape, 1)).
+        If kind is "UnionType":
+            If cast is-open-union on (shape), return true.
+            For each member in (cast field-of on (shape, 1))'s children, repeat:
+                If cast one's leads-to-container on (member), return true.
+            Done.
+            Return false.
+        Done.
+        If kind is "MappingType", return cast one's leads-to-container on (cast field-of on (shape, 1)) or cast one's leads-to-container on (cast field-of on (shape, 2)).
+        Return cast one's holds-container on (shape).
     Done.
 
     Bind fact to object-holds-container unto checker, given (the text name, the map from text to fact seen):
@@ -450,10 +774,103 @@ Pull a book on collections.
     Bind void to note-store unto checker, given (the node value, the node value-type, the node target, the number at-row,
             the text field-name):
         If one's store-now is 0, return.
-        If cast one's holds-container on (value-type) is false, return.
+        If cast one's leads-to-container on (value-type) is false, return.
         Define frame as item (one's store-now) of one's stores's frames.
+        Define copied as cast one's holds-container on (value-type) is false.
         Insert (a new store-note { the value value, the target target, the line at-row,
-            the sources a series of number, the targets a series of number, the field-name field-name }) into frame's stores.
+            the sources a series of number, the targets a series of number, the field-name field-name,
+            the plain cast one's is-plain-target on (target), the copied copied }) into frame's stores.
+    Done.
+
+    /// What a body hands back that leads to a container.
+    Bind void to note-returned unto checker, given (the node value, the node value-type):
+        If one's store-now is 0 or cast is-nothing on (value), return.
+        If cast is-none on (value-type) is false and cast one's leads-to-container on (value-type) is false, return.
+        Define frame as item (one's store-now) of one's stores's frames.
+        Insert value into frame's given-back.
+    Done.
+
+    /// A literal with something in it that leads to a container, and what it is.
+    Bind void to note-carrier unto checker, given (the node said, the node shape, the number line-field):
+        If cast one's leads-to-container on (shape), in one's stores's carriers, the entry for cast one's framed-place on (one's store-now, said, line-field) becomes shape.
+    Done.
+
+    /// Whether the body being checked gives this name another value.
+    Bind fact to is-rebound unto checker, given (the text name):
+        Define rebound-key as "{one's store-now}\t{name}".
+        Define kept as the entry for rebound-key in one's stores's rebound.
+        If kept is not void, return kept.
+        Define frame as item (one's store-now) of one's stores's frames.
+        Define answer as cast gives-again on (frame's body, name).
+        In one's stores's rebound, the entry for rebound-key becomes answer.
+        Return answer.
+    Done.
+
+    Bind fact to gives-again, given (the node branch, the text name):
+        If branch's kind is "BecomesStatement" and cast unquoted on (cast field-of on (branch, 1)) is name, return true.
+        For each part in branch's children, repeat:
+            If part's kind is not "atom" and cast gives-again on (part, name), return true.
+        Done.
+        Return false.
+    Done.
+
+    /// A parameter of this body, or its receiver, named and nothing more — and never given another value.
+    Bind fact to is-plain-parameter unto checker, given (the node said):
+        If one's store-now is 0 or said's kind is not "VariableReference", return false.
+        Define name as cast unquoted on (cast field-of on (said, 1)).
+        Define frame as item (one's store-now) of one's stores's frames.
+        If (the entry for name in frame's positions) is void, return false.
+        Define found as cast one's look-up on (name).
+        If found is void, return false.
+        Return found's parameter and cast one's is-rebound on (name) is false.
+    Done.
+
+    /// The same, or a name it captured: a store into just that.
+    Bind fact to is-plain-target unto checker, given (the node said):
+        If cast one's is-plain-parameter on (said), return true.
+        If one's store-now is 0 or said's kind is not "VariableReference", return false.
+        Define name as cast unquoted on (cast field-of on (said, 1)).
+        Define frame as item (one's store-now) of one's stores's frames.
+        If (the entry for name in frame's captured) is void, return false.
+        Return cast one's is-rebound on (name) is false.
+    Done.
+
+    /// How deep what an expression gives may live, at the deepest: `LivesAt` in C#. ★ Not
+    /// `depth-of-value`, whose answer for a value with no name is 0: a store of one COPIES it, so there
+    /// 0 is right; handed to a function it is not copied.
+    Bind number to lives-at unto checker, given (the node said):
+        Define kind as said's kind.
+        If kind is "VariableReference":
+            Define found as cast one's look-up on (cast unquoted on (cast field-of on (said, 1))).
+            If found is void, return 0.
+            Return found's depth.
+        Done.
+        If kind is "SeriesAccess" or kind is "MapLookup" or kind is "FailurePropagate", return cast one's lives-at on (cast field-of on (said, 1)).
+        If kind is "PossessiveAccess" or kind is "RecordNamedAccess":
+            Define cached-member as the entry for cast node-place on (said, 3) in one's member-depths.
+            If cached-member is not void, return cached-member.
+            Return cast one's lives-at on (cast accessed on (said)).
+        Done.
+        If kind is "CastExpression":
+            Define cached as the entry for cast node-place on (said, 3) in one's call-depths.
+            If cached is not void, return cached.
+            Return one's rabbit-depth.
+        Done.
+        If cast is-either on (kind):
+            Return cast deeper-of on (cast one's lives-at on (cast field-of on (said, 1)), cast one's lives-at on (cast field-of on (said, 2))).
+        Done.
+        If kind is "ConditionalExpression":
+            Return cast deeper-of on (cast one's lives-at on (cast field-of on (said, 1)), cast one's lives-at on (cast field-of on (said, 3))).
+        Done.
+        If kind is "LambdaLiteral":
+            If (the entry for cast one's framed-place on (one's store-now, said, 3) in one's stores's capturing) is void, return 0.
+        Done.
+        Return one's rabbit-depth.
+    Done.
+
+    Bind number to deeper-of, given (the number first-depth, the number second-depth):
+        If first-depth is greater than second-depth, return first-depth.
+        Return second-depth.
     Done.
 
     /// What ends one argument's places in a cast's flat list of them: no place is this number.
@@ -516,6 +933,7 @@ Pull a book on collections.
         Define name as cast unquoted on (cast field-of on (said, 1)).
         Define at-row as cast number-of on (cast field-of on (said, 2)).
         Define at-column as cast number-of on (cast field-of on (said, 3)).
+        In one's stores's value-functions, the entry for cast one's store-key-of on ("{name}@{found's line}") becomes true.
         Insert (a new function-value { the stored-as cast one's store-key-of on ("{name}@{found's line}"), the name name,
             the line at-row, the column at-column }) into one's stores's values.
         Define owner as cast one's function-parameter-frame on (name).
@@ -573,6 +991,9 @@ Pull a book on collections.
             the map from text to node memo, the text call-place):
         Define depths as a series of number.
         Define holds as a series of fact.
+        Define leads as a series of fact.
+        Define source-depths as a series of number.
+        Define plainly as a series of fact.
         Define shapes as a series of node.
         Define counted as 0.
         For each argument in handed-args, repeat:
@@ -580,14 +1001,25 @@ Pull a book on collections.
             Define shape as the entry for "argument {counted}" in memo but void is cast unknown-type.
             Insert shape into shapes.
             Insert cast one's place-depth on (argument, shape) into depths.
-            Insert (cast is-reference-type on (shape) or shape's kind is "InterfaceType") into holds.
+            Define leading as cast one's leads-to-container on (shape).
+            Insert leading into leads.
+            Insert (leading and cast holds-function on (shape) is false) into holds.
+            Insert cast one's lives-at on (argument) into source-depths.
+            Insert cast one's is-plain-parameter on (argument) into plainly.
         Done.
         Cast one's note-call-floors on (callee, callee-key, handed-args, shapes, receiver, receiver-type, call-place).
         Define receiver-depth as 0.
-        If cast is-none on (receiver) is false, the receiver-depth becomes cast one's place-depth on (receiver, receiver-type).
+        Define receiver-source as 0.
+        Define receiver-plain as false.
+        If cast is-none on (receiver) is false:
+            The receiver-depth becomes cast one's place-depth on (receiver, receiver-type).
+            The receiver-source becomes cast one's lives-at on (receiver).
+            The receiver-plain becomes cast one's is-plain-parameter on (receiver).
+        Done.
         Define passes as a series of store-pass.
         Insert (a new call-note { the callee callee-key, the display display, the handed-args handed-args, the receiver receiver,
-            the given-depths depths, the given-holds holds, the receiver-depth receiver-depth,
+            the given-depths depths, the given-holds holds, the given-leads leads, the receiver-depth receiver-depth,
+            the source-depths source-depths, the receiver-source receiver-source, the given-plain plainly, the receiver-plain receiver-plain,
             the call-depth one's rabbit-depth, the line at-row, the within one's store-now,
             the given-sources a series of number, the receiver-sources a series of number,
             the passes passes }) into one's stores's calls.
@@ -595,6 +1027,7 @@ Pull a book on collections.
             Define frame as item (one's store-now) of one's stores's frames.
             Insert the number of one's stores's calls into frame's calls.
         Done.
+        In one's stores's cast-notes, the entry for "{one's store-now}\t{call-place}" becomes the number of one's stores's calls.
 
         // A function parameter cast anywhere but plainly in its own body, outside every rabbit of
         // that body, may be cast deeper than where it was handed over.
@@ -696,6 +1129,23 @@ Pull a book on collections.
         Return cast pairs-in-order on (all-pairs).
     Done.
 
+    /// Whether one of a function's pairs can reach something its target HOLDS, and not only the target.
+    Bind fact to reaches-within unto checker, given (the text stored-as, the number from-place, the number into-place):
+        For each one-key in cast one's behind-key on (stored-as), repeat:
+            If cast holds-pair on (the entry for one-key in one's stores's within-pairs but void is a series of store-pair, from-place, into-place), return true.
+        Done.
+        Return false.
+    Done.
+
+    /// The places kept for a function — what its result reaches, or may be — over every body behind its key.
+    Bind series of number to places-of unto checker, given (the text stored-as, the map from text to series of number kept-places):
+        Define all-places as a series of number.
+        For each one-key in cast one's behind-key on (stored-as), repeat:
+            Cast union-into on (the entry for one-key in kept-places but void is a series of number, all-places).
+        Done.
+        Return all-places.
+    Done.
+
     /// Whether a function may cast this parameter of its own deeper than it was handed it.
     Bind fact to is-wild unto checker, given (the text stored-as, the number slot):
         If stored-as starts with "interface\t":
@@ -720,10 +1170,26 @@ Pull a book on collections.
     Done.
 
     /// A captured place of some function, in the terms of the body that casts or hands it.
-    Bind series of number to captured-place unto checker, given (the number frame-index, the text stored-as, the number place):
-        If place is cast outer-unknown, return a series with (place).
+    Bind series of number to captured-place unto checker, given (the number frame-index, the text stored-as, the number place, the fact reaching-in):
+        If place is cast constant-place, return a series with (place).
         Define frame as item frame-index of one's stores's frames.
         Define written as cast one's written-in on (stored-as).
+        // Written in this body, capturing names of its own: wherever those may come from.
+        If written is frame-index:
+            Define any-named as false.
+            Define from-names as a series of number.
+            For each noted-name in the entry for stored-as in one's stores's captured-as but void is a series of captured-note, repeat:
+                If noted-name's place is place:
+                    The any-named becomes true.
+                    Cast union-into on (cast one's name-places on (frame-index, noted-name's name), from-names).
+                    If reaching-in:
+                        Cast union-into on (the entry for "{frame-index}\t{noted-name's name}" in one's stores's inner-holds but void is a series of number, from-names).
+                    Done.
+                Done.
+            Done.
+            If any-named, return from-names.
+        Done.
+        If place is cast outer-unknown, return a series with (place).
         // Written in this body: the name is one of this body's own, a parameter or made here.
         If written is frame-index:
             If cast is-outer-parameter on (place), return a series with (cast outer-parameter-base - place).
@@ -734,11 +1200,37 @@ Pull a book on collections.
         Return a series with (cast outer-unknown).
     Done.
 
+    /// Where a name of a body comes from, whatever is in scope now.
+    Bind series of number to name-places unto checker, given (the number frame-index, the text name):
+        Define frame as item frame-index of one's stores's frames.
+        Define places as a series of number.
+        Define known-name as false.
+        Define spot as the entry for name in frame's positions.
+        If spot is not void:
+            The known-name becomes true.
+            If cast holds-number on (frame's referenced, spot), insert spot into places.
+        Done.
+        Otherwise:
+            Define captured-as as the entry for name in frame's captured.
+            If captured-as is not void:
+                The known-name becomes true.
+                Insert captured-as into places.
+            Done.
+        Done.
+        If (the entry for "{frame-index}\t{name}" in one's stores's inner-local) is not void:
+            The known-name becomes true.
+            Cast union-into on (the entry for "{frame-index}\t{name}" in one's stores's inner-is but void is a series of number, places).
+        Done.
+        If known-name, return places.
+        Return cast one's untraced-in on (frame's referenced, frame's captured, true).
+    Done.
+
     /// Everything the receiver of a cast could cast a function it is handed on, in the terms of
     /// the body making the cast.
     Bind series of number to receiver-reach unto checker, given (the number frame-index, the call-note noted):
         Define frame as item frame-index of one's stores's frames.
         Define reach as a series with (-2).
+        If cast one's loose-constants or cast one's function-uses-constants on (noted's callee), insert cast constant-place into reach.
         Define place as 0.
         For each holding in noted's given-holds, repeat:
             Increment place by 1.
@@ -761,14 +1253,17 @@ Pull a book on collections.
 
     /// One store a body makes, by its own hand or through a function it casts: where it may come
     /// from, where it may go, and how to say it.
-    Define object store-event with (the series of number sources, the series of number targets, the number line, the text by-way-of).
+    Define object store-event with (the series of number sources, the series of number targets, the fact reaching-in, the number line, the text by-way-of).
 
     Bind series of store-event to stores-of unto checker, given (the number frame-index):
         Define frame as item frame-index of one's stores's frames.
         Define events as a series of store-event.
         If the number of frame's stores is greater than 0, cast one's trace-frame on (frame-index).
         For each store in frame's stores, repeat:
-            Insert (a new store-event { the sources store's sources, the targets store's targets, the line store's line, the by-way-of "" }) into events.
+            If store's copied is false:
+                Define reaching-in as store's plain is false.
+                Insert (a new store-event { the sources store's sources, the targets store's targets, the reaching-in reaching-in, the line store's line, the by-way-of "" }) into events.
+            Done.
         Done.
         For each call-index in frame's calls, repeat:
             Define noted as item call-index of one's stores's calls.
@@ -776,10 +1271,12 @@ Pull a book on collections.
             If the number of stored is greater than 0:
                 Cast one's trace-frame on (frame-index).
                 For each one-pair in stored, repeat:
-                    Define sources as cast one's place-sources on (frame-index, noted, noted's callee, one-pair's from-place).
-                    Define targets as cast one's place-sources on (frame-index, noted, noted's callee, one-pair's into-place).
+                    Define within-it as cast one's reaches-within on (noted's callee, one-pair's from-place, one-pair's into-place).
+                    Define sources as cast one's place-sources on (frame-index, noted, noted's callee, one-pair's from-place, true).
+                    Define targets as cast one's place-sources on (frame-index, noted, noted's callee, one-pair's into-place, within-it).
                     If sources is not void and targets is not void:
-                        Insert (a new store-event { the sources sources, the targets targets, the line noted's line, the by-way-of noted's display }) into events.
+                        Define reaching-in as within-it or cast plain-at on (noted, one-pair's into-place) is false.
+                        Insert (a new store-event { the sources sources, the targets targets, the reaching-in reaching-in, the line noted's line, the by-way-of noted's display }) into events.
                     Done.
                 Done.
             Done.
@@ -792,9 +1289,10 @@ Pull a book on collections.
                     Define reach as cast one's receiver-reach on (frame-index, noted).
                     For each one-pair in handed-pairs, repeat:
                         Insert (a new store-event {
-                            the sources cast one's handed-side on (frame-index, handing's handed, one-pair's from-place, reach),
-                            the targets cast one's handed-side on (frame-index, handing's handed, one-pair's into-place, reach),
-                            the line noted's line, the by-way-of "the function handed to {noted's display}" }) into events.
+                            the sources cast one's handed-side on (frame-index, handing's handed, one-pair's from-place, reach, true),
+                            the targets cast one's handed-side on (frame-index, handing's handed, one-pair's into-place, reach,
+                                cast one's reaches-within on (handing's handed, one-pair's from-place, one-pair's into-place)),
+                            the reaching-in true, the line noted's line, the by-way-of "the function handed to {noted's display}" }) into events.
                     Done.
                 Done.
             Done.
@@ -802,15 +1300,22 @@ Pull a book on collections.
         Return events.
     Done.
 
-    Bind series of number to handed-side unto checker, given (the number frame-index, the text stored-as, the number place, the series of number reach):
+    Bind series of number to handed-side unto checker, given (the number frame-index, the text stored-as, the number place, the series of number reach, the fact reaching-in):
         If place is -2, return a series with (-2).
         If cast is-outer on (place) is false, return reach.
-        Return cast one's captured-place on (frame-index, stored-as, place).
+        Return cast one's captured-place on (frame-index, stored-as, place, reaching-in).
+    Done.
+
+    /// Whether what a cast hands over at a place is a parameter of the body around it, and nothing more.
+    Bind fact to plain-at, given (the call-note noted, the number place):
+        If place is -1, return noted's receiver-plain.
+        If place is less than 0 or place is not less than the number of noted's given-plain, return false.
+        Return item (place + 1) of noted's given-plain.
     Done.
 
     /// What one side of a callee's pair is, in the terms of the body making the cast — or void.
     Bind voidable series of number to place-sources unto checker, given (the number frame-index, the call-note noted,
-            the text stored-as, the number place):
+            the text stored-as, the number place, the fact reaching-in):
         If place is -2, return a series with (-2).
         If place is -1:
             If cast is-none on (noted's receiver), return void.
@@ -820,12 +1325,18 @@ Pull a book on collections.
             If place is less than the number of noted's handed-args, return cast argument-sources on (noted, place + 1).
             Return void.
         Done.
-        Return cast one's captured-place on (frame-index, stored-as, place).
+        Return cast one's captured-place on (frame-index, stored-as, place, reaching-in).
     Done.
 
     /// 0: nothing to say. 1: a pair of this body's. 2: refused.
     Bind number to store-verdict, given (the store-frame frame, the number from-place, the number into-place):
-        If from-place is into-place or into-place is -2, return 0.
+        If from-place is into-place or into-place is -2 or cast holds-number on (frame's function-slots, into-place), return 0.
+        // A constant outlives everything.
+        If from-place is cast constant-place, return 0.
+        If into-place is cast constant-place and from-place is not cast outer-unknown:
+            If frame's summary is not "", return 1.
+            Return 2.
+        Done.
         If from-place is cast outer-unknown or into-place is cast outer-unknown, return 2.
         // Both captured, at depths known in the body: `check-region-store` judged them there. With
         // a parameter of the body around on either side it is that body's pair, like any other.
@@ -874,25 +1385,130 @@ Pull a book on collections.
             If place is less than the number of noted's given-depths, return item (place + 1) of noted's given-depths.
             Return -1.
         Done.
+        If place is cast constant-place, return 0.
         // A captured depth means something only in the body the callee was written in.
         If cast one's written-in on (noted's callee) is noted's within and place is not cast outer-unknown, return cast outer-depth on (place).
         Return -1.
     Done.
 
+    /// How deep one of a callee's sources may live where it is cast, or -1 when nothing can say.
+    Bind number to source-at-call unto checker, given (the call-note noted, the number place):
+        If place is -1:
+            If cast is-none on (noted's receiver), return -1.
+            Return noted's receiver-source.
+        Done.
+        If place is not less than 0:
+            If place is less than the number of noted's source-depths, return item (place + 1) of noted's source-depths.
+            Return -1.
+        Done.
+        Return cast one's depth-at-call on (noted, place).
+    Done.
+
     Bind void or failure to refuse-at-call unto checker, given (the call-note noted, the number from-place, the number into-place):
-        Define coming as cast one's depth-at-call on (noted, from-place).
+        Define coming as cast one's source-at-call on (noted, from-place).
         Define going as cast one's depth-at-call on (noted, into-place).
         If coming is less than 0 or going is less than 0 or coming is not greater than going, return.
+        Return a failure (cast refused-at-call on (noted, from-place, into-place)).
+    Done.
+
+    /// A cast whose target's name was made deep enough, judged by where the container it names may
+    /// really be (O2): a second name for an outer one, an object holding one. `note-index` is the cast's
+    /// place in the list, which its parts are kept under.
+    Bind void or failure to refuse-at-call-by-floor unto checker, given (the call-note noted, the number note-index,
+            the number from-place, the number into-place, the map from text to number values):
+        Define coming as cast one's source-at-call on (noted, from-place).
+        If coming is less than 1, return.
+        If cast is-outer on (into-place):
+            If coming is greater than cast one's captured-limit on (noted, noted's callee, from-place, into-place, values):
+                Return a failure (cast refused-at-call on (noted, from-place, into-place)).
+            Done.
+            Return.
+        Done.
+        For each part in one's stores's cast-parts, repeat:
+            If part's note is note-index and part's slot is into-place:
+                Define limit as part's term.
+                If part's key is not "" and part's exact:
+                    If cast one's reaches-within on (noted's callee, from-place, into-place) is false, the limit becomes cast term-ref on ("own {part's key}").
+                Done.
+                If coming is greater than cast one's depth-eval on (values, limit), return a failure (cast refused-at-call on (noted, from-place, into-place)).
+                Return.
+            Done.
+        Done.
+    Done.
+
+    /// How far out the names a function captured at a place may really be, where it was written.
+    Bind number to captured-limit unto checker, given (the call-note noted, the text stored-as, the number from-place,
+            the number into-place, the map from text to number values):
+        Define least as cast no-depth.
+        If cast one's written-in on (stored-as) is not noted's within, return least.
+        Define side as "own".
+        If cast one's reaches-within on (stored-as, from-place, into-place), the side becomes "floor".
+        For each noted-name in the entry for stored-as in one's stores's captured-as but void is a series of captured-note, repeat:
+            If noted-name's place is into-place:
+                Define value as cast one's depth-value on (values, "{side} {noted-name's key}").
+                If value is less than least, the least becomes value.
+            Done.
+        Done.
+        Return least.
+    Done.
+
+    /// A function handed over, judged by where the containers it can reach may really be.
+    Bind void or failure to refuse-at-pass-by-floor unto checker, given (the call-note noted, the number note-index,
+            the store-pass handing, the map from text to number values):
+        For each one-pair in cast one's pairs-of on (handing's handed), repeat:
+            Define from-place as one-pair's from-place.
+            Define into-place as one-pair's into-place.
+            If into-place is not -2:
+                Define coming as noted's call-depth.
+                If cast is-outer on (from-place):
+                    The coming becomes 0.
+                    If cast one's written-in on (handing's handed) is noted's within and from-place is not cast outer-unknown, the coming becomes cast outer-depth on (from-place).
+                Done.
+                Otherwise if from-place is not -2:
+                    If noted's receiver-source is greater than coming, the coming becomes noted's receiver-source.
+                    Define place as 0.
+                    For each depth in noted's source-depths, repeat:
+                        Increment place by 1.
+                        If item place of noted's given-holds and depth is greater than coming, the coming becomes depth.
+                    Done.
+                Done.
+                Define limit as cast no-depth.
+                If cast is-outer on (into-place):
+                    The limit becomes cast one's captured-limit on (noted, handing's handed, from-place, into-place, values).
+                Done.
+                Otherwise:
+                    For each part in one's stores's cast-parts, repeat:
+                        If part's note is note-index:
+                            Define value as cast one's depth-eval on (values, part's term).
+                            If value is less than limit, the limit becomes value.
+                        Done.
+                    Done.
+                Done.
+                If coming is greater than limit, return a failure (cast refused-at-pass on (noted, handing, from-place, into-place)).
+            Done.
+        Done.
+    Done.
+
+    Bind text to refused-at-call, given (the call-note noted, the number from-place, the number into-place):
         Define said as "This cast reaches {noted's display}, which stores {cast place-name on (from-place)} into {cast place-name on (into-place)}".
         Define action as "cast it with a value from a shorter-lived region than the container".
         If from-place is -2:
             The said becomes "{said}, and what a function makes lives in the region it is cast in".
             The action becomes "cast it inside a region, on a container from outside that region".
         Done.
-        Return a failure (cast refusal-of on (
+        Return cast refusal-of on (
             "this value lives in a shorter-lived region than its destination — it will be gone when that region ends",
             said, noted's line, action,
-            "Declare the container inside that region too, so both end at its 'Done.', or cast it before the region opens.")).
+            "Declare the container inside that region too, so both end at its 'Done.', or cast it before the region opens.").
+    Done.
+
+    Bind text to refused-at-pass, given (the call-note noted, the store-pass handing, the number from-place, the number into-place):
+        Return cast refusal-of on (
+            "this value lives in a shorter-lived region than its destination — it will be gone when that region ends",
+            "The function handed to {noted's display} stores {cast place-name on (from-place)} into {cast place-name on (into-place)}, and {noted's display} can cast it on anything it is given here or makes here",
+            noted's line,
+            "hand it over as argument {handing's slot + 1}, inside a region, with a container from outside that region in reach",
+            "Declare the container inside that region too, so both end at its 'Done.', or make the cast before the region opens.").
     Done.
 
     Bind void or failure to refuse-at-pass unto checker, given (the call-note noted, the store-pass handing):
@@ -916,14 +1532,19 @@ Pull a book on collections.
             If item place of noted's given-holds:
                 If depth is greater than deepest, the deepest becomes depth.
                 If depth is less than shallowest, the shallowest becomes depth.
+                Define source-depth as item place of noted's source-depths.
+                If source-depth is greater than deepest, the deepest becomes source-depth.
+                If source-depth is less than shallowest, the shallowest becomes source-depth.
             Done.
         Done.
         If cast is-none on (noted's receiver) is false:
             If noted's receiver-depth is greater than deepest, the deepest becomes noted's receiver-depth.
             If noted's receiver-depth is less than shallowest, the shallowest becomes noted's receiver-depth.
+            If noted's receiver-source is greater than deepest, the deepest becomes noted's receiver-source.
+            If noted's receiver-source is less than shallowest, the shallowest becomes noted's receiver-source.
         Done.
         // What the receiver captured is no deeper than where the receiver was written.
-        If cast one's captures-names on (noted's callee), the shallowest becomes 0.
+        If cast one's captures-names on (noted's callee) or cast one's loose-constants or cast one's function-uses-constants on (noted's callee), the shallowest becomes 0.
 
         For each one-pair in stored, repeat:
             If one-pair's into-place is not -2:
@@ -938,14 +1559,10 @@ Pull a book on collections.
                 If cast is-outer on (one-pair's into-place):
                     The into-shallowest becomes -1.
                     If written and one-pair's into-place is not cast outer-unknown, the into-shallowest becomes cast outer-depth on (one-pair's into-place).
+                    If one-pair's into-place is cast constant-place, the into-shallowest becomes 0.
                 Done.
                 If from-deepest is not less than 0 and into-shallowest is not less than 0 and from-deepest is greater than into-shallowest:
-                    Return a failure (cast refusal-of on (
-                        "this value lives in a shorter-lived region than its destination — it will be gone when that region ends",
-                        "The function handed to {noted's display} stores {cast place-name on (one-pair's from-place)} into {cast place-name on (one-pair's into-place)}, and {noted's display} can cast it on anything it is given here or makes here",
-                        noted's line,
-                        "hand it over as argument {handing's slot + 1}, inside a region, with a container from outside that region in reach",
-                        "Declare the container inside that region too, so both end at its 'Done.', or make the cast before the region opens.")).
+                    Return a failure (cast refused-at-pass on (noted, handing, one-pair's from-place, one-pair's into-place)).
                 Done.
             Done.
         Done.
@@ -988,12 +1605,26 @@ Pull a book on collections.
     // compiler copies the value, when the program runs, into the region the target lives in.
 
     /// A store of something held in a region that holds no container, met inside a body.
-    Bind void to note-home-copy unto checker, given (the node statement, the text mark, the node value-type, the node target):
-        If one's store-now is 0, return.
+    Bind void to note-home-copy unto checker, given (the node statement, the text mark, the node value, the node value-type, the node target):
         If cast one's is-region-bearing on (value-type) is false or cast one's holds-container on (value-type), return.
         If value-type's kind is "FunctionType" or value-type's kind is "StashType", return.
+        // The target may live further out than its name was made, wherever it is written (O2).
+        Define upper as cast one's escaping-from on (value, value-type).
+        If upper is greater than 0:
+            Insert (a new copied-store { the upper upper, the limit cast one's limit-of on (target),
+                the copied-to cast one's escape-depth-for on (value, value-type, cast one's container-depth on (target)),
+                the statement statement, the mark mark }) into one's stores's copied-stores.
+        Done.
+        If one's store-now is 0, return.
         Define frame as item (one's store-now) of one's stores's frames.
         Insert (a new home-note { the statement statement, the mark mark, the target target, the targets a series of number }) into frame's copies.
+    Done.
+
+    /// How far out the place a target names may be.
+    Bind depth-term to limit-of unto checker, given (the node target):
+        Define reach as cast one's depth-target on (target).
+        If reach's key is not "" and reach's exact, return cast term-ref on ("own {reach's key}").
+        Return cast one's floor-term on (target, cast unknown-type).
     Done.
 
     /// Every such store whose target may be something from outside the body, or something that
@@ -1037,6 +1668,7 @@ Pull a book on collections.
         // that stores into it stores into it too. The same for a function parameter handed on to a
         // function that casts it deeper.
         Define changed as true.
+        Define captured-before as cast one's captured-count.
         While changed, repeat:
             The changed becomes false.
             // What a body's names hold depends on what the functions it casts store, which is what
@@ -1061,7 +1693,19 @@ Pull a book on collections.
             Done.
             For each frame-index in one's stores's closed, repeat:
                 Define frame as item frame-index of one's stores's frames.
+                If frame's summary is not "" and the number of frame's given-back is greater than 0:
+                    Cast one's trace-frame on (frame-index).
+                    Define kept-reaches as the entry for frame's summary in one's stores's reaches.
+                    If kept-reaches is not void:
+                        If cast grew-into on (frame's reached, kept-reaches), the changed becomes true.
+                    Done.
+                    Define kept-hands as the entry for frame's summary in one's stores's hands-back.
+                    If kept-hands is not void:
+                        If cast grew-into on (frame's handed-back, kept-hands), the changed becomes true.
+                    Done.
+                Done.
                 If frame's summary is not "" and cast one's has-stores on (frame):
+                    Define kept-within as the entry for frame's summary in one's stores's within-pairs but void is a series of store-pair.
                     Define kept as the entry for frame's summary in one's stores's pairs.
                     If kept is not void:
                         For each event in cast one's stores-of on (frame-index), repeat:
@@ -1072,6 +1716,10 @@ Pull a book on collections.
                                             Insert (a new store-pair { the from-place from-place, the into-place into-place }) into kept.
                                             The changed becomes true.
                                         Done.
+                                        If event's reaching-in and cast holds-pair on (kept-within, from-place, into-place) is false:
+                                            Insert (a new store-pair { the from-place from-place, the into-place into-place }) into kept-within.
+                                            The changed becomes true.
+                                        Done.
                                     Done.
                                 Done.
                             Done.
@@ -1079,8 +1727,11 @@ Pull a book on collections.
                     Done.
                 Done.
             Done.
+            Define captured-now as cast one's captured-count.
+            If captured-now is not captured-before, the changed becomes true.
+            The captured-before becomes captured-now.
+            If cast one's grow-constant-uses, the changed becomes true.
         Done.
-        Cast one's mark-home-copies.
 
         For each frame-index in one's stores's closed, repeat:
             Define frame as item frame-index of one's stores's frames.
@@ -1132,7 +1783,7 @@ Pull a book on collections.
     // ★ A name's rabbit depth says where the NAME was made, which is no help when what it reaches
     // was made further out: a second name for an outer series, an object made here holding one
     // from outside, an element of a table. So each binding carries two more numbers, under
-    // `name@line`, both starting at its rabbit depth and only ever lowered: its OWN (no deeper
+    // `name@<its own number>`, both starting at its rabbit depth and only ever lowered: its OWN (no deeper
     // than the container the name itself is) and its FLOOR (no deeper than anything reachable
     // through it). Nothing is lowered as it is met: each statement that could lower one is written
     // down as a BOUND, and the bounds are solved together once everything has been checked, when
@@ -1143,7 +1794,8 @@ Pull a book on collections.
     // ★ A field of an object WRITTEN OUT in a `Define` is a name of its own, `K.field`: the object
     // is held by value, so its field is the very series that was put there.
     //
-    // C# keeps the same numbers under the same keys (`TypeChecker.Stores.cs`).
+    // C# keeps the same numbers (`TypeChecker.Stores.cs`). ⚠ Under each binding's own number and not its
+    // line, which is one file's: a program is many.
 
     /// No depth at all: what a term that names nothing is.
     Bind number to no-depth:
@@ -1182,7 +1834,7 @@ Pull a book on collections.
     Bind text to depth-key unto checker, given (the text name):
         Define found as cast one's look-up on (name).
         If found is void, return "".
-        Define key as "{name}@{found's line}".
+        Define key as "{name}@{found's serial}".
         If (the entry for key in one's stores's depth-starts) is void:
             In one's stores's depth-starts, the entry for key becomes cast start-depth on (name, found).
         Done.
@@ -1283,7 +1935,8 @@ Pull a book on collections.
 
     Bind fact to is-made-here, given (the text kind):
         Return kind is "SeriesLiteral" or kind is "MapLiteral" or kind is "SetLiteral" or kind is "ChaseLiteral" or kind is "ObjectLiteral" or kind is "MatrixLiteral"
-            or kind is "MatrixSized" or kind is "RangeExpression" or kind is "ChannelCreation" or kind is "DeliveryExpression".
+            or kind is "MatrixSized" or kind is "RangeExpression" or kind is "ChannelCreation" or kind is "DeliveryExpression"
+            or kind is "AwaitedResultExpression" or kind is "TextSplit" or kind is "SortExpression" or kind is "SeriesReverse".
     Done.
 
     Bind fact to is-either, given (the text kind):
@@ -1293,6 +1946,10 @@ Pull a book on collections.
     /// How deep the container an expression IS may lie, at the lowest.
     Bind depth-term to own-term unto checker, given (the node said, the node shape):
         Define kind as said's kind.
+        If shape's kind is "FunctionType" or shape's kind is "StashType", return cast depth-term-of on (cast no-depth).
+        // An object is held by value, so a name given one has its own, wherever it came from. So is a
+        // record, and anything else that is copied.
+        If shape's kind is "ObjectType" or shape's kind is "RecordType", return cast depth-term-of on (one's rabbit-depth).
         If kind is "VariableReference":
             Define key as cast one's depth-key on (cast unquoted on (cast field-of on (said, 1))).
             If key is "", return cast depth-term-of on (0).
@@ -1300,6 +1957,15 @@ Pull a book on collections.
         Done.
         If cast is-either on (kind):
             Return cast term-with on (cast one's own-term on (cast field-of on (said, 1), shape), cast one's own-term on (cast field-of on (said, 2), shape)).
+        Done.
+        If kind is "ConditionalExpression":
+            Return cast term-with on (cast one's own-term on (cast field-of on (said, 1), shape), cast one's own-term on (cast field-of on (said, 3), shape)).
+        Done.
+        If kind is "FailurePropagate", return cast one's own-term on (cast field-of on (said, 1), shape).
+        If kind is "CastExpression":
+            Define cast-result as the entry for cast node-place on (said, 3) in one's stores's cast-terms.
+            If cast-result is void, return cast depth-term-of on (0).
+            Return cast own-of-result on (cast-result).
         Done.
         If cast is-made-here on (kind), return cast depth-term-of on (one's rabbit-depth).
         If cast is-access on (kind):
@@ -1326,6 +1992,8 @@ Pull a book on collections.
     /// it holds, when known: it says which items of something written out can hold a container.
     Bind depth-term to floor-term unto checker, given (the node said, the node shape):
         Define kind as said's kind.
+        // Nothing can be stored into a function, so nothing is reached through one.
+        If shape's kind is "FunctionType" or shape's kind is "StashType", return cast depth-term-of on (cast no-depth).
         If kind is "VariableReference":
             Define key as cast one's depth-key on (cast unquoted on (cast field-of on (said, 1))).
             If key is "", return cast depth-term-of on (0).
@@ -1337,7 +2005,7 @@ Pull a book on collections.
             Define items-count as true.
             If shape's kind is "SeriesType":
                 The element becomes cast field-of on (shape, 1).
-                The items-count becomes cast one's holds-container on (element).
+                The items-count becomes cast one's leads-to-container on (element).
             Done.
             If items-count:
                 For each piece in (cast field-of on (said, 1))'s children, repeat:
@@ -1354,8 +2022,8 @@ Pull a book on collections.
             If shape's kind is "MapType":
                 The key-shape becomes cast field-of on (shape, 1).
                 The value-shape becomes cast field-of on (shape, 2).
-                The keys-count becomes cast one's holds-container on (key-shape).
-                The values-count becomes cast one's holds-container on (value-shape).
+                The keys-count becomes cast one's leads-to-container on (key-shape).
+                The values-count becomes cast one's leads-to-container on (value-shape).
             Done.
             For each pair in (cast field-of on (said, 3))'s children, repeat:
                 If keys-count, the term becomes cast term-with on (term, cast one's floor-term on (cast field-of on (pair, 1), key-shape)).
@@ -1394,6 +2062,43 @@ Pull a book on collections.
         If cast is-either on (kind):
             Return cast term-with on (cast one's floor-term on (cast field-of on (said, 1), shape), cast one's floor-term on (cast field-of on (said, 2), shape)).
         Done.
+        If kind is "ConditionalExpression":
+            Return cast term-with on (cast one's floor-term on (cast field-of on (said, 1), shape), cast one's floor-term on (cast field-of on (said, 3), shape)).
+        Done.
+        If kind is "FailurePropagate", return cast one's floor-term on (cast field-of on (said, 1), shape).
+        If kind is "RecordLiteral":
+            Define record-place as 0.
+            For each piece in (cast field-of on (said, 1))'s children, repeat:
+                Increment record-place by 1.
+                Define piece-shape as cast unknown-type.
+                Define piece-counts as true.
+                If shape's kind is "RecordType":
+                    Define piece-shapes as (cast field-of on (shape, 1))'s children.
+                    If record-place is not greater than the number of piece-shapes:
+                        The piece-shape becomes item record-place of piece-shapes.
+                        The piece-counts becomes cast one's leads-to-container on (piece-shape).
+                    Done.
+                Done.
+                If piece-counts, the term becomes cast term-with on (term, cast one's floor-term on (piece, piece-shape)).
+            Done.
+            For each pair in (cast field-of on (said, 2))'s children, repeat:
+                Define named-shape as cast unknown-type.
+                Define named-counts as true.
+                If shape's kind is "RecordType":
+                    Define named-field as cast unquoted on (cast field-of on (pair, 1)).
+                    For each shape-pair in (cast field-of on (shape, 2))'s children, repeat:
+                        If cast unquoted on (cast field-of on (shape-pair, 1)) is named-field:
+                            The named-shape becomes cast field-of on (shape-pair, 2).
+                            The named-counts becomes cast one's leads-to-container on (named-shape).
+                        Done.
+                    Done.
+                Done.
+                If named-counts, the term becomes cast term-with on (term, cast one's floor-term on (cast field-of on (pair, 2), named-shape)).
+            Done.
+            Return term.
+        Done.
+        // A new series of the same things.
+        If kind is "SortExpression" or kind is "SeriesReverse", return cast term-with on (term, cast one's floor-term on (cast field-of on (said, 1), shape)).
         If kind is "CastExpression":
             Define kept-term as the entry for cast node-place on (said, 3) in one's stores's cast-terms.
             If kept-term is void, return cast depth-term-of on (0).
@@ -1402,8 +2107,10 @@ Pull a book on collections.
         If cast is-made-here on (kind), return term.
         If cast is-access on (kind):
             Define reach as cast one's depth-target on (said).
-            If reach's key is not "", return cast term-ref on ("floor {reach's key}").
-            Return cast one's floor-term on (cast access-root on (said), cast unknown-type).
+            Define reached-term as cast term-ref on ("floor {reach's key}").
+            If reach's key is "", the reached-term becomes cast one's floor-term on (cast access-root on (said), cast unknown-type).
+            If cast one's reads-through-getter on (said, one's store-now), the reached-term becomes cast term-with on (reached-term, cast term-ref on ("floor getter#")).
+            Return reached-term.
         Done.
         Return cast depth-term-of on (0).
     Done.
@@ -1414,11 +2121,29 @@ Pull a book on collections.
         Define floored as cast one's floor-term on (said, shape).
         Define owned as floored.
         If element is false, the owned becomes cast one's own-term on (said, shape).
+        // An object met in a loop is a copy, as one in a `Define` is; so is a record.
+        If element and shape's kind is "SeriesType":
+            Define element-kind as (cast field-of on (shape, 1))'s kind.
+            If element-kind is "ObjectType" or element-kind is "RecordType", the owned becomes cast depth-term-of on (one's rabbit-depth).
+        Done.
         // The name it came from can now be reached through this one, so whatever this one is
         // given reaches that one too.
         Define back as a series of text.
         Define reach as cast one's depth-target on (said).
         If reach's key is not "", the back becomes cast one's targets-of on (reach's key, reach's exact, false).
+        // And through a literal, a choice or a call, every name in it that leads to a container.
+        If cast is-access on (said's kind) is false and said's kind is not "VariableReference":
+            For each shared-name in cast shared-names on (said), repeat:
+                Define shared-found as cast one's look-up on (shared-name).
+                If shared-found is not void:
+                    If cast one's leads-to-container on (shared-found's shape):
+                        For each shared-target in cast one's targets-of on (cast one's depth-key on (shared-name), false, false), repeat:
+                            Insert shared-target into back.
+                        Done.
+                    Done.
+                Done.
+            Done.
+        Done.
         // An object written out straight into a name: each field that can hold a container is a
         // name of its own, `key.field`, starting from what it was written with.
         Define fields as a series of field-given.
@@ -1476,17 +2201,18 @@ Pull a book on collections.
     /// writes, whose target is the object, or is "".
     Bind void to note-floor-store unto checker, given (the node value, the node value-type, the node target,
             the text field-name, the number at-row, the text action):
-        If cast one's holds-container on (value-type) is false, return.
-        Define upper as cast one's depth-of-value on (value, value-type).
+        If cast one's leads-to-container on (value-type) is false, return.
+        // A value with no name is copied to where the target's own name was made, when that is further
+        // out than here; otherwise it stays where it is.
+        Define upper as -1.
+        If cast one's copies-out on (value-type, a map from text to fact):
+            The upper becomes cast one's escape-depth-for on (value, value-type, cast one's container-depth on (target)).
+        Done.
+        If upper is less than 0, the upper becomes cast one's lives-at on (value).
         Define reach as cast one's depth-target on (target).
         Define stored as cast one's floor-term on (value, value-type).
-        Define limit as cast depth-term-of on (0).
-        If reach's key is "":
-            The limit becomes cast one's floor-term on (target, cast unknown-type).
-        Done.
-        Otherwise:
-            If reach's exact, the limit becomes cast term-ref on ("own {reach's key}").
-            Otherwise, the limit becomes cast term-ref on ("floor {reach's key}").
+        Define limit as cast one's limit-of on (target).
+        If reach's key is not "":
             Define field-set as false.
             If field-name is not "" and reach's exact:
                 If cast one's is-split-field on (reach's key, field-name), the field-set becomes true.
@@ -1500,7 +2226,8 @@ Pull a book on collections.
                 Cast one's bound on ("floor {reach's key}", stored).
             Done.
         Done.
-        If upper is greater than 0:
+        // One that is copied is never refused; what it leads to is in the target's reach all the same.
+        If upper is greater than 0 and cast one's holds-container on (value-type):
             Insert (a new floor-store { the upper upper, the limit limit, the line at-row, the action action }) into one's stores's floor-stores.
         Done.
     Done.
@@ -1511,28 +2238,21 @@ Pull a book on collections.
     Bind void to note-call-floors unto checker, given (the node callee, the text callee-key, the series of node handed-args,
             the series of node shapes, the node receiver, the node receiver-type, the text call-place):
         Define note-index as the number of one's stores's cast-floor-notes + 1.
-        Insert (a new cast-floor-note { the callee callee-key, the depth one's rabbit-depth }) into one's stores's cast-floor-notes.
-        Define handed as a new depth-term { the least cast no-depth, the keys a series of text }.
-        Define parts-count as 0.
         Define place as 0.
         For each argument in handed-args, repeat:
             Increment place by 1.
             Define shape as item place of shapes.
-            If cast one's holds-container on (shape):
+            If cast one's leads-to-container on (shape):
                 Define reach as cast one's depth-target on (argument).
                 Define term as cast one's floor-term on (argument, shape).
                 Insert (a new cast-part { the note note-index, the slot place - 1, the key reach's key, the exact reach's exact, the term term }) into one's stores's cast-parts.
-                The handed becomes cast term-with on (handed, term).
-                Increment parts-count by 1.
             Done.
         Done.
         If cast is-none on (receiver) is false:
-            If cast one's holds-container on (receiver-type):
+            If cast one's leads-to-container on (receiver-type):
                 Define receiver-reach as cast one's depth-target on (receiver).
                 Define receiver-term as cast one's floor-term on (receiver, receiver-type).
                 Insert (a new cast-part { the note note-index, the slot -1, the key receiver-reach's key, the exact receiver-reach's exact, the term receiver-term }) into one's stores's cast-parts.
-                The handed becomes cast term-with on (handed, receiver-term).
-                Increment parts-count by 1.
             Done.
         Done.
         Define named as cast is-none on (receiver) is false.
@@ -1548,14 +2268,93 @@ Pull a book on collections.
                 Done.
             Done.
         Done.
-        Define cast-term as cast depth-term-of on (0).
-        If named:
-            If parts-count is 0, the cast-term becomes cast depth-term-of on (one's rabbit-depth).
-            Otherwise, the cast-term becomes handed.
-        Done.
+        // A name of its own for what it hands back, bounded once it is known what that can reach.
+        Define result-key as "cast#{note-index}".
+        In one's stores's depth-starts, the entry for result-key becomes one's rabbit-depth.
+        Insert (a new cast-floor-note { the callee callee-key, the depth one's rabbit-depth, the named named }) into one's stores's cast-floor-notes.
+        Define cast-term as cast term-ref on ("floor {result-key}").
         Define kept-term as the entry for call-place in one's stores's cast-terms.
         If kept-term is not void, the cast-term becomes cast term-with on (kept-term, cast-term).
         In one's stores's cast-terms, the entry for call-place becomes cast-term.
+    Done.
+
+    /// Where what a cast hands back IS, given where what it reaches is.
+    Bind depth-term to own-of-result, given (the depth-term floored):
+        Define keys as a series of text.
+        For each key-name in floored's keys, repeat:
+            If key-name starts with "floor cast#", insert "own {the characters from 7 to the end of key-name}" into keys.
+            Otherwise, insert key-name into keys.
+        Done.
+        Return a new depth-term { the least floored's least, the keys keys }.
+    Done.
+
+    /// The names a value can share something with: those in it, but for what only names or measures one.
+    Bind series of text to shared-names, given (the node said):
+        Define names as a series of text.
+        Cast gather-shared-names on (said, names).
+        Return names.
+    Done.
+
+    Bind void to gather-shared-names, given (the node said, the series of text names):
+        Define kind as said's kind.
+        If kind is "VariableReference":
+            Insert cast unquoted on (cast field-of on (said, 1)) into names.
+            Return.
+        Done.
+        If kind is "SeriesLiteral":
+            For each piece in (cast field-of on (said, 1))'s children, repeat:
+                Cast gather-shared-names on (piece, names).
+            Done.
+            Return.
+        Done.
+        If kind is "MapLiteral":
+            For each pair in (cast field-of on (said, 3))'s children, repeat:
+                Cast gather-shared-names on (cast field-of on (pair, 1), names).
+                Cast gather-shared-names on (cast field-of on (pair, 2), names).
+            Done.
+            Return.
+        Done.
+        If kind is "RecordLiteral":
+            For each piece in (cast field-of on (said, 1))'s children, repeat:
+                Cast gather-shared-names on (piece, names).
+            Done.
+            For each pair in (cast field-of on (said, 2))'s children, repeat:
+                Cast gather-shared-names on (cast field-of on (pair, 2), names).
+            Done.
+            Return.
+        Done.
+        If kind is "ObjectLiteral":
+            For each piece in (cast field-of on (said, 2))'s children, repeat:
+                Cast gather-shared-names on (piece, names).
+            Done.
+            For each pair in (cast field-of on (said, 3))'s children, repeat:
+                Cast gather-shared-names on (cast field-of on (pair, 2), names).
+            Done.
+            Return.
+        Done.
+        If cast is-either on (kind):
+            Cast gather-shared-names on (cast field-of on (said, 1), names).
+            Cast gather-shared-names on (cast field-of on (said, 2), names).
+            Return.
+        Done.
+        If kind is "ConditionalExpression":
+            Cast gather-shared-names on (cast field-of on (said, 1), names).
+            Cast gather-shared-names on (cast field-of on (said, 3), names).
+            Return.
+        Done.
+        If kind is "FailurePropagate" or kind is "SortExpression" or kind is "SeriesReverse":
+            Cast gather-shared-names on (cast field-of on (said, 1), names).
+            Return.
+        Done.
+        If kind is "CastExpression":
+            Define callee as cast field-of on (said, 1).
+            If callee's kind is "PossessiveAccess", cast gather-shared-names on (cast field-of on (callee, 1), names).
+            For each piece in (cast field-of on (said, 2))'s children, repeat:
+                Cast gather-shared-names on (piece, names).
+            Done.
+            Return.
+        Done.
+        If cast is-access on (kind), cast gather-shared-names on (cast access-root on (said), names).
     Done.
 
     /// Whether what a function stores is known: a body was checked for it, or it is an
@@ -1574,6 +2373,7 @@ Pull a book on collections.
             For each part in one's stores's cast-parts, repeat:
                 If part's note is note-index, insert part into parts.
             Done.
+            Cast one's bound-result on (noted, note-index, parts).
             If cast one's stores-known on (noted's callee):
                 For each one-pair in cast one's pairs-of on (noted's callee), repeat:
                     For each into-part in parts, repeat:
@@ -1625,6 +2425,34 @@ Pull a book on collections.
         Done.
     Done.
 
+    /// What a cast hands back is no deeper than what it can reach of what it was given.
+    Bind void to bound-result unto checker, given (the cast-floor-note noted, the number note-index, the series of cast-part parts):
+        Define owned-key as "own cast#{note-index}".
+        Define floored-key as "floor cast#{note-index}".
+        If noted's named is false:
+            Cast one's bound on (owned-key, cast depth-term-of on (0)).
+            Cast one's bound on (floored-key, cast depth-term-of on (0)).
+            Return.
+        Done.
+        Define known-callee as cast one's stores-known on (noted's callee).
+        Define reaches as a series of number.
+        Define hands-back as a series of number.
+        If known-callee:
+            The reaches becomes cast one's places-of on (noted's callee, one's stores's reaches).
+            The hands-back becomes cast one's places-of on (noted's callee, one's stores's hands-back).
+        Done.
+        For each part in parts, repeat:
+            If known-callee is false or cast holds-number on (reaches, part's slot), cast one's bound on (floored-key, part's term).
+            If known-callee is false or cast holds-number on (hands-back, part's slot), cast one's bound on (owned-key, part's term).
+        Done.
+        For each place in reaches, repeat:
+            If cast is-outer on (place), cast one's bound on (floored-key, cast depth-term-of on (0)).
+        Done.
+        For each place in hands-back, repeat:
+            If cast is-outer on (place), cast one's bound on (owned-key, cast depth-term-of on (0)).
+        Done.
+    Done.
+
     Bind number to depth-value unto checker, given (the map from text to number values, the text bounded):
         Define held as the entry for bounded in values.
         If held is not void, return held.
@@ -1644,6 +2472,8 @@ Pull a book on collections.
     /// The bounds solved together, and every store written down judged against the solution.
     Bind void or failure to judge-floor-stores unto checker:
         Cast one's bound-casts.
+        In one's stores's depth-starts, the entry for "getter#" becomes cast no-depth.
+        If cast one's loose-constants, cast one's bound on ("floor getter#", cast depth-term-of on (0)).
         Define values as a map from text to number.
         Define changed as true.
         While changed, repeat:
@@ -1664,6 +2494,31 @@ Pull a book on collections.
                     "Declare the container inside that region too, so both end at its 'Done.', or make the value before the region opens, so it lives as long as the container.")).
             Done.
         Done.
+        Define call-index as 0.
+        For each noted in one's stores's calls, repeat:
+            Increment call-index by 1.
+            If cast one's stores-anything on (noted's callee):
+                For each one-pair in cast one's pairs-of on (noted's callee), repeat:
+                    Cast one's refuse-at-call-by-floor on (noted, call-index, one-pair's from-place, one-pair's into-place, values) or pass the failure off.
+                Done.
+            Done.
+            For each handing in noted's passes, repeat:
+                If cast one's stores-anything on (handing's handed):
+                    Cast one's refuse-at-pass-by-floor on (noted, call-index, handing, values) or pass the failure off.
+                Done.
+            Done.
+        Done.
+        // One that is copied goes to where its target lives, when that may be further out than the
+        // depth its name says.
+        For each copied-one in one's stores's copied-stores, repeat:
+            Define limit as cast one's depth-eval on (values, copied-one's limit).
+            If copied-one's upper is greater than limit:
+                If copied-one's copied-to is less than 0 or limit is less than copied-one's copied-to:
+                    Cast note on (copied-one's statement, copied-one's mark, cast numeral on (-1)).
+                Done.
+            Done.
+        Done.
+        Cast one's mark-home-copies.
     Done.
 
     // ── What a name in a body holds (O2, for the store rule's walk) ──────────
@@ -1679,8 +2534,14 @@ Pull a book on collections.
                 Define constant as false.
                 Define callee-key as "".
                 If found is not void:
-                    If cast is-shared on (found) and found's parameter is false, the constant becomes true.
-                    If found's shape's kind is "FunctionType", the callee-key becomes "{name}@{found's line}".
+                    If cast is-shared on (found) and found's parameter is false:
+                        The constant becomes true.
+                        In one's stores's trace-holding, the entry for memo-key becomes cast one's holds-constant on (found).
+                    Done.
+                    If found's shape's kind is "FunctionType":
+                        The callee-key becomes "{name}@{found's line}".
+                        In one's stores's trace-free, the entry for memo-key becomes cast one's is-free-function on (name, found).
+                    Done.
                 Done.
                 In one's stores's trace-constants, the entry for memo-key becomes constant.
                 In one's stores's trace-keys, the entry for memo-key becomes callee-key.
@@ -1711,6 +2572,18 @@ Pull a book on collections.
         Return cast is-shared on (found) and found's parameter is false.
     Done.
 
+    /// Whether such a constant is or leads to a container.
+    Bind fact to traced-holding unto checker, given (the text name):
+        Define index as cast one's remembering.
+        If index is greater than 0:
+            Define kept as the entry for "{index}\t{name}" in one's stores's trace-holding.
+            If kept is not void, return kept.
+        Done.
+        Define found as cast one's look-up on (name).
+        If found is void, return false.
+        Return cast one's holds-constant on (found).
+    Done.
+
     /// The key a name's function keeps its signature under, or "".
     Bind text to traced-callee-key unto checker, given (the text name):
         Define index as cast one's remembering.
@@ -1722,6 +2595,24 @@ Pull a book on collections.
         If found is void, return "".
         If found's shape's kind is not "FunctionType", return "".
         Return "{name}@{found's line}".
+    Done.
+
+    /// Whether a name that holds a function is free of every block: "" for no function, or "yes" or "no".
+    Bind text to traced-free unto checker, given (the text name):
+        Define index as cast one's remembering.
+        If index is greater than 0:
+            If (the entry for "{index}\t{name}" in one's stores's trace-keys) is not void:
+                Define kept as the entry for "{index}\t{name}" in one's stores's trace-free.
+                If kept is void, return "".
+                If kept, return "yes".
+                Return "no".
+            Done.
+        Done.
+        Define found as cast one's look-up on (name).
+        If found is void, return "".
+        If found's shape's kind is not "FunctionType", return "".
+        If cast one's is-free-function on (name, found), return "yes".
+        Return "no".
     Done.
 
     /// The name an expression starts from in the walk — `L.f` for a field of an object the body
@@ -1750,11 +2641,184 @@ Pull a book on collections.
         Return a new depth-reach { the key name, the exact plain-name }.
     Done.
 
-    /// Where an expression's value may come from, and what its root was given.
+    /// The body being traced.
+    Bind number to tracing-now unto checker:
+        If the number of one's stores's tracing is 0, return 0.
+        Return item (the number of one's stores's tracing) of one's stores's tracing.
+    Done.
+
+    /// The cast written down for an expression, or 0.
+    Bind number to traced-cast unto checker, given (the node said):
+        Return (the entry for cast one's framed-place on (cast one's tracing-now, said, 3) in one's stores's cast-notes but void is 0).
+    Done.
+
+    /// What a literal carries, when something in it leads to a container; else `none`.
+    Bind node to traced-carrier unto checker, given (the node said, the number line-field):
+        Return (the entry for cast one's framed-place on (cast one's tracing-now, said, line-field) in one's stores's carriers but void is cast unknown-type).
+    Done.
+
+    /// Some places of a function, in the terms of the body casting it: `HandedBack` in C#.
+    Bind series of number to handed-back-places unto checker, given (the call-note noted, the series of number places, the map from text to number positions,
+            the series of number referenced, the map from text to series of number locals,
+            the map from text to number captured, the map from text to series of number holds):
+        Define all-places as a series of number.
+        For each place in places, repeat:
+            If place is -2:
+                If cast holds-number on (all-places, -2) is false, insert -2 into all-places.
+            Done.
+            Otherwise if place is -1:
+                If cast is-none on (noted's receiver) is false, cast union-into on (cast one's reach-of on (noted's receiver, positions, referenced, locals, captured, holds), all-places).
+            Done.
+            Otherwise if place is not less than 0:
+                If place is less than the number of noted's handed-args:
+                    If item (place + 1) of noted's given-leads, cast union-into on (cast one's reach-of on (item (place + 1) of noted's handed-args, positions, referenced, locals, captured, holds), all-places).
+                Done.
+            Done.
+            Otherwise:
+                Cast union-into on (cast one's captured-place on (cast one's tracing-now, noted's callee, place, true), all-places).
+            Done.
+        Done.
+        Return all-places.
+    Done.
+
+    /// What an expression's value may itself BE: the name, an item of what it is read out of, or what a
+    /// function hands back of what it was given. `IsOf` in C#.
+    Bind series of number to is-of unto checker, given (the node said, the map from text to number positions,
+            the series of number referenced, the map from text to series of number locals,
+            the map from text to number captured, the map from text to series of number holds):
+        Define kind as said's kind.
+        If cast is-either on (kind) or kind is "ConditionalExpression":
+            Define other-place as 2.
+            If kind is "ConditionalExpression", the other-place becomes 3.
+            Define both as cast one's is-of on (cast field-of on (said, 1), positions, referenced, locals, captured, holds).
+            Cast union-into on (cast one's is-of on (cast field-of on (said, other-place), positions, referenced, locals, captured, holds), both).
+            Return both.
+        Done.
+        If kind is "FailurePropagate", return cast one's is-of on (cast field-of on (said, 1), positions, referenced, locals, captured, holds).
+        If kind is "CastExpression":
+            Define noted-at as cast one's traced-cast on (said).
+            If noted-at is greater than 0:
+                Define noted as item noted-at of one's stores's calls.
+                If cast one's stores-known on (noted's callee):
+                    Return cast one's handed-back-places on (noted, the entry for noted's callee in one's stores's call-hands but void is a series of number, positions, referenced, locals, captured, holds).
+                Done.
+            Done.
+        Done.
+        If cast is-access on (kind):
+            If (cast field-root on (said, locals))'s exact is false, return cast one's reach-of on (said, positions, referenced, locals, captured, holds).
+        Done.
+        If cast is-made-here on (kind) or kind is "RecordLiteral", return a series with (-2).
+        Return cast one's symbolic-depth on (said, positions, referenced, locals, captured, true).
+    Done.
+
+    /// Where an expression's value may come from, what its root was given, and everything written into
+    /// it: what it can lead to.
     Bind series of number to reach-of unto checker, given (the node said, the map from text to number positions,
             the series of number referenced, the map from text to series of number locals,
             the map from text to number captured, the map from text to series of number holds):
+        Define kind as said's kind.
+        If cast is-either on (kind) or kind is "ConditionalExpression":
+            Define other-place as 2.
+            If kind is "ConditionalExpression", the other-place becomes 3.
+            Define both as cast one's reach-of on (cast field-of on (said, 1), positions, referenced, locals, captured, holds).
+            Cast union-into on (cast one's reach-of on (cast field-of on (said, other-place), positions, referenced, locals, captured, holds), both).
+            Return both.
+        Done.
+        If kind is "FailurePropagate", return cast one's reach-of on (cast field-of on (said, 1), positions, referenced, locals, captured, holds).
+        If kind is "AwaitedResultExpression" or kind is "DeliveryExpression" or kind is "TextSplit", return a series with (-2).
+        Define fresh as a series with (-2).
+        If kind is "SortExpression" or kind is "SeriesReverse":
+            Cast union-into on (cast one's reach-of on (cast field-of on (said, 1), positions, referenced, locals, captured, holds), fresh).
+            Return fresh.
+        Done.
+        If kind is "SeriesLiteral":
+            If cast is-none on (cast one's traced-carrier on (said, 3)), return fresh.
+            For each piece in (cast field-of on (said, 1))'s children, repeat:
+                Cast union-into on (cast one's reach-of on (piece, positions, referenced, locals, captured, holds), fresh).
+            Done.
+            Return fresh.
+        Done.
+        If kind is "MapLiteral":
+            Define mapped as cast one's traced-carrier on (said, 4).
+            If mapped's kind is not "MapType", return fresh.
+            Define keys-lead as cast one's leads-to-container on (cast field-of on (mapped, 1)).
+            Define values-lead as cast one's leads-to-container on (cast field-of on (mapped, 2)).
+            For each pair in (cast field-of on (said, 3))'s children, repeat:
+                If keys-lead, cast union-into on (cast one's reach-of on (cast field-of on (pair, 1), positions, referenced, locals, captured, holds), fresh).
+                If values-lead, cast union-into on (cast one's reach-of on (cast field-of on (pair, 2), positions, referenced, locals, captured, holds), fresh).
+            Done.
+            Return fresh.
+        Done.
+        If kind is "RecordLiteral":
+            Define recorded as cast one's traced-carrier on (said, 3).
+            If recorded's kind is not "RecordType", return fresh.
+            Define piece-shapes as (cast field-of on (recorded, 1))'s children.
+            Define piece-place as 0.
+            For each piece in (cast field-of on (said, 1))'s children, repeat:
+                Increment piece-place by 1.
+                If cast one's leads-to-container on (item piece-place of piece-shapes), cast union-into on (cast one's reach-of on (piece, positions, referenced, locals, captured, holds), fresh).
+            Done.
+            For each pair in (cast field-of on (said, 2))'s children, repeat:
+                Define named-field as cast unquoted on (cast field-of on (pair, 1)).
+                Define named-leads as false.
+                For each shape-pair in (cast field-of on (recorded, 2))'s children, repeat:
+                    If cast unquoted on (cast field-of on (shape-pair, 1)) is named-field, the named-leads becomes cast one's leads-to-container on (cast field-of on (shape-pair, 2)).
+                Done.
+                If named-leads, cast union-into on (cast one's reach-of on (cast field-of on (pair, 2), positions, referenced, locals, captured, holds), fresh).
+            Done.
+            Return fresh.
+        Done.
+        If kind is "ObjectLiteral":
+            Define made-name as cast unquoted on (cast field-of on (said, 1)).
+            Define definition as cast one's definition-of on (made-name).
+            Define field-place as 0.
+            For each piece in (cast field-of on (said, 2))'s children, repeat:
+                Increment field-place by 1.
+                Define piece-leads as true.
+                If definition is not void:
+                    Define positional-shapes as (cast field-of on (definition, 2))'s children.
+                    If field-place is not greater than the number of positional-shapes, the piece-leads becomes cast one's leads-to-container on (item field-place of positional-shapes).
+                Done.
+                If piece-leads, cast union-into on (cast one's reach-of on (piece, positions, referenced, locals, captured, holds), fresh).
+            Done.
+            For each pair in (cast field-of on (said, 3))'s children, repeat:
+                If cast one's carried-field on (made-name, cast unquoted on (cast field-of on (pair, 1))):
+                    Cast union-into on (cast one's reach-of on (cast field-of on (pair, 2), positions, referenced, locals, captured, holds), fresh).
+                Done.
+            Done.
+            Return fresh.
+        Done.
+        If kind is "CastExpression":
+            Define noted-at as cast one's traced-cast on (said).
+            If noted-at is greater than 0:
+                Define noted as item noted-at of one's stores's calls.
+                If cast one's stores-known on (noted's callee):
+                    Return cast one's handed-back-places on (noted, the entry for noted's callee in one's stores's call-reaches but void is a series of number, positions, referenced, locals, captured, holds).
+                Done.
+                Define may-reach as cast one's symbolic-depth on (said, positions, referenced, locals, captured, true).
+                Define argument-place as 0.
+                For each argument in noted's handed-args, repeat:
+                    Increment argument-place by 1.
+                    If item argument-place of noted's given-leads, cast union-into on (cast one's reach-of on (argument, positions, referenced, locals, captured, holds), may-reach).
+                Done.
+                If cast is-none on (noted's receiver) is false, cast union-into on (cast one's reach-of on (noted's receiver, positions, referenced, locals, captured, holds), may-reach).
+                Return may-reach.
+            Done.
+        Done.
+        If cast is-access on (kind):
+            Define access-start as cast access-root on (said).
+            If access-start's kind is not "VariableReference":
+                Define start-reaches as cast one's reach-of on (access-start, positions, referenced, locals, captured, holds).
+                If cast one's loose-constants:
+                    If cast one's reads-through-getter on (said, cast one's tracing-now) and cast holds-number on (start-reaches, cast constant-place) is false, insert cast constant-place into start-reaches.
+                Done.
+                Return start-reaches.
+            Done.
+        Done.
         Define reach as cast one's symbolic-depth on (said, positions, referenced, locals, captured, true).
+        If cast one's loose-constants and cast is-access on (kind):
+            If cast one's reads-through-getter on (said, cast one's tracing-now) and cast holds-number on (reach, cast constant-place) is false, insert cast constant-place into reach.
+        Done.
         Define rooted as (cast field-root on (said, locals))'s key.
         If rooted is not "":
             Define held as the entry for rooted in holds.
@@ -1774,7 +2838,7 @@ Pull a book on collections.
     /// the body gives only objects written out. An object is held by value, so `copy's children` IS
     /// the series written into that field. A name given anything else by a `Define`, a `For each` or
     /// a `Judge` is not split; a later `becomes` is followed by the walk itself.
-    Bind void to split-written-objects, given (the series of node gathered, the map from text to fact split-names):
+    Bind void to split-written-objects unto checker, given (the series of node gathered, the map from text to fact split-names):
         Define written as a map from text to fact.
         Define given-otherwise as a map from text to fact.
         For each statement in gathered, repeat:
@@ -1782,8 +2846,10 @@ Pull a book on collections.
                 Define given-name as cast depth-target-name on (statement).
                 Define given-value as cast depth-target-value on (statement).
                 If statement's kind is "DefineStatement" and given-value's kind is "ObjectLiteral":
+                    Define written-name as cast unquoted on (cast field-of on (given-value, 1)).
                     For each named-pair in (cast field-of on (given-value, 3))'s children, repeat:
-                        In written, the entry for "{given-name}.{cast unquoted on (item 1 of named-pair's children)}" becomes true.
+                        Define written-field as cast unquoted on (item 1 of named-pair's children).
+                        If cast one's carried-field on (written-name, written-field), in written, the entry for "{given-name}.{written-field}" becomes true.
                     Done.
                 Done.
                 Otherwise:
@@ -1801,37 +2867,17 @@ Pull a book on collections.
     Bind series of text to holding-names unto checker, given (the number frame-index, the series of node gathered,
             the map from text to fact split-names):
         Define frame as item frame-index of one's stores's frames.
-        Define names as a series of text.
+        Define said-names as a map from text to fact.
+        Cast names-in on (frame's body, said-names).
         For each statement in gathered, repeat:
-            If cast gives-a-name on (statement's kind):
-                Insert cast depth-target-name on (statement) into names.
-                Define rooted as cast root-name on (cast depth-target-value on (statement)).
-                If rooted is not "", insert rooted into names.
-                If statement's kind is "DefineStatement" and (cast depth-target-value on (statement))'s kind is "ObjectLiteral":
-                    For each named-pair in (cast field-of on (cast depth-target-value on (statement), 3))'s children, repeat:
-                        Define field-rooted as cast root-name on (item 2 of named-pair's children).
-                        If field-rooted is not "", insert field-rooted into names.
-                    Done.
-                Done.
-            Done.
+            If cast gives-a-name on (statement's kind), in said-names, the entry for cast depth-target-name on (statement) becomes true.
+        Done.
+        Define names as a series of text.
+        For each pair in said-names, repeat:
+            Insert the key of pair into names.
         Done.
         For each pair in split-names, repeat:
             Insert the key of pair into names.
-        Done.
-        For each store in frame's stores, repeat:
-            Define stored-into as cast root-name on (store's target).
-            If stored-into is not "", insert stored-into into names.
-        Done.
-        For each call-index in frame's calls, repeat:
-            Define noted as item call-index of one's stores's calls.
-            For each argument in noted's handed-args, repeat:
-                Define rooted as cast root-name on (argument).
-                If rooted is not "", insert rooted into names.
-            Done.
-            If cast is-none on (noted's receiver) is false:
-                Define receiver-root as cast root-name on (noted's receiver).
-                If receiver-root is not "", insert receiver-root into names.
-            Done.
         Done.
         Return names.
     Done.
@@ -1848,16 +2894,84 @@ Pull a book on collections.
         Return grew.
     Done.
 
+    /// What a name shares with another grows with it, and so does each field that is a name of its own.
+    Bind fact to grow-shared, given (the text name, the series of number held, the map from text to series of number holds, the map from text to fact split-names):
+        Define grew as cast grew-into on (held, cast held-by on (holds, name)).
+        If name contains "." is false:
+            For each pair in split-names, repeat:
+                If the key of pair starts with "{name}.":
+                    If cast grew-into on (held, cast held-by on (holds, the key of pair)), the grew becomes true.
+                Done.
+            Done.
+        Done.
+        Return grew.
+    Done.
+
+    Bind fact to is-name-or-access, given (the node said):
+        Return said's kind is "VariableReference" or cast is-access on (said's kind).
+    Done.
+
+    /// A value with something in it that leads to a container, as far as its form says.
+    Bind fact to is-carrying unto checker, given (the node said):
+        Define kind as said's kind.
+        If kind is "SeriesLiteral" or kind is "RecordLiteral", return cast is-none on (cast one's traced-carrier on (said, 3)) is false.
+        If kind is "MapLiteral" or kind is "ObjectLiteral", return cast is-none on (cast one's traced-carrier on (said, 4)) is false.
+        If cast is-either on (kind):
+            Define first-said as cast field-of on (said, 1).
+            Define second-said as cast field-of on (said, 2).
+            If cast one's is-carrying on (first-said) or cast one's is-carrying on (second-said) or cast is-name-or-access on (second-said), return true.
+            Return kind is "ButVoidDefault" and cast is-name-or-access on (first-said).
+        Done.
+        If kind is "ConditionalExpression":
+            Define chosen as cast field-of on (said, 1).
+            Define other-chosen as cast field-of on (said, 3).
+            Return cast one's is-carrying on (chosen) or cast one's is-carrying on (other-chosen) or cast is-name-or-access on (chosen) or cast is-name-or-access on (other-chosen).
+        Done.
+        If kind is "FailurePropagate", return cast one's is-carrying on (cast field-of on (said, 1)).
+        If kind is "SortExpression" or kind is "SeriesReverse":
+            Return cast is-name-or-access on (cast field-of on (said, 1)) or cast one's is-carrying on (cast field-of on (said, 1)).
+        Done.
+        If kind is "CastExpression", return cast one's traced-cast on (said) is greater than 0.
+        Return false.
+    Done.
+
+    /// The names a target may be reached through.
+    Bind series of text to holders-of, given (the node target, the map from text to series of number locals):
+        Define rooted as (cast field-root on (target, locals))'s key.
+        If rooted is not "", return a series with (rooted).
+        Return cast shared-names on (target).
+    Done.
+
     /// A name given a value, in the walk: a second name for another shares what it holds; an
     /// element of another holds what that one holds. `GiveHolds` in C#.
-    Bind fact to give-holds, given (the text name, the node value, the fact naming,
-            the map from text to series of number locals, the map from text to series of number holds):
+    Bind fact to give-holds unto checker, given (the text name, the node value, the fact naming, the map from text to number positions,
+            the series of number referenced, the map from text to series of number locals,
+            the map from text to number captured, the map from text to series of number holds, the map from text to fact split-names):
         Define reach as cast field-root on (value, locals).
-        If reach's key is "" or reach's key is name, return false.
+        If reach's key is name, return false.
         Define grew as false.
+        // A literal, a choice, a call: it holds what it was written with, and each name in it that
+        // leads anywhere now leads to whatever is put into it.
+        If reach's key is "":
+            If cast one's is-carrying on (value) is false, return false.
+            Define value-reaches as cast one's reach-of on (value, positions, referenced, locals, captured, holds).
+            If cast grew-into on (value-reaches, cast held-by on (holds, name)), the grew becomes true.
+            Define may-be as value-reaches.
+            If naming, the may-be becomes cast one's is-of on (value, positions, referenced, locals, captured, holds).
+            Define given-is as the entry for name in locals.
+            If given-is is not void:
+                If cast grew-into on (may-be, given-is), the grew becomes true.
+            Done.
+            For each shared-name in cast shared-names on (value), repeat:
+                If shared-name is not name:
+                    If cast grow-shared on (shared-name, cast held-by on (holds, name), holds, split-names), the grew becomes true.
+                Done.
+            Done.
+            Return grew.
+        Done.
         If naming and reach's exact:
             If cast grew-into on (cast held-by on (holds, reach's key), cast held-by on (holds, name)), the grew becomes true.
-            If cast grew-into on (cast held-by on (holds, name), cast held-by on (holds, reach's key)), the grew becomes true.
+            If cast grow-shared on (reach's key, cast held-by on (holds, name), holds, split-names), the grew becomes true.
             Return grew.
         Done.
         If naming is false or cast is-access on (value's kind):
@@ -1887,7 +3001,7 @@ Pull a book on collections.
                 Define given-name as cast depth-target-name on (statement).
                 Define given-value as cast depth-target-value on (statement).
                 Define naming as kind is "DefineStatement" or kind is "BecomesStatement".
-                If cast give-holds on (given-name, given-value, naming, locals, holds), the grew becomes true.
+                If cast one's give-holds on (given-name, given-value, naming, positions, referenced, locals, captured, holds, split-names), the grew becomes true.
                 // An object written out given a new value: each field of its own is now that one's.
                 If kind is "BecomesStatement":
                     For each pair in split-names, repeat:
@@ -1911,7 +3025,7 @@ Pull a book on collections.
                             If field-is is not void:
                                 If cast grew-into on (cast one's symbolic-depth on (field-value, positions, referenced, locals, captured, true), field-is), the grew becomes true.
                             Done.
-                            If cast give-holds on (field-name, field-value, true, locals, holds), the grew becomes true.
+                            If cast one's give-holds on (field-name, field-value, true, positions, referenced, locals, captured, holds, split-names), the grew becomes true.
                         Done.
                     Done.
                 Done.
@@ -1937,11 +3051,8 @@ Pull a book on collections.
                 Done.
             Done.
             If field-set is false:
-                Define stored-into as (cast field-root on (store's target, locals))'s key.
-                If stored-into is not "":
-                    If cast grew-into on (cast one's reach-of on (store's value, positions, referenced, locals, captured, holds), cast held-by on (holds, stored-into)):
-                        The grew becomes true.
-                    Done.
+                For each stored-into in cast holders-of on (store's target, locals), repeat:
+                    If cast grow-shared on (stored-into, cast one's reach-of on (store's value, positions, referenced, locals, captured, holds), holds, split-names), the grew becomes true.
                 Done.
             Done.
         Done.
@@ -1959,31 +3070,30 @@ Pull a book on collections.
                         The has-target becomes true.
                     Done.
                     If has-target:
-                        Define stored-into as (cast field-root on (target-said, locals))'s key.
-                        If stored-into is not "":
-                            Define from-place as one-pair's from-place.
-                            Define has-source as false.
-                            Define source as a series of number.
-                            If from-place is -2:
-                                The source becomes a series with (-2).
+                        Define from-place as one-pair's from-place.
+                        Define has-source as false.
+                        Define source as a series of number.
+                        If from-place is -2:
+                            The source becomes a series with (-2).
+                            The has-source becomes true.
+                        Done.
+                        Otherwise if cast is-outer on (from-place):
+                            The source becomes cast one's captured-place on (frame-index, noted's callee, from-place, true).
+                            The has-source becomes true.
+                        Done.
+                        Otherwise if from-place is -1:
+                            If cast is-none on (noted's receiver) is false:
+                                The source becomes cast one's reach-of on (noted's receiver, positions, referenced, locals, captured, holds).
                                 The has-source becomes true.
                             Done.
-                            Otherwise if cast is-outer on (from-place):
-                                The source becomes cast one's captured-place on (frame-index, noted's callee, from-place).
-                                The has-source becomes true.
-                            Done.
-                            Otherwise if from-place is -1:
-                                If cast is-none on (noted's receiver) is false:
-                                    The source becomes cast one's reach-of on (noted's receiver, positions, referenced, locals, captured, holds).
-                                    The has-source becomes true.
-                                Done.
-                            Done.
-                            Otherwise if from-place is less than the number of noted's handed-args:
-                                The source becomes cast one's reach-of on (item (from-place + 1) of noted's handed-args, positions, referenced, locals, captured, holds).
-                                The has-source becomes true.
-                            Done.
-                            If has-source:
-                                If cast grew-into on (source, cast held-by on (holds, stored-into)), the grew becomes true.
+                        Done.
+                        Otherwise if from-place is less than the number of noted's handed-args:
+                            The source becomes cast one's reach-of on (item (from-place + 1) of noted's handed-args, positions, referenced, locals, captured, holds).
+                            The has-source becomes true.
+                        Done.
+                        If has-source:
+                            For each stored-into in cast holders-of on (target-said, locals), repeat:
+                                If cast grow-shared on (stored-into, source, holds, split-names), the grew becomes true.
                             Done.
                         Done.
                     Done.
@@ -1995,24 +3105,37 @@ Pull a book on collections.
                 Define place as 0.
                 For each argument in noted's handed-args, repeat:
                     Increment place by 1.
-                    If item place of noted's given-holds, insert argument into parts.
+                    If item place of noted's given-leads, insert argument into parts.
                 Done.
                 If cast is-none on (noted's receiver) is false, insert noted's receiver into parts.
                 Define spot as 0.
                 For each part in parts, repeat:
                     Increment spot by 1.
-                    Define stored-into as (cast field-root on (part, locals))'s key.
-                    If stored-into is not "":
+                    For each stored-into in cast holders-of on (part, locals), repeat:
                         Define other-spot as 0.
                         For each other-part in parts, repeat:
                             Increment other-spot by 1.
                             If other-spot is not spot:
-                                If cast grew-into on (cast one's reach-of on (other-part, positions, referenced, locals, captured, holds), cast held-by on (holds, stored-into)):
-                                    The grew becomes true.
-                                Done.
+                                If cast grow-shared on (stored-into, cast one's reach-of on (other-part, positions, referenced, locals, captured, holds), holds, split-names), the grew becomes true.
                             Done.
                         Done.
                     Done.
+                Done.
+            Done.
+        Done.
+        // What the names that functions written in this body captured are and hold, kept.
+        For each inner-key in the entry for "{frame-index}" in one's stores's inner-keys but void is a series of text, repeat:
+            For each noted-name in the entry for inner-key in one's stores's captured-as but void is a series of captured-note, repeat:
+                Define inner-name as "{frame-index}\t{noted-name's name}".
+                Define name-is as the entry for noted-name's name in locals.
+                Define kept-is as the entry for inner-name in one's stores's inner-is.
+                If name-is is not void and kept-is is not void:
+                    In one's stores's inner-local, the entry for inner-name becomes true.
+                    If cast grew-into on (name-is, kept-is), the grew becomes true.
+                Done.
+                Define kept-holds as the entry for inner-name in one's stores's inner-holds.
+                If kept-holds is not void:
+                    If cast grew-into on (cast held-by on (holds, noted-name's name), kept-holds), the grew becomes true.
                 Done.
             Done.
         Done.

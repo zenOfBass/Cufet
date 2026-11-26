@@ -23,6 +23,10 @@ which the compiler copies out, and ran right; the model does not know that copy.
 Constants, chases and sets came after that, on 2026-11-24 and 25, out of none of the four: no rule had
 mentioned them, and the model and the random programs have none. They are at the end of section 4.
 
+O2 and O4 as built did not hold at a call, in seven places. Found on 2026-11-25 by the random programs,
+once they wrote more of the language, and then by hand, and closed the same day. They are at the end of
+section 4, under *At a call*.
+
 The rest of the document is in three parts.
 
 1. **What is wrong.** Section 4 sets out the four obligations, with the programs that break each
@@ -267,6 +271,42 @@ The five refused under O1 are fixtures too, as `escape-*.cufe`, with a sixth tha
 parameter only from inside an `If` arm. The four refused under O4 are among ten `escape-*.cufe`
 fixtures for that rule, beside six `*-legal.cufe` ones for the same functions cast where it is
 safe.
+
+**At a call** (2026-11-25). O2 and O4 held for a store written out in a body, and not for one reached
+through a cast: 111 of 283 small programs the checker accepted read freed memory when compiled, and a
+second search found 25 more. They came from seven places:
+
+1. a value with no name (`xs sorted`, an item, a `when`, a `but void is`) handed to a function that
+   keeps it or hands it back, which was taken to live as long as the program;
+2. a second name for an outer container handed to a function that stores into it, judged by where the
+   name was defined;
+3. an outer container reached through a record, a voidable, a union or a judgement's `it`, or through a
+   series a function body wraps its parameter in;
+4. text, or anything else that is copied, stored through a second name or an item: it was copied to
+   where the name was made, and the container was further out;
+5. a function with no name storing into a second name it captured;
+6. a function value kept through a second name or a call: one that captured something lives where that
+   lives;
+7. a `permanently` series that a function stores into, or hands back for its caller to store into.
+
+All seven are closed, in both checkers alike. What a function hands back is a name of its own now
+(`cast#n`), bounded by what the function can reach of what it was given; a value with no name is as
+deep as what it was made from; a record, a voidable and a union lead to what they hold; a copied store
+whose target may be further out than its name is copied to the target's own region (C#'s `HomeEscape`,
+the mark section 9 describes); a captured name is judged by where it may really be; a function value
+is judged as a container is, as deep as what it captured, or nowhere when it captured nothing; and a
+constant is a place of its own in a function's summary. The names these numbers are kept under are each
+binding's own now, not `name@line`: a line is one file's, and a name in a pulled book on the same line
+as a program's shared its numbers.
+
+Checked under AddressSanitizer on Linux: 514 programs written for this, 0 reading freed memory, and
+the checker written in Cufet gives the same answer as C#'s to all 514. Nothing in the repository is newly refused
+but one line of the checker written in Cufet, which copied a tree and handed each leaf back as it was,
+so the copy shared the leaf's `children` with the original; the line is gone. What it costs, measured
+on those programs: a function that stores what it is given into a name it captured lowers that name's
+floor to where a parameter could be, so storing through the name later is refused inside a region; and
+in a program where a getter, an operator, a function with no name or one read as a value hands back a
+constant, a value nothing traces may be a constant.
 
 The six that are right were only ever growing something, and the three under O2 and O4 among them
 show that the growth was all that was wrong with them. They are fixtures now, in

@@ -278,7 +278,8 @@ public class PipelineMemoryTests : PipelineTestBase
     {
         // A closure stored via an INTERMEDIATE variable then escaping can't be copied (its env is
         // opaque once built), so it is refused loudly rather than left to dangle. (ESC.4's boundary:
-        // the escaping closure must be created directly in the store.)
+        // the escaping closure must be created directly in the store.) By the checker, so that the
+        // interpreter refuses it too; until 2026-11-25 only the compiler did.
         const string src = """
             Bind number to outer-fn:
                 Define f as a function: Return 0. Done.
@@ -293,8 +294,7 @@ public class PipelineMemoryTests : PipelineTestBase
             """;
         var tokens  = new CufetLexer(src).Tokenize();
         var program = new Parser(tokens).Parse();
-        program = new TypeChecker().Check(program);
-        Assert.Throws<CompilerException>(() => new CodeGenerator().Generate(program));
+        Assert.Throws<TypeException>(() => new TypeChecker().Check(program));
     }
     //   (b) a nested binding form's params/iterator were added to the SHARED defs set, masking a
     //       same-named OUTER variable across the whole enclosing body.

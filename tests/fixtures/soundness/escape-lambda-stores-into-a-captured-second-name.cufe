@@ -1,0 +1,14 @@
+/*  EXPECTED: REJECTED at type-check, identically by both backends.
+    A function with no name stores what it is given into a second name it captured, for a series
+    outside the rabbit, and is cast there on a rabbit's series.
+
+    The captured name is judged by where what it names may be (docs/SOUNDNESS.md, *Open*, closed 2026-11-25). */
+
+Define rows as a series of series of number.
+Pull a rabbit.
+    Define k as rows.
+    Define xs as a series of number with (3, 2).
+    Define f as a function given (the series of number q): Insert q into k. Done.
+    Cast f on (xs).
+Done.
+State rows.

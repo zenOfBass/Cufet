@@ -617,6 +617,10 @@ public record TypeInfo(CufetType Type, IExpression EstablishingExpr, int Establi
 {
     /// <summary>A `permanently` constant every body may read: the program's, not a block's own.</summary>
     public bool Shared => Permanent && !OfItsBlock;
+
+    /// <summary>Its own number, kept by every copy of it: what the region rules know a name by.</summary>
+    internal int Serial { get; } = System.Threading.Interlocked.Increment(ref _serials);
+    private static int _serials;
 }
 
 // Line/Column point at the violation — the position the message's "Here on line N" sentence
@@ -3649,7 +3653,7 @@ public sealed partial class TypeChecker
         bool permanent = define.Permanent || declared is AxiomType;
         RequireRabbitForAddress(declared ?? type, define.Name, define.Line, define.Column);
         // Read before the name is bound: a shadow's value names the one it hides (O2).
-        bool givesContainer = HoldsContainer(declared ?? type, null);
+        bool givesContainer = LeadsToContainer(declared ?? type);
         var given = givesContainer ? GivenOf(define.Value, declared ?? type, element: false, defining: true) : null;
         define.Place = PlaceOfConstant(define, declared ?? type, reclaimingHoist);
         bool ofItsBlock = define.Place == ConstantPlace.OfItsBlock;
@@ -3721,7 +3725,10 @@ public sealed partial class TypeChecker
         // Region invariant: don't let a shorter-lived reference escape into longer-lived storage.
         CheckRegionStore(becomes.Value, rhsType, existing.RabbitDepth, becomes.Line, becomes.Column,
             $"reassign '{becomes.Name}' to a value from a shorter-lived region");
-        if (HoldsContainer(rhsType, null))
+        // A function made where it is given is made for where it goes; any other stays where it is.
+        if (rhsType is FunctionType && becomes.Value is not LambdaLiteral && LivesAt(becomes.Value) > existing.RabbitDepth)
+            throw ShorterLived(becomes.Line, becomes.Column, $"reassign '{becomes.Name}' to a value from a shorter-lived region");
+        if (LeadsToContainer(rhsType))
             NoteGiven(becomes.Name, GivenOf(becomes.Value, rhsType, element: false, defining: false), replacing: true);
         // A name of the function's own is only pointed somewhere else. A CAPTURED one is a place
         // outside the function, and giving it a value is a store into that place.
@@ -3737,6 +3744,7 @@ public sealed partial class TypeChecker
         if (_inferringLambdaReturn)
         {
             var retType = ret.Value != null ? InferType(ret.Value) : null;
+            NoteReturned(ret.Value, retType);
             // Inside a fallible overload body, failure returns skip the type-set so the
             // success type drives _expectedReturnType; _overloadBodyIsFallible wraps it.
             // 'Return a failure.' (no message) parses as VariableReference("the failure"),
@@ -3816,6 +3824,7 @@ public sealed partial class TypeChecker
             if (returnType is AxiomType unreachable && _expectedReturnType is not null
                 && handsBack is not AxiomType)
                 throw AxiomSourceNotReachable(unreachable, ret.Line, ret.Column);
+            NoteReturned(ret.Value, returnType);
             if (IsRabbitType(returnType))
                 throw TypeError(
                     "rabbits cannot be returned — they flow downward only",
@@ -4130,7 +4139,7 @@ public sealed partial class TypeChecker
         UnburyExpression unbury                                                                          => InferUnbury(unbury),
         UnaryExpression unary                                                                            => InferUnary(unary),
         BinaryExpression bin                                                                             => InferBinary(bin),
-        VariableReference { Name: var n } when _narrowedVars.TryGetValue(n, out var narrowed)           => narrowed,
+        VariableReference { Name: var n } when _narrowedVars.TryGetValue(n, out var narrowed)           => NoteConstantUse(n, narrowed),
         // An axiom reached for by name, anywhere but a return. `State get-pid.` used to check
         // clean, print a C# object interpreted, and emit C that would not build — three answers to
         // one program, which is the shape a use guard exists to close. CheckReturn takes the legal
@@ -4152,18 +4161,18 @@ public sealed partial class TypeChecker
                                             && ati.Type is AxiomType { ReturnType: null } axiomInfo
                                             && !IsSourceValue(axiomInfo)
                                                                                                  => throw AxiomUsedAsValue(an, axiomInfo, expr),
-        VariableReference { Name: var n } when TryLookup(n, out var ti)                                  => NoteModuleUse(n, NoteFunctionValue(ti, n, expr)),
+        VariableReference { Name: var n } when TryLookup(n, out var ti)                                  => NoteConstantUse(n, NoteModuleUse(n, NoteFunctionValue(ti, n, expr))),
         VariableReference hv when _hiddenTopLevelData.Contains(hv.Name)                                  => throw HiddenTopLevelDataError(hv),
         VariableReference vr                                                                              => NoteUnresolvedName(vr),
-        SeriesLiteral lit                                                                                => InferSeriesLiteral(lit),
+        SeriesLiteral lit                                                                                => NoteCarrier(lit, InferSeriesLiteral(lit)),
         SeriesAccess acc                                                                                 => InferSeriesAccess(acc),
         SetLiteral setLit                                                                                => InferSetLiteral(setLit),
         SetHasMember setHas                                                                              => InferSetHasMember(setHas),
         SeriesLength sl                                                                                  => InferSeriesLength(sl),
         CastExpression cast                                                                              => InferCastExpr(cast),
-        RecordLiteral lit                                                                                => InferRecordLiteral(lit),
+        RecordLiteral lit                                                                                => NoteCarrier(lit, InferRecordLiteral(lit)),
         RecordNamedAccess rna                                                                            => InferRecordNamedAccess(rna),
-        ObjectLiteral lit                                                                                => InferObjectLiteral(lit),
+        ObjectLiteral lit                                                                                => NoteCarrier(lit, InferObjectLiteral(lit)),
         PossessiveAccess poss                                                                            => InferPossessiveAccess(poss),
         TextJoin tj                                                                                      => InferTextJoin(tj),
         TextConvert tc                                                                                   => InferTextConvert(tc),
@@ -4189,7 +4198,7 @@ public sealed partial class TypeChecker
         FailureLiteral fl                                                                                => InferFailureLiteral(fl),
         FailureFallback ff                                                                               => InferFailureFallback(ff),
         FailurePropagate fp                                                                              => InferFailurePropagate(fp),
-        MapLiteral ml                                                                                    => InferMapLiteral(ml),
+        MapLiteral ml                                                                                    => NoteCarrier(ml, InferMapLiteral(ml)),
         MapLookup  mlu                                                                                   => InferMapLookup(mlu),
         MapHasKey  mhk                                                                                   => InferMapHasKey(mhk),
         MapHasEntry mhe                                                                                  => InferMapHasEntry(mhe),

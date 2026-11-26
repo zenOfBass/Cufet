@@ -547,6 +547,24 @@ static int cufet_str_code_point(const char* s) {
             _funcTypes[bind.Name] = new FunctionType(bind.Parameters.Select(p => p.Type).ToList(), bind.ReturnType);
         }
 
+        // What a function bound in a rabbit's block gives back, for a constant whose value casts one:
+        // which of them are free functions is found out below, once the constants are known.
+        var rabbitBinds = new List<(BindStatement Bind, List<(string Local, string Book)> Aliases)>();
+        foreach (var prs in TypeChecker.FlattenHoistable(program.Statements).OfType<PullRabbitStatement>())
+        {
+            var aliases = new List<(string Local, string Book)>();
+            foreach (var outer in allPulls)
+                if (AstSearch.Contains(outer.Body, n => ReferenceEquals(n, prs)))
+                    foreach (var (bookName, localName) in outer.Books)
+                        aliases.Add((localName, bookName.ToLowerInvariant()));
+            foreach (var s in prs.Body)
+                if (s is BindStatement { UntoType: null } rb) rabbitBinds.Add((rb, aliases));
+        }
+        var knownBefore = new HashSet<string>(_funcReturnTypes.Keys, StringComparer.Ordinal);
+        foreach (var (bind, _) in rabbitBinds)
+            if (_funcReturnTypes.TryAdd(bind.Name, bind.ReturnType))
+                _funcTypes[bind.Name] = new FunctionType(bind.Parameters.Select(p => p.Type).ToList(), bind.ReturnType);
+
         // ── Shared constants ──────────────────────────────────────────────────
         // Top-level `permanently` bindings are readable from every detached body, so they cannot be
         // locals of main. Identified by REFERENCE, not by name: a `permanently` local deeper in the
@@ -624,18 +642,7 @@ static int cufet_str_code_point(const char* s) {
         //
         // ⚠ One that casts a function VALUE the block holds has something to close over, and stays a
         // closure; so does one that calls such a function.
-        var rabbitBinds = new List<(BindStatement Bind, List<(string Local, string Book)> Aliases)>();
-        foreach (var prs in TypeChecker.FlattenHoistable(program.Statements).OfType<PullRabbitStatement>())
-        {
-            var aliases = new List<(string Local, string Book)>();
-            foreach (var outer in allPulls)
-                if (AstSearch.Contains(outer.Body, n => ReferenceEquals(n, prs)))
-                    foreach (var (bookName, localName) in outer.Books)
-                        aliases.Add((localName, bookName.ToLowerInvariant()));
-            foreach (var s in prs.Body)
-                if (s is BindStatement { UntoType: null } rb) rabbitBinds.Add((rb, aliases));
-        }
-        var freeNames = new HashSet<string>(_funcReturnTypes.Keys.Concat(rabbitBinds.Select(r => r.Bind.Name)), StringComparer.Ordinal);
+        var freeNames = new HashSet<string>(knownBefore.Concat(rabbitBinds.Select(r => r.Bind.Name)), StringComparer.Ordinal);
         for (bool dropped = true; dropped;)
         {
             dropped = false;
@@ -643,9 +650,14 @@ static int cufet_str_code_point(const char* s) {
                 if (CapturedBy(one.Bind, one.Aliases, freeNames, pullAxioms).Count > 0)
                 {
                     rabbitBinds.Remove(one);
-                    if (!_funcReturnTypes.ContainsKey(one.Bind.Name)) freeNames.Remove(one.Bind.Name);
+                    if (!knownBefore.Contains(one.Bind.Name)) freeNames.Remove(one.Bind.Name);
                     dropped = true;
                 }
+        }
+        foreach (var name in _funcReturnTypes.Keys.Where(name => !freeNames.Contains(name)).ToList())
+        {
+            _funcReturnTypes.Remove(name);
+            _funcTypes.Remove(name);
         }
         foreach (var (bind, aliases) in rabbitBinds)
         {
@@ -815,12 +827,17 @@ static int cufet_str_code_point(const char* s) {
         runtime.AppendLine(SignalRuntime);
         runtime.AppendLine(ConcurrencyRuntime);
 
+        // ── Struct declarations (records + objects + voidables) + write/eq helpers ──
+        // ⚠ Written first and put second: writing a field's type is what makes its series or map known,
+        // and an object nothing makes has fields nothing else has asked about. Declared before this
+        // was written, such a field named a type the file never declared (2026-11-25).
+        var structs = new StringBuilder();
+        EmitStructs(structs);
+
         // ── Series + map struct forward declarations (so value structs can hold their pointers) ──
         EmitSeriesForwardDecls(sb);
         EmitMapForwardDecls(sb);
-
-        // ── Struct declarations (records + objects + voidables) + write/eq helpers ──
-        EmitStructs(sb);
+        sb.Append(structs);
 
         // Closure-value structs (cfn_N {fn, env}) are emitted BY EmitStructs above, in the same
         // topological order as records and objects — the dependency runs both ways, so they cannot

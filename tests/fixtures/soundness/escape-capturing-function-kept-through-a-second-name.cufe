@@ -1,0 +1,13 @@
+/*  EXPECTED: REJECTED at type-check, identically by both backends.
+    A function that captured a rabbit's series is kept in a series of functions outside the rabbit,
+    through a second name for it.
+
+    A function value lives where what it captured lives, and is judged as a container is (docs/SOUNDNESS.md, *Open*, closed 2026-11-25). */
+
+Define fs as a series of number function given (the number).
+Pull a rabbit.
+    Define xs as a series of number with (3, 2).
+    Define k as fs.
+    Insert (a function given (the number n): Return n + the number of xs. Done) into k.
+Done.
+For each f in fs, state cast f on (1).

@@ -1,0 +1,16 @@
+/*  EXPECTED: COMPILES and runs; compiled output must match the interpreter.
+
+    A rabbit's text is inserted into a series outside it, through a second name made in the rabbit.
+
+    Text is copied, never refused: to where the series itself lives, which the second name does not
+    say (docs/SOUNDNESS.md, *Open*, closed 2026-11-25). */
+
+Define words as a series of text.
+Pull a rabbit.
+    Define k as words.
+    Define w as "ab" joined to "cd".
+    Insert w into k.
+Done.
+Define junk as a series of text.
+For each n in range 1 to 200, insert "junk {n}" into junk.
+State words.
