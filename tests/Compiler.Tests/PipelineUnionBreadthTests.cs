@@ -128,6 +128,29 @@ public class PipelineUnionBreadthTests : PipelineTestBase
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
     }
 
+    // ★ An open ATLAS's lookup is a voidable holding the open union BY VALUE, so that voidable's struct
+    // has to come after `cun_open`. It came first until 2026-11-27 and gcc refused every program that
+    // made one (`unknown type name 'cun_open'`); an open catalogue escaped because a series holds a
+    // pointer. Found while checking ROADMAP's claim that open catalogues still did not compile.
+    [Fact]
+    public void OpenAtlas_ItsLookupIsAVoidableOfTheOpenUnion_Compiles()
+    {
+        const string src = """
+            Define m as an atlas.
+            In m, the entry for "k" becomes 3.
+            In m, the entry for "t" becomes "three".
+            State the size of m.
+            Define v as the entry for "k" in m.
+            If v is not void:
+                If v is a number, State v + 1.
+            Done.
+            State (the entry for "zz" in m) is void.
+            For each pair in m, State the key of pair.
+            """;
+        Assert.Equal(InterpretRaw(src), CompileRaw(src));
+        Assert.Equal("2\n4\ntrue\nk\nt", Interpret(src));
+    }
+
     [Fact]
     public void OpenCatalogue_DiscoveryIsComplete_AcrossEmissionOrder()
     {

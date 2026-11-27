@@ -1572,6 +1572,13 @@ static int cufet_str_code_point(const char* s) {
         VoidableType vt => RegisterVoidableStruct(vt),
         FailureType ft  => RegisterFailableStruct(ft),
         UnionType { Cases: not null } ut => RegisterUnionStruct(ut),
+        // ★ The ONE open union IS a by-value struct, and something holding it by value — a
+        // voidable, which is what every atlas lookup gives back — has to come after it. Listed as
+        // "no struct to order against" until 2026-11-27, so `cvd_N { cun_open val; }` was emitted
+        // first and gcc refused every program that made an open atlas. An open catalogue escaped
+        // only because a series holds a pointer. When the open union has no cases it is emitted
+        // before everything else, so naming it here is harmless.
+        UnionType { Cases: null } => OpenUnionStruct,
         // ⚠ Looked up rather than REGISTERED: registering here would append to _funcStructs while
         // the caller is walking a snapshot of it, and everything reachable was already registered
         // when the bodies were emitted. An unregistered signature therefore means "not part of this
@@ -1587,8 +1594,7 @@ static int cufet_str_code_point(const char* s) {
           or SeriesType or MapType or SetType or MatrixType or ChaseType // arena pointers
           or ChannelType or TaskHandleType                              // shared runtime pointers
           or ReadableStreamType or WritableStreamType or RabbitType     // FILE*, and a region name
-          or UnionType                                                  // the ONE open union struct
-          or VoidType                                                   // not a value at all
+          or VoidType                                                  // not a value at all
           or StashType                                                  // rewritten to a closure first
           or InterfaceType                                              // monomorphized away
           or BookType or MappingType                                    // checker vocabulary
