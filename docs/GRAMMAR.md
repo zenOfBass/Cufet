@@ -653,6 +653,8 @@ Wherever an operation below names a series, a map, a set or a matrix, any expres
 
 ### Set operations
 
+Making a set needs `Pull a book on collections.` in scope, as a matrix and a chase do; outside it, `a set of T` is refused.
+
 | Syntax | Read or change |
 |---|---|
 | `a set of T`, `a set of T with (a, b, c)` | build |

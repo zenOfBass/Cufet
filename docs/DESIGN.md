@@ -40,9 +40,9 @@ The decision the rest of them answer to.
 
 How the language reads on the page.
 
-- **Arithmetic uses symbols; comparison and logic use words.** Symbols win for math (that's how literate people write it). Comparison/logic read better as words for the audience and aesthetic. One canonical form per operator — no synonyms (the rigor is in the single fixed keyword, not in symbols).
+- **Arithmetic uses symbols; logic uses words.** Symbols win for math (that's how literate people write it); `and`, `or`, `not` and `xor` read better as words, and have no symbol form at all.
 
-- **`=` in expressions, word-comparisons in conditions (positional split).** Comparison-as-a-free-floating-value is in the math domain (symbols); comparison-inside-a-conditional reads as a sentence (words). One form per context — *not* two interchangeable ways to say one thing. This is settled by design; facts being first-class storable values does not destabilize it.
+- **Comparison has both forms, and both are accepted everywhere.** `x = y` and `x is y`, `x > y` and `x is greater than y`, are one operation. The style is positional: a comparison held as a value is in the math domain (symbols), and one inside a condition reads as a sentence (words). REFERENCE teaches that split as style; the checker does not enforce it.
 
 - **Identifiers are lowercase-initial; uppercase-initial is reserved.** This is a load-bearing readability guarantee, not vestigial: keywords are case-insensitive, but the lexer still rejects uppercase-initial non-keywords so that every uppercase word a reader sees is provably a keyword and every lowercase word is a variable — roles parseable by eye, no lookup. (All object types and instances are therefore lowercase: `person`, `alice`. The proper-noun feel lives in string literals like `"Alice"`.)
 
@@ -192,7 +192,7 @@ Which capabilities are spelled into the language and which are pulled from a boo
 
   **And `For each` over a user-defined object stays refused.** The simple case is already spelled `For each x in obj's items`, and a real structure has *several* orders — a tree has three at least — so no single `For each` could pick the right one. Naming the walk is the better surface, and a walk is a burying function, which is a stash, which the loop above takes. The answer is no for that reason, not for cost.
 
-- **`Pull … Done.` unification — one surface for scoped resources.** Books, rabbits, and other acquired resources all use a unified `Pull <thing>: … Done.` block syntax. The `pull` verb signals "resource whose lifetime is managed here" and `Done.` closes it cleanly. The dot form (`Pull a book on X.`) keeps the short non-block form for scope-local imports. The two forms coexist and compose cleanly.
+- **`Pull … Done.` unification — one surface for scoped resources.** Books, rabbits, modules and regions are all pulled the same way: `Pull <thing>.` opens a block and `Done.` closes it, and what was pulled is in scope only inside. The `pull` verb signals "something whose scope is managed here". There is no form without `Done.`
 
 - **How a pull is spelled says what kind of thing it is.** `a book on math` is how English says something you consult; `Pull greeting-kit` is something you hold one of. No module's name can ever be reserved, because nobody can reserve `inventory` or `parser` in advance, so `book`, `books` and every module name stay ordinary names. A module that declares no interface hands out everything, because a module IS an object and an object exposes its methods; an interface is a positive declaration of what is offered, so no module changed meaning when they arrived. A name made with `as` belongs to the block that makes it: a function written outside that reached it would work only while every caller chose the same alias.
 

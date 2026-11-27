@@ -68,8 +68,15 @@ Pull a book on collections.
 
     // ── Sets ──────────────────────────────────────────────────────────────
 
-    /// `a set of <type> [with (…)]` — the element type is always written.
+    /// `a set of <type> [with (…)]` — the element type is always written, and only where the
+    /// `collections` book is pulled: the chase that pull registers is what is asked for.
     Bind node or failure to infer-set-literal unto checker, given (the node said):
+        If cast one's has-scoped-type on ("chase") is false:
+            Return a failure (cast refusal-of on ("'set' is not available in this scope",
+                "It is introduced by the 'collections' book", cast number-of on (cast field-of on (said, 3)),
+                "build a set without pulling the 'collections' book first",
+                "Wrap it in 'Pull a book on collections. … Done.'")).
+        Done.
         Define element as cast field-of on (said, 1).
         Define at-row as cast number-of on (cast field-of on (said, 3)).
         Cast require-map-key on (element, at-row) or pass the failure off.

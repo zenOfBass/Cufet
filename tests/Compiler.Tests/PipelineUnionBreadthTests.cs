@@ -705,10 +705,12 @@ public class PipelineUnionBreadthTests : PipelineTestBase
             State tally has an entry for 2.
             Define marks as a map from (number or text) to text with (1 : "a", "b" : "c").
             State the entry for "b" in marks but void is "-".
-            Define seen as a set of (number or text).
-            Insert 4 into seen.
-            State seen has 4.
-            State seen has "four".
+            Pull a book on collections.
+                Define seen as a set of (number or text).
+                Insert 4 into seen.
+                State seen has 4.
+                State seen has "four".
+            Done.
             """;
         Assert.Equal(InterpretRaw(src), CompileRaw(src));
         Assert.Equal("10\n20\ntrue\nfalse\nc\ntrue\nfalse", Interpret(src));

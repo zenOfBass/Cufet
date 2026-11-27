@@ -1425,7 +1425,7 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
         "Define x as true.\nState the number of x.\n",
         "Define x as 0b1010.\nState item 1 of x.\n",
         "Define x as a map with (\"a\" : 1).\nState item 1 of x.\n",
-        "Define x as a set of number with (1, 2).\nState item 1 of x.\n",
+        "Pull a book on collections.\n    Define x as a set of number with (1, 2).\n    State item 1 of x.\nDone.\n",
         "Pull a book on collections.\n    Define x as a matrix with ((1, 2), (3, 4)).\n    State item 1 of x.\nDone.\n",
         "Define x as void.\nState item 1 of x.\n",
         "Bind number to g, given (the number n), n.\nDefine x as g.\nState the number of x.\n",
@@ -1642,7 +1642,7 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
         "Define object pair with (number, number).\nDefine x as a new pair { 1, 2 }.\nDefine n as 1.\nState item n of x.\n",
         "Bind void to f, given (the (number or series of number) x):\n    If x is a series of number, state item 1 of x.\nDone.\n",
         "Bind voidable series of number to g:\n    Return void.\nDone.\nDefine x as cast g.\nIf x is not void, state the number of x.\n",
-        "Define x as a set of number with (1, 2).\nState the number of x.\n",
+        "Pull a book on collections.\n    Define x as a set of number with (1, 2).\n    State the number of x.\nDone.\n",
         "Define interface shower for the text function show.\nDefine object pair with (number, number) and shower.\nBind text to show unto pair, \"b\".\nBind void to f, given (the shower x):\n    State item 1 of x.\nDone.\nCast f on (a new pair { 7, 8 }).\n",
         "Define interface shower for the text function show.\nBind void to f, given (the shower x):\n    State the last of x.\nDone.\n",
         // How many values a call takes, none, one and several, by place and by name (2026-11-23).
@@ -1704,7 +1704,7 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
         // Checker gaps closed 2026-11-25: `has a key for` asked of what is not a map, two methods of one name,
         // what a plain object and a region module hand out, a map or a set changed in its last pass, and a
         // foreign address kept past its rabbit — with the shapes that stay legal beside each.
-        "Define s as a set of number with (3).\nState s has a key for 3.\n",
+        "Pull a book on collections.\n    Define s as a set of number with (3).\n    State s has a key for 3.\nDone.\n",
         "Define n as 3.\nState n has a key for 1.\n",
         "Define m as a map with (\"a\": 1).\nState m has a key for \"a\".\nState m has an entry for \"b\".\n",
         "Define object v with (the number x):\n    Bind number to g, 1.\n    Bind number to g, 2.\nDone.\nState 1.\n",
@@ -1712,12 +1712,16 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
         "Define object workspace with () and region:\n    Bind number to seven, 7.\nDone.\nPull workspace.\n    State cast workspace's seven.\nDone.\n",
         "Define interface greeter for { The text function greet }.\nDefine object greeting-kit with () and greeter and module:\n    Bind text to greet: Return \"x\". Done.\n    Bind text to helper: Return \"hello\". Done.\nDone.\nPull greeting-kit.\n    State cast greeting-kit's greet on ().\n    State cast greeting-kit's helper on ().\nDone.\n",
         "Define m as a map with (\"a\": 1).\nFor each p in m, repeat:\n    In m, the entry for \"b\" becomes 2.\nDone.\nState \"after\".\n",
-        "Define s as a set of number with (1).\nFor each x in s, repeat:\n    Insert 2 into s.\nDone.\nState \"after\".\n",
+        "Pull a book on collections.\n    Define s as a set of number with (1).\n    For each x in s, repeat:\n        Insert 2 into s.\n    Done.\n    State \"after\".\nDone.\n",
         "Pull a book on the c-language.\n    Define c-language number release, given (the address p), as [({ memset(the p, 'X', 5); free(the p); 0; })].\n    Define c-language voidable address dup, given (the text s), as [strdup(the s)], and free it with release.\n    Pull a rabbit.\n        Define keep as a series of voidable address.\n        Pull a rabbit.\n            Define h as cast dup on (\"hello\").\n            Insert h into keep.\n        Done.\n        State the text at (item 1 of keep) but void is \"none\".\n    Done.\nDone.\n",
         "Pull a book on the c-language.\n    Define c-language voidable address mk, given (the text s), as [strdup(the s)].\n    Pull a rabbit.\n        Define h as cast mk on (\"a\").\n        Pull a rabbit.\n            The h becomes cast mk on (\"b\").\n        Done.\n    Done.\nDone.\n",
         "Pull a book on the c-language.\n    Define c-language voidable address mk, given (the text s), as [strdup(the s)].\n    Pull a rabbit.\n        Define keep as a series of voidable address.\n        Pull a rabbit.\n            Insert cast mk on (\"a\") into keep.\n        Done.\n    Done.\nDone.\n",
         "Pull a book on the c-language.\n    Define c-language number release, given (the address p), as [({ free(the p); 0; })].\n    Define c-language voidable address dup, given (the text s), as [strdup(the s)], and free it with release.\n    Pull a rabbit.\n        Define keep as a series of voidable address.\n        Define h as cast dup on (\"hello\").\n        Insert h into keep.\n        Insert cast dup on (\"there\") into keep.\n        State the text at (item 2 of keep) but void is \"none\".\n    Done.\nDone.\n",
         "Pull a book on the c-language.\n    Define c-language voidable address mk, given (the text s), as [strdup(the s)].\n    Pull a rabbit.\n        Define h as cast mk on (\"outer\").\n        Pull a rabbit.\n            Define keep as a series of voidable address.\n            Insert h into keep.\n            State the text at (item 1 of keep) but void is \"none\".\n        Done.\n    Done.\nDone.\n",
+        // A set is made only inside `Pull a book on collections.` (2026-11-27).
+        "Define seen as a set of text.\nState 1.\n",
+        "Bind number to f:\n    Define seen as a set of text.\n    Return 1.\nDone.\nState cast f.\n",
+        "Pull a book on collections.\n    Bind number to f:\n        Define seen as a set of text with (\"a\").\n        Return the number of seen.\n    Done.\nDone.\nState cast f.\n",
     ];
 
     /// <remarks>

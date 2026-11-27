@@ -43,7 +43,7 @@ public class NotASeriesTests
     [Theory]
     [InlineData("Define x as \"abc\".\nState the first of x.", "'the characters from 1 to 1 of x'")]
     [InlineData("Define x as a map with (\"a\" : 1).\nState item 1 of x.", "'the entry for <key> in x'")]
-    [InlineData("Define x as a set of number with (1, 2).\nState item 1 of x.", "Go through it with 'For each'.")]
+    [InlineData("Pull a book on collections.\n    Define x as a set of number with (1, 2).\n    State item 1 of x.\nDone.", "Go through it with 'For each'.")]
     [InlineData(Matrix + "State item 1 of x.\nDone.", "'the item at (<row>, <column>) of x'")]
     public void AValueWithAFormOfItsOwn_IsTold(string source, string fix) => Assert.Contains(fix, Refused(source).Message);
 
@@ -92,7 +92,7 @@ public class NotASeriesTests
     /// <remarks>★ The guards: each of these works when it runs, and must go on checking.</remarks>
     [Theory]
     [InlineData("Define x as a series of number with (1, 2).\nState item 1 of x.\nState the number of x.")]
-    [InlineData("Define x as a set of number with (1, 2).\nState the number of x.")]
+    [InlineData("Pull a book on collections.\n    Define x as a set of number with (1, 2).\n    State the number of x.\nDone.")]
     [InlineData("State item 1 of range 1 to 3.")]
     [InlineData("Pull a book on collections.\n    Define x as a chase.\n    Insert \"abc\" into x.\n    State item 1 of x.\n    State the number of x.\nDone.")]
     [InlineData("Pull a book on collections.\n    Define x as a catalogue with (1, \"two\").\n    State the last of x.\nDone.")]

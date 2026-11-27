@@ -33,6 +33,33 @@ public class SetTests
 
     private const string Book = "Pull a book on collections.\n";
 
+    // ── Where a set may be made ───────────────────────────────────────────
+
+    [Theory]
+    [InlineData("Define seen as a set of text.")]
+    [InlineData("Define seen as a set of number with (1, 2).")]
+    [InlineData("Bind number to f:\n    Define seen as a set of text.\n    Return 1.\nDone.\nState cast f.")]
+    public void ASetOutsideTheCollectionsPull_IsRefused(string source)
+    {
+        // ★ The book's, as a matrix and a chase are. Missing until 2026-11-27: BOOKS said so and
+        // nothing checked it, so a set was made anywhere — `dijkstra.cufe` made one with no pull.
+        var error = Assert.Throws<TypeException>(() => Run(source));
+        Assert.Contains("'set' is not available in this scope", error.Message);
+    }
+
+    [Fact]
+    public void ASetInAFunctionWrittenInsideThePull_IsMade()
+    {
+        Assert.Equal("1", Run(Book + """
+                Bind number to f:
+                    Define seen as a set of text with ("a").
+                    Return the number of seen.
+                Done.
+            Done.
+            State cast f.
+            """));
+    }
+
     // ── Holding each thing once ───────────────────────────────────────────
 
     [Fact]

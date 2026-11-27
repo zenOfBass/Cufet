@@ -247,7 +247,7 @@ public class FreedWordTests
     public void TheSizeOfASetStillSaysItIsASet()
     {
         var error = Assert.Throws<TypeException>(() => Run(
-            "Define s as a set of number. State the size of s."));
+            "Pull a book on collections. Define s as a set of number. State the size of s. Done."));
         Assert.Contains("works on maps, and this is a set", error.Message);
     }
 }

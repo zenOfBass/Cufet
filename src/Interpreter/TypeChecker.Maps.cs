@@ -202,6 +202,17 @@ public sealed partial class TypeChecker
 
     private CufetType? InferSetLiteral(SetLiteral lit)
     {
+        // ★ A set is the `collections` book's, as a chase and a matrix are, so it is made only where
+        // that book is pulled. Missing until 2026-11-27: BOOKS said so, and nothing checked it. A
+        // set has no one type to register, so this asks for the chase the same pull registers.
+        if (!TryLookupScopedType("chase", out _))
+            throw TypeError(
+                "'set' is not available in this scope",
+                "It is introduced by the 'collections' book",
+                lit.Line, lit.Column,
+                "build a set without pulling the 'collections' book first",
+                "Wrap it in 'Pull a book on collections. … Done.'");
+
         // ⚠ THE MAP'S KEY RULE, asked of the element. A set IS its keys, so what may be one is the
         // question already answered for maps — and answering it twice is how the two drift apart.
         RequireValidMapKeyType(lit.ElementType!, lit.Line, lit.Column);
