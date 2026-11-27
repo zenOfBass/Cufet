@@ -74,6 +74,14 @@ Pull a book on collections.
         Return cast plain-type on ("FactType").
     Done.
 
+    /// `RequireHandledStatement`: a statement that touches the filesystem can fail, so it is
+    /// handled — inside a `Try` — or refused, as `Run X.` is.
+    Bind void or failure to require-handled unto checker, given (the text doing, the number at-row, the text attempt):
+        If one's in-try or one's handled, return.
+        Return a failure (cast refusal-of on ("{doing} can fail — you must handle the failure", "", at-row,
+            attempt, "Wrap it in 'Try to: / In case of failure:'.")).
+    Done.
+
     /// `Make the directory …`, `Remove the file …`, `Remove the directory …`.
     Bind void or failure to check-path-action unto checker, given (the node statement):
         Define at-row as cast number-of on (cast field-of on (statement, 3)).
@@ -81,6 +89,18 @@ Pull a book on collections.
         Cast require-kind on (path-type, "TextType", "a path must be text", at-row,
             "use a {cast type-words on (path-type)} as a path",
             "Write the path as a text literal like \"books\", or use a text variable.") or pass the failure off.
+        Define action as (cast field-of on (statement, 1))'s word.
+        Define doing as "removing a directory".
+        Define attempt as "remove a directory without handling the failure".
+        If action is "MakeDirectory":
+            The doing becomes "making a directory".
+            The attempt becomes "make a directory without handling the failure".
+        Done.
+        Otherwise if action is "RemoveFile":
+            The doing becomes "removing a file".
+            The attempt becomes "remove a file without handling the failure".
+        Done.
+        Cast one's require-handled on (doing, at-row, attempt) or pass the failure off.
     Done.
 
     /// `The current directory becomes <path>.`
@@ -90,6 +110,8 @@ Pull a book on collections.
         Cast require-kind on (path-type, "TextType", "a directory path must be text", at-row,
             "use a {cast type-words on (path-type)} as a directory path",
             "The path must be text (text in quote marks, or a name that holds text).") or pass the failure off.
+        Cast one's require-handled on ("changing the current directory", at-row,
+            "change the current directory without handling the failure") or pass the failure off.
     Done.
 
     /// `Write|Append <text> to the file <path>.`
@@ -103,6 +125,12 @@ Pull a book on collections.
         Cast require-kind on (path-type, "TextType", "a file path must be text", at-row,
             "use a {cast type-words on (path-type)} as a file path",
             "Write the path as a text literal like \"output.txt\", or use a text variable.") or pass the failure off.
+        If cast truth-of on (cast field-of on (statement, 1)):
+            Cast one's require-handled on ("appending to a file", at-row, "append to a file without handling the failure") or pass the failure off.
+        Done.
+        Otherwise:
+            Cast one's require-handled on ("writing a file", at-row, "write a file without handling the failure") or pass the failure off.
+        Done.
     Done.
 
     // ── Streams ───────────────────────────────────────────────────────────
@@ -117,6 +145,7 @@ Pull a book on collections.
         Cast require-kind on (path-type, "TextType", "a file path must be text", at-row,
             "use a {cast type-words on (path-type)} as a file path",
             "Write the path as a text literal like \"data.txt\", or use a text variable.") or pass the failure off.
+        Cast one's require-handled on ("opening a file", at-row, "open a file without handling the failure") or pass the failure off.
         Define stream-kind as "WritableStreamType".
         If (cast field-of on (statement, 1))'s word is "Reading", the stream-kind becomes "ReadableStreamType".
         Define name as cast unquoted on (cast field-of on (statement, 3)).

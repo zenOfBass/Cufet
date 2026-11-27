@@ -8487,6 +8487,41 @@ public class InterpreterTests
 
     // ── I/O — streams: Slice 2 (file streams + scoped-open lifecycle) ────────────
 
+    // A file statement can fail, so it is held to a `Try` as `Run X.` is (2026-11-27); these wrap the
+    // part that touches the file, and state the failure if one comes.
+    private static string InTry(string source) =>
+        "Try to:\n" + string.Join("\n", source.Split('\n').Select(l => "    " + l))
+      + "\nDone.\nIn case of failure:\n    State the message of the failure.\nDone.";
+
+    [Theory]
+    [InlineData("Write \"x\" to the file \"zz-out.txt\".", "writing a file can fail")]
+    [InlineData("Append \"x\" to the file \"zz-out.txt\".", "appending to a file can fail")]
+    [InlineData("Make the directory \"zz-dir\".", "making a directory can fail")]
+    [InlineData("Remove the file \"zz-out.txt\".", "removing a file can fail")]
+    [InlineData("Remove the directory \"zz-dir\".", "removing a directory can fail")]
+    [InlineData("The current directory becomes \"zz-dir\".", "changing the current directory can fail")]
+    [InlineData("With the file \"zz-out.txt\" open for reading as s:\n    State read all from s.\nDone.", "opening a file can fail")]
+    [InlineData("Bind void to keep, given (the text t):\n    Write t to the file \"zz-out.txt\".\nDone.\nCast keep on (\"x\").", "writing a file can fail")]
+    public void AFileStatementOutsideATry_IsRefused(string source, string says)
+    {
+        // ★ Held to the rule `Run X.` keeps: no result, and it can still fail. Until 2026-11-27 these
+        // passed the checker and a failure escaped when the line ran.
+        var tokens = new CufetLexer(source).Tokenize();
+        var program = new Parser(tokens).Parse();
+        var error = Assert.Throws<TypeException>(() => new TypeChecker().Check(program));
+        Assert.Contains(says + " — you must handle the failure", error.Message);
+        Assert.Contains("Wrap it in 'Try to: / In case of failure:'.", error.Message);
+    }
+
+    [Fact]
+    public void AFileStatementInsideATry_IsChecked()
+    {
+        var source = InTry("Write \"x\" to the file \"zz-out.txt\".\nAppend \"y\" to the file \"zz-out.txt\".\n"
+                         + "Make the directory \"zz-dir\".\nRemove the directory \"zz-dir\".\nRemove the file \"zz-out.txt\".");
+        var tokens = new CufetLexer(source).Tokenize();
+        new TypeChecker().Check(new Parser(tokens).Parse());
+    }
+
     [Fact]
     public void WithOpen_ReadFile_LineByLine()
     {
@@ -8495,12 +8530,12 @@ public class InterpreterTests
         try
         {
             File.WriteAllText(path, "alpha\nbeta\ngamma\n");
-            var result = Run(
+            var result = Run(InTry(
                 $"With the file \"{path.Replace("\\", "\\\\")}\" open for reading as s:\n" +
                 $"    Define line1 as read a line from s but void is \"\".\n" +
                 $"    Define line2 as read a line from s but void is \"\".\n" +
                 $"    State line1 joined to \",\" joined to line2.\n" +
-                $"Done.");
+                $"Done."));
             Assert.Equal("alpha,beta", result);
         }
         finally { if (File.Exists(path)) File.Delete(path); }
@@ -8514,9 +8549,9 @@ public class InterpreterTests
         {
             File.WriteAllText(path, "one\ntwo\nthree");
             var result = Run(
-                $"With the file \"{path.Replace("\\", "\\\\")}\" open for reading as src:\n" +
+                InTry($"With the file \"{path.Replace("\\", "\\\\")}\" open for reading as src:\n" +
                 $"    State read all lines from src.\n" +
-                $"Done.");
+                $"Done."));
             Assert.Equal("(one, two, three)", result);
         }
         finally { if (File.Exists(path)) File.Delete(path); }
@@ -8530,9 +8565,9 @@ public class InterpreterTests
         {
             File.WriteAllText(path, "hello world");
             var result = Run(
-                $"With the file \"{path.Replace("\\", "\\\\")}\" open for reading as src:\n" +
+                InTry($"With the file \"{path.Replace("\\", "\\\\")}\" open for reading as src:\n" +
                 $"    State read all from src.\n" +
-                $"Done.");
+                $"Done."));
             Assert.Equal("hello world", result);
         }
         finally { if (File.Exists(path)) File.Delete(path); }
@@ -8544,11 +8579,11 @@ public class InterpreterTests
         var path = Path.Combine(Path.GetTempPath(), "cufet_stream_write_" + Guid.NewGuid() + ".txt");
         try
         {
-            Run(
+            Run(InTry(
                 $"With the file \"{path.Replace("\\", "\\\\")}\" open for writing as out:\n" +
                 $"    Write \"hello\" to out.\n" +
                 $"    Write \" world\" to out.\n" +
-                $"Done.");
+                $"Done."));
             Assert.Equal("hello world", File.ReadAllText(path));
         }
         finally { if (File.Exists(path)) File.Delete(path); }
@@ -8636,9 +8671,9 @@ public class InterpreterTests
                 "Bind text to drain, given (readable stream of text s):\n" +
                 "    return read all from s.\n" +
                 "Done.\n" +
-                $"With the file \"{path.Replace("\\", "\\\\")}\" open for reading as src:\n" +
+                InTry($"With the file \"{path.Replace("\\", "\\\\")}\" open for reading as src:\n" +
                 $"    State Cast drain on (src).\n" +
-                $"Done.");
+                $"Done."));
             Assert.Equal("from file", result);
         }
         finally { if (File.Exists(path)) File.Delete(path); }

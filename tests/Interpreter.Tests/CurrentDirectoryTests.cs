@@ -100,7 +100,9 @@ public class CurrentDirectoryTests : IDisposable
         var target = SomeDirectory;
         var expected = new DirectoryInfo(target).FullName.TrimEnd(Path.DirectorySeparatorChar);
         var actual = Run(
-            $"The current directory becomes \"{target}\".\n" +
+            "Try to:\n" +
+            $"    The current directory becomes \"{target}\".\n" +
+            "Done.\nIn case of failure:\n    State the message of the failure.\nDone.\n" +
             "State the current directory but void is \"??\".");
         Assert.Equal(expected, actual.TrimEnd(Path.DirectorySeparatorChar));
     }

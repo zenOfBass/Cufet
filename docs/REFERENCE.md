@@ -2583,6 +2583,7 @@ Cufet has a static type checker that runs before execution. It catches:
 - Dropping a failable (`failure T`) value without handling it (fallback, propagation, or enclosing `Try`) — unhandled failure is always a static error
 - Reading from a `writable stream of text`, or writing to a `readable stream of text` — stream direction is statically enforced
 - File reads (`read all from the file`, `read all lines from the file`) and process execution (`run`) outside a `Try` block or propagation context — their failable return types must be handled
+- A file statement outside a `Try` — `Write`/`Append … to the file`, `Make the directory`, `Remove the file`/`directory`, `With the file … open`, and `The current directory becomes …`
 - Declaring a second unmaker (`Bind unmaking a <type>`) for a type that already has one — duplicate unmaker is a static error
 - Using `return a failure` inside an unmaker body — unmakers are infallible
 - `Get ... as void:` — getters must return a typed value; void is a parse error
@@ -3070,22 +3071,32 @@ Failure categories: `"not-found"`, `"permission-denied"`, `"disk-error"`.
 
 **Writing to a file:**
 ```cufet
-Write "hello\n" to the file "out.txt".      ← overwrite (create or truncate)
-Append "more\n" to the file "out.txt".      ← append to end
+Try to:
+    Write "hello\n" to the file "out.txt".      ← overwrite (create or truncate)
+    Append "more\n" to the file "out.txt".      ← append to end
+Done.
+In case of failure:
+    State "could not write: {the message of the failure}".
+Done.
 ```
 
-Write and append complete silently on success; on failure they raise a Cufet failure caught by the enclosing `Try` handler.
+Write and append complete silently on success. Either can fail, so each is written inside a `Try`, as `Run X.` is; outside one it is refused when the program is checked.
 
 **A write creates the FILE, never the directory.** Writing into a directory that is not there fails with *"the directory for 'notes/today.txt' does not exist"* — nothing was being looked for, so it names the thing you can go and make.
 
 **Making and removing:**
 ```cufet
-Make the directory "notes".
-Remove the file "notes/today.txt".
-Remove the directory "notes".
+Try to:
+    Make the directory "notes".
+    Remove the file "notes/today.txt".
+    Remove the directory "notes".
+Done.
+In case of failure:
+    State "{the message of the failure}".
+Done.
 ```
 
-All three are fallible, like every other filesystem operation, and complete silently on success. Failure categories: `"not-found"`, `"already-there"`, `"not-empty"`, `"permission-denied"`, `"disk-error"`.
+All three are fallible, like every other filesystem operation, so each goes inside a `Try`; they complete silently on success. Failure categories: `"not-found"`, `"already-there"`, `"not-empty"`, `"permission-denied"`, `"disk-error"`.
 
 **The refusals are most of what these are**, and both are the language's ordinary character applied to the filesystem:
 
@@ -3100,20 +3111,30 @@ All three are fallible, like every other filesystem operation, and complete sile
 For reading line-by-line, or writing incrementally, open the file as a stream and let Cufet close it automatically:
 
 ```cufet
-With the file "data.txt" open for reading as src:
-    Define first as read a line from src.
-    State first.
-    Define second as read a line from src.   ← the stream remembers where it got to
-    State second.
+Try to:
+    With the file "data.txt" open for reading as src:
+        Define first as read a line from src.
+        State first.
+        Define second as read a line from src.   ← the stream remembers where it got to
+        State second.
+    Done.
+Done.
+In case of failure:
+    State "could not read: {the message of the failure}".
 Done.
 ```
 
 **A line can only be read from an open stream, never from a path.** A path has nowhere to remember how far you have read, so `read a line from the file "x"` would hand back the first line every time — it is refused, and the error names this form. Reading a whole file at once (`read all from the file "x"`) needs no stream, because there is no position to keep.
 
 ```cufet
-With the file "out.txt" open for writing as log:
-    Write "Line 1\n" to log.
-    Write "Line 2\n" to log.
+Try to:
+    With the file "out.txt" open for writing as log:
+        Write "Line 1\n" to log.
+        Write "Line 2\n" to log.
+    Done.
+Done.
+In case of failure:
+    State "could not write: {the message of the failure}".
 Done.
 ```
 
@@ -3121,15 +3142,20 @@ Done.
 
 Stream direction is **statically enforced**: reading from a writable stream, or writing to a readable stream, is a static type error.
 
-An open failure (file not found, permission denied) propagates to the enclosing `Try` handler the same as any other file failure.
+Opening can fail (the file is not found, or not permitted), so a `With the file` goes inside a `Try`, as every other file statement does; the failure reaches its handler.
 
 **Stream reads support all three read forms** — a `readable stream of text` works anywhere `the input` works:
 ```cufet
-With the file "lines.txt" open for reading as s:
-    Define lines as read all lines from s.
-    For each line in lines, repeat:
-        State line.
+Try to:
+    With the file "lines.txt" open for reading as s:
+        Define lines as read all lines from s.
+        For each line in lines, repeat:
+            State line.
+        Done.
     Done.
+Done.
+In case of failure:
+    State "could not read: {the message of the failure}".
 Done.
 ```
 

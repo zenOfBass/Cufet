@@ -1240,6 +1240,7 @@ Cast area on (2, the height 5).
 - `Return a failure "message".` makes a new failure. `Return a failure.` (or `Return the failure.`) hands on the one being handled, inside `In case of failure:`.
 - `<expr> or pass the failure off` hands a failure to the caller; so does `Cast f on (x) or pass the failure off.`, which drops the value. The call must be able to fail, the function around it too, and neither may be inside `Try`. Inside `Try to:`, a failing call's value is already unwrapped.
 - In `<voidable> but void is <default>`, the default must fit the voidable's type.
+- A statement that can fail and gives nothing back must be inside a `Try`, or it is refused: `Run X.`, `Write`/`Append … to the file`, `Make the directory`, `Remove the file`/`directory`, `With the file … open`, and `The current directory becomes …`.
 
 ### Words that read as statements
 

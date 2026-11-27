@@ -112,16 +112,15 @@ Done.
 
 **Read files. Run programs. Cufet now touches the world:**
 ```cufet
-With the file "log.txt" open for writing as log:
-    Write "Starting.\n" to the log.
-
-    Try to:
+Try to:
+    With the file "log.txt" open for writing as log:
+        Write "Starting.\n" to the log.
         Define the result as run "date".
         Write the output of result to the log.
     Done.
-    In case of failure:
-        Write "date command not found\n" to the log.
-    Done.
+Done.
+In case of failure:
+    State "could not log the date: {the message of the failure}".
 Done.
 ```
 

@@ -254,6 +254,26 @@ public sealed partial class TypeChecker
                 null, cd.Line, cd.Column,
                 $"use a {FormatType(pathType)} as a directory path",
                 "The path must be text (text in quote marks, or a name that holds text).");
+        RequireHandledStatement("changing the current directory", cd.Line, cd.Column,
+            "change the current directory without handling the failure");
+    }
+
+    /// <summary>A statement that touches the filesystem can fail, so it is handled or refused.</summary>
+    /// <remarks>
+    /// ★ The rule `Run X.` already kept: wanting no result does not make an operation infallible.
+    /// Until 2026-11-27 only the file READS were held to it — the statements predate `run` and
+    /// were never brought in line — so a `Write` into a missing directory passed `check` and its
+    /// failure escaped when the line ran. A statement has nowhere for `or pass the failure off` to
+    /// go, so the handling is a `Try` around it, exactly as for `Run`.
+    /// </remarks>
+    private void RequireHandledStatement(string doing, int line, int column, string attempt)
+    {
+        if (_inTryBlock || _inFailureHandledContext) return;
+        throw TypeError(
+            $"{doing} can fail — you must handle the failure",
+            null, line, column,
+            attempt,
+            "Wrap it in 'Try to: / In case of failure:'.");
     }
 
     // Make the directory <path>. / Remove the file <path>. / Remove the directory <path>.
@@ -266,6 +286,14 @@ public sealed partial class TypeChecker
                 null, pa.Line, pa.Column,
                 $"use a {FormatType(pathType)} as a path",
                 "Write the path as a text literal like \"books\", or use a text variable.");
+
+        var (doing, attempt) = pa.Kind switch
+        {
+            PathActionKind.MakeDirectory => ("making a directory", "make a directory without handling the failure"),
+            PathActionKind.RemoveFile    => ("removing a file", "remove a file without handling the failure"),
+            _                            => ("removing a directory", "remove a directory without handling the failure"),
+        };
+        RequireHandledStatement(doing, pa.Line, pa.Column, attempt);
     }
 
     private void CheckFileWrite(FileWriteStatement fw)
@@ -285,6 +313,9 @@ public sealed partial class TypeChecker
                 null, fw.Line, fw.Column,
                 $"use a {FormatType(pathType)} as a file path",
                 "Write the path as a text literal like \"output.txt\", or use a text variable.");
+
+        RequireHandledStatement(fw.Append ? "appending to a file" : "writing a file", fw.Line, fw.Column,
+            fw.Append ? "append to a file without handling the failure" : "write a file without handling the failure");
     }
 
     // With the file "<path>" open for reading/writing as <name>: ... Done.
@@ -298,6 +329,9 @@ public sealed partial class TypeChecker
                 null, wos.Line, wos.Column,
                 $"use a {FormatType(pathType)} as a file path",
                 "Write the path as a text literal like \"data.txt\", or use a text variable.");
+
+        RequireHandledStatement("opening a file", wos.Line, wos.Column,
+            "open a file without handling the failure");
 
         var streamType = wos.Mode == OpenMode.Reading
             ? (CufetType)new ReadableStreamType(CufetType.Text)

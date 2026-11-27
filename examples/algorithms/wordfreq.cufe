@@ -7,18 +7,23 @@ Define sample-text as "examples/assets/sample.txt".
 Pull a rabbit.
     Define counts as a map from text to number.
 
-    With the file sample-text open for reading as src:
-        Define content as read all from src.
-        Define normalized as replace "\n" with " " in content.
-        Define words as normalized split by " ".
-        For each word in words, repeat:
-            Define lower as word in lowercase.
-            Define w as lower trimmed.
-            If the length of w is 0, skip.
-            If not counts has an entry for w, in counts, the entry for w becomes 0.
-            Define current as the entry for w in counts but void is 0.
-            In counts, the entry for w becomes current + 1.
+    Try to:
+        With the file sample-text open for reading as src:
+            Define content as read all from src.
+            Define normalized as replace "\n" with " " in content.
+            Define words as normalized split by " ".
+            For each word in words, repeat:
+                Define lower as word in lowercase.
+                Define w as lower trimmed.
+                If the length of w is 0, skip.
+                If not counts has an entry for w, in counts, the entry for w becomes 0.
+                Define current as the entry for w in counts but void is 0.
+                In counts, the entry for w becomes current + 1.
+            Done.
         Done.
+    Done.
+    In case of failure:
+        State "could not read {sample-text}: {the message of the failure}".
     Done.
 
     Define entries as a series of records like (the text word, the number count).

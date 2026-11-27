@@ -1722,6 +1722,15 @@ public class CheckerParityTests(ITestOutputHelper output, CompiledCufetChecker c
         "Define seen as a set of text.\nState 1.\n",
         "Bind number to f:\n    Define seen as a set of text.\n    Return 1.\nDone.\nState cast f.\n",
         "Pull a book on collections.\n    Bind number to f:\n        Define seen as a set of text with (\"a\").\n        Return the number of seen.\n    Done.\nDone.\nState cast f.\n",
+        // A file statement is handled, as `Run X.` is, or refused (2026-11-27).
+        "Write \"x\" to the file \"zz-out.txt\".\n",
+        "Append \"x\" to the file \"zz-out.txt\".\n",
+        "Make the directory \"zz-dir\".\n",
+        "Remove the file \"zz-out.txt\".\n",
+        "Remove the directory \"zz-dir\".\n",
+        "The current directory becomes \"zz-dir\".\n",
+        "With the file \"zz-out.txt\" open for reading as s:\n    State read all from s.\nDone.\n",
+        "Try to:\n    Write \"x\" to the file \"zz-out.txt\".\n    Append \"y\" to the file \"zz-out.txt\".\n    Make the directory \"zz-dir\".\n    Remove the directory \"zz-dir\".\n    Remove the file \"zz-out.txt\".\n    The current directory becomes \"zz-dir\".\n    With the file \"zz-out.txt\" open for reading as s:\n        State read all from s.\n    Done.\nDone.\nIn case of failure:\n    State the message of the failure.\nDone.\n",
     ];
 
     /// <remarks>
