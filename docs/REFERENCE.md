@@ -574,7 +574,11 @@ That doesn't work: this judgement mixes arms that match a type with arms that ma
 
 > **The subject may be an expression.** Narrowing is variable-level, so `If` cannot narrow a value produced by an expression — you have to name it first. `Judge` names it for you, as `it`:
 >
-> ``` Judge item 1 of words, where it is: A text, state the length of it. Otherwise, state "not text". Done.
+> ```
+> Judge item 1 of words, where it is:
+>     A text, state the length of it.
+>     Otherwise, state "not text".
+> Done.
 > ```
 
 - Nothing may follow the `Otherwise` arm; an arm after the default could never run.
@@ -1049,7 +1053,10 @@ Define n as the length of greeting.
 
 > **What a character is.** Every position and count in this section — `the length of`, `the characters from`, `the first`/`last N characters`, and the position `the position of` returns — is measured in **Unicode code points**, identically on both backends.
 >
-> ``` State the length of "héllo".         → 5   (six bytes) State the length of "👍".            → 1   (four bytes) State the characters from 2 to 2 of "héllo".   → "é"
+> ```
+> State the length of "héllo".         → 5   (six bytes)
+> State the length of "👍".            → 1   (four bytes)
+> State the characters from 2 to 2 of "héllo".   → "é"
 > ```
 > A code point is not always what a reader would call one character. `é` can be written as the single code point U+00E9 or as `e` followed by a combining acute, and the second counts as
 > **2**. Counting what the eye sees means grapheme clusters, which need the Unicode segmentation tables — a dependency Cufet will not carry into the C it emits. Code points are exact, implementable the same way on both sides, and stated here rather than left to be discovered.
@@ -1172,8 +1179,8 @@ Define hundred as range 1 to 100.        ← also valid anywhere a series goes
 - `start` and `end` are number expressions (`range 1 to n`, `range x to y`).
 - The optional article reads naturally: `range 1 to 100` or `the range 1 to 100`.
 - **Inclusive of both ends:** `range 1 to 100` is `1, 2, ..., 100`.
-- **Ends below where it starts ⇒ EMPTY.** `range 1 to 0` is nothing at all, which is what makes `For each n in range 1 to the number of xs` right over an empty series. It does not turn around.
-- **To count down, say so:** `range 1 to 100 sorted in reverse`. A range is an ordinary series, so the operation that reverses one is the operation that reverses this.
+- **Ends below where it starts ⇒ EMPTY.** With `n` at 0, `range 1 to n` is nothing at all, which is what makes `For each n in range 1 to the number of xs` right over an empty series. It does not turn around. (Written out with both ends as numbers, it is refused instead: see below.)
+- **To count down, say so:** `(range 1 to 100) sorted in reverse`. A range is an ordinary series, so the operation that reverses one is the operation that reverses this. The brackets are needed: without them, `sorted in reverse` reads as part of the end, `100`.
 - It produces an ordinary `series of number` — all series operations apply.
 
 **A range written with both ends as literals, ending below where it starts, is refused** rather than quietly being empty, because it can only be a mistake. Where the fault is visible on the line, it is said out loud.
@@ -1405,7 +1412,7 @@ Define inventory as a series of records like (the text make, the number year).
 Insert a record with (the make "Ford", the year 2022) into inventory.
 ```
 
-A populated series infers its shape from the elements; an empty one declares it with `like (...)`. Either way, `add` enforces structural matching.
+A populated series infers its shape from the elements; an empty one declares it with `like (...)`. Either way, `Insert` enforces structural matching.
 
 **Equality:**
 ```cufet-fragment
@@ -1451,7 +1458,7 @@ Define mp as an atlas from text to (number or text) with ("x" : 42, "y" : "hello
 Define mp as an atlas from text to (number or text).    ← empty
 ```
 
-**Open** (any key or value):
+**Open** (text keys, any value):
 ```cufet
 Define mp as an atlas.
 ```
@@ -1464,7 +1471,7 @@ If v is not void:
 Done.
 ```
 
-All map operations apply: `the entry for`, `has a key for`, `has an entry for`, `becomes` (set), `Remove`, `the size of`, `for each`. Value-setting enforces the declared union type; the open atlas accepts any value.
+All map operations apply: `the entry for`, `has a key for`, `has an entry for`, `becomes` (set), `Remove`, `the size of`, `for each`. Value-setting enforces the declared union type; the open atlas accepts any value, under a text key.
 
 Atlases are **reference-typed** (like maps and series).
 
@@ -1558,10 +1565,13 @@ Left shifts widen so nothing is lost; **right shifts discard the low bits**, whi
 
 > **A shift does not add width the value does not occupy.** A result's width is the same rule everything else follows — the left operand's width, raised to fit the value — so a shift widens only when the value grows into the new positions. Leading zeros survive when there is a width to inherit them from, and cannot appear when there is not:
 >
-> ``` State 0b00001111 shifted left by 2.   // 0b00111100 — width 8 inherited, zeros kept State 0b1 shifted left by 2.          // 0b100 State 0b0 shifted left by 2.          // 0b0        — NOT 0b000
 > ```
-> The last one is the edge. `0b0` is one digit wide, the value stays zero however far it is shifted, and a width is only ever carried by the pattern — so there is nothing to widen. Build up from a literal of the width you want (`0b000`) when the leading zeros are the point, or track the width separately.
-> This bites hardest when a program computes codes of varying length — a Huffman table, a bit-packer — where the width is data rather than decoration. **A bits value's width cannot be read as a number**, so such a program must carry it in a second field. Both halves of that are on the roadmap.
+> State 0b00001111 shifted left by 2.   // 0b00111100 — width 8 inherited, zeros kept
+> State 0b1 shifted left by 2.          // 0b100
+> State 0b0 shifted left by 2.          // 0b0        — NOT 0b000
+> ```
+> The last one is the edge. `0b0` is one digit wide, the value stays zero however far it is shifted, and a width is only ever carried by the pattern — so there is nothing to widen. When the leading zeros are the point, say the width: `0b0 at 3 bits` is `0b000`.
+> This matters most when a program computes codes of varying length — a Huffman table, a bit-packer — where the width is data rather than decoration. `the width of` reads a width back as a number, and `at … bits` states one: see *A width is data*, below.
 
 #### Crossing over
 
@@ -1693,8 +1703,9 @@ Define car as a new vehicle { the make "Honda", the year 2021 }.
 ```cufet-fragment
 State car's make.               ← possessive: "Honda"
 State the make of car.          ← named: "Honda"
-State the first of car.         ← positional: "Honda"
 ```
+
+`the first of` reaches a positional field, one declared without a name (`with (text, the number year)`). `vehicle` has none, so `the first of car` is refused.
 
 **Leaving a blank** — a definition can leave the type of something to be said later. The blank is a name you choose, and `of` marks it:
 
@@ -1921,7 +1932,7 @@ Done.
 State cast describe on (a new square { the side 5 }).   → "area 25"
 ```
 
-`square` never writes a `describe` and still has one. Inside a default, `one` is the *conforming object*, not the interface — so a default reaches that type's own fields and methods, and specialises per conformer. Call a contract method with `cast area on one`; `one's area` yields the method rather than calling it.
+`square` never writes a `describe` and still has one. Inside a default, `one` is the *conforming object*, not the interface — so a default reaches that type's own fields and methods, and specialises per conformer. Call a contract method with `cast area on one`; `one's area` without `cast` is refused, because a method is used by calling it.
 
 - **A default satisfies conformance** — an interface's method list is what a conformer ends up with, not what it must write.
 - **A type's own method beats the default**, whether nested, `unto`, or promoted through an embedded type.
@@ -1951,7 +1962,7 @@ Done.
 - Sees `one` (the receiver) and the object's fields exactly like a nested method. Called identically too — `Cast greet on alice`, `Cast alice's greet` — indistinguishable at the call site from a nested method.
 - **Hoisted, order-independent** — the `unto` method may appear before or after `Define object <type>` in the file.
 - **Your own object types and interfaces only.** `unto` on an undefined name is a static error. This is not foreign-type extension and not overloading. `unto <interface>` means something different — it supplies a *default* for every conformer, described under [Interfaces](#interfaces-polymorphism) above, rather than attaching a method to one type.
-- **Method names are unique per type, regardless of where declared.** A name clash between a nested method and an `unto` method (or between two `unto` methods) on the *same* type is a static error. The same name `unto` *different* types is fine — there's no shared namespace across types.
+- **Method names are unique per type, regardless of where declared.** Two methods of one name on the *same* type are a static error, whether both are nested, both are `unto`, or one of each. The same name `unto` *different* types is fine — there's no shared namespace across types.
 - **Satisfies interface conformance** exactly as a nested method would — the conformance check looks for "does the type have a matching method?", not "where was it declared?"
 - **A definition that leaves a blank takes `unto` two ways.** Naming the template attaches the member to every filling; naming one filling attaches it to that filling alone:
 
@@ -2191,7 +2202,7 @@ vec2(x: 4, y: 6)
 The rules are deliberately narrow, which is what keeps the feature predictable:
 
 - **Only `+ - * /`.** Comparisons and `is` are not overloadable, so equality keeps one meaning everywhere — including inside `unique`, map keys, and `sorted`.
-- **The operand types are an ORDERED PAIR**, and at least one of them must be an object type you defined. `vec2 * number` declares that and only that — `number * vec2` is a separate declaration, written when you want it:
+- **The operand types are an ORDERED PAIR.** `vec2 * number` declares that and only that — `number * vec2` is a separate declaration, written when you want it:
 
   ```
   Bind overloading *, given (the lhs is a vec2, the rhs is a number):   ← u * 3
@@ -2565,7 +2576,9 @@ Cufet has a static type checker that runs before execution. It catches:
 - Using `Define a shadow x` when no outer `x` exists
 - `unto` naming an undefined type (an interface is fine — it supplies a default)
 - Two interfaces supplying the same defaulted method name to one type, unless that type writes its own
-- A method name clash between a nested method and an `unto` method (or between two `unto` methods) on the same object type
+- Two methods of one name on the same object type, nested or `unto`
+- `has a key for` asked of anything but a map, and `has` asked of anything but a set
+- A set made outside `Pull a book on collections.`
 - Reassigning a `permanently` binding with `becomes`
 - Dropping a failable (`failure T`) value without handling it (fallback, propagation, or enclosing `Try`) — unhandled failure is always a static error
 - Reading from a `writable stream of text`, or writing to a `readable stream of text` — stream direction is statically enforced
@@ -2950,10 +2963,12 @@ It is block-local to the handler either way. This is the pair `For each` already
 Exceptions **re-raise by default** after the handler runs. `Suppress the exception.` (only valid inside `In case of exception`) swallows the exception and continues execution after the `Try`:
 ```cufet-fragment
 In case of exception (the exception):
-    State "ignoring: {exception}".
+    State "ignoring: {the message of the exception}".
     Suppress the exception.
 Done.
 ```
+
+`Suppress the exception.` is written that way whatever the handler named what it caught: after `In case of exception (the trouble):` it is still `Suppress the exception.`, and `Suppress the trouble.` is refused. The exception itself cannot go in a text hole; its message can.
 
 Leaving the handler this way releases everything the handler opened — objects with unmakers are unmade, files opened inside it are closed — exactly as `Stop` does on the way out of a loop.
 
@@ -3819,7 +3834,7 @@ Interpreted, a pipe is buffered: each stage runs to completion and the next drai
 
 #### Restrictions
 
-- **A pipe is all function stages or all `run` stages** — the subprocess form (`run "ls" | run "wc"`, covered under Process execution) cannot be mixed with function stages. Doing so is rejected with a message naming the offending stage.
+- **A pipe is all function stages or all `run` stages** — the subprocess form (`run "ls" | run "wc"`, covered under Process execution) cannot be mixed with function stages. Doing so is refused.
 - **A stage function may be used at one input element type** across the whole program. Feeding the same function numbers in one pipe and text in another is a type error.
 
 #### How stage types are checked
@@ -4025,7 +4040,8 @@ Done.
 
 - **Folders only.** The filesystem lists the files; a file joins its folder by being there.
 - **Every folder, once there is a tree** — every folder with Cufet source in it or beneath it, so the drawing can be trusted to be the whole project. Folders with no Cufet source (build output, `.git`) are not drawn, and `books/` belongs to the pins.
-- **Read, never run.** `tree` must be `Return` of a written-out text; anything else in its body is refused, because resolving a name executes nothing. -**The drawing is read strictly**, since it is the one place indentation means something: tabs mixed with spaces, an indent matching no level above it, a folder that is not there, a folder drawn twice and a source folder left out are each refused, on the drawing's line.
+- **Read, never run.** `tree` must be `Return` of a written-out text; anything else in its body is refused, because resolving a name executes nothing.
+- **The drawing is read strictly**, since it is the one place indentation means something: tabs mixed with spaces, an indent matching no level above it, a folder that is not there, a folder drawn twice and a source folder left out are each refused, on the drawing's line.
 - **No tree, no change** — every folder is its own namespace.
 
 #### What a module carries
@@ -4281,9 +4297,7 @@ Compiled output is expected to equal interpreted output — that is enforced by 
 The exceptions are few and each is noted where it arises:
 
 - **Concurrency scheduling** — cooperative when interpreted, genuinely parallel when compiled. No interleaving is specified.
-- **`power` with a fractional exponent** may differ in its last digit; the underlying routine is the platform's own.
 - **Seeded randomness** is reproducible within a backend, not across them.
-- **Filesystem enumeration order** and **ASCII-versus-locale casing** are platform-owned.
 
 #### Platform notes
 

@@ -1248,7 +1248,7 @@ Cast area on (2, the height 5).
 
 ### Operator overloads
 
-- The operand types are an ordered pair, at least one an object type: `number * vec` and `vec * number` are two overloads.
+- The operand types are an ordered pair: `number * vec` and `vec * number` are two overloads. Any pair may be overloaded except `number op number` and `bits op bits`, which are built in.
 - Only `+`, `-`, `*` and `/` can be overloaded.
 - `a`, `an` and `the` cannot name parameters: use `lhs` and `rhs`. See REFERENCE, *Operator overloading*.
 
