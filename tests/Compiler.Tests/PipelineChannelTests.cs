@@ -712,7 +712,12 @@ public class PipelineChannelTests : PipelineTestBase
             .Replace('\\', '/');
         var src = $$"""
             Pull a rabbit.
-                Write "line one\nline two\nline three" to the file "{{path}}".
+                Try to:
+                    Write "line one\nline two\nline three" to the file "{{path}}".
+                Done.
+                In case of failure:
+                    State "fail".
+                Done.
                 For each n in the range 1 to 20, repeat:
                     Try to:
                         Define whole as read all from the file "{{path}}".
@@ -747,12 +752,17 @@ public class PipelineChannelTests : PipelineTestBase
         var src = $$"""
             Pull a rabbit.
                 For each n in the range 1 to 15, repeat:
-                    With the file "{{path}}" open for writing as out:
-                        write "line-a\nline-b\nline-c" to out.
+                    Try to:
+                        With the file "{{path}}" open for writing as out:
+                            write "line-a\nline-b\nline-c" to out.
+                        Done.
+                        With the file "{{path}}" open for reading as inp:
+                            Define lines as read all lines from inp.
+                            State the number of lines.
+                        Done.
                     Done.
-                    With the file "{{path}}" open for reading as inp:
-                        Define lines as read all lines from inp.
-                        State the number of lines.
+                    In case of failure:
+                        State "fail".
                     Done.
                 Done.
             Done.
